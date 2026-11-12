@@ -1,0 +1,251 @@
+{
+  "standard-contract": {
+    "version": "standard-review/v1",
+    "coverage": {
+      "scope": "complete-requested-change-set",
+      "targetBinding": "exact-review-target"
+    },
+    "evaluatorBoundary": {
+      "actorSeparation": "non-author",
+      "contextSource": "source-and-governing-project-context",
+      "excludedContext": [
+        "author-conclusions",
+        "preferred-fixes",
+        "self-verification-claims",
+        "suspected-weak-spots"
+      ]
+    },
+    "rubric": {
+      "version": "implementation-audit/v1",
+      "dimensions": [
+        "coherence-and-maintainability",
+        "correctness-and-failure-behavior",
+        "intent-and-scope",
+        "trust-boundaries-and-compatibility",
+        "verification-quality-and-missing-cases"
+      ]
+    },
+    "findingFloor": [
+      "actionable-materiality",
+      "rubric-failure-explanation",
+      "source-grounded-evidence",
+      "stable-locus"
+    ],
+    "cleanRule": {
+      "requiredCoverage": "complete-requested-change-set",
+      "requiredDimensionTreatment": "all-rubric-dimensions-considered",
+      "nonCleanResults": [
+        "ambiguous",
+        "failed",
+        "partial",
+        "unavailable"
+      ]
+    }
+  },
+  "requirement": {
+    "schemaVersion": 2,
+    "semanticsVersion": "review-gate/v2",
+    "targetId": "sha256:943a9bcb6db301bbd4b709fddcb55db6aadaf535f286d0dc085e5311e1e35926",
+    "kind": "standard-review",
+    "obligation": "required",
+    "reasons": [
+      "self-review-inactive",
+      "sensitive-change-set"
+    ],
+    "rubricVersion": "standard-review/v1",
+    "rubricDigest": "sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295",
+    "retrigger": "full-final",
+    "count": 1,
+    "acceptableSources": [
+      {
+        "sourceKind": "agent",
+        "qualifier": "standard-review/v1"
+      }
+    ],
+    "initialAdmission": "checkpoint",
+    "policyVersion": "sha256:29b569284cae0e2994196e727389f001a3a094c985ac974112c6be8f1cf22083",
+    "requirementId": "sha256:11b5d288dba8b817b2bf4357bf5cfe3c2e3c4b49d0f44404f8ea1c037dfaea7d"
+  },
+  "frontline-outcome": {
+    "schemaVersion": 1,
+    "semanticsVersion": "frontline-review/v1",
+    "source": {
+      "sourceId": "review-cli",
+      "kind": "command",
+      "executable": "reviewer",
+      "argv": []
+    },
+    "target": {
+      "schemaVersion": 2,
+      "semanticsVersion": "review-gate/v2",
+      "kind": "change-set",
+      "repositoryId": "example/repo",
+      "baseRef": "main",
+      "diffBaseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "diffBaseTree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "headSha": "cccccccccccccccccccccccccccccccccccccccc",
+      "headTree": "dddddddddddddddddddddddddddddddddddddddd",
+      "targetId": "sha256:943a9bcb6db301bbd4b709fddcb55db6aadaf535f286d0dc085e5311e1e35926"
+    },
+    "pass": 1,
+    "maxPasses": 2,
+    "outcome": "clean",
+    "findings": [],
+    "reason": null
+  },
+  "reservation": {
+    "schemaVersion": 1,
+    "semanticsVersion": "standard-review-reservation/v1",
+    "reservationId": "sha256:bbc585a1f817132be331df3804eeab0f4471d82594de1445f7002002e29bb832",
+    "sources": [
+      "codex-pr"
+    ],
+    "target": {
+      "kind": "pinned-head",
+      "repository": "example/repo",
+      "headSha": "cccccccccccccccccccccccccccccccccccccccc"
+    },
+    "obligation": {
+      "obligation": "required",
+      "reasons": [
+        "sensitive-change-set",
+        "self-review-inactive"
+      ],
+      "rubricVersion": "standard-review/v1",
+      "rubricDigest": "sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295",
+      "retrigger": "full-final",
+      "count": 1
+    }
+  },
+  "guidance": {
+    "schemaVersion": 1,
+    "semanticsVersion": "standard-review-guidance/v1",
+    "rubricVersion": "standard-review/v1",
+    "rubricDigest": "sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295",
+    "coverageInstructions": [
+      "Review the complete exact requested change set, not a sample or only the latest fix.",
+      "Bind the review to the exact requested target."
+    ],
+    "evaluatorInstructions": [
+      "Use a non-author evaluator working from source and governing project context.",
+      "Do not provide author conclusions, preferred fixes, self-verification claims, or suspected weak spots."
+    ],
+    "dimensions": [
+      {
+        "id": "coherence-and-maintainability",
+        "title": "Coherence and maintainability",
+        "instruction": "Check whether the change remains understandable, cohesive, and maintainable.",
+        "origin": "baseline"
+      },
+      {
+        "id": "correctness-and-failure-behavior",
+        "title": "Correctness and failure behavior",
+        "instruction": "Check normal behavior, boundary cases, and explicit failure handling.",
+        "origin": "baseline"
+      },
+      {
+        "id": "intent-and-scope",
+        "title": "Intent and scope",
+        "instruction": "Check that the complete change serves its stated intent without unrelated scope.",
+        "origin": "baseline"
+      },
+      {
+        "id": "trust-boundaries-and-compatibility",
+        "title": "Trust boundaries and compatibility",
+        "instruction": "Check authority boundaries, unsafe inputs, and compatibility obligations.",
+        "origin": "baseline"
+      },
+      {
+        "id": "verification-quality-and-missing-cases",
+        "title": "Verification quality and missing cases",
+        "instruction": "Check that verification proves the behavior and covers material missing cases.",
+        "origin": "baseline"
+      }
+    ],
+    "findingRequirements": [
+      {
+        "id": "actionable-materiality",
+        "title": "Actionable materiality",
+        "instruction": "State the material impact and an actionable correction boundary."
+      },
+      {
+        "id": "rubric-failure-explanation",
+        "title": "Rubric failure explanation",
+        "instruction": "Explain which rubric dimension fails and why."
+      },
+      {
+        "id": "source-grounded-evidence",
+        "title": "Source-grounded evidence",
+        "instruction": "Ground the finding in the reviewed source rather than speculation."
+      },
+      {
+        "id": "stable-locus",
+        "title": "Stable locus",
+        "instruction": "Name a stable code or document locus for the finding."
+      }
+    ],
+    "cleanInstructions": [
+      "Return clean only after the complete requested change set and every rubric dimension were considered.",
+      "Unavailable, partial, ambiguous, or failed review is never clean."
+    ],
+    "projectAugmentation": null
+  },
+  "activity": {
+    "selfReview": false,
+    "frontlineReview": true
+  },
+  "routing": {
+    "schemaVersion": 1,
+    "authorSelfReview": "exempt",
+    "frontlineAction": "attempt",
+    "standardReview": "required",
+    "retrigger": "full-final",
+    "assuranceMode": "terminal-aggregate",
+    "reasons": [
+      "sensitive-change-set",
+      "self-review-inactive"
+    ]
+  },
+  "promotion": {
+    "schemaVersion": 1,
+    "policyId": "example",
+    "authorSelfReview": "required",
+    "reasons": [
+      "project:example:explicit-review"
+    ]
+  },
+  "author-action": {
+    "kind": "run-self-review",
+    "command": "arc review pre-publication example --self-review settled",
+    "interactionText": "Run the aggregate author check."
+  },
+  "boundary-resolve": {
+    "schemaVersion": 1,
+    "mode": "review-resolve",
+    "diagnostics": [],
+    "state": "pass-complete",
+    "nextAction": "none",
+    "payload": {
+      "lane": "standard",
+      "scope": "whole-target",
+      "sourceId": "delegated-agent",
+      "pass": 1,
+      "completedPasses": 1,
+      "consumedPass": true,
+      "attemptedSources": [
+        {
+          "sourceId": "delegated-agent",
+          "outcome": "clean",
+          "reviewOperationId": "retained-review"
+        }
+      ],
+      "verifiedTerminalSignal": {
+        "reviewOperationId": "retained-review",
+        "confirmedFindingCount": 0,
+        "maxConfirmedSeverity": null,
+        "materialFix": false,
+        "coverageAdequate": true
+      }
+    }
+  }
+}

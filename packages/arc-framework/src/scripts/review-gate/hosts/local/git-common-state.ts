@@ -1,18 +1,18 @@
 /** Locked atomic state publication under a repository's Git common directory. */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { z } from "zod";
 
-import { atomicWriteFile } from "../../../../lib/fs.js";
+import { createProjectIdentityReader, resolveProjectIdentity, ProjectIdentityError } from "../../../../lib/store/project-identity.js";
+import type { ReviewInvocationOptions } from "../../runtime/invocation.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/user-sync/notes-lock.js";
-import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
-
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
+import { withAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/advisory-lock.js";
+import { resolveGitCommonDir } from "../../../../lib/git/exec.js";
 
 const RepositoryIdentityRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -22,82 +22,27 @@ const RepositoryIdentityRecordSchema = z.strictObject({
 
 const REPOSITORY_IDENTITY_RECORD = "repository-identity.json";
 
-/** Locked read/modify/publish boundary reusable by evidence and non-evidentiary state stores. */
-export interface GitCommonStatePublisher {
-  update<T>(
-    namespace: ReviewStateNamespace,
-    recordName: string,
-    update: (current: string | null) => { content: string | null; result: T }
-      | Promise<{ content: string | null; result: T }>,
-  ): Promise<T>;
-  read(namespace: ReviewStateNamespace, recordName: string): Promise<string | null>;
-}
-
-function assertRecordName(recordName: string): void {
-  if (!/^[a-z0-9][a-z0-9.-]*\.json$/u.test(recordName)) throw new Error("invalid review state record name");
-}
-
-/** Git-common-directory implementation with bounded advisory locking and atomic replacement. */
-export class RepositoryGitCommonStatePublisher implements GitCommonStatePublisher {
-  constructor(
-    private readonly exec: GitExec,
-    private readonly cwd: string,
-  ) {}
-
-  async read(namespace: ReviewStateNamespace, recordName: string): Promise<string | null> {
-    assertRecordName(recordName);
-    const path = await this.recordPath(namespace, recordName);
-    try {
-      return await readFile(path, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
-    }
+/** Read an existing repository identity without minting or locking state on first use. */
+export async function readRepositoryIdentity(
+  publisher: Pick<GitCommonStatePublisher, "read">,
+  invocation: Pick<ReviewInvocationOptions, "store" | "projectId"> = {},
+): Promise<string | null> {
+  if (invocation.store?.capabilities.stateOffBranch) {
+    return requireProjectIdentity(invocation.projectId ?? createProjectIdentityReader(invocation.store));
   }
-
-  async update<T>(
-    namespace: ReviewStateNamespace,
-    recordName: string,
-    update: (current: string | null) => { content: string | null; result: T }
-      | Promise<{ content: string | null; result: T }>,
-  ): Promise<T> {
-    assertRecordName(recordName);
-    const root = await this.namespaceRoot(namespace);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const lock = await acquireAdvisoryLock(join(root, ".write.lock"));
-    try {
-      const current = await this.read(namespace, recordName);
-      const next = await update(current);
-      if (next.content !== null) await atomicWriteFile(join(root, recordName), next.content);
-      return next.result;
-    } finally {
-      await releaseAdvisoryLock(lock);
-    }
-  }
-
-  private async namespaceRoot(namespace: ReviewStateNamespace): Promise<string> {
-    return join(await resolveGitCommonDir(this.exec, this.cwd), "arc", "review-gate", namespace);
-  }
-
-  private async recordPath(namespace: ReviewStateNamespace, recordName: string): Promise<string> {
-    return join(await this.namespaceRoot(namespace), recordName);
-  }
+  const raw = await publisher.read({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD);
+  return raw === null ? null : RepositoryIdentityRecordSchema.parse(JSON.parse(raw)).repositoryId;
 }
 
 /** Serialize local review source release across concurrent prepare, attest, and resume commands. */
-export async function withRepositoryReviewSweepLock<T>(
+export async function withRepositoryLocalReviewLock<T>(
   exec: GitExec,
   cwd: string,
   action: () => Promise<T>,
 ): Promise<T> {
   const root = join(await resolveGitCommonDir(exec, cwd), "arc", "review-gate");
   await mkdir(root, { recursive: true, mode: 0o700 });
-  const lock = await acquireAdvisoryLock(join(root, ".sweep.lock"));
-  try {
-    return await action();
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  return withAdvisoryLock(join(root, ".sweep.lock"), action);
 }
 
 /** Serialize one provider-effectful frontline operation across repository-local callers. */
@@ -114,32 +59,33 @@ export async function withRepositoryReviewOperationLock<T>(
     domain: "arc.review-gate.operation-lock/v1",
     operationId,
   }).slice("sha256:".length);
-  const lock = await acquireAdvisoryLock(join(root, `${lockId}.lock`), { maxWaitMs });
-  try {
-    return await action();
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  return withAdvisoryLock(join(root, `${lockId}.lock`), action, { maxWaitMs }, {
+    // The operation-specific wait has always applied only to acquisition.
+    releaseLock: (handle) => releaseAdvisoryLock(handle),
+  });
 }
 
 /**
- * Resolves the stable identity of one local repository, minting it on first use.
- *
- * The record lives under the Git common directory, so every linked worktree
- * resolves the same identity and checkout-path relocation cannot change it.
+ * Resolve the Store's project identity when operational state is off branch.
+ * Repository-backed invocations retain their UUID under the Git common directory.
  *
  * @param publisher - Locked repository-common state boundary.
  * @param mint - UUID minting seam for deterministic tests.
- * @returns The repository-local UUID.
+ * @param invocation - Selected operational Store and its bound project-identity reader.
+ * @returns The selected repository identity.
  */
 export async function resolveRepositoryIdentity(
   publisher: GitCommonStatePublisher,
   mint: () => string = randomUUID,
+  invocation: Pick<ReviewInvocationOptions, "store" | "projectId"> = {},
 ): Promise<string> {
-  return publisher.update("identity", REPOSITORY_IDENTITY_RECORD, (current) => {
+  if (invocation.store?.capabilities.stateOffBranch) {
+    return requireProjectIdentity(invocation.projectId ?? createProjectIdentityReader(invocation.store));
+  }
+  return publisher.update({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD, (current) => {
     if (current !== null) {
       return {
-        content: null,
+        kind: "keep",
         result: RepositoryIdentityRecordSchema.parse(JSON.parse(current)).repositoryId,
       };
     }
@@ -150,8 +96,15 @@ export async function resolveRepositoryIdentity(
       repositoryId: mint(),
     });
     return {
+      kind: "write",
       content: `${JSON.stringify(record)}\n`,
       result: record.repositoryId,
     };
   });
+}
+
+async function requireProjectIdentity(reader: () => Promise<string>): Promise<string> {
+  const result = await resolveProjectIdentity(reader);
+  if (result.status !== "ready") throw new ProjectIdentityError(result);
+  return result.id;
 }

@@ -1,7 +1,20 @@
+import { withReviewReport } from "../../../../fixtures/review-report-input.js";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+
 import {
+  candidateReviewResponses,
+  createCandidateReviewResponseEvidence,
+  createCandidateSubjectSnapshot,
+  projectCandidateCurrentness,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
+import {
+  ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   createFrontlineOutcomeRecord,
   type ApprovedDispositionRecord,
 } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
@@ -10,238 +23,165 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
-import {
-  createReviewRequirement,
-  createReviewTarget,
-} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
-import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
-import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
-import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+
+import type { LocalReviewAuthority } from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
+
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
+
+import { laneContinuationOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
+
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+
 import {
   respondToReviewCommand,
+  UnchangedVerifiedFixTargetError,
   type RespondCommandDependencies,
 } from "../../../../../src/scripts/review-gate/runtime/respond-command.js";
-import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
-const objectId = (character: string): string => character.repeat(40);
-
-function fixture() {
-  const target = createReviewTarget({
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    kind: "change-set",
-    repositoryId: "repo-1",
-    baseRef: "main",
-    diffBaseSha: objectId("a"),
-    diffBaseTree: objectId("b"),
-    headSha: objectId("c"),
-    headTree: objectId("d"),
-  });
-  const requirement = createReviewRequirement({
-    target,
-    projection: {
-      obligation: "recommended",
-      reasons: ["routine-code"],
-      rubricVersion: "standard-review/v1",
-      rubricDigest: digest("rubric"),
-      retrigger: "full-final",
-      count: 1,
-    },
-    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
-    initialAdmission: "checkpoint",
-  });
-  if (requirement === null) throw new Error("expected requirement");
-  const authority = {
-    vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
-    authorIdentity: "author-1",
-    evaluatorIdentity: "evaluator-1",
-    attestationRuntimeKind: "arc-cli",
-    runtimeIdentity: "arc-cli/0.1.0",
-    attestationMechanism: "local-attestation" as const,
-  };
-  const admission = createLocalReviewAdmission({
-    target,
-    requirement,
-    authority,
-    policyBindingDigest: digest("binding"),
-    requestMechanism: "local-attestation",
-  });
-  const source = createLocalReviewSource({
-    schemaVersion: 1,
-    semanticsVersion: "git-object-range/v1",
-    repositoryId: target.repositoryId,
-    targetId: target.targetId,
-    objectFormat: "sha1",
-    diffBaseSha: target.diffBaseSha,
-    diffBaseTree: target.diffBaseTree,
-    headSha: target.headSha,
-    headTree: target.headTree,
-    reachabilityRef: `refs/arc/review/local/${admission.operationId}`,
-    materializationRef: `/tmp/${admission.operationId}`,
-  });
-  const operation: LocalReviewState = {
-    schemaVersion: 1,
-    semanticsVersion: "review-operation/v1",
-    kind: "local-review",
-    operationId: admission.operationId,
-    updatedAt: "2026-07-23T17:00:00Z",
-    vehicle: authority.vehicle,
-    repositoryId: target.repositoryId,
-    targetId: target.targetId,
-    requestId: admission.carrier.request.requestId,
-    policyVersion: requirement.policyVersion,
-    policyBindingDigest: admission.policyBindingDigest,
-    attestationRuntimeKind: authority.attestationRuntimeKind,
-    sourceRef: "source.json",
-    sourceDigest: source.sourceDigest,
-    guidanceDigest: digest("guidance"),
-    target,
-    requirement,
-    request: admission.carrier.request,
-    attestation: admission.carrier.attestation,
-    cleanupTtlMs: 60_000,
-  };
-  const finding = {
-    findingId: "finding-1",
-    severity: "major" as const,
-    locus: "src/index.ts:7",
-    evidenceUrlOrId: "review:finding-1",
-  };
-  const receipt = createLocalReviewReceipt({
-    target,
-    requirement,
-    carrier: admission.carrier,
-    result: {
-      status: "complete",
-      result: "findings",
-      repositoryId: target.repositoryId,
-      targetId: target.targetId,
-      headSha: target.headSha,
-      headTree: target.headTree,
-      rubricVersion: requirement.rubricVersion,
-      rubricDigest: requirement.rubricDigest,
-      sourceDigest: source.sourceDigest,
-      guidanceDigest: operation.guidanceDigest,
-      evaluatorIdentity: authority.evaluatorIdentity,
-      reviewRunId: "run-1",
-      applicabilityId: null,
-      findings: [finding],
-    },
-    runtimeIdentity: authority.runtimeIdentity,
-    attestationMechanism: authority.attestationMechanism,
-    sourceDigest: source.sourceDigest,
-    guidanceDigest: operation.guidanceDigest,
-  });
-  const receiptRef = bindReviewSourceReference({
-    kind: "attested-local",
-    operationId: operation.operationId,
-    durableRef: "git-common:review-gate/evidence/receipts-v2.json#1",
-  });
-  return { target, authority, operation, source, receipt, receiptRef, finding };
-}
-
-function approved(input: {
-  targetId: string;
-  policyVersion: string;
-  rubricVersion: string;
-  rubricDigest: string;
-  sourceIdentity: string;
-  finding: ReturnType<typeof fixture>["finding"];
-  disposition?: "fix" | "defer" | "reject";
-  proposedBy?: string;
-  approvedBy?: string;
-}) {
-  const disposition = input.disposition ?? "fix";
-  return approveDispositionState({
-    proposed: proposeDispositionSet(createDispositionSet({
-      schemaVersion: 2,
-      semanticsVersion: "review-gate/v2",
-      targetId: input.targetId,
-      policyVersion: input.policyVersion,
-      rubricVersion: input.rubricVersion,
-      rubricDigest: input.rubricDigest,
-      proposedBy: input.proposedBy ?? "arc-cli/0.1.0",
-      findings: [{
-        findingId: input.finding.findingId,
-        sourceIdentity: input.sourceIdentity,
-        locus: input.finding.locus,
-        sourceVerification: "verified",
-        verificationRefs: ["source:src/index.ts:7"],
-        severity: input.finding.severity,
-        disposition,
-        gating: "blocking",
-        rationale: "The selected source supports this disposition.",
-        recommendation: disposition === "fix" ? "Apply the fix." : "Record the disposition.",
-        openQuestions: [],
-      }],
-    })),
-    approvedBy: input.approvedBy ?? "author-1",
-    approvedAt: "2026-07-23T20:00:00Z",
-  });
-}
-
-function dependencies(records: ReturnType<typeof fixture>) {
-  let disposition: ApprovedDispositionRecord | null = null;
-  const deps: RespondCommandDependencies = {
-    operationStore: {
-      readOperation: async () => ({ version: 1, state: records.operation }),
-      publishOperation: vi.fn(),
-    },
-    sourceStore: {
-      readSource: async () => records.source,
-      appendSource: vi.fn(),
-    },
-    outcomeStore: {
-      readOutcome: vi.fn(),
-      appendOutcome: vi.fn(),
-    },
-    dispositionStore: {
-      readDispositionRecord: async () => disposition,
-      appendDispositionRecord: async (record) => {
-        if (disposition !== null && canonicalize(disposition) !== canonicalize(record)) {
-          throw new Error("conflict");
-        }
-        disposition = record;
-        return { dispositionRecordRef: "git-common:review-gate/evidence/disposition.json" };
-      },
-    },
-    readReceipt: async () => records.receipt,
-    confirmTarget: async (target) => ({ state: "current", target }),
-    resolveLocalActors: async () => ({
-      approverIdentity: records.authority.authorIdentity,
-      proposerIdentity: records.authority.runtimeIdentity,
-    }),
-    resolveFrontlineActors: async () => ({
-      approverIdentity: records.authority.authorIdentity,
-      proposerIdentity: records.authority.runtimeIdentity,
-    }),
-  };
-  return deps;
-}
-
-function localRequest(
-  records: ReturnType<typeof fixture>,
-  disposition: "fix" | "defer" | "reject" = "fix",
-) {
-  return {
-    schemaVersion: 1,
-    source: { kind: "attested-local", receiptRef: records.receiptRef },
-    dispositions: approved({
-      targetId: records.target.targetId,
-      policyVersion: records.operation.policyVersion,
-      rubricVersion: records.operation.requirement.rubricVersion,
-      rubricDigest: records.operation.requirement.rubricDigest,
-      sourceIdentity: records.authority.evaluatorIdentity,
-      finding: records.finding,
-      disposition,
-    }),
-  };
-}
+import {
+  digest,
+  objectId,
+  memberVehicle,
+  workUnitVehicle,
+  errandVehicle,
+  activeErrandBinding,
+  fixture,
+  deliveryLocalFixture,
+  approved,
+  localResult,
+  dependencies,
+  CANDIDATE_RECORD_PATH,
+  candidateSubject,
+  candidateRecord,
+  effectiveCurrent,
+  effectiveChanged,
+  candidateLineageBinding,
+  lineageDependencies,
+  verifiedFixRequest,
+  localRequest,
+  policyRequest,
+  hostedResponseFixture,
+  hostedResult,
+  frontlineFixture,
+  foreignApproval,
+  frontlineResult,
+} from "../../../../fixtures/respond-command.js";
 
 describe("review response command", () => {
+  it("routes an approved local delivery-member fix through selector-free correction", async () => {
+    const records = deliveryLocalFixture();
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), dependencies(records))).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: records.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
+    });
+  });
+
+  it("binds an exact unowned local disposition to its admitted delivery member", async () => {
+    const records = deliveryLocalFixture();
+    const seedDeps = dependencies(records);
+    const appended: ApprovedDispositionRecord[] = [];
+    seedDeps.dispositionStore.appendDispositionRecord = async (record) => {
+      appended.push(record);
+      return { dispositionRecordRef: "git-common:review-gate/evidence/disposition.json" };
+    };
+    await respondToReviewCommand(withReviewReport(localRequest(records)), seedDeps);
+    const bound = appended[0];
+    if (bound === undefined) throw new Error("expected a bound disposition record");
+    const unowned = ApprovedDispositionRecordSchema.parse({ ...bound, deliveryMember: null });
+    const deps = dependencies(records);
+    deps.dispositionStore.readDispositionRecord = async () => unowned;
+    deps.dispositionStore.appendDispositionRecord = async () => ({
+      dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: { deliveryMember: records.vehicle },
+    });
+  });
+
+  it("rejects an author proposal that omits the explicit verified judgment", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records))).rejects.toThrow();
+  });
+
+  it("rejects an author proposal that omits the approved verification scope", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records))).rejects.toThrow("proposedVerification");
+  });
+
+  it("rejects an author proposal that omits the effective severity-gating policy", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records))).rejects.toThrow("severityGatingPolicy");
+  });
+
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
     const records = fixture();
     const earlierFinding = {
@@ -249,18 +189,24 @@ describe("review response command", () => {
       severity: "major" as const,
       locus: "src/earlier.ts:3",
       evidenceUrlOrId: "review:finding-0",
+      sourceOrdinal: 2,
     };
     records.receipt.findings.push(earlierFinding);
 
-    await expect(respondToReviewCommand({
+    await expect(respondToReviewCommand(withReviewReport({
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -268,13 +214,16 @@ describe("review response command", () => {
           findingId: earlierFinding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/earlier.ts:3"],
+          verifiedSeverity: "minor",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
         }],
       },
-    }, dependencies(records))).resolves.toMatchObject({
+    }), dependencies(records))).resolves.toMatchObject({
       state: "awaiting-approval",
       nextAction: "obtain-approval",
       payload: {
@@ -287,20 +236,1871 @@ describe("review response command", () => {
             rubricVersion: records.operation.requirement.rubricVersion,
             rubricDigest: records.operation.requirement.rubricDigest,
             proposedBy: records.authority.runtimeIdentity,
+            proposedVerification: "focused",
             findings: [{
               findingId: earlierFinding.findingId,
               sourceIdentity: records.authority.evaluatorIdentity,
               locus: earlierFinding.locus,
-              severity: earlierFinding.severity,
-              gating: "blocking",
+              reportedSeverity: earlierFinding.severity,
+              verifiedSeverity: "minor",
+              gating: "record-only",
             }, {
               findingId: records.finding.findingId,
               sourceIdentity: records.authority.evaluatorIdentity,
               locus: records.finding.locus,
-              severity: records.finding.severity,
+              reportedSeverity: records.finding.severity,
+              verifiedSeverity: "major",
               gating: "blocking",
             }],
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          },
+        },
+        dispositionReportText: `**Standard code review — pass 1, delegated agent (local)** · 🟠 1 major · 🟡 1 minor
+
+| # | Grade | Finding | Action |
+|---|---|---|---|
+| F1 | 🟠 major | Finding title | FIX (local correction) |
+| F2 | 🟡 minor | Finding title | FIX (local correction) |
+
+### F1 — Finding title
+
+🟠 major · FIX (local correction) · fails Correctness and failure behavior
+
+**Finding:** The reviewer's claim.
+
+**Action:** Apply the fix.
+
+**Detail:** The selected source supports this disposition.
+
+---
+
+### F2 — Finding title
+
+🟡 minor · reviewer graded 🟠 major · FIX (local correction) · fails Correctness and failure behavior
+
+**Finding:** The reviewer's claim.
+
+**Action:** Apply the fix.
+
+**Detail:** The selected source supports this disposition.
+
+---
+
+**Decisions**
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Recommended: Check approved repairs before considering a successor complete pass.
+
+Approve: 2 fixes → focused verification → commit → push?`,
+        dispositionEvidenceText: [
+          "**Evidence**",
+          "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
+          "- F2 · src/earlier.ts:3 · source #2 · review:finding-0 · verified at source:src/earlier.ts:3",
+        ].join("\n"),
+      },
+    });
+  });
+
+  it.each([
+    { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "fix" as const,
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      consequenceText: " Approving a FIX moves the head, which needs a fix check, round 1 since pass 2, where its chain is proven." },
+    { logicalPass: 1, maxPasses: 3, severity: "major" as const, disposition: "fix" as const,
+      capPosition: "below-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      consequenceText: " Approving a FIX moves the head, which needs a fix check, round 1 since pass 1, where its chain is proven." },
+    { logicalPass: 2, maxPasses: 2, severity: "minor" as const, disposition: "fix" as const,
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "decided-at-fixed-head" },
+      consequenceText: " Approving a FIX moves the head; review status there decides whether another complete pass is needed." },
+    { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "defer" as const,
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "no-fix" }, consequenceText: "" },
+  ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses for a $severity "
+    + "$disposition", async ({
+    logicalPass, maxPasses, severity, disposition, capPosition, stopReason, consequence, consequenceText,
+  }) => {
+    const records = fixture(workUnitVehicle, undefined, undefined, "whole-target", logicalPass);
+    const deps = dependencies(records);
+    deps.readConfiguredLanePolicy = async () => ({ sources: ["delegated-agent"], maxPasses });
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: severity,
+          disposition,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports a fix.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    expect(response).toMatchObject({
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+      payload: {
+        provisionalPassAssessment: {
+          status: "provisional",
+          lane: "standard",
+          admittedLogicalPass: logicalPass,
+          configuredMaxPasses: maxPasses,
+          proposedSignal: {
+            confirmedFindingCount: 1,
+            maxConfirmedSeverity: severity,
+            materialFix: disposition === "fix" && severity === "major",
+          },
+          capPosition,
+          fixConsequence: consequence,
+          potentialStopReason: stopReason,
+          nextPassAuthority: "none",
+        },
+      },
+    });
+    if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
+    const assessment = response.payload.provisionalPassAssessment;
+    const position = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over limit)" }[capPosition];
+    const symbol = { minor: "🟡", major: "🟠", critical: "🔴" }[severity];
+    expect(assessment.summaryText).toBe(
+      `Standard code review — pass ${logicalPass}${position}, delegated agent (local). `
+        + `1 confirmed finding, highest ${symbol} ${severity}.${consequenceText}`,
+    );
+    expect(response.payload.dispositionReportText).toContain("### F1 — ");
+    expect(response.payload.dispositionReportText).toContain("**Standard code review — pass ");
+  });
+
+  const errandLineage = {
+    kind: "head-bound", vehicleKind: "errand", vehicleIdentity: errandVehicle.claimId, headSha: objectId("c"),
+  } as const;
+
+  function localErrandCase(logicalPass: number) {
+    const records = fixture(errandVehicle, undefined, errandLineage, "whole-target", logicalPass);
+    const deps = dependencies(records);
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    return { records, deps, source: { kind: "attested-local" as const, receiptRef: records.receiptRef } };
+  }
+
+  function hostedCase(
+    vehicle: LocalReviewAuthority["vehicle"],
+    adapt: (result: Extract<ReviewResult, { kind: "hosted" }>) => ReviewResult = (result) => result,
+  ) {
+    const hosted = hostedResponseFixture("review-thread", vehicle);
+    const deps = dependencies(hosted.records);
+    const result = hostedResult(hosted);
+    if (result.kind !== "hosted") throw new Error("expected a hosted result fixture");
+    deps.resultReader.readResult = async () => adapt(result);
+    return { records: hosted.records, deps, source: { kind: "hosted" as const, attemptRef: hosted.attemptRef } };
+  }
+
+  function hostedErrandCase(sourceIdentity: string, retrigger: "incremental" | "full-final") {
+    const entry = hostedCase(workUnitVehicle, (result) => ({
+      ...result,
+      sourceIdentity,
+      admission: { ...result.admission, lineage: errandLineage },
+      requirement: { ...result.requirement, retrigger },
+    }));
+    entry.deps.resolveActiveErrand = async () => activeErrandBinding();
+    return entry;
+  }
+
+  function frontlineCase(recordedMaxPasses = 2) {
+    const records = fixture(errandVehicle);
+    const { record, durableRef, outcomeRef, operation } = frontlineFixture(records, recordedMaxPasses);
+    const deps = dependencies(records);
+    deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
+    deps.readCandidateLineage = async () => null;
+    return { records, deps, source: { kind: "frontline" as const, outcomeRef } };
+  }
+
+  it.each([
+    { name: "a full-final local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
+      consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard code review — pass 1, delegated agent (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2." },
+    { name: "a local Errand's minor fix at the ceiling", build: () => localErrandCase(2), severity: "minor" as const,
+      consequence: { kind: "ceiling-decision" },
+      text: "Standard code review — pass 2 (limit reached), delegated agent (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
+        + "head, and another complete pass needs a ceiling decision." },
+    { name: "a codex-pr Errand review's incremental minor fix", build: () => hostedErrandCase("codex-pr", "incremental"),
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1, Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is proven.",
+      decision: "- After the fix: standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is "
+        + "proven. Recommended: " },
+    { name: "a codex-pr Errand review's incremental minor fix at the ceiling",
+      build: () => hostedErrandCase("codex-pr", "incremental"), maxPasses: 1,
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1 (limit reached), Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves "
+        + "the head, which needs a fix check, round 1 since pass 1, where its chain is proven, or another complete pass, "
+        + "which needs a ceiling decision." },
+    { name: "a full-final hosted Errand review's material fix", build: () => hostedErrandCase("coderabbit-pr", "full-final"),
+      severity: "major" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
+    { name: "a full-final coderabbit-pr Errand review's fix",
+      build: () => hostedErrandCase("coderabbit-pr", "full-final"),
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2." },
+    { name: "a coderabbit-pr Errand review's fix once that source is removed",
+      build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard code review — pass 1, CodeRabbit (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard complete pass 2, or a fix check, round 1 since pass 1, where its chain is proven." },
+    { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
+      consequence: { kind: "lane-closes" },
+      text: "Standard code review — pass 1, Codex (hosted). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+        + "another standard complete pass." },
+    { name: "a frontline minor fix", build: () => frontlineCase(), severity: "minor" as const,
+      consequence: { kind: "lane-closes" },
+      text: "Frontline code review — pass 1, coderabbit-cli (local). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+        + "another frontline pass." },
+    { name: "a frontline major fix", build: () => frontlineCase(), severity: "major" as const,
+      consequence: { kind: "next-pass", coverage: null },
+      text: "Frontline code review — pass 1, coderabbit-cli (local). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+        + "needs frontline pass 2." },
+    { name: "a frontline major fix at its recorded ceiling", build: () => frontlineCase(1),
+      severity: "major" as const, consequence: { kind: "ceiling-decision" },
+      text: "Frontline code review — pass 1 (limit reached), coderabbit-cli (local). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
+        + "head, and another pass needs a ceiling decision." },
+  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], maxPasses: 2,
+    decision: undefined as string | undefined, ...row })))(
+    "states what approving $name does to the lane",
+    async ({ build, configuredSources, maxPasses, severity, consequence, text, decision }) => {
+      const { records, deps, source } = build();
+      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses });
+      const response = await respondToReviewCommand(withReviewReport({
+        schemaVersion: 1,
+        source,
+        proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: [{
+            findingId: records.finding.findingId,
+            sourceVerification: "verified",
+            verificationRefs: ["source:src/index.ts:7"],
+            verifiedSeverity: severity,
+            disposition: "fix",
+            title: "Finding title",
+            issue: "The reviewer's claim.",
+            rationale: "The source supports a fix.",
+            recommendation: "Apply the fix.",
+            openQuestions: [],
+          }],
+        },
+      }), deps);
+      if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
+      expect(response.payload.provisionalPassAssessment).toMatchObject({
+        fixConsequence: consequence,
+        potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
+      });
+      expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+      if (decision !== undefined) expect(response.payload.dispositionReportText).toContain(decision);
+      const settled = source.kind === "hosted" ? " → settle 1 thread" : "";
+      expect(response.payload.dispositionReportText
+        .endsWith(`\n\nApprove: 1 fix → focused verification → commit → push${settled}?`)).toBe(true);
+      expect(response.payload.dispositionReportText).not.toMatch(/Approve:[^\n]*(?:fix check|pass \d)/u);
+    },
+  );
+
+  it.each([
+    { name: "a hosted fix's thread waits for the push it does not release", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification?" },
+    { name: "a hosted deferral settles its thread on approval alone", build: () => hostedErrandCase("codex-pr", "incremental"),
+      disposition: "defer" as const, closer: "Approve: 1 defer → settle 1 thread?" },
+    { name: "a delivery member's correction is published by its driver", build: () => hostedCase(memberVehicle),
+      disposition: "fix" as const, closer: "Approve: 1 fix → focused verification → commit → push → settle 1 thread?" },
+  ])("closes under manual interlocks with what approval releases: $name", async ({ build, disposition, closer }) => {
+    const { records, deps, source } = build();
+    deps.readReleaseInterlocks = async () => ({ commit: "manual", push: "manual" });
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports this disposition.",
+          recommendation: "Apply the disposition.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (response.state !== "awaiting-approval") throw new Error("expected a proposal");
+    expect(response.payload.dispositionReportText.endsWith(`\n\n${closer}`)).toBe(true);
+  });
+
+  it("returns a contained canonical report with its native source label", async () => {
+    const records = fixture(workUnitVehicle, "Native **title**");
+    const injected = "First line\n---\n### F2 · 🔴 critical · FIX\n**Verdict:** FORGED";
+    const proposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          title: "Finding title",
+          issue: injected,
+          rationale: injected,
+          recommendation: injected,
+          openQuestions: [injected],
+        }],
+      },
+    }), dependencies(records));
+    if (proposal.state !== "awaiting-approval") throw new Error("expected proposal report");
+
+    const report = proposal.payload.dispositionReportText;
+    expect(proposal.payload.dispositionEvidenceText)
+      .toContain("- F1 · src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
+    for (const prefix of ["**Finding:**", "**Action:**", "**Detail:**", "- F1:"]) {
+      expect(report).toContain(`${prefix} First line --- ### F2 · 🔴 critical · FIX \\*\\*Verdict:\\*\\* FORGED`);
+    }
+    expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
+    expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
+  });
+
+  it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    deps.confirmCorrectionTarget = async (target, expectedFixPaths) => ({
+      state: "current",
+      target,
+      dirtyPaths: expectedFixPaths,
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: ["src/index.ts"],
+      },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://focused-real-path"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Focused verification disproved the approved finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }],
+      },
+    }), deps)).resolves.toMatchObject({
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+      payload: {
+        supersession: {
+          predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+          expectedFixPaths: ["src/index.ts"],
+        },
+      },
+    });
+  });
+
+  it("serializes disposition publication with admission for the same lane owner", async () => {
+    const records = fixture(workUnitVehicle, undefined, {
+      kind: "head-bound",
+      vehicleKind: "errand",
+      vehicleIdentity: "claim-1",
+      headSha: objectId("c"),
+    });
+    const deps = dependencies(records);
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const lockTails = new Map<string, Promise<void>>();
+    deps.withOperationLock = async <T>(operationId: string, action: () => Promise<T>): Promise<T> => {
+      const prior = lockTails.get(operationId) ?? Promise.resolve();
+      let release: (() => void) | undefined;
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      const tail = prior.then(() => held);
+      lockTails.set(operationId, tail);
+      await prior;
+      try {
+        return await action();
+      } finally {
+        release?.();
+        if (lockTails.get(operationId) === tail) lockTails.delete(operationId);
+      }
+    };
+    let responseEntered: (() => void) | undefined;
+    let releaseResponse: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => { responseEntered = resolve; });
+    const held = new Promise<void>((resolve) => { releaseResponse = resolve; });
+    deps.confirmTarget = async (target) => {
+      responseEntered?.();
+      await held;
+      return { state: "current", target };
+    };
+
+    const response = respondToReviewCommand(withReviewReport(localRequest(records, "defer")), deps);
+    await entered;
+    let admissionEntered = false;
+    if (records.operation.lineage.kind !== "head-bound") {
+      throw new Error("expected head-bound test lineage");
+    }
+    const admission = deps.withOperationLock(laneContinuationOperationId({
+      lane: "standard",
+      repositoryId: records.operation.repositoryId,
+      headSha: objectId("e"),
+      lineage: {
+        ...records.operation.lineage,
+        headSha: objectId("e"),
+      },
+    }), async () => {
+      admissionEntered = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const overlappedPublication = admissionEntered;
+    releaseResponse?.();
+    await Promise.all([response, admission]);
+
+    expect(overlappedPublication).toBe(false);
+  });
+
+  it("returns typed conditional-authority withdrawal and refusal results", async () => {
+    const records = fixture();
+    const authorizationId = digest("conditional-authorization");
+    const dispositionSetId = digest("approved-disposition");
+    const request = {
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      conditionalNextPassWithdrawal: {
+        conditionalPassAuthorizationId: authorizationId,
+        dispositionSetId,
+        withdrawnBy: records.authority.authorIdentity,
+      },
+    } as const;
+    const withdrawn = Object.assign(dependencies(records), {
+      withdrawConditionalNextPass: async () => ({
+        state: "withdrawn" as const,
+        authorizationId,
+        dispositionSetId,
+      }),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(request), withdrawn)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      nextAction: "stop",
+      payload: {
+        operationId: records.operation.operationId,
+        authorizationId,
+        dispositionSetId,
+        replayed: false,
+      },
+    });
+    const producedTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: records.target.kind,
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("9"),
+      headTree: objectId("8"),
+    });
+    const movedHead = Object.assign(dependencies(records), {
+      confirmTarget: async () => ({
+        state: "stale-target" as const,
+        attemptedTarget: records.target,
+        currentTarget: producedTarget,
+      }),
+      withdrawConditionalNextPass: withdrawn.withdrawConditionalNextPass,
+    });
+    await expect(respondToReviewCommand(withReviewReport(request), movedHead)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      payload: { authorizationId, dispositionSetId },
+    });
+    const refused = Object.assign(dependencies(records), {
+      withdrawConditionalNextPass: async () => ({
+        state: "refused" as const,
+        reason: "consumed" as const,
+        detail: "consumed conditional pass authorization cannot be withdrawn",
+      }),
+    });
+    await expect(respondToReviewCommand(withReviewReport(request), refused)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawal-refused",
+      nextAction: "stop",
+      payload: { operationId: records.operation.operationId, reason: "consumed" },
+    });
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      conditionalNextPassWithdrawal: {
+        ...request.conditionalNextPassWithdrawal,
+        withdrawnBy: "another-approver",
+      },
+    }), withdrawn)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawal-refused",
+      nextAction: "stop",
+      payload: { operationId: records.operation.operationId, reason: "foreign-authority" },
+    });
+  });
+
+  it("returns typed refusals when correction proposal target preconditions fail", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    const currentHeadSha = objectId("f");
+    const request = {
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: ["src/index.ts"],
+      },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://focused-real-path"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Focused verification disproved the approved finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }],
+      },
+    } as const;
+    deps.confirmCorrectionTarget = async (target) => ({
+      state: "stale-head",
+      attemptedTarget: target,
+      currentHeadSha,
+    });
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        operationId: records.operation.operationId,
+        reason: "head-moved",
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        attemptedTarget: records.target,
+        currentHeadSha,
+      },
+    });
+
+    deps.confirmCorrectionTarget = async (target) => ({
+      state: "unexpected-dirty-paths",
+      target,
+      unexpectedPaths: ["src/unrelated.ts"],
+    });
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        operationId: records.operation.operationId,
+        reason: "unexpected-dirty-paths",
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        unexpectedPaths: ["src/unrelated.ts"],
+      },
+    });
+  });
+
+  it("refuses disposition supersession after its Candidate fix authorization was consumed", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    await respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an advanced Candidate record");
+    deps.readCandidateLineage = async () => ({
+      ...candidateLineageBinding(records, advanced, current),
+      recordVersion: canonicalDigest(advanced),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: [],
+      },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://post-consumption"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The correction arrived after the approved fix was consumed.",
+          recommendation: "Preserve the consumed response history.",
+          openQuestions: [],
+        }],
+      },
+    }), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        reason: "fix-consumed",
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+      },
+    });
+  });
+
+  it("permits a clean-worktree correction of a record-only predecessor", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records, "defer");
+    await respondToReviewCommand(withReviewReport(original), deps);
+
+    const request = {
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: [],
+      },
+      proposal: {
+        proposedVerification: "targeted",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://record-only-correction"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "New source evidence disproved the record-only judgment.",
+          recommendation: "Replace the deferral with a rejection.",
+          openQuestions: [],
+        }],
+      },
+    } as const;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      supersedes: { ...request.supersedes, expectedFixPaths: ["src/index.ts"] },
+    }), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: { reason: "dirty-paths-without-fix-authorization" },
+    });
+  });
+
+  it("corrects a pinned delivery-member record from a successor checkout", async () => {
+    const records = deliveryLocalFixture();
+    const deps = dependencies(records);
+    const original = localRequest(records, "defer");
+    await respondToReviewCommand(withReviewReport(original), deps);
+    deps.confirmCorrectionTarget = async (target) => ({
+      state: "stale-head",
+      attemptedTarget: target,
+      currentHeadSha: objectId("e"),
+    });
+    deps.confirmPinnedDeliveryMemberTarget = async () => records.target;
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: [],
+      },
+      proposal: {
+        proposedVerification: "targeted",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://pinned-member-correction"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence disproved the original deferral.",
+          recommendation: "Record the corrected finding judgment.",
+          openQuestions: [],
+        }],
+      },
+    }), deps)).resolves.toMatchObject({ state: "awaiting-approval" });
+  });
+
+  it("publishes a freshly approved successor and returns its response plan", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    const supersedes = {
+      predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://focused-real-path"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Focused verification disproved the approved finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const conflictingProposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["verification://conflicting-successor"],
+          verifiedSeverity: "major",
+          disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "A different successor conflicts with the already-published edge.",
+          recommendation: "Do not replace the published successor.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (conflictingProposed.state !== "awaiting-approval") throw new Error("expected conflicting proposal");
+    const successor = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    const conflictingSuccessor = approveDispositionState({
+      proposed: conflictingProposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:01:00Z",
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    }), deps)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "reduce",
+      payload: {
+        supersession: {
+          status: "published",
+          predecessorDispositionSetId: supersedes.predecessorDispositionSetId,
+          successorDispositionSetId: successor.dispositionSet.dispositionSetId,
+          carriedFindingIds: [],
+          reopenedFindingIds: [],
+        },
+      },
+    });
+    const record = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(record).toMatchObject({
+      currentDispositionSetId: successor.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        successorDispositionSetId: successor.dispositionSet.dispositionSetId,
+      }, {
+        predecessorDispositionSetId: supersedes.predecessorDispositionSetId,
+        successorDispositionSetId: null,
+        approvedDisposition: successor,
+      }],
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: conflictingSuccessor,
+    }), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        reason: "predecessor-not-current",
+        predecessorDispositionSetId: supersedes.predecessorDispositionSetId,
+        currentDispositionSetId: successor.dispositionSet.dispositionSetId,
+      },
+    });
+  });
+
+  it("publishes and replays a two-finding successor when a correction reverses canonical order", async () => {
+    const records = fixture();
+    const earlierFinding = {
+      findingId: "finding-0",
+      severity: "major" as const,
+      locus: "src/index.ts:8",
+      evidenceUrlOrId: "review:finding-0",
+      sourceOrdinal: 2,
+    };
+    records.receipt.findings.push(earlierFinding);
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    const source = original.source;
+    const originalProposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [earlierFinding, records.finding].map((finding) => ({
+          findingId: finding.findingId,
+          sourceVerification: "verified" as const,
+          verificationRefs: [`source:${finding.locus}`],
+          verifiedSeverity: "major" as const,
+          disposition: "fix" as const,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The selected source supports this finding.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        })),
+      },
+    }), deps);
+    if (originalProposal.state !== "awaiting-approval") throw new Error("expected original proposal");
+    const predecessor = approveDispositionState({
+      proposed: originalProposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T21:00:00Z",
+    });
+    await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      policyRequest: original.policyRequest,
+      dispositions: predecessor,
+    }), deps);
+
+    const supersedes = {
+      predecessorDispositionSetId: predecessor.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const successorProposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: earlierFinding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://earlier-finding-correction"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Focused verification disproved this finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }, {
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The selected source still supports this finding.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (successorProposal.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: successorProposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    expect(predecessor.dispositionSet.findings.map(({ findingId }) => findingId)).toEqual([
+      earlierFinding.findingId, records.finding.findingId,
+    ]);
+    expect(successor.dispositionSet.findings.map(({ findingId }) => findingId)).toEqual([
+      records.finding.findingId, earlierFinding.findingId,
+    ]);
+
+    const request = {
+      schemaVersion: 1,
+      source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    } as const;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { supersession: { status: "published" } },
+    });
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { supersession: { status: "replayed" } },
+    });
+    const record = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(record?.approvedDispositionLineage).toHaveLength(2);
+    expect(record?.currentDispositionSetId).toBe(successor.dispositionSet.dispositionSetId);
+  });
+
+  it("refuses a consumed conditional authorization before publishing its successor", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    const supersedes = {
+      predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://consumed-authorization"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The conditional next pass already consumed this authorization.",
+          recommendation: "Preserve the consumed admission and predecessor evidence.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    deps.preflightConditionalNextPassInvalidation = async () => ({
+      state: "refused",
+      reason: "fix-consumed",
+      detail: "consumed conditional pass authorization cannot be superseded",
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    }), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: { reason: "fix-consumed" },
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId))
+      .resolves.toMatchObject({
+        currentDispositionSetId: supersedes.predecessorDispositionSetId,
+        approvedDispositionLineage: [{ successorDispositionSetId: null }],
+      });
+  });
+
+  it("repairs successor publication when predecessor authorization invalidation was interrupted", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(withReviewReport(original), deps);
+    const supersedes = {
+      predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://focused-real-path"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Focused verification disproved the approved finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }],
+        severityGatingPolicy: { minorGating: "record-only" },
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    let invalidationAttempts = 0;
+    deps.invalidateConditionalNextPass = async () => {
+      invalidationAttempts += 1;
+      if (invalidationAttempts === 1) throw new Error("invalidation write interrupted");
+    };
+    const request = {
+      schemaVersion: 1,
+      source: original.source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    } as const;
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("invalidation write interrupted");
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "already-settled",
+      payload: {
+        supersession: {
+          status: "replayed",
+          predecessorDispositionSetId: supersedes.predecessorDispositionSetId,
+          successorDispositionSetId: successor.dispositionSet.dispositionSetId,
+        },
+      },
+    });
+    const record = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(record?.approvedDispositionLineage).toHaveLength(2);
+  });
+
+  it("keeps the approved reduced report stable across approval and settlement replay", async () => {
+    const records = fixture(workUnitVehicle, "N-7");
+    const deps = dependencies(records);
+    const source = { kind: "attested-local", receiptRef: records.receiptRef } as const;
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The reviewer alleges this branch enters a failing path, but source verification shows it "
+            + "is unreachable, so no execution failure occurs.",
+          recommendation: "Reject the finding without changing code.",
+          openQuestions: ["Should the reviewer clarify the cited execution path?"],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
+    const expectedReport = proposed.payload.dispositionReportText;
+    expect(expectedReport).not.toContain("| F1 |");
+    expect(expectedReport).toContain("### F1 — Finding title\n\n— · Not supported · reviewer graded 🟠 major · REJECT");
+    const dispositions = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
+
+    const approvedRequest = {
+      schemaVersion: 1,
+      source,
+      policyRequest: policyRequest(records),
+      dispositions,
+    } as const;
+    const approvedReport = `**Approved disposition set ${dispositions.dispositionSet.dispositionSetId}** · full verification
+
+### F1 — Finding title
+
+— · Not supported · reviewer graded 🟠 major · REJECT
+
+**Finding:** The reviewer's claim.
+
+**Action:** Reject the finding without changing code.
+
+**Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.`;
+    await expect(respondToReviewCommand(withReviewReport(approvedRequest), deps)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "reduce",
+      payload: { dispositionReportText: approvedReport },
+    });
+    await expect(respondToReviewCommand(withReviewReport(approvedRequest), deps)).resolves.toMatchObject({
+      state: "already-settled",
+      nextAction: "reduce",
+      payload: { dispositionReportText: approvedReport },
+    });
+    await expect(respondToReviewCommand(withReviewReport({
+      ...approvedRequest,
+      settledFixTarget: records.target,
+    }), deps)).resolves.toMatchObject({
+      state: "already-settled",
+      nextAction: "reduce",
+      payload: { dispositionReportText: approvedReport },
+    });
+  });
+
+  it("settles a hosted body finding into its lane continuation without Candidate authority", async () => {
+    const hosted = hostedResponseFixture("review-body");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    deps.readCandidateLineage = async () => null;
+    const bind = vi.fn(async () => undefined);
+    deps.bindHostedDisposition = bind;
+    const disposition = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      proposedVerification: "focused",
+      disposition: "defer",
+    });
+
+    const approvedRequest = {
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions: disposition,
+    } as const;
+    // A hosted attempt leaves no durable operation to reduce, so every settled answer names the lane continuation.
+    await expect(respondToReviewCommand(withReviewReport(approvedRequest), deps))
+      .resolves.toMatchObject({ state: "settled", nextAction: "continue-review" });
+    await expect(respondToReviewCommand(withReviewReport(approvedRequest), deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "continue-review" });
+    await expect(respondToReviewCommand(withReviewReport({ ...approvedRequest, settledFixTarget: hosted.records.target }), deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "continue-review" });
+    expect(bind).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: hosted.operation.operationId,
+      attemptId: attempt.attemptId,
+      findingDispositions: [{
+        findingId: hosted.records.finding.findingId,
+        disposition: "defer",
+        channelAction: "record-only",
+      }],
+    }));
+  });
+
+  it("returns hosted settlement as the selected response before reducing a record-only thread", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const disposition = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions: disposition,
+    }), deps)).resolves.toMatchObject({
+      state: "ready-to-settle",
+      nextAction: "settle-hosted",
+      payload: {
+        hostedSettlementPlan: {
+          actorIdentity: "host-actor-1",
+          beforeFixFindingIds: [hosted.records.finding.findingId],
+          afterFixFindingIds: [],
+        },
+      },
+    });
+  });
+
+  it("names no thread count for a superseding hosted proposal, whose settlement depends on what it reopens", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const original = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+    const source = { kind: "hosted" as const, attemptRef: hosted.attemptRef };
+    await respondToReviewCommand(withReviewReport({ schemaVersion: 1, source, dispositions: original,
+      policyRequest: policyRequest(hosted.records, { sourceId: "codex-pr", reviewOperationId: attempt.attemptId,
+        pullRequest: 42 }) }), deps);
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes: { predecessorDispositionSetId: original.dispositionSet.dispositionSetId, expectedFixPaths: [] },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence changes the approved channel action.",
+          recommendation: "Reject the finding with a corrected response.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    expect(proposed.payload.dispositionReportText.endsWith("\n\nApprove: 1 reject?")).toBe(true);
+  });
+
+  it("carries compatible hosted settlement and reopens only a changed successor action", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    let settled = false;
+    deps.resultReader.readResult = async () => ({ ...hostedResult(hosted), settled });
+    const original = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+    const source = { kind: "hosted" as const, attemptRef: hosted.attemptRef };
+    const policy = policyRequest(hosted.records, {
+      sourceId: "codex-pr",
+      reviewOperationId: attempt.attemptId,
+      pullRequest: 42,
+    });
+    await respondToReviewCommand(withReviewReport({ schemaVersion: 1, source, policyRequest: policy, dispositions: original }), deps);
+    settled = true;
+    const supersedes = {
+      predecessorDispositionSetId: original.dispositionSet.dispositionSetId,
+      expectedFixPaths: [],
+    };
+    const proposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes,
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence preserves the approved deferral.",
+          recommendation: "Retain the recorded deferral.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: hosted.records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    deps.supersedeHostedDisposition = async () => ({
+      state: "advanced",
+      carriedFindingIds: [hosted.records.finding.findingId],
+      reopenedFindingIds: [],
+    });
+
+    const response = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      policyRequest: policy,
+      supersedes,
+      dispositions: successor,
+    }), deps);
+    expect(response).toMatchObject({
+      state: "settled",
+      nextAction: "continue-review",
+      payload: {
+        supersession: {
+          carriedFindingIds: [hosted.records.finding.findingId],
+          reopenedFindingIds: [],
+        },
+      },
+    });
+    expect("hostedSettlementPlan" in response.payload).toBe(false);
+
+    const nextSupersedes = {
+      predecessorDispositionSetId: successor.dispositionSet.dispositionSetId,
+      expectedFixPaths: [],
+    };
+    const nextProposed = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source,
+      supersedes: nextSupersedes,
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "Fresh evidence changes the approved channel action.",
+          recommendation: "Reject the finding with a corrected response.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (nextProposed.state !== "awaiting-approval") throw new Error("expected second successor proposal");
+    const nextSuccessor = approveDispositionState({
+      proposed: nextProposed.payload.proposal,
+      approvedBy: hosted.records.authority.authorIdentity,
+      approvedAt: "2026-07-23T23:00:00Z",
+    });
+    deps.supersedeHostedDisposition = async () => ({
+      state: "advanced",
+      carriedFindingIds: [],
+      reopenedFindingIds: [hosted.records.finding.findingId],
+    });
+
+    const reopenedRequest = {
+      schemaVersion: 1,
+      source,
+      policyRequest: policy,
+      supersedes: nextSupersedes,
+      dispositions: nextSuccessor,
+    } as const;
+    deps.preflightHostedDisposition = async () => ({
+      state: "refused",
+      reason: "hosted-settlement-conflict",
+      detail: "hosted predecessor settlement cannot be attributed exactly",
+    });
+    await expect(respondToReviewCommand(withReviewReport(reopenedRequest), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        reason: "hosted-settlement-conflict",
+        predecessorDispositionSetId: nextSupersedes.predecessorDispositionSetId,
+      },
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(hosted.records.operation.operationId))
+      .resolves.toMatchObject({
+        currentDispositionSetId: successor.dispositionSet.dispositionSetId,
+      });
+    deps.preflightHostedDisposition = async () => ({ state: "ready" });
+    await expect(respondToReviewCommand(withReviewReport(reopenedRequest), deps)).resolves.toMatchObject({
+      state: "ready-to-settle",
+      nextAction: "settle-hosted",
+      payload: {
+        supersession: {
+          carriedFindingIds: [],
+          reopenedFindingIds: [hosted.records.finding.findingId],
+        },
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [hosted.records.finding.findingId],
+          afterFixFindingIds: [],
+        },
+      },
+    });
+
+    deps.supersedeHostedDisposition = async () => ({
+      state: "refused",
+      reason: "hosted-settlement-conflict",
+      detail: "hosted predecessor settlement cannot be attributed exactly",
+    });
+    await expect(respondToReviewCommand(withReviewReport(reopenedRequest), deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: {
+        reason: "hosted-settlement-conflict",
+        predecessorDispositionSetId: nextSupersedes.predecessorDispositionSetId,
+      },
+    });
+  });
+
+  it("returns hosted settlement re-entry for an approved thread fix", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const disposition = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+    });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions: disposition,
+    }), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: {
+        reentryCommand: "respond-verified-fix",
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+  });
+
+  it("records a verified hosted delivery-member fix at the authoritative current member target", async () => {
+    const hosted = hostedResponseFixture("review-thread", memberVehicle);
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    deps.readCandidateLineage = async () => null;
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: hosted.records.target.repositoryId,
+      baseRef: hosted.records.target.baseRef,
+      diffBaseSha: hosted.records.target.diffBaseSha,
+      diffBaseTree: hosted.records.target.diffBaseTree,
+      headSha: objectId("1"),
+      headTree: objectId("2"),
+    });
+    const hostedFixTarget = {
+      ...attempt.hosted.target,
+      headSha: currentTarget.headSha,
+    };
+    const dispositions = approved({
+      targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      proposedVerification: "focused",
+    });
+    const request = {
+      schemaVersion: 1 as const,
+      source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions,
+    };
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: attempt.hosted.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
+    });
+    const verifiedRequest = {
+      ...request,
+      verifiedFix: {
+        applicability: "focused" as const,
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    };
+    await expect(respondToReviewCommand(withReviewReport(verifiedRequest), deps))
+      .rejects.toThrow("authoritative current delivery-member target is unavailable");
+    const withCurrentMember = Object.assign(deps, {
+      resolveDeliveryMemberFixTarget: async () => ({ currentTarget, hostedFixTarget }),
+    });
+    await expect(respondToReviewCommand(withReviewReport(verifiedRequest), withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-advanced",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+    const reboundDisposition = vi.fn(async () => undefined);
+    withCurrentMember.bindHostedDisposition = reboundDisposition;
+    await expect(respondToReviewCommand(withReviewReport(verifiedRequest), withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-current",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+    expect(reboundDisposition).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: hosted.operation.operationId,
+      attemptId: attempt.attemptId,
+      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      findingDispositions: [{
+        findingId: hosted.records.finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
+    }));
+  });
+
+  it("orders unchanged-head hosted settlements before fixes in a mixed approved set", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const reviewedFinding = attempt.hosted.sealedResult?.findings[0];
+    if (reviewedFinding?.origin !== "review-thread") throw new Error("missing hosted thread finding fixture");
+    const deferredFinding = {
+      ...reviewedFinding,
+      findingId: "finding-deferred",
+      commentId: "comment-2",
+      threadId: "thread-2",
+      locus: "src/deferred.ts:9",
+      url: "https://example.test/thread-2",
+      sourceOrdinal: 2,
+    };
+    attempt.hosted = createHostedTerminalAttemptFixture({
+      admission: attempt.hosted.admission,
+      artifact: attempt.hosted.handle!.artifact,
+      outcome: "findings",
+      findings: [reviewedFinding, deferredFinding],
+    }).hosted;
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    const disposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: hosted.records.target.targetId,
+        producerId: attempt.attemptId,
+        resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+        policyVersion: attempt.hosted.requirement.policyVersion,
+        rubricVersion: attempt.hosted.requirement.rubricVersion,
+        rubricDigest: attempt.hosted.requirement.rubricDigest,
+        proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "full",
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: hosted.records.finding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          reportedSeverity: hosted.records.finding.severity,
+          verifiedSeverity: hosted.records.finding.severity,
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The finding requires a code change.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }, {
+          findingId: deferredFinding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: deferredFinding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/deferred.ts:9"],
+          reportedSeverity: deferredFinding.severity,
+          verifiedSeverity: deferredFinding.severity,
+          disposition: "defer",
+          gating: "blocking",
+          rationale: "The finding belongs to follow-up work.",
+          recommendation: "Record the deferral.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "author-1",
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions: disposition,
+    }), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: {
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [deferredFinding.findingId],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+  });
+
+  it("preserves reported and verified grades without collapsing either judgment", async () => {
+    const records = fixture();
+    const proposal = async (
+      sourceVerification: "verified" | "not-supported",
+      verifiedSeverity: "critical" | null,
+    ) =>
+      respondToReviewCommand(withReviewReport({
+        schemaVersion: 1,
+        source: { kind: "attested-local", receiptRef: records.receiptRef },
+        proposal: {
+          proposedVerification: "full",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: [{
+            findingId: records.finding.findingId,
+            sourceVerification,
+            verificationRefs: ["source:src/index.ts:7"],
+            verifiedSeverity,
+            disposition: sourceVerification === "verified" ? "fix" : "reject",
+            title: "Finding title",
+            issue: "The reviewer's claim.",
+            rationale: "The selected source determines this disposition.",
+            recommendation: sourceVerification === "verified" ? "Apply the fix." : "Reject the finding.",
+            openQuestions: [],
+          }],
+        },
+      }), dependencies(records));
+
+    const regraded = await proposal("verified", "critical");
+    if (regraded.state !== "awaiting-approval") throw new Error("regraded proposal was not materialized");
+    const regradedFinding = regraded.payload.proposal.dispositionSet.findings[0];
+    expect(regradedFinding).toMatchObject({ reportedSeverity: "major", verifiedSeverity: "critical" });
+
+    const unsupported = await proposal("not-supported", null);
+    if (unsupported.state !== "awaiting-approval") throw new Error("unsupported proposal was not materialized");
+    const unsupportedFinding = unsupported.payload.proposal.dispositionSet.findings[0];
+    expect(unsupportedFinding).toMatchObject({
+      sourceVerification: "not-supported",
+      reportedSeverity: "major",
+      verifiedSeverity: null,
+      disposition: "reject",
+      gating: "record-only",
+    });
+  });
+
+  it("rejects retired blocker severity in an author proposal", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "blocker",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The finding requires a code change.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records))).rejects.toThrow();
+  });
+
+  it("preserves a reported nit independently from a non-minor verified grade", async () => {
+    const hosted = hostedResponseFixture("review-thread", workUnitVehicle, true);
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+
+    const proposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports a non-minor primary grade.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    if (proposal.state !== "awaiting-approval") throw new Error("hosted proposal was not materialized");
+
+    expect(proposal.payload.dispositionReportText).toContain(" · fails Correctness and failure behavior\n");
+    expect(proposal.payload.dispositionReportText).not.toContain("Agent's reading");
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{ reportedSeverity: "minor", reportedNit: true, verifiedSeverity: "major" }],
+          },
+        },
+      },
+    });
+    expect(proposal.payload.dispositionReportText).toContain(
+      "### F1 — Finding title\n\n🟠 major · reviewer graded 🟡 minor nit · FIX (local correction)",
+    );
+  });
+
+  it("preserves a verified nit independently from a non-nit reported grade", async () => {
+    const records = fixture();
+
+    const proposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "blocking" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          verifiedNit: true,
+          disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports a verified polish-only issue.",
+          recommendation: "Record the non-blocking disposition.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records));
+
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{
+              reportedSeverity: "major",
+              verifiedSeverity: "minor",
+              verifiedNit: true,
+              gating: "record-only",
+            }],
+          },
+        },
+      },
+    });
+  });
+
+  it("applies the proposal's effective policy to an ordinary verified minor", async () => {
+    const records = fixture();
+
+    const proposal = await respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "blocking" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source supports an ordinary verified minor.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }), dependencies(records));
+
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{ verifiedSeverity: "minor", gating: "blocking" }],
           },
         },
       },
@@ -309,7 +2109,7 @@ describe("review response command", () => {
 
   it("reloads local receipt and source authority and returns a validated fix authorization", async () => {
     const records = fixture();
-    await expect(respondToReviewCommand(localRequest(records), dependencies(records))).resolves.toMatchObject({
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), dependencies(records))).resolves.toMatchObject({
       state: "ready-to-fix",
       nextAction: "apply-fix",
       payload: {
@@ -319,20 +2119,344 @@ describe("review response command", () => {
           oldTargetId: records.target.targetId,
           authorizedFindingIds: ["finding-1"],
         },
-        reentryCommand: "local-prepare",
+        reentryCommand: "respond-verified-fix",
       },
     });
+  });
+
+  it("appends approval before resolving policy and returns the response-first continuation", async () => {
+    const records = fixture();
+    const deps = dependencies(records) as RespondCommandDependencies & {
+      resolvePolicy(request: unknown): Promise<unknown>;
+    };
+    const policy = {
+      schemaVersion: 1 as const,
+      mode: "review-resolve" as const,
+      diagnostics: [],
+      state: "findings" as const,
+      nextAction: "respond" as const,
+      payload: {
+        lane: "standard" as const,
+        scope: "whole-target" as const,
+        sourceId: "delegated-agent",
+        pass: 1,
+        completedPasses: 1,
+        consumedPass: true as const,
+        attemptedSources: policyRequest(records).attempts,
+        verifiedTerminalSignal: {
+          reviewOperationId: records.operation.operationId,
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major" as const,
+          materialFix: true,
+          coverageAdequate: true,
+        },
+        postResponseAction: "resolve-next-pass" as const,
+      },
+    };
+    deps.resolvePolicy = async () => {
+      const appended = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+      if (appended === null) throw new Error("policy ran before approval append");
+      return policy;
+    };
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      policyRequest: policyRequest(records),
+    }), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+      payload: {
+        policy,
+        policyRequest: policyRequest(records),
+      },
+    });
+  });
+
+  it("serializes response publication through the source operation boundary", async () => {
+    const records = fixture();
+    const deps = dependencies(records) as RespondCommandDependencies & {
+      withOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
+    };
+    let operationLocked = false;
+    const append = deps.dispositionStore.appendDispositionRecord.bind(deps.dispositionStore);
+    deps.dispositionStore.appendDispositionRecord = async (record) => {
+      if (!operationLocked) throw new Error("response publication escaped its operation lock");
+      return append(record);
+    };
+    deps.withOperationLock = async (_operationId, action) => {
+      operationLocked = true;
+      try {
+        return await action();
+      } finally {
+        operationLocked = false;
+      }
+    };
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
+  });
+
+  it("refuses approved response input that omits its governing policy continuation", async () => {
+    const records = fixture();
+    const request: Record<string, unknown> = { ...localRequest(records) };
+    delete request.policyRequest;
+
+    await expect(respondToReviewCommand(withReviewReport(request), dependencies(records)))
+      .rejects.toThrow("policyRequest");
+  });
+
+  it("refuses absent or foreign terminal policy producers before publishing approval", async () => {
+    const records = fixture();
+    const request = localRequest(records);
+    for (const attempts of [[], [{
+      sourceId: "delegated-agent",
+      outcome: "findings" as const,
+      reviewOperationId: "foreign-producer",
+    }]]) {
+      const deps = dependencies(records);
+      await expect(respondToReviewCommand(withReviewReport({
+        ...request,
+        policyRequest: { ...request.policyRequest, attempts },
+      }), deps)).rejects.toThrow("exact findings producer");
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId))
+        .resolves.toBeNull();
+    }
+  });
+
+  it("repairs a pending approved policy projection before fix performance", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const request = localRequest(records);
+    const originalResolvePolicy = deps.resolvePolicy;
+    deps.resolvePolicy = async (policy, target) => {
+      if (policy.standardReview.reasons.includes("project:review:stale-policy-context")) {
+        throw new Error("policy context unavailable");
+      }
+      return originalResolvePolicy(policy, target);
+    };
+    const invalidPolicy = {
+      ...request.policyRequest,
+      standardReview: {
+        ...request.policyRequest.standardReview,
+        reasons: ["project:review:stale-policy-context"],
+      },
+    };
+    await expect(respondToReviewCommand(withReviewReport({ ...request, policyRequest: invalidPolicy }), deps))
+      .rejects.toThrow("policy context unavailable");
+    const pending = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(pending === null ? null : currentApprovedDispositionNode(pending).policyProjectionPending)
+      .toBe(true);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
+    const resolved = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    if (resolved === null) throw new Error("approved response disappeared");
+    expect(currentApprovedDispositionNode(resolved).policyProjectionPending).toBeUndefined();
+    expect(currentApprovedDispositionNode(resolved).responsePolicyRequest)
+      .toEqual(request.policyRequest);
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
+  });
+
+  it("persists conditional next-pass consent after approval and dispatches nothing when capture fails", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const settle = vi.fn(async () => undefined);
+    deps.settleLaneFindings = settle;
+    deps.captureConditionalNextPass = async () => {
+      const appended = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+      if (appended === null) throw new Error("capture ran before approval append");
+      throw new Error("capture write failed");
+    };
+    const base = policyRequest(records);
+    const request = localRequest(records);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: records.authority.authorIdentity,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    }), deps)).rejects.toThrow("capture write failed");
+    expect(settle).not.toHaveBeenCalled();
+  });
+
+  it("refuses a foreign conditional authorizer before appending the approved disposition", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const base = policyRequest(records);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: "different-author",
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    }), deps)).rejects.toThrow("authorizer is not the active local identity");
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+  });
+
+  it.each(["defer", "reject"] as const)(
+    "refuses conditional next-pass consent on a %s-only approval before appending, then settles it without one",
+    async (disposition) => {
+      const records = fixture();
+      const deps = dependencies(records);
+      const capture = vi.spyOn(deps, "captureConditionalNextPass");
+      const base = policyRequest(records);
+
+      await expect(respondToReviewCommand(withReviewReport({
+        ...localRequest(records, disposition),
+        policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 } },
+        conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 },
+      }), deps)).rejects.toMatchObject({
+        code: "invalid-input",
+        message: expect.stringContaining("omit the authorization and its ceiling override"),
+      });
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+      expect(capture).not.toHaveBeenCalled();
+
+      await expect(respondToReviewCommand(withReviewReport(localRequest(records, disposition)), deps)).resolves
+        .toMatchObject({ state: "settled", nextAction: "reduce" });
+      expect(capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["one pass short of its producer", 0, 1],
+    ["a skipped pass", 1, 3],
+  ])("refuses a conditional authorization naming %s before appending, then settles the corrected approval", async (
+    _label, exhaustedPassCount, nextPass,
+  ) => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const capture = vi.spyOn(deps, "captureConditionalNextPass");
+    const base = policyRequest(records);
+    const approval = (passes: { exhaustedPassCount: number; nextPass: number }) => withReviewReport({
+      ...localRequest(records),
+      policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, ...passes } },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, ...passes },
+    });
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount, nextPass }), deps)).rejects.toMatchObject({
+      code: "invalid-input",
+      message: expect.stringContaining("exhaust the producer's logical pass 1 and name pass 2"),
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(capture).not.toHaveBeenCalled();
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount: 1, nextPass: 2 }), deps)).resolves
+      .toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    expect(capture).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a native decision reference on a repository approval before appending it, and settles without one", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const base = policyRequest(records);
+    const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
+    const approval = (override: typeof ceilingOverride & { decisionKey?: ReturnType<typeof canonicalDigest> }) => withReviewReport({
+      ...localRequest(records), policyRequest: { ...base, ceilingOverride: override },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } });
+
+    await expect(respondToReviewCommand(approval({ ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) }), deps))
+      .rejects.toMatchObject({ code: "invalid-input", message: expect.stringContaining("omit decisionKey") });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+  });
+
+  it("returns the persisted conditional next-pass authorization with the response action", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const base = policyRequest(records);
+
+    const result = await respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: records.authority.authorIdentity,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    }), deps);
+    if (result.state !== "ready-to-fix" || !("conditionalPassAuthorizationId" in result.payload)) {
+      throw new Error("expected a fix response with conditional pass authorization");
+    }
+    const authorizationId = result.payload.conditionalPassAuthorizationId;
+    expect(result).toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: {
+          ceilingOverride: {
+            conditionalPassAuthorizationId: authorizationId,
+          },
+        },
+      },
+    });
+  });
+
+  it("does not derive conditional next-pass consent from disposition approval alone", async () => {
+    const records = fixture();
+    const base = policyRequest(records);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+    }), dependencies(records))).rejects.toThrow("explicit conditional next-pass authorization");
   });
 
   it("returns settled and then already-settled for an identical non-fix replay", async () => {
     const records = fixture();
     const deps = dependencies(records);
     const request = localRequest(records, "defer");
-    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({ state: "settled" });
-    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({ state: "already-settled" });
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({ state: "settled" });
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({ state: "already-settled" });
   });
 
-  it("returns stale-target before appending dispositions when the reviewed target moved", async () => {
+  it("returns stale-target before appending dispositions when the reviewed Candidate content moved", async () => {
     const records = fixture();
     const deps = dependencies(records);
     const appendDispositionRecord = vi.fn();
@@ -352,9 +2476,17 @@ describe("review response command", () => {
       attemptedTarget: records.target,
       currentTarget,
     });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: candidateSubject("changed") };
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      current,
+      effective: effectiveChanged(lineage.record, current),
+    });
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
-    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
       payload: {
@@ -366,11 +2498,49 @@ describe("review response command", () => {
     expect(appendDispositionRecord).not.toHaveBeenCalled();
   });
 
+  it("accepts an operational-only stale target when the managed Candidate subject is unchanged", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("e"),
+      headTree: objectId("f"),
+    });
+    deps.confirmTarget = async () => ({
+      state: "stale-target",
+      attemptedTarget: records.target,
+      currentTarget,
+    });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: lineage.record.subject };
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      current,
+      effective: effectiveCurrent(lineage.record, current),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+      payload: { operationId: records.operation.operationId },
+    });
+  });
+
   it("refuses actor identities that do not come from the trusted boundary", async () => {
     const records = fixture();
+    const result = localResult(records);
     const request = localRequest(records);
     request.dispositions = approved({
       targetId: records.target.targetId,
+      producerId: result.producerId,
+      resultDigest: result.resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -378,79 +2548,143 @@ describe("review response command", () => {
       finding: records.finding,
       proposedBy: "other-runtime",
     });
-    await expect(respondToReviewCommand(request, dependencies(records)))
+    await expect(respondToReviewCommand(withReviewReport(request), dependencies(records)))
       .rejects.toThrow("composing runtime");
   });
 
   it("refuses a divergent replay for the same operation", async () => {
     const records = fixture();
     const deps = dependencies(records);
-    await respondToReviewCommand(localRequest(records, "defer"), deps);
-    await expect(respondToReviewCommand(localRequest(records, "reject"), deps))
+    await respondToReviewCommand(withReviewReport(localRequest(records, "defer")), deps);
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records, "reject")), deps))
       .rejects.toThrow("conflicting approved disposition record");
   });
 
-  it("loads frontline findings from the exact durable outcome and rejects non-findings", async () => {
+  it.each(["producer", "result digest"] as const)(
+    "re-resolves an approved request and refuses a substituted %s",
+    async (substitution) => {
+      const records = fixture();
+      const request = localRequest(records);
+      const deps = dependencies(records);
+      const result = localResult(records);
+      deps.resultReader.readResult = async () => substitution === "producer"
+        ? { ...result, producerId: "later-review-operation" }
+        : { ...result, resultDigest: digest("later-review-result") };
+
+      await expect(respondToReviewCommand(withReviewReport(request), deps))
+        .rejects.toThrow("approved dispositions do not match the selected review source");
+    },
+  );
+
+  it("does not manufacture an empty disposition for a clean producer", async () => {
     const records = fixture();
-    const source = {
-      sourceId: "coderabbit-cli",
-      kind: "command" as const,
-      executable: "coderabbit",
-      argv: ["review"],
-    };
-    const findingsOutcome = normalizeFrontlineOutcome({
-      providerResult: { kind: "findings", findings: [records.finding] },
-      source,
-      target: records.target,
-      pass: 1,
-      maxPasses: 2,
-    });
-    const record = createFrontlineOutcomeRecord({
-      schemaVersion: 1,
-      semanticsVersion: "review-advisory/v1",
-      repositoryId: records.target.repositoryId,
-      operationId: "frontline-operation",
-      sourceIdentity: source.sourceId,
-      executableIdentity: {
-        digest: digest("coderabbit"),
-        qualifiedVersion: "coderabbit/1.0.0",
-      },
-      outcome: findingsOutcome,
-    });
-    const durableRef = "git-common:review-gate/outcomes/frontline.json#1";
-    const outcomeRef = bindReviewSourceReference({
-      kind: "frontline",
-      operationId: record.operationId,
-      durableRef,
-    });
     const deps = dependencies(records);
-    deps.outcomeStore.readOutcome = async () => ({ version: 1, record, outcomeRef: durableRef });
-    const dispositions = approved({
-      targetId: records.target.targetId,
-      policyVersion: digest("frontline-policy"),
-      rubricVersion: "standard-review/v1",
-      rubricDigest: digest("frontline-rubric"),
-      sourceIdentity: source.sourceId,
-      finding: records.finding,
+    const result = localResult(records);
+    deps.resultReader.readResult = async () => ({
+      ...result,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest("clean-review-result"),
     });
 
-    await expect(respondToReviewCommand({
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps))
+      .rejects.toThrow("local response requires a findings receipt");
+  });
+
+  it("materializes and settles frontline dispositions from exact durable operation context", async () => {
+    const records = fixture(errandVehicle);
+    const { source, record, durableRef, outcomeRef, operation } = frontlineFixture(records);
+    const deps = dependencies(records);
+    deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
+    deps.readCandidateLineage = async () => null;
+    const proposal = await respondToReviewCommand(withReviewReport({
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
-      dispositions,
-    }, deps)).resolves.toMatchObject({
-      state: "ready-to-fix",
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
+          rationale: "The source does not support the reported issue.",
+          recommendation: "Reject the finding.",
+          openQuestions: [],
+        }],
+      },
+    }), deps);
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
       payload: {
         operationId: record.operationId,
-        reentryCommand: "frontline-resolve",
-        frontlineFollowUp: {
-          action: "follow-up-after-fix",
-          pass: 2,
-          maxPasses: 2,
-          nextCommand: "frontline-resolve",
+        proposal: {
+          dispositionSet: {
+            policyVersion: operation.policyVersion,
+            frontlineBinding: {
+              operationId: operation.operationId,
+              sourceBindingId: operation.sourceBindingId,
+              outcomeDigest: record.outcomeDigest,
+            },
+          },
         },
       },
     });
+    if (proposal.state !== "awaiting-approval") throw new Error("frontline proposal was not materialized");
+    expect(proposal.payload.provisionalPassAssessment).toMatchObject({
+      status: "provisional",
+      lane: "frontline",
+      admittedLogicalPass: 1, ceilingPassCount: 1,
+      configuredMaxPasses: 2,
+      proposedSignal: { confirmedFindingCount: 0, maxConfirmedSeverity: null, materialFix: false },
+      capPosition: "below-ceiling",
+      potentialStopReason: null,
+      nextPassAuthority: "none",
+    });
+    expect(proposal.payload.provisionalPassAssessment.summaryText)
+      .toBe("Frontline code review — pass 1, coderabbit-cli (local). No confirmed findings.");
+    expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricVersion");
+    expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricDigest");
+
+    const dispositions = approveDispositionState({
+      proposed: proposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
+    const frontlinePolicyRequest = policyRequest(records, {
+      lane: "frontline",
+      sourceId: source.sourceId,
+      reviewOperationId: record.operationId,
+    });
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      policyRequest: frontlinePolicyRequest,
+      dispositions,
+    }), deps)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "reduce",
+      payload: { operationId: record.operationId },
+    });
+
+    const changedOperation = {
+      ...operation,
+      sourceBindingId: digest("changed-frontline-source-binding"),
+    };
+    deps.resultReader.readResult = async () => frontlineResult({
+      operation: changedOperation,
+      record,
+      outcomeRef: durableRef,
+    });
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      policyRequest: frontlinePolicyRequest,
+      dispositions,
+    }), deps)).rejects.toThrow("approved dispositions do not match the selected review source");
 
     const clean = createFrontlineOutcomeRecord({
       schemaVersion: 1,
@@ -467,11 +2701,948 @@ describe("review response command", () => {
         maxPasses: 2,
       }),
     });
-    deps.outcomeStore.readOutcome = async () => ({ version: 1, record: clean, outcomeRef: durableRef });
-    await expect(respondToReviewCommand({
+    deps.resultReader.readResult = async () => frontlineResult({
+      operation: { ...operation, outcome: "clean" },
+      record: clean,
+      outcomeRef: durableRef,
+    });
+    await expect(respondToReviewCommand(withReviewReport({
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
+      policyRequest: frontlinePolicyRequest,
       dispositions,
-    }, deps)).rejects.toThrow("requires a findings outcome");
+    }), deps)).rejects.toThrow("requires a findings outcome");
+
+    deps.resultReader.readResult = async () => {
+      throw new Error("frontline response operation is unavailable");
+    };
+    await expect(respondToReviewCommand(withReviewReport({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      policyRequest: frontlinePolicyRequest,
+      dispositions,
+    }), deps)).rejects.toThrow("frontline response operation is unavailable");
+  });
+
+  it.each([
+    ["delivery member", memberVehicle],
+    ["work unit", workUnitVehicle],
+    ["Errand", errandVehicle],
+  ] as const)("resolves actors for a %s operation from its admitted identities", async (
+    _label,
+    vehicle,
+  ) => {
+    const records = fixture(vehicle);
+    const deps = dependencies(records);
+    const resolveLocalActors = vi.fn(deps.resolveLocalActors);
+    deps.resolveLocalActors = resolveLocalActors;
+    if (vehicle.kind === "errand") deps.resolveActiveErrand = async () => activeErrandBinding();
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { operationId: records.operation.operationId },
+    });
+    // The vehicle never reaches actor resolution, so no member selector exists to
+    // carry: the admitted author and evaluator are identical across all three operations.
+    expect(resolveLocalActors).toHaveBeenCalledWith(
+      records.authority.evaluatorIdentity,
+      records.authority.authorIdentity,
+    );
+  });
+
+  it.each([
+    ["fix", "ready-to-fix"],
+    ["reject", "settled"],
+  ] as const)("records an Errand %s response without inventing Candidate authority", async (
+    disposition,
+    state,
+  ) => {
+    const records = fixture(errandVehicle);
+    const deps = dependencies(records);
+    const appendDispositionRecord = vi.fn(async () => ({
+      dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+    }));
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records, disposition)), deps))
+      .resolves.toMatchObject({ state });
+    expect(appendDispositionRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ candidate: null }),
+    );
+  });
+});
+
+describe("verified-fix Candidate settlement", () => {
+  it("refuses verification narrower than the approved proposal", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    }, "full");
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records, "fix", "full"),
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    }), deps)).rejects.toThrow("narrower than the approved scope");
+  });
+
+  it("accepts verification broader than the approved proposal", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    }, "targeted");
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records, "fix", "targeted"),
+      verifiedFix: {
+        applicability: "full",
+        verificationEvidenceRefs: ["verification://full-fix"],
+      },
+    }), deps)).resolves.toMatchObject({ state: "candidate-advanced" });
+  });
+
+  it("requires the durable Candidate response record before consuming fix authority", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    deps.dispositionStore.readDispositionRecord = async () => null;
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps)).rejects.toThrow(
+      "a verified fix requires its exact approved response record",
+    );
+  });
+
+  it("appends the approved response and its delta evidence to the Candidate record", async () => {
+    const records = fixture();
+    const { deps, record, appends, rebinds } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    const request = verifiedFixRequest(records);
+    const recordResponsePerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordResponsePerformance;
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+      payload: {
+        operationId: records.operation.operationId,
+        candidateId: record.attestation.candidateId,
+        recordPath: CANDIDATE_RECORD_PATH,
+        implementationChanged: true,
+      },
+    });
+
+    expect(appends).toHaveLength(1);
+    const [response] = appends[0] === undefined ? [] : candidateReviewResponses(appends[0].record);
+    expect(response).toMatchObject({
+      candidateId: record.attestation.candidateId,
+      dispositionId: request.dispositions.dispositionSet.dispositionSetId,
+      approvedBy: records.authority.authorIdentity,
+      appliedBy: records.authority.runtimeIdentity,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://focused-fix"],
+      implementationChanged: true,
+      oldTarget: { revision: records.target.headSha },
+      newTarget: { revision: objectId("e") },
+    });
+    expect(rebinds).toEqual([{
+      workUnit: "example",
+      response,
+      requirePublished: false,
+    }]);
+    expect(recordResponsePerformance).toHaveBeenCalledWith({
+      lane: "standard",
+      repositoryId: records.target.repositoryId,
+      headSha: records.target.headSha,
+      lineage: records.operation.lineage,
+      attemptId: records.operation.operationId,
+      dispositionSetId: request.dispositions.dispositionSet.dispositionSetId,
+      producedHeadSha: objectId("e"),
+      candidateResponseId: response?.responseId,
+    });
+  });
+
+  it("keeps the durable captured pass through verified fix and exact replay despite fresh policy input", async () => {
+    const records = fixture();
+    const current = {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    };
+    const { deps, appends, rebinds } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    const authorizationId = digest("approved-next-pass");
+    const durable = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    if (durable === null) throw new Error("expected approved response fixture");
+    const approvedPolicyRequest = {
+      ...request.policyRequest,
+      ceilingOverride: {
+        target: request.policyRequest.target,
+        lane: "standard" as const,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+        conditionalPassAuthorizationId: authorizationId,
+      },
+    };
+    const approvedRecord = ApprovedDispositionRecordSchema.parse({
+      ...durable,
+      approvedDispositionLineage: durable.approvedDispositionLineage.map((node) => ({
+        ...node,
+        responsePolicyRequest: approvedPolicyRequest,
+      })),
+    });
+    deps.dispositionStore.readDispositionRecord = async () => approvedRecord;
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: approvedPolicyRequest,
+      },
+    });
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected advanced Candidate fixture");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      policyRequest: { ...request.policyRequest, frontlineActive: true },
+    }), deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: approvedPolicyRequest,
+      },
+    });
+    expect(rebinds).toHaveLength(2);
+    expect(rebinds[1]).toEqual(rebinds[0]);
+  });
+
+  it("uses Candidate lineage when a Candidate-bound delivery-member target confirms unchanged", async () => {
+    const records = fixture(memberVehicle);
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    deps.confirmTarget = async (target) => ({ state: "current", target });
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+    });
+    expect(appends).toHaveLength(1);
+    expect(candidateReviewResponses(appends[0]?.record ?? candidateRecord())[0]).toMatchObject({
+      oldTarget: { revision: records.target.headSha },
+      newTarget: { revision: objectId("e") },
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://focused-fix"],
+    });
+  });
+
+  it("leaves the advanced lineage awaiting one converged focused attestation", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+
+    await respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps);
+
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an appended Candidate record");
+    expect(projectCandidateCurrentness({ record: advanced, current })).toMatchObject({
+      status: "current",
+      implementationChanged: true,
+      convergenceVerification: "pending",
+      convergenceScope: "focused",
+    });
+  });
+
+  it("records operational-only approved evidence when the lineage subject is unchanged", async () => {
+    const records = fixture();
+    const { deps, record, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("root"),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+      payload: {
+        candidateId: record.attestation.candidateId,
+        implementationChanged: false,
+      },
+    });
+    expect(appends).toHaveLength(1);
+    expect(appends[0]).toMatchObject({
+      workUnit: "example",
+      expectedRecordVersion: canonicalDigest(record),
+      record: {
+        subject: record.subject,
+        transitions: [expect.objectContaining({ implementationChanged: false })],
+      },
+    });
+  });
+
+  it("returns the current Candidate when an identical verified response is replayed", async () => {
+    const records = fixture();
+    const current = {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+    });
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an appended Candidate record");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      nextAction: "continue-review",
+      payload: { candidateId: advanced.attestation.candidateId },
+    });
+    expect(appends).toHaveLength(1);
+  });
+
+  it.each([false, true])("replays the verified snapshot after neutral record bytes change, legacy: %s", async (legacy) => {
+    const records = fixture();
+    const neutralEntry = { path: CANDIDATE_RECORD_PATH, digest: digest("record-before-response"),
+      mode: "100644" as const, treatment: "evidence-neutral" as const };
+    const fixed = { revision: objectId("e"),
+      subject: createCandidateSubjectSnapshot([...candidateSubject("fixed").entries, neutralEntry]) };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected response");
+    const committed = { revision: objectId("f"), subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, { ...neutralEntry, digest: digest("record-after-response") },
+    ]) };
+    expect(committed.subject.subjectDigest).toBe(fixed.subject.subjectDigest);
+    expect(committed.subject.entries).not.toEqual(fixed.subject.entries);
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, committed);
+    deps.confirmCandidateResponseCommit = async () => true;
+    const readHistoricalTarget = vi.fn(async () => fixed);
+    deps.readCandidateResponseTarget = readHistoricalTarget;
+    if (legacy) deps.readResponsePerformance = async () => null;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({ state: "candidate-current" });
+    expect(readHistoricalTarget).toHaveBeenCalledWith({ workUnit: "example", revision: fixed.revision });
+    expect(appends).toHaveLength(1);
+  });
+
+  it("refuses a substituted neutral snapshot on legacy replay before recording performance", async () => {
+    const records = fixture();
+    const neutralEntry = { path: CANDIDATE_RECORD_PATH, digest: digest("record-before-response"),
+      mode: "100644" as const, treatment: "evidence-neutral" as const };
+    const fixed = { revision: objectId("e"), subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, neutralEntry,
+    ]) };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const substituted = { ...fixed, subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, { ...neutralEntry, digest: digest("substituted-record") },
+    ]) };
+    expect(substituted.subject.subjectDigest).toBe(fixed.subject.subjectDigest);
+    const changed = { ...advanced, transitions: [createCandidateReviewResponseEvidence({
+      ...response, newTarget: substituted,
+    })] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, changed, fixed);
+    deps.readResponsePerformance = async () => null;
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("complete verified response");
+    expect(recordPerformance).not.toHaveBeenCalled();
+  });
+
+  it("stops replay when its historical subject cannot be read", async () => {
+    const records = fixture();
+    const fixed = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected response");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, fixed);
+    deps.readCandidateResponseTarget = async () => { throw new Error("historical subject unavailable"); };
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("historical subject unavailable");
+    expect(recordPerformance).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("requires record-commit proof when binding at a later head: %s", async (confirmed) => {
+    const records = fixture();
+    const fixed = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const committed = { ...fixed, revision: objectId("f") };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, committed);
+    const confirmCommit = vi.fn(async () => confirmed);
+    deps.confirmCandidateResponseCommit = confirmCommit;
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    const replay = respondToReviewCommand(withReviewReport(request), deps);
+    if (confirmed) await expect(replay).resolves.toMatchObject({ state: "candidate-current" });
+    else await expect(replay).rejects.toThrow("clean direct record commit");
+    expect(confirmCommit).toHaveBeenCalledWith({ workUnit: "example", response,
+      fromHeadSha: fixed.revision, toHeadSha: committed.revision });
+    expect(recordPerformance).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+  });
+
+  it.each([
+    ["applicability", { applicability: "full" as const }],
+    ["verification evidence", { verificationEvidenceRefs: ["verification://different"] }],
+  ])("rejects a Candidate response replay with conflicting %s", async (_label, verifiedFixPatch) => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an appended Candidate record");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      verifiedFix: { ...request.verifiedFix, ...verifiedFixPatch },
+    }), deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it.each([
+    ["approved verification", { approvedVerification: "targeted" as const }],
+    ["implementation status", { implementationChanged: false }],
+    ["subject", { newTarget: { revision: objectId("e"), subject: candidateSubject("substituted") } }],
+  ])("refuses to bind a replay with substituted %s", async (_label, patch) => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const changed = { ...advanced, transitions: [createCandidateReviewResponseEvidence({ ...response, ...patch })] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, changed, current);
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow(_label === "implementation status"
+      ? "canonical reviewable-subject delta" : "complete verified response");
+    expect(recordPerformance).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Candidate response replay whose recorded review target moved", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) {
+      throw new Error("expected an appended Candidate response");
+    }
+    const conflictingResponse = createCandidateReviewResponseEvidence({
+      candidateId: response.candidateId,
+      oldTarget: { ...response.oldTarget, revision: objectId("9") },
+      newTarget: response.newTarget,
+      dispositionId: response.dispositionId,
+      approvedBy: response.approvedBy,
+      appliedBy: response.appliedBy,
+      applicability: response.applicability,
+      verificationEvidenceRefs: response.verificationEvidenceRefs,
+      implementationChanged: response.implementationChanged,
+    });
+    const conflicting = {
+      ...advanced,
+      transitions: [conflictingResponse],
+    };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, conflicting, current);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it("rejects an earlier response replay after a later response advances the Candidate again", async () => {
+    const records = fixture();
+    const firstCurrent = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, firstCurrent);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const first = appends[0]?.record;
+    const firstResponse = first === undefined ? undefined : candidateReviewResponses(first)[0];
+    if (first === undefined || firstResponse === undefined) {
+      throw new Error("expected the first Candidate response");
+    }
+    const laterCurrent = { revision: objectId("f"), subject: candidateSubject("later-fix") };
+    const laterResponse = createCandidateReviewResponseEvidence({
+      candidateId: firstResponse.candidateId,
+      oldTarget: firstResponse.newTarget,
+      newTarget: laterCurrent,
+      dispositionId: digest("later-disposition"),
+      approvedBy: firstResponse.approvedBy,
+      appliedBy: firstResponse.appliedBy,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://later-fix"],
+      implementationChanged: true,
+    });
+    const advancedAgain = { ...first, transitions: [...first.transitions, laterResponse] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advancedAgain, laterCurrent);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it("repairs staging when the Candidate record write succeeded before git add failed", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, record } = lineageDependencies(records, current);
+    let persisted = record;
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, persisted, current);
+    deps.appendCandidateResponse = async ({ record: next }) => {
+      persisted = next;
+      throw new Error("git add failed after record write");
+    };
+    const stageCandidateResponse = vi.fn(async () => ({ recordPath: CANDIDATE_RECORD_PATH }));
+    deps.stageCandidateResponse = stageCandidateResponse;
+    const request = verifiedFixRequest(records);
+
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).rejects.toThrow("git add failed");
+    await expect(respondToReviewCommand(withReviewReport(request), deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      payload: { recordPath: CANDIDATE_RECORD_PATH },
+    });
+    expect(stageCandidateResponse).toHaveBeenCalledWith("example");
+  });
+
+  it("refuses a verified fix whose exact target never changed", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+    });
+
+    await expect(respondToReviewCommand(
+      withReviewReport(verifiedFixRequest(records)),
+      deps,
+    )).rejects.toThrow(UnchangedVerifiedFixTargetError);
+  });
+
+  it.each(["proposal", "approval"] as const)(
+    "refuses a local Errand %s after its live claim changes",
+    async (stage) => {
+      const records = fixture(errandVehicle);
+      const deps = dependencies(records);
+      deps.readCandidateLineage = async () => null;
+      deps.resolveActiveErrand = async () => activeErrandBinding("claim-2");
+      const request = stage === "proposal"
+        ? {
+            schemaVersion: 1,
+            source: { kind: "attested-local", receiptRef: records.receiptRef },
+            proposal: {
+              proposedVerification: "focused",
+              severityGatingPolicy: { minorGating: "record-only" },
+              findings: [{
+                findingId: records.finding.findingId,
+                sourceVerification: "verified",
+                verifiedSeverity: "major",
+                verificationRefs: ["source:src/index.ts:7"],
+                disposition: "fix",
+                title: "Finding title",
+                issue: "The reviewer's claim.",
+                rationale: "The selected source supports this disposition.",
+                recommendation: "Apply the fix.",
+                openQuestions: [],
+              }],
+            },
+          }
+        : localRequest(records);
+
+      await expect(respondToReviewCommand(withReviewReport(request), deps))
+        .rejects.toThrow("local review Errand claim does not match the active Errand");
+    },
+  );
+
+  it("persists a verified fix for the exact active Errand without Candidate lineage", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    Object.assign(deps, {
+      resolveActiveErrand: async () => activeErrandBinding(),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps))
+      .resolves.toMatchObject({ state: "ready-to-fix" });
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({
+        state: "errand-advanced",
+        nextAction: "continue-review",
+        payload: {
+          operationId: records.operation.operationId,
+          dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+        },
+      });
+  });
+
+  it("retains the exact hosted change request on a verified Errand fix", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const { deps, moveTo } = movingCheckout(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const appended: ApprovedDispositionRecord[] = [];
+    const appendDispositionRecord = deps.dispositionStore.appendDispositionRecord;
+    deps.dispositionStore.appendDispositionRecord = async (record) => {
+      appended.push(record);
+      return appendDispositionRecord(record);
+    };
+    const request = {
+      schemaVersion: 1 as const,
+      source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
+      policyRequest: policyRequest(hosted.records, {
+        sourceId: "codex-pr",
+        reviewOperationId: attempt.attemptId,
+        pullRequest: 42,
+      }),
+      dispositions: approved({
+        targetId: hosted.records.target.targetId,
+        producerId: attempt.attemptId,
+        resultDigest: attempt.hosted.sealedResult!.hostedResultId,
+        policyVersion: attempt.hosted.requirement.policyVersion,
+        rubricVersion: attempt.hosted.requirement.rubricVersion,
+        rubricDigest: attempt.hosted.requirement.rubricDigest,
+        sourceIdentity: "codex-pr",
+        finding: hosted.records.finding,
+        proposedVerification: "focused",
+      }),
+    };
+    await respondToReviewCommand(withReviewReport(request), deps);
+    const current = settledHead(hosted.records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(current);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...request,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    }), deps)).resolves.toMatchObject({ state: "errand-advanced" });
+    const appendedRecord = appended.at(-1);
+    expect(appendedRecord === undefined
+      ? null
+      : currentApprovedDispositionNode(appendedRecord).errandFixResponse).toMatchObject({
+      oldTarget: { targetId: hosted.records.target.targetId },
+      newTarget: { targetId: current.targetId },
+      hostedTarget: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: hosted.records.target.headSha,
+      },
+    });
+  });
+
+  it("replays the exact verified Errand response without consuming its authorization twice", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    Object.assign(deps, {
+      resolveActiveErrand: async () => activeErrandBinding(),
+    });
+    await respondToReviewCommand(withReviewReport(localRequest(records)), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
+  });
+
+  it("refuses a conflicting verified Errand response replay", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    await respondToReviewCommand(withReviewReport(localRequest(records)), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+    await respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...verifiedFixRequest(records),
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://different-fix"],
+      },
+    }), deps)).rejects.toThrow("Errand response replay conflicts");
+  });
+
+  it("refuses a verified fix after the active Errand claim changes", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    let active = activeErrandBinding();
+    Object.assign(deps, { resolveActiveErrand: async () => active });
+    await respondToReviewCommand(withReviewReport(localRequest(records)), deps);
+    active = { ...active, claimId: "claim-2" };
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .rejects.toThrow("local review Errand claim does not match the active Errand");
+  });
+
+  it("refuses a verified fix the index does not carry, rather than advancing a lineage without it", async () => {
+    const records = fixture();
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      unstagedReviewablePaths: ["packages/arc-framework/src/fixed.ts"],
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .rejects.toThrow("packages/arc-framework/src/fixed.ts");
+    expect(appends).toHaveLength(0);
+  });
+
+  it("refuses an unstaged fix the recorded subject already matches, rather than reporting it current", async () => {
+    const records = fixture();
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("root"),
+    });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      unstagedReviewablePaths: ["packages/arc-framework/src/fixed.ts"],
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .rejects.toThrow("must be staged");
+    expect(appends).toHaveLength(0);
+  });
+
+  it("refuses a verified fix whose dispositions differ from the durable approval", async () => {
+    const records = fixture();
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records, "defer")), deps))
+      .rejects.toThrow("requires its exact approved response record");
+    expect(appends).toHaveLength(0);
+  });
+});
+
+/** The head an approved set's landed fixes settled at, which is what the replay pins. */
+function settledHead(repositoryId: string, headSha: string, headTree: string) {
+  return createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId,
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha,
+    headTree,
+  });
+}
+
+/** Bind respond to a checkout whose current target the test moves between passes. */
+function movingCheckout(records: ReturnType<typeof fixture>) {
+  const deps = dependencies(records);
+  let current: ReturnType<typeof settledHead> | null = null;
+  return {
+    deps: {
+      ...deps,
+      confirmTarget: async (target: typeof records.target) => (current === null
+        ? { state: "current" as const, target }
+        : { state: "stale-target" as const, attemptedTarget: target, currentTarget: current }),
+    },
+    moveTo: (target: ReturnType<typeof settledHead> | null) => {
+      current = target;
+    },
+  };
+}
+
+describe("approved-settlement replay", () => {
+  it("replays a durably approved conditional pass without approval-time consent fields", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const base = policyRequest(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    const request = {
+      ...localRequest(records),
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: records.authority.authorIdentity,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    };
+    const approved = await respondToReviewCommand(withReviewReport(request), deps);
+    if (approved.state !== "ready-to-fix") throw new Error("expected approved fix response");
+    moveTo(settledFixTarget);
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      policyRequest: approved.payload.policyRequest,
+      settledFixTarget,
+    }), deps)).resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
+  });
+
+  it("does not settle a fix approval from head movement alone", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records)), deps))
+      .resolves.toMatchObject({ state: "ready-to-fix" });
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand(withReviewReport({ ...localRequest(records), settledFixTarget }), deps))
+      .resolves.toMatchObject({
+        state: "fix-not-performed",
+        nextAction: "complete-verified-fix",
+        payload: { operationId: records.operation.operationId },
+      });
+  });
+
+  it("settles a fix approval after its exact verified Errand response", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(withReviewReport(localRequest(records)), deps);
+    moveTo(settledFixTarget);
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
+    await expect(respondToReviewCommand(withReviewReport({ ...localRequest(records), settledFixTarget }), deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
+  });
+
+  it("repeats without deciding anything a second time", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(withReviewReport(localRequest(records, "defer")), deps);
+    moveTo(settledFixTarget);
+
+    const replay = { ...localRequest(records, "defer"), settledFixTarget };
+    const first = await respondToReviewCommand(withReviewReport(replay), deps);
+    await expect(respondToReviewCommand(withReviewReport(replay), deps)).resolves.toEqual(first);
+  });
+
+  it("refuses when the checkout no longer carries the settled head", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(withReviewReport(localRequest(records)), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("9"), objectId("8")));
+
+    await expect(respondToReviewCommand(withReviewReport({ ...localRequest(records), settledFixTarget }), deps))
+      .resolves.toMatchObject({
+        state: "stale-target",
+        nextAction: "prepare-current-target",
+        payload: { attemptedTarget: { targetId: settledFixTarget.targetId } },
+      });
+  });
+
+  it("refuses a replay no durable approved record backs, under its own typed state", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand(withReviewReport({ ...localRequest(records), settledFixTarget }), deps))
+      .resolves.toMatchObject({ state: "missing-record", nextAction: "respond-again" });
+  });
+
+  it("returns a replay's actor mismatch as typed state rather than throwing", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      dispositions: foreignApproval(records),
+      settledFixTarget,
+    }), deps)).resolves.toMatchObject({
+      state: "actor-mismatch",
+      nextAction: "respond-again",
+      payload: { actor: "approver" },
+    });
+  });
+
+  it("still throws the same mismatch on the attended response path", async () => {
+    // Only the unattended replay needs typed state; an attended caller reads the exception.
+    const records = fixture();
+    const { deps } = movingCheckout(records);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...localRequest(records),
+      dispositions: foreignApproval(records),
+    }), deps)).rejects.toThrow("approver is not the active local identity");
+  });
+
+  it("refuses a replay whose dispositions disagree with the durable record", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await expect(respondToReviewCommand(withReviewReport(localRequest(records, "defer")), deps))
+      .resolves.toMatchObject({ state: "settled" });
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand(withReviewReport({ ...localRequest(records), settledFixTarget }), deps))
+      .rejects.toThrow("conflicting approved disposition record");
+  });
+
+  it("refuses a replay that also submits a verified fix", async () => {
+    const records = fixture();
+    const { deps } = movingCheckout(records);
+
+    await expect(respondToReviewCommand(withReviewReport({
+      ...verifiedFixRequest(records),
+      settledFixTarget: settledHead(records.target.repositoryId, objectId("e"), objectId("f")),
+    }), deps)).rejects.toThrow();
   });
 });

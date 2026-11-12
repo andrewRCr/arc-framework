@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { digestCanonicalJson } from "../../../../src/lib/coupling-audit/canonical.js";
@@ -322,6 +325,15 @@ function validLedger(): Record<string, unknown> {
 }
 
 describe("parseRoutingLedger", () => {
+  it("retains the six surviving procedure classes in the live canonical packet", () => {
+    const input = JSON.parse(readFileSync(resolve(import.meta.dirname,
+      "../../../../audits/coupling-blast-radius/routing-ledger.json"), "utf8")) as { resultDigest: string };
+    const ledger = parseRoutingLedger(input, input.resultDigest);
+    expect(ledger.packets.find((packet) => packet.targetSlug === "composable-workflows")?.classIds).toEqual([
+      "arc-methods-key", "load-set-name", "method-root", "recommended-text-family", "template-suffix", "workflow-root",
+    ]);
+  });
+
   it("accepts canonical packets bound to the expected result", () => {
     const input = validLedger();
     expect(parseRoutingLedger(input, DIGEST)).toEqual(input);

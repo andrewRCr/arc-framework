@@ -1,5 +1,11 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+import { validateConfigFile } from "../../../src/commands/config/validate.js";
 
 import {
   ArcConfigSchema,
@@ -16,12 +22,48 @@ function field(key: string) {
 }
 
 describe("ARC config field catalog", () => {
+  it("defaults the active layout to nested and accepts only its two documented layouts", async () => {
+    const validate = (content: string) => validateConfigFile({ readPath: "selected.yml", displayPath: "selected.yml",
+      readFile: async () => content });
+    expect((await validate("")).lines).toContain("PASS  layout.active: [absent, default: nested]");
+    expect(field("layout.active").defaultValue).toBe("nested");
+    for (const value of ["nested", "flat"]) {
+      assertSchemaAccepts(field("layout.active").schema, value);
+      const result = await validate(`layout.active: ${value}\n`);
+      expect(result.exitCode).toBe(0);
+      expect(result.lines).toContain(`PASS  layout.active: ${value}`);
+    }
+    assertSchemaRefuses(field("layout.active").schema, "unknown");
+    const invalid = await validate("layout.active: unknown\n");
+    expect(invalid.exitCode).toBe(2);
+    expect(invalid.lines).toContain("ERROR layout.active: 'unknown' is not valid (expected: nested flat)");
+  });
+
+  it("defaults design tracking to specs and validates both export choices", async () => {
+    expect(field("storage.track_design_docs").defaultValue).toBe("specs");
+    for (const value of ["specs", "none"]) {
+      assertSchemaAccepts(field("storage.track_design_docs").schema, value);
+      const result = await validateConfigFile({ readPath: "selected.yml", displayPath: "selected.yml",
+        readFile: async () => `storage.track_design_docs: ${value}\n` });
+      expect(result.errors).toBe(0);
+      expect(result.lines).toContain(`PASS  storage.track_design_docs: ${value}`);
+    }
+    assertSchemaRefuses(field("storage.track_design_docs").schema, "drafts");
+  });
+
+  it("does not retain the former review-owned threshold keys", () => {
+    const keys = ARC_CONFIG_FIELDS.map(({ key }) => key);
+    expect(keys).not.toContain("review.chunking_threshold_lines");
+    expect(keys).not.toContain("review.chunking_threshold_files");
+  });
+
   it("accepts every enum and boolean token while rejecting neighboring values", () => {
     const domains: Record<string, readonly string[]> = {
       "branch.protection": ["partial", "full"],
       "commit.format": ["conventional", "custom", "any"],
       "commit.context_footer": ["required", "recommended", "custom", "disabled"],
       "merge.strategy": ["merge", "rebase", "squash"],
+      "merge.lock": ["draft", "none"],
       "hooks.pre_commit": ["enabled", "disabled"],
       "hooks.commit_msg": ["enabled", "disabled"],
       "hooks.pre_push": ["enabled", "disabled"],
@@ -37,11 +79,13 @@ describe("ARC config field catalog", () => {
       "user.notes_push": ["manual", "prompt", "on-sync"],
       "sync.auto_pull": ["false", "true"],
       "archive.cadence": ["with-integration", "manual"],
+      "storage.track_design_docs": ["none", "specs"],
+      "layout.active": ["nested", "flat"],
     };
 
     for (const [key, values] of Object.entries(domains)) {
-      for (const value of values) expect(field(key).schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
-      expect(field(key).schema.safeParse("neighboring-value").success, key).toBe(false);
+      for (const value of values) assertSchemaAccepts(field(key).schema, value);
+      assertSchemaRefuses(field(key).schema, "neighboring-value");
     }
   });
 
@@ -52,6 +96,7 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_line_length": 1,
       "review.frontline_max_passes": 1,
       "review.standard_max_passes": 1,
+      "review.hosted_await_attention_after_minutes": 1,
       "inbox.remind_after_days": 1,
       "integration.stale_after_days": 1,
     };
@@ -65,16 +110,30 @@ describe("ARC config field catalog", () => {
         "9007199254740989",
         String(Number.MAX_SAFE_INTEGER),
       ]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+        assertSchemaAccepts(schema, value);
       }
       for (const value of ["", "+1", "-1", "1.0", "0x10", String(minimum - 1), "9007199254740992"]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
+        assertSchemaRefuses(schema, value);
       }
     }
   });
 
+  it.each([
+    ["hosted", "review.hosted_await_timeout_seconds", "review.hosted_await_initial_poll_interval_seconds"],
+    ["required-check", "review.checks_await_timeout_seconds", "review.checks_await_initial_poll_interval_seconds"],
+  ] as const)("bounds %s await call timing to the runtime timer contract", (_wait, timeoutKey, pollKey) => {
+    const timeout = field(timeoutKey).schema;
+    const poll = field(pollKey).schema;
+    assertSchemaAccepts(timeout, "1");
+    assertSchemaAccepts(timeout, "1800");
+    assertSchemaRefuses(timeout, "1801");
+    assertSchemaAccepts(poll, "1");
+    assertSchemaAccepts(poll, "60");
+    assertSchemaRefuses(poll, "61");
+  });
+
   it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
-    for (const key of ["review.chunking_threshold_lines", "review.chunking_threshold_files"]) {
+    for (const key of ["changeset.advisory_threshold_lines", "changeset.advisory_threshold_files"]) {
       const schema = field(key).schema;
       for (const value of [
         "0",
@@ -86,10 +145,10 @@ describe("ARC config field catalog", () => {
         "9007199254740989",
         String(Number.MAX_SAFE_INTEGER),
       ]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+        assertSchemaAccepts(schema, value);
       }
       for (const value of ["", "+0", "-0", "1.0", "0x10", "9007199254740992"]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
+        assertSchemaRefuses(schema, value);
       }
     }
   });
@@ -110,15 +169,15 @@ describe("ARC config field catalog", () => {
     };
 
     for (const [key, values] of Object.entries(openValues)) {
-      for (const value of values) expect(field(key).schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+      for (const value of values) assertSchemaAccepts(field(key).schema, value);
     }
-    expect(field("worktree.location_template").schema.safeParse("").success).toBe(false);
+    assertSchemaRefuses(field("worktree.location_template").schema, "");
 
     for (const value of [".claude", "custom-harness", "name with spaces"]) {
-      expect(HarnessDirectorySchema.safeParse(value).success, value).toBe(true);
+      assertSchemaAccepts(HarnessDirectorySchema, value);
     }
     for (const value of ["", ".", "..", ".git", ".ARC", "nested/name", "nested\\name"]) {
-      expect(HarnessDirectorySchema.safeParse(value).success, value).toBe(false);
+      assertSchemaRefuses(HarnessDirectorySchema, value);
     }
   });
 
@@ -131,7 +190,7 @@ describe("ARC config field catalog", () => {
       "[coderabbit-cli, project-reviewer]",
       "[,project-reviewer,,]",
     ]) {
-      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(true);
+      assertSchemaAccepts(frontline, value);
     }
     for (const value of [
       "[project-reviewer",
@@ -140,7 +199,7 @@ describe("ARC config field catalog", () => {
       "[codex-pr]",
       "[delegated-agent]",
     ]) {
-      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(false);
+      assertSchemaRefuses(frontline, value);
     }
 
     const standard = field("review.standard_sources").schema;
@@ -150,7 +209,7 @@ describe("ARC config field catalog", () => {
       "[coderabbit-pr, codex-pr, delegated-agent]",
       "[,codex-pr,,]",
     ]) {
-      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(true);
+      assertSchemaAccepts(standard, value);
     }
     for (const value of [
       "",
@@ -159,7 +218,7 @@ describe("ARC config field catalog", () => {
       "[codex-pr",
       "codex-pr]",
     ]) {
-      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(false);
+      assertSchemaRefuses(standard, value);
     }
   });
 
@@ -167,6 +226,7 @@ describe("ARC config field catalog", () => {
     const unset = new Set([
       "worktree.post_create",
       "worktree.harness_dirs",
+      "storage.backing_repository",
       "commit.custom_pattern",
       "commit.context_pattern",
       "hooks.skip_extensions",
@@ -181,18 +241,30 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_lines",
       "hooks.body_max_line_length",
       "inbox.remind_after_days",
+      "inbound.retriage_after_entries",
+      "inbound.retriage_after_days",
+      "pause.review_after_days",
       "integration.stale_after_days",
       "review.frontline_max_passes",
       "review.standard_max_passes",
+      "review.hosted_await_timeout_seconds",
+      "review.hosted_await_initial_poll_interval_seconds",
+      "review.hosted_await_attention_after_minutes",
+      "review.checks_await_timeout_seconds",
+      "review.checks_await_initial_poll_interval_seconds",
       "review.standard_sources",
-      "review.chunking_threshold_lines",
-      "review.chunking_threshold_files",
+      "changeset.advisory_threshold_lines",
+      "changeset.advisory_threshold_files",
     ]);
 
     for (const descriptor of ARC_CONFIG_FIELDS) {
       const expected = invalid.has(descriptor.key) ? "invalid" : unset.has(descriptor.key) ? "unset" : "default";
       expect(descriptor.quotedEmpty, descriptor.key).toBe(expected);
-      expect(descriptor.schema.safeParse("").success, descriptor.key).toBe(expected !== "invalid");
+      if (expected === "invalid") {
+        assertSchemaRefuses(descriptor.schema, "");
+      } else {
+        assertSchemaAccepts(descriptor.schema, "");
+      }
     }
   });
 
@@ -203,11 +275,13 @@ describe("ARC config field catalog", () => {
       ["worktree.location_template", "../{repo}.{name}"],
       ["worktree.post_create", ""],
       ["worktree.harness_dirs", ".claude,.codex,.gemini,.opencode"],
+      ["storage.backing_repository", ""],
       ["commit.format", "conventional"],
       ["commit.context_footer", "required"],
       ["commit.custom_pattern", ""],
       ["commit.context_pattern", ""],
       ["merge.strategy", "merge"],
+      ["merge.lock", "none"],
       ["hooks.pre_commit", "enabled"],
       ["hooks.commit_msg", "enabled"],
       ["hooks.pre_push", "enabled"],
@@ -216,12 +290,12 @@ describe("ARC config field catalog", () => {
       ["hooks.test_patterns", "__tests__/|\\.test\\.|\\.spec\\.|/test/|/tests/"],
       [
         "hooks.strict_meta_ref_patterns",
-        "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|" + String.fromCodePoint(0xa7) + " ",
+        "PRD " + "R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\\b|" + String.fromCodePoint(0xa7) + " ",
       ],
       [
         "hooks.meta_ref_patterns",
         "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"
-          + "(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
+          + "(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
       ],
       ["hooks.subject_max_length", "72"],
       ["hooks.body_max_lines", "100"],
@@ -232,8 +306,13 @@ describe("ARC config field catalog", () => {
       ["review.standard_sources", "[]"],
       ["review.frontline_max_passes", "2"],
       ["review.standard_max_passes", "2"],
-      ["review.chunking_threshold_lines", "0"],
-      ["review.chunking_threshold_files", "0"],
+      ["review.hosted_await_timeout_seconds", "120"],
+      ["review.hosted_await_initial_poll_interval_seconds", "15"],
+      ["review.hosted_await_attention_after_minutes", "15"],
+      ["review.checks_await_timeout_seconds", "300"],
+      ["review.checks_await_initial_poll_interval_seconds", "5"],
+      ["changeset.advisory_threshold_lines", "0"],
+      ["changeset.advisory_threshold_files", "0"],
       ["pm.mode", "none"],
       ["team.mode", "false"],
       ["session.remote_sync", "enabled"],
@@ -244,12 +323,31 @@ describe("ARC config field catalog", () => {
       ["user.notes_push", "on-sync"],
       ["sync.auto_pull", "false"],
       ["archive.cadence", "with-integration"],
+      ["storage.track_design_docs", "specs"],
+      ["layout.active", "nested"],
       ["inbox.remind_after_days", "1"],
+      ["inbound.retriage_after_entries", "10"],
+      ["inbound.retriage_after_days", "30"],
+      ["pause.review_after_days", "14"],
       ["integration.stale_after_days", "2"],
     ];
 
     expect(ARC_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue])).toEqual(expected);
     expect(new Set(ARC_CONFIG_FIELDS.map(({ key }) => key))).toHaveLength(ARC_CONFIG_FIELDS.length);
+  });
+
+  it("reports the meta-reference pattern defaults the pre-commit hook falls back to and the shipped config sets", async () => {
+    const shipped = resolve(dirname(fileURLToPath(import.meta.url)), "../../../arc/system");
+    const hook = await readFile(join(shipped, ".internal/githooks/pre-commit"), "utf8");
+    const config = await readFile(join(shipped, "arc-config.yml"), "utf8");
+
+    for (const key of ["hooks.strict_meta_ref_patterns", "hooks.meta_ref_patterns"]) {
+      const name = key.replaceAll(".", "\\.");
+      const fallback = new RegExp(`arc_config_get "${name}" "([^"]*)"`, "u").exec(hook)?.[1];
+      const configured = new RegExp(`^${name}: '([^']*)'$`, "mu").exec(config)?.[1];
+      expect(fallback, key).toBe(field(key).defaultValue);
+      expect(configured, key).toBe(field(key).defaultValue);
+    }
   });
 
   it("keeps every catalog leaf structurally projectable", () => {
@@ -279,8 +377,11 @@ describe("ARC config record schemas", () => {
 
   it("accepts quoted empty only for default and unset fields", () => {
     for (const descriptor of ARC_CONFIG_FIELDS) {
-      const result = ArcConfigSchema.safeParse({ [descriptor.key]: "" });
-      expect(result.success, descriptor.key).toBe(descriptor.quotedEmpty !== "invalid");
+      if (descriptor.quotedEmpty === "invalid") {
+        assertSchemaRefuses(ArcConfigSchema, { [descriptor.key]: "" });
+      } else {
+        assertSchemaAccepts(ArcConfigSchema, { [descriptor.key]: "" });
+      }
     }
   });
 
@@ -293,25 +394,25 @@ describe("ARC config record schemas", () => {
     expect(ArcConfigSchema.parse(accepted)).toEqual(accepted);
 
     for (const key of ["Upper.key", "1future", "_future", "a", "future-key"]) {
-      expect(ArcConfigSchema.safeParse({ [key]: "value" }).success, key).toBe(false);
+      assertSchemaRefuses(ArcConfigSchema, { [key]: "value" });
     }
   });
 
   it("rejects invalid records while keeping the completed projection limited to string shape", () => {
-    expect(ArcConfigSchema.safeParse({ "branch.protection": "sometimes" }).success).toBe(false);
-    expect(ArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
-    expect(RawArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
+    assertSchemaRefuses(ArcConfigSchema, { "branch.protection": "sometimes" });
+    assertSchemaRefuses(ArcConfigSchema, { future: 1 });
+    assertSchemaRefuses(RawArcConfigSchema, { future: 1 });
 
     const completed = Object.fromEntries(
       ARC_CONFIG_FIELDS
         .filter(({ key }) => !key.startsWith("hooks."))
         .map(({ key, defaultValue }) => [key, defaultValue]),
     );
-    expect(ConfigSettingsSchema.safeParse({ ...completed, "branch.protection": "tolerated-raw" }).success).toBe(true);
+    assertSchemaAccepts(ConfigSettingsSchema, { ...completed, "branch.protection": "tolerated-raw" });
     const incomplete = { ...completed };
     delete incomplete["branch.base"];
-    expect(ConfigSettingsSchema.safeParse(incomplete).success).toBe(false);
-    expect(ConfigSettingsSchema.safeParse({ ...completed, future: "value" }).success).toBe(false);
+    assertSchemaRefuses(ConfigSettingsSchema, incomplete);
+    assertSchemaRefuses(ConfigSettingsSchema, { ...completed, future: "value" });
   });
 
   it("projects the authorable schema without transforms or refinements", () => {

@@ -35,6 +35,7 @@ const cleanOutput = [
     reviewedFiles: ["src/index.ts"],
   }),
 ].join("\n");
+const listChangedFiles = async () => [{ path: "src/index.ts", binary: false }];
 const executableIdentity = {
   path: "/opt/review-tools/coderabbit",
   digest: canonicalDigest({ executable: "coderabbit" }),
@@ -59,7 +60,7 @@ describe("CodeRabbit frontline execution", () => {
       reviewRoot: "/tmp/exact-head",
       remainingMs: 60_000,
       signal: new AbortController().signal,
-    }, { run, resolveExecutable })).resolves.toMatchObject({
+    }, { run, resolveExecutable, listChangedFiles })).resolves.toMatchObject({
       outcome: {
         outcome: "unavailable",
         reason: { class: "source-unbound" },
@@ -84,6 +85,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run,
       resolveExecutable: vi.fn().mockRejectedValue(new CodeRabbitExecutableUnavailableError("coderabbit")),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "unavailable",
@@ -119,6 +121,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 1, signal: null, stdout, stderr: "" }),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "unavailable",
@@ -147,11 +150,15 @@ describe("CodeRabbit frontline execution", () => {
       resolveExecutable: vi.fn().mockRejectedValue(
         new Error("CodeRabbit executable returned an unrecognized version"),
       ),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "failed",
         findings: [],
-        reason: { class: "unexpected-adapter-failure" },
+        reason: {
+          class: "unexpected-adapter-failure",
+          detail: expect.stringContaining("executable resolution exception"),
+        },
       },
       executableIdentity: null,
     });
@@ -170,6 +177,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run: vi.fn().mockRejectedValue(Object.assign(new Error("spawn EACCES"), { code: "EACCES" })),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "failed",
@@ -213,7 +221,7 @@ describe("CodeRabbit frontline execution", () => {
         reviewRoot: "/tmp/exact-head",
         remainingMs,
         signal,
-      }, { run, resolveExecutable }),
+      }, { run, resolveExecutable, listChangedFiles }),
     })).resolves.toMatchObject({
       outcome: {
         outcome: "timed-out",
@@ -238,6 +246,7 @@ describe("CodeRabbit frontline execution", () => {
         signal,
       }, {
         resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+        listChangedFiles,
         run: vi.fn(() => new Promise<never>(() => undefined)),
       }),
     })).resolves.toMatchObject({
@@ -264,7 +273,7 @@ describe("CodeRabbit frontline execution", () => {
       reviewRoot: "/tmp/exact-head",
       remainingMs: 60_000,
       signal: new AbortController().signal,
-    }, { run, resolveExecutable })).resolves.toMatchObject({
+    }, { run, resolveExecutable, listChangedFiles })).resolves.toMatchObject({
       outcome: {
         outcome: "clean",
         source: { sourceId: "coderabbit-cli", executable: "coderabbit" },
@@ -284,6 +293,36 @@ describe("CodeRabbit frontline execution", () => {
       signal: expect.any(AbortSignal),
     });
   });
+
+  it.each(["0.6.4", "0.7.2"])(
+    "accepts structurally valid output from resolved CodeRabbit CLI version %s",
+    async (cliVersion) => {
+      const resolvedIdentity = {
+        ...executableIdentity,
+        qualifiedVersion: `coderabbit/${cliVersion}`,
+      };
+
+      await expect(executeCodeRabbitFrontline({
+        source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+        target,
+        pass: 1,
+        maxPasses: 2,
+        reviewRoot: "/tmp/exact-head",
+        remainingMs: 60_000,
+        signal: new AbortController().signal,
+      }, {
+        run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" }),
+        resolveExecutable: vi.fn().mockResolvedValue(resolvedIdentity),
+        listChangedFiles,
+      })).resolves.toMatchObject({
+        outcome: { outcome: "clean" },
+        executableIdentity: {
+          digest: resolvedIdentity.digest,
+          qualifiedVersion: resolvedIdentity.qualifiedVersion,
+        },
+      });
+    },
+  );
 
   it("preserves structured findings for author-side triage", async () => {
     const finding = {
@@ -314,6 +353,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout, stderr: "" }),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "findings",
@@ -339,6 +379,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run: vi.fn().mockResolvedValue({ exitCode: 1, signal: null, stdout: "", stderr: "rate limit exceeded" }),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     });
 
     expect(result).toMatchObject({
@@ -367,6 +408,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run,
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "timed-out",
@@ -388,6 +430,7 @@ describe("CodeRabbit frontline execution", () => {
     }, {
       run: vi.fn().mockRejectedValue(new Error("unknown provider failure")),
       resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
     })).resolves.toMatchObject({
       outcome: {
         outcome: "failed",
@@ -395,5 +438,143 @@ describe("CodeRabbit frontline execution", () => {
         reason: { class: "unexpected-adapter-failure" },
       },
     });
+  });
+
+  it("retains a bounded, redacted process diagnostic on an uncertain provider failure", async () => {
+    const error = Object.assign(new Error(`storage token=private-value ${"x".repeat(600)}`), {
+      code: "ENOSPC",
+    });
+    const result = await executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run: vi.fn().mockRejectedValue(error),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles,
+    });
+
+    expect(result.outcome).toMatchObject({
+      outcome: "failed",
+      reason: {
+        class: "unexpected-adapter-failure",
+        detail: expect.stringContaining("ENOSPC"),
+      },
+    });
+    if (result.outcome.outcome !== "failed") throw new Error("expected a failed outcome");
+    expect(result.outcome.reason.detail).toContain("token=[redacted]");
+    expect(result.outcome.reason.detail).not.toContain("private-value");
+    expect(result.outcome.reason.detail?.length).toBeLessThanOrEqual(400);
+    expect(result.executableIdentity).toMatchObject({ digest: executableIdentity.digest });
+  });
+
+  it("lists the exact target's changed files in the review checkout before launching the provider", async () => {
+    const signal = new AbortController().signal;
+    const listing = vi.fn(listChangedFiles);
+    const run = vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" });
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal,
+    }, {
+      run,
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles: listing,
+    })).resolves.toMatchObject({ outcome: { outcome: "clean" } });
+    expect(listing).toHaveBeenCalledExactlyOnceWith({
+      reviewRoot: "/tmp/exact-head",
+      diffBaseSha: target.diffBaseSha,
+      headSha: target.headSha,
+      signal,
+    });
+    expect(listing.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[0] ?? 0);
+  });
+
+  it("reports a clean run that skipped a changed file as unsupported capability", async () => {
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" }),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles: async () => [
+        { path: "src/index.ts", binary: false },
+        { path: "src/unreviewed.ts", binary: false },
+      ],
+    })).resolves.toMatchObject({
+      outcome: { outcome: "unavailable", findings: [], reason: { class: "capability-unsupported" } },
+      executableIdentity: {
+        digest: executableIdentity.digest,
+        qualifiedVersion: executableIdentity.qualifiedVersion,
+      },
+    });
+  });
+
+  it("maps a changed-file listing failure to the closed adapter-failure class without launching", async () => {
+    const run = vi.fn();
+
+    await expect(executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run,
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+      listChangedFiles: vi.fn().mockRejectedValue(new Error("fatal: bad revision")),
+    })).resolves.toMatchObject({
+      outcome: {
+        outcome: "failed",
+        findings: [],
+        reason: {
+          class: "unexpected-adapter-failure",
+          detail: expect.stringContaining("changed-file listing exception"),
+        },
+      },
+      executableIdentity: null,
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns timed-out when the changed-file listing exceeds the run deadline", async () => {
+    const run = vi.fn();
+
+    await expect(executeBoundedFrontlineCarrier({
+      timeoutMs: 5,
+      execute: ({ remainingMs, signal }) => executeCodeRabbitFrontline({
+        source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+        target,
+        pass: 1,
+        maxPasses: 2,
+        reviewRoot: "/tmp/exact-head",
+        remainingMs,
+        signal,
+      }, {
+        run,
+        resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+        listChangedFiles: () => new Promise<never>(() => undefined),
+      }),
+    })).resolves.toMatchObject({
+      outcome: { outcome: "timed-out", reason: { class: "execution-timeout" } },
+      executableIdentity: null,
+    });
+    expect(run).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@ import {
   runReleaseSetupUninstall,
   type ReleaseSetupUninstallInput,
 } from "../../../../../src/handlers/release/setup/uninstall.js";
-import type { ConfigSettings } from "../../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../../src/lib/config/schema.js";
 import type { ResolvedSettingsResult } from "../../../../../src/lib/config/resolved-settings.js";
 import type {
   HarnessEntry,

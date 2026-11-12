@@ -2,11 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  COMMIT_CHECK_CONFIG_FIELDS,
   COMMIT_CHECK_DEFAULTS,
   readCommitCheckConfiguration,
   resolveCommitCheckPolicy,
 } from "../../../src/lib/commit-check/index.js";
+import { COMMIT_CHECK_CONFIG_FIELDS } from "../../../src/lib/config/schema.js";
 
 describe("readCommitCheckConfiguration", () => {
   it("derives its key set and defaults from the configuration catalog", () => {

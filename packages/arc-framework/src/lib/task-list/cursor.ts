@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import {
+  ParentTaskIdSchema,
   scanTaskListStructure,
   type TaskListStructureEvent,
   type TaskMarker,
@@ -27,18 +28,13 @@ interface ParsedSubtask {
   marker: TaskMarker;
 }
 
-const TASK_CURSOR_ID_SCHEMA = z.string()
-  .regex(/^\d+(?:\.[0-9A-Za-z]+)+$/u)
-  .refine((value) => !/^\d+\.\d+\.\d+(?:\.|$)/u.test(value), {
-    error: "Numeric third task-id segments are not executable cursor ids",
-  });
 const NON_EMPTY_TEXT_SCHEMA = z.string().refine((value) => value.trim().length > 0, {
   error: "Value must contain non-whitespace text",
 });
 const POSITIVE_SAFE_INTEGER_SCHEMA = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 
 const TASK_CURSOR_ITEM_SHAPE = {
-  id: TASK_CURSOR_ID_SCHEMA,
+  id: ParentTaskIdSchema,
   title: NON_EMPTY_TEXT_SCHEMA,
   lineHint: POSITIVE_SAFE_INTEGER_SCHEMA,
 };
@@ -115,6 +111,12 @@ export interface TaskListTallies {
 export type TaskListAnalysisResult =
   | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies; phaseHeadingLine?: number }
   | { status: "no-open-task"; tallies?: TaskListTallies }
+  | { status: "malformed"; error: TaskListCursorMalformed };
+
+/** Result of resolving the terminal completed task. */
+export type TaskListLastCompletedResult =
+  | { status: "found"; item: TaskCursorItem }
+  | { status: "none" }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
 /** Current parent-task block extraction result. */
@@ -238,6 +240,26 @@ function analyzeTaskListEvents(events: readonly TaskListStructureEvent[]): TaskL
       overall: { done, total },
     },
   };
+}
+
+/**
+ * Resolve the terminal completed task — the last `[x]` marker in document order.
+ *
+ * Document order makes the answer the deepest completed leaf on its own: a completed parent's
+ * subtasks follow it, so the last marker seen is a subtask wherever one exists. A `[~]` marker is
+ * a deliberate deferral rather than completed work and never answers.
+ *
+ * @param content - Raw task-list markdown
+ * @returns The final completed item, `none` when nothing is complete, or a malformed marker
+ */
+export function resolveLastCompletedTask(content: string): TaskListLastCompletedResult {
+  const scan = scanTaskListStructure(content);
+  if (scan.status === "malformed") return scan;
+  let last: TaskCursorItem | null = null;
+  for (const event of scan.events) {
+    if ((event.type === "parent" || event.type === "subtask") && event.marker === "x") last = event.item;
+  }
+  return last === null ? { status: "none" } : { status: "found", item: last };
 }
 
 /** Extract the current parent-task block using the analyzed section line hint. */

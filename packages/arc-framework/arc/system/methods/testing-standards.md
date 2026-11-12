@@ -23,12 +23,18 @@ override-active: false
 ## testing-standards.default
 
 - Test observable behavior through public interfaces; don't assert on implementation — including **don't assert
-  on spy / call args as the outcome** (that verifies wiring, not behavior).
-- **Keep mocked boundaries faithful** — a stub returning what the real dependency never would (including
-  success-shaped where it would error) passes against a fiction; cover response-dependent behavior at a tier
-  that runs the real thing.
-- **See it fail first** — a test that has never failed may assert nothing.
-- **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
+  on spy / call args as the outcome** · `[invariant]` (that verifies wiring, not behavior).
+- **Keep mocked boundaries and fixtures faithful** · `[invariant]` — a stub inventing dependency outcomes, or a
+  hand-built fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture
+  invariants from the producer; cover response-dependent behavior at a tier that runs the real thing.
+- **See every behavior fail first** · `[invariant]` — this includes behavior the current implementation satisfies
+  incidentally. If a new test passes before red, reconstruct only the narrow pre-behavior implementation, run the
+  test to a behavioral failure, then restore the current implementation. At completion, retain reconstruct-and-revert
+  evidence: the test fails against the reconstruction and passes after restoration. Compile or import errors do not
+  prove fail-first behavior.
+- **One behavior at a time** — don't batch tests for imagined behavior. Several coupled behaviors may share one
+  pre-implementation test batch only when they have one indivisible implementation and every test can genuinely fail
+  first.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
   test your dependencies.
 - **Design for testability** — inject dependencies; separate computation from I/O.

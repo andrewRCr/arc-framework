@@ -9,10 +9,11 @@
  * @module
  */
 
-import { isAbsolute } from "node:path";
+import { isAbsolute, posix } from "node:path";
 
 import { SlugSchema } from "../kernel/index.js";
-import { resolveArcPath } from "../layout/index.js";
+import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";
+import { workItemArtifactPathAt } from "../store/lifecycle-storage.js";
 
 import {
   LOAD_SET_MANIFEST_VERSION,
@@ -22,15 +23,22 @@ import {
 } from "./types.js";
 
 /** Session type resolved by the active-work probe. */
-export type LoadSetSessionType = "planning" | "execution" | "integration";
+export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "integration";
 
 /** Planning-stage workflow basename resolved from `Current Workflow`. */
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
+
+/** Deterministic work substage derived from canonical lifecycle facts. */
+export type LoadSetWorkUnitStage = "task-work" | "verification-closeout" | "delivery-correction";
 
 /** Already-resolved pointers needed to project the session load set. */
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
   identity: string | null;
+  /** Physical coordinates resolved once by the checkout-aware metadata reader. */
+  workUnit?: { slug: string; placement: WorkUnitPlacement };
+  /** Whether session context lives in the meta rather than a workspace seed. */
+  stateOffBranch?: boolean;
   /**
    * Exact identity-global working-memory path selected by the user-surface owner.
    * When omitted, defaults to the active-checkout-relative semantic projection.
@@ -44,15 +52,10 @@ export interface LoadSetProjectionInput {
   sessionType: LoadSetSessionType | null;
   /** Planning lifecycle stage; used only when `sessionType === "planning"`. */
   planningStage: LoadSetPlanningStage | null;
+  /** Derived task or verification substage inside execution or integration. */
+  workUnitStage?: LoadSetWorkUnitStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
-  /**
-   * Active extension names from the session-init extensions slot.
-   *
-   * Names stay in the status envelope for workflow fire-points to consult.
-   * Extension bodies are intentionally excluded from the session load set.
-   */
-  activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
 }
@@ -74,14 +77,15 @@ function cloneEntry(entry: LoadSetEntry): LoadSetEntry {
   };
 }
 
+const ARC_ROOT = resolveArcPath({ kind: "arc-root" });
 const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
-  full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
-  full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
-  full(".arc/system/rules/DEV-RULES.ARC.md"),
-  full(".arc/system/rules/DEV-RULES.PROJECT.md"),
-  full(".arc/reference/strategies/STRATEGY-INDEX.md"),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.ARC.md")),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.ARC.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "reference/strategies/STRATEGY-INDEX.md")),
   {
-    path: ".arc/reference/QUICK-REFERENCE.md",
+    path: posix.join(ARC_ROOT, "reference/QUICK-REFERENCE.md"),
     readMode: {
       kind: "partial-section",
       heading: "Environment & Path Context",
@@ -98,12 +102,13 @@ const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
   const entries: LoadSetEntry[] = ARC_CONTEXT_ENTRIES.map(cloneEntry);
   const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+  const workUnitStage = input.workUnitStage ?? null;
 
-  if (input.metaPath !== null) {
-    entries.push(full(input.metaPath));
-  }
+  const metaPath = input.workUnit === undefined ? input.metaPath
+    : workItemArtifactPathAt(input.workUnit.slug, "meta", input.workUnit.placement);
+  if (metaPath !== null) entries.push(full(metaPath));
 
-  if (input.identity !== null && input.activeWorkUnit !== null) {
+  if (input.stateOffBranch !== true && input.identity !== null && input.activeWorkUnit !== null) {
     entries.push(full(resolveArcPath({
       kind: "user-document",
       identity: layoutSlug(input.identity),
@@ -123,14 +128,23 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(`${workflowRoot}/arc/${input.planningStage}.md`));
   }
 
-  if (input.sessionType === "execution") {
-    if (input.taskListPath !== null) {
-      entries.push(partialStrategic(input.taskListPath));
+  if (input.sessionType === "execution" || input.sessionType === "integration") {
+    if (workUnitStage === "verification-closeout") {
+      entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/verify-work-unit.md`));
+    } else if (workUnitStage === "task-work" || input.sessionType === "execution") {
+      if (input.taskListPath !== null) {
+        entries.push(partialStrategic(input.taskListPath));
+      }
+      entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
     }
-    entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
   }
 
-  if (input.sessionType === "integration") {
+  if (input.sessionType === "prepublication") {
+    entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/prepare-work-unit.md`));
+  }
+
+  if (input.sessionType === "integration"
+    && (workUnitStage === null || workUnitStage === "delivery-correction")) {
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/integrate-work-unit.md`));
   }
 

@@ -11,11 +11,13 @@ import {
   gitExecInput,
   prepareGitRefVerification,
   readGitBlobBytes,
+  readGitBlobEntry,
 } from "../../src/lib/io-context.js";
 import { boundedFetch, boundedGitInvocation } from "../../src/lib/git/exec.js";
 import { deleteRemoteBranch } from "../../src/lib/work-unit/mutators/reconcile-branch.js";
 import {
   createExecaGitExec,
+  createExecaRawGitExec,
   createExecaGitExecInput,
   MAX_GIT_OUTPUT_BYTES,
 } from "../../src/lib/git/process-executor.js";
@@ -26,6 +28,13 @@ const tempDirs: string[] = [];
 afterEach(async () => {
   vi.unstubAllEnvs();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+it("honors an already requested cancellation for byte-preserving Git reads", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await expect(createExecaRawGitExec()(["--version"], { signal: controller.signal }))
+    .rejects.toMatchObject({ kind: "canceled", isCanceled: true });
 });
 
 describe("production GitExec", () => {
@@ -135,6 +144,19 @@ describe("production GitExec", () => {
     expect(ordinary.stdout).toBe(process.env.GIT_TERMINAL_PROMPT ?? "unset");
   });
 
+  it("pins diagnostics to the stable C locale only when requested", async () => {
+    const script = "process.stdout.write(JSON.stringify({ LC_ALL: process.env.LC_ALL, LANG: process.env.LANG }))";
+
+    const stable = await gitExec(execPath, ["-e", script], { diagnosticLocale: "stable" });
+    expect(JSON.parse(stable.stdout)).toEqual({ LC_ALL: "C", LANG: "C" });
+
+    const ordinary = await gitExec(execPath, ["-e", script]);
+    expect(JSON.parse(ordinary.stdout)).toEqual({
+      LC_ALL: process.env.LC_ALL,
+      LANG: process.env.LANG,
+    });
+  });
+
   it("normalizes non-zero, canceled, output-limit, and spawn failures", async () => {
     await expect(gitExec("git", ["not-a-command"])).rejects.toMatchObject({
       kind: "nonzero-exit",
@@ -225,6 +247,16 @@ describe("production GitExecInput", () => {
     expect(second).toBe(stdout);
   });
 
+  it("pins stdin-fed Git plumbing to an explicit repository", async () => {
+    const root = await createGitRepo("arc-execa-input-cwd-");
+    const input = `repository-local-${root}\n`;
+
+    const object = (await gitExecInput(["hash-object", "-w", "--stdin"], input, { cwd: root })).trim();
+    const stored = await gitExec("git", ["cat-file", "-p", object], { cwd: root });
+
+    expect(stored.stdout).toBe(input.trimEnd());
+  });
+
   it("retains partial process-capped output in typed output-limit failures", async () => {
     const limitedInput = createExecaGitExecInput(256);
     const input = "HEAD\n".repeat(100);
@@ -265,6 +297,37 @@ describe("installation diff adapter", () => {
 });
 
 describe("process-backed IO adapters", () => {
+  it("reads exact blob entries and bytes from an explicitly supplied index", async () => {
+    const root = await createGitRepo("arc-blob-alternate-index-");
+    const indexFile = join(root, ".git", "alternate-index");
+    const gitOptions = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], gitOptions);
+    const bytes = new Uint8Array([0, 10, 128, 255]);
+    await writeFile(join(root, "seed.txt"), bytes);
+    await gitExec("git", ["add", "seed.txt"], gitOptions);
+    const options = { objectAccess: "local-only" as const, indexFile };
+
+    await expect(readGitBlobEntry(root, null, "seed.txt", options)).resolves.toEqual({ mode: "100644", bytes });
+    await expect(readGitBlobBytes(root, null, "seed.txt", options)).resolves.toEqual(bytes);
+    await expect(readGitBlobBytes(root, null, "seed.txt")).resolves.toEqual(new TextEncoder().encode("seed"));
+  });
+
+  it("reads an explicitly supplied index through the raw Git adapter", async () => {
+    const root = await createGitRepo("arc-raw-alternate-index-");
+    const indexFile = join(root, ".git", "alternate-index");
+    const options = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], options);
+    await writeFile(join(root, "seed.txt"), "alternate-index-content\n");
+    await gitExec("git", ["add", "seed.txt"], options);
+    vi.stubEnv("GIT_INDEX_FILE", join(root, ".git", "poisoned-index"));
+
+    const raw = createExecaRawGitExec(root);
+    const result = await raw(["diff", "--cached", "--name-only"], options);
+    expect(new TextDecoder().decode(result.stdout)).toBe("seed.txt\n");
+    const ordinary = await raw(["diff", "--cached", "--name-only"]);
+    expect(ordinary.stdout).toHaveLength(0);
+  });
+
   it("preserves terminal execa failures from prepared ref verification", async () => {
     const root = await createGitRepo("arc-ref-verification-failure-");
     const { stdout: head } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });
@@ -334,20 +397,35 @@ describe("process-backed IO adapters", () => {
   });
 
   it("writes and reads large note content through execa stdin without interpolation", async () => {
+    const root = await createGitRepo("arc-large-note-");
     vi.stubEnv("GIT_AUTHOR_NAME", "ARC Test");
     vi.stubEnv("GIT_AUTHOR_EMAIL", "arc-test@example.com");
     vi.stubEnv("GIT_COMMITTER_NAME", "ARC Test");
     vi.stubEnv("GIT_COMMITTER_EMAIL", "arc-test@example.com");
     const ref = `refs/notes/arc-execa-test-${process.pid}`;
     const content = `literal $() and spaces\n${"payload\n".repeat(32_768)}`;
-    const context = createUserIOContext();
+    const ambientNotesBefore = await gitExec(
+      "git",
+      ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/notes"],
+      { cwd: process.cwd() },
+    );
 
     try {
-      await context.writeNote(ref, content, "HEAD");
-      await expect(context.readNote(ref, "HEAD")).resolves.toBe(content.trimEnd());
+      await gitExecInput(
+        ["notes", `--ref=${ref}`, "add", "-f", "-F", "-", "HEAD"],
+        content,
+        { cwd: root },
+      );
+      await expect(gitExec("git", ["notes", `--ref=${ref}`, "show", "HEAD"], { cwd: root }))
+        .resolves.toMatchObject({ stdout: content.trimEnd() });
     } finally {
-      await gitExec("git", ["update-ref", "-d", ref]);
+      await gitExec("git", ["update-ref", "-d", ref], { cwd: root });
     }
+    await expect(gitExec(
+      "git",
+      ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/notes"],
+      { cwd: process.cwd() },
+    )).resolves.toEqual(ambientNotesBefore);
   });
 });
 

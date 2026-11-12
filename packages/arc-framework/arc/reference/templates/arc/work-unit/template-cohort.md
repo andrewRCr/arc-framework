@@ -3,7 +3,9 @@
 > _Identity and coordination record for this cohort. Membership is **derived** from each member's `Cohort`
 > field — recorded here only as shared coordination, never as a roster or status table._
 
-**Parent:** {The parent cohort's name — for a sub-cohort only; omit this line for a top-level cohort. Derivable
+**Parent:** `{parent-cohort-name}`
+
+{The parent cohort's name — for a sub-cohort only; omit this line for a top-level cohort. Derivable
 from the `Cohort` path, so it is a convenience pointer, not a source of truth.}
 
 **Purpose:** {Required floor — one paragraph expanding the slug into why this grouping exists: the single

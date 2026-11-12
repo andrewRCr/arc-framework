@@ -1,205 +1,139 @@
 # Strategy: Quality Gates
 
-> **Guide and rationale:** [Quality Gates](https://andrewrcr.github.io/arc-framework/reference/quality-gates/)
-> on the docs site covers the tiered system overview, escalation reasoning, and common pitfalls.
+Operator guidance for declaring project checks and choosing their deadlines. The check declaration lives in
+`.arc/system/arc-checks.yml`; the verb's help and emitted remedies cover selection, reuse, and execution.
 
-Operational specification for quality gate execution during development. Defines the tiered
-checkpoint system, integration checkpoint identification, and task list integration patterns.
+## Place checks by deadline
 
-**Scope:** General ARC methodology. Project-specific test commands, tooling, and
-component-to-test mappings belong in project documentation (QUICK-REFERENCE, testing
-methodology strategy).
+Assign each check to the earliest event before which its failure must be resolved. Keep the commit gate fast enough
+for regular commits; put broader verification at push and the complete project suite at the merge quality gate.
+The project decides which checks meet each deadline from its actual dependencies and measured costs.
 
----
+Place a related-tests check at the push gate, with the merge quality gate's whole-suite run catching what the import
+graph misses, unless changes often reach tests through inputs no import graph shows; then a whole-suite check holds
+the push gate, and the related-tests check has no gate and is requested by id at the increment boundary.
 
-## Contents
+## Declare the inputs the check depends on
 
-- [Tiered Quality Gate System](#tiered-quality-gate-system) — what to run at each stage
-- [Task List Integration](#task-list-integration) — checkpoint placement in task lists
-- [When to Escalate Tiers](#when-to-escalate-tiers) — triggers for running more than the minimum
-- [Relationship to Other Documentation](#relationship-to-other-documentation) — cross-references
+Include the source, configuration, dependency, and runtime inputs whose changes can alter the result. Inputs that
+are too broad spend time on unrelated changes; inputs that omit a dependency can reuse a result that no longer covers
+what the check examines. Choose scope from the check's real dependencies rather than its command's name.
 
----
+Choose the commit-fix behavior to match the project's staging practice: automatic restaging or a failed hook that
+leaves rewrites for the person to stage. Other verification requests run fix-capable checks as checks and report
+rewrites as failures.
 
-## Tiered Quality Gate System
+## Configure machine-local execution
 
-### Tier 1: Fast Incremental (Per-Task)
+Keep project commands ordinary. A machine may configure a check-runner executable and literal arguments in the flat
+`checks.runner` key of its operating-system home file, `~/.arc/config.yml`:
 
-**When:** After completing any task (each checkbox), before marking it complete.
-
-**What:**
-
-- Type checking on modified files/directories
-- Linting on modified files (with auto-fix)
-- Format checking on modified files
-- Related unit tests (tests for the code you changed)
-
-**Time budget:** Seconds to ~1 minute
-
-**Guidance:**
-
-- Always run before marking a task complete
-- Use targeted commands (specific files/directories), not full-project scans
-- Fix issues immediately while context is fresh
-
----
-
-### Tier 2: Integration Checkpoint (Coherent Unit Completion)
-
-**When:**
-
-- After completing a coherent unit of work — typically when all subtasks of a parent task are
-  done, or when a standalone task (no subtasks) touches integration-relevant code
-- When you've touched code that existing integration/E2E tests exercise
-- Before moving from one major area of the codebase to another
-
-**What:**
-
-- Everything in Tier 1 (full project scope)
-- Targeted E2E/integration tests for affected areas (when parent task touched E2E-tested code)
-- Build verification
-
-**Time budget:** 1-5 minutes
-
-**Identifying integration checkpoints:**
-
-1. **Component scope:** Did the completed work modify code that integration or E2E tests
-   exercise? (e.g., request handlers, UI components, API endpoints, data pipelines)
-2. **Behavior changes:** Did it change how something works (not just how it looks)?
-3. **Cross-cutting changes:** Did it modify shared infrastructure (middleware, shared utilities,
-   configuration, dependency injection)?
-4. **If no integration/E2E relevance:** Skip targeted tests but still run full-project Tier 1
-   checks + build.
-
-**Running targeted integration/E2E tests:**
-
-Don't run the full suite at Tier 2 — that's Tier 3. Instead:
-
-- Run specific test files that cover the area you modified
-- Run tests tagged for the feature area (if using a tag system)
-- Use a minimal configuration for speed (full matrix is Tier 3)
-
-Example patterns (project-specific commands vary):
-
-```bash
-# Run tests for a specific area
-pytest tests/integration/test_auth_flow.py
-npm run test:e2e -- e2e/tests/checkout.spec.ts
-
-# Run tests matching a tag/grep pattern
-pytest -m "payments" tests/integration/
-npm run test:e2e -- --grep "@navigation"
+```yaml
+checks.runner: ["team-check-runner", "--profile", "development"]
 ```
 
----
+A bare executable resolves through PATH; a relative executable with a directory component resolves from the machine
+file's directory. Arguments receive no shell, environment-variable or tilde expansion. The setting has no project
+YAML or Git-config override. Remove the key to disable it; repair invalid configuration before retrying.
 
-### Tier 3: Full Suite (Per-Phase / Pre-PR)
+Eligible checks opt in independently in the project declaration:
 
-**When:**
-
-- After completing a phase (all tasks in the phase done)
-- Before creating a pull request
-- Final quality gate before merge
-
-**What:**
-
-- Full type checking (entire project)
-- Full linting (entire project)
-- Full format checking
-- Full unit test suite
-- Full integration/E2E test suite (all configurations)
-- Build verification
-- Markdown linting (for documentation changes)
-
-**Time budget:** 5-15+ minutes (acceptable because it's infrequent)
-
-**Guidance:**
-
-- Never skip or partially run Tier 3
-- If Tier 3 fails, fix before proceeding (see Quality gate failure in
-  [DEV-RULES.ARC][dev-rules-arc])
-
-**Commits and quality gates:** Tiers are milestone-driven, not commit-driven. Work committed
-through the task loop inherits the gates already run at each milestone. For work outside the
-task loop (incidental fixes, atomic tasks), run at least Tier 1 before committing.
-
----
-
-## Task List Integration
-
-When generating task lists, include appropriate quality gate checkpoints:
-
-**Task level (implicit):**
-Every task (each checkbox) implicitly includes Tier 1 checks before completion. No need to
-list explicitly unless emphasizing a specific check.
-
-**Coherent unit completion (implicit):**
-Tier 2 checks run when you complete a coherent unit of work — all subtasks of a parent done,
-or a standalone task that touches integration-tested code. This is documented in
-[process-task-loop][process-task-loop].
-
-**Phase level (explicit when relevant):**
-Include explicit E2E/integration checkpoint tasks when a phase modifies E2E-tested code:
-
-```markdown
-## **Phase 3:** API Endpoint Changes
-
-- [ ] **3.1 Modify authentication endpoint**
-    - [implementation details]
-
-- [ ] **3.2 Update rate limiting middleware**
-    - [implementation details]
-
-- [ ] **3.3 Run integration checkpoint**
-    - Run auth integration tests: `pytest tests/integration/test_auth.py`
-    - Fix any failures before proceeding to Phase 4
+```yaml
+checks:
+  typecheck:
+    command: ["npm", "run", "-s", "typecheck"]
+    mode: project
+    runner: true
+    environment_inputs:
+      CHECK_MODE: value
+      CHECK_WEIGHTS_FILE: file
 ```
 
-**Final phase (explicit):**
-Task lists typically include a final "Testing & Quality" phase for Tier 3:
+`runner` defaults to false and names no provider. Without a configured adapter, eligible checks retain native
+execution without source capture or adapter preparation. Keep fixers, index certifiers, selection checks and builds
+that update the caller checkout native; the first three cannot opt in. A configured adapter owns preparation,
+admission and compatible placement or fallback. ARC does not bypass it for local execution when it cannot run.
 
-```markdown
-## **Phase N:** Testing & Quality Gates
+Declare explicit scalar inputs as `value` and regular-file inputs as `file`. Capture occurs at actual dispatch, before
+probes and commands, including native CI execution after artifact delivery. Unset, empty and nonempty bindings remain
+distinct. File bytes are frozen and rebound to owned copies; paths do not define their identity. Reserved Git repository
+selectors and derived `ARC_CHECK_*` channels cannot be explicit inputs. Forecast exposes names/kinds without values.
 
-- [ ] **N.1 Run full test suite**
-- [ ] **N.2 Run full integration/E2E suite**
-- [ ] **N.3 Run all quality gates**
+The adapter receives fixed source, bindings and planned invocations. Native statuses retain their meaning. Known
+runtime qualification enables reusable lookup; unknown runtime can execute compatible work but cannot reuse or publish
+passes. Even a reusable hit prepares and releases a context. Dependency preparation and resource policy belong to the
+adapter, so measure their actual cold, warm and hit costs when choosing a machine setup.
+
+After transport loss, keep retained inputs and use the adapter's plan-UUID recovery instructions to inspect and settle
+ownership before removal or an explicit fresh retry. A cancellation acknowledgement alone proves no settlement. Never
+infer completion from diagnostic output or launch replacement work while ownership remains uncertain.
+
+The CLI package's [adapter guide][adapter-guide] specifies the complete wire contract and canonical encoding vectors.
+Its `examples/check-runner/` directory ships an independent Node executable with configuration, limits and recovery
+instructions; implementations in other languages need no Node SDK or framework-private imports.
+
+## Opt in to native shard playback
+
+Ordinary execution keeps one unsharded native command, with existing file batching where needed. On an eligible
+check whose native command already supports sharding, opt its declared matrix into a configured runner:
+
+```yaml
+runner: true
+shards:
+  routed: true
+  count: 2
+  argument: "--shard={index}/{count}"
 ```
 
----
+Shard metadata alone creates no local fan-out; CI keeps its declared matrix. ARC submits the complete routed plan
+once when the adapter advertises `runGroup`, or replays the same planned invocations as mandatory serial singles.
+A basic adapter therefore pays native shard overhead without parallel gain. Freeze explicit values and any native
+partitioner's duration/weights file for every sibling; declare the latter as a `file` input.
 
-## When to Escalate Tiers
+Reusable evidence belongs to the whole parent, with known runtime coverage for every expected invocation and normal
+closure. Ordinary failure does not suppress remaining planned diagnostics. Missing work cannot pass, and a completed
+failure survives beside incomplete work. Honor native no-evidence and proved empty-share contracts; a native
+controller-close failure still fails the check. Qualify native membership against an unsharded baseline for each
+supported execution profile, and measure complete execution costs before claiming improvement. Unmeasured
+deployments gain no implied qualification or speedup.
 
-**Escalate from Tier 1 to Tier 2 when:**
+## Check state where it is edited
 
-- You're unsure if your changes affect E2E-tested behavior
-- You've made changes across multiple components
-- You're about to context-switch to a different area
+Git and index enumeration omit ignored projected state. Disk globs can still read those files: a per-clone
+`.git/info/exclude` entry affects Git, but a tool's glob or ignore-file reader may never consult it. A disk glob can
+therefore include protected files or files holding conflict markers that the editable selection excludes.
 
-**Escalate from Tier 2 to Tier 3 when:**
+Give each Markdown tool exactly the paths it should read: Git's list for repository content, and the editable
+selection for projected state. Disable the tool's own glob expansion and ignore-file filtering for supplied operands;
+use its literal-path syntax so brackets, spaces, and other filename characters cannot widen the request. Verify the
+recipe by running the real tool over admitted and excluded fixtures, including ignored files.
 
-- You've completed a significant body of work spanning multiple tasks
-- You're about to take a break or end a session
-- You want high confidence before a major context switch
+Declare read-only state checks with `mode: selection` and omit `gate`. For example, the shipped link validator accepts
+explicit filenames and checks a record's links to tracked files for existence:
 
----
+```yaml
+checks:
+  lint:state:links:
+    command: [bash, .arc/system/.internal/scripts/validate-links.sh]
+    mode: selection
+    inputs: ["**/*.md"]
+```
 
-## Relationship to Other Documentation
+`arc check increment` and `arc check segment` run selection checks as feedback over files changed since the last save.
+A named run such as `arc check run lint:state:links` checks the whole editable selection; `--changed` limits it to
+changed files. These checks run without cached passes, never certify a Git-backed gate, and do not decide whether
+state may be saved. Record-write validation owns state validity. An unavailable selection reports its reason; repair
+the selection and retry the same request.
 
-- **[DEV-RULES.PROJECT][dev-rules-project]:** Defines the "zero tolerance" policy and lists
-  required quality gates. References this strategy for tier guidance.
-- **[process-task-loop][process-task-loop]:** Defines when quality gates run in the task
-  execution workflow. References this strategy for what to run at each stage.
-- **[generate-tasks][generate-tasks]:** Guidance on including quality checkpoint tasks in
-  task lists. References this strategy for checkpoint placement.
-- **QUICK-REFERENCE:** Project-specific commands for each tier. The authoritative source for
-  "how to run" each check.
-- **Project testing methodology:** Project-specific guidance on which test files cover which
-  components, tag systems, and targeted test patterns.
+Keep fixing on demand over the authorized lint corpus, with write-authority and configuration validation before any
+rewrite. A selection check is a read, so automatic fixer recipes do not belong in it.
+
+## Handle failures at the caller's boundary
+
+Follow [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. The result distinguishes failed enforcement from
+feedback; a skipped check is never a pass. Workflow checks report their result before their existing approval gate.
 
 ---
 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
-[process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
-[generate-tasks]: ../../../system/workflows/arc/generate-tasks.md
+[adapter-guide]: https://github.com/andrewRCr/arc-framework/blob/main/packages/arc-framework/README.md

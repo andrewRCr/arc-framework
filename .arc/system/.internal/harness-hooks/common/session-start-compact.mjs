@@ -1,3 +1,11 @@
+import { readHookInput } from "./codex-recovery-marker.mjs";
+
+// SessionStart does not fire for a subagent (Claude Code 2.1.294); should a
+// subagent's own compaction reach this hook, its payload names the agent and
+// nothing is injected.
+const { agentId } = readHookInput();
+if (agentId !== null) process.exit(0);
+
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 
 // Single boundary marker (no PENDING/COMPLETE bracket): Claude injects immediately

@@ -14,7 +14,7 @@ import { createLocalChangeSetCarrier } from "../../src/scripts/review-gate/core/
 import type { ForwardReviewReceiptStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
   RepositoryGitCommonStatePublisher,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+} from "../../src/lib/git-common-state.js";
 import {
   importLocalReviewReceipt,
   LocalForwardReviewReceiptStore,
@@ -81,6 +81,8 @@ async function fixture() {
       runtimeIdentity: "local-attestor-1",
       mechanism: "local-runtime",
     },
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
     generation: 0,
     requestMechanism: "automatic",
   });
@@ -152,6 +154,7 @@ describe("local forward receipt authority", () => {
         severity: "major",
         locus: "src/index.ts:1",
         evidenceUrlOrId: "local:finding-1",
+        sourceOrdinal: 1,
       }],
     }, 1)).rejects.toThrow(/conflicting-replay/u);
     await expect(records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 0))
@@ -202,15 +205,22 @@ describe("local forward receipt authority", () => {
 
   it("keeps evidence and operational publication namespaces separate", async () => {
     const records = await fixture();
-    await records.publisher.update("operations", "state-v1.json", () => ({
+    await records.publisher.update({ root: "review-gate", namespace: "operations" }, "state-v1.json", () => ({
+      kind: "write",
       content: '{"kind":"suspension"}\n',
       result: undefined,
     }));
     await records.store.appendReceipt(records.receipt, 0);
 
-    await expect(records.publisher.read("operations", "state-v1.json"))
+    await expect(records.publisher.read(
+      { root: "review-gate", namespace: "operations" },
+      "state-v1.json",
+    ))
       .resolves.toBe('{"kind":"suspension"}\n');
-    await expect(records.publisher.read("evidence", "state-v1.json")).resolves.toBeNull();
+    await expect(records.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      "state-v1.json",
+    )).resolves.toBeNull();
   });
 
   it("revalidates an explicit import before appending through the destination authority", async () => {

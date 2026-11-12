@@ -4,17 +4,38 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { runPlanningBaseSync } from "./base-sync-planning.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
 
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { runBaseDrift, unavailableBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { isNativeTypedRefusal } from "../lib/store/native-refusal.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
-import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
+import { type BaseSyncResult } from "../lib/git/base-sync.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
+import { createBaseMergePort } from "../scripts/base/merge-composition.js";
+import {
+  BaseMergeInputSchema,
+  BaseMergeResultSchema,
+  blockedBaseMergeResult,
+  mergeExpectedBase,
+  type BaseMergeResult,
+} from "../scripts/base/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { readIdentityPointers } from "./identity-pointers.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 /** Options for `arc base sync`. */
 export interface BaseSyncOptions {
@@ -28,17 +49,140 @@ export interface BaseDriftOptions {
   json?: boolean;
 }
 
+/** Options for `arc base merge`. */
+export interface BaseMergeOptions {
+  /** Exact freshly observed base revision the merge is allowed to append. */
+  expectedBase: string;
+  /** Exact checkpoint Candidate head the merge is allowed to extend. */
+  expectedHead: string;
+  /** Apply the checkpoint-authorized readiness-projection conflict remedy. */
+  regenerateRoadmap?: boolean;
+}
+
 const baseJsonPolicy = declareCliOptionSite("json", {
   acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
   automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
   mutationBoundary: "output selection", subprocess: "none",
 });
 
+const baseRegenerateRoadmapPolicy = declareCliOptionSite("regenerate-roadmap", {
+  acquisition: "safe-default",
+  schemaOwnership: "owned",
+  schemaField: "conflictRemedy",
+  defaultSource: "omitted",
+  cancellation: "not-applicable",
+  automation: {
+    noInput: "same",
+    flags: ["--regenerate-roadmap"],
+    acceptedSyntax: ["--regenerate-roadmap"],
+  },
+  mutationBoundary: "ROADMAP-only merge conflict remedy",
+  subprocess: "none",
+});
+
 /** Machine-output policies owned by the base command adapters. */
 export const baseCommandInputPolicyDeclarations = [
   { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
+  { commandPath: "base merge", aliases: [], sites: [baseRegenerateRoadmapPolicy] },
   { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
 ] satisfies readonly CommandInputDeclaration[];
+
+/** Command-owned schema registrations for base operations. */
+export const baseCommandInputRegistrations = [{
+  commandPath: "base merge",
+  schema: BaseMergeInputSchema,
+  schemaFields: {
+    "option.expected-base": "expectedBase",
+    "option.expected-head": "expectedHead",
+    "option.regenerate-roadmap": "conflictRemedy",
+  },
+}] as const satisfies readonly CommandInputRegistration[];
+
+export interface BaseMergeHandlerDependencies {
+  resolveRoot(): string | null;
+  merge(
+    cwd: string,
+    expectedBase: string,
+    expectedHead: string,
+    conflictRemedy?: "regenerate-roadmap",
+  ): Promise<BaseMergeResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function parseBaseMergeOid(value: string): string | null {
+  const parsed = BaseMergeInputSchema.shape.expectedBase.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Run the exact-base append-only merge procedure. */
+export async function handleBaseMerge(
+  options: BaseMergeOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<BaseMergeHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: BaseMergeHandlerDependencies = {
+    resolveRoot: () => resolveArcRoot(),
+    merge: async (root, expectedBase, expectedHead, conflictRemedy) => {
+      const { settings, warnings } = await readConfigSettings(root);
+      if (warnings.some((warning) => warning.startsWith("Unable to read arc-config.yml:"))) {
+        throw new Error("The configured base branch is unavailable because arc-config.yml could not be read.");
+      }
+      return mergeExpectedBase(
+        { expectedBase, expectedHead, ...(conflictRemedy === undefined ? {} : { conflictRemedy }) },
+        createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
+      );
+    },
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = BaseMergeInputSchema.safeParse({
+    expectedBase: options.expectedBase,
+    expectedHead: options.expectedHead,
+    ...(options.regenerateRoadmap === true ? { conflictRemedy: "regenerate-roadmap" } : {}),
+  });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(blockedBaseMergeResult({
+      reason: "invalid-input",
+      detail: parsed.error.issues.map(({ message }) => message).join("; "),
+      expectedBase: parseBaseMergeOid(options.expectedBase),
+      expectedHead: parseBaseMergeOid(options.expectedHead),
+    })))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot();
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(blockedBaseMergeResult({
+      reason: "operational-failure",
+      detail: "Not inside an ARC project.",
+      expectedBase: parsed.data.expectedBase,
+      expectedHead: parsed.data.expectedHead,
+    })))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  let result: BaseMergeResult;
+  try {
+    result = await dependencies.merge(
+      cwd,
+      parsed.data.expectedBase,
+      parsed.data.expectedHead,
+      parsed.data.conflictRemedy,
+    );
+  } catch (error) {
+    result = blockedBaseMergeResult({
+      reason: "operational-failure",
+      detail: error,
+      expectedBase: parsed.data.expectedBase,
+      expectedHead: parsed.data.expectedHead,
+    });
+  }
+  dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(result))}\n`);
+  if (result.state === "blocked") dependencies.setExitCode(1);
+}
 
 /** Run the authoritative shared base-drift analyzer. */
 export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext): Promise<void> {
@@ -47,9 +191,10 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
   const exec = createGitExec(interaction?.subprocess);
 
   const config = await readConfigSettings(cwd);
-  const configUnavailable = config.warnings.some(
+  const configFailure = config.warnings.find(
     (warning) => warning.startsWith("Unable to read arc-config.yml:"),
   );
+  const configUnavailable = configFailure !== undefined;
   const result: BaseDriftResult = configUnavailable
     ? {
         mode: "authoritative",
@@ -59,18 +204,49 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         behind: 0,
         base: null,
         baseOid: null,
+        headOid: null,
         unavailableReason: "config-unavailable",
         integrationEvidence: null,
         overlap: null,
         register: composeUnavailableRegister(null, "config-unavailable"),
+        detail: configFailure.replace(/\s+/gu, " ").trim().slice(0, 4_096),
+        coordinates: { base: null, baseOid: null, headOid: null },
+        continuation: {
+          kind: "terminal-explanation",
+          terminalExplanation: "Repair .arc/system/arc-config.yml, then rerun arc base drift.",
+        },
         failureReason: "error",
       }
-    : await runBaseDrift({
-        exec,
-        baseBranch: config.settings["branch.base"],
-        mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(exec),
-      });
+    : await (async () => {
+        let treatmentContext = {};
+        try {
+          const { identity } = await readIdentityPointers(exec);
+          if (identity !== null) {
+            const frame = await runDerivedLocusStateProbe({
+              cwd,
+              identity,
+              baseBranch: config.settings["branch.base"],
+              exec,
+            });
+            const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+            const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
+            treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
+          }
+        } catch (error) {
+          // A native store's refusal of the locus read names its own repair rather than drifting without treatment.
+          if (isNativeTypedRefusal(error)) return unavailableBaseDrift("locus-unavailable", config.settings["branch.base"], error);
+          treatmentContext = {};
+        }
+        return runBaseDrift({
+          exec,
+          baseBranch: config.settings["branch.base"],
+          mode: "authoritative",
+          ...createCurrentBaseDriftAdapters(
+            exec,
+            treatmentContext,
+          ),
+        });
+      })();
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -81,9 +257,14 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         `Base \`${result.base ?? "base"}\` is current at \`${result.baseOid ?? "unknown"}\`.`,
         "Base current",
       );
+    } else if (result.verdict === "unavailable") {
+      p.log.error([
+        result.register?.text,
+        result.detail,
+        result.continuation.terminalExplanation,
+      ].filter((line): line is string => line !== undefined).join("\n"));
     } else if (result.register !== null) {
-      const render = result.verdict === "unavailable" ? p.log.error : p.note;
-      render(result.register.text, result.verdict === "reconcile" ? "Base reconciliation" : undefined);
+      p.note(result.register.text, "Base reconciliation");
     }
     p.outro(result.verdict === "unavailable" ? "Unavailable." : "Done.");
   }
@@ -118,13 +299,13 @@ function refusalMessage(result: Extract<BaseSyncResult, { status: "refused" }>):
 }
 
 /** Run `arc base sync`. */
-export async function handleBaseSync(opts: BaseSyncOptions, interaction?: InteractionContext): Promise<void> {
+export async function handleBaseSync(opts: BaseSyncOptions, interaction?: InteractionContext, store?: Store): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
-  const result = await syncLocalBase({ exec, baseBranch: settings["branch.base"] });
+  const result = await runPlanningBaseSync({ cwd, exec, store: store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })), baseBranch: settings["branch.base"] });
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -152,7 +333,7 @@ export async function handleBaseSync(opts: BaseSyncOptions, interaction?: Intera
     );
     process.exitCode = 1;
   } else {
-    p.log.error(refusalMessage(result));
+    p.log.error("remedy" in result ? result.remedy.text : refusalMessage(result));
     process.exitCode = 1;
   }
   p.outro("Done.");

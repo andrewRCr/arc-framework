@@ -22,7 +22,7 @@ For canonical structure, see [`template-workflow.md`][template-workflow].
 
 ## Frontmatter Schema
 
-Workflow documents declare their metadata — and, when applicable, their method and extension dependencies —
+Workflow documents declare their metadata — and, when applicable, their method dependencies —
 through YAML frontmatter at the top of the file. The frontmatter is the structural trigger contract: declarations
 under the `arc:` namespace are mechanically enforced; top-level fields are editorial.
 
@@ -30,11 +30,9 @@ under the `arc:` namespace are mechanically enforced; top-level fields are edito
 ---
 purpose: <one-sentence description of what this workflow does>
 audience: agent                  # agent | collaborative (human and agent) | human
-arc:                              # omit if this workflow loads no methods/extensions
+arc:                              # omit if this workflow loads no methods
   methods:
     - <method-name>
-  extensions:
-    - <extension-name>
 ---
 ```
 
@@ -48,23 +46,30 @@ arc:                              # omit if this workflow loads no methods/exten
 
 **`arc:` namespace** (protected — mechanically enforced by CI):
 
-- `arc.methods` — array of method names the workflow loads
-- `arc.extensions` — array of extension names the workflow checks
-- Names match the file basename in `system/methods/` / `system/extensions/`.
+- `arc.methods` — array of method names the workflow's own body may fire
+- Names match the file basename in `system/methods/`.
 
 ---
 
 ## Author-side Declaration Rule
 
-When a workflow fires a method or extension, declare it in the workflow's frontmatter `arc.methods` or
-`arc.extensions` array. The declaration is an **index of what the workflow may fire**, not a load instruction:
-the content loads when the workflow reaches the fire-point that invokes it, per DEV-RULES.ARC § Method and
-extension loading. The body's fire-point is the trigger — a callout, a signature block, an extension marker, or
-an in-step method link — and the declaration is what makes that trigger resolvable.
+When a workflow fires a method, declare it in the workflow's frontmatter `arc.methods` array. The declaration is an
+**index of what the workflow may fire**, not a load instruction: the content
+loads when the workflow reaches the fire-point that invokes it, per DEV-RULES.ARC § Method
+loading. The body's fire-point is the trigger — a callout, a signature block, or an invocation-marking in-step method
+link — and the declaration is what makes that trigger resolvable. A link used
+only to navigate to related material is not a fire-point.
 
 Loading at the fire-point is what makes declaring cheap: a workflow may declare content it reaches only on some
 paths without every entry through that workflow paying for it. So declare by what the workflow may fire, never
 trimmed to what a typical run happens to reach.
+
+The same direct-consumer rule applies inside a method: its protected `arc.methods` field declares methods that its
+own default or override body may fire. Declare what your own body may fire, and never add a declaration because a
+method you declare needs it — but a method your own body fires directly is your declaration even when a method you
+also declare depends on it. **The test:** strike the other method from your declarations; if you still fire this
+one, it is yours. Workflow declarations root the deduplicated transitive graph, while each nested method still
+loads only when its direct fire-point is reached.
 
 **Mark every fire-point whose consumer is the executing session.** A declared entry with no fire-point in the
 body never loads. That is correct when a CLI verb carries the content on the workflow's behalf — a review lane's
@@ -72,13 +77,11 @@ rubric reaches its evaluator through the runtime, never through the agent runnin
 defect when the workflow itself needs the content at a step it never marks. The two look identical from the
 frontmatter, so the author distinguishes them by marking the fire-point.
 
-**Enforcement.** Pre-commit hooks validate schema shape and verify declared names resolve to real
-methods/extensions — both corpora. The corpus-wide coverage audit (every registered method and extension is
-declared by at least one workflow) runs in the framework repo's CI only; project workflows opt into whatever
-subset they need and carry no coverage requirement. Note what that audit does **not** check: it runs
-method → declared-somewhere, so it cannot tell a marked fire-point from a missing one. Reachability is the
-author's responsibility until a fire-point validator exists — the extension-side marker check is the shape it
-would take.
+**Enforcement.** Pre-commit hooks validate schema shape and verify declared names resolve to real methods in both
+corpora. The corpus-wide audit requires every registered method to be transitively reachable from a workflow root;
+it also rejects missing targets and dependency cycles. Project workflows opt into whatever subset they need and
+carry no coverage requirement. The audit cannot tell a marked body fire-point from a missing one; fire-point
+reachability remains the author's responsibility.
 
 ---
 
@@ -172,9 +175,10 @@ section covers author-side declaration shape.
 
 **When to class-tag.** Tag sites that fit the class semantics:
 
-- `taskCommit` — per-task commits inside the task execution loop
+- `taskCommit` — per-task commits inside the task execution loop, and review-fix commits a complete-set
+  disposition approval releases
 - `workflowCommit` — ceremony commits (activate / integrate / handoff / archive)
-- `workflowPush` — ceremony pushes (handoff / activation / integration)
+- `workflowPush` — ceremony pushes (handoff / activation / integration) and review-fix pushes
 
 Ad-hoc commits, recovery operations, and push paths that should always run raw remain
 unannotated; they route as `raw` regardless of opt-in state.
@@ -220,15 +224,6 @@ class-tag annotation.
 **Sync push exception.** `arc sync` handles its own internal push; sync invocations are captured
 on the audit umbrella but do not re-route through `arc release push`. Workflows that invoke
 `arc sync` rely on its internal handling and do not class-tag the implicit push.
-
-The exception is class-tag-routing scope only — extension markers (`pre-push-review` and the
-broader pre-* family) still fire on workflow steps that invoke a push, including `arc sync`. Place
-the marker before the sync invocation; the agent loads the extension's `.actions` per the
-established contract regardless of how the push itself routes.
-
-This is an agent-layer guarantee. The workflow corpus audit verifies agent-managed wrapper and pushing-sync
-callsites, but direct CLI invocations and raw Git pushes outside those workflows cannot be structurally intercepted
-by an agent-interpreted extension. Git hooks or host controls own stronger enforcement across those paths.
 
 ---
 

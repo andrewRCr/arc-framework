@@ -8,12 +8,24 @@
  * @module
  */
 
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, posix, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
+import { parseLineageRecord } from "../store/kinds/lineage/index.js";
+import {
+  resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
+} from "../work-unit/transition-record-store.js";
+import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
+import {
+  createValidatedTransitionOverlay,
+  type TransitionOverlayCompositionInput,
+  type ValidatedTransitionOverlay,
+} from "../work-unit/transition-overlay.js";
 
 import {
   composeProjectReadinessViewResult,
@@ -30,7 +42,7 @@ import { resolveProjectErrandOracleContext } from "./project-oracle-context.js";
 export const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Command users can run to recreate the tracked readiness view. */
-export const ROADMAP_RERENDER_COMMAND = `arc status --project --staged > ${ROADMAP_PATH}`;
+export const ROADMAP_RERENDER_COMMAND = "arc status --project --staged --write";
 
 /** Shared remediation instruction for hook diagnostics. */
 export const ROADMAP_RERENDER_INSTRUCTION =
@@ -63,6 +75,8 @@ export interface IndexProjectViewFsOptions {
 
 /** Options for rendering the staged-index ROADMAP view. */
 export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions {
+  /** Opt into typed purpose facts while retaining the exact same Markdown render. */
+  includePurpose?: boolean;
   /** Optional H1 text without the leading `#`. */
   title?: string;
   /** Base branch for the local-ref oracle. */
@@ -71,8 +85,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
-  /** Exact retiring oracle identity suppressed by the staged transition. */
-  superseded?: { slug: string; branch: string };
+  /** Optional explicit receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -87,16 +101,31 @@ export interface RoadmapIndexViewResult {
   indeterminate: boolean;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+const TRANSITION_RECORD_PATH_RE = new RegExp(
+  `^${escapeRegExp(TRANSITION_RECORD_NAMESPACE)}/[^/]+\\.json$`,
+  "u",
+);
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
+
+/** What a staged-index name is: a directory prefix, a regular file, or another staged entry kind. */
+type IndexEntryKind = "directory" | "file" | "other";
 
 class IndexDirEntry implements ProjectViewDirEntry {
   constructor(
     readonly name: string,
-    private readonly directory: boolean,
+    private readonly kind: IndexEntryKind,
   ) {}
 
   isDirectory(): boolean {
-    return this.directory;
+    return this.kind === "directory";
+  }
+
+  isFile(): boolean {
+    return this.kind === "file";
   }
 }
 
@@ -164,6 +193,74 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
   };
 }
 
+async function readHeadTransitionRecord(
+  options: IndexProjectViewFsOptions,
+  path: string,
+): Promise<string | null> {
+  const cwdExec: GitExec = async (command, args) => await options.exec(command, args, {
+    cwd: options.cwd,
+  });
+  const entry = await readTreeEntry(cwdExec, "HEAD", path);
+  if (entry === null) return null;
+  if (entry === false || entry.type !== "blob") {
+    throw new Error(`unable to read transition record at HEAD:${path}`);
+  }
+  const { stdout } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
+  return stdout;
+}
+
+/**
+ * Resolve terminal transitions staged with the prospective ROADMAP tree.
+ *
+ * This adapter authenticates an added record's canonical origin path before granting
+ * transition-overlay authority. Decomposition branches are deterministic; direct
+ * transitions recover their retiring branch from the origin meta at HEAD.
+ *
+ * @param options - Repository root and Git executor for the staged index.
+ * @returns Every validated suppression authority represented by the staged transition set.
+ */
+export async function resolveStagedTransitionOverlays(
+  options: IndexProjectViewFsOptions,
+): Promise<readonly ValidatedTransitionOverlay[]> {
+  const { stdout } = await options.exec("git", [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=AM",
+    "-z",
+    "--",
+    TRANSITION_RECORD_NAMESPACE,
+  ], { cwd: options.cwd });
+  const recordPaths = stdout.split("\0").filter((path) => TRANSITION_RECORD_PATH_RE.test(path));
+  const overlays = (await Promise.all(recordPaths.map(async (path) => {
+    const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
+    const record = parseLineageRecord(content);
+    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin.name)) {
+      return null;
+    }
+    if (await readHeadTransitionRecord(options, path) !== null) return null;
+    if (record.kind === "decompose") {
+      return createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch: `plan/${record.origin.name}` });
+    }
+    const { stdout: paths } = await options.exec("git", [
+      "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".arc/active", ".arc/backlog",
+    ], { cwd: options.cwd });
+    const metaPaths = paths.split("\0").filter((candidate) =>
+      posix.basename(candidate) === `meta-${record.origin.name}.md`);
+    if (metaPaths.length !== 1 || metaPaths[0] === undefined) return null;
+    const { stdout: metaContent } = await options.exec(
+      "git",
+      ["show", `HEAD:${metaPaths[0]}`],
+      { cwd: options.cwd },
+    );
+    const sourceBranch = parseMetaRecord(metaContent).branch;
+    return sourceBranch === null
+      ? null
+      : createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch });
+  }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
+  return overlays;
+}
+
 /**
  * Render the project readiness view (structured) from staged tree inputs and
  * local refs. This is the shared index-render primitive: the pre-commit assert
@@ -186,10 +283,12 @@ export async function renderRoadmapFromIndexViewResult(
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
+    includePurpose: options.includePurpose === true,
     ...(options.title !== undefined ? { title: options.title } : {}),
     fs,
     localRefs: {
       exec: options.exec,
+      acquisitionPolicy: "local",
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
       ...errandContext,
@@ -199,9 +298,9 @@ export async function renderRoadmapFromIndexViewResult(
       : {
           prospective: {
             currentBranch,
-            ...(options.superseded === undefined ? {} : { superseded: options.superseded }),
           },
         }),
+    ...(options.transitionOverlays === undefined ? {} : { transitionOverlays: options.transitionOverlays }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,
@@ -268,25 +367,30 @@ function repoPath(cwd: string, path: string): string {
 
 async function listIndexDirectory(exec: GitExec, cwd: string, dir: string): Promise<ProjectViewDirEntry[]> {
   const { stdout } = await exec("git", ["ls-files", "--stage", "--", dir], { cwd });
-  const entries = new Map<string, boolean>();
+  const entries = new Map<string, IndexEntryKind>();
   for (const line of stdout.split("\n")) {
-    const indexedPath = pathFromLsFilesStage(line);
-    if (indexedPath === null) continue;
-    const rest = relativeIndexPath(dir, indexedPath);
+    const staged = parseLsFilesStage(line);
+    if (staged === null) continue;
+    const rest = relativeIndexPath(dir, staged.path);
     if (rest === null || rest === "") continue;
     const [name, ...tail] = rest.split("/");
     if (name === undefined || name === "") continue;
-    entries.set(name, (entries.get(name) ?? false) || tail.length > 0);
+    const kind = tail.length > 0 || entries.get(name) === "directory"
+      ? "directory"
+      : staged.regularFile ? "file" : "other";
+    entries.set(name, kind);
   }
   return [...entries.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, directory]) => new IndexDirEntry(name, directory));
+    .map(([name, kind]) => new IndexDirEntry(name, kind));
 }
 
-function pathFromLsFilesStage(line: string): string | null {
+/** Split one `ls-files --stage` row into its path and whether its mode is a regular file's. */
+function parseLsFilesStage(line: string): { path: string; regularFile: boolean } | null {
   const tab = line.indexOf("\t");
   if (tab === -1) return null;
-  return line.slice(tab + 1);
+  const mode = line.slice(0, line.indexOf(" "));
+  return { path: line.slice(tab + 1), regularFile: mode === "100644" || mode === "100755" };
 }
 
 function relativeIndexPath(dir: string, path: string): string | null {

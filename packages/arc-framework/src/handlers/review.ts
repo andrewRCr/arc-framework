@@ -1,92 +1,362 @@
 /** Machine-readable review workflow handlers. */
+import { requireReviewWorkItem } from "../lib/store/kinds/review/access-shared.js";
+import { persistPrePublicationOutcome, persistPrePublicationTerminusDecision, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
+import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readiness-binding.js";
+import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPrePublicationReentry,
+  type PrePublicationProgress } from "./review-pre-publication-progress.js";
+import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
+import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
+import { rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { ReviewVehicleUnresolvedError } from "../lib/store/kinds/review/errors.js";
+export { ReviewCommandInputSchema } from "./review-handler.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { requireNativeReviewDecisionReferences } from "../scripts/review-gate/policy/review-grant-references.js";
+import { projectIdentitySpineRemedy, reviewFailureRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFromAction } from "../scripts/review-gate/policy/pre-publication-replay.js";
+import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
+import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
+  hostedRequestIndexWorkItem, hostedVehicleUnresolved } from "../scripts/review-gate/runtime/hosted-invocation.js";
+import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
+import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "../scripts/review-gate/runtime/continuation-invocation.js";
+import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
+import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveLocalReviewCancelInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
+import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
+import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
+import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
+import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined, prepareSavedPrePublicationJudgment, prePublicationCompositionInput, postAttestJudgmentMismatch,
+  type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
+import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
+import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
+import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./review-next-pass-context.js";
+import { createNativeMemberTerminusBindings } from "../scripts/review-gate/runtime/native-member-terminus.js";
+import { persistNativeTerminusBoundary, persistNativeTerminusDecision } from "../scripts/review-gate/runtime/native-terminus-persistence.js";
+import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
+import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore, ReviewFactPut } from "../scripts/review-gate/core/ports.js";
+import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
+
+import { createCandidateResponseHeadContinuationReader } from
+  "../scripts/review-gate/runtime/candidate-response-head-continuation.js";
+import { deriveReviewChunkingSubject } from "../scripts/review-gate/policy/review-chunking-subject.js";
 import { readFile } from "node:fs/promises";
-import { z, ZodError, type ZodType } from "zod";
+import { resolve } from "node:path";
+import { z, type ZodType } from "zod";
 
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
+import { createHostedSettlementHeadRegistration } from "../scripts/review-gate/hosted/settlement-head.js";
+import {
+  createGitExec,
+  createRawGitExec,
+} from "../lib/io-context.js";
 import {
   classifyPlanningLane,
   resolveChangeSet,
 } from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { ConfigSettings } from "../lib/config/schema.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import type { GitExec, RawGitExec } from "../lib/git/exec.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
+import { SlugSchema } from "../lib/kernel/schema/slug.js";
+import {
+  readCandidateRecord,
+} from "../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateSupersessionChain } from "../lib/store/kinds/review/candidate/history.js";
+import type { Store } from "../lib/store/contract.js";
+import { sameOwner } from "../lib/store/identity.js";
+import type {
+  CandidateSupersessionAncestor,
+} from "../lib/work-unit/candidate-attestation.js";
+import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import {
+  readCompletedReviewTerminusOwner,
+  readIndexedHostedReviewErrand,
+  resolveCurrentHostedReviewErrand,
+} from "./review-locus-context.js";
+import { prePublicationPendingReviewRefusal } from "../scripts/review-gate/core/pre-publication-remedy.js";
+import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
+
+import { resolveReviewActiveWu, resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
   ReviewChunkingResolveEnvelopeSchema,
+  PlanningGroomingReviewEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
-  type ReviewCommandMode,
+  prePublicationCandidateRefusal,
+  prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
+  prePublicationTargetRemedy,
+  type PrePublicationCandidateContinuation,
+  type ReviewCommandErrorCode,
+  type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
-import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  ReviewChunkingResolveCommandRequestSchema,
+  ReviewChunkingResolveRequestSchema,
+  type ReviewChunkingResolveCommandRequest,
+  type ReviewChunkingResolveRequest,
+} from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  ReviewPlanningGroomingResolveRequestSchema,
+  type ReviewPlanningGroomingResolveRequest,
+} from "../scripts/review-gate/core/planning-grooming-command-schema.js";
+import {
+  FrontlineRunCommandRequestSchema,
+  FrontlineRunRequestSchema,
+  type FrontlineRunCommandRequest,
+  type FrontlineRunRequest,
+} from "../scripts/review-gate/core/frontline-run-command-schema.js";
+import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
-  parseReviewSourceIds,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
+import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../scripts/review-gate/policy/standard-review.js";
+import { routingInputDiagnostics } from "../scripts/review-gate/policy/routing-reason-facts.js";
 import {
-  LocalTargetDerivationError,
-  type LocalTargetInvalidReason,
-} from "../scripts/review-gate/hosts/local/repository-target.js";
+  createPrePublicationCompositionDependencies,
+} from "../scripts/review-gate/policy/pre-publication-composition.js";
+import {
+  applyCarriedOwnerAcceptedTerminus,
+  applyCarriedStandardReviewReservation,
+  consumeOwnerAcceptedTerminus,
+  composePrePublicationReviewRequest,
+  PrePublicationLaneJudgmentsSchema,
+  type CandidateRead,
+  type PrePublicationComposition,
+} from "../scripts/review-gate/policy/pre-publication-request.js";
+import {
+  PrePublicationReviewEnvelopeSchema,
+  projectPrePublicationReview,
+  type PrePublicationReviewEnvelope,
+  type PrePublicationReviewRequest,
+} from "../scripts/review-gate/policy/pre-publication-procedure.js";
+import { CandidateReviewResumeBoundaryV2Schema } from "../scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import { bindPrePublicationCarriedTerminus } from "../scripts/review-gate/policy/pre-publication-carried-terminus.js";
+import { OwnerAcceptedReviewTerminusSchema } from "../scripts/review-gate/policy/review-terminus.js";
+import {
+  CandidateReviewResumeBoundarySchema,
+  IntegrationBoundaryLocusV2Schema,
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
+  type PostAttestContinuation,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  readSubmissionBoundaryVersioned,
+  SubmissionBoundaryVersionConflictError,
+  writeSubmissionBoundary,
+} from "../lib/store/kinds/review/integration-boundary/access.js";
+import { resolveSubmissionBoundaryPath } from "../lib/store/kinds/review/paths.js";
+import type { VersionedSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/schema.js";
+import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
+import type { ReviewResult } from "../scripts/review-gate/core/review-result.js";
+import {
+  candidateExpectsEarlierReviewAttempt,
+  earlierAttemptRetainsReservationPosition,
+  projectEarlierReviewApplicability,
+} from
+  "../scripts/review-gate/policy/earlier-review-applicability.js";
+import {
+  bindReviewSourceReference,
+} from "../scripts/review-gate/core/review-source-reference.js";
 import {
   FrontlineCommandRequestSchema,
+  FrontlineResolveRequestSchema,
   resolveFrontlineCommand,
+  type FrontlineCommandRequest,
+  type FrontlineResolveRequest,
 } from "../scripts/review-gate/policy/frontline-command.js";
 import {
+  LaneSubjectLineageSchema,
+  type LaneSubjectLineage,
+} from "../scripts/review-gate/core/lane-admission.js";
+import {
+  confirmErrandFixResponseApplicability,
+  confirmNonDeliveryIncrementalApplicability,
+} from
+  "../scripts/review-gate/policy/local-review-coverage-selection.js";
+import { readLiveErrandClaimId, readLocalReviewLiveContext, corroborateLocalReviewOwner } from
+  "../scripts/review-gate/hosts/local/live-context.js";
+import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
+import { createHostedPassJudgmentContext } from "../scripts/review-gate/runtime/native-hosted-pass-judgments.js";
+import { createNativeFrontlinePassJudgmentResolver } from "../scripts/review-gate/runtime/native-frontline-pass-judgments.js";
+import {
+  projectReviewPolicyAttempt,
+  resolveReviewPolicy,
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
-  resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
+import {
+  frontlinePhaseClosed,
+  recordSingletonFrontlineInitialSkip,
+  settledFrontlineAdviceReader,
+} from "../scripts/review-gate/policy/frontline-phase.js";
+import {
+  assertEvidenceBoundReviewExecutionAdmission,
+  resolveEvidenceBoundReviewPolicy,
+} from
+  "../scripts/review-gate/policy/review-policy-evidence.js";
 import {
   evaluateReviewReadiness,
   ReviewReadinessEnvelopeSchema,
   ReviewReadinessRequestSchema,
+  type ReviewReadinessEnvelope,
   type ReviewReadinessRequest,
 } from "../scripts/review-gate/readiness.js";
 import {
-  ReviewUnlockEnvelopeSchema,
-  ReviewUnlockRequestSchema,
-  unlockReviewHead,
-  type ReviewUnlockRequest,
-} from "../scripts/review-gate/unlock.js";
-import { GhReviewUnlockPort } from "../scripts/review-gate/hosts/github/unlock.js";
+  MergeLockCommandErrorEnvelopeSchema,
+  MergeLockHoldEnvelopeSchema,
+  MergeLockReleaseEnvelopeSchema,
+  MergeLockResolveEnvelopeSchema,
+  type MergeLockCommandMode,
+} from "../scripts/review-gate/merge-lock-command-envelope.js";
+import {
+  MergeLockResolveRequestSchema,
+  MergeLockTransitionRequestSchema,
+  holdMergeLock,
+  releaseMergeLock,
+  resolveMergeLock,
+  type MergeLockPort,
+  type MergeLockResolveRequest,
+  type MergeLockTransitionRequest,
+} from "../scripts/review-gate/merge-lock.js";
+import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
+import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../scripts/review-gate/core/delivery-member-lookup.js";
+import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject.js";
+import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
+import {
+  composePlanningGroomingMethodActivity,
+  resolvePlanningGroomingReviewCommand,
+} from
+  "../scripts/review-gate/policy/planning-grooming-command.js";
+import { createLocalReviewMethodFilePort } from
+  "../scripts/review-gate/hosts/local/method-files.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
   HostedRequestResultSchema,
+  hostedAdmissionMatchesRequest,
+  hostedAwaitAction,
+  projectHostedRequestAdmissionResolution,
   requestHostedReview,
+  HostedErrandProgressBindingSchema,
+  type HostedRequestAdmissionResolution,
+  type HostedRequestEnvelope,
   type HostedReviewAdapter,
+  type HostedErrandProgressBinding,
+  type HostedRequestVehicle,
+  type HostedReviewCoverage,
+  type HostedProviderId,
+  type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
 import {
   HostedAwaitEnvelopeSchema,
-  HostedAwaitResultSchema,
+  HostedAwaitCommandResultSchema,
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
+import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
+import { AwaitTimingError, resolveAwaitTiming, type AwaitTimingDiagnostic, type ResolvedAwaitTiming }
+  from "../scripts/review-gate/await-timing.js";
+import {
+  acknowledgeHostedRequest,
+  hostedLaneAttemptId,
+  laneContinuationOperationId,
+  readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
+  readLaneResponsePerformance,
+  readLaneProgress,
+  recordHostedRequestAdmission,
+  recordHostedRequestConclusion,
+  resolveHostedAwaitResult,
+  settleHostedAttemptFinding,
+} from "../scripts/review-gate/lane-progress.js";
+import { laneSubjectOwnerMatches } from "../scripts/review-gate/core/lane-admission.js";
+import type {
+  LaneProgressState,
+  LaneResponsePerformance,
+} from "../scripts/review-gate/core/operation-state-schema.js";
+import {
+  assertEvidenceBoundCandidateHostedReservationPolicyAdmission,
+  assertHostedErrandAdmission,
+  assertHostedErrandBindingAuthority,
+  assertHostedReservationAdmission,
+  assertHostedReservationBindingAuthority,
+  assertEvidenceBoundHostedReservationPolicyAdmission,
+  configuredSourceSuffix,
+  hostedReservationAttemptsForTarget,
+} from
+  "../scripts/review-gate/policy/hosted-reservation-admission.js";
+import { createHostedReservationDischargeReader } from
+  "../scripts/review-gate/policy/hosted-reservation-discharge.js";
+import { HostedRequestOwnerIndex, type HostedRequestOwnerIndexRecord } from
+  "../scripts/review-gate/hosts/local/hosted-request-owner-index.js";
+import {
+  resolveRepositoryIdentity,
+  withRepositoryReviewOperationLock,
+} from "../scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  confirmCurrentDispositionSet,
+} from "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
+import { createRepositoryReviewResultReader } from
+  "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
+import type { ReviewResultReader } from "../scripts/review-gate/core/ports.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
+  hostedFixNotPerformedResult,
   settleHostedFinding,
+  withVerifiedFixHeadRetry,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
-import { GhHostedReviewPort, hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import { explainHostedSettlementBindingMismatch } from
+  "../scripts/review-gate/hosted/settlement-binding.js";
+import {
+  HostedDismissEnvelopeSchema,
+  HostedDismissResultSchema,
+  dismissHostedReview,
+} from "../scripts/review-gate/hosted/dismiss.js";
+import {
+  GhHostedReviewPort,
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
-import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
+import { frontlineResolveRemedy, frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
+import { createFrontlineRunDependencies, type CodeRabbitProcessOptions } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
-  FrontlineRunRequestSchema,
+  FrontlineRunCommandError,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
@@ -94,6 +364,8 @@ import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
 } from "../scripts/review-gate/runtime/local-prepare.js";
+import { LocalCancelEnvelopeSchema } from "../scripts/review-gate/core/local-cancel-envelope.js";
+import { cancelLocalReviewCommand, LocalCancelRequestSchema } from "../scripts/review-gate/runtime/local-cancel-command.js";
 import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/local-attest-composition.js";
 import {
   LocalAttestRequestSchema,
@@ -109,78 +381,1003 @@ import {
   RespondRequestSchema,
   respondToReviewCommand,
 } from "../scripts/review-gate/runtime/respond-command.js";
+import { reviewRespondRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
+import {
+  HostedReviewAdmissionError,
+  HostedIncrementalCoverageError,
+  StaleLaneAttemptsError,
+  StaleReviewTargetError,
+  hostedRequestAdmissionRemedy,
+  localPrepareAdmissionRemedy,
+  reviewResolveError,
+  reviewResolveRemedy,
+  requireReviewSourceSelection,
+  staleReviewTargetResult,
+} from "../scripts/review-gate/runtime/review-policy-remedy.js";
+import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
 import {
   ReduceRequestSchema,
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
+import {
+  ChangeRequestResolveCliInputSchema,
+  ChangeRequestResolveInputSchema,
+  ChangeRequestResolveResultSchema,
+  resolveChangeRequest,
+  type ChangeRequestResolveInput,
+  type ChangeRequestResolveResult,
+} from "../scripts/review-gate/change-request.js";
+import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
+import {
+  composeDeliveryMemberTarget,
+  assertLocalReviewTargetBase,
+  confirmLocalReviewTarget,
+  deriveLocalReviewTarget,
+  deriveLocalReviewTargetFromCoordinates,
+} from "../scripts/review-gate/hosts/local/repository-target.js";
+import {
+  MergeMethodSchema,
+  MergeMethodStackPositionSchema,
+  MergeMethodResolveResultSchema,
+  mergeMethodResolveArgv,
+  resolveMergeMethod,
+  type MergeMethodResolveResult,
+  type MergeMethodStackPosition,
+} from "../scripts/review-gate/merge-method.js";
+import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
+import {
+  ChecksAwaitCommandResultSchema,
+  ChecksAwaitInputSchema,
+  awaitRequiredChecks,
+  composeChecksAwaitFailureLogs,
+  type ChecksAwaitResult,
+} from "../scripts/review-gate/checks-await.js";
+import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
+import {
+  retrieveFailedCheckLogs,
+  type FailedCheckLogsInput,
+  type FailedCheckLogsResult,
+} from "../scripts/review-gate/failed-check-logs.js";
+import { createGhFailedCheckLogsPort } from
+  "../scripts/review-gate/hosts/github/failed-check-logs.js";
+import { createLocalFailedCheckLogStore } from
+  "../scripts/review-gate/hosts/local/failed-check-logs.js";
+import {
+  createReviewStatusPort,
+  readRoutedObligation,
+  ReviewStatusWrongRouteError,
+  resolveReviewStatusForWorkUnit,
+} from "../scripts/review-gate/status-composition.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import {
+  ReviewStatusCommandResultSchema,
+  resolveReviewStatus,
+  ReviewStatusSourceIdSchema,
+  ReviewStatusTargetInputSchema,
+  ReviewStatusWorkUnitInputSchema,
+  type ReviewStatusResult,
+  type ReviewStatusWorkUnitInput,
+} from "../scripts/review-gate/status.js";
+import {
+  DeliveryReviewTerminusAcceptanceInputSchema,
+  DeliveryReviewTerminusAcceptanceResultSchema,
+  resolveDeliveryReviewTerminusAcceptance,
+  type DeliveryReviewTerminusAcceptanceInput,
+  type DeliveryReviewTerminusAcceptanceResult,
+} from "../scripts/review-gate/policy/delivery-review-terminus.js";
 
 /**
- * Build the request-source operand schema owned by one review command.
- *
- * Each command registers its own instance: the registry keys schemas by identity,
- * so a shared instance would collide across the family's seven canonical paths.
- *
- * @returns One review command's request-source operand schema
+ * Canonical paths of the review commands sharing the JSON request-source operand without schema
+ * discovery. Empty while every review request root is registered; a new verb lands here until its
+ * request schema is registered and its path moves to the discoverable list below.
  */
-function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
-  return z.object({
-    input: z.string().trim().min(1, "A JSON request file path, or - for stdin, is required."),
-  }).strict();
-}
+const REVIEW_JSON_COMMAND_PATHS = [] as const;
 
-/** Request-source operand schema shared by the review handlers' own validation. */
-export const ReviewCommandInputSchema = reviewCommandInputSchema();
-
-/** Canonical paths of the review commands sharing the JSON request-source operand. */
-const REVIEW_JSON_COMMAND_PATHS = [
-  "review readiness",
-  "review unlock",
-  "review resolve",
-  "review chunking resolve",
-  "review frontline resolve",
+/** Schema-discoverable request boundaries; every review request root is registered. */
+export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
+  "review changeset resolve",
+  "review planning-grooming resolve",
   "review frontline run",
-  "review hosted request",
+  "review resolve",
   "review hosted await",
+  "review reduce",
+  "review respond",
+  "review hosted request",
+  "review readiness",
+  "review lane read",
+  "review adversarial record",
+  "review frontline resolve",
   "review hosted settle",
+  "review hosted dismiss",
   "review local prepare",
   "review local attest",
+  "review local cancel",
   "review local resume",
-  "review respond",
-  "review reduce",
+  "review terminus accept",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
 export const ReviewPlanningLaneInputSchema = z.object({
-  base: z.string().regex(/^[a-f0-9]{40}$/u),
-  head: z.string().regex(/^[a-f0-9]{40}$/u),
+  base: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
+  head: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
   repository: z.string().trim().min(1).optional(),
-}).strict();
+}).strict().refine(({ base, head }) => base.length === head.length, {
+  message: "base and head object ids must have the same width",
+});
 
-/** Registry contributions owned by the review command adapters. */
+const reviewPlanningLaneInputRegistration = {
+  commandPath: "review planning-lane",
+  schema: ReviewPlanningLaneInputSchema,
+  schemaFields: {
+    "operand.base": "base",
+    "operand.head": "head",
+    "option.repository": "repository",
+  },
+} satisfies CommandInputRegistration;
+
+/** Canonical paths of the merge-lock commands sharing the same JSON request-source operand. */
+const MERGE_LOCK_JSON_COMMAND_PATHS = [
+  "merge lock resolve",
+  "merge lock hold",
+  "merge lock release",
+] as const;
+
+const reviewChangeRequestInputRegistration: CommandInputRegistration = {
+  commandPath: "review change-request resolve",
+  schema: ChangeRequestResolveCliInputSchema,
+  schemaFields: {
+    "option.head-ref": "headRef",
+    "option.head-sha": "headSha",
+    "option.require-remote": "requireRemote",
+  },
+};
+
+const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
+  commandPath: "review checks await",
+  schema: ChecksAwaitInputSchema,
+  schemaFields: {
+    "option.repository": "repository",
+    "option.pull-request": "pullRequest",
+    "option.head-sha": "headSha",
+    "option.timeout-ms": "timeoutMs",
+    "option.poll-interval-ms": "pollIntervalMs",
+  },
+};
+
+export const ReviewStatusCliInputSchema = z.strictObject({
+  target: z.string().trim().min(1).optional(),
+  workUnit: SlugSchema.optional(),
+  ceilingOverride: z.string().trim().min(1).optional(),
+  additionalPass: z.string().trim().min(1).optional(),
+  coverage: z.enum(["complete", "incremental"]).optional(),
+  source: ReviewStatusSourceIdSchema.optional(),
+}).superRefine((input, context) => {
+  if ((input.target === undefined) === (input.workUnit === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "exactly one of --target or --work-unit is required",
+    });
+  }
+});
+
+/** Syntax-owned input for the pre-publication review procedure. */
+export const ReviewPrePublicationInputSchema = z.strictObject({
+  name: SlugSchema,
+  selfReview: z.literal("settled").optional(),
+  changeSet: z.string().trim().min(1, "A JSON change-set file path, or - for stdin, is required.")
+    .optional(),
+  lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
+    .optional(),
+  resume: z.string().regex(/^[A-Za-z0-9_-]+$/u).optional(),
+}).superRefine((input, context) => {
+  if (input.changeSet === "-" && input.lanes === "-") {
+    context.addIssue({ code: "custom", message: "Only one of --change-set and --lanes may read stdin." });
+  }
+  if (input.resume !== undefined
+    && (input.selfReview !== undefined || input.changeSet !== undefined || input.lanes !== undefined)) {
+    context.addIssue({ code: "custom", path: ["resume"], message: "--resume cannot be combined with judgment options." });
+  }
+});
+
+const reviewPrePublicationInputRegistration: CommandInputRegistration = {
+  commandPath: "review pre-publication",
+  schema: ReviewPrePublicationInputSchema,
+  schemaFields: {
+    "operand.name": "name",
+    "option.self-review": "selfReview",
+    "option.change-set": "changeSet",
+    "option.lanes": "lanes",
+    "option.resume": "resume",
+  },
+};
+
+const reviewStatusInputRegistration: CommandInputRegistration = {
+  commandPath: "review status",
+  schema: ReviewStatusCliInputSchema,
+  schemaFields: {
+    "option.target": "target",
+    "option.work-unit": "workUnit",
+    "option.ceiling-override": "ceilingOverride",
+    "option.additional-pass": "additionalPass",
+    "option.coverage": "coverage",
+    "option.source": "source",
+  },
+};
+
+/** Syntax-owned stack position for merge-method resolution. */
+export const ReviewMergeMethodResolveInputSchema = z.strictObject({
+  stackPosition: MergeMethodStackPositionSchema.default("non-delivery"),
+});
+
+const reviewMergeMethodResolveInputRegistration: CommandInputRegistration = {
+  commandPath: "review merge-method resolve",
+  schema: ReviewMergeMethodResolveInputSchema,
+  schemaFields: { "option.stack-position": "stackPosition" },
+};
+
+/** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
-  ...REVIEW_JSON_COMMAND_PATHS.map((commandPath) => ({
+  ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
     commandPath,
     schema: reviewCommandInputSchema(),
     schemaFields: { "operand.input": "input" },
   })),
-  {
-    commandPath: "review planning-lane",
-    schema: ReviewPlanningLaneInputSchema,
-    schemaFields: {
-      "operand.base": "base",
-      "operand.head": "head",
-      "option.repository": "repository",
-    },
-  },
+  ...REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS.map((commandPath) => ({
+    commandPath,
+    schema: reviewDiscoverableCommandInputSchema(),
+    schemaFields: { "operand.input": "input", "option.schema": "schema" },
+  })),
+  reviewPlanningLaneInputRegistration,
+  reviewChangeRequestInputRegistration,
+  reviewChecksAwaitInputRegistration,
+  reviewStatusInputRegistration,
+  reviewMergeMethodResolveInputRegistration,
+  reviewPrePublicationInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
+
+export interface ReviewChangeRequestResolveOptions {
+  headRef: string;
+  headSha: string;
+  requireRemote?: boolean;
+}
+
+export interface ReviewChangeRequestResolveHandlerDependencies {
+  resolve(input: ChangeRequestResolveInput, cwd: string): Promise<ChangeRequestResolveResult>;
+  resolveRoot(cwd: string): string | null;
+  readBaseRef(cwd: string): Promise<string>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Resolve one exact head's host-anchored change-request disposition. */
+export async function handleReviewChangeRequestResolve(
+  options: ReviewChangeRequestResolveOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewChangeRequestResolveHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
+    resolve: async (input, cwd) => resolveChangeRequest({
+      ...input,
+      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+        new RepositoryDeliveryMemberLookup({ exec, cwd }),
+        input.headSha,
+      ),
+    }, createGhChangeRequestResolutionPort(exec, cwd)),
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readBaseRef: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return config.settings["branch.base"];
+    },
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = ChangeRequestResolveCliInputSchema.safeParse({
+    headRef: options.headRef,
+    headSha: options.headSha,
+    ...(options.requireRemote === true ? { requireRemote: true } : {}),
+  });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map((issue) => issue.message).join("; "),
+      remedy: spineRemedy(
+        "Change-request resolution requires an exact branch and head.",
+        "Review command usage",
+        ["arc", "review", "change-request", "resolve", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: "Change-request resolution must run inside an ARC project.",
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  let result: ChangeRequestResolveResult;
+  try {
+    result = await dependencies.resolve(ChangeRequestResolveInputSchema.parse({
+      ...parsed.data,
+      baseRef: await dependencies.readBaseRef(cwd),
+    }), cwd);
+  } catch (error) {
+    result = ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+  dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse(result))}\n`);
+}
+
+export interface ReviewMergeMethodResolveOptions {
+  stackPosition?: string;
+}
+
+export interface ReviewMergeMethodResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
+  resolve(
+    method: "merge" | "rebase" | "squash",
+    stackPosition: MergeMethodStackPosition,
+  ): Promise<MergeMethodResolveResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Validate the configured merge method against live repository policy. */
+export async function handleReviewMergeMethodResolve(
+  options: ReviewMergeMethodResolveOptions,
+  overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  // The host runner closes stdin and this handler does not spawn Git.
+  void suppliedContext;
+  const port = createGhMergeMethodPolicyPort(hostedGhRunner);
+  const dependencies: ReviewMergeMethodResolveHandlerDependencies = {
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readConfiguredMethod: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return MergeMethodSchema.parse(config.settings["merge.strategy"]);
+    },
+    resolve: (method, stackPosition) => resolveMergeMethod(method, port, undefined, stackPosition),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsedStackPosition = MergeMethodStackPositionSchema.safeParse(options.stackPosition ?? "non-delivery");
+  const stackPosition = parsedStackPosition.success ? parsedStackPosition.data : "non-delivery";
+  if (!parsedStackPosition.success) {
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      stackPosition,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      configuredMethod: null,
+      allowedMethods: [],
+      detail: "Stack position must be non-delivery, intermediate, or top.",
+      remedy: spineRemedy(
+        "Merge-method resolution requires a known stack position.",
+        "Review command usage",
+        ["arc", "review", "merge-method", "resolve", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Merge-method resolution must run inside an ARC project.");
+    const configuredMethod = await dependencies.readConfiguredMethod(root);
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse(
+      await dependencies.resolve(configuredMethod, stackPosition),
+    ))}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      stackPosition,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "policy-unreadable",
+      configuredMethod: null,
+      allowedMethods: [],
+      detail: error instanceof Error ? error.message : String(error),
+      remedy: spineRemedy(
+        "The configured merge method must come from readable project and repository policy.",
+        "Run from the target ARC project after repairing its configuration, then re-run",
+        mergeMethodResolveArgv(stackPosition),
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewChecksAwaitOptions {
+  repository: string;
+  pullRequest: string;
+  headSha: string;
+  timeoutMs?: string;
+  pollIntervalMs?: string;
+}
+
+export interface ReviewStatusOptions {
+  target?: string;
+  workUnit?: string;
+  ceilingOverride?: string;
+  additionalPass?: string;
+  coverage?: HostedReviewCoverage;
+  source?: string;
+}
+
+export interface ReviewStatusHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
+  resolveWorkUnit(cwd: string, input: ReviewStatusWorkUnitInput): Promise<ReviewStatusResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+type ParsedReviewStatusInput = z.infer<typeof ReviewStatusTargetInputSchema>
+  | z.infer<typeof ReviewStatusWorkUnitInputSchema>;
+
+function emitReviewStatusProjectFailure(
+  dependencies: ReviewStatusHandlerDependencies,
+  input: ParsedReviewStatusInput,
+): void {
+  const detail = "Review status must run inside an ARC project.";
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: "target" in input ? input.target : null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "status-unavailable",
+    detail,
+    remedy: spineRemedy(
+      "Review status requires repository-local ARC state.",
+      "Change to the target ARC project, then re-run",
+      "target" in input
+        ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+        : ["arc", "review", "status", "--work-unit", input.workUnitId],
+    ),
+  }))}\n`);
+  dependencies.setExitCode(1);
+}
+
+function emitReviewStatusResolutionFailure(
+  dependencies: ReviewStatusHandlerDependencies,
+  input: ParsedReviewStatusInput,
+  error: unknown,
+): void {
+  const wrongRoute = error instanceof ReviewStatusWrongRouteError;
+  const detail = error instanceof ProjectIdentityError ? `project-identity-unavailable: ${error.message}`
+    : error instanceof Error ? error.message : String(error);
+  const retryArgv = "target" in input
+    ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+    : ["arc", "review", "status", "--work-unit", input.workUnitId];
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: "target" in input ? input.target : null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: wrongRoute ? "wrong-route" : "status-unavailable",
+    detail,
+    remedy: error instanceof ProjectIdentityError ? projectIdentitySpineRemedy(error, retryArgv) : wrongRoute
+      ? spineRemedy(
+        "The --work-unit route requires a current delivery status action.",
+        "For singleton review, use --target with the JSON targetRef from "
+          + "arc review change-request resolve; inspect its syntax with",
+        ["arc", "review", "status", "--help"],
+      )
+      : spineRemedy(
+        "Review status could not read its repository or host evidence.",
+        "Resolve the operational failure, then re-run",
+        "target" in input
+          ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+          : ["arc", "review", "status", "--work-unit", input.workUnitId],
+      ),
+  }))}\n`);
+  dependencies.setExitCode(wrongRoute ? 64 : 1);
+}
+
+/** Preserve malformed JSON as invalid input for the status schema. */
+function parseReviewStatusOption(value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function emitReviewStatusInvalidInput(dependencies: Pick<ReviewStatusHandlerDependencies, "write" | "setExitCode">,
+  detail: string, remedy: SpineRemedy): void {
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "invalid-input",
+    detail,
+    remedy,
+  }))}\n`);
+  dependencies.setExitCode(64);
+}
+
+/** Resolve review, check, and base state for one opaque exact-target reference. */
+export async function handleReviewStatus(
+  options: ReviewStatusOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewStatusHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
+  const dependencies: ReviewStatusHandlerDependencies = {
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ ...invocationFor(root), cwd: root, exec })),
+    resolveWorkUnit: (root, request) => resolveReviewStatusForWorkUnit({ ...invocationFor(root), cwd: root, exec, ...request }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const decoded = parseReviewStatusOption(options.target);
+  const decodedCeilingOverride = parseReviewStatusOption(options.ceilingOverride);
+  const decodedAdditionalPass = parseReviewStatusOption(options.additionalPass);
+  const parsedCli = ReviewStatusCliInputSchema.safeParse({
+    ...(options.target === undefined ? {} : { target: options.target }),
+    ...(options.workUnit === undefined ? {} : { workUnit: options.workUnit }),
+    ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: options.ceilingOverride }),
+    ...(options.additionalPass === undefined ? {} : { additionalPass: options.additionalPass }),
+    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+    ...(options.source === undefined ? {} : { source: options.source }),
+  });
+  const parsed = options.workUnit === undefined
+    ? ReviewStatusTargetInputSchema.safeParse({
+        target: decoded,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.additionalPass === undefined ? {}
+          : { additionalPassAuthorization: decodedAdditionalPass }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
+      })
+    : ReviewStatusWorkUnitInputSchema.safeParse({
+        workUnitId: options.workUnit,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.additionalPass === undefined ? {}
+          : { additionalPassAuthorization: decodedAdditionalPass }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
+      });
+  if (!parsedCli.success || !parsed.success) {
+    const detail = [...(parsedCli.success ? [] : parsedCli.error.issues), ...(parsed.success ? [] : parsed.error.issues)]
+      .map(({ message }) => message).join("; ");
+    emitReviewStatusInvalidInput(dependencies, detail, spineRemedy(
+      "Review status requires the exact target emitted by change-request resolution.",
+      "Review command usage",
+      ["arc", "review", "status", "--help"],
+    ));
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    emitReviewStatusProjectFailure(dependencies, parsed.data);
+    return;
+  }
+  try {
+    requireNativeReviewDecisionReferences(() => invocationFor(cwd).store.capabilities.stateOffBranch, parsed.data);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    emitReviewStatusInvalidInput(dependencies, detail, spineRemedy(detail,
+      "Omit decisionKey to supply a fresh judgment here, then retry", ["arc", "review", "status", "--help"]));
+    return;
+  }
+  try {
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse(
+      await ("target" in parsed.data
+        ? dependencies.resolve(cwd, parsed.data)
+        : dependencies.resolveWorkUnit(cwd, parsed.data)),
+    ))}\n`);
+  } catch (error) {
+    emitReviewStatusResolutionFailure(dependencies, parsed.data, error);
+  }
+}
+
+export interface ReviewTerminusAcceptHandlerDependencies extends ReviewHandlerBoundary {
+  accept(
+    request: DeliveryReviewTerminusAcceptanceInput,
+    root: string,
+    interaction?: InteractionContext,
+  ): Promise<DeliveryReviewTerminusAcceptanceResult>;
+}
+
+/**
+ * Stage a newly written or crash-recovered exact Owner-terminus boundary.
+ *
+ * @param input - Repository, Git boundary, work unit, and terminus acceptance result.
+ * @returns The original result, or a commit-required result when exact replay recovers unstaged bytes.
+ */
+export async function stageDeliveryReviewTerminusBoundary(input: {
+  readonly root: string;
+  readonly workUnitId: string;
+  readonly exec: GitExec;
+  readonly result: DeliveryReviewTerminusAcceptanceResult;
+}): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  if (input.result.state === "recorded" && input.result.nextAction === "continue") return input.result;
+  const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
+  if (input.result.state === "recorded") {
+    if (input.result.boundaryPath !== boundaryPath) {
+      throw new Error("The recorded Owner terminus returned an unexpected boundary path.");
+    }
+    await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+    return input.result;
+  }
+  if (input.result.state !== "exact-replay") return input.result;
+  const replay = input.result;
+  const refuseReplay = (detail: string): DeliveryReviewTerminusAcceptanceResult => (
+    DeliveryReviewTerminusAcceptanceResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-terminus-accept",
+      state: "refused",
+      nextAction: "rerun-status",
+      reason: "record-conflict",
+      detail,
+      recommendedActionText: "Re-run work-unit review status and act only on its current exact offer.",
+    })
+  );
+  let headBoundary: IntegrationBoundaryLocus;
+  let workingBoundary: IntegrationBoundaryLocus;
+  try {
+    const headBytes = (await input.exec("git", ["show", `HEAD:${boundaryPath}`], {
+      cwd: input.root,
+      objectAccess: "local-only",
+    })).stdout;
+    headBoundary = parseIntegrationBoundaryLocus(JSON.parse(headBytes) as unknown);
+    workingBoundary = parseIntegrationBoundaryLocus(
+      JSON.parse(await readFile(resolve(input.root, boundaryPath), "utf8")) as unknown,
+    );
+  } catch {
+    return refuseReplay("The exact boundary transition could not be reconstructed from HEAD and the worktree.");
+  }
+  if (headBoundary.workUnit !== input.workUnitId || workingBoundary.workUnit !== input.workUnitId) {
+    return refuseReplay("The recovered boundary does not belong to the offered work unit.");
+  }
+  const existing = headBoundary.deliveryReviewTermini.find(({ vehicle }) => (
+    sameDeliveryReviewMemberVehicle(vehicle, replay.record.vehicle)
+  ));
+  if (existing !== undefined && canonicalize(existing) !== canonicalize(replay.record)) {
+    return refuseReplay("HEAD already carries a conflicting terminus for the offered member.");
+  }
+  const expectedBoundary = existing === undefined
+    ? {
+        ...headBoundary,
+        deliveryReviewTermini: [...headBoundary.deliveryReviewTermini, replay.record],
+      }
+    : headBoundary;
+  if (canonicalize(workingBoundary) !== canonicalize(expectedBoundary)) {
+    return refuseReplay("The worktree boundary contains changes beyond the offered terminus transition.");
+  }
+  if (existing !== undefined) return replay;
+  await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+  return DeliveryReviewTerminusAcceptanceResultSchema.parse({
+    ...replay,
+    state: "recorded",
+    nextAction: "commit-boundary",
+    boundaryPath,
+    recommendedActionText:
+      "Commit and push the recovered Owner terminus boundary, then re-enter work-unit review status.",
+  });
+}
+
+async function acceptDeliveryReviewTerminus(
+  request: DeliveryReviewTerminusAcceptanceInput,
+  root: string,
+  interaction?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
+): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  const exec = createGitExec(interaction?.subprocess);
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const reviewRecordStore = bound.store;
+  const ownerDependencies = createPrePublicationCompositionDependencies({ ...bound, cwd: root, exec });
+  const readOwnerAuthority = async (workUnitId: string) => {
+    const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
+    if (direct.status === "authorized") return direct;
+    try {
+      const completed = await readCompletedReviewTerminusOwner(root, workUnitId, exec, bound);
+      if (completed === null) return direct;
+      if (completed.owner === null) {
+        return { status: "refused" as const, reason: "The completed Work Unit has no Owner." };
+      }
+      if (completed.owner !== completed.identity) {
+        return {
+          status: "refused" as const,
+          reason: "The active identity does not match the completed Work Unit Owner.",
+        };
+      }
+      return { status: "authorized" as const, ownerIdentity: completed.owner };
+    } catch (error) {
+      rethrowNativeRefusal(error);
+      return direct;
+    }
+  };
+  const result = await resolveDeliveryReviewTerminusAcceptance(request, {
+    ...(reviewRecordStore.capabilities.stateOffBranch
+      ? createNativeMemberTerminusBindings(() => ({ ...bound, cwd: root, exec })) : {}),
+    readBoundary: async (workUnitId) => {
+      if (reviewRecordStore.capabilities.stateOffBranch) {
+        const selected = await resolveNamedReviewWorkUnitInvocation({ ...bound, cwd: root, exec }, workUnitId);
+        if (selected.workItem !== undefined) bound.workItem = selected.workItem;
+      }
+      return readSubmissionBoundaryVersioned(root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
+    },
+    readOwnerAuthority,
+    readCurrentOffer: async (workUnitId) => {
+      const status = await resolveReviewStatusForWorkUnit({
+        ...bound,
+        cwd: root,
+        exec,
+        store: reviewRecordStore,
+        workUnitId,
+        remote: request.offer.remote,
+      });
+      return "terminusAction" in status ? status.terminusAction?.offer ?? null : null;
+    },
+    writeBoundary: async (boundary, expectedVersion, decision) => {
+      try {
+        if (reviewRecordStore.capabilities.stateOffBranch) {
+          if (decision !== undefined) await persistNativeTerminusBoundary({ ...bound, cwd: root, exec }, boundary, expectedVersion, decision);
+          else await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem });
+          return { status: "written" };
+        }
+        const path = await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem });
+        return { status: "written", ...(path === null ? {} : { path }) };
+      } catch (error) {
+        if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
+        throw error;
+      }
+    },
+  });
+  if (reviewRecordStore.capabilities.stateOffBranch) return result;
+  return stageDeliveryReviewTerminusBoundary({
+    root,
+    workUnitId: request.offer.workUnitId,
+    exec,
+    result,
+  });
+}
+
+/** Accept one exact delivery-member Owner terminus and emit one typed JSON result. */
+export async function handleReviewTerminusAccept(
+  source: string,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewTerminusAcceptHandlerDependencies> = {},
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const dependencies: ReviewTerminusAcceptHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    accept: (request, root, context) => acceptDeliveryReviewTerminus(request, root, context, invocation),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-terminus-accept",
+    source,
+    requestSchema: DeliveryReviewTerminusAcceptanceInputSchema,
+    resultSchema: DeliveryReviewTerminusAcceptanceResultSchema,
+    dependencies,
+    execute: (request, root) => dependencies.accept(
+      DeliveryReviewTerminusAcceptanceInputSchema.parse(request),
+      root,
+      interaction,
+    ),
+  });
+}
+
+type ChecksAwaitTimingSettings = Pick<
+  ConfigSettings,
+  "review.checks_await_timeout_seconds" | "review.checks_await_initial_poll_interval_seconds"
+>;
+
+export interface ReviewChecksAwaitHandlerDependencies {
+  readTimingSettings(): Promise<ChecksAwaitTimingSettings>;
+  awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
+  retrieveFailureLogs(input: FailedCheckLogsInput): Promise<FailedCheckLogsResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Parse the exact target, composing its timing from any flags over the project's configured bound. */
+async function parseChecksAwaitInput(
+  options: ReviewChecksAwaitOptions,
+  dependencies: Pick<ReviewChecksAwaitHandlerDependencies, "readTimingSettings">,
+): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema>; diagnostics: readonly AwaitTimingDiagnostic[] }
+  | { success: false; detail: string }> {
+  let timing: ResolvedAwaitTiming;
+  try {
+    timing = resolveAwaitTiming({
+      wait: "required-check await",
+      keys: {
+        timeoutSeconds: "review.checks_await_timeout_seconds",
+        initialPollIntervalSeconds: "review.checks_await_initial_poll_interval_seconds",
+      },
+      settings: await dependencies.readTimingSettings(),
+      overrides: {
+        timeoutMs: options.timeoutMs === undefined ? undefined : Number(options.timeoutMs),
+        pollIntervalMs: options.pollIntervalMs === undefined ? undefined : Number(options.pollIntervalMs),
+        labels: { timeout: "--timeout-ms", pollInterval: "--poll-interval-ms" },
+      },
+    });
+  } catch (error) {
+    if (error instanceof AwaitTimingError) return { success: false, detail: error.message };
+    throw error;
+  }
+  const parsed = ChecksAwaitInputSchema.safeParse({
+    repository: options.repository,
+    pullRequest: Number(options.pullRequest),
+    headSha: options.headSha,
+    timeoutMs: timing.timeoutMs,
+    pollIntervalMs: timing.pollIntervalMs,
+  });
+  return parsed.success
+    ? { success: true, data: parsed.data, diagnostics: timing.diagnostics }
+    : { success: false, detail: parsed.error.issues.map((issue) => issue.message).join("; ") };
+}
+
+/** Await required checks on one exact pull-request head. */
+export async function handleReviewChecksAwait(
+  options: ReviewChecksAwaitOptions,
+  overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  // The host runner closes stdin and this handler does not spawn Git.
+  void suppliedContext;
+  const port = createGhRequiredChecksPort(hostedGhRunner);
+  const failedCheckLogsPort = createGhFailedCheckLogsPort(hostedGhRunner);
+  const failedCheckLogStore = createLocalFailedCheckLogStore();
+  const dependencies: ReviewChecksAwaitHandlerDependencies = {
+    readTimingSettings: async () => (await readConfigSettings(resolveArcRoot(process.cwd()) ?? process.cwd())).settings,
+    awaitChecks: (input) => awaitRequiredChecks(input, {
+      port,
+      clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
+    }),
+    retrieveFailureLogs: (input) => retrieveFailedCheckLogs(input, {
+      port: failedCheckLogsPort,
+      store: failedCheckLogStore,
+      signal: AbortSignal.timeout(60_000),
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = await parseChecksAwaitInput(options, dependencies);
+  if (!parsed.success) {
+    const { detail } = parsed;
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: null,
+      pullRequest: null,
+      headSha: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail,
+      remedy: spineRemedy(
+        "Required-check waiting needs one exact repository, pull request, and head.",
+        "Review command usage",
+        ["arc", "review", "checks", "await", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  try {
+    const observation = await dependencies.awaitChecks(parsed.data);
+    let result = observation;
+    if (observation.state === "failed"
+      || ((observation.state === "pending" || observation.state === "unavailable")
+        && observation.diagnosticFailures.length > 0)) {
+      result = composeChecksAwaitFailureLogs(
+        observation,
+        await dependencies.retrieveFailureLogs({
+          repository: parsed.data.repository,
+          pullRequest: parsed.data.pullRequest,
+          headSha: parsed.data.headSha,
+        }),
+      );
+    }
+    const { diagnostics } = parsed;
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
+      diagnostics.length === 0 ? result : { ...result, diagnostics }))}\n`);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: parsed.data.repository,
+      pullRequest: parsed.data.pullRequest,
+      headSha: parsed.data.headSha,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "checks-unavailable",
+      detail,
+      remedy: spineRemedy(
+        "Required-check status must be readable for the exact target.",
+        "Resolve the host read failure, then re-run",
+        [
+          "arc", "review", "checks", "await",
+          "--repository", parsed.data.repository,
+          "--pull-request", String(parsed.data.pullRequest),
+          "--head-sha", parsed.data.headSha,
+        ],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
 
 /** Input and interaction policies owned by the review command adapters. */
 export const reviewCommandInputPolicyDeclarations = [
   {
+    commandPath: "review merge-method resolve",
+    aliases: [],
+    sites: [declareCliOptionSite("stack-position", {
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "stackPosition",
+      defaultSource: JSON.stringify("non-delivery"),
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "same",
+        flags: ["--stack-position <position>"],
+        acceptedSyntax: ["--stack-position <position>"],
+      },
+      mutationBoundary: "merge-method policy resolution",
+      subprocess: "none",
+    })],
+  },
+  {
     commandPath: "review", aliases: [], sites: [
       declareInteractionSite(
-        { file: "handlers/review.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+        { file: "handlers/review-handler.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
         {
           acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
           automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
@@ -198,12 +1395,22 @@ export const reviewCommandInputPolicyDeclarations = [
     ],
   },
   {
-    commandPath: "review chunking resolve", aliases: [], sites: [declareInteractionSite(
+    commandPath: "review changeset resolve", aliases: [], sites: [declareInteractionSite(
       { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
       {
         acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
         automation: { noInput: "same", flags: [], acceptedSyntax: [] },
         mutationBoundary: "review target diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
+    commandPath: "review planning-grooming resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "planning-grooming exact diff read", subprocess: "close-stdin",
       },
     )],
   },
@@ -222,14 +1429,6 @@ export const reviewCommandInputPolicyDeclarations = [
   },
 ] satisfies readonly CommandInputDeclaration[];
 
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin as AsyncIterable<Buffer | string>) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
 export interface ReviewPlanningLaneOptions {
   repository?: string;
 }
@@ -237,15 +1436,26 @@ export interface ReviewPlanningLaneOptions {
 export interface ReviewPlanningLaneHandlerDependencies {
   classify(base: string, head: string, repository: string): Promise<"planning" | "reviewed">;
   write(text: string): void;
+  writeError(text: string): void;
+  setExitCode(code: number): void;
 }
 
 function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDependencies {
   return {
-    classify: async (base, head, repository) =>
-      classifyPlanningLane(await resolveChangeSet(createRawGitExec(repository), base, head)),
+    classify: async (base, head, repository) => classifyPlanningLane(
+      await resolveChangeSet(createRawGitExec(repository), base, head),
+    ),
     write: (text) => process.stdout.write(text),
+    writeError: (text) => process.stderr.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
   };
 }
+
+/** Ref names and short SHAs are refused, since the classifier reads two exact commits. */
+const PLANNING_LANE_OPERAND_REFUSAL = "planning-lane: <base> and <head> must be full commit SHAs of the same width "
+  + "(40 or 64 hex characters); resolve a ref or short SHA with `git rev-parse <ref>`\n";
 
 /**
  * Classify one exact Git change as planning or reviewed for the merge guard.
@@ -262,42 +1472,120 @@ export async function handleReviewPlanningLane(
   overrides: Partial<ReviewPlanningLaneHandlerDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultReviewPlanningLaneDependencies(), ...overrides };
-  let lane: "planning" | "reviewed" = "reviewed";
   const input = ReviewPlanningLaneInputSchema.safeParse({
     base,
     head,
     ...(options.repository === undefined ? {} : { repository: options.repository }),
   });
-  if (input.success) {
-    try {
-      lane = await dependencies.classify(
-        input.data.base,
-        input.data.head,
-        input.data.repository ?? process.cwd(),
-      );
-    } catch {
-      lane = "reviewed";
-    }
+  if (!input.success) {
+    const fields = input.error.issues.map((issue) => issue.path[0]);
+    if (fields.some((field) => field !== "repository")) dependencies.writeError(PLANNING_LANE_OPERAND_REFUSAL);
+    if (fields.includes("repository")) dependencies.writeError("planning-lane: --repository must name a non-empty path\n");
+    dependencies.setExitCode(64);
+    return;
   }
-  dependencies.write(`${lane}\n`);
+  let result: "planning" | "reviewed";
+  try {
+    result = await dependencies.classify(
+      input.data.base,
+      input.data.head,
+      input.data.repository ?? process.cwd(),
+    );
+  } catch {
+    dependencies.writeError("planning-lane classification failed\n");
+    dependencies.setExitCode(1);
+    return;
+  }
+  dependencies.write(`${result}\n`);
 }
 
-interface ReviewHandlerBoundary {
+export interface ReviewPlanningGroomingResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
+  resolve(
+    request: ReviewPlanningGroomingResolveRequest,
+    root: string,
+    interaction: InteractionContext,
+  ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultReviewHandlerBoundary(): ReviewHandlerBoundary {
+function defaultReviewPlanningGroomingResolveDependencies(
+  invocation: ReviewInvocationOptions = {},
+): ReviewPlanningGroomingResolveHandlerDependencies {
   return {
-    resolveRoot: resolveArcRoot,
-    readText: async (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    write: (text) => process.stdout.write(text),
-    setExitCode: (code) => {
-      process.exitCode = code;
+    ...defaultReviewHandlerBoundary(),
+    resolve: async (request, root, interaction) => {
+      const exec = createGitExec(interaction.subprocess);
+      const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const [repositoryId, config] = await Promise.all([
+        resolveRepositoryIdentity(publisher, undefined, bound),
+        readConfigSettings(root),
+      ]);
+      const target = await deriveLocalReviewTarget({
+        exec,
+        cwd: root,
+        repositoryId,
+        baseRef: config.settings["branch.base"],
+      });
+      const [changeSet, live] = await Promise.all([
+        resolveChangeSet(createRawGitExec(root), target.diffBaseSha, target.headSha),
+        readLocalReviewLiveContext({ ...bound, exec, cwd: root }),
+      ]);
+      const context = live.context.workUnit === null && live.context.errand !== null
+        ? (() => {
+            const activity = composePlanningGroomingMethodActivity(
+              createLocalReviewMethodFilePort({ cwd: root }),
+            );
+            return {
+              state: "resolved" as const,
+              assurance: { workContext: "errand" as const, workClass: "none" as const },
+              activity: activity.activity,
+              diagnostics: activity.diagnostics,
+            };
+          })()
+        : {
+            state: "not-applicable" as const,
+            reason: "transient-vehicle-required" as const,
+          };
+      return resolvePlanningGroomingReviewCommand({ request, target, changeSet, context });
     },
   };
+}
+
+/**
+ * Resolve one exact transient planning-grooming change to a closed exemption or
+ * a fail-closed continuation into the ordinary review protocol.
+ */
+export async function handleReviewPlanningGroomingResolve(
+  source: string,
+  overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = {
+    ...defaultReviewPlanningGroomingResolveDependencies(invocation),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-planning-grooming-resolve",
+    source,
+    requestSchema: ReviewPlanningGroomingResolveRequestSchema,
+    resultSchema: PlanningGroomingReviewEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.resolve(
+      ReviewPlanningGroomingResolveRequestSchema.parse(request),
+      root,
+      context,
+    ),
+  });
 }
 
 export interface ReviewResolveHandlerDependencies {
@@ -308,37 +1596,209 @@ export interface ReviewResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReviewResolveDependencies(): ReviewResolveHandlerDependencies {
+/** Bind an Errand's frontline review to its claim, so phase history holds across every head the Errand reaches. */
+function errandFrontlineLineage(claimId: string, headSha: string): LaneSubjectLineage {
+  return LaneSubjectLineageSchema.parse({
+    kind: "head-bound",
+    vehicleKind: "errand",
+    vehicleIdentity: claimId,
+    headSha,
+  });
+}
+
+/**
+ * Read whether the active Errand has closed its opening frontline phase, from the record `frontline resolve` reads.
+ * Only a pre-change-request frontline request for an Errand subject consults it; an open change request already
+ * closes the phase, and a work unit reaches frontline through its pre-publication request.
+ */
+async function errandFrontlinePhaseClosed(
+  request: ReviewPolicyCommandRequest,
+  input: ReviewInvocationOptions & {
+    root: string;
+    exec: GitExec;
+    publisher: RepositoryGitCommonStatePublisher;
+    operationStore: ReviewOperationStateStore;
+    resultReader: ReviewResultReader;
+    dispositionStore: ApprovedDispositionRecordReader;
+  },
+): Promise<boolean> {
+  if (request.lane !== "frontline" || request.target.pullRequest !== null) return false;
+  const live = await readLocalReviewLiveContext({ ...input, exec: input.exec, cwd: input.root });
+  if (live.context.workUnit !== null || live.context.errand === null) return false;
+  return frontlinePhaseClosed(input.operationStore, {
+    repositoryId: await resolveRepositoryIdentity(input.publisher, undefined, input),
+    lineages: [errandFrontlineLineage(live.context.errand.claimId, request.target.headSha)],
+    headSha: request.target.headSha,
+    readSettledFindingsAdvice: settledFrontlineAdviceReader(input.resultReader, input.dispositionStore),
+  });
+}
+
+/**
+ * Whether a standard-lane request on an opened change request comes from the checkout of the open ordinary Errand
+ * that hosted Errand review binds. A checkout it cannot establish proves no Errand; the request still resolves,
+ * without the first pass's request. A native store's refusal establishes nothing either way and is raised.
+ */
+async function errandStandardVehicle(
+  request: ReviewPolicyCommandRequest,
+  input: ReviewInvocationOptions & { root: string; exec: GitExec },
+): Promise<boolean> {
+  if (request.lane !== "standard" || request.target.pullRequest === null) return false;
+  return readIndexedHostedReviewErrand(input.root, input.exec, input).then(() => true, (error: unknown) => {
+    rethrowNativeRefusal(error);
+    return false;
+  });
+}
+
+function defaultReviewResolveDependencies(exec: GitExec, invocation: ReviewInvocationOptions = {}): ReviewResolveHandlerDependencies {
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: resolveConfiguredReviewPolicy,
+    resolve: (request, root) => resolveConfiguredReviewPolicy(request, root, exec, invocationFor(root)),
+  };
+}
+
+function createResolveContributionConfirmation(input: ReviewInvocationOptions & {
+  root: string;
+  exec: GitExec;
+  request: ReviewPolicyCommandRequest;
+  baseRef: string;
+  dispositionStore: ApprovedDispositionRecordReader;
+  readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
+}): NonNullable<EvidenceBoundReviewPolicyDependencies["confirmIncrementalApplicability"]> {
+  const { root, exec, request, dispositionStore, readResponsePerformance } = input;
+  return async (predecessor, current) => {
+    const active = await resolveReviewActiveWu({ cwd: root, exec, store: input.store, projectId: input.projectId });
+    const candidate = current.admission.lineage.kind === "candidate"
+      && active.status === "resolved" && active.name !== ""
+      ? await readCandidateRecord(root, active.name, { exec, store: input.store, owner: input.workItem })
+      : null;
+    const observeTarget = async () => {
+        const confirmation = await confirmLocalReviewTarget({
+          exec,
+          cwd: root,
+          attemptedTarget: current.target,
+        });
+        if (confirmation.state !== "current") {
+          throw new Error("review producer target no longer matches the current exact target");
+        }
+        return confirmation.target;
+    };
+    const confirmGrounds = async () => {
+      if (request.target.pullRequest === null
+        && current.admission.lineage.kind === "head-bound"
+        && current.admission.lineage.vehicleKind === "errand") {
+        return confirmErrandFixResponseApplicability({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: current.admission.lineage,
+          currentClaimId: await readLiveErrandClaimId({ ...input, exec, cwd: root }, current.admission.lineage.vehicleIdentity),
+          currentResult: current,
+          observeTarget,
+          dispositionStore,
+          readResponsePerformance,
+        });
+      }
+      return confirmNonDeliveryIncrementalApplicability({
+        stateOffBranch: input.store?.capabilities.stateOffBranch,
+        predecessor,
+        currentTarget: current.target,
+        currentLineage: current.admission.lineage,
+        repository: request.target.repository,
+        pullRequest: request.target.pullRequest,
+        candidate,
+        exec: createRawGitExec(root),
+        observeTarget,
+      });
+    };
+    return confirmReviewCorrectionLeg({ predecessor, currentTarget: current.target,
+      currentLineage: current.admission.lineage, currentResult: current, dispositionStore, readResponsePerformance,
+      rangeProof: { cwd: root, exec }, candidateProof: { candidate, cwd: root, exec, baseRef: input.baseRef, observeTarget }, confirmGrounds });
   };
 }
 
 async function resolveConfiguredReviewPolicy(
   request: ReviewPolicyCommandRequest,
   root: string,
+  exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
-  let sources: readonly string[] | undefined;
-  if (request.lane === "frontline") {
-    const preferences = createLocalFrontlineSourcePreferenceReader({
+  const { sources, maxPasses } = await resolveConfiguredLanePolicy({
+    lane: request.lane,
+    settings,
+    preferences: createLocalFrontlineSourcePreferenceReader({
       cwd: root,
-      exec: gitExec,
+      exec,
       readFile: (path) => readFile(path, "utf8"),
-    });
-    const developerSources = await preferences.readDeveloperSourceIds();
-    sources = developerSources.length > 0
-      ? developerSources
-      : await preferences.readProjectSourceIds();
+    }),
+  });
+  const bound = await resolveReviewPolicyInvocation({ ...invocation, cwd: root, exec }, request);
+  if (bound.store.capabilities.stateOffBranch && bound.workItem === undefined) {
+    return resolveNativeOwnerlessReviewPolicy(request, { sources, maxPasses });
   }
-  sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
-  const maxPasses = Number(
-    settings[request.lane === "frontline"
-      ? "review.frontline_max_passes"
-      : "review.standard_max_passes"],
-  );
-  return resolveReviewPolicy({ ...request, sources, maxPasses });
+  const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+  const operationStore = family.ports.inFlight;
+  const dispositionStore = family.ports.dispositions;
+  const readResponsePerformance = (predecessor: ReviewResult) =>
+    readLaneResponsePerformance(operationStore, predecessor);
+  const resultReader = createRepositoryReviewResultReader(publisher, bound);
+  const phaseClosed = await errandFrontlinePhaseClosed(request, {
+    ...bound, root, exec, publisher, operationStore, resultReader, dispositionStore,
+  });
+  const errandVehicle = await errandStandardVehicle(request, { ...bound, root, exec });
+  const dependencies: EvidenceBoundReviewPolicyDependencies = {
+    sources,
+    maxPasses,
+    ...(operationStore.stateOffBranch === true ? { stateOffBranch: true } : {}),
+    ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
+    ...(errandVehicle ? { errandVehicle: true } : {}),
+    resultReader,
+    dispositionStore,
+    readResponsePerformance,
+    confirmIncrementalApplicability: createResolveContributionConfirmation({
+      ...bound, root, exec, request, dispositionStore, readResponsePerformance, baseRef: settings["branch.base"],
+    }),
+    confirmTarget: async (attemptedTarget) => {
+      const confirmation = await confirmLocalReviewTarget({
+        exec,
+        cwd: root,
+        attemptedTarget,
+      });
+      if (confirmation.state !== "current") {
+        // Only a request already at the checkout's head is stale in its attempts alone.
+        if (confirmation.currentTarget.headSha === request.target.headSha
+          && confirmation.attemptedTarget.headSha !== request.target.headSha) {
+          throw new StaleLaneAttemptsError({
+            attemptHeadSha: confirmation.attemptedTarget.headSha,
+            targetHeadSha: request.target.headSha,
+          });
+        }
+        if (confirmation.currentTarget.headSha !== request.target.headSha) {
+          throw new StaleReviewTargetError(request.target, confirmation.currentTarget.headSha);
+        }
+        throw new Error("review producer target does not match the current exact target");
+      }
+      return confirmation.target;
+    },
+  };
+  if (request.lane === "frontline" || sources.length === 0 || request.standardReview.obligation === "exempt") {
+    const composed = await composeNativePolicyGrants({ ...bound, cwd: root, exec, request,
+      operationStore, resultReader, baseBranch: settings["branch.base"], incremental: false });
+    return resolveEvidenceBoundReviewPolicy(composed, dependencies);
+  }
+  const nextPassContext = await readResolveNextPassContext({
+    ...bound, request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
+    confirmApplicability: dependencies.confirmIncrementalApplicability,
+  });
+  const resolveAt = async (chosenCoverage?: "complete") => resolveEvidenceBoundReviewPolicyContinuation(
+    await composeNativePolicyGrants({ ...bound, cwd: root, exec, request, operationStore, resultReader,
+      baseBranch: settings["branch.base"], incremental: chosenCoverage === undefined && nextPassContext.incremental !== null }),
+    { terminalResponsePerformed: !nextPassContext.responseDue },
+    { ...dependencies, nextPassContext, ...(chosenCoverage === undefined ? {} : { chosenCoverage }) });
+  const policy = await resolveAt();
+  // A hosted source reviews only complete coverage, so its offer counts against the complete-pass ceiling.
+  return policy.state === "ready" && policy.nextAction === "hosted-request" && nextPassContext.incremental !== null
+    ? resolveAt("complete") : policy;
 }
 
 export interface ReviewReadinessHandlerDependencies {
@@ -349,10 +1809,41 @@ export interface ReviewReadinessHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
+/**
+ * Bind readiness to one repository's delivery state.
+ *
+ * The root is the composition root's own resolved root — never the request's
+ * supplied lifecycle-product root, and never a module-internal read of the
+ * process working directory. It is the resolved ARC root rather than the
+ * Git repository root; the Git-common publisher resolves the common directory
+ * from any path inside the repository, so binding from it is correct.
+ *
+ * @param root - Resolved root of the repository whose delivery state answers.
+ * @param exec - Invocation-bound Git executor for delivery state and ancestry reads.
+ * @returns A readiness evaluation whose member arm reads that repository.
+ */
+function readinessBoundTo(
+  root: string,
+  exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
+): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
+  // Pinned to the resolved root for the same reason the lookup is: the ancestry
+  // answer must come from the repository this composition root bound, never from
+  // whatever directory the process happens to be running in.
+  const rootExec: GitExec = (command, args, options) => exec(command, args, { ...options, cwd: root });
+  const selectInvocation = createReviewInvocationResolver(rootExec, invocation);
+  return (request) => evaluateReviewReadiness(request, {
+    ...(request.vehicle.kind === "work-unit" ? { store: selectInvocation(root).store } : {}),
+    deliveryMemberLookup,
+    readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
+  });
+}
+
+function defaultReviewReadinessDependencies(exec: GitExec, invocation: ReviewInvocationOptions): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request) => evaluateReviewReadiness(request),
+    check: (request, root) => readinessBoundTo(root, exec, invocation)(request),
   };
 }
 
@@ -366,8 +1857,15 @@ function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencie
 export async function handleReviewReadiness(
   source: string,
   overrides: Partial<ReviewReadinessHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReviewReadinessDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReviewReadinessDependencies(createGitExec(context.subprocess), invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-readiness",
     source,
@@ -381,47 +1879,181 @@ export async function handleReviewReadiness(
   });
 }
 
-export interface ReviewUnlockHandlerDependencies {
+export interface ReviewLaneReadHandlerDependencies extends ReviewHandlerBoundary {
+  read(request: ReviewLaneReadRequest, root: string): Promise<unknown>;
+}
+
+/** Emit one read-only lane result for the authenticated checkout subject. */
+export async function handleReviewLaneRead(source: string,
+  overrides: Partial<ReviewLaneReadHandlerDependencies> = {}, suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+  const exec = createGitExec(context.subprocess);
+  const dependencies = { ...defaultReviewHandlerBoundary(),
+    read: (request: ReviewLaneReadRequest, root: string) => readReviewLane(request, { ...resolveReviewInvocation({ ...invocation, cwd: root, exec }), cwd: root, exec }), ...overrides };
+  await executeReviewHandler({ mode: "review-lane-read", source, requestSchema: ReviewLaneReadRequestSchema,
+    resultSchema: ReviewLaneReadEnvelopeSchema, dependencies,
+    execute: (request, root) => dependencies.read(ReviewLaneReadRequestSchema.parse(request), root) });
+}
+
+
+export interface MergeLockResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  unlock(request: ReviewUnlockRequest, root: string): Promise<unknown>;
+  resolve(request: MergeLockResolveRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultReviewUnlockDependencies(): ReviewUnlockHandlerDependencies {
-  return {
-    ...defaultReviewHandlerBoundary(),
-    unlock: (request) => unlockReviewHead(
-      request,
-      new GhReviewUnlockPort(hostedGhRunner, evaluateReviewReadiness),
-    ),
-  };
+export interface MergeLockTransitionHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  transition(request: MergeLockTransitionRequest, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
 }
 
 /**
- * Preflight and dispatch one exact-head clearance request as a JSON envelope.
+ * Construct the merge-lock port shared by resolve, hold, and release.
+ *
+ * @param root - Resolved root the port's readiness gate authenticates against.
+ * @param exec - Invocation-bound Git executor used by readiness.
+ * @param runner - Hosted process boundary; defaults to the `gh` runner.
+ * @returns A merge-lock port bound to that repository.
+ */
+export function defaultMergeLockPort(
+  root: string,
+  exec: GitExec,
+  runner: HostedProcessRunner = hostedGhRunner,
+  invocation: ReviewInvocationOptions = {},
+): MergeLockPort {
+  return new GhMergeLockPort(runner, readinessBoundTo(root, exec, invocation), readMergeLockSetting);
+}
+
+/**
+ * Answer how a pull request about to be opened should be opened, as one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
-export async function handleReviewUnlock(
+export async function handleMergeLockResolve(
   source: string,
-  overrides: Partial<ReviewUnlockHandlerDependencies> = {},
+  overrides: Partial<MergeLockResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReviewUnlockDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
+  const dependencies: MergeLockResolveHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root, exec)),
+    ...overrides,
+  };
   await executeReviewHandler({
-    mode: "review-unlock",
+    mode: "merge-lock-resolve",
     source,
-    requestSchema: ReviewUnlockRequestSchema,
-    resultSchema: ReviewUnlockEnvelopeSchema,
+    requestSchema: MergeLockResolveRequestSchema,
+    resultSchema: MergeLockResolveEnvelopeSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.unlock(
-      ReviewUnlockRequestSchema.parse(request),
+    execute: (request, root) => dependencies.resolve(
+      MergeLockResolveRequestSchema.parse(request),
       root,
     ),
   });
+}
+
+async function handleMergeLockTransition(
+  mode: Extract<MergeLockCommandMode, "merge-lock-hold" | "merge-lock-release">,
+  resultSchema: ZodType,
+  verb: (request: MergeLockTransitionRequest, port: MergeLockPort) => Promise<unknown>,
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies>,
+  context: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const exec = createGitExec(context.subprocess);
+  const dependencies: MergeLockTransitionHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root, exec, hostedGhRunner, invocation)),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode,
+    source,
+    requestSchema: MergeLockTransitionRequestSchema,
+    resultSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.transition(
+      MergeLockTransitionRequestSchema.parse(request),
+      root,
+    ),
+  });
+}
+
+/**
+ * Lock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockHold(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  await handleMergeLockTransition(
+    "merge-lock-hold",
+    MergeLockHoldEnvelopeSchema,
+    holdMergeLock,
+    source,
+    overrides,
+    context,
+  );
+}
+
+/**
+ * Unlock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockRelease(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  await handleMergeLockTransition(
+    "merge-lock-release",
+    MergeLockReleaseEnvelopeSchema,
+    releaseMergeLock,
+    source,
+    overrides,
+    context,
+    invocation,
+  );
 }
 
 /**
@@ -434,106 +2066,53 @@ export async function handleReviewUnlock(
 export async function handleReviewResolve(
   source: string,
   overrides: Partial<ReviewResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReviewResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const dependencies = { ...defaultReviewResolveDependencies(exec, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-resolve",
     source,
     requestSchema: ReviewPolicyCommandRequestSchema,
     resultSchema: ReviewResolveEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.resolve(
-      ReviewPolicyCommandRequestSchema.parse(request),
-      root,
-    ),
+    execute: (request, root) => {
+      const parsed = ReviewPolicyCommandRequestSchema.parse(request);
+      return dependencies.resolve(parsed, root)
+        .catch((error: unknown) => staleReviewTargetResult(error, parsed))
+        .then(result => requireReviewSourceSelection(result, parsed))
+        .catch((error: unknown) => { throw reviewResolveError(error, request); });
+    },
+    remedyFor: reviewResolveRemedy,
   });
 }
 
 export interface ReviewFrontlineResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(request: FrontlineResolveRequest, root: string): Promise<FrontlineCommandRequest>;
+  resolve(request: FrontlineCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-type ReviewHandlerErrorPhase = "request" | "execution" | "output";
 
 type HostedReviewHandlerMode =
   | "review-hosted-request"
   | "review-hosted-await"
-  | "review-hosted-settle";
+  | "review-hosted-settle"
+  | "review-hosted-dismiss";
 
 type HostedReviewHandlerBoundary = Pick<
   ReviewHandlerBoundary,
   "readText" | "write" | "setExitCode"
 >;
-
-const DURABLE_CORRUPTION_CODES = new Set([
-  "invalid-receipt-reference",
-  "malformed-frontline-outcome",
-  "malformed-ledger",
-  "malformed-operation-state",
-  "operation-id-mismatch",
-  "repository-mismatch",
-]);
-
-function errorCode(error: unknown): string | null {
-  return typeof error === "object"
-    && error !== null
-    && "code" in error
-    && typeof error.code === "string"
-    ? error.code
-    : null;
-}
-
-async function executeReviewHandler(input: {
-  mode: ReviewCommandMode;
-  source: string;
-  requestSchema: ZodType;
-  resultSchema: ZodType;
-  dependencies: ReviewHandlerBoundary;
-  execute(request: unknown, root: string): Promise<unknown>;
-}): Promise<void> {
-  const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
-  if (!operand.success) {
-    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies);
-    return;
-  }
-
-  let root: string;
-  try {
-    const resolved = input.dependencies.resolveRoot(process.cwd());
-    if (resolved === null) throw new Error("Not inside an ARC project.");
-    root = resolved;
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
-    return;
-  }
-
-  let request: unknown;
-  try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "request", input.dependencies);
-    return;
-  }
-
-  let rawResult: unknown;
-  try {
-    rawResult = await input.execute(request, root);
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
-    return;
-  }
-
-  try {
-    const result = input.resultSchema.parse(rawResult);
-    input.dependencies.write(`${JSON.stringify(result)}\n`);
-  } catch (error) {
-    emitReviewCommandError(input.mode, error, "output", input.dependencies);
-  }
-}
 
 async function executeHostedReviewHandler(input: {
   mode: HostedReviewHandlerMode;
@@ -542,6 +2121,8 @@ async function executeHostedReviewHandler(input: {
   resultSchema: ZodType;
   dependencies: HostedReviewHandlerBoundary;
   execute(request: unknown): Promise<unknown>;
+  /** Corrective continuation for an execution refusal. */
+  remedyFor?(error: unknown): SpineRemedy | undefined;
 }): Promise<void> {
   const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
   if (!operand.success) {
@@ -549,9 +2130,11 @@ async function executeHostedReviewHandler(input: {
     return;
   }
 
+  let submittedRequest: unknown;
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
+    submittedRequest = JSON.parse(await input.dependencies.readText(operand.data.input));
+    request = input.requestSchema.parse(submittedRequest);
   } catch (error) {
     emitHostedReviewError(input.mode, error, "request", input.dependencies);
     return;
@@ -561,7 +2144,8 @@ async function executeHostedReviewHandler(input: {
   try {
     rawResult = await input.execute(request);
   } catch (error) {
-    emitHostedReviewError(input.mode, error, "execution", input.dependencies);
+    emitHostedReviewError(input.mode, error, "execution", input.dependencies,
+      reviewFailureRequestRemedy(input.mode, error, submittedRequest) ?? input.remedyFor?.(error));
     return;
   }
 
@@ -578,18 +2162,13 @@ function emitHostedReviewError(
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<HostedReviewHandlerBoundary, "write" | "setExitCode">,
+  remedy?: SpineRemedy,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
-  dependencies.setExitCode(1);
-}
-
-function emitReviewCommandError(
-  mode: ReviewCommandMode,
-  error: unknown,
-  phase: ReviewHandlerErrorPhase,
-  dependencies: Pick<ReviewHandlerBoundary, "write" | "setExitCode">,
-): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
+  const remedyFor = remedy === undefined ? undefined : () => remedy;
+  const requestError = reviewContinuationRequestError(mode, error, phase === "request");
+  dependencies.write(
+    `${JSON.stringify(reviewCommandError(mode, requestError, phase, ReviewCommandErrorEnvelopeSchema, remedyFor))}\n`,
+  );
   dependencies.setExitCode(1);
 }
 
@@ -606,12 +2185,12 @@ function defaultHostedHandlerBoundary(): HostedReviewHandlerBoundary {
   };
 }
 
-function createHostedAdapters(): {
+function createHostedAdapters(runner: HostedProcessRunner = hostedGhRunner): {
   adapters: readonly HostedReviewAdapter[];
   observers: readonly HostedReviewObserver[];
   port: HostedSettlementPort;
 } {
-  const port = new GhHostedReviewPort(hostedGhRunner);
+  const port = new GhHostedReviewPort(runner);
   const adapters = [
     new CodeRabbitHostedAdapter(port),
     new CodexHostedAdapter(port),
@@ -619,17 +2198,559 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
-function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
+type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
+
+async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
+  root: string;
+  exec: GitExec;
+  publisher: RepositoryGitCommonStatePublisher;
+  target: HostedTarget;
+  provider: HostedProviderId;
+  vehicle?: HostedProgressVehicle;
+  settings?: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  admitCapacity: boolean;
+  invocation?: HostedRequestEnvelope["invocation"];
+}) {
+  const bound = resolveReviewInvocation({ ...input, cwd: input.root });
+  const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
+  const baseRef = settings["branch.base"];
+  const repositoryId = await resolveRepositoryIdentity(input.publisher, undefined, bound);
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.root });
+  const memberResolution = input.vehicle?.kind === "delivery-member"
+    ? await memberLookup.resolveMemberByVehicle(input.vehicle)
+    : await memberLookup.resolveMemberByHead(input.target.headSha);
+  if (input.vehicle?.kind === "delivery-member") {
+    if (memberResolution.status === "unavailable") {
+      throw new Error("Hosted delivery-member binding is unavailable.");
+    }
+    if (memberResolution.status === "unbound"
+      || memberResolution.member.planId !== input.vehicle.planId
+      || memberResolution.member.deliverableId !== input.vehicle.deliverableId
+      || memberResolution.member.head !== input.vehicle.head) {
+      throw new Error("Hosted delivery-member binding does not match the requested member.");
+    }
+  }
+  const member = memberResolution.status === "resolved"
+    && (input.vehicle?.kind === "delivery-member" || !memberResolution.member.isFinalMember)
+    ? memberResolution.member
+    : null;
+  const reviewTarget = member === null
+    ? await deriveLocalReviewTarget({
+        exec: input.exec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+      })
+    : await composeDeliveryMemberTarget({
+        exec: input.exec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+        member,
+      });
+  if (reviewTarget.headSha !== input.target.headSha) {
+    throw new Error("Hosted review target does not match the current local review target.");
+  }
+  const currentBranch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: input.root,
+  })).stdout.trim();
+  if (currentBranch === "" || currentBranch === "HEAD") {
+    throw new Error("Hosted review requires an attached originating branch.");
+  }
+  const branch = resolveReviewHeadRef(currentBranch, member);
+  const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
+  const changeRequest = await resolveChangeRequest(
+    { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
+    createGhChangeRequestResolutionPort(input.exec, input.root),
+  );
+  if (changeRequest.state !== "open"
+    || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
+    || changeRequest.candidate.number !== input.target.pullRequest
+    || !new Set([baseRef, ...acceptableBaseRefs]).has(changeRequest.candidate.baseRefName)) {
+    throw new Error("Hosted review target does not identify the current open change request.");
+  }
+  const store = createReviewCompositionContext({ ...bound, cwd: input.root, exec: input.exec }).family.ports.inFlight;
+  if (input.vehicle?.kind === "errand") {
+    const current = await resolveCurrentHostedReviewErrand(input.root, branch, baseRef, input.exec, bound);
+    const lineage = LaneSubjectLineageSchema.parse({
+      kind: "head-bound",
+      vehicleKind: "errand",
+      vehicleIdentity: current.claimId,
+      headSha: reviewTarget.headSha,
+    });
+    const progress = await readLaneProgress(store, {
+      lane: "standard",
+      repositoryId,
+      headSha: reviewTarget.headSha,
+      lineage,
+    });
+    const attempts = progress.status === "recorded"
+      ? hostedReservationAttemptsForTarget({
+          attempts: progress.attempts,
+          target: input.target,
+        })
+      : [];
+    const configuredSources = input.admitCapacity
+      ? (await resolveConfiguredLanePolicy({
+          lane: "standard",
+          settings,
+          preferences: createLocalFrontlineSourcePreferenceReader({
+            cwd: input.root,
+            exec: input.exec,
+            readFile: (path) => readFile(path, "utf8"),
+          }),
+        })).sources
+      : null;
+    const errandBinding = "key" in input.vehicle
+      ? HostedErrandProgressBindingSchema.parse(input.vehicle)
+      : HostedErrandProgressBindingSchema.parse({
+          kind: "errand",
+          ...current,
+          sources: configuredSources === null
+            ? [input.provider]
+            : configuredSourceSuffix(configuredSources, input.provider),
+          standardReview: input.vehicle.standardReview,
+        });
+    if (errandBinding.key !== current.key
+      || errandBinding.claimId !== current.claimId
+      || errandBinding.branch !== current.branch) {
+      throw new Error("Hosted review progress does not match the current Errand.");
+    }
+    if (input.admitCapacity) {
+      if (configuredSources === null) throw new Error("Hosted Errand source policy is unavailable.");
+      assertHostedErrandBindingAuthority({
+        binding: errandBinding,
+        configuredSources,
+        rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
+      });
+      assertHostedErrandAdmission({
+        binding: errandBinding,
+        current,
+        provider: input.provider,
+        attempts,
+      });
+    }
+    const requirement = createReviewRequirement({
+      target: reviewTarget,
+      projection: errandBinding.standardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: input.provider }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("Hosted Errand progress does not carry an obligation.");
+    return {
+      store,
+      progress,
+      repositoryId,
+      lineage,
+      reviewTarget,
+      requirement,
+      errandBinding,
+      reservation: null,
+      candidateRecord: null,
+      decisionSubjectDigest: reviewTarget.targetId,
+      settings,
+      statusTarget: changeRequest.targetRef,
+    };
+  }
+
+  const active = member === null ? await resolveReviewActiveWu({ cwd: input.root, exec: input.exec, store: bound.store, projectId: bound.projectId }) : null;
+  const workUnitId = member?.workUnitId
+    ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
+  if (workUnitId === null) {
+    throw hostedVehicleUnresolved();
+  }
+  const reviewRecordStore = bound.store;
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem })).boundary;
+  if (boundary?.reservation === null || boundary?.reservation === undefined) {
+    throw new Error("Hosted review progress requires the carried standard-review reservation.");
+  }
+  const reservation = boundary.reservation;
+  const candidate = await createPrePublicationCompositionDependencies({
+    ...bound,
+    cwd: input.root,
+    exec: input.exec,
+    store: reviewRecordStore,
+  }).readCandidate(workUnitId);
+  if (candidate.status !== "current") {
+    throw new Error("Hosted review reservation requires a current Candidate.");
+  }
+  const candidateRecord = await readCandidateRecord(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem });
+  if (candidateRecord === null) {
+    throw new Error("Hosted review reservation requires the canonical Candidate record.");
+  }
+  const lineage = LaneSubjectLineageSchema.parse(input.vehicle?.kind === "delivery-member"
+    ? {
+        kind: "delivery-member",
+        planId: input.vehicle.planId,
+        workUnitId: input.vehicle.workUnitId,
+        deliverableId: input.vehicle.deliverableId,
+      }
+    : { kind: "candidate", candidateId: candidate.candidateId });
+  const progress = await readLaneProgress(store, {
+    lane: "standard",
+    repositoryId,
+    headSha: reviewTarget.headSha,
+    lineage,
+  });
+  const attempts = progress.status === "recorded"
+    ? hostedReservationAttemptsForTarget({
+        attempts: progress.attempts,
+        target: input.target,
+        ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
+      })
+    : [];
+  const applicabilityQuery = {
+    schemaVersion: 1 as const,
+    repositoryId,
+    repository: input.target.repository,
+    pullRequest: input.target.pullRequest,
+    currentHead: input.target.headSha,
+    lane: "standard" as const,
+    sourceId: input.provider,
+    lineage,
+    ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
+  };
+  const bindingAuthority = {
+    reservation,
+    repository: input.target.repository,
+    headSha: input.target.headSha,
+    targetKind: reviewTarget.kind,
+    ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
+    boundary: {
+      candidateId: boundary.candidateId,
+      candidateSubjectDigest: boundary.candidateSubjectDigest,
+    },
+    candidate: {
+      candidateId: candidate.candidateId,
+      subjectDigest: candidate.subjectDigest,
+      headSha: candidate.headSha,
+    },
+  };
+  if (input.admitCapacity && input.vehicle?.kind !== "delivery-member") {
+    const earlier = await projectEarlierReviewApplicability({
+      stateOffBranch: bound.store.capabilities.stateOffBranch,
+      sourceOwner: bound.store.capabilities.stateOffBranch && bound.workItem !== undefined
+        ? { repositoryId, workItem: bound.workItem } : undefined,
+      query: applicabilityQuery,
+      currentBase: reviewTarget.diffBaseSha,
+      snapshot: await store.readOperationSnapshot(),
+      candidate: candidateRecord,
+      exec: createRawGitExec(input.root),
+      observeEndpoints: async () => {
+        const currentMemberResolution = await memberLookup.resolveMemberByHead(reviewTarget.headSha);
+        const currentMember = currentMemberResolution.status === "resolved"
+          && !currentMemberResolution.member.isFinalMember
+          ? currentMemberResolution.member
+          : null;
+        const currentTarget = currentMember === null
+          ? await deriveLocalReviewTarget({
+              exec: input.exec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+            })
+          : await composeDeliveryMemberTarget({
+              exec: input.exec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+              member: currentMember,
+            });
+        return { head: currentTarget.headSha, base: currentTarget.diffBaseSha };
+      },
+    });
+    if (earlier.status === "unavailable"
+      || (earlier.status === "not-found"
+        && candidateExpectsEarlierReviewAttempt(candidateRecord, applicabilityQuery))) {
+      throw new Error("Hosted review contribution applicability is unavailable.");
+    }
+    const applicabilityAction = earlier.status !== "complete"
+      ? undefined
+      : earlier.attempts.some(({ applicability }) => applicability === "stop")
+        ? "stop" as const
+        : earlier.attempts.some(({ applicability }) => applicability === "request-review")
+          ? "request-review" as const
+          : earlier.attempts.some(({ outcome, applicability }) => (
+              applicability === "retain-prior-attempt"
+              && earlierAttemptRetainsReservationPosition(outcome)
+            ))
+            ? "retain-prior-attempt" as const
+            : undefined;
+    assertHostedReservationAdmission({
+      ...bindingAuthority,
+      provider: input.provider,
+      attempts,
+      ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
+      ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
+    });
+  } else {
+    assertHostedReservationBindingAuthority(bindingAuthority);
+  }
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: reservation.obligation,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: input.provider }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
+  return {
+    store,
+    progress,
+    repositoryId,
+    lineage,
+    reviewTarget,
+    requirement,
+    errandBinding: null,
+    reservation,
+    candidateRecord,
+    decisionSubjectDigest: input.vehicle?.kind === "delivery-member" ? reviewTarget.targetId : candidate.subjectDigest,
+    settings,
+    statusTarget: changeRequest.targetRef,
+  };
+}
+
+async function resolveFrontlineSupersessionAncestors(
+  root: string,
+  exec: GitExec,
+  lineage: LaneSubjectLineage,
+  invocation: ReviewInvocationOptions = {},
+): Promise<readonly CandidateSupersessionAncestor[]> {
+  if (lineage.kind !== "candidate") return [];
+  const bound = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const live = await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
+  const workUnitId = live.context.workUnit?.identity;
+  if (workUnitId === undefined) {
+    throw new Error("frontline Candidate supersession authority is unavailable");
+  }
+  const record = await readCandidateRecord(root, workUnitId, { exec, store: bound.store, owner: bound.workItem });
+  if (record === null || record.attestation.candidateId !== lineage.candidateId) {
+    throw new Error("frontline Candidate supersession authority is unavailable");
+  }
+  return readRepositoryCandidateSupersessionChain({ ...bound, cwd: root, workUnit: workUnitId, record, exec });
+}
+
+async function deriveFrontlineCommandRequest(
+  request: FrontlineResolveRequest,
+  root: string,
+  exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
+): Promise<FrontlineCommandRequest> {
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
+  const target = await deriveLocalReviewTargetFromCoordinates({
+    exec, cwd: root, repositoryId, coordinates: request.target,
+  });
+  await assertLocalReviewTargetBase({ exec, cwd: root, target });
+  return FrontlineCommandRequestSchema.parse({ ...request, target });
+}
+
+class PlannedFrontlineMemberRefreshError extends Error {
+  constructor(readonly workUnitId: string, reason: string) {
+    super(reason);
+  }
+}
+
+async function resolveDeliveryMemberFrontlineLineage(input: ReviewInvocationOptions & {
+  root: string;
+  exec: GitExec;
+  target: FrontlineCommandRequest["target"];
+  vehicle: NonNullable<FrontlineCommandRequest["vehicle"]>;
+  activeWorkUnit: string | null;
+}): Promise<LaneSubjectLineage> {
+  const { root, exec, target, vehicle } = input;
+  if (input.activeWorkUnit !== vehicle.workUnitId) {
+    throw new PlannedFrontlineMemberRefreshError(
+      vehicle.workUnitId,
+      "The owning work unit is no longer active in this checkout.",
+    );
+  }
+  const lookup = new RepositoryDeliveryMemberLookup({ ...input, exec, cwd: root });
+  const settings = (await readConfigSettings(root)).settings;
+  const delivery = await lookup.resolveReservationRecords(vehicle.workUnitId, {
+    status: "established",
+    ref: `refs/heads/${settings["branch.base"]}`,
+  });
+  if (delivery.status === "planned") {
+    const composed = await createPrePublicationCompositionDependencies({ ...input, cwd: root, exec })
+      .readDeliveryReviewTargets(vehicle.workUnitId);
+    const matches = composed.status === "composed" && composed.planId === vehicle.planId
+      ? composed.targets.filter((member) => (
+          sameDeliveryReviewMemberVehicle(member.vehicle, vehicle)
+          && canonicalize(member.target) === canonicalize(target)
+        ))
+      : [];
+    if (matches.length !== 1) {
+      throw new PlannedFrontlineMemberRefreshError(
+        vehicle.workUnitId,
+        composed.status === "refused"
+          ? `Current planned delivery evidence is unavailable (${composed.reason}).`
+          : "The planned delivery member or its exact review target has changed.",
+      );
+    }
+  } else {
+    if (delivery.status === "unavailable" || delivery.status === "absent") {
+      throw new PlannedFrontlineMemberRefreshError(
+        vehicle.workUnitId,
+        "Current delivery plan evidence is unavailable.",
+      );
+    }
+    if (delivery.plan.planId !== vehicle.planId) {
+      throw new Error("frontline delivery-member lineage authority is unavailable");
+    }
+    const targets = await lookup.resolveDischargeTargets(vehicle.workUnitId);
+    const matches = targets.status === "resolved"
+      ? targets.targets.filter((candidate) => (
+          candidate.planId === vehicle.planId
+          && candidate.deliverableId === vehicle.deliverableId
+          && candidate.head === vehicle.head
+          && target.kind === "delivery-member"
+          && target.baseRef === settings["branch.base"]
+          && target.headSha === candidate.head
+          && target.diffBaseSha === candidate.base
+        ))
+      : [];
+    if (matches.length !== 1) {
+      throw new Error("frontline delivery-member lineage authority is unavailable");
+    }
+  }
+  return LaneSubjectLineageSchema.parse({
+    kind: "delivery-member",
+    planId: vehicle.planId,
+    workUnitId: vehicle.workUnitId,
+    deliverableId: vehicle.deliverableId,
+  });
+}
+
+async function resolveCandidateFrontlineLineage(input: ReviewInvocationOptions & {
+  root: string;
+  exec: GitExec;
+  operationStore: ReviewOperationStateStore;
+  workUnit: string;
+  target: FrontlineCommandRequest["target"];
+}) {
+  const { root, exec, operationStore, workUnit, target } = input;
+  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit, { exec, store: input.store, owner: input.workItem })).boundary;
+  if (boundary === null || boundary.workUnit !== workUnit) {
+    throw new Error("frontline Candidate lineage authority is unavailable");
+  }
+  const lineage = LaneSubjectLineageSchema.parse({
+    kind: "candidate",
+    candidateId: boundary.candidateId,
+  });
+  const owner = await readLaneProgressOwner(operationStore, {
+    lane: "frontline",
+    repositoryId: target.repositoryId,
+    headSha: target.headSha,
+    lineage,
+  });
+  if (owner?.attempts.some((attempt) => attempt.outcome === "pending"
+    && attempt.frontline !== undefined
+    && canonicalize(attempt.frontline.admission.target) === canonicalize(target)) === true) {
+    return lineage;
+  }
+  const composition = createPrePublicationCompositionDependencies({ ...input, cwd: root, exec });
+  const candidate = await composition.readCandidate(workUnit);
+  const currentTarget = candidate.status === "current" && candidate.candidateId === boundary.candidateId
+    ? await composition.deriveImmutableTarget(candidate.headSha)
+    : null;
+  if (currentTarget?.status !== "resolved"
+    || canonicalize(currentTarget.target) !== canonicalize(target)) {
+    throw new Error("frontline Candidate target does not match the current Candidate review target");
+  }
+  return lineage;
+}
+
+const FRONTLINE_VEHICLE_UNRESOLVED = "Frontline review needs one work unit or Errand active at this checkout.";
+
+function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveFrontlineCommand(request, {
-      preferences: createLocalFrontlineSourcePreferenceReader({
-        cwd: root,
-        exec: gitExec,
-        readFile: (path) => readFile(path, "utf8"),
-      }),
-      registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
-    }),
+    deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec, invocationFor(root)),
+    resolve: async (request, root) => {
+      try {
+        const initial = invocationFor(root);
+        const selectedLive = initial.store.capabilities.stateOffBranch
+          ? await readLocalReviewLiveContext({ ...initial, exec, cwd: root }) : null;
+        const selectedOwner = selectedLive === null ? initial.workItem : corroborateLocalReviewOwner(initial.workItem, selectedLive);
+        if (selectedLive !== null && selectedOwner === undefined) {
+          if (request.vehicle !== undefined) throw new PlannedFrontlineMemberRefreshError(request.vehicle.workUnitId,
+            "The owning work unit is no longer active in this checkout.");
+          throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
+        }
+        const bound = selectedLive === null ? initial : { ...initial, workItem: selectedOwner };
+        const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+        const operationStore = family.ports.inFlight;
+        const dispositionStore = family.ports.dispositions;
+        const result = await resolveFrontlineCommand(request, {
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: root,
+          exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+        registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
+        operationStore,
+        recordInitialSkip: createNativeFrontlineSkipRecorder({ ...bound, cwd: root, exec }, operationStore.nativeFacts),
+        resolvePassJudgments: createNativeFrontlinePassJudgmentResolver({ ...bound, cwd: root, exec }, operationStore),
+        withLaneOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
+          exec,
+          root,
+          operationId,
+          10_000,
+          action,
+        ),
+        confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          ...bound, cwd: root, exec, dispositionStore, operationStore,
+        }),
+        confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+          dispositionStore,
+          producerId,
+          dispositionSetId,
+        ),
+        readSettledFindingsAdvice: settledFrontlineAdviceReader(
+          createRepositoryReviewResultReader(publisher, bound), dispositionStore,
+        ),
+        resolveLineage: async (target, vehicle) => {
+          const live = selectedLive ?? await readLocalReviewLiveContext({ ...bound, exec, cwd: root });
+          if (vehicle !== undefined) {
+            return resolveDeliveryMemberFrontlineLineage({
+              ...bound, root, exec, target, vehicle,
+              activeWorkUnit: live.context.workUnit?.identity ?? null,
+            });
+          }
+          if (live.context.workUnit !== null) {
+            return resolveCandidateFrontlineLineage({
+              ...bound, root, exec, operationStore, workUnit: live.context.workUnit.identity, target,
+            });
+          }
+          if (live.context.errand === null) {
+            throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
+          }
+          return errandFrontlineLineage(live.context.errand.claimId, target.headSha);
+        },
+        resolveSupersessionAncestors: (lineage) =>
+          resolveFrontlineSupersessionAncestors(root, exec, lineage, bound),
+        readMaxPasses: async () => Number((await readConfigSettings(root)).settings["review.frontline_max_passes"]),
+        now: () => new Date().toISOString(),
+      });
+        return await retainReviewOperationReference({ ...bound, cwd: root, exec }, result);
+      } catch (error) {
+        if (!(error instanceof PlannedFrontlineMemberRefreshError)) throw error;
+        return FrontlineResolveEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-frontline-resolve",
+          diagnostics: [{ code: "planned-member-refresh-required", message: error.message }],
+          state: "stale-target",
+          nextAction: "refresh-pre-publication",
+          payload: {
+            workUnit: error.workUnitId,
+            reason: error.message,
+            command: `arc review pre-publication ${error.workUnitId}`,
+          },
+        });
+      }
+    },
   };
 }
 
@@ -643,33 +2764,89 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
 export async function handleReviewFrontlineResolve(
   source: string,
   overrides: Partial<ReviewFrontlineResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultFrontlineResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultFrontlineResolveDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
-    requestSchema: FrontlineCommandRequestSchema,
+    remedyFor: frontlineResolveRemedy,
+    requestSchema: FrontlineResolveRequestSchema,
     resultSchema: FrontlineResolveEnvelopeSchema,
     dependencies,
-    execute: dependencies.resolve,
+    execute: async (request, root) => dependencies.resolve(
+      await dependencies.deriveRequest(FrontlineResolveRequestSchema.parse(request), root),
+      root,
+    ),
   });
 }
 
 export interface ReviewChunkingResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(
+    request: ReviewChunkingResolveRequest,
+    root: string,
+  ): Promise<ReviewChunkingResolveCommandRequest>;
+  resolve(request: ReviewChunkingResolveCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
+function defaultReviewChunkingResolveDependencies(context: InteractionContext, invocation: ReviewInvocationOptions = {}): ReviewChunkingResolveHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveReviewChunkingCommand(request, {
-      readSettings: () => readConfigSettings(root),
-      exec: createRawGitExec(root),
-    }),
+    deriveRequest: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
+      const derive = (coordinates: ReviewChunkingResolveRequest["target"]) =>
+        deriveLocalReviewTargetFromCoordinates({ exec, cwd: root, repositoryId, coordinates });
+      return ReviewChunkingResolveCommandRequestSchema.parse({
+        schemaVersion: request.schemaVersion,
+        target: await deriveReviewChunkingSubject({
+          exec, raw: createRawGitExec(root), cwd: root, repositoryId, request,
+        }),
+        ...(request.scopeSelection === undefined
+          ? {}
+          : {
+              scopeSelection: {
+                ...request.scopeSelection,
+                target: await derive(request.scopeSelection.target),
+              },
+            }),
+      });
+    },
+    resolve: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+      const stateStore = new RepositoryDeliveryStateStore(publisher);
+      const active = await resolveReviewActiveWu({ cwd: root, exec, ...invocationFor(root) });
+      const workUnitId = active.status === "resolved" && active.name !== ""
+        ? active.name
+        : active.status === "none"
+          ? null
+          : undefined;
+      const bindingLookup = new DeliveryBindingLookup({
+        enumeratePlans: () => planStore.enumerateCurrent(),
+        readState: (planId) => stateStore.read(planId),
+        resolveMember: (input) => stateStore.resolveMember(input),
+      });
+      return resolveReviewChunkingCommand(request, {
+        readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: () => workUnitId === undefined
+          ? Promise.resolve({ status: "unavailable", reason: "owning-work-unit-unresolved" })
+          : bindingLookup.resolve({ target: request.target, workUnitId }),
+        exec: createRawGitExec(root),
+      });
+    },
   };
 }
 
@@ -683,34 +2860,105 @@ function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandle
 export async function handleReviewChunkingResolve(
   source: string,
   overrides: Partial<ReviewChunkingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReviewChunkingResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReviewChunkingResolveDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-chunking-resolve",
     source,
     requestSchema: ReviewChunkingResolveRequestSchema,
     resultSchema: ReviewChunkingResolveEnvelopeSchema,
     dependencies,
-    execute: dependencies.resolve,
+    execute: async (request, root) => dependencies.resolve(
+      await dependencies.deriveRequest(ReviewChunkingResolveRequestSchema.parse(request), root),
+      root,
+    ),
   });
 }
 
 export interface ReviewFrontlineRunHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  run(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(request: FrontlineRunRequest, root: string): Promise<FrontlineRunCommandRequest>;
+  run(request: FrontlineRunCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFrontlineRunHandlerDependencies {
-  const exec = createGitExec(context.subprocess);
+function defaultFrontlineRunDependencies(context: InteractionContext, invocation: FrontlineReviewHandlerInvocationOptions = {}): ReviewFrontlineRunHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    run: (request, root) => runFrontlineReviewCommand(
-      request,
-      createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
-    ),
+    deriveRequest: async (request, root) => {
+      const initial = { ...invocationFor(root), cwd: root, exec };
+      const bound = request.resolution.state === "ready" ? await resolveReviewOperationInvocation(initial,
+        { operationId: request.resolution.payload.admission.operationId, operationRef: request.resolution.payload.operationRef },
+        "arc review frontline resolve") : initial;
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, bound);
+      const target = await deriveLocalReviewTargetFromCoordinates({
+        exec,
+        cwd: root,
+        repositoryId,
+        coordinates: request.target,
+      });
+      if (request.responseBinding === undefined) {
+        return FrontlineRunCommandRequestSchema.parse({ ...request, target });
+      }
+      const selected = await resolveFrontlineRunInvocation({ ...invocationFor(root), cwd: root, exec },
+        { target, resolution: request.resolution });
+      const composition = createPrePublicationCompositionDependencies(selected);
+      const [candidate, delivery, candidateTarget] = await Promise.all([
+        composition.readCandidate(request.responseBinding.candidate.workUnit),
+        composition.readDeliveryReviewTargets(request.responseBinding.candidate.workUnit),
+        composition.deriveImmutableTarget(request.responseBinding.candidate.head),
+      ]);
+      const matchingMember = delivery.status === "composed"
+        ? delivery.targets.filter((member) => (
+            canonicalize(member.target) === canonicalize(target)
+            && sameDeliveryReviewMemberVehicle(member.vehicle, request.responseBinding?.deliveryMember)
+          ))
+        : [];
+      if (candidate.status !== "current"
+        || candidate.candidateId !== request.responseBinding.candidate.candidateId
+        || candidate.headSha !== request.responseBinding.candidate.head
+        || candidateTarget.status !== "resolved"
+        || candidateTarget.target.kind !== "change-set"
+        || candidateTarget.target.headSha !== candidate.headSha
+        || matchingMember.length !== 1) {
+        throw new FrontlineRunCommandError(
+          "Frontline response binding does not match the current Candidate and private delivery plan.",
+        );
+      }
+      const member = matchingMember[0];
+      if (member === undefined) throw new FrontlineRunCommandError("Frontline response binding is ambiguous.");
+      return FrontlineRunCommandRequestSchema.parse({
+        ...request,
+        target,
+        responseBinding: {
+          candidate: {
+            workUnit: request.responseBinding.candidate.workUnit,
+            candidateId: candidate.candidateId,
+            target: candidateTarget.target,
+          },
+          deliveryMember: member.vehicle,
+        },
+      });
+    },
+    run: async (request, root) => {
+      const input = await resolveFrontlineRunInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      const result = await runFrontlineReviewCommand(request, createFrontlineRunDependencies({
+        ...input, interaction: context.subprocess, codeRabbit: invocation.codeRabbit,
+      }));
+      return retainReviewOperationReference(input, result);
+    },
   };
 }
 
@@ -726,21 +2974,42 @@ export async function handleReviewFrontlineRun(
   source: string,
   overrides: Partial<ReviewFrontlineRunHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: FrontlineReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultFrontlineRunDependencies(context), ...overrides };
+  const dependencies = { ...defaultFrontlineRunDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-run",
     source,
     requestSchema: FrontlineRunRequestSchema,
     resultSchema: FrontlineRunEnvelopeSchema,
     dependencies,
-    execute: dependencies.run,
+    remedyFor: frontlineRetryRemedy,
+    execute: async (request, root) => dependencies.run(
+      await dependencies.deriveRequest(FrontlineRunRequestSchema.parse(request), root),
+      root,
+    ),
   });
+}
+
+export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
+
+/** Operational authority and optional external Git boundaries for review handlers. */
+interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
+
+/** External CodeRabbit process seams for the default frontline handler. */
+interface FrontlineReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+  codeRabbit?: CodeRabbitProcessOptions;
+}
+
+/** Originating checkout and GitHub process boundaries for hosted handlers. */
+interface HostedReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+  cwd?: string;
+  hostedRunner?: HostedProcessRunner;
 }
 
 export interface ReviewLocalPrepareHandlerDependencies {
@@ -751,60 +3020,16 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(): ReviewLocalPrepareHandlerDependencies {
+function defaultLocalPrepareDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalPrepareHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    prepare: (request, root) => prepareLocalReview(
-      request,
-      createLocalPrepareDependencies({ exec: gitExec, cwd: root }),
-    ),
+    prepare: async (request, root) => {
+      const input = await resolveLocalReviewInvocation({ ...invocationFor(root), exec, cwd: root, rawGit: invocation.rawGit });
+      return retainReviewOperationReference(input, await prepareLocalReview(request, createLocalPrepareDependencies(input)));
+    },
   };
-}
-
-function repositoryPrecondition(reason: LocalTargetInvalidReason) {
-  switch (reason) {
-    case "unborn-repository":
-      return "repository-born" as const;
-    case "dirty-worktree":
-      return "clean-worktree" as const;
-    case "non-commit-head":
-      return "commit-head" as const;
-    case "invalid-base":
-    case "no-merge-base":
-    case "unresolved-base":
-      return "base-resolved" as const;
-  }
-}
-
-function reviewCommandError(
-  mode: ReviewCommandMode,
-  error: unknown,
-  phase: ReviewHandlerErrorPhase,
-) {
-  const message = error instanceof Error ? error.message : String(error);
-  const stableCode = errorCode(error);
-  const code = error instanceof LocalTargetDerivationError
-    ? "invalid-input"
-    : phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
-      ? "invalid-input"
-      : stableCode === "invalid-input" || stableCode === "corrupt-state"
-        ? stableCode
-        : stableCode !== null && DURABLE_CORRUPTION_CODES.has(stableCode)
-          ? "corrupt-state"
-          : "unexpected-failure";
-  const diagnostics = error instanceof LocalTargetDerivationError
-    ? [{
-        code: "repository-precondition" as const,
-        message,
-        precondition: repositoryPrecondition(error.reason),
-      }]
-    : [];
-  return ReviewCommandErrorEnvelopeSchema.parse({
-    schemaVersion: 1,
-    mode,
-    diagnostics,
-    error: { code, message },
-  });
 }
 
 /**
@@ -817,8 +3042,15 @@ function reviewCommandError(
 export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultLocalPrepareDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalPrepareDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-prepare",
     source,
@@ -826,6 +3058,7 @@ export async function handleReviewLocalPrepare(
     resultSchema: LocalPrepareEnvelopeSchema,
     dependencies,
     execute: dependencies.prepare,
+    remedyFor: localPrepareAdmissionRemedy,
   });
 }
 
@@ -837,13 +3070,15 @@ export interface ReviewLocalAttestHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies {
+function defaultLocalAttestDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalAttestHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    attest: (request, root) => attestLocalReviewCommand(
-      request,
-      createLocalAttestDependencies({ exec: gitExec, cwd: root }),
-    ),
+    attest: async (request, root) => {
+      const input = await resolveLocalReviewAttestInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await attestLocalReviewCommand(request, createLocalAttestDependencies(input)));
+    },
   };
 }
 
@@ -857,8 +3092,15 @@ function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies 
 export async function handleReviewLocalAttest(
   source: string,
   overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultLocalAttestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalAttestDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-attest",
     source,
@@ -866,6 +3108,40 @@ export async function handleReviewLocalAttest(
     resultSchema: LocalAttestEnvelopeSchema,
     dependencies,
     execute: dependencies.attest,
+  });
+}
+
+export interface ReviewLocalCancelHandlerDependencies extends ReviewHandlerBoundary {
+  cancel: (request: unknown, root: string) => Promise<unknown>;
+}
+
+function defaultLocalCancelDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalCancelHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
+  return {
+    ...defaultReviewHandlerBoundary(),
+    cancel: async (request, root) => {
+      const input = await resolveLocalReviewCancelInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await cancelLocalReviewCommand(request, createLocalAttestDependencies(input)));
+    },
+  };
+}
+
+/** Cancel a pending local dispatch and emit its public continuation as JSON. */
+export async function handleReviewLocalCancel(
+  source: string,
+  overrides: Partial<ReviewLocalCancelHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: true, yes: "absent",
+  });
+  const dependencies = { ...defaultLocalCancelDependencies(context, invocation), ...overrides };
+  await executeReviewHandler({
+    mode: "review-local-cancel", source,
+    requestSchema: LocalCancelRequestSchema, resultSchema: LocalCancelEnvelopeSchema,
+    dependencies, execute: dependencies.cancel,
   });
 }
 
@@ -877,13 +3153,15 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies {
+function defaultLocalResumeDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalResumeHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    resume: (request, root) => resumeLocalReviewCommand(
-      request,
-      createLocalResumeDependencies({ exec: gitExec, cwd: root }),
-    ),
+    resume: async (request, root) => {
+      const input = await resolveLocalReviewResumeInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await resumeLocalReviewCommand(request, createLocalResumeDependencies(input)));
+    },
   };
 }
 
@@ -897,8 +3175,15 @@ function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies 
 export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultLocalResumeDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalResumeDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-resume",
     source,
@@ -917,22 +3202,34 @@ export interface ReviewRespondHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
+function defaultRespondDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewRespondHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    respond: (request, root) => respondToReviewCommand(
-      request,
-      createRespondDependencies({ exec: gitExec, cwd: root }),
-    ),
+    respond: async (request, root) => {
+      const source = RespondRequestSchema.parse(request).source;
+      const reference = source.kind === "hosted" ? source.attemptRef
+        : source.kind === "frontline" ? source.outcomeRef : source.receiptRef;
+      const selected = await resolveReviewSourceInvocation({ ...invocationFor(root), exec, cwd: root }, reference, source.kind);
+      return respondToReviewCommand(request, createRespondDependencies({ ...selected.invocation, rawGit: invocation.rawGit }));
+    },
   };
 }
 
-/** Prepare or persist one source-bound disposition set. */
+/** Prepare, persist, or withdraw one source-bound disposition or continuation. */
 export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultRespondDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultRespondDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-respond",
     source,
@@ -940,6 +3237,7 @@ export async function handleReviewRespond(
     resultSchema: RespondEnvelopeSchema,
     dependencies,
     execute: dependencies.respond,
+    remedyFor: reviewRespondRemedy,
   });
 }
 
@@ -951,13 +3249,15 @@ export interface ReviewReduceHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
+function defaultReduceDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewReduceHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
   return {
     ...defaultReviewHandlerBoundary(),
-    reduce: (request, root) => reduceReviewCommand(
-      request,
-      createReduceDependencies({ exec: gitExec, cwd: root }),
-    ),
+    reduce: async (request, root) => {
+      const input = await resolveReduceInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await reduceReviewCommand(request, createReduceDependencies(input)));
+    },
   };
 }
 
@@ -965,8 +3265,15 @@ function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
 export async function handleReviewReduce(
   source: string,
   overrides: Partial<ReviewReduceHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReduceDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReduceDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-reduce",
     source,
@@ -988,19 +3295,631 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
   request(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
-  const { adapters } = createHostedAdapters();
+async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec, invocation: ReviewInvocationOptions = {}): Promise<boolean> {
+  try {
+    return (await readIndexedHostedReviewErrand(root, exec, invocation)).claimId === expectedClaimId;
+  } catch (error) {
+    rethrowNativeRefusal(error);
+    return false;
+  }
+}
+
+function projectIndexedHostedAttempt(
+  request: HostedRequestEnvelope,
+  attempt: LaneProgressState["attempts"][number],
+): HostedRequestAdmissionResolution {
+  const hosted = attempt.hosted;
+  if (hosted === undefined) return { state: "ambiguous-delivery" };
+  if (attempt.outcome === "pending") {
+    return hosted.handle === undefined
+      ? { state: "ambiguous-delivery" }
+      : { state: "acknowledged", handle: hosted.handle, action: hostedAwaitAction(hosted.handle) };
+  }
+  if (attempt.outcome === "rate-limited" || attempt.outcome === "transient-unavailable") {
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-request" as const,
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      attemptedProviders: [request.provider],
+      state: attempt.outcome,
+      nextAction: "try-next-source" as const,
+    };
+    HostedRequestResultSchema.parse(result);
+    return { state: "concluded", result };
+  }
+  if (attempt.outcome === "terminal-failure" && hosted.requestFailureReason !== null) {
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-request" as const,
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      attemptedProviders: [request.provider],
+      state: "terminal-failure" as const,
+      nextAction: "stop" as const,
+      reason: hosted.requestFailureReason,
+    };
+    HostedRequestResultSchema.parse(result);
+    return { state: "concluded", result };
+  }
+  return { state: "ambiguous-delivery" };
+}
+
+function indexedLaneMatchesOwner(
+  state: LaneProgressState,
+  owner: HostedRequestOwnerIndexRecord,
+): boolean {
+  return state.lane === "standard"
+    && state.repositoryId === owner.repositoryId
+    && state.operationId === owner.operationId
+    && laneSubjectOwnerMatches(state.lineage, owner.lineage)
+    && (owner.workItem === undefined || (state.workItem !== undefined && sameOwner(state.workItem, owner.workItem)));
+}
+
+function indexedAttemptMatches(
+  attempt: LaneProgressState["attempts"][number],
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): boolean {
+  const hosted = attempt.hosted;
+  return hosted !== undefined
+    && attempt.logicalPass === owner.logicalPass
+    && attempt.headSha === request.target.headSha
+    && hosted.admission.repositoryId === owner.repositoryId
+    && laneSubjectOwnerMatches(hosted.admission.lineage, owner.lineage)
+    && canonicalize(hosted.admission.reviewTarget) === canonicalize(hosted.reviewTarget)
+    && hostedAdmissionMatchesRequest(hosted.admission, request);
+}
+
+function projectIndexedMatches(
+  matches: LaneProgressState["attempts"],
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): HostedRequestAdmissionResolution | null {
+  if (matches.length === 0) return owner.phase === "reserved" ? null : { state: "ambiguous-delivery" };
+  if (matches.length !== 1) return { state: "ambiguous-delivery" };
+  const attempt = matches[0];
+  if (owner.phase === "reserved"
+    && attempt?.outcome === "pending"
+    && attempt.hosted?.handle === undefined) {
+    return attempt.hosted === undefined
+      ? { state: "ambiguous-delivery" }
+      : { state: "admitted", admission: attempt.hosted.admission };
+  }
+  return attempt === undefined
+    ? { state: "ambiguous-delivery" }
+    : projectIndexedHostedAttempt(request, attempt);
+}
+
+async function readIndexedOwnerAttempts(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): Promise<LaneProgressState["attempts"]> {
+  const { state } = await store.readOperation(owner.operationId);
+  if (state === null) return [];
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    throw new Error("Hosted request owner index does not match its durable lane.");
+  }
+  return state.attempts.filter((attempt) => indexedAttemptMatches(attempt, owner, request));
+}
+
+async function indexedOwnerPassCompleted(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  owner: HostedRequestOwnerIndexRecord,
+): Promise<boolean> {
+  const { state } = await store.readOperation(owner.operationId);
+  if (state === null) return false;
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    throw new Error("Hosted request owner index does not match its durable lane.");
+  }
+  return state.completedPasses > owner.completedPassesAtAdmission;
+}
+
+/** A prior admission owns its replay even when the current branch or Candidate has moved. */
+async function readDurableHostedRequestReplay(input: {
+  invocation?: ReviewInvocationOptions;
+  store: Pick<ReviewOperationStateStore, "readOperation">;
+  owner: HostedRequestOwnerIndexRecord | null;
+  repositoryId: string;
+  request: HostedRequestEnvelope;
+  root: string;
+  exec: GitExec;
+}): Promise<HostedRequestAdmissionResolution | null> {
+  const owner = input.owner;
+  if (owner === null) return null;
+  if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
+    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec, input.invocation)) {
+    return { state: "ambiguous-delivery" };
+  }
+  const { state } = await input.store.readOperation(owner.operationId);
+  if (state === null) return owner.phase === "reserved" ? null : { state: "ambiguous-delivery" };
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    return { state: "ambiguous-delivery" };
+  }
+  if (state.completedPasses > owner.completedPassesAtAdmission) return null;
+  const matches = state.attempts.filter((attempt) => indexedAttemptMatches(attempt, owner, input.request));
+  return projectIndexedMatches(matches, owner, input.request);
+}
+
+async function readHostedRequestContext(input: ReviewInvocationInput & {
+  index: HostedRequestOwnerIndex; repositoryId: string; request: HostedRequestEnvelope;
+}) {
+  const indexed = await input.index.read(input.repositoryId, input.request);
+  const selected = await resolveHostedRequestInvocation(input, input.request, indexed);
+  // Natively an entry naming no owner predates the flip, and its execution state stayed behind with it.
+  const owner = selected.store?.capabilities.stateOffBranch === true && indexed?.workItem === undefined ? null : indexed;
+  const context = createReviewCompositionContext(selected);
+  const replay = await readDurableHostedRequestReplay({ owner, invocation: context,
+    store: context.family.ports.inFlight, repositoryId: input.repositoryId, request: input.request,
+    root: input.cwd, exec: input.exec });
+  if (replay !== null || owner?.workItem === undefined) return { ...context, replay };
+  const fresh = await resolveHostedRequestInvocation(input, input.request, null);
+  if (fresh.workItem === undefined || !sameOwner(fresh.workItem, owner.workItem)) {
+    throw new ReviewContinuationReferenceError("the completed or missing reserved request belongs to another work item; "
+      + "restore its originating work item or select the intended review target", "arc review hosted request");
+  }
+  return { ...createReviewCompositionContext(fresh), replay };
+}
+
+class HostedRequestOwnerCollision extends Error {}
+
+async function resumeReservedHostedRequest(input: ReviewInvocationOptions & {
+  root: string;
+  exec: GitExec;
+  publisher: RepositoryGitCommonStatePublisher;
+  index: HostedRequestOwnerIndex;
+  repositoryId: string;
+  request: HostedRequestEnvelope;
+  replay: Extract<HostedRequestAdmissionResolution, { state: "admitted" }>;
+  adapters: readonly HostedReviewAdapter[];
+}): Promise<unknown> {
+  const { root, exec, publisher, index, repositoryId, request, replay, adapters } = input;
+  let current;
+  try {
+    current = await resolveHostedProgressContext({
+      ...input,
+      root,
+      exec,
+      publisher,
+      target: request.target,
+      provider: request.provider,
+      ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+      admitCapacity: false,
+    });
+  } catch (error) {
+    rethrowNativeRefusal(error);
+    return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
+  }
+  if (current.repositoryId !== repositoryId
+    || canonicalize(current.lineage) !== canonicalize(replay.admission.lineage)
+    || canonicalize(current.reviewTarget) !== canonicalize(replay.admission.reviewTarget)) {
+    return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
+  }
+  const store = current.store;
+  const result = await requestHostedReview(request, {
+    adapters,
+    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd: root }),
+    ...(replay.admission.vehicle?.kind === "errand"
+      ? { errandBinding: replay.admission.vehicle }
+      : {}),
+    admitRequest: async () => {
+      await index.markAdmitted({
+        repositoryId,
+        request,
+        lineage: replay.admission.lineage,
+        logicalPass: replay.admission.logicalPass,
+      });
+      return replay;
+    },
+    acknowledgeRequest: async (admission, handle) => {
+      await acknowledgeHostedRequest(store, { admission, handle, now: new Date().toISOString() });
+    },
+    concludeRequest: async (admission, result) => {
+      await recordHostedRequestConclusion(store, {
+        admission,
+        result,
+        now: new Date().toISOString(),
+      });
+    },
+  });
+  return retainHostedRequestReference({ ...input, cwd: root }, result);
+}
+
+async function executeDefaultHostedRequest(
+  input: unknown,
+  root: string | null,
+  publisher: RepositoryGitCommonStatePublisher | null,
+  exec: GitExec,
+  adapters: readonly HostedReviewAdapter[],
+  port: ReturnType<typeof createHostedAdapters>["port"],
+  invocation: ReviewInvocationOptions = {},
+  runner: HostedProcessRunner = hostedGhRunner,
+): Promise<unknown> {
+  if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
+  const initial = resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  let request = HostedRequestEnvelopeSchema.parse(input);
+  const index = new HostedRequestOwnerIndex(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher, undefined, initial);
+  return withRepositoryReviewOperationLock(
+    exec,
+    root,
+    index.lockId(repositoryId, request),
+    10_000,
+    async () => {
+      const { family, replay, ...bound } = await readHostedRequestContext({ ...initial, cwd: root, exec,
+        index, repositoryId, request });
+      if (replay?.state === "admitted") {
+        return resumeReservedHostedRequest({ ...bound, root, exec, publisher, index, repositoryId, request, replay, adapters });
+      }
+      if (replay !== null) {
+        const result = projectHostedRequestAdmissionResolution(request, replay);
+        if (result === null) throw new Error("Hosted request replay unexpectedly admitted fresh dispatch.");
+        return retainHostedRequestReference({ ...bound, cwd: root, exec }, result);
+      }
+      const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
+      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
+      const settings = (await readConfigSettings(root)).settings;
+      const context = await resolveHostedProgressContext({
+        ...bound,
+        root,
+        exec,
+        publisher,
+        target: request.target,
+        provider: request.provider,
+        ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+        settings,
+        admitCapacity: true,
+        ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+      });
+      if (request.coverage === "incremental") throw new HostedIncrementalCoverageError(context.statusTarget);
+      const { supersessionAncestors, inheritedProgress, resolveGrants } = await createHostedPassJudgmentContext({
+        ...bound, cwd: root, exec, operationStore: context.store, repositoryId: context.repositoryId,
+        lineage: context.lineage, reviewTarget: context.reviewTarget, candidateRecord: context.candidateRecord,
+        decisionSubjectDigest: context.decisionSubjectDigest,
+      });
+      const actorIdentity = await port.currentActorIdentity();
+      const policy = await resolveConfiguredLanePolicy({
+        lane: "standard",
+        settings,
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: root,
+          exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+      });
+      const authorizeCapacity = async ({
+        progress,
+        logicalPass,
+      }: Parameters<Parameters<typeof recordHostedRequestAdmission>[1]["authorizeCapacity"]>[0]) => {
+        request = await resolveGrants(request, progress);
+        if (deliveryVehicle !== null) {
+          if (context.reservation === null) {
+            throw new Error("Hosted delivery-member review requires a carried reservation.");
+          }
+          const dischargeReader = createHostedReservationDischargeReader({
+            ...bound,
+            cwd: root,
+            exec,
+            delivery: deliveryMemberLookup,
+            host: new GhDeliveryHostPort(runner),
+          });
+          const dischargeInput = {
+            reservation: context.reservation,
+            baseRevision: context.reviewTarget.diffBaseSha,
+            approvedHead: request.target.headSha,
+            changeRequest: {
+              repository: request.target.repository,
+              pullRequest: request.target.pullRequest,
+            },
+            vehicle: deliveryVehicle,
+            candidate: context.candidateRecord,
+          };
+          const discharge = await dischargeReader(dischargeInput);
+          if (discharge.discharged
+            || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
+            throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
+          }
+          await assertEvidenceBoundHostedReservationPolicyAdmission({
+            reservation: context.reservation,
+            snapshot: await context.store.readOperationSnapshot(),
+            repositoryId: context.repositoryId,
+            currentReviewTarget: context.reviewTarget,
+            target: request.target,
+            vehicle: deliveryVehicle,
+            provider: request.provider,
+            coverage: request.coverage,
+            ...(request.correctionScope === undefined
+              ? {}
+              : { correctionScope: request.correctionScope }),
+            maxPasses: policy.maxPasses,
+            ...(discharge.requestAttempts === undefined
+              ? {}
+              : { requestAttempts: discharge.requestAttempts }),
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+            ...(request.ceilingOverride === undefined
+              ? {}
+              : { ceilingOverride: request.ceilingOverride }),
+            ...(request.additionalPassAuthorization === undefined ? {}
+              : { additionalPassAuthorization: request.additionalPassAuthorization }),
+          }, {
+            resultReader: createRepositoryReviewResultReader(publisher, bound),
+            dispositionStore: family.ports.dispositions,
+            confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
+            confirmCurrentApplicability: predecessor =>
+              dischargeReader.confirmCurrentIncrementalApplicability(dischargeInput, predecessor),
+            confirmIncrementalApplicability: (predecessor, current) => (
+              dischargeReader.confirmIncrementalApplicability(
+                dischargeInput,
+                predecessor,
+                current,
+              )
+            ),
+          });
+          const currentObligation = await readRoutedObligation(
+            root,
+            exec,
+            context.statusTarget,
+            request.target.pullRequest,
+            deliveryMemberLookup,
+            undefined,
+            {
+              ...(request.ceilingOverride === undefined
+                ? {}
+                : { ceilingOverride: request.ceilingOverride }),
+              ...(request.additionalPassAuthorization === undefined ? {}
+                : { additionalPassAuthorization: request.additionalPassAuthorization }),
+              coverage: request.coverage,
+              ...(request.invocation === undefined
+                ? {}
+                : { sourceId: request.invocation.sourceId }),
+            },
+            new GhDeliveryHostPort(runner),
+            bound,
+          );
+          if (currentObligation.state !== "review-required"
+            || !("action" in currentObligation)
+            || canonicalize(currentObligation.action) !== canonicalize(request)) {
+            throw new Error(
+              "Hosted delivery-member request no longer matches the current first outstanding delivery member.",
+            );
+          }
+          return;
+        }
+        const standardReview = context.errandBinding?.standardReview
+          ?? context.reservation?.obligation;
+        const sources = context.errandBinding?.sources ?? context.reservation?.sources;
+        if (standardReview === undefined || sources === undefined) {
+          throw new Error("Hosted review capacity lacks standard-review authority.");
+        }
+        if (context.candidateRecord !== null) {
+          const dischargeReader = createHostedReservationDischargeReader({
+            ...bound,
+            cwd: root,
+            exec,
+            host: new GhDeliveryHostPort(runner),
+          });
+          const dischargeInput = {
+            reservation: context.reservation,
+            baseRevision: context.reviewTarget.diffBaseSha,
+            approvedHead: request.target.headSha,
+            changeRequest: {
+              repository: request.target.repository,
+              pullRequest: request.target.pullRequest,
+            },
+            candidate: context.candidateRecord,
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+          };
+          const discharge = await dischargeReader(dischargeInput);
+          await assertEvidenceBoundCandidateHostedReservationPolicyAdmission({
+            reservation: context.reservation,
+            discharge,
+            progress,
+            target: request.target,
+            provider: request.provider,
+            coverage: request.coverage,
+            ...(request.correctionScope === undefined
+              ? {}
+              : { correctionScope: request.correctionScope }),
+            maxPasses: policy.maxPasses,
+            logicalPass,
+            inheritedCompletedPasses: inheritedProgress.inheritedCompletedPasses,
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+            ...(request.ceilingOverride === undefined
+              ? {}
+              : { ceilingOverride: request.ceilingOverride }),
+            ...(request.additionalPassAuthorization === undefined ? {}
+              : { additionalPassAuthorization: request.additionalPassAuthorization }),
+          }, {
+            resultReader: createRepositoryReviewResultReader(publisher, bound),
+            dispositionStore: family.ports.dispositions,
+            confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
+            confirmIncrementalApplicability: (predecessor, current) => (
+              dischargeReader.confirmIncrementalApplicability(
+                dischargeInput,
+                predecessor,
+                current,
+              )
+            ),
+          });
+          return;
+        }
+        const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
+          outcome: Exclude<typeof attempt.outcome, "pending">;
+        } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];
+        if (progress?.attempts.some((attempt) => (
+          attempt.headSha === request.target.headSha && attempt.outcome === "pending"
+        )) === true) {
+          throw new Error("Hosted review capacity is already held by a pending request.");
+        }
+        const resultReader = createRepositoryReviewResultReader(publisher, bound);
+        const dispositionStore = family.ports.dispositions;
+        const nextPassContext = await readHostedErrandNextPassContext({ cwd: root, exec, configuredSources: policy.sources,
+          progress, target: context.reviewTarget,
+          lineage: context.lineage, standardReview, operationStore: context.store, resultReader, dispositionStore });
+        const latestAttempt = currentAttempts.at(-1);
+        const admission = await assertEvidenceBoundReviewExecutionAdmission({
+          target: request.target,
+          schemaVersion: 1,
+          lane: "standard",
+          frontlineActive: false,
+          standardReview,
+          completedPasses: (progress?.completedPasses ?? 0)
+            + inheritedProgress.inheritedCompletedPasses,
+          attempts: currentAttempts.map(projectReviewPolicyAttempt),
+          ...(request.invocation === undefined
+            ? {}
+            : { invocation: request.invocation }),
+          ...(request.ceilingOverride === undefined
+            ? {}
+            : { ceilingOverride: request.ceilingOverride }),
+          ...(request.additionalPassAuthorization === undefined ? {}
+            : { additionalPassAuthorization: request.additionalPassAuthorization }),
+        }, {
+          terminalResponsePerformed: latestAttempt?.outcome === "settled-findings",
+        }, {
+          sourceId: request.provider, nextAction: "hosted-request",
+        }, {
+          // Unavailable attempts retain the configured order even when the next provider selects a suffix.
+          sources: latestAttempt?.terminalProducer === true
+            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : policy.sources,
+          selectionSources: sources,
+          configuredSources: policy.sources,
+          maxPasses: policy.maxPasses,
+          resultReader,
+          nextPassContext,
+          chosenCoverage: "complete",
+          dispositionStore,
+          confirmIncrementalApplicability: (predecessor, current) => confirmReviewCorrectionLeg({
+            predecessor, currentTarget: current.target, currentLineage: current.admission.lineage, currentResult: current,
+            dispositionStore, rangeProof: { cwd: root, exec },
+            readResponsePerformance: producer => readLaneResponsePerformance(context.store, producer),
+          }),
+          confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+          readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
+        });
+        if (admission.payload.pass !== logicalPass) {
+          throw new Error("Hosted review capacity changed before durable admission.");
+        }
+      };
+      const result = await requestHostedReview(request, {
+        adapters,
+        deliveryMemberLookup,
+        ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
+        admitRequest: async (admittedRequest, progressVehicle) => {
+          const dispositionStore = family.ports.dispositions;
+          try {
+            const admitted = await withRepositoryReviewOperationLock(
+              exec,
+              root,
+              laneContinuationOperationId({
+                lane: "standard",
+                repositoryId: context.repositoryId,
+                headSha: admittedRequest.target.headSha,
+                lineage: context.lineage,
+              }),
+              10_000,
+              () => recordHostedRequestAdmission(context.store, {
+                repositoryId: context.repositoryId,
+                lineage: context.lineage,
+                supersessionAncestors,
+                request: admittedRequest,
+                ...(progressVehicle === undefined ? {} : { progressVehicle }),
+                reviewTarget: context.reviewTarget,
+                requirement: context.requirement,
+                actorIdentity,
+                authorizeCapacity: async (capacity) => {
+                  await authorizeCapacity(capacity);
+                  // Reserve after read-only validation, before conditional authority is consumed.
+                  const reservation = await index.reserve({
+                    repositoryId: context.repositoryId,
+                    workItem: hostedRequestIndexWorkItem(bound),
+                    request: admittedRequest,
+                    lineage: context.lineage,
+                    logicalPass: capacity.logicalPass,
+                    completedPassesAtAdmission: capacity.progress?.completedPasses ?? 0,
+                    oldAdmissionAbsent: async (owner) => (
+                      (await readIndexedOwnerAttempts(context.store, owner, admittedRequest)).length === 0
+                    ),
+                    oldPassCompleted: (owner) => indexedOwnerPassCompleted(context.store, owner),
+                  });
+                  if (reservation === "collision") throw new HostedRequestOwnerCollision();
+                },
+                confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+                  cwd: root, exec, dispositionStore, operationStore: context.store,
+                }),
+                confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+                  dispositionStore,
+                  producerId,
+                  dispositionSetId,
+                ),
+                now: new Date().toISOString(),
+              }),
+            );
+            if (admitted.state === "admitted") {
+              await index.markAdmitted({
+                repositoryId: context.repositoryId,
+                request: admittedRequest,
+                lineage: context.lineage,
+                logicalPass: admitted.admission.logicalPass,
+              });
+            }
+            return admitted;
+          } catch (error) {
+            if (error instanceof HostedRequestOwnerCollision) return { state: "ambiguous-delivery" };
+            // The open change request's status re-reads what the driver admits instead.
+            if (error instanceof ReviewDriverAdmissionError) {
+              throw new HostedReviewAdmissionError(error, context.statusTarget, context.errandBinding !== null);
+            }
+            throw error;
+          }
+        },
+        acknowledgeRequest: async (admission, handle) => {
+          await acknowledgeHostedRequest(context.store, {
+            admission,
+            handle,
+            now: new Date().toISOString(),
+          });
+        },
+        concludeRequest: async (admission, concluded) => {
+          await recordHostedRequestConclusion(context.store, {
+            admission,
+            result: concluded,
+            now: new Date().toISOString(),
+          });
+        },
+      });
+      return retainHostedRequestReference({ ...bound, cwd: root, exec }, result);
+    },
+  );
+}
+
+function defaultHostedRequestDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedRequestHandlerDependencies {
+  const { adapters, port } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => requestHostedReview(input, { adapters }),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port, bound, invocation.hostedRunner),
   };
 }
 
 export async function handleReviewHostedRequest(
   source: string,
   overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultHostedRequestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedRequestDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-request",
     source,
@@ -1008,6 +3927,7 @@ export async function handleReviewHostedRequest(
     resultSchema: HostedRequestResultSchema,
     dependencies,
     execute: dependencies.request,
+    remedyFor: hostedRequestAdmissionRemedy,
   });
 }
 
@@ -1022,30 +3942,86 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
   awaitResult(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
-  const { observers } = createHostedAdapters();
+function defaultHostedAwaitDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedAwaitHandlerDependencies {
+  const { observers } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    awaitResult: (input) => awaitHostedReview(input, {
-      observers,
-      clock: {
-        now: () => Date.now(),
-        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-      },
-    }),
+    awaitResult: async (input) => {
+      if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
+      const request = HostedAwaitEnvelopeSchema.parse(input);
+      const selected = await resolveHostedAwaitInvocation({ ...bound, cwd: root, exec }, request);
+      const store = createReviewCompositionContext(selected).family.ports.inFlight;
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, selected);
+      if (request.handle.admission.repositoryId !== repositoryId) {
+        throw new Error("Hosted await does not match the current repository.");
+      }
+      // Limit notices describe this call's own wait, so they reach only its output, never the sealed result.
+      let diagnostics: readonly AwaitTimingDiagnostic[] = [];
+      const resolved = await resolveHostedAwaitResult(store, {
+        repositoryId,
+        handle: request.handle,
+        observe: async () => {
+          const settings = (await readConfigSettings(root)).settings;
+          const timing = resolveHostedAwaitTiming(request, settings);
+          diagnostics = timing.diagnostics ?? [];
+          return await awaitHostedReview(timing.request, {
+            observers,
+            attentionAfterMs: timing.attentionAfterMs,
+            clock: {
+              now: () => Date.now(),
+              sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+            },
+          });
+        },
+        now: () => new Date().toISOString(),
+      });
+      const result = resolved.result;
+      if ((result.state === "clean" || result.state === "findings")
+        && resolved.hostedResultId === null) {
+        throw new Error("Hosted terminal result was not durably sealed.");
+      }
+      const published = result.state === "clean" || result.state === "findings"
+        ? {
+            ...result,
+            responseSourceRef: bindReviewSourceReference({
+              kind: "hosted",
+              operationId: resolved.progress.operationId,
+              durableRef: hostedLaneAttemptId(result.handle),
+            }),
+            hostedResultId: resolved.hostedResultId,
+            attempt: projectReviewPolicyAttempt({
+              attemptId: hostedLaneAttemptId(result.handle),
+              sourceId: result.handle.provider,
+              outcome: result.state,
+            }),
+          }
+        : result;
+      return retainHostedAwaitReference(selected, diagnostics.length === 0 ? published : { ...published, diagnostics });
+    },
   };
 }
 
 export async function handleReviewHostedAwait(
   source: string,
   overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultHostedAwaitDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedAwaitDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-await",
     source,
     requestSchema: HostedAwaitEnvelopeSchema,
-    resultSchema: HostedAwaitResultSchema,
+    resultSchema: HostedAwaitCommandResultSchema,
     dependencies,
     execute: dependencies.awaitResult,
   });
@@ -1062,19 +4038,175 @@ export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandl
   settle(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
-  const { port } = createHostedAdapters();
+/**
+ * Decide, before any provider mutation, whether this exact approved set's fix has a recorded verified response.
+ *
+ * No record for the set means its verified-fix response was never submitted, which the caller can complete. A
+ * record for the set that names another attempt or head contradicts the request and is refused.
+ *
+ * @param input - The approved attempt, the requested fix head, and the attempt's recorded response performance.
+ * @returns `true` when the recorded response matches the request; `false` when none is recorded for the set.
+ */
+export function hostedFixSettlementPerformed(input: {
+  attemptId: string;
+  originatingHeadSha: string;
+  dispositionSetId: string;
+  producedHeadSha: string | undefined;
+  responsePerformance: LaneResponsePerformance | undefined;
+  confirmedContinuation?: { fromHeadSha: string; toHeadSha: string };
+}): boolean {
+  const performance = input.responsePerformance;
+  if (performance?.dispositionSetId !== input.dispositionSetId) return false;
+  if (performance.producerId !== input.attemptId
+    || performance.originatingHeadSha !== input.originatingHeadSha
+    || (performance.producedHeadSha !== input.producedHeadSha
+      && (input.confirmedContinuation?.fromHeadSha !== performance.producedHeadSha
+        || input.confirmedContinuation.toHeadSha !== input.producedHeadSha))) {
+    throw new Error("Hosted fix settlement requires matching durable response-performance evidence.");
+  }
+  return true;
+}
+
+async function hostedSettlementHeadContinuation(input: {
+  attempt: LaneProgressState["attempts"][number];
+  repositoryId: string;
+  lineage: LaneSubjectLineage;
+  requestedHeadSha: string | undefined;
+  confirmResponseHeadContinuation: import("../scripts/review-gate/core/response-head-continuation.js").ConfirmResponseHeadContinuation;
+}): Promise<{ fromHeadSha: string; toHeadSha: string } | undefined> {
+  const performance = input.attempt.responsePerformance;
+  if (performance === undefined || input.requestedHeadSha === undefined
+    || performance.producedHeadSha === input.requestedHeadSha) return undefined;
+  const confirmed = await input.confirmResponseHeadContinuation({
+    repositoryId: input.repositoryId, lineage: input.lineage, producerId: input.attempt.attemptId,
+    dispositionSetId: performance.dispositionSetId, originatingHeadSha: input.attempt.headSha,
+    fromHeadSha: performance.producedHeadSha, toHeadSha: input.requestedHeadSha,
+  });
+  return confirmed ? { fromHeadSha: performance.producedHeadSha, toHeadSha: input.requestedHeadSha } : undefined;
+}
+
+async function readHostedSettlementAttempt(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  reference: { operationId: string; durableRef: string },
+): Promise<{ state: LaneProgressState; attempt: LaneProgressState["attempts"][number] }> {
+  const { state } = await store.readOperation(reference.operationId);
+  if (state?.kind !== "lane-progress" || state.lane !== "standard") {
+    throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+  }
+  const attempt = state.attempts.find(({ attemptId }) => attemptId === reference.durableRef);
+  if (attempt === undefined) throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+  return { state, attempt };
+}
+
+function defaultHostedSettleDependencies(context: InteractionContext, invocation: HostedReviewHandlerInvocationOptions = {}): ReviewHostedSettleHandlerDependencies {
+  const { port } = createHostedAdapters(invocation.hostedRunner);
+  const root = resolveArcRoot(invocation.cwd ?? process.cwd());
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const bound = root === null ? invocation : resolveReviewInvocation({ ...invocation, cwd: root, exec });
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    settle: (input) => settleHostedFinding(input, { port }),
+    settle: async (input) => {
+      if (root === null || publisher === null) throw new Error("Hosted settlement requires an ARC project.");
+      const request = HostedSettleEnvelopeSchema.parse(input);
+      const { invocation: selected, reference } = await resolveReviewSourceInvocation(
+        { ...bound, cwd: root, exec }, request.response.attemptRef, "hosted");
+      const { family } = createReviewCompositionContext(selected);
+      const operationStore = family.ports.inFlight;
+      const { state: initial, attempt: initialAttempt } = await readHostedSettlementAttempt(operationStore, reference);
+      return withRepositoryReviewOperationLock(
+        exec,
+        root,
+        laneContinuationOperationId({
+          lane: "standard",
+          repositoryId: initial.repositoryId,
+          headSha: initialAttempt.headSha,
+          lineage: initial.lineage,
+        }),
+        10_000,
+        async () => {
+          const { state: persisted, attempt } = await readHostedSettlementAttempt(operationStore, reference);
+          const hosted = attempt.hosted;
+          if (hosted === undefined) {
+            throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
+          }
+          const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
+          if (bindingMismatch !== null) {
+            throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
+          }
+          const dispositionStore = family.ports.dispositions;
+          const dispositionRecord = await dispositionStore.readDispositionRecord(attempt.attemptId);
+          const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({
+            ...selected, dispositionStore, operationStore,
+          });
+          const currentDisposition = dispositionRecord === null
+            ? null
+            : currentApprovedDispositionNode(dispositionRecord).approvedDisposition;
+          const disposition = currentDisposition?.dispositionSet.findings
+            .find(({ findingId }) => findingId === request.response.findingId);
+          if (currentDisposition?.dispositionSet.dispositionSetId !== request.response.dispositionSetId
+            || disposition?.disposition !== request.disposition) {
+            throw new Error("Hosted settlement does not match its approved disposition.");
+          }
+          const confirmedContinuation = request.fixTarget !== null
+            ? await hostedSettlementHeadContinuation({
+              attempt, repositoryId: persisted.repositoryId, lineage: persisted.lineage,
+              requestedHeadSha: request.fixTarget.headSha, confirmResponseHeadContinuation,
+            }) : undefined;
+          if (request.fixTarget !== null && !hostedFixSettlementPerformed({
+            attemptId: attempt.attemptId,
+            originatingHeadSha: attempt.headSha,
+            dispositionSetId: request.response.dispositionSetId,
+            producedHeadSha: request.fixTarget.headSha,
+            responsePerformance: attempt.responsePerformance,
+            confirmedContinuation,
+          })) {
+            return hostedFixNotPerformedResult(request);
+          }
+          const result = await settleHostedFinding(request, { port,
+            headRegistration: createHostedSettlementHeadRegistration(exec, root) });
+          if (result.state === "settled" || result.state === "already-settled") {
+            await settleHostedAttemptFinding(operationStore, {
+              operationId: reference.operationId,
+              attemptId: reference.durableRef,
+              dispositionSetId: request.response.dispositionSetId,
+              findingId: request.response.findingId,
+              disposition: request.disposition,
+              actorIdentity: request.actorIdentity,
+              target: request.target,
+              fixTarget: request.fixTarget,
+              commentId: request.finding.commentId,
+              threadId: request.finding.threadId,
+              replyDigest: canonicalDigest({
+                domain: "arc.review.hosted-settlement-reply/v1",
+                body: request.reply,
+              }),
+              replyId: result.replyId,
+              confirmResponseHeadContinuation,
+              now: new Date().toISOString(),
+            });
+          }
+          const performance = attempt.responsePerformance;
+          return withVerifiedFixHeadRetry(result, request,
+            performance?.dispositionSetId === request.response.dispositionSetId ? performance.producedHeadSha : undefined);
+        },
+      );
+    },
   };
 }
 
 export async function handleReviewHostedSettle(
   source: string,
   overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+  invocation: HostedReviewHandlerInvocationOptions = {},
 ): Promise<void> {
-  const dependencies = { ...defaultHostedSettleDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedSettleDependencies(context, invocation), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-settle",
     source,
@@ -1083,4 +4215,750 @@ export async function handleReviewHostedSettle(
     dependencies,
     execute: dependencies.settle,
   });
+}
+
+export interface ReviewHostedDismissHandlerDependencies extends HostedReviewHandlerBoundary {
+  dismiss(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedDismissDependencies(): ReviewHostedDismissHandlerDependencies {
+  const { adapters } = createHostedAdapters();
+  const port = new GhHostedReviewPort(hostedGhRunner);
+  return {
+    ...defaultHostedHandlerBoundary(),
+    dismiss: async (input) => dismissHostedReview(
+      HostedDismissEnvelopeSchema.parse(input),
+      port,
+      adapters.map((adapter) => adapter.identities.botUserId),
+    ),
+  };
+}
+
+/**
+ * Dismiss one registered review service's settled change-request review on an open pull request.
+ *
+ * @param source - The request file path, or `-` for stdin.
+ * @param overrides - Test seams for the host and output boundaries.
+ */
+export async function handleReviewHostedDismiss(
+  source: string,
+  overrides: Partial<ReviewHostedDismissHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultHostedDismissDependencies(), ...overrides };
+  await executeHostedReviewHandler({
+    mode: "review-hosted-dismiss",
+    source,
+    requestSchema: HostedDismissEnvelopeSchema,
+    resultSchema: HostedDismissResultSchema,
+    dependencies,
+    execute: dependencies.dismiss,
+  });
+}
+
+/** Command-line options for `arc review pre-publication`. */
+export interface ReviewPrePublicationOptions {
+  selfReview?: string;
+  changeSet?: string;
+  lanes?: string;
+  resume?: string;
+}
+
+export interface ReviewPrePublicationHandlerDependencies extends PrePublicationPersistenceAccess {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  readRootGitHead(root: string): Promise<string>;
+  readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
+  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
+  compose(
+    root: string,
+    input: z.infer<typeof ReviewPrePublicationInputSchema>,
+    judgment: ReviewPrePublicationJudgment,
+  ): Promise<PrePublicationComposition>;
+  persistAcceptedFrontlineSkip(root: string, input: {
+    workUnit: string;
+    candidateId: CanonicalDigest;
+    repositoryId: string;
+    headSha: string;
+  }): Promise<void>;
+  write(text: string): void;
+  warn(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function projectPrePublicationForBackend(dependencies: ReviewPrePublicationHandlerDependencies, root: string,
+  request: PrePublicationReviewRequest, continuation: PostAttestContinuation, progress: PrePublicationProgress | null, terminusKey?: CanonicalDigest): PrePublicationReviewEnvelope {
+  const native = dependencies.boundarySchemaVersion?.(root) === 2;
+  return projectPrePublicationReview(request, continuation, native ? { terminus: terminusKey ?? (request.standard.terminus?.schemaVersion === 2
+    ? request.standard.terminus.decisionKey : null), readinessBinding: progress?.schemaVersion === 2 ? progress.digest : null } : undefined);
+}
+
+async function persistPrePublicationBoundary(input: ReviewInvocationInput, value: unknown,
+  expectedVersion: string | null, decision?: ReviewFactPut): Promise<void> {
+  const bound = resolveReviewInvocation(input);
+  const native = bound.store.capabilities.stateOffBranch;
+  const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(value) : parseIntegrationBoundaryLocus(value);
+  if (native && decision !== undefined) return persistNativeTerminusBoundary(input, boundary, expectedVersion, decision);
+  const path = await writeSubmissionBoundary(input.cwd, boundary, expectedVersion, { store: bound.store, owner: bound.workItem });
+  if (path !== null) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
+}
+
+async function persistAcceptedFrontlineSkip(input: ReviewInvocationOptions & {
+  root: string;
+  workUnit: string;
+  candidateId: CanonicalDigest;
+  repositoryId: string;
+  headSha: string;
+  exec: GitExec;
+}): Promise<void> {
+  const invocation = resolveReviewInvocation({ ...input, cwd: input.root });
+  const lineage = { kind: "candidate" as const, candidateId: input.candidateId };
+  await withRepositoryReviewOperationLock(input.exec, input.root, laneContinuationOperationId({
+    lane: "frontline",
+    repositoryId: input.repositoryId,
+    headSha: input.headSha,
+    lineage,
+  }), 10_000, async () => {
+    const [record, observedHead] = await Promise.all([
+      readCandidateRecord(input.root, input.workUnit, { store: invocation.store, owner: invocation.workItem, exec: input.exec }),
+      input.exec("git", ["rev-parse", "HEAD"], { cwd: input.root }),
+    ]);
+    if (record?.attestation.candidateId !== input.candidateId
+      || observedHead.stdout.trim() !== input.headSha) {
+      throw new Error("accepted frontline skip no longer matches the current Candidate target");
+    }
+    const store = createReviewCompositionContext({ ...invocation, cwd: input.root, exec: input.exec }).family.ports.inFlight;
+    const owner = await readLaneProgressOwner(store, {
+      lane: "frontline",
+      repositoryId: input.repositoryId,
+      headSha: input.headSha,
+      lineage,
+    });
+    if (owner?.attempts.some(({ outcome }) => outcome === "findings") === true) {
+      throw new Error("unresolved frontline findings must be settled before skipping frontline review");
+    }
+    if (store.nativeFacts !== undefined) return recordNativeFrontlineSkip({
+      invocation: { ...invocation, cwd: input.root, exec: input.exec }, facts: store.nativeFacts,
+      repositoryId: input.repositoryId, lineage, headSha: input.headSha, now: new Date().toISOString(),
+    });
+    await recordSingletonFrontlineInitialSkip(store, {
+      repositoryId: input.repositoryId,
+      candidateId: input.candidateId,
+      now: new Date().toISOString(),
+    });
+  });
+}
+
+function acceptedSingletonFrontlineSkip(
+  request: PrePublicationReviewRequest,
+  envelope: PrePublicationReviewEnvelope,
+): request is PrePublicationReviewRequest & { target: { kind: "change-set" } } {
+  return request.target?.kind === "change-set"
+    && request.responseBinding === undefined
+    && request.frontline.invocation?.mode === "skip"
+    && resolveReviewPolicy(request.frontline).state === "skipped"
+    && envelope.nextAction.kind !== "run-self-review";
+}
+
+function prePublicationReviewAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
+  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock"
+> {
+  return {
+    readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
+      const { publisher, family } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
+      const store = family.ports.inFlight;
+      return (await readLaneProgressOwnerVersioned(store, {
+        lane: "standard", repositoryId, headSha,
+        lineage: { kind: "candidate", candidateId },
+      })).version;
+    },
+    readReadinessBinding: async (root, candidateId, headSha) => {
+      const bound = invocationFor(root);
+      const workItem = requireReviewWorkItem(bound.workItem, "Publication readiness");
+      const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
+      return readReviewReadinessBinding({ store: bound.store, workItem, inFlight: family.ports.inFlight,
+        repositoryId: await bound.projectId(), candidateId, headSha });
+    },
+    withStandardLaneLock: async (root, candidateId, headSha, action) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
+      return withRepositoryReviewOperationLock(exec, root, laneContinuationOperationId({
+        lane: "standard", repositoryId, headSha,
+        lineage: { kind: "candidate", candidateId },
+      }), 10_000, action);
+    },
+  };
+}
+
+function defaultPrePublicationDependencies(
+  interaction?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
+): ReviewPrePublicationHandlerDependencies {
+  const boundary = defaultReviewHandlerBoundary();
+  const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
+  const recordStoreFor = (root: string): Store => invocationFor(root).store;
+  const selectedInvocationFor = (root: string): ReviewInvocationContext => {
+    const bound = invocationFor(root);
+    if (bound.store.capabilities.stateOffBranch) requireReviewWorkItem(bound.workItem, "Pre-publication review");
+    return bound;
+  };
+  const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
+  return {
+    resolveRoot: (cwd) => boundary.resolveRoot(cwd),
+    readText: (source) => boundary.readText(source),
+    readRootGitHead: async (root) => GitObjectIdSchema.parse(
+      (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
+    ),
+    boundarySchemaVersion: root => recordStoreFor(root).capabilities.stateOffBranch ? 2 : 1,
+    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec })
+      .readCandidate(workUnit),
+    readBoundary: async (root, workUnit) => {
+      const bound = invocationFor(root);
+      const selected = await resolveNamedReviewWorkUnitInvocation({ ...bound, cwd: root, exec }, workUnit);
+      if (selected.workItem !== undefined) bound.workItem = selected.workItem;
+      const snapshot = selected.store.capabilities.stateOffBranch && bound.workItem === undefined ? { boundary: null, version: null }
+        : await readSubmissionBoundaryVersioned(root, workUnit, { store: bound.store, owner: bound.workItem });
+      boundarySnapshots.set(workUnit, snapshot);
+      return snapshot;
+    },
+    ...prePublicationReviewAccess(exec, selectedInvocationFor),
+    compose: async (root, input, judgment) => {
+      const snapshot = boundarySnapshots.get(input.name)
+        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem });
+      boundarySnapshots.set(input.name, snapshot);
+      const compositionDependencies = bindPrePublicationCarriedTerminus(
+        createPrePublicationCompositionDependencies({ ...selectedInvocationFor(root), cwd: root, exec }), snapshot.boundary);
+      const composition = await composePrePublicationReviewRequest(
+        prePublicationCompositionInput(input.name, judgment),
+        compositionDependencies,
+      );
+      const existing = snapshot.boundary;
+      let carried = composition;
+      if (existing?.reservation !== null && existing?.reservation !== undefined) {
+        carried = applyCarriedStandardReviewReservation(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          reservation: existing.reservation,
+        });
+      }
+      if (existing?.schemaVersion === 1 && existing.terminus !== null) {
+        carried = applyCarriedOwnerAcceptedTerminus(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          terminus: OwnerAcceptedReviewTerminusSchema.parse(existing.terminus),
+        });
+      }
+      return carried;
+    },
+    persistTerminusDecision: (root, decision) => persistNativeTerminusDecision({ ...selectedInvocationFor(root), cwd: root, exec }, decision),
+    persistBoundary: async (root, settled, decision) => {
+      const snapshot = boundarySnapshots.get(settled.workUnit)
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem });
+      const existing = snapshot.boundary;
+      const preservesReservation = existing !== null
+        && existing.candidateId === settled.candidateId
+        && existing.candidateSubjectDigest !== null
+        && existing.reservation !== null
+        && settled.reservation === null
+        && settled.terminus === null;
+      await persistPrePublicationBoundary({ ...selectedInvocationFor(root), cwd: root, exec }, preservesReservation
+        ? { ...settled, reservation: existing.reservation }
+        : settled, snapshot.version, decision);
+    },
+    persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
+      ...selectedInvocationFor(root),
+      root,
+      ...accepted,
+      exec,
+    }),
+    recoverAttestationOrdering: async (root, recovered, expectedVersion, decision) => {
+      await persistPrePublicationBoundary({ ...selectedInvocationFor(root), cwd: root, exec }, recovered, expectedVersion, decision);
+      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem }));
+    },
+    write: text => { boundary.write(text); },
+    warn: text => { process.stderr.write(text); },
+    setExitCode: code => { boundary.setExitCode(code); },
+  };
+}
+
+/**
+ * Resolve the typed pre-publication review procedure for one work unit.
+ *
+ * The command self-composes both lane policy requests from repository state. Its returned re-entry
+ * command carries an opaque replay of caller-owned judgments that repository state cannot recover.
+ * Two options report those judgments initially: `--self-review`, whether the author's self-review actually ran, and
+ * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
+ * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
+ * carries each lane's bounded review scope, the frontline lane's one-run invocation override,
+ * any approved ceiling override, and an explicitly Owner-accepted standard-review terminus.
+ *
+ * @param name - The target work unit's slug.
+ * @param options - Parsed command-line options.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout, stderr, and exit status are assigned.
+ */
+export async function handleReviewPrePublication(
+  name: string,
+  options: ReviewPrePublicationOptions,
+  overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
+  interaction?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
+): Promise<void> {
+  const dependencies = { ...defaultPrePublicationDependencies(interaction, invocation), ...overrides };
+  const target = SlugSchema.safeParse(name.trim());
+  const remedyFor = (code: ReviewPrePublicationRefusalCode): SpineRemedy => target.success
+    ? prePublicationRemedy(code, target.data)
+    : prePublicationTargetRemedy();
+  const emitFailure = (
+    error: unknown,
+    phase: "request" | "execution" | "output",
+    code?: Extract<
+      ReviewPrePublicationRefusalCode,
+      "candidate-unexplained-delta" | "attestation-ordering-conflict"
+    >,
+    candidate?: PrePublicationCandidateContinuation,
+  ): void => {
+    const envelope = code === undefined
+      ? reviewCommandError(
+          "review-pre-publication",
+          error,
+          phase,
+          ReviewCommandErrorEnvelopeSchema,
+          (genericCode: ReviewCommandErrorCode) => remedyFor(genericCode),
+        )
+      : ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: [],
+          error: {
+            code,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          ...(candidate !== undefined && target.success
+            ? prePublicationCandidateRefusal(target.data, candidate)
+            : { remedy: remedyFor(code) }),
+        });
+    dependencies.write(`${JSON.stringify(envelope)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const input = ReviewPrePublicationInputSchema.safeParse({
+    name: name.trim(),
+    ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
+    ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
+    ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
+    ...(options.resume === undefined ? {} : { resume: options.resume }),
+  });
+  if (!input.success) {
+    emitFailure(input.error, "request");
+    return;
+  }
+
+  const call = await readPrePublicationCall(input.data, dependencies);
+  if (call.status === "failed") { emitFailure(call.error, call.stage); return; }
+  const { root, schemaVersion: replaySchemaVersion } = call;
+  const replayInput = call.replay;
+  let judgment = call.judgment;
+
+  const emitOrderingConflict = (
+    pendingBoundary: z.infer<typeof CandidateReviewResumeBoundarySchema>
+      | z.infer<typeof CandidateReviewResumeBoundaryV2Schema>,
+    version: string | null,
+    currentHead: string,
+  ): void => {
+    const pending = pendingBoundary.postAttestContinuation;
+    if (pending === undefined || version === null) {
+      throw new Error("The pending post-attest continuation has no durable boundary version.");
+    }
+    const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name), replaySchemaVersion);
+    const recoveryResume = encodePrePublicationReplay({
+      ...replay,
+      attestationOrderingRecovery: {
+        candidateId: pendingBoundary.candidateId,
+        candidateSubjectDigest: pendingBoundary.candidateSubjectDigest,
+        reviewedHead: pending.reviewedHead,
+        currentHead,
+        expectedBoundaryVersion: version,
+      },
+    }, replaySchemaVersion);
+    const message = `Pre-publication reviewed ${pending.reviewedHead}, but the current head is ${currentHead} before readiness.`;
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "attestation-ordering-conflict", message }],
+      error: { code: "attestation-ordering-conflict", message },
+      remedy: spineRemedy(
+        "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
+        "Establish the Candidate at the current root head, then explicitly recover",
+        ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const emitJudgmentMismatch = (command: string): void => {
+    const refusal = postAttestJudgmentMismatch(command);
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const emitAdvancedReplayRefusal = (reason: string): void => {
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "invalid-input", message: reason }],
+      error: { code: "invalid-input", message: reason },
+      remedy: spineRemedy(
+        "The saved pre-publication command does not match the current Candidate boundary.",
+        "Re-enter the current Candidate's pre-publication procedure",
+        ["arc", "review", "pre-publication", input.data.name],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const emitLaneMovedRefusal = (): void => {
+    const message = "Standard review progress changed while publication readiness was being composed.";
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "invalid-input", message }],
+      error: { code: "invalid-input", message },
+      remedy: spineRemedy(
+        "The saved readiness cannot settle a newly admitted standard pass.",
+        "Re-enter pre-publication against current review progress",
+        ["arc", "review", "pre-publication", input.data.name,
+          ...(input.data.resume === undefined ? [] : ["--resume", input.data.resume])],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  let envelope: PrePublicationReviewEnvelope;
+  let routingDiagnostics: readonly string[];
+  try {
+    const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
+    const currentRootHead = GitObjectIdSchema.parse(await dependencies.readRootGitHead(root));
+    const orderingRecovery = replayInput?.attestationOrderingRecovery;
+    const parsedPendingBoundary = boundarySnapshot.boundary?.schemaVersion === 2
+      ? CandidateReviewResumeBoundaryV2Schema.safeParse(boundarySnapshot.boundary)
+      : CandidateReviewResumeBoundarySchema.safeParse(boundarySnapshot.boundary);
+    const pendingBoundary = parsedPendingBoundary.success
+      && parsedPendingBoundary.data.postAttestContinuation !== undefined
+      ? parsedPendingBoundary.data
+      : null;
+    const pending = pendingBoundary?.postAttestContinuation;
+    const callerJudgment = judgment;
+    const plainReentry = input.data.resume === undefined
+      && input.data.selfReview === undefined
+      && input.data.changeSet === undefined
+      && input.data.lanes === undefined;
+    const advancedBoundary = boundarySnapshot.boundary?.locus === "candidate-publish-ready"
+      || boundarySnapshot.boundary?.locus === "publication-pending"
+      ? boundarySnapshot.boundary
+      : null;
+    if (advancedBoundary !== null) {
+      const reentry = await readAdvancedPrePublicationReentry({ root, workUnit: input.data.name,
+        currentHead: currentRootHead, boundary: advancedBoundary, replay: replayInput,
+        orderingRecoveryPresent: orderingRecovery !== undefined, plainReentry }, dependencies);
+      if (reentry.status === "ordering-conflict") {
+        emitFailure(new Error(reentry.message), "execution", "attestation-ordering-conflict");
+        return;
+      }
+      if (reentry.status === "replay-refused") { emitAdvancedReplayRefusal(reentry.message); return; }
+      if (reentry.status === "continued") { dependencies.write(`${JSON.stringify(reentry.envelope)}\n`); return; }
+    }
+    const savedReplay = pending !== undefined
+      && currentRootHead === pending.reviewedHead
+      ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name), replaySchemaVersion)
+      : null;
+    if (savedReplay !== null) {
+      judgment = {
+        selfReview: savedReplay.selfReview,
+        changeSet: savedReplay.changeSet,
+        lanes: savedReplay.lanes,
+        frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha,
+        scopeJudgmentTarget: savedReplay.scopeJudgmentTarget,
+      };
+    }
+    const beforeCompose = await dependencies.readCandidate(root, input.data.name);
+    if (replaySchemaVersion === 2 && beforeCompose.status === "current"
+      && [replayInput, savedReplay, savedReplay === null ? null : pendingBoundary].some(retained =>
+        retained?.candidateId !== undefined && (retained.candidateId !== beforeCompose.candidateId
+          || retained.candidateSubjectDigest !== beforeCompose.subjectDigest))) {
+      emitAdvancedReplayRefusal("The saved pre-publication judgment belongs to a different Candidate or Candidate subject.");
+      return;
+    }
+    if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
+      && beforeCompose.status === "current" && beforeCompose.candidateId === pendingBoundary.candidateId
+      && beforeCompose.subjectDigest === pendingBoundary.candidateSubjectDigest) {
+      const checked = await prepareSavedPrePublicationJudgment(callerJudgment, savedReplay, replaySchemaVersion, judgment, {
+        candidateId: beforeCompose.candidateId, subjectDigest: beforeCompose.subjectDigest, rootHeadSha: currentRootHead });
+      if (checked === null) { emitJudgmentMismatch(pending.nextAction.command); return; }
+      judgment = checked;
+    }
+    const progressBeforeCompose = beforeCompose.status === "current"
+      ? await readPrePublicationProgress(dependencies, root, beforeCompose.candidateId, currentRootHead)
+      : null;
+    let composition = await dependencies.compose(root, input.data, judgment);
+    if (savedReplay !== null && composition.status === "composed"
+      && pendingBoundary !== null
+      && (composition.request.candidateId !== pendingBoundary.candidateId
+        || composition.request.candidate.subjectDigest !== pendingBoundary.candidateSubjectDigest)) {
+      judgment = callerJudgment;
+      composition = await dependencies.compose(root, input.data, judgment);
+    }
+    if (composition.status === "refused") {
+      if (composition.savedJudgmentMismatch && pending !== undefined) { emitJudgmentMismatch(pending.nextAction.command); return; }
+      if (composition.savedScopeMismatch) {
+        emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
+        return;
+      }
+      if (composition.pendingReview !== undefined) {
+        dependencies.write(`${JSON.stringify(prePublicationPendingReviewRefusal(composition.pendingReview, input.data.name))}\n`);
+        dependencies.setExitCode(1);
+        return;
+      }
+      if (composition.routingMismatch !== undefined && target.success) {
+        dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: routingInputDiagnostics(composition.routingDiagnostics ?? []),
+          error: { code: "invalid-input", message: composition.reason },
+          remedy: prePublicationRoutingMismatchRemedy(target.data, composition.routingMismatch),
+        }))}\n`);
+        dependencies.setExitCode(1);
+        return;
+      }
+      if (composition.scopeMismatch !== undefined) {
+        const mismatch = composition.scopeMismatch;
+        if (judgment.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+          composition.examinedTargets ?? [mismatch.target], judgment.scopeJudgmentTarget)) {
+          emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
+          return;
+        }
+        if (composition.terminusDecision?.put !== undefined) {
+          await persistPrePublicationTerminusDecision(dependencies, root, composition.terminusDecision.put);
+        }
+        const lanes = PrePublicationLaneJudgmentsSchema.parse(judgment.lanes ?? {});
+        const requiredLanes = {
+          ...lanes,
+          [mismatch.lane]: { ...lanes[mismatch.lane], scopeMode: mismatch.observedScope },
+        };
+        const reentry = beforeCompose.status === "current"
+          ? buildPrePublicationResumeCommand({
+              schemaVersion: replaySchemaVersion,
+              workUnit: input.data.name,
+              candidateId: beforeCompose.candidateId,
+              candidateSubjectDigest: beforeCompose.subjectDigest,
+              judgment: { ...judgment, lanes: requiredLanes },
+              replaySelfReview: judgment.selfReview,
+              replayLanes: requiredLanes,
+              scopeJudgmentTarget: mismatch.target,
+              currentFrontlineHeadSha: beforeCompose.headSha,
+              frontlineCeilingOverrideApplied: false,
+              retainGrants: composition.retainsGrants === true,
+            })
+          : null;
+        const message = `The ${mismatch.lane} producer used ${mismatch.observedScope} scope, but `
+          + `pre-publication selected ${mismatch.selectedScope} for ${mismatch.target.headSha}.`;
+        dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: [{ code: "scope-judgment-required", message }],
+          error: { code: "scope-judgment-required", message },
+          scopeMismatch: {
+            ...mismatch,
+            requiredLaneJudgment: { scopeMode: mismatch.observedScope },
+          },
+          remedy: reentry === null
+            ? spineRemedy(
+                "A current Candidate is required before a scope judgment can be bound to it.",
+                "Re-enter pre-publication against the current Candidate",
+                ["arc", "review", "pre-publication", input.data.name],
+              )
+            : spineRemedy(
+                "The recorded producer scope must match an explicit caller lane judgment.",
+                `Confirm ${mismatch.lane} scopeMode ${mismatch.observedScope}, then re-enter`,
+                reentry.split(" "),
+              ),
+        }))}\n`);
+        dependencies.setExitCode(1);
+        return;
+      }
+      if (orderingRecovery === undefined
+        && pendingBoundary !== null
+        && pending !== undefined
+        && currentRootHead !== pending.reviewedHead
+        && composition.code !== "candidate-unexplained-delta") {
+        emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
+        return;
+      }
+      emitFailure(new Error(orderingRecovery !== undefined
+        ? "The current Candidate must be established at the root Git head before attestation-ordering recovery."
+        : composition.reason), "execution", orderingRecovery !== undefined
+        ? "attestation-ordering-conflict"
+        : composition.code === "candidate-unexplained-delta" ? composition.code : undefined,
+      orderingRecovery === undefined && composition.code === "candidate-unexplained-delta"
+        ? composition.candidateContinuation : undefined);
+      return;
+    }
+    if (judgment.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+      composition.examinedTargets ?? [composition.request.target], judgment.scopeJudgmentTarget)) {
+      emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
+      return;
+    }
+    if (orderingRecovery === undefined
+      && pendingBoundary !== null
+      && pending !== undefined
+      && currentRootHead !== pending.reviewedHead
+      && composition.request.candidateId === pendingBoundary.candidateId
+      && composition.request.candidate.subjectDigest === pendingBoundary.candidateSubjectDigest) {
+      emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
+      return;
+    }
+    const candidateRootHead = composition.request.responseBinding?.candidate.head
+      ?? (composition.request.reservationTarget.kind === "pinned-head"
+        ? composition.request.reservationTarget.headSha
+        : null);
+    const pendingFixAtCurrentRoot = candidateRootHead !== null
+      && composition.pendingFixRootHeadSha === currentRootHead
+      && candidateRootHead !== currentRootHead;
+    if (candidateRootHead === null
+      || (candidateRootHead !== currentRootHead && !pendingFixAtCurrentRoot)) {
+      emitFailure(new Error("The root Candidate and Git heads disagree before publication readiness."),
+        "execution", "attestation-ordering-conflict");
+      return;
+    }
+    if (orderingRecovery !== undefined) {
+      if (pendingBoundary === null
+        || pending === undefined
+        || boundarySnapshot.version === null
+        || boundarySnapshot.version !== orderingRecovery.expectedBoundaryVersion
+        || pendingBoundary.candidateId !== composition.request.candidateId
+        || pendingBoundary.candidateSubjectDigest !== composition.request.candidate.subjectDigest
+        || pendingBoundary.candidateId !== orderingRecovery.candidateId
+        || pendingBoundary.candidateSubjectDigest !== orderingRecovery.candidateSubjectDigest
+        || pending.reviewedHead !== orderingRecovery.reviewedHead
+        || currentRootHead !== orderingRecovery.currentHead
+        || currentRootHead === pending.reviewedHead) {
+        emitFailure(new Error("The attestation-ordering recovery input is stale or no longer matches the pending boundary."),
+          "execution", "attestation-ordering-conflict");
+        return;
+      }
+    }
+    for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
+    routingDiagnostics = composition.routingDiagnostics ?? [];
+    const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
+    const postAttestContinuation: PostAttestContinuation = {
+      reviewedHead: currentRootHead,
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: buildPrePublicationResumeCommand({
+          schemaVersion: replaySchemaVersion,
+          workUnit: composition.request.workUnit,
+          candidateId: composition.request.candidateId,
+          candidateSubjectDigest: composition.request.candidate.subjectDigest,
+          judgment,
+          replaySelfReview: composition.request.selfReview === "settled" ? "settled" : judgment.selfReview,
+          replayLanes: judgment.lanes,
+          scopeJudgmentTarget: judgment.scopeJudgmentTarget,
+          currentFrontlineHeadSha,
+          frontlineCeilingOverrideApplied: false,
+        }),
+        interactionText: "Resume pre-publication review over the converged Candidate.",
+      },
+      projectionDisposition: "keep-staged-until-publication",
+    };
+    envelope = projectPrePublicationForBackend(dependencies, root, composition.request, postAttestContinuation, progressBeforeCompose, composition.terminusDecision?.key);
+    if (pendingFixAtCurrentRoot
+      && (envelope.locus !== "candidate-fix-pending"
+        || envelope.nextAction.command !== "arc review respond -")) {
+      emitFailure(new Error("The pending Candidate fix must complete its bound response before publication readiness."),
+        "execution", "attestation-ordering-conflict");
+      return;
+    }
+    if (envelope.nextAction.kind === "continue-pre-publication-review"
+      || envelope.nextAction.kind === "run-self-review") {
+      // The run-self-review command is the re-entry *after* the method has run, so it carries
+      // that prospective completion while preserving every other caller-owned judgment.
+      const replaySelfReview = envelope.nextAction.kind === "run-self-review"
+        ? "settled"
+        : judgment.selfReview;
+      const replayLanes = replaySchemaVersion === 1 && envelope.locus === "candidate-fix-pending"
+        ? consumeOwnerAcceptedTerminus(judgment.lanes)
+        : judgment.lanes;
+      const frontlineReadyPolicy = envelope.policy?.state === "ready"
+        && envelope.policy.nextAction === "run-frontline"
+        ? envelope.policy
+        : null;
+      const frontlineCeilingOverrideApplied = frontlineReadyPolicy?.payload.ceilingOverrideApplied ?? false;
+      const resumeCommand = buildPrePublicationResumeCommand({
+        schemaVersion: replaySchemaVersion,
+        workUnit: envelope.workUnit,
+        candidateId: composition.request.candidateId,
+        candidateSubjectDigest: composition.request.candidate.subjectDigest,
+        judgment,
+        replaySelfReview,
+        replayLanes,
+        scopeJudgmentTarget: judgment.scopeJudgmentTarget,
+        currentFrontlineHeadSha,
+        frontlineCeilingOverrideApplied,
+      });
+      const responseAction = envelope.nextAction.kind === "continue-pre-publication-review"
+        && envelope.nextAction.command === "arc review respond -";
+      const nextAction = (frontlineReadyPolicy !== null || responseAction)
+        && envelope.nextAction.kind === "continue-pre-publication-review"
+        ? { ...envelope.nextAction, resumeCommand }
+        : { ...envelope.nextAction, command: resumeCommand };
+      envelope = PrePublicationReviewEnvelopeSchema.parse({
+        ...envelope,
+        nextAction,
+      });
+    }
+    if (!pendingFixAtCurrentRoot && acceptedSingletonFrontlineSkip(composition.request, envelope)) {
+      await dependencies.persistAcceptedFrontlineSkip(root, {
+        workUnit: composition.request.workUnit,
+        candidateId: composition.request.candidateId,
+        repositoryId: composition.request.target.repositoryId,
+        headSha: composition.request.target.headSha,
+      });
+    }
+    // The settled locus is where the durable publication boundary is written. Recording it here —
+    // before the result is claimed — is what makes `arc publish` succeed on its first call; an
+    // absent boundary now means genuinely open obligations rather than a write nobody performed.
+    if (envelope.locus === "candidate-publish-ready") {
+      if (beforeCompose.status !== "current"
+        || beforeCompose.candidateId !== composition.request.candidateId
+        || progressBeforeCompose === null) {
+        emitLaneMovedRefusal();
+        return;
+      }
+      envelope = bindPrePublicationProgress(envelope, progressBeforeCompose);
+    }
+    const persisted = await persistPrePublicationOutcome(dependencies, { root, envelope, currentHead: currentRootHead,
+      recoveryVersion: orderingRecovery?.expectedBoundaryVersion, decision: composition.terminusDecision?.put });
+    if (persisted === "lane-moved") {
+      emitLaneMovedRefusal();
+      return;
+    }
+    if (persisted !== "written") {
+      emitFailure(persisted, "execution", "attestation-ordering-conflict");
+      return;
+    }
+  } catch (error) {
+    emitFailure(error, "execution");
+    return;
+  }
+
+  try {
+    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(routingDiagnostics.length === 0
+      ? envelope : { ...envelope, diagnostics: routingInputDiagnostics(routingDiagnostics) }))}\n`);
+  } catch (error) {
+    emitFailure(error, "output");
+  }
 }

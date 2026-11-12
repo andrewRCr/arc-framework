@@ -88,6 +88,7 @@ describe("Context footer families", () => {
     "spec-example.md (code review)",
     "meta-example.md (handoff)",
     "meta-example.md (activation)",
+    "meta-example.md (prepublication)",
     "meta-example.md (integration)",
     "meta-example.md (archival)",
     "meta-example.md (deactivation)",

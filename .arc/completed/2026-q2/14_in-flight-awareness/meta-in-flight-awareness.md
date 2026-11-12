@@ -1,15 +1,14 @@
 # Metadata: In-Flight Awareness
 
-- **State:** Shipped
-- **Owner:** andrew
-- **Branch:** feat/in-flight-awareness
+| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
+| --------- | --------- | -------------------------- | --------- | ------------ |
+| `Shipped` | `andrew`  | `feat/in-flight-awareness` | —         | `P3`         |
 
 - **Origin:** [internal]
 - **Design:** `spec-in-flight-awareness.md`
 
 - **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
-- **Priority:** P3
 
 - **Task List:** `tasks-in-flight-awareness.md`
 - **Last Completed:** Task 7.1 — Complete verification (line ~375). Tier 3 gates green (lint, typecheck,

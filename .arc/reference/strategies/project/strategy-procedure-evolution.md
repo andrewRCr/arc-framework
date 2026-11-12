@@ -18,10 +18,11 @@ interim workflow and CLI work composing with it, so near-term WUs don't accrete 
 agent-interpreted markup, or untyped boundaries a later compilation must undo.
 
 **Scope:** Workflow and skill authoring shape, the CLI↔agent boundary, agent-interpreted markup, placement of
-conditional and dispatch logic, correctness machinery for procedural content. Third of three sibling check-docs:
+conditional and dispatch logic, correctness machinery for procedural content. One of four sibling check-docs:
 [`strategy-storage-evolution.md`](strategy-storage-evolution.md) owns where state lives,
-[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance lives, and
-this doc owns how procedure executes.
+[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance lives,
+[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md) owns how ARC composes with external PM
+authorities, and this doc owns how procedure executes.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
 direction for ARC's own evolution — for plan / PRD / workflow authors in this repo, not for adopters configuring
@@ -59,8 +60,8 @@ Each layer of it has a different failure mode, so each gets different correctnes
   `draft-composable-workflows.md` D3.
 - **Structure** — what a workflow consumes, declares, and emits — is typed contract: frontmatter declarations, a
   generated-from-types envelope schema, bounded spines, a small closed step vocabulary. Its correctness instrument
-  is mechanical validation (point-scanner, lint, CI structural budgets). Mechanism: `draft-composable-workflows.md`
-  D1/D2.
+  is mechanical validation (method dependency/coverage audits, lint, CI structural budgets). Mechanism:
+  `draft-composable-workflows.md` D1/D2.
 - **Judgment and communication** — the irreducible prose residue: orientation framing, recommendation discipline,
   elicitation, taste. It stays natural language, constrained by a controlled vocabulary and verifiable only
   empirically: **evals are this layer's type system** (`workflow-eval-harness`). No static instrument exists for a
@@ -95,6 +96,12 @@ dispatch line, never as comparison logic written in English.
 **Anti-pattern:** a workflow step of the form `state == "clean" AND refState == "local-ahead"` — that is code
 wearing prose, unexecutable and uncheckable where it sits.
 
+Where a decision's inputs require judgment, the CLI emits and enforces a closed set of allowed next actions, together
+with the facts it can compute. The agent recommends among those actions, giving its reasoning and what would change
+the recommendation; the Owner decides. A computed recommendation earns its place only as a pure function of facts,
+where it usually establishes a bound. Judgment-dependent advice must not become a computed verdict that the agent
+merely carries out.
+
 ### 2. Agent-interpreted markup never grows control flow
 
 A rich workflow language interpreted by the LLM is the worst of both substrates — unchecked like prose, unreadable
@@ -127,6 +134,12 @@ Anything rendered verbatim to the user — offers, advisories, prompts — is pr
 (the `recommended*Text` pattern), not templated in prose. A template in markdown is untestable; the same template
 in code is a unit test away.
 
+Keep enforced bounds and advisory considerations in separate blocks. Each consideration states its reason and the
+condition under which it favors an allowed option; the CLI does not preselect the judgment. `localCoverageInteractionText`
+is an existing instance; `review-coverage-cadence`'s next-pass interaction is the first designed one. Whether this
+separation preserves judgment across models remains unvalidated until cross-model evals exist
+(`workflow-eval-harness`).
+
 ### 7. Controlled vocabulary for load-bearing concepts
 
 A term doing technical work (`Class`, errand, atomic, interlock, review increment) is defined once — the briefs'
@@ -147,6 +160,8 @@ earns a definition before use.
   author-for-humans / address-for-agents) are the seam the two share.
 - **[`strategy-storage-evolution.md`](strategy-storage-evolution.md)** — sibling check-doc; Principle 3 here
   composes with its Principles 1 and 6 (storage as abstraction, mode-agnostic workflow logic).
+- **[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md)** — sibling check-doc for
+  external-PM composition; its typed provider verbs, verdicts, and remedies consume this doc's CLI↔agent boundary.
 - **`strategy-workflow-authoring.md`** — the adopter-facing authoring conventions. Principles here that graduate
   to shipped convention land there (verbs-over-mechanics is the first candidate), coordinated with
   `composable-workflows` D1's planned rewrite of that strategy.

@@ -25,6 +25,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(record(oid("a"), [oid("b"), oid("c")], "Merge pull request #42 from team/topic")),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver: emptyResolver,
     });
     expect(result).toMatchObject({
@@ -39,6 +40,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(record(oid("a"), [oid("b")], "feature delivery (#42)")),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver: emptyResolver,
     });
     expect(result).toMatchObject({ coverage: "partial", unclassifiedCommitCount: 1, events: [] });
@@ -57,6 +59,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(record(oid("a"), [oid("b")], "Merge pull request #42 from team/topic")),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver,
     });
     expect(result).toMatchObject({ coverage: "partial", unclassifiedCommitCount: 1, events: [] });
@@ -75,6 +78,7 @@ describe("integration-event evidence", () => {
         record(oid("a"), [oid("b")], "one") + record(oid("c"), [oid("a")], "two"),
       ),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver,
     });
     expect(result).toMatchObject({
@@ -91,6 +95,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(record(oid("a"), [oid("b"), oid("c")], "merge without accepted identity")),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver,
     });
     expect(result).toMatchObject({
@@ -111,6 +116,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(record(oid("a"), [oid("b")], "one")),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver,
     });
     expect(result).toMatchObject({
@@ -134,6 +140,7 @@ describe("integration-event evidence", () => {
         record(oid("a"), [oid("b")], "one") + record(oid("c"), [oid("a")], "two"),
       ),
       baseOid: oid("d"),
+      headOid: oid("e"),
       resolver,
       scanLimit: 1,
     });
@@ -150,6 +157,7 @@ describe("integration-event evidence", () => {
     const result = await analyzeIntegrationEvidence({
       exec: execWith(`${oid("a")}\0${oid("b")}\0`),
       baseOid: oid("d"),
+      headOid: oid("e"),
     });
     expect(result).toEqual({ coverage: "unavailable", reason: "history-scan-failed" });
   });

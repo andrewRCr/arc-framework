@@ -8,6 +8,7 @@ export {
   runActiveStatus,
   runActiveSessionInitStatus,
   runActiveSessionInitStatusInternal,
+  projectActiveSessionInitCandidate,
   resolveTaskListPath,
 } from "./active/status.js";
 export {
@@ -16,7 +17,11 @@ export {
   type ActiveRosterResult,
 } from "./active/roster.js";
 export {
+  expandActiveInFlight,
   runActiveInFlight,
+  runActiveInFlightExpansion,
+  type ActiveInFlightExpansionAnalysis,
+  type ActiveInFlightExpansionOptions,
   type ActiveInFlightOptions,
   type ActiveInFlightResult,
 } from "./active/in-flight.js";

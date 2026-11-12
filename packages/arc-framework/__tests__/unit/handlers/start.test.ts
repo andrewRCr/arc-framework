@@ -9,6 +9,7 @@
  * the resume verb, and the shared helpers are mocked at the module seam.
  */
 
+import { makeInteractionContext } from "../../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
 // --- Mocks ---
@@ -39,17 +40,25 @@ const mockRunCreateNew = vi.fn();
 const mockRunColdStart = vi.fn();
 const mockRunGraduate = vi.fn();
 const mockExec = vi.fn();
+const mockExecInput = vi.fn();
+let execInputAvailable = true;
 const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
 const mockResolveComposedLifecycleIndex = vi.fn();
 const mockBaseReadFile = vi.fn(async () => "");
+const mockParseMetaRecord = vi.fn(() => ({ workClass: "Light" }));
 const mockBaseFs = {
   readdir: vi.fn(async () => []),
   readFile: mockBaseReadFile,
 };
 const mockCreateProjectViewRefSnapshot = vi.fn();
 const mockRefreshBase = vi.fn(async () => "origin/main");
+const mockExpandActiveInFlight = vi.fn();
+
+vi.mock("../../../src/commands/active.js", () => ({
+  expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
+}));
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -83,6 +92,7 @@ vi.mock("../../../src/lib/git/refresh-base.js", () => ({
 vi.mock("../../../src/lib/git/identity.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../src/lib/git/identity.js")>(),
   readConfiguredIdentity: async () => "andrew",
+  resolveIdentity: async () => "andrew",
 }));
 
 vi.mock("../../../src/lib/status/project-view-ref.js", () => ({
@@ -94,7 +104,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ workClass: "Light" }),
+  parseMetaRecord: () => mockParseMetaRecord(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -104,6 +114,7 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+      "storage.backing_repository": "",
     },
   }),
 }));
@@ -116,27 +127,17 @@ vi.mock("../../../src/lib/git/worktree-roster.js", async (importOriginal) => {
   };
 });
 
-const mockIsNonInteractive = vi.fn(() => true);
+let nonInteractive = true;
+function makeTestContext(signals: Parameters<typeof makeInteractionContext>[0] = {}) {
+  return makeInteractionContext({
+    promptInputIsTTY: !nonInteractive, promptOutputIsTTY: !nonInteractive, ...signals,
+  });
+}
 
-vi.mock("../../../src/lib/command-input/interaction-context.js", () => ({
-  resolveProcessInteractionContext: (input: { yes: string }) => ({
-    interaction: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
-    confirmation: "ask",
-    machineReadable: false,
-    promptInput: process.stdin,
-    promptOutput: process.stdout,
-    subprocess: {
-      terminalPrompts: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
-      presenters: mockIsNonInteractive() || input.yes !== "absent" ? "forbidden" : "allowed",
-      ambientStdin: mockIsNonInteractive() || input.yes !== "absent" ? "closed" : "inherit",
-    },
-  }),
-}));
-
-vi.mock("../../../src/handlers/shared.js", () => ({
+vi.mock("../../../src/handlers/shared.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/handlers/shared.js")>(),
   resolveUserIdentity: async () => "andrew",
   isHandledError: () => false,
-  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => "/repo",
   resolveCurrentBranchName: async () => "feat/widget",
 }));
@@ -144,6 +145,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 vi.mock("../../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({
     exec: mockExec,
+    execInput: execInputAvailable ? mockExecInput : undefined,
     readFile: mockReadFile,
     writeFile: mockWriteFile,
     mkdir: mockMkdir,
@@ -159,6 +161,7 @@ describe("handleStart — dispatch orchestration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    execInputAvailable = true;
     mockExec.mockImplementation(async (_cmd, args) =>
       args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")
         ? { stdout: "base123\n", stderr: "" }
@@ -166,10 +169,22 @@ describe("handleStart — dispatch orchestration", () => {
     );
     mockReadFile.mockResolvedValue("");
     mockBaseReadFile.mockResolvedValue("");
+    mockParseMetaRecord.mockReturnValue({ workClass: "Light" });
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
     mockRefreshBase.mockResolvedValue("origin/main");
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: true,
+      pendingBranchCount: 0,
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    });
     mockMkdir.mockResolvedValue(undefined);
-    mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
+    nonInteractive = true; // skip confirm by default
     mockIsCancel.mockReturnValue(false);
     mockResolveComposedLifecycleIndex.mockResolvedValue({
       index: new Map([
@@ -199,7 +214,7 @@ describe("handleStart — dispatch orchestration", () => {
   });
 
   it("refuses the default path without a name — never dispatches", async () => {
-    await handleStart(undefined, {});
+    await handleStart(undefined, {}, makeTestContext());
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/requires a work-unit name/i));
     expect(process.exitCode).toBe(1);
@@ -213,27 +228,100 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
+    expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockExec,
+      execInput: mockExecInput,
+      identity: "andrew",
+      teamMode: false,
+      baseBranch: "main",
+    }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      oracle: expect.objectContaining({
+        acquisitionPolicy: "materialized-live",
+        suppliedResult: expect.objectContaining({ remoteEvidence: "exact" }),
+      }),
+    }));
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
+    expect(mockSpinnerStop).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockLog.info).toHaveBeenCalledWith("Worktree ready.");
+    expect(mockLog.info).toHaveBeenCalledWith("Refreshing ROADMAP...");
+    expect(mockLog.info).toHaveBeenCalledWith("ROADMAP updated.");
+    expect(mockLog.info).toHaveBeenCalledWith("Committing and pushing start ceremony...");
+    expect(mockLog.info).toHaveBeenCalledWith("Ceremony committed and pushed.");
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("preserves animated progress for an interactive start", async () => {
+    nonInteractive = false;
+    mockConfirm.mockResolvedValue(true);
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { new: true }, makeTestContext());
+
     expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
+    expect(mockLog.info).not.toHaveBeenCalledWith("Spawning worktree...");
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses to dispatch without stdin-capable Git I/O", async () => {
+    execInputAvailable = false;
+
+    await handleStart("widget", { new: true }, makeTestContext());
+
+    expect(mockLog.error).toHaveBeenCalledWith("remote start expansion requires stdin-capable Git I/O");
+    expect(process.exitCode).toBe(1);
+    expect(mockExpandActiveInFlight).not.toHaveBeenCalled();
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["partial", { status: "partial", pendingBranchCount: 2 }, "pending-fetch"],
+    ["failed", { status: "failed", pendingBranchCount: 0 }, "unreachable"],
+  ])("refuses to dispatch on %s candidate expansion", async (_label, candidateExpansion, remoteEvidence) => {
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: remoteEvidence !== "unreachable",
+      pendingBranchCount: candidateExpansion.pendingBranchCount,
+      remoteEvidence,
+      candidateExpansion,
+    });
+
+    await handleStart("widget", { new: true }, makeTestContext());
+
+    expect(mockLog.error)
+      .toHaveBeenCalledWith("could not completely expand remote work-unit candidates; retry `arc start`.");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
   });
 
   it("stops the spawn spinner with a failure label when create-new is refused", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
     mockRunCreateNew.mockResolvedValue({ ok: false, reason: "spawn refused" });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
-    expect(mockSpinnerStop).toHaveBeenCalledWith("Spawn failed.");
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
+    expect(mockSpinnerStop).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockLog.error).toHaveBeenCalledWith("Spawn failed.");
     expect(mockLog.error).toHaveBeenCalledWith("spawn refused");
     expect(process.exitCode).toBe(1);
   });
@@ -257,7 +345,7 @@ describe("handleStart — dispatch orchestration", () => {
       return { stdout: "", stderr: "" };
     });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
     expect(mockLog.info).toHaveBeenCalledWith(`Cut from: main @ base123 (${qualifier})`);
   });
@@ -270,7 +358,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
     expect(mockLog.info).toHaveBeenCalledWith(
       "Cut from: main @ base123 (local base; origin unavailable)",
@@ -291,7 +379,7 @@ describe("handleStart — dispatch orchestration", () => {
       return { stdout: "", stderr: "" };
     });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
     expect(mockLog.info).toHaveBeenCalledWith(
       "Cut from: main @ base123 (origin relation unavailable)",
@@ -309,7 +397,7 @@ describe("handleStart — dispatch orchestration", () => {
       args[0] === "rev-parse" ? { stdout: "abc1234\n", stderr: "" } : { stdout: "", stderr: "" },
     );
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
     expect(mockExec).toHaveBeenCalledWith(
       "git",
@@ -352,7 +440,7 @@ describe("handleStart — dispatch orchestration", () => {
       outcome: { status: "ok", advisories: [] },
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "base123" });
@@ -381,7 +469,7 @@ describe("handleStart — dispatch orchestration", () => {
       return { stdout: "", stderr: "" };
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockLog.info).toHaveBeenCalledWith("Cut from: main @ base123 (3 behind origin)");
   });
@@ -390,10 +478,21 @@ describe("handleStart — dispatch orchestration", () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
 
     // The mocked meta records `Class: Light`; the flag disagrees.
-    await handleStart("widget", { class: "Heavy" });
+    await handleStart("widget", { class: "Heavy" }, makeTestContext());
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("conflicts with the meta's recorded Class"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an unresolved meta Class without throwing or preparing graduation", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockParseMetaRecord.mockReturnValue({ workClass: "TBD" });
+
+    await expect(handleStart("widget", {}, makeTestContext())).resolves.toBeUndefined();
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/resolved Class|Light.*Heavy.*Novel/iu));
     expect(process.exitCode).toBe(1);
   });
 
@@ -406,7 +505,7 @@ describe("handleStart — dispatch orchestration", () => {
       outcome: { status: "ok", advisories: [] },
     });
 
-    await handleStart("widget", { class: "Light" });
+    await handleStart("widget", { class: "Light" }, makeTestContext());
 
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", writeClass: false });
@@ -426,7 +525,7 @@ describe("handleStart — dispatch orchestration", () => {
       args[0] === "rev-parse" ? { stdout: "def5678\n", stderr: "" } : { stdout: "", stderr: "" },
     );
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockExec).toHaveBeenCalledWith(
       "git",
@@ -468,7 +567,7 @@ describe("handleStart — dispatch orchestration", () => {
       outcome: { status: "ok", advisories: [] },
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockRunResume).toHaveBeenCalledTimes(1);
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Resumed");
@@ -482,7 +581,7 @@ describe("handleStart — dispatch orchestration", () => {
       outcome: { status: "ok", advisories: [] },
     });
 
-    await handleStart("widget", { here: true });
+    await handleStart("widget", { here: true }, makeTestContext());
 
     expect(mockRunResume).toHaveBeenCalledTimes(1);
     expect(mockRunResume.mock.calls[0]?.[1]).toMatchObject({ name: "widget", inPlace: true });
@@ -492,7 +591,7 @@ describe("handleStart — dispatch orchestration", () => {
   it("surfaces a directed refusal and sets the exit code — no arm runs", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "refuse", reason: "`widget` is occupied — already Active." });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/occupied/));
     expect(process.exitCode).toBe(1);
@@ -510,9 +609,9 @@ describe("handleStart — dispatch orchestration", () => {
     arm,
     _label,
     opts,
-    nonInteractive,
+    terminalIsNonInteractive,
   ) => {
-    mockIsNonInteractive.mockReturnValue(nonInteractive);
+    nonInteractive = terminalIsNonInteractive;
     mockResolveStartDispatch.mockReturnValue({ arm });
     mockResolveComposedLifecycleIndex.mockResolvedValue({
       index: new Map(),
@@ -522,7 +621,8 @@ describe("handleStart — dispatch orchestration", () => {
       reachable: false,
     });
 
-    await handleStart("widget", opts);
+    await handleStart("widget", opts,
+      makeTestContext({ yes: "yes" in opts && opts.yes === true ? "compatibility" : "absent" }));
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/cannot safely start.*indeterminate/is));
     expect(process.exitCode).toBe(1);
@@ -531,7 +631,7 @@ describe("handleStart — dispatch orchestration", () => {
   });
 
   it("proceeds through an indeterminate minting arm only after interactive confirmation", async () => {
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockConfirm.mockResolvedValue(true);
     mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
     mockResolveComposedLifecycleIndex.mockResolvedValue({
@@ -546,7 +646,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockConfirm).toHaveBeenCalledTimes(2);
     expect(mockConfirm).toHaveBeenNthCalledWith(
@@ -558,7 +658,7 @@ describe("handleStart — dispatch orchestration", () => {
   });
 
   it("cancels cleanly when interactive indeterminacy confirmation is declined", async () => {
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockConfirm.mockResolvedValue(false);
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
     mockResolveComposedLifecycleIndex.mockResolvedValue({
@@ -569,7 +669,7 @@ describe("handleStart — dispatch orchestration", () => {
       reachable: false,
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringMatching(/cancelled/i));
@@ -590,7 +690,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", { here: true, yes: true });
+    await handleStart("widget", { here: true, yes: true }, makeTestContext({ yes: "compatibility" }));
 
     expect(mockRunColdStart).toHaveBeenCalledTimes(1);
     expect(mockLog.error).not.toHaveBeenCalled();
@@ -607,7 +707,7 @@ describe("handleStart — dispatch orchestration", () => {
       reachable: false,
     });
 
-    await handleStart("widget", { here: true, yes: true });
+    await handleStart("widget", { here: true, yes: true }, makeTestContext({ yes: "compatibility" }));
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/cannot safely start.*indeterminate/is));
     expect(process.exitCode).toBe(1);
@@ -619,7 +719,7 @@ describe("handleStart — dispatch orchestration", () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
     mockRunGraduate.mockResolvedValue({ status: "rejected", reason: "requires a resolved `Class`" });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/class/i));
     expect(process.exitCode).toBe(1);
@@ -632,7 +732,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
     });
 
-    await handleStart(undefined, { here: true });
+    await handleStart(undefined, { here: true }, makeTestContext());
 
     expect(mockResolveStartDispatch).not.toHaveBeenCalled();
     expect(mockRunColdStart).toHaveBeenCalledTimes(1);
@@ -645,7 +745,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
     });
 
-    await handleStart("   ", { here: true });
+    await handleStart("   ", { here: true }, makeTestContext());
 
     expect(mockResolveStartDispatch).not.toHaveBeenCalled();
     expect(mockRunColdStart).toHaveBeenCalledTimes(1);
@@ -658,7 +758,7 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", { here: true });
+    await handleStart("widget", { here: true }, makeTestContext());
 
     expect(mockRunColdStart).toHaveBeenCalledTimes(1);
     expect(mockRunCreateNew).not.toHaveBeenCalled();
@@ -673,7 +773,7 @@ describe("handleStart — dispatch orchestration", () => {
       outcome: { status: "ok", advisories: [] },
     });
 
-    await handleStart("widget", { here: true });
+    await handleStart("widget", { here: true }, makeTestContext());
 
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", inPlace: true });
@@ -685,17 +785,37 @@ describe("handleStart — dispatch orchestration", () => {
     mockBaseReadFile.mockResolvedValue("base meta");
     mockReadFile.mockResolvedValue("stale meta");
 
-    await handleStart("widget", { here: true });
+    await handleStart("widget", { here: true }, makeTestContext());
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/differs from the base snapshot/iu));
     expect(process.exitCode).toBe(1);
   });
 
+  it("renders typed graduation recovery residue and stops before success reporting", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduation-recovery-required",
+      reason: "rollback could not remove the branch",
+      residue: {
+        slug: "widget",
+        branch: "plan/widget",
+        mode: "in-place",
+        failures: [{ stage: "branch", locus: "refs/heads/plan/widget", detail: "ref changed" }],
+      },
+    });
+
+    await handleStart("widget", { here: true, yes: true }, makeTestContext({ yes: "compatibility" }));
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/rollback could not remove.*refs\/heads\/plan\/widget/is));
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it("fails closed when the base lifecycle snapshot is unreadable", async () => {
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: false, reason: "could not read base lifecycle tree" });
 
-    await handleStart("widget", { new: true });
+    await handleStart("widget", { new: true }, makeTestContext());
 
     expect(mockResolveStartDispatch).not.toHaveBeenCalled();
     expect(mockRunCreateNew).not.toHaveBeenCalled();
@@ -704,11 +824,11 @@ describe("handleStart — dispatch orchestration", () => {
   });
 
   it("aborts on confirm-decline — routes nothing", async () => {
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockConfirm.mockResolvedValue(false);
     mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockRunCreateNew).not.toHaveBeenCalled();
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringMatching(/cancelled/i));
@@ -716,11 +836,11 @@ describe("handleStart — dispatch orchestration", () => {
   });
 
   it("names the commit and push side effect in spawned-start confirmation prompts", async () => {
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockConfirm.mockResolvedValue(false);
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
 
-    await handleStart("widget", {});
+    await handleStart("widget", {}, makeTestContext());
 
     expect(mockConfirm).toHaveBeenCalledWith(
       expect.objectContaining({

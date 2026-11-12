@@ -6,17 +6,23 @@
  * compare normalized bytes without sorting keys or rebuilding the payload.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LocusAbsolutePathSchema } from "../../src/lib/locus/schema/limits.js";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import {
   normalizeSessionEnvelope,
   prepareSessionEnvelopeFixture,
+  PRIMARY_TOKEN,
+  REMOTE_TOKEN,
+  WORKTREE_PARENT_TOKEN,
+  WORKTREE_TOKEN,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
-import { runArcNoTty } from "./helpers.js";
+import { git, runArcNoTty } from "./helpers.js";
 
 const GOLDEN_DIR = join(import.meta.dirname, "..", "fixtures", "session-envelope");
 const UPDATE_GOLDENS = process.env.UPDATE_SESSION_ENVELOPE_GOLDENS === "1";
@@ -41,6 +47,56 @@ async function capture(
   expect(result.stdout).toBe(`${JSON.stringify(parsed)}\n`);
   return normalizeSessionEnvelope(parsed, fixture.normalization) as Record<string, unknown>;
 }
+
+describe("session envelope normalization contract", () => {
+  let fixture: SessionEnvelopeFixture | undefined;
+
+  afterEach(async () => {
+    await fixture?.cleanup();
+    fixture = undefined;
+  });
+
+  it("keeps every placeholder parseable as the absolute path it stands in for", () => {
+    for (const token of [
+      PRIMARY_TOKEN,
+      WORKTREE_PARENT_TOKEN,
+      WORKTREE_TOKEN,
+      REMOTE_TOKEN,
+    ]) {
+      assertSchemaAccepts(LocusAbsolutePathSchema, token);
+    }
+  });
+
+  it("orders every fixture root deterministically against the primary", async () => {
+    fixture = await prepareSessionEnvelopeFixture("branch-gone");
+    const primary = fixture.primary;
+    const siblings = fixture.normalization.roots
+      .map(([path]) => path)
+      .filter((path) => path !== primary);
+
+    expect(siblings.length).toBeGreaterThan(0);
+    for (const path of siblings) {
+      expect(path.startsWith(primary), path).toBe(true);
+    }
+  });
+
+  it("keeps randomized SHA-256 generations stable and parseable", () => {
+    const normalized = normalizeSessionEnvelope(
+      {
+        first: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        repeated: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        second: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+      { roots: [] },
+    );
+
+    expect(normalized).toEqual({
+      first: `sha256:${"1".padStart(64, "0")}`,
+      repeated: `sha256:${"1".padStart(64, "0")}`,
+      second: `sha256:${"2".padStart(64, "0")}`,
+    });
+  });
+});
 
 describe("session envelope wire compatibility", () => {
   let fixture: SessionEnvelopeFixture | undefined;
@@ -94,7 +150,7 @@ describe("session envelope wire compatibility", () => {
       ok: false,
       error: {
         kind: "identity-missing",
-        message: "User probe skipped: `arc.identity` is not configured in git config.",
+        message: "User probe skipped: no identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.",
       },
     });
     for (const key of [
@@ -107,6 +163,14 @@ describe("session envelope wire compatibility", () => {
       expect(normalized).not.toHaveProperty(key);
     }
     await expectGolden("session-init-identity-missing.json", normalized);
+  });
+
+  it("carries the Git name fallback without the identity-absent arm", async () => {
+    fixture = await prepareSessionEnvelopeFixture("identity-missing");
+    await git(fixture.cwd, ["config", "user.name", "Fallback User"]);
+    const normalized = await capture(fixture, ["status", "--session-init", "--json"]);
+    expect(normalized.identity).toMatchObject({ identity: "fallback-user" });
+    expect(normalized.user).toMatchObject({ ok: true });
   });
 });
 
@@ -126,32 +190,62 @@ describe("recovery-audit wire compatibility", () => {
     expect(result.exitCode, result.stderr).toBe(0);
   }
 
-  it("locks the complete ready report", async () => {
+  it("locks the complete checkout-derived recovery report", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     await writeSeed(fixture);
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
-    expect(normalized.verdict).toMatchObject({ status: "ready", ready: true, stopReasons: [] });
+    expect(normalized.verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+    });
     await expectGolden("recovery-audit-ready.json", normalized);
+
+    const seedPath = join(fixture.cwd, ".arc", "user", "test-user", ".internal", "compaction-seed.json");
+    const seed = JSON.parse(await readFile(seedPath, "utf8"));
+    seed.locus.extra = { authority: "retired" };
+    await writeFile(seedPath, JSON.stringify(seed));
+
+    const reread = await capture(fixture, ["recover", "audit", "--json"]);
+    await expectGolden("recovery-audit-ready.json", reread);
   });
 
   it("locks the complete post-seed dirty-path-drift report", async () => {
+    fixture = await prepareSessionEnvelopeFixture("active-resume");
+    await writeFile(join(fixture.cwd, "dirty-before-seed.txt"), "work\n");
+    await writeSeed(fixture);
+    await rm(join(fixture.cwd, "dirty-before-seed.txt"));
+    const normalized = await capture(fixture, ["recover", "audit", "--json"]);
+    expect(normalized.verdict).toMatchObject({
+      status: "stop",
+      ready: false,
+      stopReasons: expect.arrayContaining([
+        expect.objectContaining({ kind: "dirty-path-drift" }),
+      ]),
+    });
+    await expectGolden("recovery-audit-dirty-path-drift.json", normalized);
+  });
+
+  it("explains files dirtied after the seed as work in progress", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     await writeSeed(fixture);
     await writeFile(join(fixture.cwd, "dirty-after-seed.txt"), "drift\n");
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
     expect(normalized.verdict).toMatchObject({
-      status: "stop",
-      ready: false,
-      stopReasons: [{ kind: "dirty-path-drift" }],
+      status: "ready",
+      stopReasons: [],
+      explainedDrift: [expect.objectContaining({
+        kind: "dirty-path-drift",
+        detail: expect.objectContaining({ resolvedPaths: [], addedPaths: ["dirty-after-seed.txt"] }),
+      })],
     });
-    await expectGolden("recovery-audit-dirty-path-drift.json", normalized);
   });
 
   it("keeps missing and invalid seed stops targeted and machine-readable", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
     const missing = await capture(fixture, ["recover", "audit", "--json"]);
     expect(missing).toMatchObject({
-      seedPath: "<WORKTREE>/.arc/user/test-user/.internal/compaction-seed.json",
+      seedPath: `${WORKTREE_TOKEN}/.arc/user/test-user/.internal/compaction-seed.json`,
       verdict: { status: "stop", ready: false, stopReasons: [{ kind: "seed-missing" }] },
     });
 

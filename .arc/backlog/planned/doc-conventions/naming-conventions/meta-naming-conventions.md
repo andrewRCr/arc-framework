@@ -5,7 +5,8 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `doc-conventions`
-- **Depends On:** `work-routing-discipline`
+- **Depends On:** `work-routing-discipline`, `cutover-decompose-removal`, `cutover-documentation`,
+  `cutover-notes-removal`, `cutover-tracked-state-removal`
 
 - **Origin:** [internal]
 - **Design:** `draft-naming-conventions.md`

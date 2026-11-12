@@ -6,12 +6,16 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
-import { writeErrandRecord } from "../../src/lib/errand/record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
+import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   ROADMAP_PATH,
   renderRoadmapFromIndexResult,
+  resolveStagedTransitionOverlays,
 } from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { transitionOverlayCompositionInput } from "../../src/lib/work-unit/transition-overlay.js";
+import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import {
   cleanupTempDir,
@@ -20,21 +24,22 @@ import {
   makeGitExecInput,
   removeGitBackedDir,
 } from "../helpers/integration.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
 let repo: string | undefined;
 let remote: string | undefined;
-type ProcessExitCode = string | number | null | undefined;
 
 function meta(slug: string, state: string, branch: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
     "",
@@ -44,7 +49,7 @@ function meta(slug: string, state: string, branch: string): string {
 }
 
 function metaAt(slug: string, state: string, branch: string, priority: string): string {
-  return meta(slug, state, branch).replace("- **Priority:** P1", `- **Priority:** ${priority}`);
+  return meta(slug, state, branch).replace("| P1 |", `| ${priority} |`);
 }
 
 async function commitAll(cwd: string, message: string): Promise<void> {
@@ -62,80 +67,20 @@ function makeRawGitExec(cwd: string): GitExec {
   };
 }
 
-async function captureStdout(fn: () => Promise<void>): Promise<string> {
-  const chunks: string[] = [];
-  const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    spy.mockRestore();
-  }
-  return chunks.join("");
-}
-
-async function captureProcessOutput(fn: () => Promise<void>): Promise<{ stdout: string; stderr: string }> {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    stdout.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-    stderr.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  }
-  return { stdout: stdout.join(""), stderr: stderr.join("") };
-}
-
 async function runProject(cwd: string, opts: StatusCliOptions): Promise<string> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureStdout(() => handleStatus(undefined, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  return (await runHandlerAt(cwd, () => handleStatus(undefined, opts))).stdout;
 }
 
 async function runProjectWithDiagnostics(
   cwd: string,
   opts: StatusCliOptions,
 ): Promise<{ stdout: string; stderr: string }> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureProcessOutput(() => handleStatus(undefined, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  const { stdout, stderr } = await runHandlerAt(cwd, () => handleStatus(undefined, opts));
+  return { stdout, stderr };
 }
 
 async function runSlug(cwd: string, slug: string, opts: StatusCliOptions): Promise<string> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureStdout(() => handleStatus(slug, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  return (await runHandlerAt(cwd, () => handleStatus(slug, opts))).stdout;
 }
 
 describe("arc status --project", () => {
@@ -180,47 +125,65 @@ describe("arc status --project", () => {
 
     await execFileAsync("git", ["checkout", "-b", "plan/ref-only"], { cwd: repo });
     await mkdir(join(repo, ".arc", "active"), { recursive: true });
-    await writeFile(join(repo, ".arc", "active", "meta-ref-only.md"), meta("ref-only", "Active", "plan/ref-only"));
+    await writeFile(join(repo, ".arc", "active", "meta-ref-only.md"), makeMetaFixture("ref-only", {
+      state: "Active", owner: "andrew", branch: "plan/ref-only", priority: "P1", design: ["spec-ref-only.md"],
+    }));
+    await writeFile(join(repo, ".arc", "active", "spec-ref-only.md"), "**Purpose:** Ref-only thesis. More.\n");
     await commitAll(repo, "activate ref-only");
     await execFileAsync("git", ["push", "-u", "origin", "plan/ref-only"], { cwd: repo });
 
     await execFileAsync("git", ["checkout", "-b", "chore/ref-only-errand", "main"], { cwd: repo });
     await execFileAsync("git", ["push", "-u", "origin", "chore/ref-only-errand"], { cwd: repo });
-    await writeErrandRecord(
+    const identityWrite = await transactTransientIdentities(
       { exec: makeGitExec(repo), execInput: makeGitExecInput(repo), identity: "andrew" },
       {
-        version: 1,
-        slug: "ref-only-errand",
-        origin: "description",
-        intent: "verify project status ignores errand refs",
-        branch: "chore/ref-only-errand",
-        createdAt: "2026-07-09T00:00:00.000Z",
+        remote: null,
+        message: "seed ref-only-errand",
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, ["ref-only-errand", TransientIdentityRecordV3Schema.parse({
+            version: 3,
+            kind: "errand",
+            slug: "ref-only-errand",
+            claimId: "a".repeat(32),
+            purpose: "errand",
+            origin: "description",
+            originEntry: null,
+            intent: "verify project status ignores errand refs",
+            branch: "chore/ref-only-errand",
+            state: "open",
+            savedHead: null,
+            changeRequest: null,
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          })]]),
+          value: null,
+        }),
       },
     );
+    expect(identityWrite.kind).toBe("applied");
 
     await execFileAsync("git", ["checkout", "main"], { cwd: repo });
 
-    const originalCwd = process.cwd();
-    const savedExitCode: ProcessExitCode = process.exitCode;
-    process.exitCode = undefined;
-    const result = await (async (): Promise<{ output: string; exitCode: ProcessExitCode }> => {
-      try {
-        process.chdir(repo);
-        const output = await captureStdout(() => handleStatus(undefined, { project: true }));
-        return { output, exitCode: process.exitCode };
-      } finally {
-        process.chdir(originalCwd);
-        process.exitCode = savedExitCode;
-      }
-    })();
+    const result = await runHandlerAt(repo, () => handleStatus(undefined, { project: true }));
 
-    expect(result.output).toContain("# Roadmap: Project Status");
-    expect(result.output).toContain("Source scope: tree + live refs.");
-    expect(result.output).toContain("| `Active` | ref-only");
-    expect(result.output).toMatch(/\|\s*ref-only\s*\|\s*P1\b/u);
-    expect(result.output).not.toContain("ref-only-errand");
-    expect(sectionBetween(result.output, "## Ready", "## Blocked")).not.toContain("ref-only");
-    expect(result.exitCode).toBeUndefined();
+    expect(result.stdout).toContain("# Roadmap: Project Status");
+    expect(result.stdout).toContain("Source scope: tree + live refs.");
+    expect(result.stdout).toContain("| `Active` | ref-only");
+    expect(result.stdout).toMatch(/\|\s*ref-only\s*\|\s*P1\b/u);
+    expect(result.stdout).not.toContain("ref-only-errand");
+    expect(sectionBetween(result.stdout, "## Ready", "## Blocked")).not.toContain("ref-only");
+    expect(result.exitCode).toBe(0);
+    const query = JSON.parse(await runSlug(repo, "ref-only", { json: true })) as {
+      purpose: string | null; owner: string | null; state: string; position: unknown;
+    };
+    const listing = JSON.parse(await runProject(repo, { project: true, local: true, json: true })) as {
+      facts: { slug: string; purpose: string | null; owner: string | null; state: string; position: unknown }[];
+    };
+    expect(query.purpose).toBe("Ref-only thesis.");
+    expect(listing.facts.find((fact) => fact.slug === "ref-only")).toMatchObject({
+      purpose: query.purpose, owner: query.owner, state: query.state, position: query.position,
+    });
   });
 
   it.each(["Planning", "Active", "Integrating"] as const)(
@@ -258,6 +221,54 @@ describe("arc status --project", () => {
         state: state.toLowerCase(),
         occupied: true,
       });
+    },
+  );
+
+  it.each(["Planning", "Active"] as const)(
+    "keeps a committed Shipped record authoritative over a lingering %s ref",
+    async (lingeringState) => {
+      repo = await createTempRepo(`arc-status-slug-shipped-${lingeringState.toLowerCase()}-`);
+      remote = `${repo}-origin.git`;
+      const slug = "swept-status";
+      const planningBranch = `plan/${slug}`;
+      const deliveryBranch = `feat/${slug}`;
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+      await mkdir(join(repo, ".arc", "system"), { recursive: true });
+      await writeFile(join(repo, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+      await commitAll(repo, "scaffold swept status");
+
+      await execFileAsync("git", ["switch", "-c", planningBranch], { cwd: repo });
+      const activePath = join(repo, ".arc", "active", `meta-${slug}.md`);
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(activePath, meta(slug, lingeringState, planningBranch));
+      await commitAll(repo, "plan swept status");
+      await execFileAsync("git", ["push", "-u", "origin", planningBranch], { cwd: repo });
+
+      await execFileAsync("git", ["switch", "-c", deliveryBranch], { cwd: repo });
+      await execFileAsync("git", ["branch", "-D", planningBranch], { cwd: repo });
+      await writeFile(activePath, meta(slug, "Integrating", deliveryBranch));
+      await commitAll(repo, "integrate swept status");
+      const completedDir = join(repo, ".arc", "completed", "2026-q3", `01_${slug}`);
+      const completedPath = join(completedDir, `meta-${slug}.md`);
+      await mkdir(completedDir, { recursive: true });
+      await execFileAsync("git", ["mv", activePath, completedPath], { cwd: repo });
+      await writeFile(completedPath, meta(slug, "Shipped", deliveryBranch));
+      await commitAll(repo, "archive swept status");
+
+      const output = JSON.parse(await runSlug(repo, slug, { json: true }));
+
+      expect(output).toMatchObject({
+        slug,
+        position: { phase: "Shipped", location: "completed" },
+        state: "shipped",
+        occupied: false,
+        shipped: true,
+      });
+      expect(output.warnings).toContain(
+        `Branch \`${deliveryBranch}\` has no errand record or active work-unit meta; cleanup may be required.`,
+      );
     },
   );
 
@@ -344,9 +355,11 @@ describe("arc status --project", () => {
 
     // Stage foo at P2, then dirty the working file to P3 (unstaged) so the index,
     // the working tree, and HEAD all disagree.
-    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P2"));
+    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), `${metaAt("foo", "Active", "[none]", "P2")}- **Design:** \`spec-foo.md\`\n`);
+    await writeFile(join(repo, ".arc", "active", "spec-foo.md"), "**Purpose:** Index thesis. More.\n");
     await execFileAsync("git", ["add", "-A"], { cwd: repo });
     await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P3"));
+    await writeFile(join(repo, ".arc", "active", "spec-foo.md"), "**Purpose:** Worktree thesis. More.\n");
 
     const staged = await runProject(repo, { project: true, staged: true });
     const worktree = await runProject(repo, { project: true, local: true });
@@ -356,6 +369,11 @@ describe("arc status --project", () => {
     expect(staged).toMatch(/\|\s*foo\s*\|\s*P2\b/u);
     expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
     expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
+    const stagedJson = JSON.parse(await runProject(repo, { project: true, staged: true, json: true }));
+    expect(stagedJson.facts).toContainEqual(expect.objectContaining({
+      slug: "foo", purpose: "Index thesis.", owner: "andrew", state: "active",
+      position: { phase: "Active", location: "active" },
+    }));
   });
 
   it.each([
@@ -444,6 +462,80 @@ describe("arc status --project", () => {
 
     expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
     expect(cli).toBe(rendered.content);
+  });
+
+  it("admits multiple finalized transitions carried by one staged base merge", async () => {
+    repo = await createTempRepo("arc-status-multi-transition-merge-");
+    remote = `${repo}-origin.git`;
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: partial\npm.mode: arc-in-git\n",
+    );
+    await commitAll(repo, "scaffold merge fixture");
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repo });
+    const sharedBase = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+
+    for (const slug of ["retired-a", "retired-b"]) {
+      const branch = `plan/${slug}`;
+      await execFileAsync("git", ["switch", "-c", branch, sharedBase], { cwd: repo });
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(join(repo, ".arc", "active", `meta-${slug}.md`), meta(slug, "Planning", branch));
+      await commitAll(repo, `plan ${slug}`);
+      await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: repo });
+    }
+
+    const receivingBranch = "feat/merge-receiver";
+    await execFileAsync("git", ["switch", "-c", receivingBranch, sharedBase], { cwd: repo });
+    await writeFile(join(repo, "receiver.txt"), "receiver\n");
+    await commitAll(repo, "advance merge receiver");
+
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system", ".internal", "transitions"), { recursive: true });
+    for (const slug of ["retired-a", "retired-b"]) {
+      await writeFile(
+        join(repo, resolveTransitionRecordRelativePath(slug)),
+        `${JSON.stringify({
+          schemaVersion: 2,
+          origin: { name: slug },
+          kind: "decompose",
+          successors: [{ name: `${slug}-successor` }],
+          incoming: [],
+          outgoing: [],
+        })}\n`,
+      );
+    }
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    const exec = makeRawGitExec(repo);
+    const transitionOverlays = await resolveStagedTransitionOverlays({ cwd: repo, exec });
+    const rendered = await renderRoadmapFromIndexResult({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput),
+    });
+    await writeFile(join(repo, ROADMAP_PATH), rendered.content);
+    await commitAll(repo, "finalize retirements");
+
+    await execFileAsync("git", ["switch", receivingBranch], { cwd: repo });
+    await execFileAsync("git", ["merge", "--no-commit", "--no-ff", "main"], { cwd: repo });
+    const hook = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      stagedPaths: [ROADMAP_PATH],
+    });
+    const cli = await runProject(repo, { project: true, staged: true });
+
+    expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(cli).toBe(rendered.content);
+    expect(cli).not.toContain("retired-a");
+    expect(cli).not.toContain("retired-b");
   });
 });
 

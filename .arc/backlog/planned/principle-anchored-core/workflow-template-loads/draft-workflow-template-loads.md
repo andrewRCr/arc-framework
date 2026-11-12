@@ -33,6 +33,20 @@
   active-gated. This neighbors `arc.templates` because it sharpens the declaration/load family before introducing
   another declared content class.
 
+### `[ ]` **Rebase template loading on the surviving declaration family**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: workflow-template-loads`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Opening re-scope; § Scope (When Triggered); frontmatter example.
+
+- _Observation:_ The templates executor mirrors a declaration family that includes fire-point-gated extensions.
+  Retirement removes that family member and related loading shape.
+
+- _Approach:_ Keep the templates executor and three-role model; update its schema assumptions and example against the
+  surviving methods/templates/conditional-entry contract.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Context

@@ -13,8 +13,10 @@
  *   re-runnable `arc teardown <name>` (its own containment guards decide the
  *   reap, so the offer is safe even when `merged` cannot be proven here).
  * - Otherwise, `merged` (commits landed in the integration base) gates the
- *   interlock-gated `git branch -d` offer; an unmerged orphan is surfaced as
- *   not-removable, never force-deleted.
+ *   `git branch -D` action: patch-equivalent rebased commits need not be
+ *   reachable from base, so `-d` would refuse. Merge commits outside base's
+ *   history withhold that action, because patch identity omits merge work.
+ *   Unmerged orphans stay advisory.
  *
  * Excluded from the scan: bare (unprefixed) branches such as the base branch,
  * branches checked out in any worktree (the stale-worktree sweep's domain),
@@ -23,49 +25,137 @@
  * the record.
  *
  * The scan is local and network-free. Branch hygiene only: the sweep never
- * infers work-unit state from a branch's presence, and never offers `-D`.
+ * infers work-unit state from a branch's presence; deletion requires shipped or landed evidence.
  *
  * @module
  */
 
+import { TeardownCommandSchema } from "./stale-worktree-sweep-schema.js";
+import { readOrphanStoreCandidates, type OrphanStoreOptions, type OrphanStoreCandidate } from "./orphan-store-candidates.js";
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 
 import { isLandedInBase } from "../git/branch-containment.js";
+import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { listGoneUpstreamBranches } from "../git/gone-upstream-branches.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
-import { SlugSchema } from "../kernel/index.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import { SlugSchema, withRemoteEvidence } from "../kernel/index.js";
+import { readShippedWorkUnitsFromExactRef, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
+import { locusOwnsBranch } from "./locus-classification.js";
 import {
-  branchToWorkUnitSlug,
-  readShippedWorkUnitsFromRef,
-} from "../work-unit/completed-index.js";
+  projectCleanupRemoteEvidence,
+  type CleanupBaseEvidence,
+  type CleanupRemoteEvidence,
+} from "./cleanup-remote-evidence.js";
 
 /** The ref namespace scoping the sweep to local branches. */
 const LOCAL_BRANCH_REF_PREFIX = "refs/heads/";
 
 /** Runtime authority for one gone-upstream branch and its cleanup verdicts. */
-export const OrphanBranchReportSchema = z.strictObject({
-  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
-  merged: z.boolean(),
-  shippedWorkUnit: SlugSchema.nullable(),
-});
+const OrphanBranchNameSchema = z.string().refine((value) => value.trim().length > 0, "branch must not be empty");
+export const OrphanBranchReportSchema = z.union([
+  z.strictObject({
+    branch: OrphanBranchNameSchema,
+    merged: z.boolean(),
+    actions: SessionActionsSchema.optional(),
+    shippedWorkUnit: SlugSchema.nullable(),
+    teardown: TeardownCommandSchema.optional(),
+    blockingReason: z.null().optional(),
+  }),
+  z.strictObject({
+    branch: OrphanBranchNameSchema,
+    merged: z.null(),
+    shippedWorkUnit: z.null(),
+    blockingReason: z.literal("evidence-unavailable"),
+  }),
+]);
 
 /** One gone-upstream local branch paired with its cleanup verdicts. */
 export type OrphanBranchReport = z.infer<typeof OrphanBranchReportSchema>;
 
 /** Runtime authority for the orphan-branch sweep advisory. */
-export const OrphanBranchSweepResultSchema = z.strictObject({
+export const OrphanBranchSweepResultSchema = withRemoteEvidence({
   orphans: z.array(OrphanBranchReportSchema),
+  warnings: z.array(z.string()).optional(),
 });
 
 /** Gone-upstream type-prefixed local branches and their cleanup verdicts. */
 export type OrphanBranchSweepResult = z.infer<typeof OrphanBranchSweepResultSchema>;
 
-export interface RunOrphanBranchSweepOptions {
+/** Supplied prerequisites for orphan classification against advertised base evidence. */
+export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidence, OrphanStoreOptions {
+  exec: GitExec;
+  branches: readonly string[];
+  baseBranch: string;
+}
+
+/** Analyze filtered local orphan branches against one immutable advertised base snapshot. */
+export async function analyzeOrphanBranchesSnapshot(
+  options: AnalyzeOrphanBranchesSnapshotOptions,
+): Promise<OrphanBranchSweepResult> {
+  if (options.store?.capabilities.stateOffBranch === true) {
+    const selected = await readOrphanStoreCandidates(options, options.branches);
+    if (selected.status !== "ready") return { orphans: [], warnings: [selected.reason], remoteEvidence: "not-applicable" };
+    return analyzeStoreSnapshot(options, selected.candidates);
+  }
+  const evidence = projectCleanupRemoteEvidence(options.baseBranch, options);
+  if (evidence.remoteEvidence !== "exact") return unavailableOrphans(options.branches, evidence);
+  if (options.snapshot.kind === "unreachable") return unavailableOrphans(options.branches, evidence);
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return unavailableOrphans(options.branches, evidence);
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return unavailableOrphans(options.branches, { remoteEvidence: "pending-fetch" });
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (options.history.kind === "shallow") return unavailableOrphans(options.branches, evidence);
+  if (options.history.kind !== "complete") throw new Error("Orphan history completeness could not be inspected.");
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const shipped = await readShippedWorkUnitsFromExactRef(localOnlyExec, baseOid);
+  const orphans = await Promise.all(options.branches.map(async (branch) => {
+    const name = branchToWorkUnitSlug(branch);
+    const shippedName = name !== null && shipped.has(name) ? name : null;
+    const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
+    return {
+      branch,
+      merged: await orphanWorkLanded(localOnlyExec, branch, baseOid, true),
+      shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
+    };
+  }));
+  return { ...evidence, orphans: orphans.map(withOrphanActions) };
+}
+
+function unavailableOrphans(
+  branches: readonly string[],
+  evidence: CleanupRemoteEvidence,
+): OrphanBranchSweepResult {
+  return {
+    ...evidence,
+    orphans: branches.map((branch) => ({
+      branch,
+      merged: null,
+      shippedWorkUnit: null,
+      blockingReason: "evidence-unavailable" as const,
+    })),
+  };
+}
+
+export interface RunOrphanBranchSweepOptions extends OrphanStoreOptions {
   /** Physical-worktree identity of the calling session. */
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /**
    * Branches carrying an errand record — excluded from the sweep; the errand
    * surfaces (resume, close replay) own their cleanup. `null` when the records
@@ -73,6 +163,8 @@ export interface RunOrphanBranchSweepOptions {
    * rather than offer a delete that could orphan an errand record.
    */
   errandBranches: ReadonlySet<string> | null;
+  /** Complete derived checkout roster; null suppresses cleanup offers. */
+  derivedRoster: readonly DerivedCheckoutRow[] | null;
   exec: GitExec;
 }
 
@@ -90,18 +182,43 @@ export async function runOrphanBranchSweep(
   options: RunOrphanBranchSweepOptions,
 ): Promise<OrphanBranchSweepResult> {
   const { baseBranch, errandBranches, exec } = options;
+  if (options.store?.capabilities.stateOffBranch === true) {
+    if (options.derivedRoster === null) return { orphans: [], remoteEvidence: "not-applicable" };
+    const branches = await listGoneUpstreamBranches(exec, LOCAL_BRANCH_REF_PREFIX);
+    const selected = await readOrphanStoreCandidates(options, branches, options.derivedRoster);
+    if (selected.status !== "ready") return { orphans: [], warnings: [selected.reason], remoteEvidence: "not-applicable" };
+    if (selected.candidates.length === 0) return { orphans: [], remoteEvidence: "not-applicable" };
+    if (options.baseEvidence !== undefined) return analyzeStoreSnapshot({ ...options, ...options.baseEvidence, branches }, selected.candidates);
+    const orphans = await Promise.all(selected.candidates.map(async candidate => storeOrphanReport(candidate,
+      await orphanWorkLanded(exec, candidate.branch, `origin/${baseBranch}`))));
+    return { orphans, remoteEvidence: "not-applicable" };
+  }
   // Without the errand-record index an errand branch is indistinguishable from
   // a WU branch, and a `git branch -d` offer on one would orphan its record —
   // decline the whole advisory rather than risk it.
-  if (errandBranches === null) {
-    return { orphans: [] };
+  if (errandBranches === null || options.derivedRoster === null) {
+    return { orphans: [], remoteEvidence: "not-applicable" };
   }
+  const derivedRoster = options.derivedRoster;
 
   const goneBranches = (await listGoneUpstreamBranches(exec, LOCAL_BRANCH_REF_PREFIX)).filter(
-    (branch) => branchToWorkUnitSlug(branch) !== null && !errandBranches.has(branch),
+    (branch) => branchToWorkUnitSlug(branch) !== null
+      && !errandBranches.has(branch)
+      && !locusOwnsBranch(derivedRoster, branch),
   );
   if (goneBranches.length === 0) {
-    return { orphans: [] };
+    return { orphans: [], remoteEvidence: "not-applicable" };
+  }
+
+  if (options.baseEvidence !== undefined) {
+    return analyzeOrphanBranchesSnapshot({
+      ...options.baseEvidence,
+      exec,
+      branches: goneBranches,
+      baseBranch,
+      store: options.store,
+      projectId: options.projectId,
+    });
   }
 
   const integrationTarget = `origin/${baseBranch}`;
@@ -109,15 +226,70 @@ export async function runOrphanBranchSweep(
 
   const orphans = await Promise.all(
     goneBranches.map(async (branch) => {
-      const slug = branchToWorkUnitSlug(branch);
-      const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
+      const name = branchToWorkUnitSlug(branch);
+      const shippedName = name !== null && shipped.has(name) ? name : null;
+      const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
       return {
         branch,
-        merged: await isLandedInBase(exec, branch, integrationTarget),
+        merged: await orphanWorkLanded(exec, branch, integrationTarget),
         shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
       };
     }),
   );
 
-  return { orphans };
+  return { orphans: orphans.map(withOrphanActions), remoteEvidence: "not-applicable" };
+}
+
+async function orphanWorkLanded(exec: GitExec, branch: string, base: string, strict = false): Promise<boolean> {
+  const patchesLanded = strict ? await isLandedInBaseStrict(exec, branch, base) : await isLandedInBase(exec, branch, base);
+  if (!patchesLanded) return false;
+  try {
+    const { stdout } = await exec("git", ["rev-list", "--min-parents=2", branch, `^${base}`]);
+    return stdout.trim() === "";
+  } catch (error) {
+    throw new Error(`Merge preservation for '${branch}' could not be inspected: ${error instanceof Error ? error.message : String(error)} Inspect git rev-list --min-parents=2 ${branch} ^${base}, repair the Git error, then retry arc status --session-init --json.`, { cause: error });
+  }
+}
+
+
+function withOrphanActions(report: OrphanBranchReport): OrphanBranchReport {
+  if (report.shippedWorkUnit !== null) {
+    if (report.teardown !== undefined) return { ...report, actions: [{ ...report.teardown, argv: [...report.teardown.argv] }] };
+    return { ...report, actions: [{ text: `arc teardown ${report.shippedWorkUnit}`,
+      argv: ["arc", "teardown", report.shippedWorkUnit] }] };
+  }
+  if (report.merged === true) {
+    return { ...report, actions: [{ text: `git branch -D ${report.branch}`,
+      argv: ["git", "branch", "-D", report.branch] }] };
+  }
+  return report;
+}
+
+/** Classify selected store candidates against the exact advertised base without rereading identity state. */
+async function analyzeStoreSnapshot(options: AnalyzeOrphanBranchesSnapshotOptions,
+  candidates: readonly OrphanStoreCandidate[]): Promise<OrphanBranchSweepResult> {
+  const evidence = projectCleanupRemoteEvidence(options.baseBranch, options);
+  const branches = candidates.map(candidate => candidate.branch);
+  if (evidence.remoteEvidence !== "exact" || options.snapshot.kind === "unreachable") return unavailableOrphans(branches, evidence);
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return unavailableOrphans(branches, evidence);
+  if (options.objectAvailability.kind !== "complete") throw new Error("Advertised base commit availability could not be inspected.");
+  if (options.objectAvailability.commits[baseOid] === false) return unavailableOrphans(branches, { remoteEvidence: "pending-fetch" });
+  if (options.objectAvailability.commits[baseOid] === undefined) throw new Error("The advertised base commit has no local availability fact.");
+  if (options.history.kind === "shallow") return unavailableOrphans(branches, evidence);
+  if (options.history.kind !== "complete") throw new Error("Orphan history completeness could not be inspected.");
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, { ...execOptions, objectAccess: "local-only" });
+  const orphans = await Promise.all(candidates.map(async candidate => storeOrphanReport(candidate,
+    await orphanWorkLanded(localOnlyExec, candidate.branch, baseOid, true))));
+  return { ...evidence, orphans };
+}
+
+function storeOrphanReport(candidate: OrphanStoreCandidate, merged: boolean): OrphanBranchReport {
+  const { branch, authority: { record, link } } = candidate;
+  const shippedWorkUnit = record.reference.kind === "work-item/meta" && record.placement?.kind === "completed"
+    && link.linkedAs === "created" ? SlugSchema.parse(record.reference.owner.name) : null;
+  const report = withOrphanActions({ branch, merged, shippedWorkUnit, ...(candidate.teardown === undefined ? {} : { teardown: candidate.teardown }) });
+  return link.linkedAs === "adopted" && !merged ? { branch, merged, shippedWorkUnit, actions: [{
+    text: `Branch ${branch} is kept for its owner. Its owner may run git branch -D ${branch} after preserving its work.`,
+  }] } : report;
 }

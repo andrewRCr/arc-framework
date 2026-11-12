@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   affectedPaths,
   classifyPlanningLane,
+  isIntegrationTargetPath,
+  isCodeSurfacePath,
+  isPackagedContentSensitivePath,
+  isPortabilitySurfacePath,
   parseRawDiff,
   resolveChangeSet,
   type ChangeSet,
@@ -11,6 +15,151 @@ import {
 const HASH = "a".repeat(40);
 const ZERO_HASH = "0".repeat(40);
 const COMPLETE_RENAME = `R${100}`;
+
+describe("status portability surface", () => {
+  it.each([
+    "status.ts",
+    "status/input.ts",
+    "status/lifecycle.ts",
+    "status/views.ts",
+    "status/session-context.ts",
+    "status/session-evidence.ts",
+    "status/session.ts",
+  ])("retains portability checks for the status implementation at %s", (path) => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/src/handlers/${path}`)).toBe(true);
+  });
+});
+
+describe("raw Git file portability surface", () => {
+  it.each([
+    "src/lib/git/process-executor.ts", "__tests__/integration/raw-git-files.test.ts",
+    "__tests__/integration/check-source-git.test.ts",
+  ])("targets raw file execution path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
+describe("runner foundation portability surface", () => {
+  it.each([
+    "src/lib/paths.ts", "__tests__/unit/paths.test.ts", "__tests__/e2e/check-runner-home.e2e.test.ts",
+    "src/lib/git/repository-environment.mjs", "__tests__/unit/git/repository-environment.test.ts",
+    "src/lib/checks/runner/planning.ts", "src/lib/checks/runner/source-cwd.ts",
+    "src/lib/checks/runner/source-paths.ts", "src/lib/checks/runner/session-process.ts",
+    "src/lib/checks/runner/execution-run.ts", "src/lib/checks/process.ts", "src/lib/checks/result.ts",
+    "src/lib/checks/batching.ts", "src/lib/checks/environment-inputs.ts", "src/lib/checks/environment-file.ts",
+    "src/lib/checks/file-coordinates.ts", "src/lib/checks/forecast.ts",
+    "src/lib/checks/runner/frozen-file.ts", "src/lib/ci-check-runner.ts",
+    "src/handlers/check/run.ts", "src/handlers/check/run-cli.ts", "src/handlers/check/run-output.ts",
+    "__tests__/unit/lib/checks/runner/planning-spelling.test.ts",
+    "__tests__/unit/lib/checks/runner/source-platform-paths.test.ts",
+    "__tests__/unit/lib/checks/runner/source-cwd.test.ts", "__tests__/unit/lib/checks/runner/session-outcomes.test.ts",
+    "__tests__/unit/lib/checks/result.test.ts", "__tests__/integration/check-runner-session.test.ts",
+    "__tests__/integration/check-symlink-cwd.test.ts",
+    "__tests__/integration/check-runner-conformance-wire.test.ts", "__tests__/integration/check-runner-conformance-groups.test.ts",
+    "__tests__/integration/check-runner-platform-status.test.ts", "__tests__/integration/check-runner-platform-spelling.test.ts",
+    "__tests__/e2e/check-runner-platform.e2e.test.ts", "__tests__/fixtures/checks/prepared-execution.ts",
+    "__tests__/fixtures/checks/runner-protocol.ts", "__tests__/fixtures/checks/runner.ts",
+    "__tests__/fixtures/checks/runner-machine.ts", "__tests__/fixtures/checks/repository.ts",
+    "examples/check-runner/local.mjs", "examples/check-runner/local-process.mjs",
+  ])("targets runner foundation path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
+describe("routed shard and native writer portability surface", () => {
+  it.each([
+    "src/lib/checks/shards.ts", "src/lib/checks/key.ts", "src/lib/build-ownership.ts",
+    "src/lib/vitest-discovery.ts", "src/lib/vitest-execution.ts", "src/lib/vitest-closing.ts", "src/lib/vitest-completion.ts",
+    "__tests__/helpers/sharded-check-fixture.ts", "__tests__/helpers/native-writer-fixture.ts",
+    "__tests__/helpers/vitest-controller-fixture.ts", "__tests__/helpers/heavy-first-sequencer.ts",
+    "__tests__/helpers/heavy-first-durations.ts", "__tests__/helpers/duration-artifacts.ts",
+    "__tests__/helpers/merge-test-durations.ts", "__tests__/unit/heavy-first-sequencer.test.ts",
+    "__tests__/unit/lib/checks/batching.test.ts", "__tests__/unit/lib/checks/forecast.test.ts",
+    "__tests__/unit/lib/checks/key.test.ts",
+    "__tests__/unit/handlers/check/run-output.test.ts", "__tests__/unit/handlers/check/run-output-json.test.ts",
+    "__tests__/unit/duration-artifacts.test.ts", "__tests__/unit/vitest-controller-logic.test.ts",
+    "__tests__/integration/ci-check-runner.test.ts", "__tests__/unit/lib/ci-check-runner.test.ts",
+    "__tests__/integration/duration-layout-workflow.test.ts", "__tests__/integration/vitest-native-writers.test.ts",
+    "__tests__/integration/vitest-native-closing.test.ts", "__tests__/integration/vitest-runtime-ownership.test.ts",
+    "__tests__/integration/vitest-discovery.test.ts", "__tests__/integration/vitest-mixed-shard.test.ts",
+    "__tests__/integration/vitest-completion.test.ts",
+  ])("targets native shard consumer path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
+describe("projection portability surface", () => {
+  it.each([
+    "src/lib/store/projection/ignore-guard.ts", "__tests__/unit/store/projection/excludes.test.ts",
+    "__tests__/integration/store/projection/ignore-guard.test.ts",
+  ])("targets projection path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
+describe("retired unmanaged content", () => {
+  it("does not select code or sensitive-content gates for inert residue", () => {
+    expect(isCodeSurfacePath(".arc/system/extensions/inert.md")).toBe(false);
+    expect(isPackagedContentSensitivePath("packages/arc-framework/arc/system/extensions/inert.md")).toBe(false);
+  });
+});
+
+describe("integration target paths", () => {
+  it.each([
+    "packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md",
+    "packages/arc-framework/arc/system/methods/test-first.md",
+    ".arc/system/workflows/arc/supplemental/run-errand.md",
+    ".arc/system/rules/DEV-RULES.PROJECT.md",
+    ".arc/system/arc-config.yml",
+    ".arc/reference/strategies/arc/strategy-quality-gates.md",
+    ".arc/reference/QUICK-REFERENCE.md",
+    "README.md",
+    "docs/index.md",
+    "mkdocs.yml",
+  ])("targets %s, whose content the verified code tree leaves out", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(true);
+  });
+
+  it.each([
+    "packages/arc-framework/src/lib/change-facts.ts",
+    "packages/arc-framework/__tests__/integration/classify-change.test.ts",
+    "packages/arc-framework/arc/system/.internal/scripts/verify-integrity.sh",
+    "packages/arc-framework/arc/reference/templates/template-tasks.md",
+    "packages/arc-framework/arc/system/arc-config.yml",
+    ".arc/system/arc-checks.yml",
+    ".github/workflows/ci.yml",
+    ".claude/skills/arc-session/SKILL.md",
+  ])("leaves %s to the code weight, which covers its content", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/active/tasks-example.md",
+    ".arc/backlog/ROADMAP.md",
+    ".arc/backlog/planned/cohort/example/meta-example.md",
+    ".arc/backlog/ATOMIC-INBOX.md",
+    ".arc/completed/2026-q4/01_example/spec-example.md",
+    ".arc/system/.internal/transitions/example.json",
+  ])("does not target the planning record %s", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/reference/adr/adr-099-example.md",
+    ".arc/reference/supplemental/research/research-example.md",
+    ".arc/reference/supplemental/analysis/analysis-example.md",
+  ])("does not target the reference record %s", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/reference/adr/README.md",
+    ".arc/reference/supplemental/research/README.md",
+    ".arc/reference/strategies/project/strategy-example.md",
+  ])("still targets %s beside the reference records", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(true);
+  });
+});
 
 function raw(...fields: string[]): Uint8Array {
   return new TextEncoder().encode(`${fields.join("\0")}\0`);
@@ -232,7 +381,9 @@ describe("classifyPlanningLane", () => {
       ".arc/active/research-example.md",
       ".arc/backlog/planned/nested/analysis-example.md",
       ".arc/backlog/planned/nested/spec-example.md",
+      ".arc/backlog/planned/cohort/subcohort/member/draft-member.md",
       ".arc/backlog/ROADMAP.md",
+      ".arc/system/.internal/transitions/example.json",
     ];
     expect(classifyPlanningLane({
       changeSet: "known",
@@ -245,10 +396,27 @@ describe("classifyPlanningLane", () => {
     ".arc/active/nested/spec-example.md",
     ".arc/backlog/spec-example.md",
     ".arc/backlog/planned/spec-example.md",
-    ".arc/backlog/planned/one/two/three/spec-example.md",
+    ".arc/backlog/planned/one/two/three/four/spec-example.md",
+    ".arc/backlog/provisional/one/two/three/spec-example.md",
     ".arc/backlog/planned/example/spec-example",
     ".arc/backlog/planned/example/spec-.md",
   ])("rejects planning-like path outside the complete artifact grammar: %s", (path) => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(path)],
+    })).toBe("reviewed");
+  });
+
+  it.each([
+    ".arc/system/.internal/transitions/",
+    ".arc/system/.internal/transitions/origin.txt",
+    ".arc/system/.internal/transitions/Not-Valid.json",
+    ".arc/system/.internal/transitions/nested/origin.json",
+    ".arc/system/.internal/githooks/pre-commit",
+    ".arc/system/.internal/scripts/check.sh",
+    ".arc/system/.internal/skills/arc-session/SKILL.md",
+    ".arc/system/.internal/other/origin.json",
+  ])("rejects adjacent internal content outside an exact transition leaf: %s", (path) => {
     expect(classifyPlanningLane({
       changeSet: "known",
       changes: [change(path)],
@@ -298,5 +466,30 @@ describe("classifyPlanningLane", () => {
         status: "type-changed",
       }],
     })).toBe("reviewed");
+  });
+
+  it("keeps transition rename endpoints and non-regular entries fail-closed", () => {
+    const transition = ".arc/system/.internal/transitions/origin.json";
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [{
+        ...change(transition),
+        status: "renamed",
+        previousPath: ".arc/system/.internal/scripts/origin.json",
+      }],
+    })).toBe("reviewed");
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(transition, { newMode: "100755" })],
+    })).toBe("reviewed");
+  });
+
+  it("keeps the shared inbox in the reviewed lane", () => {
+    const sharedInbox = {
+      changeSet: "known" as const,
+      changes: [change(".arc/backlog/ATOMIC-INBOX.md")],
+    };
+
+    expect(classifyPlanningLane(sharedInbox)).toBe("reviewed");
   });
 });

@@ -1,18 +1,26 @@
 /**
- * Pre-computed sync-pull recommendations for session-init Step 2.
+ * Pre-computed synchronization recommendations for session initialization.
  *
  * Pure helper: takes resolved worktree/user/dirty signals plus the relevant
  * `session.init_pull.*` policies and returns the action verb plus composed
- * prompt text per channel. The session-init workflow renders the strings
- * verbatim instead of re-deriving them from state×config conditionals.
+ * prompt text per channel. Entry compilation consumes these recommendations
+ * and carries their text instead of deriving state-by-policy decisions again.
  *
  * @module
  */
 
+import { workUnitTeardownAction } from "./actions.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
-import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
-import type { BaseDistanceStatusResult } from "../git/base-distance.js";
 import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../git/worktree-sync.js";
+import type {
+  BaseDistanceSnapshotAnalysisResult,
+  BaseDistanceStatusResult,
+} from "../git/base-distance.js";
+import type {
+  BaseBranchSnapshotAnalysisResult,
   BaseBranchSyncStatusResult,
   BaseCheckoutLocus,
 } from "../git/base-branch-sync.js";
@@ -20,11 +28,20 @@ import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 import type { RetiredSubdirDetectionResult } from "./retired-subdir-detection.js";
+import type { BehindBaseRelation } from "./in-flight-work-unit-sweep.js";
+import type {
+  CascadeResolution,
+  SessionInitRecoveryValue,
+} from "./branch-gone-cascade.js";
+
+type SessionWorktreeStatus = WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult;
+type SessionBaseDistanceStatus = BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult;
+type SessionBaseBranchStatus = BaseBranchSyncStatusResult | BaseBranchSnapshotAnalysisResult;
 
 /**
- * Action verb the session-init workflow performs on a sync-pull channel.
+ * Recommended channel disposition consumed by entry compilation.
  *
- * - `pull` — fire the channel's pull immediately (notes-only `always` mode).
+ * - `pull` — recommend an automatic channel action when policy and evidence permit.
  * - `prompt` — issue the prompt; a non-empty `recommendedPromptText` accompanies.
  * - `surface` — surface the channel's state in orientation; do not prompt or pull.
  * - `skip` — channel is in a no-action state.
@@ -50,9 +67,114 @@ export interface ChannelRecommendation {
   recommendedPromptText: string;
 }
 
+/**
+ * Compose the workflow-facing action and narration for branch-gone recovery.
+ *
+ * @param recovery - Evidence-qualified recovery cascade result.
+ * @param dirty - Current working-tree state used to guard automatic switching.
+ * @returns Recovery result enriched with one workflow-ready action and narration.
+ */
+export function inferBranchGoneRecovery(
+  recovery: CascadeResolution,
+  dirty: DirtyStateResult,
+): SessionInitRecoveryValue {
+  const recommendation = recommendBranchGoneRecovery(recovery, dirty);
+  if (recovery.kind === "pending") {
+    return { ...recommendation, actions: [{ ...recovery.refreshRemedy, argv: [...recovery.refreshRemedy.argv] }] };
+  }
+  if (recovery.kind === "surface") {
+    const removals = recovery.candidates.flatMap((candidate) => candidate.proposedAction !== "removable" ? []
+      : [workUnitTeardownAction(candidate.workUnitName)]);
+    if (removals.length !== 0) return { ...recommendation, actions: [...removals, { text: recommendation.recommendedPromptText }] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "removable") {
+    const name = recovery.candidate.workUnitName;
+    return { ...recommendation, actions: [workUnitTeardownAction(name)] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch") {
+    if (recovery.candidate.worktreePath !== undefined) {
+      return { ...recommendation, actions: [{ text: `Continue recovery in checkout \`${recovery.candidate.worktreePath}\`.` }] };
+    }
+    if (recommendation.recommendedAction === "switch") {
+      return { ...recommendation, actions: [{ text: `After any needed git fetch, run git switch ${recovery.candidate.branch}.` }] };
+    }
+  }
+  return { ...recommendation, actions: [{ text: recommendation.recommendedPromptText }] };
+}
+
+function recommendBranchGoneRecovery(
+  recovery: CascadeResolution,
+  dirty: DirtyStateResult,
+): SessionInitRecoveryValue {
+  switch (recovery.kind) {
+    case "pending":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText:
+          "Branch recovery evidence is incomplete. Refresh live in-flight branch evidence, or recover manually.",
+      };
+    case "resolved":
+      if (recovery.candidate.proposedAction === "switch" && dirty.state === "clean") {
+        return { ...recovery, recommendedAction: "switch", recommendedPromptText: "" };
+      }
+      if (recovery.candidate.proposedAction === "external") {
+        return {
+          ...recovery,
+          recommendedAction: "surface",
+          recommendedPromptText: recoveryCandidateRepair(recovery.candidate) || `Recover manually onto \`${recovery.candidate.branch}\`.`,
+        };
+      }
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: recovery.candidate.proposedAction === "removable"
+          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` with \`${workUnitTeardownAction(recovery.candidate.workUnitName).text}\` before recovering?`
+          : `Recover onto \`${recovery.candidate.branch}\`?`,
+      };
+    case "surface":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: [
+          "Choose a recovery branch:",
+          ...recovery.candidates.map((candidate) =>
+            `- \`${candidate.branch}\` (${candidate.proposedAction}${candidate.proposedAction === "removable" ? `; ${workUnitTeardownAction(candidate.workUnitName).text}` : ""})${recoveryCandidateRepair(candidate)}`),
+        ].join("\n"),
+      };
+    case "unproven":
+      return {
+        ...recovery,
+        recommendedAction: "surface",
+        recommendedPromptText: recovery.candidates.length === 0
+          ? `Recovery evidence is incomplete (${recovery.remoteEvidence}), so no candidate could be`
+            + " established. Recover manually."
+          : [
+              "Recovery candidates could not be proven against the advertised base"
+                + ` (${recovery.remoteEvidence}). Choose one manually:`,
+              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\`${recoveryCandidateRepair(candidate)}`),
+            ].join("\n"),
+      };
+    case "main-fallback":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: `Recover onto \`${recovery.baseBranch}\`?`,
+      };
+  }
+}
+
+function recoveryCandidateRepair(candidate: Extract<CascadeResolution, { kind: "resolved" }>["candidate"]): string {
+  if (candidate.proposedAction !== "external" || !candidate.diagnostics?.length) return "";
+  return `\n${candidate.diagnostics.map(item => `${item.code}: ${item.message}`).join("\n")}\n`
+    + `Repair checkout authority at ${candidate.worktreePath} and retry recovery.`;
+}
+
 /** Inputs to {@link inferSessionInitRecommendations}. */
 export interface RecommendationInput {
-  worktree: WorktreeSyncStatusResult;
+  /** Retire notes recommendations when operational state lives off branch. */
+  stateOffBranch?: boolean;
+  worktree: SessionWorktreeStatus;
   /** Resolved user session-init result, or null when identity missing or probe failed. */
   user: UserSessionInitStatusResult | null;
   worktreePullPolicy: WorktreePullPolicy;
@@ -82,6 +204,28 @@ const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accept
 const DIRTY_LOAD_WARNING = "Stash or commit local edits before loading.";
 
 /**
+ * Compose workflow-ready guidance for approved work whose base relation is unavailable.
+ *
+ * @param relation - Evidence-qualified completion-tail base relation.
+ * @returns Guidance that names the required next evidence without claiming mergeability.
+ */
+export function composeMergeabilityGuidance(relation: BehindBaseRelation): string {
+  if (relation.status === "not-applicable") {
+    return "Enable remote comparison before deciding whether this work unit is mergeable.";
+  }
+  if (relation.status === "known") {
+    throw new Error("Known base evidence does not require mergeability guidance.");
+  }
+  if (relation.remoteEvidence === "pending-fetch") {
+    return "Fetch remote evidence before deciding whether this work unit is mergeable.";
+  }
+  if (relation.remoteEvidence === "unreachable") {
+    return `Retry remote inspection before deciding mergeability (${relation.failureReason}).`;
+  }
+  return "Restore the configured remote base before deciding whether this work unit is mergeable.";
+}
+
+/**
  * Compose the worktree channel recommendation.
  *
  * State table (config × state):
@@ -97,11 +241,11 @@ const DIRTY_LOAD_WARNING = "Stash or commit local edits before loading.";
  * `diverged` stays `surface` in both cases — the workflow renders the generic
  * reconcile from state. When the local-ahead commits are patch-equal to a
  * rebased remote prefix (`supersession.superseded`), the channel additionally
- * carries the downgraded "superseded — reset is lossless" prompt text + reset
- * offer; the workflow swaps to it. Genuine divergence keeps the empty text.
+ * carries the superseded-commits explanation, a dirty-tree warning when needed,
+ * and the reset question. Genuine divergence keeps the empty text.
  */
 function inferWorktree(
-  worktree: WorktreeSyncStatusResult,
+  worktree: SessionWorktreeStatus,
   policy: WorktreePullPolicy,
   dirty: DirtyStateResult,
   supersession: SupersessionResult | null,
@@ -119,7 +263,7 @@ function inferWorktree(
       return {
         recommendedAction: "surface",
         recommendedPromptText: supersession?.superseded
-          ? composeSupersessionPromptText(worktree.branch)
+          ? composeSupersessionPromptText(worktree.branch, dirty)
           : "",
       };
     case "local-ahead":
@@ -135,17 +279,21 @@ function inferWorktree(
   }
 }
 
-/**
- * Compose the diverged-handler supersession downgrade: local-ahead commits are
- * patch-equal to a rebased remote prefix, so a hard reset to the remote loses
- * nothing. Offers the reset; never auto-runs (the workflow presents it).
- */
-function composeSupersessionPromptText(branch: string | null): string {
+/** Explain the content preserved when superseded local commits are dropped. */
+export function composeSupersessionHead(branch: string | null): string {
   const remote = `origin/${branch ?? "<branch>"}`;
-  return (
-    `Local commits are superseded by rebased equivalents on \`${remote}\` — reset is lossless.\n` +
-    `Reset? \`git reset --hard ${remote}\``
-  );
+  return `Local commits are superseded by rebased equivalents on \`${remote}\`; dropping them loses nothing.`;
+}
+
+/** Compose the reset question with a warning about discarded working-tree edits. */
+function composeSupersessionPromptText(branch: string | null, dirty: DirtyStateResult): string {
+  const lines = [composeSupersessionHead(branch)];
+  if (dirty.state === "dirty") {
+    lines.push("Working tree dirty — the reset discards uncommitted changes; stash them first "
+      + "(a commit made now would be dropped too).");
+  }
+  lines.push(`Reset? \`git reset --hard origin/${branch ?? "<branch>"}\``);
+  return lines.join("\n");
 }
 
 /**
@@ -162,7 +310,7 @@ function composeSupersessionPromptText(branch: string | null): string {
  * Returns skip when `baseDistance` is null (slot failed to resolve).
  */
 export function inferBaseDistance(
-  baseDistance: BaseDistanceStatusResult | null,
+  baseDistance: SessionBaseDistanceStatus | null,
 ): ChannelRecommendation {
   if (baseDistance === null) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
@@ -202,7 +350,7 @@ export function inferBaseDistance(
  * (slot failed to resolve).
  */
 export function inferBaseBranchSync(
-  baseBranchSync: BaseBranchSyncStatusResult | null,
+  baseBranchSync: SessionBaseBranchStatus | null,
   policy: BaseBranchSyncPullPolicy,
 ): ChannelRecommendation {
   if (baseBranchSync === null) {
@@ -210,6 +358,24 @@ export function inferBaseBranchSync(
   }
 
   const checkout = baseBranchSync.checkout;
+
+  if ("remoteEvidence" in baseBranchSync) {
+    if (baseBranchSync.remoteEvidence === "unreachable") {
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: baseBranchSync.guidance,
+      };
+    }
+    if (baseBranchSync.remoteEvidence === "not-applicable") {
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+    }
+    if (baseBranchSync.state === "remote-unavailable") {
+      if (baseBranchSync.refreshRemedy !== null) {
+        return mapBaseBranchRefreshRemedy(baseBranchSync.refreshRemedy.text, checkout);
+      }
+      return { recommendedAction: "surface", recommendedPromptText: baseBranchSync.guidance };
+    }
+  }
 
   // This worktree holds the base — worktree channel owns pull, dirty, and
   // divergence for HEAD. The base-ref channel would only double-report.
@@ -234,9 +400,27 @@ export function inferBaseBranchSync(
   return mapBaseBranchSyncWhenFree(baseBranchSync, decision);
 }
 
+function mapBaseBranchRefreshRemedy(
+  remedyText: string,
+  checkout: BaseCheckoutLocus,
+): ChannelRecommendation {
+  if (checkout.kind === "current") {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  // A published remedy means the local base is absent or its advertised object is not yet
+  // present. The pull and prompt arms fast-forward with a plain fetch-into-ref, which skips
+  // the fast-forward proof, cross-worktree checkout exclusion, and concurrent-move
+  // revalidation the explicit verb performs — so these states surface that verb rather than
+  // dispatching the weaker operation in its place.
+  return {
+    recommendedAction: "surface",
+    recommendedPromptText: `${remedyText} Run \`arc base sync\`.`,
+  };
+}
+
 /** Map the inbound-pull decision when fetch-into-ref is viable. */
 function mapBaseBranchSyncWhenFree(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   decision: ReturnType<typeof decideInboundPull>,
 ): ChannelRecommendation {
   switch (decision) {
@@ -278,7 +462,7 @@ function mapBaseBranchSyncWhenFree(
  * locus could not be read). Never returns `pull` / `prompt`.
  */
 function mapBaseBranchSyncWhenCheckedOut(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
   decision: ReturnType<typeof decideInboundPull>,
 ): ChannelRecommendation {
@@ -303,7 +487,8 @@ function mapBaseBranchSyncWhenCheckedOut(
   }
 }
 
-function composeBaseBranchSyncBehindText(baseBranchSync: BaseBranchSyncStatusResult): string {
+/** Describe the stale local base without adding an execution question. */
+export function composeBaseBranchSyncBehindText(baseBranchSync: SessionBaseBranchStatus): string {
   const base = baseBranchSync.base;
   return (
     `Local base \`${base}\` is behind \`origin/${base}\` by ` +
@@ -312,7 +497,7 @@ function composeBaseBranchSyncBehindText(baseBranchSync: BaseBranchSyncStatusRes
 }
 
 function composeBaseBranchSyncCheckedOutText(
-  baseBranchSync: BaseBranchSyncStatusResult,
+  baseBranchSync: SessionBaseBranchStatus,
   checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
 ): string {
   const behind = composeBaseBranchSyncBehindText(baseBranchSync);
@@ -330,7 +515,7 @@ function composeBaseBranchSyncCheckedOutText(
   );
 }
 
-function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusResult): string {
+function composeBaseBranchSyncDivergedText(baseBranchSync: SessionBaseBranchStatus): string {
   const base = baseBranchSync.base;
   return (
     `Local base \`${base}\` has diverged from \`origin/${base}\` ` +
@@ -364,8 +549,9 @@ export function inferRetiredSubdirs(
   retiredSubdirs: RetiredSubdirDetectionResult | null,
   policy: NotesLoadPolicy,
   dirty: DirtyStateResult,
+  stateOffBranch = false,
 ): ChannelRecommendation {
-  if (retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
+  if (stateOffBranch || retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
   const count = retiredSubdirs.candidates.length;
@@ -472,7 +658,7 @@ function composeNotesPromptText(
 }
 
 function composeCombinedPrompt(
-  worktree: WorktreeSyncStatusResult,
+  worktree: SessionWorktreeStatus,
   dirty: DirtyStateResult,
 ): string {
   const lines = [
@@ -490,7 +676,7 @@ function composeCombinedPrompt(
  * Infer the per-channel recommended actions and the combined-prompt text.
  *
  * Pure: no IO, no side effects. Call sites supply resolved probe results;
- * this helper composes the workflow-renderable strings from them.
+ * this helper composes the entry-renderable strings from them.
  */
 export function inferSessionInitRecommendations(
   input: RecommendationInput,
@@ -501,7 +687,9 @@ export function inferSessionInitRecommendations(
     input.dirty,
     input.supersession,
   );
-  const userRec = inferUser(input.user, input.notesPullPolicy, input.dirty);
+  const userRec = input.stateOffBranch
+    ? { recommendedAction: "skip" as const, recommendedPromptText: "" }
+    : inferUser(input.user, input.notesPullPolicy, input.dirty);
 
   const combinedPrompt =
     worktreeRec.recommendedAction === "prompt" &&

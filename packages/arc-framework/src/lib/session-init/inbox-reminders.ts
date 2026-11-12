@@ -21,7 +21,8 @@
  * @module
  */
 
-import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
+import { parsePersonalInboxEntries } from "../store/kinds/personal-inbox.js";
+import type { EntryParse } from "../user-sync/schema.js";
 import { managedFieldValue, managedFlagIsTrue } from "./managed-field.js";
 
 /** A flagged Errand capture surfaced for the reminder nudge. */
@@ -60,7 +61,7 @@ function reminderEntryOf(parse: EntryParse): ReminderEntry | null {
  */
 export function extractReminderEntries(options: ExtractReminderEntriesOptions): ReminderEntriesResult {
   const entries: ReminderEntry[] = [];
-  for (const parse of parseCrossWuEntries(options.content, "user-inbox")) {
+  for (const parse of parsePersonalInboxEntries(options.content)) {
     const entry = reminderEntryOf(parse);
     if (entry !== null) entries.push(entry);
   }

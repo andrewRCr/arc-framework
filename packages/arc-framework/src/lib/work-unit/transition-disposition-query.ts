@@ -1,0 +1,63 @@
+/** Dependent-specific projection of lean terminal transition history. */
+
+import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
+import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
+
+/** Closed incoming-edge action derived from one transition record. */
+export type TransitionReconcileDisposition =
+  | { kind: "replace"; replacementTargets: readonly string[]; references?: readonly WorkItemRef[] }
+  | { kind: "drop"; reason: string }
+  | { kind: "retarget"; targetSlug: string; references?: readonly WorkItemRef[] }
+  | { kind: "abandoned" };
+
+/** Storage-independent origin/dependent lookup. */
+export interface TransitionDispositionQuery {
+  /** Exact lineage target when its primary is absent from the lifecycle inventory. */
+  reference?: WorkItemRef;
+  origin: string;
+  dependentSlug: string;
+}
+
+/** Closed result returned by lean transition readers. */
+export type TransitionDispositionQueryResult =
+  | { status: "absent" }
+  | { status: "unique"; disposition: TransitionReconcileDisposition }
+  | { status: "ambiguous" }
+  | { status: "unmapped-dependent" }
+  | { status: "namespace-corrupt" };
+
+/** Port implemented by Git-backed lean transition readers. */
+export interface TransitionDispositionQueryPort {
+  query(input: TransitionDispositionQuery): Promise<TransitionDispositionQueryResult>;
+}
+
+/** Project one dependent-specific action from an authenticated lean namespace. */
+export function queryTransitionDisposition(
+  enumeration: TransitionRecordEnumerationResult,
+  input: TransitionDispositionQuery,
+  matchesDependent: (dependent: WorkItemRef) => boolean = (dependent) => dependent.name === input.dependentSlug,
+): TransitionDispositionQueryResult {
+  if (enumeration.status !== "valid") return { status: "namespace-corrupt" };
+  const group = enumeration.groups.find(({ origin }) => origin === input.origin);
+  if (group === undefined || group.records.length === 0) return { status: "absent" };
+  if (group.records.length > 1) return { status: "ambiguous" };
+  const record = group.records[0];
+  if (record === undefined) return { status: "namespace-corrupt" };
+  if (record.kind === "rename") {
+    const target = record.successors[0];
+    return target === undefined
+      ? { status: "namespace-corrupt" }
+      : { status: "unique", disposition: { kind: "retarget", targetSlug: target.name } };
+  }
+  if (record.kind === "abandon") {
+    return { status: "unique", disposition: { kind: "abandoned" } };
+  }
+  const edges = record.incoming.filter(({ dependent }) => matchesDependent(dependent));
+  if (edges.length > 1) return { status: "ambiguous" };
+  const edge = edges[0];
+  return edge === undefined
+    ? { status: "unmapped-dependent" }
+    : { status: "unique", disposition: edge.disposition.kind === "drop" ? edge.disposition : {
+      kind: "replace", replacementTargets: edge.disposition.replacementTargets.map(({ name }) => name),
+    } };
+}

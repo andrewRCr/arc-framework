@@ -6,10 +6,12 @@
  * SESSION-NOTES seed, and the conditional ownership marker into an existing
  * worktree root — never running `git worktree add` itself. Both `start` entry
  * paths build on it: create-new cuts the worktree via the
- * `reconcile-worktree.spawn` leg (which writes the ARC-created marker), then
+ * `reconcile-work-unit-worktree.spawn` leg (which writes the ARC-created marker), then
  * scaffolds with `createdByArc: false` so this pass keeps that marker; a
  * cold-start enters a worktree it did not create and scaffolds directly, also
  * `createdByArc: false`, so no marker is written (cleanup there stays advisory).
+ * Operational scaffolds commit the record last and return its minted owner;
+ * their callers bind the checkout marker after that batch commits.
  *
  * The git/fs mechanics live here (testable) rather than in agent workflow
  * bash. The originating session is never disturbed: it writes to the target
@@ -18,6 +20,12 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import type { LocusPorts } from "../work-unit/locus-ports.js";
+import { usesOffBranchState, batchLifecycleWrites } from "../store/lifecycle-write.js";
+import { settleCreationSlugEdges } from "../store/creation-slug-settlement.js";
+import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../store/identity.js";
+import { renderMetaFile as renderStoreMeta } from "../store/kinds/meta/writers.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
@@ -29,6 +37,7 @@ import {
 import { SlugSchema } from "../kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import { ensureDir } from "../template/files.js";
+import type { EditorDocumentsWriter } from "../schema-command/editor-documents.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
 /** Life-phase shaping for the scaffolded branch + meta. */
@@ -53,6 +62,10 @@ const DEFAULT_NEXT_ACTION = BEGIN_CURRENT_WORKFLOW_SENTINEL;
 
 /** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  locusPorts?: LocusPorts;
+  writeEditorDocuments?: EditorDocumentsWriter;
   /** I/O context carrying the git executor and filesystem ops (also handed to the SESSION-NOTES seed). */
   io: UserIOContext;
   /** Internal template directory for the SESSION-NOTES seed; production passes `getInternalTemplatePath()`. */
@@ -62,14 +75,14 @@ export interface SpawnWorktreeContext {
 /**
  * Parameters for {@link scaffoldIntoWorktree}. These carry no
  * worktree-*creation* inputs (no base/location/repo): the target worktree
- * already exists. Create-new builds this shape after the `reconcile-worktree.spawn`
+ * already exists. Create-new builds this shape after the `reconcile-work-unit-worktree.spawn`
  * leg cuts the worktree; a cold-start caller builds it for the worktree it entered.
  */
 export interface ScaffoldWorktreeParams {
   /** Target worktree root — already created (by spawn, a tool, or a manual `git worktree add`). */
   worktreePath: string;
   /** Branch the worktree is on — the meta `Branch` value. */
-  branch: string;
+  branch: string | null;
   /** Work-unit name — drives the meta filename, H1, and user subdir. */
   wuName: string;
   /** Identity owning the WU — meta `Owner`, the marker, and the user subdir. */
@@ -86,8 +99,6 @@ export interface ScaffoldWorktreeParams {
   lastCompleted?: string;
   /** Parsed external reference (issue / URL) → meta `Origin`. Cold-start spec-input. */
   origin?: string;
-  /** Parsed ARC-owned artifact (spec / plan-doc) → meta `Design`. Cold-start spec-input. */
-  design?: string;
   /** Whether ARC created the worktree (gates the ownership marker); defaults to `true`. */
   createdByArc?: boolean;
   /** Optional richer SESSION-NOTES seed for ceremony-created worktrees. */
@@ -105,22 +116,38 @@ export interface ScaffoldWorktreeParams {
  * marker into an existing worktree root — no `git worktree add`. Factored from
  * worktree creation so the cold-start (use-existing) path can scaffold a
  * worktree it did not create; the create-new path reuses it after the
- * `reconcile-worktree.spawn` leg cuts the worktree.
+ * `reconcile-work-unit-worktree.spawn` leg cuts the worktree.
  *
  * The marker is gated by `createdByArc` (default `true`): a spawn writes it, a
  * cold-start into an externally-created worktree passes `false` and no marker
- * lands (cleanup stays advisory). `origin` / `design`, when supplied, populate
- * the meta's `Origin` / `Design` fields from parsed spec input; absent fields
- * render at their declared defaults.
+ * lands (cleanup stays advisory). `origin`, when supplied, populates the meta's
+ * `Origin` from an issue reference. Other fields render at their defaults.
+ * The operational arm returns its committed owner and leaves marker binding to the caller.
  *
  * @param ctx - I/O context and template directory.
  * @param params - Target worktree root, branch, and scaffold inputs.
+ * @returns The owner returned by the operational create batch, or no owner on the tracked in-repo arm.
  */
 export async function scaffoldIntoWorktree(
   ctx: SpawnWorktreeContext,
   params: ScaffoldWorktreeParams,
-): Promise<void> {
+): Promise<OwnerIdentity | undefined> {
   const slug = SlugSchema.parse(params.wuName);
+  if (usesOffBranchState(ctx.store) && ctx.store !== undefined) {
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+    const content = renderStoreMeta(slug, {
+      state: MetaRecordSchema.shape.state.parse(params.initialState ?? "Planning"), owner: params.spawningIdentity,
+      currentWorkflow: (params.initialState ?? "Planning") === "Planning" ? PLANNING_ENTRY_STAGE : null,
+      nextAction: params.nextAction ?? DEFAULT_NEXT_ACTION,
+      ...(params.origin === undefined ? {} : { origin: params.origin }),
+      ...(params.lastCompleted === undefined ? {} : { lastCompleted: params.lastCompleted }),
+    });
+    const settlement = await settleCreationSlugEdges(ctx.store, slug, reference.owner);
+    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } },
+      ...settlement.writes], { verb: "start", lifecycleAction: "create" }, settlement.observations);
+    if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
+    return result.result.writes[0]?.reference.owner;
+  }
   const activeDir = materializeArcPath(
     params.worktreePath,
     resolveArcPath({ kind: "placement-root", tier: "active" }),
@@ -146,7 +173,6 @@ export async function scaffoldIntoWorktree(
   };
   if (params.lastCompleted !== undefined) overrides.lastCompleted = params.lastCompleted;
   if (params.origin !== undefined) overrides.origin = params.origin;
-  if (params.design !== undefined) overrides.design = [params.design];
 
   await ctx.io.writeFile(
     metaPath,

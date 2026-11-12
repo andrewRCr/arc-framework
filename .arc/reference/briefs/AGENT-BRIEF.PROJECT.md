@@ -35,7 +35,3 @@ with strong default conventions that teams adapt to their context
 - **Self-hosting**: Framework development follows its own ARC methodology
 
 ---
-
-_This is the project-specific entry point for AI agents. ARC framework orientation lives in
-[AGENT-BRIEF.ARC.md](AGENT-BRIEF.ARC.md). Agent-specific guidance lives in harness-level files
-(e.g., `CLAUDE.md`, `AGENTS.md`) outside ARC._

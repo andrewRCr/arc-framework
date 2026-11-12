@@ -27,8 +27,8 @@
  * Schema parity holds across runtime and `--dry-run`; `interlockState`
  * (`{pushInterlock, notesPush, syncInterlock}`) is attached once at the
  * `handleSync` boundary so per-cell builders stay focused on leg outcomes.
- * `notesPush` reports the resolved policy after non-interactive degradation,
- * not the raw config; `syncInterlock` is informational only — the
+ * `notesPush` reports the resolved configured policy; `syncInterlock` is
+ * informational only — the
  * orchestrator does not act on it (authorize-by-invocation).
  *
  * **Worktree-push helper.** Single-leg worktree pushes in `executeSingleLeg`
@@ -72,48 +72,55 @@ import {
   type SyncInterlock,
 } from "../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
+import { assertNever } from "../lib/kernel/index.js";
 import {
   isRefusalCondition,
   runPushabilityStatus,
   type PushabilityCondition,
 } from "../lib/git/index.js";
 import { executeInboundPull } from "../lib/git/inbound-pull.js";
+import { StoreImportedError, storeImportedRefusal } from "../lib/store/store-imported.js";
+import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
+import { createPushGateId, readCheckoutPushGateRefusal, type PushGateRefusal } from "../lib/checks/push-gate-record.js";
 import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
-  runWorktreeSyncStatus,
   type WorktreeSyncState,
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
-import { createUserIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import {
   declareCliOptionSite,
-  declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
-import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
-import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
-import { AuditEntrySchema } from "../lib/release/schema.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import type { PromptOutcome } from "../lib/command-input/prompter.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   ARC_PROJECT_ROOT_ERROR,
   resolveUserIdentity,
 } from "./shared.js";
+import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
+import { writeSyncAuditEntry } from "./sync-audit.js";
 
 export interface SyncOptions {
   yes?: boolean;
   dryRun?: boolean;
   json?: boolean;
 }
+
+/** Authority required to publish the saved user notes. */
+export const syncNotesPushPromptSite = declarePromptSite("prompt.sync.notes-push", "confirm",
+  { file: "handlers/sync.ts", symbol: "syncNotesPushPromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+    mutationBoundary: "sync protected mutation", subprocess: "none",
+  });
 
 /** Input and interaction policies owned by the sync adapter. */
 export const syncCommandInputPolicyDeclarations = [{
@@ -130,22 +137,7 @@ export const syncCommandInputPolicyDeclarations = [{
       automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
       mutationBoundary: "sync handler", subprocess: "none",
     }),
-    declareInteractionSite(
-      { file: "handlers/sync.ts", kind: "prompt-helper", callee: "ctx.output.confirm", occurrence: 1 },
-      {
-        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "sync protected mutation", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "lib/sync-output.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      {
-        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "sync protected mutation", subprocess: "none",
-      },
-    ),
+    syncNotesPushPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -159,10 +151,8 @@ export const syncCommandInputPolicyDeclarations = [{
  * Each entry carries `{ value, source }` provenance so audit-log consumers
  * can distinguish git-config overrides from yaml-configured defaults.
  *
- * `notesPush.value` is the resolved policy after non-interactive degradation;
- * `notesPush.source` reflects where the pre-degradation policy was configured
- * (so a degraded `prompt → manual` from a git-config-set `arc.notesPush=prompt`
- * still reports `source: "git-config"`).
+ * `notesPush.value` and its source retain the configured policy. Prompt
+ * acquisition resolves authority separately from this configuration snapshot.
  */
 export interface InterlockState {
   pushInterlock: ResolvedConfigOverride<PushInterlock>;
@@ -222,29 +212,6 @@ interface MatrixInput {
   /** `sync.auto_pull` — opts a non-TTY into the inbound fast-forward. */
   autoPull: boolean;
 }
-
-/**
- * Sync cells that map to a refused audit decision. All are pushability
- * pre-check failures — `pushability-precheck-failed` (refusal code 14)
- * covers the full set per the release-wrapper refusal taxonomy. The
- * `notes-blocked` cell is intentionally absent: its worktree leg fires
- * (proceeded), with the per-leg notes record carrying the partial state.
- * `blocked-no-upstream` is intentionally absent — sync auto-resolves
- * no-upstream when `pushInterlock !== "manual"` (cell is
- * `paired-push-with-upstream-init` and friends); under `manual`, sync
- * short-circuits to `skip-not-configured` before the block-state check,
- * so the `blocked-no-upstream` cell label is structurally unreachable.
- */
-const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
-  "blocked-diverged",
-  "blocked-remote-ahead",
-  "blocked-detached-head",
-  "blocked-no-remote",
-  "blocked-branch-gone",
-  "blocked-remote-unavailable",
-]);
-
-const SYNC_REFUSAL_CODE_PUSHABILITY = 14 as const;
 
 /**
  * Worktree states that block notes push when notes auto-push runs under a
@@ -383,9 +350,12 @@ interface LegOutcomeRecord {
   action: string;
   result: "success" | "skipped" | "blocked" | "failed" | "noop" | "cancelled";
   detail?: string;
+  /** Why the push gate refused a failed worktree push, when the gate recorded a refusal for it. */
+  gate?: PushGateRefusal;
 }
 
-interface SyncOutcome {
+/** Observable sync result, including the effective policy and individual leg outcomes. */
+export interface SyncOutcome {
   cell: string;
   interlockState: InterlockState;
   worktree: LegOutcomeRecord;
@@ -437,18 +407,13 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: opts.json === true,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   output.intro("arc sync");
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec(context.subprocess));
   } catch (err) {
     if (err instanceof UserFacingError) {
       output.log.error(formatError(err));
@@ -458,12 +423,8 @@ export async function handleSync(
     throw err;
   }
 
-  const cwd = resolveArcRoot(process.cwd());
-  if (!cwd) {
-    output.log.error(ARC_PROJECT_ROOT_ERROR);
-    emitErrorEnvelope(opts, "no-arc-project");
-    return;
-  }
+  const cwd = await resolveSyncRoot(opts, output);
+  if (!cwd) return;
 
   const io = createUserIOContext(context.subprocess);
   const resolvedSettings = await resolveAllSettings({
@@ -472,33 +433,21 @@ export async function handleSync(
     readFile: io.readFile,
     warn: (message) => { output.log.warn(message); },
   });
-  const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
   const pushInterlock = resolvedSettings.resolved.pushInterlock.value;
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const worktree = await runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled });
-  const branch = worktree.branch;
-
-  let notesPush = notesPushResolved.value;
-  if (notesPush === "prompt" && context.confirmation === "accept") {
-    output.log.info(
-      `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,
-    );
-    notesPush = "on-sync";
-  } else if (notesPush === "prompt" && context.interaction === "forbidden") {
-    const reason = opts.json === true ? "JSON output mode" : "Interaction unavailable";
-    output.log.warn(
-      `${reason} detected — degrading "prompt" policy to "manual" (save only).`,
-    );
-    notesPush = "manual";
-  }
+  const notesPush = notesPushResolved.value;
 
   const interlockState: InterlockState = {
     pushInterlock: resolvedSettings.resolved.pushInterlock,
     notesPush: { value: notesPush, source: notesPushResolved.source },
     syncInterlock,
   };
+
+  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output, identity, interlockState });
+  if (worktree === null) return;
+  const branch = worktree.branch;
 
   const isTty = context.terminal === "interactive";
   const autoPull = resolvedSettings.settings["sync.auto_pull"] === "true";
@@ -567,10 +516,18 @@ export async function handleSync(
   if (opts.json === true) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
   } else {
+    renderErrandFailure(errand, output);
     output.outro("Done.");
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
+  }
+}
+
+/** Surface a failed Errand leg's recovery detail without changing the primary sync result. */
+function renderErrandFailure(errand: LegOutcomeRecord | undefined, output: SyncOutput): void {
+  if (errand?.result === "failed" && errand.detail !== undefined) {
+    output.log.warn(`Errand sync failed: ${errand.detail}`);
   }
 }
 
@@ -617,10 +574,8 @@ async function reconcileErrandLeg(
           detail: errandPartialPushDetail(outcome, markerRecorded),
         };
       }
-      default: {
-        const _exhaustive: never = outcome;
-        throw new Error(`unhandled reconcile outcome: ${JSON.stringify(_exhaustive)}`);
-      }
+      default:
+        return assertNever(outcome);
     }
   } catch {
     const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
@@ -673,8 +628,8 @@ function errandPartialPushDetail(
   markerRecorded: boolean,
 ): string {
   const detail = outcome.kind === "conflict"
-    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=arc errand close --force <slug> on discarded side`
-    : outcome.kind;
+    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=resolve the same-slug identity conflict before retrying`
+    : outcome.kind === "failed" ? `failed:${outcome.error.message}` : outcome.kind;
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 
@@ -707,6 +662,17 @@ async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 
   if (decision.worktree.kind === "inbound-ff-pull") {
     return executeInboundFfPull(ctx, decision.worktree.branch);
+  }
+
+  if (decision.notes.kind === "save+prompt" && ctx.interaction.confirmation === "accept"
+    && (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init")) {
+    const answer = await askSyncNotesPush(ctx);
+    if (answer.kind === "answered" && answer.value) {
+      const notes = { kind: "save+push" } as const;
+      return executePaired({ ...ctx, decision: { ...decision, notes,
+        cellName: cellNameFor(decision.worktree, notes) } }, decision.worktree.branch,
+      decision.worktree.kind === "push-with-upstream-init");
+    }
   }
 
   if (
@@ -815,6 +781,7 @@ async function executePaired(
   branch: string,
   setUpstream: boolean,
 ): Promise<ExecutedOutcome> {
+  const pushGateId = createPushGateId();
   const result = await runPairedPush({
     io: ctx.io,
     identity: ctx.identity,
@@ -823,13 +790,18 @@ async function executePaired(
     branch,
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
+    pushGateId,
     pushNotes: (context) => pairedNotesAdapter(context),
     publishMarker: publishMarkerAdapter,
   });
-  renderPairedResult(result, branch, ctx.output);
+  const gate = result.worktree.status === "failed"
+    ? await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId })
+    : null;
+  const worktree = withGateRefusal(pairedLegToRecord(result.worktree, "push"), gate);
+  renderPairedResult(result, branch, ctx.output, worktree);
   return {
     cell: ctx.decision.cellName,
-    worktree: pairedLegToRecord(result.worktree, "push"),
+    worktree,
     notes: pairedNotesToRecord(result),
     exitCode: result.exitCode,
     ...(result.retryOffer ? { retryOffer: result.retryOffer } : {}),
@@ -928,10 +900,30 @@ function pairedLegToRecord(
   }
 }
 
+/** Replace a failed push's Git message with the push gate's refusal, when the gate recorded one for this push. */
+function withGateRefusal(record: LegOutcomeRecord, gate: PushGateRefusal | null): LegOutcomeRecord {
+  if (gate === null) return record;
+  const detail = gate.error !== undefined
+    ? `push gate could not run: ${gate.error}`
+    : `push gate refused: ${gate.checks.map(check => `${check.id} ${check.outcome}`).join(", ") || "no check named"}`;
+  return { ...record, detail, gate };
+}
+
+/** Render a failed worktree push, listing each refusing check with its log and retry command. */
+function worktreePushFailure(record: LegOutcomeRecord): string {
+  const checks = (record.gate?.checks ?? []).flatMap(check => {
+    const reason = check.reason === undefined ? "" : ` (${check.reason})`;
+    const log = check.logPath === undefined ? "" : `; log: ${check.logPath}`;
+    return [`  ${check.id}: ${check.outcome}${reason}${log}`, ...(check.remedy === undefined ? [] : [`  Retry: ${check.remedy}`])];
+  });
+  return [`Worktree push failed: ${record.detail ?? "unknown failure"}`, ...checks].join("\n");
+}
+
 function renderPairedResult(
   result: PairedPushResult,
   branch: string,
   output: SyncOutput,
+  worktree: LegOutcomeRecord,
 ): void {
   for (const condition of result.conditions.filter(isRefusalCondition)) {
     output.log.error(condition.guidance);
@@ -949,7 +941,7 @@ function renderPairedResult(
   if (result.worktree.status === "success") {
     output.log.info(`Worktree pushed: \`${branch}\``);
   } else if (result.worktree.status === "failed") {
-    output.log.error(`Worktree push failed: ${result.worktree.error.message}`);
+    output.log.error(worktreePushFailure(worktree));
   } else if (result.worktree.reason === "save-failed") {
     output.log.warn("Worktree push skipped because the save step failed.");
   } else if (result.worktree.reason === "blocked-by-precheck") {
@@ -1040,10 +1032,12 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 
   if (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init") {
     const setUpstream = decision.worktree.kind === "push-with-upstream-init";
+    const pushGateId = createPushGateId();
     const result = await pushWorktreeBranch({
       exec: ctx.io.exec,
       branch: decision.worktree.branch,
       args: setUpstream ? ["-u"] : [],
+      pushGateId,
     });
     if (result.status === "success") {
       const successMsg = setUpstream
@@ -1053,8 +1047,9 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
       worktreeRecord = { action: "push", result: "success" };
     } else {
       worktreeFailed = true;
-      ctx.output.log.error(`Worktree push failed: ${result.error.message}`);
-      worktreeRecord = { action: "push", result: "failed", detail: result.error.message };
+      const gate = await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId });
+      worktreeRecord = withGateRefusal({ action: "push", result: "failed", detail: result.error.message }, gate);
+      ctx.output.log.error(worktreePushFailure(worktreeRecord));
     }
   } else {
     worktreeRecord = { action: "skip", result: "skipped", detail: "not-configured" };
@@ -1132,19 +1127,8 @@ async function completeNotesLeg(
         exitCode: 1,
       };
     }
-    const shouldPush = await ctx.output.confirm({
-      message: "Push user notes to remote now?",
-      initialValue: true,
-    });
-    if (ctx.output.isCancel(shouldPush) || !shouldPush) {
-      ctx.output.log.info("Notes push skipped. Run `arc user push` when ready.");
-      return {
-        cell: decision.cellName,
-        worktree: worktreeRecord,
-        notes: { action: "save", result: "cancelled" },
-        exitCode: 0,
-      };
-    }
+    const stopped = await resolveSyncNotesPushQuestion(ctx, worktreeRecord);
+    if (stopped !== null) return stopped;
     const notesRecord = await pushNotesLeg(ctx);
     return {
       cell: decision.cellName,
@@ -1163,6 +1147,29 @@ async function completeNotesLeg(
     notes: notesRecord,
     exitCode: notesRecord.result === "success" || notesRecord.result === "noop" ? 0 : 1,
   };
+}
+
+/** Forward the notes question on the invocation's prompt boundary. */
+async function askSyncNotesPush(ctx: ExecuteContext): Promise<PromptOutcome<boolean>> {
+  return ctx.output.confirm(syncNotesPushPromptSite, ctx.interaction, {
+    message: "Push user notes to remote now?", initialValue: true,
+  });
+}
+
+/** Acquire notes publication authority after the local save. */
+async function resolveSyncNotesPushQuestion(
+  ctx: ExecuteContext, worktreeRecord: LegOutcomeRecord,
+): Promise<ExecutedOutcome | null> {
+  const answer = await askSyncNotesPush(ctx);
+  if (answer.kind === "answered" && answer.value) return null;
+  if (answer.kind === "refused") {
+    ctx.output.log.error("Notes saved locally; re-run with --yes to authorize the push.");
+    return { cell: ctx.decision.cellName, worktree: worktreeRecord,
+      notes: { action: "save", result: "blocked", detail: "notes-push-authority-required" }, exitCode: 1 };
+  }
+  ctx.output.log.info("Notes push skipped. Run `arc user push` when ready.");
+  return { cell: ctx.decision.cellName, worktree: worktreeRecord,
+    notes: { action: "save", result: "cancelled" }, exitCode: 0 };
 }
 
 /**
@@ -1339,59 +1346,20 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   }
 }
 
-/**
- * Write one audit-log entry for a completed sync execution. Sidecar to the
- * orchestrator: per the release-wrapper failure-mode split, schema
- * violations throw (programmer error surfaced at test time) and I/O
- * failures swallow into `{ ok: false }` inside `appendAuditEntry` — neither
- * propagates back to the caller, so an unwritable audit log can never
- * mask a successful or refused sync. Identity-absent / no-arc-project /
- * dry-run paths skip this write upstream.
- */
-async function writeSyncAuditEntry(args: {
-  cwd: string;
-  identity: string;
-  outcome: SyncOutcome;
-  interlockState: InterlockState;
-}): Promise<void> {
-  const wu = await resolveActiveWu({ cwd: args.cwd });
-  const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
-  const refused = REFUSED_SYNC_CELLS.has(args.outcome.cell);
-
-  const auditOutcome: AuditOutcome = {
-    kind: "sync",
-    cell: args.outcome.cell,
-    worktree: encodeLegToken(args.outcome.worktree),
-    notes: encodeLegToken(args.outcome.notes),
-    exitCode: args.outcome.exitCode,
-  };
-
-  const entry: AuditEntry = AuditEntrySchema.parse({
-    schemaVersion: 2,
-    timestamp: new Date().toISOString(),
-    command: "sync",
-    args: [],
-    wu: wuAudit,
-    interlockState: { command: "sync", ...args.interlockState },
-    decision: refused ? "refused" : "proceeded",
-    refusalCode: refused ? SYNC_REFUSAL_CODE_PUSHABILITY : null,
-    outcome: auditOutcome,
-  });
-
-  await appendAuditEntry({ cwd: args.cwd, identity: args.identity, entry });
-}
-
-/**
- * Compress a `LegOutcomeRecord` into the audit-entry string-token shape:
- * `action:result` when no detail, `action:result:detail` when set. Detail
- * may itself contain colons (e.g., `notes-blocked-by-worktree:diverged`);
- * readers split on the first two colons and treat the remainder as
- * detail payload.
- */
-function encodeLegToken(record: LegOutcomeRecord): string {
-  return record.detail !== undefined
-    ? `${record.action}:${record.result}:${record.detail}`
-    : `${record.action}:${record.result}`;
+/** The ARC root sync runs in, or null once it has reported why sync cannot run here. */
+async function resolveSyncRoot(opts: SyncOptions, output: SyncOutput): Promise<string | null> {
+  const cwd = resolveArcRoot(process.cwd());
+  if (!cwd) {
+    output.log.error(ARC_PROJECT_ROOT_ERROR);
+    emitErrorEnvelope(opts, "no-arc-project");
+    return null;
+  }
+  if (await preCutoverBuildSealed(cwd)) {
+    output.log.error(formatError(new StoreImportedError()));
+    emitErrorEnvelope(opts, "store-imported");
+    return null;
+  }
+  return cwd;
 }
 
 /**
@@ -1409,11 +1377,11 @@ function encodeLegToken(record: LegOutcomeRecord): string {
  */
 function emitErrorEnvelope(
   opts: SyncOptions,
-  reason: "identity-absent" | "no-arc-project",
+  reason: "identity-absent" | "no-arc-project" | "store-imported",
 ): void {
   process.exitCode = 1;
   if (opts.json === true) {
-    const envelope = { cell: "none", reason };
+    const envelope = { cell: "none", reason, ...(reason === "store-imported" ? { refusal: storeImportedRefusal() } : {}) };
     process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   }
 }
@@ -1531,7 +1499,9 @@ function worktreeBlockGuidance(
     case "branch-gone":
       return `Worktree push blocked: upstream branch deleted on origin. `
         + `Recreate the branch or remove the stale worktree before pushing.`;
-    default:
+    case "clean":
+    case "skipped":
+    case "local-ahead":
       return `Worktree push blocked: worktree state is ${action.reason}.`;
   }
 }

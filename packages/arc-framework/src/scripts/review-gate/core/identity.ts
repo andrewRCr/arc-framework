@@ -5,8 +5,10 @@ import {
   canonicalDigest,
   canonicalize,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../../../lib/kernel/index.js";
 import {
+  GitObjectIdSchema,
   ReviewPolicyVersionInputSchema,
   ReviewPolicyVersionPreimageSchema,
   type ReviewPolicyVersionInput,
@@ -26,7 +28,9 @@ export interface PolicyVersionInput {
 }
 
 function assertSha(value: string, name: string): void {
-  if (!/^[a-f0-9]{40}$/u.test(value)) throw new Error(`${name}: expected a 40-character lowercase hexadecimal digest`);
+  if (!GitObjectIdSchema.safeParse(value).success) {
+    throw new Error(`${name}: expected a lowercase hexadecimal Git object ID`);
+  }
 }
 
 /** Serialize plain JSON through the kernel canonicalization authority. */
@@ -55,7 +59,7 @@ export function computePolicyVersion(input: PolicyVersionInput): string {
  * @param input - Complete non-target semantics for one standard-review requirement.
  * @returns The canonical domain-separated policy digest.
  */
-export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): string {
+export function computeReviewPolicyVersion(input: ReviewPolicyVersionInput): CanonicalDigest {
   const uniqueSources = new Map(
     input.acceptableSources.map((source) => [canonicalize(source), source]),
   );

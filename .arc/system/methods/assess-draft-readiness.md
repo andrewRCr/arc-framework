@@ -1,12 +1,13 @@
 ---
 name: assess-draft-readiness
-description: Evaluate whether a planning draft is formalization-ready against one shared three-criterion bar.
+description: Evaluate whether a planning draft is formalization-ready against one shared four-criterion bar.
 override-active: false
 ---
 
 # Method: assess-draft-readiness
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
+> - **Workflow:** [planning-review](planning-review.md), [draft-design.md][draft-design], and
+>   [create-spec.md][create-spec].
 > - **When:** A planning stage decides whether a draft is ready to formalize into a spec — `draft-design` at
 >   loop-exit (ready ends the shaping loop), `create-spec` at entry (ready proceeds to discovery). One judgment,
 >   two fire points.
@@ -21,7 +22,7 @@ override-active: false
 
 ## assess-draft-readiness.default
 
-A draft is **formalization-ready** when all three criteria below clear. Otherwise return **not-ready** with the
+A draft is **formalization-ready** when all four criteria below clear. Otherwise return **not-ready** with the
 gaps that block it — each tagged by kind, so the caller can route without re-judging.
 
 ### The bar
@@ -37,14 +38,37 @@ gaps that block it — each tagged by kind, so the caller can route without re-j
    Read for the section; do not drain it — draining is the caller's act, prompted by the not-ready verdict this
    check produces.
 
-The bar is identical at every planning depth. Depth (via [resolve-planning-depth][resolve-planning-depth]) sets
-how far a draft travels to clear it — fewer passes at `low` / `medium`, more at `high` — never how high it sits.
+4. **Every settled decision carries an ADR disposition.** Each decision the draft settles records one, in its
+   decision prose, against [strategy-adr-methodology][adr-methodology] § When to Write an ADR. With no draft, the
+   determinacy confirmation states each disposition. The spec carries every disposition in its design substrate
+   (an `outline`'s Decision(s), an RFC's Proposed Design, a PRD's Requirements), beside its decision or in one list
+   there, and lists each new or amended ADR there among what the work delivers. A `new ADR` or `amendment`
+   disposition makes its spec at least an `outline`; a `brief` carries only dispositions that deliver nothing,
+   `none` or covered by an ADR already on the base branch, and need not record them.
+
+An ADR disposition is one of four:
+
+- **A new ADR** the work unit will deliver.
+- **An amendment** to a named ADR.
+- **Covered by** a named ADR that records the decision: one the work unit delivers or amends, or a Proposed or
+  Accepted ADR already on the base branch that records the decision unchanged.
+- **`none`**, naming the strategy's "Don't write an ADR for" category (a tactical choice, one obvious from code,
+  or a temporary one), or stating that the decision meets none of its five criteria.
+
+A missing disposition is a `needs-detail` gap. "Covered by" naming any other ADR is also a `needs-detail` gap: a
+number naming no ADR on the base branch and none the work unit delivers, a Superseded or Deprecated ADR, or an ADR
+that is neither on the base branch nor the work unit's own. Close it by citing a qualifying ADR or choosing another
+disposition.
+
+**The bar is identical at every planning depth** · `[invariant]`. Depth (via
+[resolve-planning-depth][resolve-planning-depth]) sets how far a draft travels to clear it — fewer passes at `low` /
+`medium`, more at `high` — never how high it sits.
 
 ### The verdict
 
 Return `{ ready, gaps }`.
 
-- **ready** — all three clear; `gaps` empty.
+- **ready** — all four clear; `gaps` empty.
 - **not-ready** — each gap names its shortfall and a kind:
     - **needs-design** — an unmade decision or unshaped direction; the draft must be shaped further before a spec
       can crystallize it.
@@ -60,3 +84,4 @@ Return `{ ready, gaps }`.
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md
 [resolve-planning-depth]: resolve-planning-depth.md
+[adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md

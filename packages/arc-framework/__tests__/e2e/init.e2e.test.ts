@@ -8,12 +8,14 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, access, writeFile } from "node:fs/promises";
-import { join, resolve, dirname } from "node:path";
+import { readFile, access, writeFile, mkdir, symlink } from "node:fs/promises";
+import { join, resolve, dirname, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,6 +73,8 @@ describe("init", () => {
 
     expect(result.exitCode).toBe(0);
 
+    await assertEditorDocumentsProvisioned(tmpDir);
+
     // .arc/ directory exists
     expect(await pathExists(join(tmpDir, ".arc"))).toBe(true);
 
@@ -103,8 +107,15 @@ describe("init", () => {
     const pristineStore = JSON.parse(pristineRaw) as Record<string, string>;
     expect(Object.keys(pristineStore).length).toBeGreaterThan(0);
 
+    expect(await pathExists(join(tmpDir, ".arc/reference/templates/arc/work-unit/template-pull-request.md"))).toBe(false);
+    const formatMethod = "system/methods/pull-request-format.md";
+    expect(await pathExists(join(tmpDir, ".arc", formatMethod))).toBe(true);
+    expect(manifest.files[formatMethod]).toMatchObject({ classification: "Configurable", layer: "core" });
+    expect(pristineStore[formatMethod]).toBe(await readFile(join(tmpDir, ".arc", formatMethod), "utf8"));
+
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "system", "arc-checks.yml"))).toBe(false);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
 
@@ -126,7 +137,58 @@ describe("init", () => {
     for (const target of linkedTargets) {
       expect(await pathExists(target), target).toBe(true);
     }
+
+    const decomposeWorkflow = await readFile(
+      join(tmpDir, ".arc", "system", "workflows", "arc", "work-unit-lifecycle", "decompose-work-unit.md"),
+      "utf-8",
+    );
+    const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
+    const interlockIndexes = [...decomposeWorkflow.matchAll(/`workflow-interlock`/g)]
+      .map((match) => match.index);
+    const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
+    const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
+    const finishPreviewIndex = decomposeWorkflow.indexOf(
+      "arc decompose <origin> --finish <completed-map>\n",
+    );
+    const finishApplyIndex = decomposeWorkflow.indexOf(
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
+    );
+    expect(interlockIndexes).toHaveLength(3);
+    expect(authoringIndex).toBeGreaterThanOrEqual(0);
+    expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
+    expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
+    expect(finishPreviewIndex).toBeGreaterThanOrEqual(0);
+    expect(interlockIndexes[2]).toBeGreaterThan(finishPreviewIndex);
+    expect(finishApplyIndex).toBeGreaterThan(interlockIndexes[2]!);
+    expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
+
+  it.each(["valid", "broken"])("fresh init gates a staged Markdown commit with a %s link", async link => {
+    const initialized = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+
+    const binDir = join(tmpDir, "node_modules/.bin");
+    await mkdir(binDir, { recursive: true });
+    await symlink(CLI_PATH, join(binDir, "arc"));
+    await writeFile(join(tmpDir, "target.txt"), "present\n");
+    const target = link === "valid" ? "target.txt" : "missing.txt";
+    await writeFile(join(tmpDir, "README.md"), `# Project\n\n[Target](${target})\n`);
+    await git(tmpDir, ["add", "README.md", "target.txt"]);
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: [binDir, process.env.PATH].join(delimiter), NO_COLOR: "1" };
+    delete env.FORCE_COLOR;
+    const committed = execFileAsync("git", ["commit", "-m", "docs(readme): add project link", "-m",
+      "Context: standalone (documentation)"], { cwd: tmpDir, env, timeout: 30_000 });
+
+    if (link === "broken") {
+      await expect(committed).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("broken link -> missing.txt") });
+      expect(await git(tmpDir, ["diff", "--cached", "--name-only"])).toBe("README.md\ntarget.txt");
+    } else {
+      await committed;
+      expect(await git(tmpDir, ["show", "HEAD:README.md"])).toBe("# Project\n\n[Target](target.txt)");
+      expect(await git(tmpDir, ["diff", "--cached", "--name-only"])).toBe("");
+    }
+  }, 60_000);
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
     const result = await runArc(
@@ -150,22 +212,20 @@ describe("init", () => {
     expect(configContent).toContain("pm.mode: arc-in-git");
   });
 
-  it("init --yes installs per-file methods and extensions directories", async () => {
+  it("init --yes installs per-file methods directories", async () => {
     const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
-      "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
-      "implementation-audit", "review-chunking", "self-review", "design-audit",
-      "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-      "session-state", "spec-review", "task-audit", "test-first",
-    ];
-    const extensionNames = [
-      "post-context-load", "post-task-completion", "post-task-quality",
-      "post-unit-quality", "post-work-unit-activate",
-      "post-work-unit-archive", "pre-activation", "pre-commit-review",
-      "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
+      "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
+      "assess-evidence-applicability", "adversarial-review",
+      "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
+      "code-review-frontline", "code-review-standard",
+      "implementation-audit", "review-chunking", "code-review-author", "design-audit",
+      "disposition-report",
+      "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
+      "review-model", "planning-review", "code-review", "verification-review", "review-response", "review-triage",
+      "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
 
     for (const name of methodNames) {
@@ -174,19 +234,13 @@ describe("init", () => {
         `system/methods/${name}.md`,
       ).toBe(true);
     }
-    for (const name of extensionNames) {
-      expect(
-        await pathExists(join(tmpDir, ".arc/system/extensions", `${name}.md`)),
-        `system/extensions/${name}.md`,
-      ).toBe(true);
-    }
 
     expect(
       await pathExists(join(tmpDir, ".arc/system/methods/README.md")),
     ).toBe(true);
     expect(
-      await pathExists(join(tmpDir, ".arc/system/extensions/README.md")),
-    ).toBe(true);
+      await pathExists(join(tmpDir, ".arc/system/extensions")),
+    ).toBe(false);
 
     // Legacy aggregates must not ship from a fresh install.
     expect(
@@ -196,7 +250,7 @@ describe("init", () => {
       await pathExists(join(tmpDir, ".arc/system/extensions/arc-extensions.md")),
     ).toBe(false);
 
-    // Every installed method and extension is registered with its expected classification.
+    // Every installed method is registered with its expected classification.
     const manifestRaw = await readFile(
       join(tmpDir, ".arc/system/.internal/manifest.json"),
       "utf-8",
@@ -209,17 +263,10 @@ describe("init", () => {
       expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
       expect(manifest.files[key]!.classification).toBe("Configurable");
     }
-    for (const name of extensionNames) {
-      const key = `system/extensions/${name}.md`;
-      expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
-      expect(manifest.files[key]!.classification).toBe("Configurable");
-    }
     expect(manifest.files["system/methods/README.md"]!.classification).toBe(
       "Framework",
     );
-    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
-      "Framework",
-    );
+    expect(Object.keys(manifest.files).some((path) => path.startsWith("system/extensions/"))).toBe(false);
   });
 
   it("init with --team sets team mode in arc-config.yml", async () => {
@@ -320,6 +367,18 @@ describe("arc join", () => {
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
+  });
+
+  it("restores editor documents when joining a fresh clone", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "-m", "initialized project"]);
+    const clone = `${tmpDir}-join-clone`;
+    try {
+      await git(tmpDir, ["clone", "--local", tmpDir, clone]);
+      const result = await runArc(["join", "--yes", "--identity", "test-user"], clone);
+      expect(result.exitCode, result.stderr).toBe(0);
+      await assertEditorDocumentsProvisioned(clone);
+    } finally { await cleanupTempDir(clone); }
   });
 
   it("arc join --contributor --yes sets role=contributor", async () => {

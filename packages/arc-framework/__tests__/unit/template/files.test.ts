@@ -1,9 +1,13 @@
+import { virtualIgnoreSetup } from "../../helpers/ignore-setup.js";
+import { join } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ensureDir,
   copyWithRendering,
   writeArcManagedBlock,
   writeArcGitignoreBlock,
+  writeArcGitattributesBlock,
+  writeArcIgnoreBlocks,
 } from "../../../src/lib/template/index.js";
 
 describe("ensureDir", () => {
@@ -283,4 +287,93 @@ describe("writeArcGitignoreBlock", () => {
     expect(written.match(/\.arc\/user\/\*\//g)?.length).toBe(1);
   });
 
+});
+
+describe("writeArcIgnoreBlocks", () => {
+  function memoryFiles(initial: Record<string, string> = {}) {
+    const files = new Map(Object.entries(initial));
+    return {
+      files,
+      ...virtualIgnoreSetup(files),
+      readFile: async (path: string) => {
+        const content = files.get(path);
+        if (content === undefined) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+        return content;
+      },
+      writeFile: async (path: string, content: string) => { files.set(path, content); },
+    };
+  }
+
+  it("gives an absent .ignore the block re-including the four projected roots", async () => {
+    const io = memoryFiles();
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
+    expect(io.files.get(join("/repo", ".ignore"))).toBe([
+      "# ARC Framework (managed by arc cli)",
+      "!.arc/", "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/", "!.arc/user/*/",
+      "# end ARC", "",
+    ].join("\n"));
+  });
+
+  it("keeps a .ignore's own lines, and a second write leaves the file unchanged", async () => {
+    const path = join("/repo", ".ignore");
+    const io = memoryFiles({ [path]: "# local search\npackages/arc-framework/dist/\n" });
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
+    const written = io.files.get(path);
+    expect(written).toBe([
+      "# local search", "packages/arc-framework/dist/", "",
+      "# ARC Framework (managed by arc cli)",
+      "!.arc/", "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/", "!.arc/user/*/",
+      "# end ARC", "",
+    ].join("\n"));
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
+    expect(io.files.get(path)).toBe(written);
+  });
+
+  it("writes .gitignore's block with ARC's machine-local files, every personal root, and the skill directories", async () => {
+    const io = memoryFiles({ [join("/repo", ".gitignore")]: "node_modules/\n" });
+    await writeArcIgnoreBlocks("/repo", [".claude/skills/arc-session/"], io.readFile, io.writeFile, io);
+    expect(io.files.get(join("/repo", ".gitignore"))).toBe([
+      "node_modules/", "",
+      "# ARC Framework (managed by arc cli)",
+      ".arc/system/.internal/pristine.json", ".arc/system/.internal/worktree-marker.json", ".arc/user/*/",
+      ".claude/skills/arc-session/",
+      "# end ARC", "",
+    ].join("\n"));
+  });
+});
+
+
+describe("CRLF managed blocks", () => {
+  it.each([".ignore", ".gitignore", ".gitattributes"])("replaces an edited %s block and preserves surrounding bytes", async (name) => {
+    const path = join("/repo", name);
+    const before = "# repository preamble\r\n\r\n\r\n\r\n";
+    const after = "\r\n# repository tail\r\n";
+    const start = "# ARC Framework (managed by arc cli)\r\n";
+    const end = "# end ARC\r\n";
+    const files = new Map([[path, before + start + "old-entry\r\n" + end + after]]);
+    const read = async (file: string) => {
+      const text = files.get(file);
+      if (text === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return text;
+    };
+    const write = async (file: string, content: string) => { files.set(file, content); };
+    const update = () => name === ".gitattributes" ? writeArcGitattributesBlock(path, ["new-entry"], read, write)
+      : writeArcIgnoreBlocks("/repo", [], read, write, virtualIgnoreSetup(files));
+    await update();
+    const written = files.get(path);
+    expect(written?.startsWith(before)).toBe(true);
+    expect(written?.endsWith(end + after)).toBe(true);
+    expect(written).not.toContain("old-entry");
+    expect(written?.match(/# ARC Framework/g)).toHaveLength(1);
+    await update();
+    expect(files.get(path)).toBe(written);
+  });
+});
+
+
+it.each(["\n", "\r\n"])("terminates an existing managed block that ends at EOF, line ending %j", async (ending) => {
+  const content = ["# ARC Framework (managed by arc cli)", "entry", "# end ARC"].join(ending);
+  const write = vi.fn().mockResolvedValue(undefined);
+  await writeArcManagedBlock("ignore-file", ["entry"], async () => content, write);
+  expect(write).toHaveBeenCalledWith("ignore-file", content + ending);
 });

@@ -5,6 +5,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { runRecoverStatus } from "../commands/status.js";
 import {
@@ -14,20 +15,31 @@ import {
 } from "../lib/compaction-seed/schema.js";
 import {
   parseUncommittedFiles,
-  resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
+import {
+  resolveRecoverySeedCheckout,
+  resolveRecoverySeedPath,
+} from "../lib/compaction-seed/recovery-path.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec } from "../lib/io-context.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { createUserIOContext } from "../lib/io-context.js";
+import { resolveRecoveryWorkingMemoryPath } from "../lib/recover/working-memory-path.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import {
   auditRecoveryState,
   type RecoveryAuditStopReason,
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
+import { resolveCommittedProgress } from "../lib/recover/committed-progress.js";
+import { resolveRecoveryStateBasis } from "../lib/recover/state-basis.js";
+import { resolveRecoveryTaskListEvidence } from "../lib/recover/task-list-evidence.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
+import type { StoreSyncPort } from "../lib/store/operational-sync.js";
 import {
   assertRecoverAuditReport,
   type RecoverAuditReport,
@@ -38,22 +50,47 @@ import { requireArcProjectRoot } from "./shared.js";
 
 export interface RecoverAuditOptions {
   json?: boolean;
+  seedPath?: string;
 }
+
+/** Syntax-owned input for recovery-audit locus selection. */
+export const RecoverAuditCommandInputSchema = z.strictObject({
+  seedPath: z.string().trim().min(1).optional(),
+});
+
+/** Registry contribution owned by recovery audit. */
+export const recoverCommandInputRegistration = {
+  commandPath: "recover audit",
+  schema: RecoverAuditCommandInputSchema,
+  schemaFields: { "option.seed-path": "seedPath" },
+} satisfies CommandInputRegistration;
 
 /** Machine-output policy owned by the recovery-audit adapter. */
 export const recoverCommandInputPolicyDeclarations = [{
-  commandPath: "recover audit", aliases: [], sites: [declareCliOptionSite("json", {
-    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
-    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-    mutationBoundary: "output selection", subprocess: "none",
-  })],
+  commandPath: "recover audit", aliases: [], sites: [
+    declareCliOptionSite("seed-path", {
+      acquisition: "optional", schemaOwnership: "owned", schemaField: "seedPath", cancellation: "not-applicable",
+      automation: {
+        noInput: "preserve-absent",
+        flags: ["--seed-path"],
+        acceptedSyntax: ["--seed-path <path>"],
+      },
+      mutationBoundary: "recovery locus validation", subprocess: "none",
+    }),
+    declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    }),
+  ],
 }] satisfies readonly CommandInputDeclaration[];
 
 /** Handle `arc recover audit`. */
-export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext): Promise<void> {
-  const gitExec = createGitExec(interaction?.subprocess);
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext, selected: { store?: Store; sync?: StoreSyncPort } = {}): Promise<void> {
+  const io = createUserIOContext(interaction?.subprocess);
+  const gitExec = io.exec;
+  const invocationCwd = requireArcProjectRoot();
+  if (!invocationCwd) return;
 
   const { identity, role } = await readIdentityPointers(gitExec);
   if (identity === null) {
@@ -61,18 +98,31 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
       seedPath: null,
       reason: {
         kind: "identity-missing",
-        message: "arc.identity is not configured; compaction seed path cannot be resolved",
+        message: "No identity resolved from `arc.identity` or Git `user.name`; set one with `git config arc.identity <name>` to resolve the compaction seed path.",
       },
     }), Boolean(opts.json));
     return;
   }
+  const parsedIdentity = SlugSchema.parse(identity);
 
-  const workingMemoryPath = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
+  const seedPathResolution = await resolveRecoverySeedPath({
+    cwd: invocationCwd,
+    identity: parsedIdentity,
     exec: gitExec,
-  })).workingMemoryPath;
-  const seedPath = resolveCompactionSeedPath({ cwd, identity });
+    requestedPath: opts.seedPath,
+  });
+  if (!seedPathResolution.ok) {
+    writeReport(stopReport({
+      seedPath: null,
+      reason: {
+        kind: "seed-locus-unresolved",
+        message: seedPathResolution.message,
+        detail: seedPathResolution.detail,
+      },
+    }), Boolean(opts.json));
+    return;
+  }
+  const seedPath = seedPathResolution.path;
   let seedContent: string;
   try {
     seedContent = await readFile(seedPath, "utf8");
@@ -93,9 +143,36 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     return;
   }
 
+  const checkoutResolution = await resolveRecoverySeedCheckout({
+    seedPath,
+    seed: parsedSeed.seed,
+    identity: parsedIdentity,
+    exec: gitExec,
+  });
+  if (!checkoutResolution.ok) {
+    writeReport(stopReport({
+      seedPath,
+      reason: {
+        kind: "seed-locus-unresolved",
+        message: checkoutResolution.message,
+        detail: checkoutResolution.detail,
+      },
+    }), Boolean(opts.json));
+    return;
+  }
+  const cwd = checkoutResolution.checkoutPath;
+  const recoveryGitExec = bindGitExec(gitExec, cwd);
+  const store = selected.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: recoveryGitExec, identity: parsedIdentity }));
+  const recoveryGitExecInput = bindGitExecInput(requireGitExecInput(io.execInput), cwd);
+  const workingMemoryPath = await resolveRecoveryWorkingMemoryPath({
+    cwd,
+    identity: parsedIdentity,
+    exec: recoveryGitExec,
+  });
+
   let gitStatusOutputP: Promise<string> | undefined;
   const getGitStatusOutput = (): Promise<string> => {
-    gitStatusOutputP ??= gitExec("git", ["status", "--porcelain=v1", "-z"])
+    gitStatusOutputP ??= recoveryGitExec("git", ["status", "--porcelain=v1", "-z"])
       .then(({ stdout }) => stdout);
     return gitStatusOutputP;
   };
@@ -104,6 +181,11 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     dirty: async () => dirtyStateFromUncommittedFiles(
       parseUncommittedFiles(await getGitStatusOutput()),
     ),
+    exec: recoveryGitExec,
+    execInput: recoveryGitExecInput,
+    readFile: io.readFile,
+    store,
+    ...(selected.sync === undefined ? {} : { sync: selected.sync }),
   });
   const recover = await runRecoverStatus({
     identity,
@@ -130,16 +212,46 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
   }
 
   const [freshBranch, freshHead] = await Promise.all([
-    readGitValue(gitExec, ["rev-parse", "--abbrev-ref", "HEAD"]),
-    readGitValue(gitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
+    readGitValue(recoveryGitExec, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    readGitValue(recoveryGitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
   ]);
 
+  let stateBasis;
+  let currentStateVersion;
+  try {
+    currentStateVersion = store.capabilities.stateOffBranch ? await probes.stateVersion(identity) : null;
+    stateBasis = await resolveRecoveryStateBasis({ seed: parsedSeed.seed, recover, store,
+      currentStateVersion,
+      ...(selected.sync === undefined ? {} : { sync: selected.sync }) });
+  } catch (error) {
+    writeReport({ mode: "recover-audit", seedPath, seed: seedSummary(parsedSeed.seed), recover,
+      verdict: stopVerdict({ kind: "integration-correction-unresolved", message: errorMessage(error) }) }, Boolean(opts.json));
+    return;
+  }
   const verdict = await auditRecoveryState({
-    seed: parsedSeed.seed,
+    seed: stateBasis.seed,
     recover,
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
     freshBranch,
     freshHead,
+    freshRepoRoot: cwd,
+    resolveCommittedProgress: (seedHead, currentHead) => resolveCommittedProgress({
+      exec: recoveryGitExec,
+      cwd,
+      seedHead,
+      currentHead,
+    }),
+    resolveTaskListEvidence: (taskListPath) => resolveRecoveryTaskListEvidence({
+      cwd,
+      recover,
+      exec: recoveryGitExec,
+      seedHead: parsedSeed.seed.head,
+      taskListPath,
+      store,
+      stateVersion: stateBasis.seed.stateVersion,
+      currentStateVersion,
+      ...(selected.sync === undefined ? {} : { sync: selected.sync }),
+    }),
   });
   writeReport({
     mode: "recover-audit",
@@ -147,7 +259,29 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     seed: seedSummary(parsedSeed.seed),
     recover,
     verdict,
+    ...(store.capabilities.stateOffBranch ? { stateBasis: { rebuilt: stateBasis.rebuilt, stateVersion: stateBasis.seed.stateVersion } } : {}),
   }, Boolean(opts.json));
+}
+
+function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
+  if (execInput === undefined) {
+    throw new Error("Recovery audit requires stdin-capable Git I/O.");
+  }
+  return execInput;
+}
+
+function bindGitExec(exec: GitExec, cwd: string): GitExec {
+  return (command, args, options) => exec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
+}
+
+function bindGitExecInput(execInput: GitExecInput, cwd: string): GitExecInput {
+  return (args, input, options) => execInput(args, input, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
 }
 
 async function readGitValue(gitExec: GitExec, args: string[]): Promise<string | null> {
@@ -199,6 +333,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     explainedDrift: [],
     loadSetAudit: null,
     locus: null,
+    locusHint: null,
     dirtyFiles: {
       expected: [],
       actual: [],
@@ -234,8 +369,10 @@ function seedSummary(
     schemaVersion: seed.schemaVersion,
     emittedAt: seed.emittedAt,
     head: seed.head,
+    stateVersion: seed.stateVersion,
     branch: seed.branch,
     sessionType: seed.sessionType,
+    locus: seed.locus,
   };
 }
 

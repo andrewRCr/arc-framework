@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -55,7 +56,7 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): GitExec 
     const direct = lookup(args);
     if (direct !== undefined) {
       const result = typeof direct === "function" ? await direct(args) : direct;
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] !== "--quiet") {
         const ref = args[2] ?? "";
         const sha = result.stdout.trim().split(/\s+/u)[0] ?? "";
         if (ref !== "" && sha !== "") {
@@ -64,6 +65,9 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): GitExec 
         }
       }
       return result;
+    }
+    if (args.join(" ") === "rev-parse --verify --quiet MERGE_HEAD") {
+      throw makeGitProcessError({ command: cmd, args, exitCode: 1 });
     }
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
@@ -102,8 +106,11 @@ async function createActiveFixture(metaName?: string): Promise<string> {
       [
         `# Metadata: ${metaName}`,
         "",
-        "- **State:** Active",
-        `- **Branch:** feat/${metaName}`,
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| Active | — | feat/${metaName} | — | — |`,
+        "",
+        "---",
         "",
       ].join("\n"),
     );
@@ -166,6 +173,20 @@ describe("formatForeignWriteWarnings", () => {
 });
 
 describe("formatForeignWriteAdvisories", () => {
+  it.each([true, false])("omits branch residue while retaining staged overlaps (overlap=%s)", (hasOverlap) => {
+    const overlaps = hasOverlap
+      ? [{ branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] }]
+      : [];
+
+    expect(formatForeignWriteAdvisories({ overlaps }, [{
+      code: "branch-residue",
+      branch: "spike/retained-model",
+      rendered: "Branch `spike/retained-model` has no errand record or active work-unit meta; cleanup may be required.",
+    }])).toEqual(hasOverlap
+      ? ["feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)"]
+      : []);
+  });
+
   it("surfaces oracle warnings before overlap advisories", () => {
     expect(formatForeignWriteAdvisories(
       {
@@ -651,4 +672,16 @@ describe("detectStagedForeignWrites", () => {
       "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.",
     ]);
   });
+});
+
+it("returns before any Git or store read when operational state is off branch", async () => {
+  const { createLifecycleHarness } = await import("../../helpers/store/lifecycle-harness.js");
+  const h = createLifecycleHarness();
+  const store = new Proxy(h.store, { get(target, key) {
+    if (key === "capabilities") return target.capabilities;
+    throw new Error(`No state access expected: ${String(key)}`);
+  } });
+  expect(await detectStagedForeignWrites({ store, exec: throwingExec,
+    get roster(): OverlapRoster { throw new Error("No roster read expected"); },
+    paths: [".arc/active/meta-other.md"], baseBranch: "main", originatingWorktreePath: "/caller" })).toEqual({ overlaps: [] });
 });

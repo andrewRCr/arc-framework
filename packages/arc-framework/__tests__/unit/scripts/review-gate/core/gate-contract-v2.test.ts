@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -105,6 +106,8 @@ describe("review gate v2 contract", () => {
       },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -123,6 +126,8 @@ describe("review gate v2 contract", () => {
       },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     }));
@@ -154,10 +159,13 @@ describe("review gate v2 contract", () => {
       semanticsVersion: "review-gate/v2",
       repositoryId: target.repositoryId,
       targetId: target.targetId,
+      // @ts-expect-error Exercise runtime rejection of a Git OID in a semantic ID slot.
       requirementId: objectId("e"),
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     })).toThrow();
@@ -184,6 +192,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request" as const, adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     };
@@ -223,6 +233,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -328,6 +340,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -395,6 +409,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -431,11 +447,71 @@ describe("review gate v2 contract", () => {
       requirementId: requirement.requirementId,
     }).toEqual({
       targetId: "sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd",
-      requestId: "sha256:2e875e9566792187d4ace2030abdc6f479af30b06741812b2054c02ee706a5e7",
+      requestId: "sha256:18eafe10b6496574361ed462676a171f8142fd69f849dbf3b49c1c40ac276fc2",
       requirementId: "sha256:5bcc86a859459b05b8f8f249017a3eb46ffe3df51e044500329aee6abbdb93cd",
     });
     expect(new Set([target.targetId, request.requestId, requirement.requirementId]).size).toBe(3);
     expect(reordered.requirementId).toBe(requirement.requirementId);
+  });
+
+  it("accepts critical and rejects retired blocker in receipt findings", () => {
+    const receipt = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "severity" }),
+      targetId: canonicalDigest({ target: "severity" }),
+      requirementId: canonicalDigest({ requirement: "severity" }),
+      applicabilityId: null,
+      reviewRunId: "run-severity",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "review-gate-app",
+      attestationMechanism: "github-app",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "severity" }),
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "critical",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "review:finding-1",
+        sourceOrdinal: 1,
+      }],
+    };
+
+    assertSchemaAccepts(ReviewReceiptV2Schema, receipt);
+    assertSchemaRefuses(ReviewReceiptV2Schema, {
+      ...receipt,
+      findings: [{ ...receipt.findings[0], severity: "blocker" }],
+    });
+  });
+
+  it("rejects receipt findings whose ordinals do not match complete capture order", () => {
+    const receipt = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "ordinal" }),
+      targetId: canonicalDigest({ target: "ordinal" }),
+      requirementId: canonicalDigest({ requirement: "ordinal" }),
+      applicabilityId: null,
+      reviewRunId: "run-ordinal",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "review-gate-app",
+      attestationMechanism: "github-app",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "ordinal" }),
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "review:finding-1",
+        sourceOrdinal: 2,
+      }],
+    };
+
+    assertSchemaRefuses(ReviewReceiptV2Schema, receipt);
   });
 
   it("separates identical content across the registered ID domains", () => {
@@ -493,6 +569,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request" as const, adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     };
@@ -557,6 +635,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -631,6 +711,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -669,5 +751,47 @@ describe("review gate v2 contract", () => {
       priorRequest,
       priorReceipt,
     )).toThrow(/requirement/u);
+  });
+});
+
+describe("review target kind", () => {
+  const targetInputs = {
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha: objectId("c"),
+    headTree: objectId("d"),
+  } as const;
+
+  it("admits both target kinds and rejects any other", () => {
+    expect(createReviewTarget({ ...targetInputs, kind: "change-set" }).kind).toBe("change-set");
+    expect(createReviewTarget({ ...targetInputs, kind: "delivery-member" }).kind).toBe("delivery-member");
+    expect(() => createReviewTarget({
+      ...targetInputs,
+      kind: "delivery-slice",
+    } as unknown as Parameters<typeof createReviewTarget>[0])).toThrow();
+  });
+
+  it("leaves an ordinary target's identity byte-identical", () => {
+    expect(createReviewTarget({ ...targetInputs, kind: "change-set" }).targetId)
+      .toBe("sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd");
+  });
+
+  it("separates the identities of two targets differing only by kind", () => {
+    const changeSet = createReviewTarget({ ...targetInputs, kind: "change-set" });
+    const member = createReviewTarget({ ...targetInputs, kind: "delivery-member" });
+
+    expect(member.targetId).not.toBe(changeSet.targetId);
+    expect(member.targetId).toBe(canonicalDigest({
+      domain: "arc.review-gate.target-id/v2",
+      ...targetInputs,
+      kind: "delivery-member",
+    }));
+    expect(validateReviewTarget(member)).toEqual(member);
+    expect(() => validateReviewTarget({ ...member, kind: "change-set" }))
+      .toThrow(/preimage/u);
   });
 });

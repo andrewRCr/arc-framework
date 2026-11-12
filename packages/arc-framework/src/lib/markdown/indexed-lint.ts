@@ -6,8 +6,9 @@ import type { LintResults, Options as MarkdownlintOptions } from "markdownlint";
 
 import type { GitExec } from "../git/index.js";
 import type { ManagedPath } from "../kernel/index.js";
+import { scanTaskListSegmentation } from "../task-list/segmentation.js";
 import { createMarkdownDiagnostic } from "./contracts.js";
-import type { MarkdownDependencyVersions } from "./dependency-alignment.js";
+import type { MarkdownRuntimeVersions } from "./dependency-alignment.js";
 import { validateTaskDescriptorSpacing } from "./descriptor-spacing.js";
 import { selectTaskDescriptorPaths } from "./descriptor-worktree.js";
 import { loadIndexedMarkdownConfigurationGroups } from "./indexed-configuration.js";
@@ -36,7 +37,7 @@ export interface RunIndexedMarkdownCertificationOptions {
   readonly root: string;
   readonly exec: GitExec;
   readonly readBlob: ReadIndexedBlob;
-  readonly runtimeVersions: MarkdownDependencyVersions;
+  readonly runtimeVersions: MarkdownRuntimeVersions;
   readonly lint: LintMarkdownStrings;
 }
 
@@ -97,6 +98,11 @@ export async function runIndexedMarkdownCertification(
     const content = snapshot.get(path);
     if (content === undefined) continue;
     diagnostics.push(...validateTaskDescriptorSpacing({ path, content }).map((diagnostic) => ({
+      path,
+      line: diagnostic.line,
+      message: diagnostic.message,
+    })));
+    diagnostics.push(...scanTaskListSegmentation({ path, content }).diagnostics.map((diagnostic) => ({
       path,
       line: diagnostic.line,
       message: diagnostic.message,

@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../helpers/ignore-setup.js";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../../src/commands/join.js";
 import type {
@@ -6,6 +7,7 @@ import type {
 import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 // --- Test Helpers ---
 
@@ -32,6 +34,8 @@ function mockIO(files: Record<string, string> = {}): JoinIOContext {
   const store = new Map(Object.entries(files));
 
   return {
+    ...virtualIgnoreSetup(store),
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
       const content = store.get(path);
       if (content === undefined) {
@@ -158,11 +162,14 @@ describe("runJoin", () => {
       ["config", "core.hooksPath", ".arc/system/.internal/githooks"],
     ]);
 
-    // guard: merge driver was retired in d8e5048 — no merge.* git config should be written
+    // Repository-local driver wiring is restored on every developer join.
     const mergeDriverCall = execCalls.find(
-      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+      (c) => c[1]?.includes("merge.arc-roadmap.driver"),
     );
-    expect(mergeDriverCall).toBeUndefined();
+    expect(mergeDriverCall).toBeDefined();
+    expect(mergeDriverCall![1].join(" ")).toContain(
+      "arc hook-remedy-roadmap-conflict",
+    );
   });
 
   it("creates user directory with templates", async () => {
@@ -191,6 +198,11 @@ describe("runJoin", () => {
     expect(gitignoreWrite).toBeDefined();
     expect(gitignoreWrite![1]).toContain("# ARC Framework (managed by arc cli)");
     expect(gitignoreWrite![1]).toContain(".arc/user/*/");
+  });
+
+  it("writes ARC's managed .ignore block", async () => {
+    await runJoin(opts);
+    expect(await io.readFile("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("returns result with role, tools, and identity", async () => {
@@ -284,6 +296,7 @@ describe("runJoinReconfigure", () => {
     addSkillFiles(store, ".claude/skills");
 
     io = {
+      ...virtualIgnoreSetup(store),
       readFile: vi.fn(async (path: string) => {
         const content = store.get(path);
         if (content === undefined) {
@@ -372,6 +385,14 @@ describe("runJoinReconfigure", () => {
     for (const p of result.removedSkills) {
       expect(p).toMatch(/^\.claude\/skills\/arc-/);
     }
+  });
+
+  it("writes ARC's managed .ignore block", async () => {
+    await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+    expect(await io.readFile("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("unchanged values produce no side effects", async () => {

@@ -10,14 +10,14 @@ import {
 } from "../../../src/lib/layout/index.js";
 
 describe("layout registry", () => {
-  it("registers exactly nine layout roots over a fresh kernel registry", () => {
+  it("registers exactly ten layout roots over a fresh kernel registry", () => {
     const first = createLayoutRegistry();
     const second = createLayoutRegistry();
 
     expect(first.ids().filter((id) => id.startsWith("layout-"))).toEqual(
       Object.values(LAYOUT_SCHEMA_IDS).sort(),
     );
-    expect(Object.values(LAYOUT_SCHEMA_IDS)).toHaveLength(9);
+    expect(Object.values(LAYOUT_SCHEMA_IDS)).toHaveLength(10);
     for (const id of Object.values(LAYOUT_SCHEMA_IDS)) {
       expect(first.meta(id)).toEqual({ id, version: 1, migrationPosture: "strict-current" });
       expect(first.get(id)).toBeDefined();

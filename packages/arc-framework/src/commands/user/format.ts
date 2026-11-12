@@ -1,3 +1,4 @@
+import { assertNever } from "../../lib/kernel/index.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import type { UserCompactResult } from "./compact.js";
 import type {
@@ -129,10 +130,8 @@ export function buildUserCompactSummary(result: UserCompactResult): string {
       return "No remote configured or reachable for compaction.";
     case "failed":
       return result.error.message;
-    default: {
-      const _exhaustive: never = result;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(result);
   }
 }
 

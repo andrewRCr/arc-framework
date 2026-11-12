@@ -1,103 +1,76 @@
-/**
- * Active-work-unit resolver consumed by the release commit and push
- * handlers.
- *
- * Composes {@link readActiveMetaCandidates} from the active-meta
- * reader. Accepts any `**State:**` value — Planning, In Progress,
- * Paused, etc. — and distinguishes three outcomes: a single resolved
- * WU, a zero-candidate `none` result (no active WU — handlers accept it
- * and record a null work unit), and multi-candidate `ambiguous`
- * (refused code 10, carrying a disambiguation hint).
- *
- * @module
- */
+/** Current work-unit identity consumed by release and delivery entry points. */
+import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import type { Store } from "../store/contract.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
+import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";
+import type { CurrentWorkUnitCandidate, CurrentWorkUnitResolution } from "../store/current-work-unit.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { StoreRefusalError } from "../store/refusal-error.js";
+import { isNativeTypedRefusal, type NativeTypedRefusal } from "../store/native-refusal.js";
 
-import { readActiveMetaCandidates } from "../active/meta-reader.js";
-
-const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
-
-const MULTI_CANDIDATE_HINT =
-  "Multiple status files resolved under the active root. Run session-init disambiguation to choose.";
-
+const MULTI_CANDIDATE_HINT = "Multiple status files resolved under the active root. Run session-init disambiguation to choose.";
 export interface ResolveActiveWuOptions {
   cwd: string;
-  /**
-   * Active-root segments. Defaults to maintainer scope (`[".arc", "active"]`);
-   * contributor scope is `[".arc", "user", identity, "active"]`. The eventual
-   * per-WU subdir convention (`[".arc", "user", identity, "<wu-name>"]`)
-   * will replace the flat `active/` subdir once contributor-lifecycle
-   * support that populates per-WU contributor-meta files lands.
-   */
+  store?: Store;
+  projectId?: () => Promise<string>;
   rootSegments?: readonly string[];
 }
-
-/**
- * Successful resolution: the unambiguous active WU.
- *
- * `path` is relative to `cwd` and matches the active-status reader's
- * shape. `name` is parsed from the meta filename; it is the empty string
- * for the lite layout (`status.md` directly under the active root), which
- * carries no parseable WU name.
- */
-export interface ResolvedWu {
-  path: string;
-  name: string;
-}
-
+/** The current work unit's projected active path and repository-qualified work branch. */
+export interface ResolvedWu { path: string; name: string; branch: string | null }
 export type WuResolution =
   | ({ status: "resolved" } & ResolvedWu)
   | { status: "none" }
-  | { status: "ambiguous"; hint: string };
+  /** `cause` is the native typed refusal behind an off-branch read's failure, for callers that report it whole. */
+  | { status: "ambiguous"; hint: string; cause?: NativeTypedRefusal };
 
-/**
- * Resolve the unambiguous active WU under the configured active root.
- *
- * - 0 candidates → `none` (no active WU; handlers proceed and record a
- *   null work unit).
- * - 2+ candidates → `ambiguous` with disambiguation hint (handlers
- *   refuse code 10).
- * - 1 candidate → resolved with parsed `path` and `name`.
- *
- * Any `**State:**` value resolves — release wrappers operate on the
- * full WU lifecycle, not just `In Progress`.
- */
-export async function resolveActiveWu(
-  opts: ResolveActiveWuOptions,
-): Promise<WuResolution> {
-  const rootSegments = opts.rootSegments ?? DEFAULT_ROOT_SEGMENTS;
-  const reader = await readActiveMetaCandidates(opts.cwd, {
-    rootSegments,
-  });
-
-  if (reader.candidates.length === 0) {
-    return { status: "none" };
+/** Resolve the checkout's current work unit through the operational storage contract. */
+export async function resolveActiveWu(opts: ResolveActiveWuOptions): Promise<WuResolution> {
+  const store = opts.store ?? createStore(createDefaultStorePorts({ checkoutRoot: opts.cwd }));
+  const resolved = await resolveCurrentWorkUnit({ cwd: opts.cwd, store });
+  if (resolved.status === "unbound") return { status: "ambiguous", hint: resolved.unbound.reason };
+  if (resolved.status === "ambiguous") return { status: "ambiguous", hint: MULTI_CANDIDATE_HINT };
+  if (resolved.status === "none") return unresolvedOccupancy(resolved);
+  const candidate = resolved.candidate;
+  let branch = candidate.record?.branch ?? null;
+  if (store.capabilities.stateOffBranch) {
+    try { branch = await resolveBranch(store, candidate, opts.projectId); }
+    catch (error) {
+      return { status: "ambiguous", hint: error instanceof Error ? error.message : String(error),
+        ...(isNativeTypedRefusal(error) ? { cause: error } : {}) };
+    }
   }
-  if (reader.candidates.length > 1) {
-    return { status: "ambiguous", hint: MULTI_CANDIDATE_HINT };
-  }
-
-  const candidate = reader.candidates[0];
-  if (!candidate) return { status: "none" };
-  const name = parseNameFromPath(candidate.path);
-  return { status: "resolved", path: candidate.path, name };
+  return { status: "resolved", name: candidate.reference.owner.name, branch,
+    path: await workItemArtifactPath(opts.cwd, candidate.reference.owner.name, "meta", { kind: "active" }, candidate.record?.cohort ?? null) };
+}
+/** An empty checkout is none; a read failure that left it empty is ambiguous, carrying any native refusal whole. */
+function unresolvedOccupancy(resolved: Extract<CurrentWorkUnitResolution, { status: "none" }>): WuResolution {
+  if (resolved.warnings.length === 0) return { status: "none" };
+  return { status: "ambiguous", hint: resolved.warnings.join("; "),
+    ...(resolved.cause === undefined ? {} : { cause: resolved.cause }) };
 }
 
-/**
- * Resolve the current work unit's active meta path, when a single active WU is
- * available. Callers use this as a remote-only self-exclusion key.
- */
-export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
-  const activeWu = await resolveActiveWu({ cwd });
+/** Raise the native typed refusal behind an ambiguous resolution, for a caller that reports it whole. */
+export function raiseNativeResolutionRefusal(resolution: WuResolution): WuResolution {
+  if (resolution.status === "ambiguous" && resolution.cause !== undefined) throw resolution.cause;
+  return resolution;
+}
+
+/** Resolve the current work unit's projected active meta path for self-exclusion. */
+export async function resolveOriginatingMetaPath(cwd: string, store?: Store, projectId?: () => Promise<string>): Promise<string | undefined> {
+  const activeWu = await resolveActiveWu({ cwd, store, projectId });
   return activeWu.status === "resolved" ? activeWu.path : undefined;
 }
 
-/**
- * Parse the WU name from the resolved meta-file path. Reads the basename
- * and matches the `meta-{name}.md` shape; anything else — e.g. the
- * lite-layout `status.md` — yields the empty string.
- */
-function parseNameFromPath(candidatePath: string): string {
-  const filename = candidatePath.split("/").pop() ?? "";
-  const match = /^meta-(.+)\.md$/.exec(filename);
-  return match?.[1] ?? "";
+async function resolveBranch(store: Store, candidate: CurrentWorkUnitCandidate, projectId?: () => Promise<string>): Promise<string | null> {
+  const repository = await (projectId ?? createProjectIdentityReader(store))();
+  if (repository.trim() === "") throw new Error("Project identity is unavailable.");
+  const read = await store.read({ reference: candidate.reference });
+  if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
+  if (read.result.conflicts.length > 0) throw new Error(
+    `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry work-unit resolution.`);
+  const selected = selectWorkBranchLink(read.result, { repository });
+  if (selected.kind === "ambiguous") throw new Error(selected.reason);
+  return selected.kind === "linked" ? workBranchName(selected.link.ref) : null;
 }

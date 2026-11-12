@@ -1,0 +1,88 @@
+/** Filesystem adapter for the durable Candidate publication-resume boundary. */
+
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { SubmissionBoundaryVersionConflictError } from "../store/kinds/review/errors.js";
+import { resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+
+import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
+import { atomicWriteFile } from "../fs.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
+import {
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
+} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+
+export { resolveSubmissionBoundaryPath };
+
+export interface SubmissionBoundaryReader {
+  readFile(path: string): Promise<string>;
+}
+
+export interface SubmissionBoundaryStoreFs extends SubmissionBoundaryReader {
+  writeFile(path: string, content: string): Promise<void>;
+  withLock<T>(path: string, action: () => Promise<T>): Promise<T>;
+}
+
+const nodeFs: SubmissionBoundaryStoreFs = {
+  readFile: (path) => readFile(path, "utf8"),
+  writeFile: atomicWriteFile,
+  withLock: (path, action) => withAdvisoryLock(path, action),
+};
+
+export interface VersionedSubmissionBoundary {
+  boundary: IntegrationBoundaryLocus | null;
+  version: string | null;
+}
+
+export { SubmissionBoundaryVersionConflictError };
+
+/** Read one durable integration boundary, or null when none has been recorded. */
+export async function readSubmissionBoundary(
+  cwd: string,
+  name: string,
+  fs: SubmissionBoundaryReader = nodeFs,
+): Promise<IntegrationBoundaryLocus | null> {
+  return (await readSubmissionBoundaryVersioned(cwd, name, fs)).boundary;
+}
+
+/** Read one boundary together with the exact bytes-version a later write must carry. */
+export async function readSubmissionBoundaryVersioned(
+  cwd: string,
+  name: string,
+  fs: SubmissionBoundaryReader = nodeFs,
+): Promise<VersionedSubmissionBoundary> {
+  const workUnit = SlugSchema.parse(name);
+  try {
+    const content = await fs.readFile(join(cwd, resolveSubmissionBoundaryPath(workUnit)));
+    const value = JSON.parse(content) as unknown;
+    const boundary = parseIntegrationBoundaryLocus(value);
+    if (boundary.workUnit !== workUnit) {
+      throw new Error("Submission boundary work unit does not match its path");
+    }
+    return { boundary, version: digestBytes(Buffer.from(content, "utf8")) };
+  } catch (error) {
+    if ((error as { code?: unknown }).code === "ENOENT") return { boundary: null, version: null };
+    throw error;
+  }
+}
+
+/** Version-check and atomically replace one validated durable integration boundary. */
+export async function writeSubmissionBoundary(
+  cwd: string,
+  boundary: IntegrationBoundaryLocus,
+  expectedVersion: string | null,
+  fs: SubmissionBoundaryStoreFs = nodeFs,
+): Promise<string> {
+  const value = parseIntegrationBoundaryLocus(boundary);
+  const path = resolveSubmissionBoundaryPath(value.workUnit);
+  const absolutePath = join(cwd, path);
+  await fs.withLock(`${absolutePath}.lock`, async () => {
+    const current = await readSubmissionBoundaryVersioned(cwd, value.workUnit, fs);
+    if (current.version !== expectedVersion) throw new SubmissionBoundaryVersionConflictError();
+    await fs.writeFile(absolutePath, canonicalize(value));
+  });
+  return path;
+}

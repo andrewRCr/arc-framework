@@ -11,6 +11,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Drop the planning-only footer and the hand-rendered ROADMAP from cold-start init**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cold-start-init-polish`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan assumes a planning-only commit footer and a hand-rendered ROADMAP. `storage-contract` takes
+  every footer kind but an opt-in task trailer out of code commits (C8; `ghost-mode` owns the policy), and ROADMAP
+  stops being a stored file — its rendering reads the store.
+- _Approach:_ Re-scope init polish against the post-cutover commit policy and derived views.
+
+---
+
 ## Problem / Motivation
 
 The cold-start path (a branch checked out for new work, no work unit, typically `low`-path / no-draft) reaches an
@@ -49,15 +64,14 @@ codified classify-then-**mint** path — `run-errand`'s promote-to-WU only fires
 
 The facets brush several owners — the init-routing facet (3) is `lifecycle-state-machine` territory
 (`lifecycle-transition-core`'s `start` dispatch, already shipped) and facet 2 has been relocated outright to
-`lifecycle-mechanics-tail`; the entrypoint facet touches
-`errand-lattice` (errand→WU promotion) and `out-of-wu-entry` (entry signals, a different cohort); facet 1 is
-commit-grammar; facet 4 is `roadmap-tooling`. The scope-split decision was to **not** splinter them across those
-homes — the cluster is incidental cold-start-init cleanup that reads as one coherent unit, and fanning it out
-would scatter a single cleanup far around the codebase. So it lands as one companion stub, in the
-`graduation-cleanup` mold: cohort-associated in prose, no membership gate, sequences independently. It is **not**
-a `lifecycle-closeout` concern — by the cohort's consistency-on-exit standard these are _un-enhanced_ UX seams
-(the flow works), not documented-but-unbuilt inconsistencies, and the cleanup can fast-follow the
-already-shipped `lifecycle-transition-core` rather than waiting on the whole cohort.
+`lifecycle-mechanics-tail`; the entrypoint facet touches `errand-lattice` (errand→WU promotion) and `out-of-wu-entry`
+(entry signals, a different cohort); facet 1 is commit-grammar; facet 4 is `roadmap-tooling`. The scope-split decision
+was to **not** splinter them across those homes — the cluster is incidental cold-start-init cleanup that reads as one
+coherent unit, and fanning it out would scatter a single cleanup far around the codebase. So it lands as one companion
+stub, in the `graduation-cleanup` mold: cohort-associated in prose, no membership gate, sequences independently. It is
+**not** a `lifecycle-closeout` concern — by the cohort's consistency-on-exit standard these are _un-enhanced_ UX seams
+(the flow works), not documented-but-unbuilt inconsistencies, and the cleanup can fast-follow the already-shipped
+`lifecycle-transition-core` rather than waiting on the whole cohort.
 
 ## Scope Estimate
 

@@ -18,13 +18,14 @@ import { tmpdir } from "node:os";
 
 import { runReleaseCommit } from "../../../../src/handlers/release/commit.js";
 import type { ReleaseCommitDeps } from "../../../../src/handlers/release/commit.js";
-import type { AuditEntry } from "../../../../src/lib/release/types.js";
+import { AuditEntrySchema, type AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   CommitInterlock,
   PushInterlock,
   ResolvedSettingsResult,
 } from "../../../../src/lib/config/resolved-settings.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 // --- Fixture helpers ---
 
@@ -40,15 +41,11 @@ async function createFixture(): Promise<Fixture> {
   return { root };
 }
 
-function statusBody(state = "Active"): string {
-  return [
-    "# Metadata: Sample",
-    "",
-    `- **State:** ${state}`,
-    "- **Branch:** technical/sample",
-    "- **Task List:** `tasks-sample.md`",
-    "",
-  ].join("\n");
+function statusBody(): string {
+  return makeMetaFixture("Sample", {
+    branch: "technical/sample",
+    taskList: "tasks-sample.md",
+  });
 }
 
 async function writeStatus(
@@ -76,24 +73,34 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
 
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
+    "inbound.retriage_after_entries": "10",
+    "inbound.retriage_after_days": "30",
+    "pause.review_after_days": "14",
     "integration.stale_after_days": "2",
-    "review.chunking_threshold_lines": "0",
-    "review.chunking_threshold_files": "0",
+    "changeset.advisory_threshold_lines": "0",
+    "changeset.advisory_threshold_files": "0",
     "branch.base": branchBase,
     "branch.protection": branchProtection,
     "worktree.location_template": "../{repo}.{name}",
     "worktree.post_create": "",
     "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+    "storage.backing_repository": "",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",
     "commit.context_pattern": "",
     "merge.strategy": "merge",
+    "merge.lock": "none",
     "platform.type": "github",
       "review.frontline_sources": "[]",
       "review.standard_sources": "[]",
       "review.frontline_max_passes": "2",
       "review.standard_max_passes": "2",
+      "review.hosted_await_timeout_seconds": "120",
+      "review.hosted_await_initial_poll_interval_seconds": "15",
+      "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
     "pm.mode": "arc-in-git",
     "team.mode": "false",
     "session.remote_sync": "enabled",
@@ -103,6 +110,8 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "session.init_load.notes": "prompt",
     "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
+    "storage.track_design_docs": "specs",
+    "layout.active": "nested",
     "user.notes_push": "on-sync",
   };
 
@@ -130,6 +139,7 @@ interface BuildDepsOptions {
   createMessageSnapshot?: ReleaseCommitDeps["createMessageSnapshot"];
   persistMessageRetry?: ReleaseCommitDeps["persistMessageRetry"];
   cleanupConsumedMessageRetry?: ReleaseCommitDeps["cleanupConsumedMessageRetry"];
+  listRemoteRefsContainingHead?: ReleaseCommitDeps["listRemoteRefsContainingHead"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -138,6 +148,7 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   spawnGit: ReturnType<typeof vi.fn>;
   resolveHead: ReturnType<typeof vi.fn>;
   preflightCommitMessage: ReturnType<typeof vi.fn>;
+  listRemoteRefsContainingHead: ReturnType<typeof vi.fn>;
 } {
   const stderr: string[] = [];
   const spawnGit = vi.fn(opts.spawnGit ?? (() => {
@@ -149,6 +160,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   const preflightCommitMessage = vi.fn(
     opts.preflightCommitMessage ?? (() => Promise.resolve({ kind: "pass-through" as const })),
   );
+  const listRemoteRefsContainingHead = vi.fn(opts.listRemoteRefsContainingHead ?? (() => {
+    throw new Error("listRemoteRefsContainingHead must not be called without an amend");
+  }));
   const deps: ReleaseCommitDeps = {
     cwd: root,
     identity: IDENTITY,
@@ -166,9 +180,10 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
       throw new Error("persistMessageRetry must not be called without a qualifying Git failure");
     }),
     cleanupConsumedMessageRetry: opts.cleanupConsumedMessageRetry ?? (async () => false),
+    listRemoteRefsContainingHead,
     preflightRemedy: "arc release commit -F <message-file>",
   };
-  return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
+  return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage, listRemoteRefsContainingHead };
 }
 
 async function readAuditEntries(root: string): Promise<AuditEntry[]> {
@@ -182,7 +197,7 @@ async function readAuditEntries(root: string): Promise<AuditEntry[]> {
   return raw
     .split("\n")
     .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as AuditEntry);
+    .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
 }
 
 // --- Code 12: destructive flag (cheapest — argv only, no I/O) ---
@@ -193,7 +208,6 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it.each([
-    ["--amend"],
     ["--allow-empty"],
     ["--no-verify"],
     ["-n"],
@@ -222,13 +236,13 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
 
   it("emits a three-line refusal message that names the flag", async () => {
     await writeStatus(fixture.root, "sample");
-    const { deps, stderr } = buildDeps(fixture.root, { argv: ["--amend"] });
+    const { deps, stderr } = buildDeps(fixture.root, { argv: ["--allow-empty"] });
 
     await runReleaseCommit(deps);
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: destructive-flag (code 12)");
-    expect(composed).toContain("--amend");
+    expect(composed).toContain("--allow-empty");
   });
 
   it("does not require an active WU for the code 12 decision", async () => {
@@ -242,12 +256,149 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
 
   it("redacts -m payload in the audit args field", async () => {
     await writeStatus(fixture.root, "sample");
-    const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-qamsecret"] });
+    const { deps } = buildDeps(fixture.root, { argv: ["--allow-empty", "-qamsecret"] });
 
     await runReleaseCommit(deps);
 
     const [entry] = await readAuditEntries(fixture.root);
-    expect(entry?.args).toEqual(["--amend", "-qam<redacted>"]);
+    expect(entry?.args).toEqual(["--allow-empty", "-qam<redacted>"]);
+  });
+});
+
+// --- Amend: accepted while HEAD is on no remote-tracking ref ---
+
+describe("runReleaseCommit — amend", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  it("amends an unpushed HEAD through the ordinary cascade", async () => {
+    await writeStatus(fixture.root, "sample");
+    const argv = ["--amend", "--no-edit"];
+    const { deps, spawnGit, preflightCommitMessage, listRemoteRefsContainingHead } = buildDeps(fixture.root, {
+      argv,
+      listRemoteRefsContainingHead: () => Promise.resolve([]),
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve("1a2b3c4d5e6f7890abcdef1234567890abcdef12"),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(listRemoteRefsContainingHead).toHaveBeenCalledWith({ cwd: fixture.root });
+    expect(preflightCommitMessage).toHaveBeenCalledTimes(1);
+    expect(spawnGit).toHaveBeenCalledWith({ args: argv, cwd: fixture.root });
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry).toMatchObject({ args: argv, decision: "proceeded", outcome: { kind: "commit" } });
+  });
+
+  it("refuses an amend once HEAD is on a remote-tracking ref, naming each ref", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr, spawnGit, preflightCommitMessage } = buildDeps(fixture.root, {
+      argv: ["--amend", "--no-edit"],
+      listRemoteRefsContainingHead: () => Promise.resolve(["origin/feature/x", "origin/main"]),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(12);
+    expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
+    expect(stderr.join("")).toBe([
+      "Refused: destructive-flag (code 12)",
+      "`--amend` would rewrite `HEAD`, which is already on `origin/feature/x`, `origin/main`.",
+      "Commit the change as a new commit; amend a pushed commit only on explicit request, through raw `git`.",
+      "",
+    ].join("\n"));
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry).toMatchObject({ decision: "refused", refusalCode: 12, outcome: { kind: "refused" } });
+  });
+
+  it("refuses an amend when the remote-tracking refs cannot be read, keeping a retry", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr, spawnGit } = buildDeps(fixture.root, {
+      argv: ["--amend", "--no-edit"],
+      listRemoteRefsContainingHead: () => Promise.reject(new Error("fatal: bad object\n  refs/remotes/origin/x")),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(12);
+    expect(spawnGit).not.toHaveBeenCalled();
+    expect(stderr.join("")).toBe([
+      "Refused: destructive-flag (code 12)",
+      "`--amend` needs an unpushed `HEAD`, and its remote-tracking refs could not be read: "
+        + "fatal: bad object refs/remotes/origin/x",
+      "Resolve the Git error and retry, or commit the change as a new commit.",
+      "",
+    ].join("\n"));
+  });
+
+  it("refuses a pushed amend ahead of WU resolution and the interlock", async () => {
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["--amend", "--no-edit"],
+      settings: buildSettings({ commitInterlock: "manual" }),
+      listRemoteRefsContainingHead: () => Promise.resolve(["origin/main"]),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(12);
+  });
+
+  it("keeps an amend's arguments in a corrected message's retry", async () => {
+    await writeStatus(fixture.root, "sample");
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo/.git/.arc-release-commit-message-retry" });
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["--amend", "-F", "message.txt"],
+      listRemoteRefsContainingHead: () => Promise.resolve([]),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "refused",
+        reason: "validation",
+        message: "body line too long",
+        correctedMessageBytes: Buffer.from("feat(release): corrected retry\n"),
+      }),
+      persistMessageRetry,
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(16);
+    expect(stderr.join("")).toContain(
+      "Retry the corrected message with:\narc release commit --amend -F '/repo/.git/.arc-release-commit-message-retry'",
+    );
+  });
+
+  it("keeps an amend's arguments in the approved message's retry after Git fails", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["--amend", "--reset-author", "-m", "feat(release): a sufficiently long valid subject", "--", "file-a"],
+      listRemoteRefsContainingHead: () => Promise.resolve([]),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      persistMessageRetry: () => Promise.resolve({ path: "/repo/.git/latest-retry" }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(7);
+    expect(stderr.join("")).toContain("arc release commit --amend --reset-author -F '/repo/.git/latest-retry' -- 'file-a'");
+  });
+
+  it("reads remote-tracking refs only for an amend", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, listRemoteRefsContainingHead } = buildDeps(fixture.root, {
+      argv: ["-m", "subject", "--", "--amend"],
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve("1a2b3c4d5e6f7890abcdef1234567890abcdef12"),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(listRemoteRefsContainingHead).not.toHaveBeenCalled();
   });
 });
 
@@ -405,7 +556,7 @@ describe("runReleaseCommit — short-circuit order", () => {
   it("12 fires before WU resolution (destructive flag wins)", async () => {
     // No active WU AND destructive flag — 12 fires at the argv step, ahead of
     // the fs probe.
-    const { deps } = buildDeps(fixture.root, { argv: ["--amend"] });
+    const { deps } = buildDeps(fixture.root, { argv: ["--no-verify"] });
     const result = await runReleaseCommit(deps);
     expect(result.exitCode).toBe(12);
   });
@@ -687,6 +838,26 @@ describe("runReleaseCommit — success path", () => {
     expect(result.exitCode).toBe(7);
     expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: messageBytes });
     expect(stderr.join("")).toContain("arc release commit -F '/repo with spaces/.git/latest-retry'");
+  });
+
+  it("keeps an ordinary commit's pathspec in its retry after Git fails", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject", "--", "file-a"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      persistMessageRetry: () => Promise.resolve({ path: "/repo/.git/latest-retry" }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(7);
+    expect(stderr.join("")).toContain("arc release commit -F '/repo/.git/latest-retry' -- 'file-a'");
   });
 
   it("preserves Git's exit code when retry persistence fails without offering an unusable path", async () => {

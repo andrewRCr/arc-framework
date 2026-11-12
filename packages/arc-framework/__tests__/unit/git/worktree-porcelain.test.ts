@@ -1,11 +1,13 @@
 /** Unit coverage for Git worktree porcelain tokenization and records. */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
   GitWorktreePorcelainRecordSchema,
   parseGitWorktreePorcelain,
+  parseGitWorktreePorcelainZ,
   tokenizeGitWorktreePorcelain,
   type GitWorktreePorcelainRecord,
 } from "../../../src/lib/git/worktree-porcelain.js";
@@ -38,7 +40,7 @@ describe("tokenizeGitWorktreePorcelain", () => {
   it("ignores blank output and unknown attributes while retaining recognized fields", () => {
     expect(tokenizeGitWorktreePorcelain("\n\n")).toEqual([]);
     expect(tokenizeGitWorktreePorcelain("worktree /repo\nHEAD abc\nlocked reason\nfuture value\n")).toEqual([
-      { index: 0, candidate: { path: "/repo", head: "abc", branch: null, detached: false } },
+      { index: 0, candidate: { path: "/repo", head: "abc", branch: null, detached: false, locked: "reason" } },
     ]);
   });
 
@@ -62,7 +64,7 @@ describe("GitWorktreePorcelainRecordSchema", () => {
     { path: "", head: null, branch: null, detached: false },
     { path: "/repo", head: null, branch: null, detached: false, extra: true },
   ])("rejects invalid normalized record %#", (value) => {
-    expect(GitWorktreePorcelainRecordSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(GitWorktreePorcelainRecordSchema, value);
   });
 });
 
@@ -82,5 +84,17 @@ describe("parseGitWorktreePorcelain", () => {
     expect(thrown).toMatchObject({ code: "git.worktree-porcelain.invalid" });
     expect((thrown as Error).message).toContain(path);
     expect((thrown as Error).message).not.toContain("HEAD aaa");
+  });
+});
+
+ describe("worktree locks", () => {
+  it("retains a lock reason and decodes line-format quoting", () => {
+    expect(parseGitWorktreePorcelain('worktree /repo\nHEAD abc\nbranch refs/heads/main\nlocked "owner\\tbusy"\n')[0]).toMatchObject({ locked: "owner\tbusy" });
+    expect(parseGitWorktreePorcelainZ("worktree /repo\0HEAD abc\0branch refs/heads/main\0locked owner\tbusy\0\0")[0]).toMatchObject({ locked: "owner\tbusy" });
+  });
+  it("retains bare locks while leaving unlocked and prunable records without locks", () => {
+    expect(parseGitWorktreePorcelain("worktree /repo\nlocked\n")[0]).toMatchObject({ locked: null });
+    expect(parseGitWorktreePorcelainZ("worktree /repo\0HEAD abc\0branch refs/heads/main\0locked\0\0")[0]).toMatchObject({ locked: null });
+    expect(parseGitWorktreePorcelain("worktree /repo\nprunable gone\n")[0]).not.toHaveProperty("locked");
   });
 });

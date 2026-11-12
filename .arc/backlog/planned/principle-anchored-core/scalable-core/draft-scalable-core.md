@@ -110,6 +110,53 @@
   `8f89da49e293c5d845f22a324a7d17613df6de823bcd9aa625c0de5f89024107`.
 - _Evidence:_ `pm-mode-key`; `scan-result.json#class-pm-mode-key`.
 
+### `[ ]` **Own the team-mode rename's access and compatibility seam**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The coupling audit's team-mode key finding spans 37 files (`packet-dbd2103ffa3c4df953f89138`,
+  content digest `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`, `team-mode-key`). Team mode is
+  not a storage axis (`strategy-storage-evolution.md` Principle 7), so the storage program does not take it.
+- _Approach:_ Plan the rename's access and compatibility seam here.
+
+### `[ ]` **Reconcile the scalable core’s extension assumptions and Proposed ADR-020**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Validated seam inventory — Already-clean; Proposed ADR-020's preference for conditionally loaded
+  fragments.
+
+- _Observation:_ The inventory says post-task-completion and post-work-unit-activate fire by active-set membership;
+  retirement removes both and the active-set mechanism. Proposed ADR-020’s extension-based conditional-fragment route
+  loses its premise.
+
+- _Approach:_ Rebase the core/optional-layer design on the surviving methods and typed procedure surfaces. Reconcile
+  Proposed ADR-020 in this owner’s planning pass; leave accepted historical ADR bodies untouched.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Reconcile ADR-020's tier sections with ADR-023, and accept it in the change that lands this work unit**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Reconcile the scalable core's extension assumptions and Proposed ADR-020".
+
+- _Observation:_ `adr-accept-timing` leaves ADR-020 Proposed for this work unit (Owner, 2026-11-04). It is then the
+  only Proposed ADR on the base branch. An independent review of that work unit's draft found ADR-020 overtaken in two
+  places this work unit's buffer does not yet hold. ADR-023 replaces the tier vocabulary of §2–3 ("quick tier and
+  above", "Atomic tier is the one deliberate floor exception"), and ADR-023 lines 143–146 move §3's spec-in-commit
+  floor exception into the Errand class. `classify-work-unit` now says correcting an estimate down "is not a
+  demotion", against §3's "demotion is forbidden". §9's extension preference is already held here (ADR-038), and so
+  are the open entries on §8's default-on stance and its undesigned seam.
+
+- _Approach:_ Amend ADR-020 while it is still Proposed. Record the parts ADR-023 and ADR-038 overtook in its Status,
+  following the repository's partial-supersession convention, for example "Accepted (Parts 2, 3, 6 superseded by
+  ADR-010)" on ADR-004. Then accept it in the change that lands this work unit, per the register row's fate.
+  `adr-accept-timing`'s merge-gate check does not force this: it fails only a change that adds an ADR as Proposed or
+  returns one to Proposed, so edits to ADR-020 pass while it stays Proposed.
+
+- _Captured during:_ `adr-accept-timing`'s draft-design, pass 1 of its independent review (Owner-approved capture).
+
 ---
 
 ## Problem / Motivation

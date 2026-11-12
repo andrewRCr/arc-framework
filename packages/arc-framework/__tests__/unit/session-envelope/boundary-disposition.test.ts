@@ -98,10 +98,10 @@ describe("session-envelope output boundaries", () => {
             assertSessionInitProbeResult,
             () => fixture("session-init-orient.json"),
             (value: Record<string, unknown>) => {
-                const worktree = value.worktree as {
-                    value: Record<string, unknown>;
+                const derived = value.derivedLocusState as {
+                    value: { roster: Array<Record<string, unknown>> };
                 };
-                worktree.value.unownedEvidence = { deep: { retained: true } };
+                derived.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
         [
@@ -115,10 +115,10 @@ describe("session-envelope output boundaries", () => {
                 >;
             },
             (value: Record<string, unknown>) => {
-                const worktree = value.worktree as {
-                    value: Record<string, unknown>;
+                const derived = value.derivedLocusState as {
+                    value: { roster: Array<Record<string, unknown>> };
                 };
-                worktree.value.unownedEvidence = { deep: { retained: true } };
+                derived.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
         [
@@ -127,11 +127,9 @@ describe("session-envelope output boundaries", () => {
             () => fixture("recovery-audit-ready.json"),
             (value: Record<string, unknown>) => {
                 const recover = value.recover as {
-                    worktree: { value: Record<string, unknown> };
+                    derivedLocusState: { value: { roster: Array<Record<string, unknown>> } };
                 };
-                recover.worktree.value.unownedEvidence = {
-                    deep: { retained: true },
-                };
+                recover.derivedLocusState.value.roster[0]!.diagnostics = [{ code: "fixture", message: "retained nested payload" }];
             },
         ],
     ] as const)(
@@ -149,7 +147,7 @@ describe("session-envelope output boundaries", () => {
                 stdout: expectedBytes,
             });
             expect(result.stdout).toContain(
-                '"unownedEvidence":{"deep":{"retained":true}}',
+                '"message":"retained nested payload"',
             );
         },
     );

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -10,100 +10,37 @@ import {
   composeProjectReadinessViewResult,
   depsOnlyReadinessProvider,
   mergeProjectReadinessRecords,
+  resolveProjectReadinessComposition,
   resolveProjectReadinessViewInput,
   type ProjectReadinessProvider,
-  type ProjectReadinessRecordCandidate,
+  type ProjectViewFs,
 } from "../../../src/lib/status/project-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
+import {
+  createProspectiveTransitionOverlay,
+  createValidatedTransitionOverlay,
+  transitionOverlayCompositionInput,
+} from "../../../src/lib/work-unit/transition-overlay.js";
+import { meta, oracleMeta, makeInFlightExec, record, inFlightRecord } from "../../helpers/status-view-fixtures.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
+
+/** The real filesystem, except that `vanished` is listed but gone by the time it is read. */
+function vanishingFs(vanished: string): ProjectViewFs {
+  return {
+    readdir: (path) => readdir(path, { withFileTypes: true }),
+    readFile: async (path) => {
+      if (path === vanished) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+      return await readFile(path, "utf8");
+    },
+  };
+}
 
 async function writeMeta(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
-}
-
-function meta(slug: string, state: string, fields: { owner?: string; priority?: string; cohort?: string; dependsOn?: string } = {}): string {
-  const owner = fields.owner ?? "andrew";
-  const priority = fields.priority ?? "P3";
-  const cohort = fields.cohort ?? "[none]";
-  const dependsOn = fields.dependsOn ?? "[none]";
-  return [
-    `# Metadata: ${slug}`,
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    `| \`${state}\` | \`${owner}\` | [none] | \`Heavy\` | \`${priority}\` |`,
-    "",
-    `- **Cohort:** ${cohort}`,
-    `- **Depends On:** ${dependsOn}`,
-    "",
-    "---",
-    "",
-  ].join("\n");
-}
-
-function oracleMeta(
-  fields: {
-    state?: string;
-    owner?: string;
-    branch: string;
-    priority?: string;
-    cohort?: string;
-    dependsOn?: string;
-  },
-): string {
-  return [
-    "# Metadata: oracle",
-    "",
-    `- **State:** ${fields.state ?? "Active"}`,
-    `- **Owner:** ${fields.owner ?? "andrew"}`,
-    `- **Branch:** ${fields.branch}`,
-    `- **Priority:** ${fields.priority ?? "[none]"}`,
-    `- **Cohort:** ${fields.cohort ?? "[none]"}`,
-    `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
-    "",
-    "---",
-  ].join("\n");
-}
-
-function makeInFlightExec(opts: {
-  remoteRefs?: string[];
-  worktrees?: Array<{ path: string; branch: string }>;
-  metas?: Record<string, string>;
-}): GitExec {
-  const metas = opts.metas ?? {};
-  const remoteRefs = opts.remoteRefs ?? [];
-  const worktreeList = (opts.worktrees ?? [])
-    .map((worktree) => [
-      `worktree ${worktree.path}`,
-      "HEAD 1111111111111111111111111111111111111111",
-      `branch refs/heads/${worktree.branch}`,
-    ].join("\n"))
-    .join("\n\n");
-  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (args[0] === "for-each-ref") {
-      return {
-        stdout: remoteRefs.map((branch) => `refs/remotes/origin/${branch}\tsha-${branch}`).join("\n"),
-        stderr: "",
-      };
-    }
-    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
-    if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
-    if (args[0] === "ls-tree" && args.includes("--name-only")) {
-      const ref = args[args.indexOf("--name-only") + 1] ?? "";
-      const paths = Object.keys(metas)
-        .filter((target) => target.startsWith(`${ref}:`))
-        .map((target) => target.slice(target.indexOf(":") + 1));
-      return { stdout: paths.join("\n"), stderr: "" };
-    }
-    if (args[0] === "show") {
-      const target = args[1] ?? "";
-      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
-      return { stdout: "", stderr: "" };
-    }
-    return { stdout: "", stderr: "" };
-  });
 }
 
 describe("composeProjectReadinessView", () => {
@@ -141,7 +78,7 @@ describe("composeProjectReadinessView", () => {
     });
 
     expect(view).toContain("# Roadmap: Test Project");
-    expect(view).toContain("Last rendered against `abc1234`");
+    expect(view).toContain("**Generated from meta files — re-render at ceremony boundaries.**");
     expect(view).toContain("| `Active` | active-alpha | P1");
     expect(view).toContain("## Ready");
     expect(view).toContain("| ready-beta | P2");
@@ -160,13 +97,89 @@ describe("composeProjectReadinessView", () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const activeDir = join(root, ".arc", "active");
     await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
-    await symlink(join(activeDir, "already-gone.md"), join(activeDir, "meta-vanished.md"), "file");
+    await writeMeta(join(activeDir, "meta-vanished.md"), meta("vanished", "Active"));
 
-    const input = await resolveProjectReadinessViewInput({ cwd: root, title: "Roadmap" });
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      fs: vanishingFs(join(activeDir, "meta-vanished.md")),
+    });
     const view = composeProjectReadinessView({ ...input, renderedRef: "abc1234" });
 
     expect(view).toContain("kept");
     expect(view).not.toContain("vanished");
+  });
+
+  it("retains an unreadable project record as typed composition evidence", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const activeDir = join(root, ".arc", "active");
+    await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
+    await writeMeta(join(activeDir, "meta-vanished.md"), meta("vanished", "Active"));
+
+    const composition = await resolveProjectReadinessComposition({
+      cwd: root,
+      fs: vanishingFs(join(activeDir, "meta-vanished.md")),
+    });
+
+    expect(composition.rejectedRecords).toEqual([{
+      slugHint: "vanished",
+      path: join(activeDir, "meta-vanished.md"),
+      locus: "read",
+      reason: "unreadable",
+    }]);
+  });
+
+  it("retains duplicate accepted candidates before ordinary view merging", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const activePath = join(root, ".arc", "active", "meta-duplicate.md");
+    const plannedPath = join(root, ".arc", "backlog", "planned", "duplicate", "meta-duplicate.md");
+    await writeMeta(activePath, meta("duplicate", "Active"));
+    await writeMeta(plannedPath, meta("duplicate", "Planning"));
+
+    const composition = await resolveProjectReadinessComposition({ cwd: root });
+
+    expect(composition.acceptedCandidates.map(({ slug, path, lifecycleLocation }) => ({
+      slug,
+      path,
+      lifecycleLocation,
+    }))).toEqual([
+      { slug: "duplicate", path: activePath, lifecycleLocation: "active" },
+      { slug: "duplicate", path: plannedPath, lifecycleLocation: "planned" },
+    ]);
+    expect(composition.records).toHaveLength(1);
+  });
+
+  it("retains malformed and unsupported-lifecycle records before view reduction", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const plannedDir = join(root, ".arc", "backlog", "planned");
+    const malformedPath = join(plannedDir, "malformed", "meta-malformed.md");
+    const unsupportedPath = join(plannedDir, "paused", "meta-paused.md");
+    await writeMeta(
+      malformedPath,
+      meta("malformed", "Planning").replace(
+        "| `Planning` | `andrew` | [none] | `Heavy` | `P3` |",
+        "| `Planning` | `andrew` |",
+      ),
+    );
+    await writeMeta(unsupportedPath, meta("paused", "Paused"));
+
+    const composition = await resolveProjectReadinessComposition({ cwd: root });
+
+    expect(composition.rejectedRecords).toEqual([
+      {
+        slugHint: "malformed",
+        path: malformedPath,
+        locus: "meta",
+        reason: "malformed",
+      },
+      {
+        slugHint: "paused",
+        path: unsupportedPath,
+        locus: "State",
+        reason: "unsupported-lifecycle",
+      },
+    ]);
+    expect(composition.view.records).toEqual([]);
   });
 
   it("renders from injected records without reading the filesystem", () => {
@@ -240,7 +253,7 @@ describe("composeProjectReadinessView", () => {
     const input = await resolveProjectReadinessViewInput({
       cwd: root,
       title: "Roadmap",
-      localRefs: { exec, baseBranch: "main" },
+      localRefs: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
     const view = composeProjectReadinessView({
       ...input,
@@ -346,7 +359,7 @@ describe("composeProjectReadinessView", () => {
     }));
   });
 
-  it("suppresses only the explicitly superseded source ref after a staged rename", async () => {
+  it("suppresses only exact source refs, including multiple merge-carried transitions", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const oldSlug = "old-name";
     const oldBranch = `feat/${oldSlug}`;
@@ -375,16 +388,63 @@ describe("composeProjectReadinessView", () => {
       localRefs: { exec, baseBranch: "main" },
       prospective: {
         currentBranch: newBranch,
-        superseded: { slug: oldSlug, branch: oldBranch },
       },
+      transitionOverlays: [
+        transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
+          origin: oldSlug,
+          sourceBranch: oldBranch,
+          planId: canonicalDigest("plan:test"),
+        })),
+      ],
     });
 
     expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
     expect(input.records.some((record) => record.slug === newSlug)).toBe(true);
     expect(input.records.some((record) => record.slug === sibling)).toBe(true);
+
+    const validated = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: newBranch },
+      transitionOverlays: [
+        transitionOverlayCompositionInput(createValidatedTransitionOverlay({
+          origin: oldSlug,
+          sourceBranch: oldBranch,
+        })),
+      ],
+    });
+    expect(validated).toEqual(input);
+    expect(composeProjectReadinessView({ ...validated, renderedRef: "abc1234" }))
+      .toBe(composeProjectReadinessView({ ...input, renderedRef: "abc1234" }));
+
+    const mergeCarried = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: newBranch },
+      transitionOverlays: [
+        { origin: oldSlug, sourceBranch: oldBranch },
+        { origin: sibling, sourceBranch: siblingBranch },
+      ],
+    });
+    expect(mergeCarried.records.some((record) => record.slug === oldSlug)).toBe(false);
+    expect(mergeCarried.records.some((record) => record.slug === sibling)).toBe(false);
+    expect(mergeCarried.records.some((record) => record.slug === newSlug)).toBe(true);
+
+    const wrongBranch = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      transitionOverlays: [{ origin: oldSlug, sourceBranch: newBranch }],
+    });
+    const wrongSlug = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      transitionOverlays: [{ origin: newSlug, sourceBranch: oldBranch }],
+    });
+    expect(wrongBranch.records.some((record) => record.slug === oldSlug)).toBe(true);
+    expect(wrongSlug.records.some((record) => record.slug === oldSlug)).toBe(true);
   });
 
-  it("keeps a genuine live sibling ahead of its completed tree record", async () => {
+  it("keeps a completed record authoritative over a branch-only sibling claim", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const ownSlug = "own-transition";
     const ownBranch = `feat/${ownSlug}`;
@@ -417,9 +477,14 @@ describe("composeProjectReadinessView", () => {
     });
 
     expect(input.records.find((record) => record.slug === siblingSlug)).toMatchObject({
-      location: "active",
-      state: "Active",
-      priority: "P1",
+      location: "completed",
+      state: "Shipped",
+      priority: "P3",
+      source: { kind: "completed-index" },
+      sources: expect.arrayContaining([
+        expect.objectContaining({ kind: "completed-index" }),
+        expect.objectContaining({ kind: "in-flight-meta" }),
+      ]),
     });
   });
 
@@ -544,6 +609,34 @@ describe("composeProjectReadinessView", () => {
     expect(result.markdown).not.toContain("bad-state |");
   });
 
+  it("retains an unsupported at-ref lifecycle candidate as rejected evidence", async () => {
+    const exec = makeInFlightExec({
+      worktrees: [{ path: "/repo", branch: "feat/bad-state" }],
+      metas: {
+        "feat/bad-state:.arc/active/meta-bad-state.md": oracleMeta({
+          branch: "feat/bad-state",
+          state: "Paused",
+        }),
+      },
+    });
+
+    const composition = await resolveProjectReadinessComposition({
+      cwd: "/repo",
+      fs: { readdir: async () => [], readFile: async () => "" },
+      localRefs: { exec, baseBranch: "main" },
+    });
+
+    expect(composition.acceptedCandidates).toEqual([]);
+    expect(composition.rejectedRecords).toEqual([
+      expect.objectContaining({
+        slugHint: "bad-state",
+        path: "feat/bad-state:.arc/active/meta-bad-state.md",
+        locus: "state-unrecognized",
+        reason: "unsupported-lifecycle",
+      }),
+    ]);
+  });
+
   it("marks the resolver input indeterminate when local refs move mid-derivation", async () => {
     let refReads = 0;
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
@@ -556,11 +649,11 @@ describe("composeProjectReadinessView", () => {
       }
       if (args[0] === "worktree") {
         return {
-          stdout: [
+          stdout: worktreePorcelainZ([
             "worktree /repo",
             "HEAD 1111111111111111111111111111111111111111",
             "branch refs/heads/feat/moving",
-          ].join("\n"),
+          ].join("\n")),
           stderr: "",
         };
       }
@@ -619,7 +712,7 @@ describe("composeProjectReadinessView", () => {
       cwd: "/repo",
       title: "Roadmap",
       fs: { readdir: async () => [], readFile: async () => "" },
-      oracle: { exec, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "passive-live", baseBranch: "main" },
     });
     const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
 
@@ -644,14 +737,26 @@ describe("composeProjectReadinessView", () => {
       derivationWarnings: [],
     });
 
-    expect(view).toContain("Last rendered against `abc1234`");
+    expect(view).not.toContain("abc1234");
     expect(view).toContain("Source scope: tree + local refs.");
     expect(view).toContain("Live view: `arc status --project`.");
     expect(view.split("\n").filter((line) => line.startsWith("> "))).toEqual([
-      "> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `abc1234`.",
+      "> **Generated from meta files — re-render at ceremony boundaries.**",
       "> Source scope: tree + local refs. Live view: `arc status --project`.",
     ]);
     expect(view.split("\n").every((line) => line.length <= 120)).toBe(true);
+  });
+
+  it("renders identically for callers observing different commits", () => {
+    const render = (ref: string): string =>
+      composeProjectReadinessView({
+        renderedRef: { ref, scope: "tree + local refs", liveView: "arc status --project" },
+        title: "Roadmap",
+        records: [],
+        derivationWarnings: [],
+      });
+
+    expect(render("abc1234")).toBe(render("def5678"));
   });
 });
 
@@ -664,8 +769,7 @@ describe("mergeProjectReadinessRecords", () => {
         priority: "P3",
         cohort: "old-cohort",
       }),
-      record("superseded", {
-        location: "active",
+      inFlightRecord("superseded", {
         owner: "active-owner",
         priority: "P1",
         cohort: "new-cohort",
@@ -679,11 +783,76 @@ describe("mergeProjectReadinessRecords", () => {
         owner: "active-owner",
         priority: "P1",
         cohort: "new-cohort",
-        source: expect.objectContaining({ kind: "active-meta" }),
+        source: expect.objectContaining({ kind: "in-flight-meta" }),
         sources: expect.arrayContaining([
-          expect.objectContaining({ kind: "active-meta" }),
+          expect.objectContaining({ kind: "in-flight-meta" }),
           expect.objectContaining({ kind: "backlog-stub" }),
         ]),
+      }),
+    ]);
+  });
+
+  it("keeps canonical Shipped state terminal over branch observations and parked overlays", () => {
+    const completed = record("terminal", {
+      location: "completed",
+      state: "Shipped",
+      priority: "P2",
+    });
+    const observed = inFlightRecord("terminal", {
+      state: "Active",
+      priority: "P1",
+      scheduling: "parked",
+    });
+
+    const forward = mergeProjectReadinessRecords([completed, observed]);
+    const reverse = mergeProjectReadinessRecords([observed, completed]);
+
+    expect(forward).toEqual(reverse);
+    expect(forward).toEqual([
+      expect.objectContaining({
+        slug: "terminal",
+        location: "completed",
+        state: "Shipped",
+        priority: "P2",
+        source: expect.objectContaining({ kind: "completed-index" }),
+        sources: [
+          expect.objectContaining({ kind: "completed-index" }),
+          expect.objectContaining({ kind: "in-flight-meta" }),
+        ],
+      }),
+    ]);
+    expect(forward[0]).not.toHaveProperty("scheduling");
+  });
+
+  it("keeps canonical active state ahead of an older completed record", () => {
+    const records = mergeProjectReadinessRecords([
+      record("reactivated", { location: "completed", state: "Shipped" }),
+      record("reactivated", { location: "active", state: "Active", priority: "P1" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "reactivated",
+        location: "active",
+        state: "Active",
+        priority: "P1",
+        source: expect.objectContaining({ kind: "active-meta" }),
+      }),
+    ]);
+  });
+
+  it("does not grant terminal authority to a non-Shipped completed record", () => {
+    const records = mergeProjectReadinessRecords([
+      record("incomplete-archive", { location: "completed", state: "Integrating" }),
+      inFlightRecord("incomplete-archive", { state: "Active", priority: "P1" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "incomplete-archive",
+        location: "active",
+        state: "Active",
+        source: expect.objectContaining({ kind: "in-flight-meta" }),
       }),
     ]);
   });
@@ -897,7 +1066,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: readyProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "independent-facts",
         dependencySatisfaction: "unsatisfied",
@@ -926,7 +1097,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: blockingProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "provider-blocked",
         dependencySatisfaction: "satisfied",
@@ -972,18 +1145,4 @@ function sectionBetween(markdown: string, start: string, end: string): string {
   const startIndex = markdown.indexOf(start);
   const endIndex = markdown.indexOf(end, startIndex + start.length);
   return markdown.slice(startIndex, endIndex === -1 ? undefined : endIndex);
-}
-
-function record(
-  slug: string,
-  fields: Partial<ProjectReadinessRecordCandidate> = {},
-): ProjectReadinessRecordCandidate {
-  return {
-    slug,
-    location: "planned",
-    state: "Planning",
-    priority: "P3",
-    dependsOn: [],
-    ...fields,
-  };
 }

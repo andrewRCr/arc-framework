@@ -9,7 +9,6 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
@@ -27,13 +26,11 @@ import {
   type MarkerWriteResult,
 } from "../../../lib/release/setup-marker.js";
 import { ARC_PROJECT_ROOT_ERROR, isHandledError, resolveUserIdentity } from "../../shared.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../../../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
-import type { InputResolution } from "../../../lib/command-input/resolution.js";
+import { declarePromptSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
+import { prompt, type PromptOutcome } from "../../../lib/command-input/prompter.js";
+import type { InputRequirement, InputResolution } from "../../../lib/command-input/resolution.js";
 
 import { runReleaseOptIn, type RunReleaseOptResult } from "../record.js";
 
@@ -84,6 +81,46 @@ export const releaseSetupInstallInputRegistration = {
   },
 } satisfies CommandInputRegistration;
 
+/** Declared acquisition for release setup harness. */
+export const releaseHarnessPromptSite = declarePromptSite("prompt.release-install.harness", "text",
+  { file: "handlers/release/setup/install.ts", symbol: "releaseHarnessPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--harness <name>"] },
+    mutationBoundary: "release setup install handler", subprocess: "none",
+  });
+
+/** Declared acquisition for release setup mode. */
+export const releaseModePromptSite = declarePromptSite("prompt.release-install.mode", "select",
+  { file: "handlers/release/setup/install.ts", symbol: "releaseModePromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--mode <mode>"] },
+    mutationBoundary: "release setup install handler", subprocess: "none",
+  });
+
+/** Declared acquisition for release setup idempotency. */
+export const releaseIdempotencyPromptSite = declarePromptSite("prompt.release-install.idempotency", "select",
+  { file: "handlers/release/setup/install.ts", symbol: "releaseIdempotencyPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--idempotency-action <action>"] },
+    mutationBoundary: "release setup install handler", subprocess: "none",
+  });
+
+/** Declared acquisition for release setup trust. */
+export const releaseTrustPromptSite = declarePromptSite("prompt.release-install.trust", "confirm",
+  { file: "handlers/release/setup/install.ts", symbol: "releaseTrustPromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+    mutationBoundary: "release setup installation", subprocess: "none",
+  });
+
+/** Declared acquisition for release setup workflow. */
+export const releaseWorkflowPromptSite = declarePromptSite("prompt.release-install.workflow", "confirm",
+  { file: "handlers/release/setup/install.ts", symbol: "releaseWorkflowPromptSite" }, {
+    acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: ["--workflow-verified"], acceptedSyntax: ["--workflow-verified"] },
+    mutationBoundary: "release workflow verification", subprocess: "none",
+  });
+
 /** Input and interaction policies owned by release setup installation. */
 export const releaseSetupInstallInputPolicyDeclarations = [{
   commandPath: "release setup install",
@@ -102,48 +139,11 @@ export const releaseSetupInstallInputPolicyDeclarations = [{
       cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
       mutationBoundary: "output selection", subprocess: "none",
     },
-    declareInteractionSite(
-      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.text", occurrence: 1 },
-      {
-        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--harness <name>"] },
-        mutationBoundary: "release setup install handler", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-      {
-        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--mode <mode>"] },
-        mutationBoundary: "release setup install handler", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.select", occurrence: 2 },
-      {
-        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--idempotency-action <action>"] },
-        mutationBoundary: "release setup install handler", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      {
-        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "release setup installation", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "handlers/release/setup/install.ts", kind: "prompt", callee: "p.confirm", occurrence: 2 },
-      {
-        acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
-        automation: {
-          noInput: "require-explicit", flags: ["--workflow-verified"], acceptedSyntax: ["--workflow-verified"],
-        },
-        mutationBoundary: "release workflow verification", subprocess: "none",
-      },
-    ),
+    releaseHarnessPromptSite,
+    releaseModePromptSite,
+    releaseIdempotencyPromptSite,
+    releaseTrustPromptSite,
+    releaseWorkflowPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -292,13 +292,8 @@ export async function runReleaseSetupInstall(
  */
 export async function handleReleaseSetupInstall(
   opts: ReleaseSetupInstallOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: opts.json === true,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   const exec = createGitExec(context.subprocess);
   const parsedSyntax = ReleaseSetupInstallInputSchema.safeParse({
     ...(opts.harness === undefined ? {} : { harness: opts.harness }),
@@ -347,10 +342,13 @@ export async function handleReleaseSetupInstall(
   const releaseOptedIn = settings.resolved.releaseOptedIn.value === "true";
   const recorded = marker.marker.harnesses.length > 0;
   let idempotencyAction = parsedSyntax.data.idempotencyAction;
-  if (releaseOptedIn && recorded && idempotencyAction === undefined) {
-    idempotencyAction = context.interaction === "allowed"
-      ? await promptForIdempotency() ?? "exit"
-      : "exit";
+  if (releaseOptedIn && recorded) {
+    const acquired = await promptForIdempotency(context, idempotencyAction);
+    if (acquired.kind === "unavailable") {
+      reportUnavailableInstallInput(acquired);
+      return;
+    }
+    idempotencyAction = acquired.kind === "resolved" ? acquired.value : "exit";
   }
   const installsHarness = (!releaseOptedIn && !recorded)
     || releaseOptedIn !== recorded
@@ -358,29 +356,16 @@ export async function handleReleaseSetupInstall(
 
   let harness = parsedSyntax.data.harness;
   let mode = parsedSyntax.data.mode;
-  if (installsHarness && context.interaction === "forbidden") {
-    const missing = [
-      ...(harness === undefined ? ["--harness <name>"] : []),
-      ...(mode === undefined ? ["--mode <default-prompt|bypass>"] : []),
-      ...(context.confirmation !== "accept" ? ["--yes"] : []),
-      ...(opts.workflowVerified !== true ? ["--workflow-verified"] : []),
-    ];
-    if (missing.length > 0) {
-      process.stderr.write(`error: missing required input: ${missing.join(", ")}\n`);
-      process.exitCode = 1;
+  let trustAccepted = parsedSyntax.data.trustAccepted;
+  let workflowVerified = parsedSyntax.data.workflowVerified;
+  if (installsHarness) {
+    const acquired = await acquireInteractiveInstallInputs({
+      context, harness, mode, trustAccepted, workflowVerified,
+    });
+    if (acquired.kind === "unavailable") {
+      reportUnavailableInstallInput(acquired);
       return;
     }
-  }
-
-  let trustAccepted = context.confirmation === "accept";
-  let workflowVerified = parsedSyntax.data.workflowVerified;
-  if (installsHarness && context.interaction === "allowed") {
-    const acquired = await acquireInteractiveInstallInputs({
-      harness,
-      mode,
-      trustAccepted,
-      workflowVerified,
-    });
     if (acquired.kind !== "resolved") return;
     ({ harness, mode, trustAccepted, workflowVerified } = acquired.value);
   }
@@ -405,79 +390,82 @@ export async function handleReleaseSetupInstall(
 }
 
 /**
- * Acquire the interactive install sequence without continuing past cancellation
- * or a declined protected-evidence gate.
- *
- * @param input - Already supplied values and evidence.
- * @param prompts - Injectable prompt boundary.
- * @returns A complete authoritative input set or cancellation.
+ * Acquire release installation values without continuing past cancellation or declined evidence.
+ * @param input - Invocation context and already supplied values/evidence
+ * @param prompts - Injectable acquisition boundary
+ * @returns Complete authoritative input, all unavailable requirements, or cancellation
  */
 export async function acquireInteractiveInstallInputs(
   input: {
+    readonly context: InteractionContext;
     readonly harness?: string;
     readonly mode?: HarnessMode;
     readonly trustAccepted: boolean;
     readonly workflowVerified: boolean;
   },
   prompts: InteractiveInstallPrompts = {
-    harness: promptForHarness,
-    mode: promptForMode,
-    trust: promptForTrustAcknowledgment,
-    workflow: promptForWorkflowVerification,
+    harness: () => promptForHarness(input.context, input.harness),
+    mode: () => promptForMode(input.context, input.mode),
+    trust: (opts) => promptForTrustAcknowledgment(input.context, opts, input.trustAccepted ? true : undefined),
+    workflow: (opts) => promptForWorkflowVerification(input.context, opts, input.workflowVerified ? true : undefined),
   },
 ): Promise<InputResolution<InteractiveInstallInputs>> {
-  let { harness, mode } = input;
-  if (harness === undefined) {
-    const acquired = await prompts.harness();
-    if (acquired.kind !== "resolved") return { kind: "cancelled" };
-    harness = acquired.value;
-  }
-  if (mode === undefined) {
-    const acquired = await prompts.mode();
-    if (acquired.kind !== "resolved") return { kind: "cancelled" };
-    mode = acquired.value;
-  }
-  if (!input.trustAccepted) {
-    const acquired = await prompts.trust({
-      harness,
-      mode,
-      message: buildTrustAcknowledgmentMessage(mode),
-    });
-    if (acquired.kind !== "resolved" || !acquired.value) return { kind: "cancelled" };
-  }
-  if (!input.workflowVerified) {
-    const acquired = await prompts.workflow({
-      harness,
-      mode,
-      requiresPromptObservation: mode === "default-prompt",
-    });
-    if (acquired.kind !== "resolved" || !acquired.value) return { kind: "cancelled" };
-  }
-  return {
-    kind: "resolved",
-    value: { harness, mode, trustAccepted: true, workflowVerified: true },
-    source: "derived",
+  const missing: InputRequirement[] = [];
+  const harness = await prompts.harness();
+  if (installAcquisitionStopped(harness, missing)) return { kind: "cancelled" };
+  const mode = await prompts.mode();
+  if (installAcquisitionStopped(mode, missing)) return { kind: "cancelled" };
+
+  const evidence = {
+    harness: harness.kind === "resolved" ? harness.value : "",
+    mode: mode.kind === "resolved" ? mode.value : "default-prompt" as const,
   };
+  const trust = await prompts.trust({ ...evidence, message: buildTrustAcknowledgmentMessage(evidence.mode) });
+  if (installAcquisitionStopped(trust, missing)) return { kind: "cancelled" };
+  const workflow = await prompts.workflow({ ...evidence, requiresPromptObservation: evidence.mode === "default-prompt" });
+  if (installAcquisitionStopped(workflow, missing)) return { kind: "cancelled" };
+
+  if (missing.length > 0) return { kind: "unavailable", missing };
+  if (harness.kind !== "resolved" || mode.kind !== "resolved") return { kind: "cancelled" };
+  return { kind: "resolved", value: { harness: harness.value, mode: mode.value,
+    trustAccepted: true, workflowVerified: true }, source: "derived" };
 }
 
-async function promptForHarness(): Promise<InputResolution<string>> {
-  const value = await p.text({ message: "Harness name?" });
-  return p.isCancel(value) || value.trim() === ""
-    ? { kind: "cancelled" }
-    : { kind: "resolved", value: value.trim(), source: "prompt" };
+/** Collect a refused question while stopping on cancellation or declined evidence. */
+function installAcquisitionStopped<Value>(acquired: InputResolution<Value>, missing: InputRequirement[]): boolean {
+  if (acquired.kind === "unavailable") {
+    missing.push(...acquired.missing);
+    return false;
+  }
+  return acquired.kind !== "resolved" || acquired.value === false;
 }
 
-async function promptForMode(): Promise<InputResolution<HarnessMode>> {
-  const value = await p.select<HarnessMode>({
-    message: "Harness mode?",
+function reportUnavailableInstallInput(input: Extract<InputResolution<unknown>, { kind: "unavailable" }>): void {
+  process.stderr.write(`error: missing required input: ${input.missing.flatMap((item) => item.acceptedSyntax).join(", ")}\n`);
+  process.exitCode = 1;
+}
+
+function installPromptAcquisition<Value>(answer: PromptOutcome<Value>, name: string): InputResolution<Value> {
+  if (answer.kind === "refused") return { kind: "unavailable", missing: [{ name, acceptedSyntax: answer.acceptedSyntax }] };
+  if (answer.kind === "cancelled") return answer;
+  return { kind: "resolved", value: answer.value, source: "prompt" };
+}
+
+async function promptForHarness(context: InteractionContext, supplied?: string): Promise<InputResolution<string>> {
+  const acquired = installPromptAcquisition(await prompt(releaseHarnessPromptSite, context,
+    { message: "Harness name?", explicitAnswer: supplied }), "harness");
+  if (acquired.kind !== "resolved") return acquired;
+  return acquired.value.trim() === "" ? { kind: "cancelled" } : { ...acquired, value: acquired.value.trim() };
+}
+
+async function promptForMode(context: InteractionContext, supplied?: HarnessMode): Promise<InputResolution<HarnessMode>> {
+  return installPromptAcquisition(await prompt<HarnessMode>(releaseModePromptSite, context, {
+    message: "Harness mode?", explicitAnswer: supplied,
     options: [
       { value: "default-prompt", label: "Default prompt" },
       { value: "bypass", label: "Bypass" },
     ],
-  });
-  return p.isCancel(value)
-    ? { kind: "cancelled" }
-    : { kind: "resolved", value, source: "prompt" };
+  }), "mode");
 }
 
 function renderCurrentState(opts: {
@@ -689,43 +677,34 @@ function renderIdempotencyChoice(
   writeStdout("scope: harnesses not already recorded\n");
 }
 
-async function promptForIdempotency(): Promise<SetupInstallIdempotencyChoice | null> {
-  const choice = await p.select<SetupInstallIdempotencyChoice>({
-    message: "Release-wrapper setup is already recorded. What should install do?",
+async function promptForIdempotency(context: InteractionContext,
+  supplied?: SetupInstallIdempotencyChoice): Promise<InputResolution<SetupInstallIdempotencyChoice>> {
+  return installPromptAcquisition(await prompt<SetupInstallIdempotencyChoice>(releaseIdempotencyPromptSite, context, {
+    message: "Release-wrapper setup is already recorded. What should install do?", explicitAnswer: supplied,
     options: [
       { value: "re-verify", label: "Re-verify" },
       { value: "update-markers", label: "Update markers" },
       { value: "add-harness", label: "Add harness" },
       { value: "exit", label: "Exit" },
     ],
-  });
-  if (p.isCancel(choice)) return null;
-  return choice;
+  }), "idempotency action");
 }
 
-async function promptForTrustAcknowledgment(
-  opts: TrustAcknowledgmentOptions,
-): Promise<InputResolution<boolean>> {
-  const accepted = await p.confirm({
-    message: `${opts.message}\n\nHarness: ${opts.harness}`,
-    initialValue: false,
-  });
-  if (p.isCancel(accepted)) return { kind: "cancelled" };
-  return { kind: "resolved", value: accepted, source: "prompt" };
+async function promptForTrustAcknowledgment(context: InteractionContext,
+  opts: TrustAcknowledgmentOptions, supplied?: boolean): Promise<InputResolution<boolean>> {
+  return installPromptAcquisition(await prompt(releaseTrustPromptSite, context, {
+    message: `${opts.message}\n\nHarness: ${opts.harness}`, initialValue: false, explicitAnswer: supplied,
+  }), "trust");
 }
 
-async function promptForWorkflowVerification(
-  opts: WorkflowVerificationOptions,
-): Promise<InputResolution<boolean>> {
-  const prompt = opts.requiresPromptObservation
+async function promptForWorkflowVerification(context: InteractionContext,
+  opts: WorkflowVerificationOptions, supplied?: boolean): Promise<InputResolution<boolean>> {
+  const message = opts.requiresPromptObservation
     ? `Confirm harness write and direct prompt observation passed for ${opts.harness}.`
     : `Confirm bypass-mode setup workflow completed for ${opts.harness}.`;
-  const verified = await p.confirm({
-    message: prompt,
-    initialValue: false,
-  });
-  if (p.isCancel(verified)) return { kind: "cancelled" };
-  return { kind: "resolved", value: verified, source: "prompt" };
+  return installPromptAcquisition(await prompt(releaseWorkflowPromptSite, context, {
+    message, initialValue: false, explicitAnswer: supplied,
+  }), "workflow");
 }
 
 function formatMarkerReadError(error: MarkerStorageError): string {

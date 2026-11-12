@@ -2,6 +2,11 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  EMPTY_CONFIG_VALIDATION_PASS_LINES,
+  EMPTY_CONFIG_VALIDATION_PASSES,
+} from "../../../fixtures/config/cases.js";
+
 import { validateConfigFile } from "../../../../src/commands/config/validate.js";
 
 describe("validateConfigFile", () => {
@@ -37,38 +42,11 @@ describe("validateConfigFile", () => {
     });
 
     expect(result.lines).toEqual([
-      "PASS  Config file exists: selected.yml",
-      "PASS  branch.base: [absent, default: main]",
-      "PASS  branch.protection: [absent, default: partial]",
-      "PASS  commit.format: [absent, default: conventional]",
-      "PASS  commit.context_footer: [absent, default: required]",
-      "PASS  hooks.pre_commit: [absent, default: enabled]",
-      "PASS  hooks.commit_msg: [absent, default: enabled]",
-      "PASS  hooks.pre_push: [absent, default: enabled]",
-      "PASS  hooks.task_numbering: [absent, default: error]",
-      "PASS  hooks.subject_max_length: 72",
-      "PASS  hooks.body_max_lines: 100",
-      "PASS  hooks.body_max_line_length: 100",
-      "PASS  merge.strategy: [absent, default: merge]",
-      "PASS  platform.type: [absent, default: github]",
-      "PASS  review.frontline_max_passes: 2",
-      "PASS  review.standard_max_passes: 2",
-      "PASS  review.chunking_threshold_lines: 0",
-      "PASS  review.chunking_threshold_files: 0",
-      "PASS  pm.mode: [absent, default: none]",
-      "PASS  team.mode: [absent, default: false]",
-      "PASS  session.remote_sync: [absent, default: enabled]",
-      "PASS  session.init_pull.worktree: [absent, default: prompt]",
-      "PASS  session.init_pull.notes: [absent, default: prompt]",
-      "PASS  session.init_pull.base: [absent, default: prompt]",
-      "PASS  session.init_load.notes: [absent, default: prompt]",
-      "PASS  user.notes_push: [absent, default: on-sync]",
-      "PASS  sync.auto_pull: [absent, default: false]",
-      "PASS  archive.cadence: [absent, default: with-integration]",
+      ...EMPTY_CONFIG_VALIDATION_PASS_LINES,
       "",
-      "Summary: 28 passed, 0 warnings, 0 errors (28 checks)",
+      `Summary: ${EMPTY_CONFIG_VALIDATION_PASSES} passed, 0 warnings, 0 errors (${EMPTY_CONFIG_VALIDATION_PASSES} checks)`,
     ]);
-    expect(result).toMatchObject({ passes: 28, warnings: 0, errors: 0, exitCode: 0 });
+    expect(result).toMatchObject({ passes: EMPTY_CONFIG_VALIDATION_PASSES, warnings: 0, errors: 0, exitCode: 0 });
   });
 
   it("reports catalog-domain failures without exposing unrelated values", async () => {
@@ -93,7 +71,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR worktree.location_template: '' is not valid (expected: non-empty value)",
     );
-    expect(result).toMatchObject({ passes: 26, warnings: 0, errors: 3, exitCode: 2 });
+    expect(result).toMatchObject({ passes: EMPTY_CONFIG_VALIDATION_PASSES - 2, warnings: 0, errors: 3, exitCode: 2 });
   });
 
   it("warns for every validatable unknown occurrence in source order", async () => {
@@ -121,7 +99,23 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'hooks.subject_warn_length' (possible typo?)",
       "WARN  Unknown key: 'unknown.two' (possible typo?)",
     ]);
-    expect(result).toMatchObject({ passes: 28, warnings: 5, errors: 0, exitCode: 1 });
+    expect(result).toMatchObject({ passes: EMPTY_CONFIG_VALIDATION_PASSES, warnings: 5, errors: 0, exitCode: 1 });
+  });
+
+  it("treats the former review-owned thresholds as unknown rather than aliases", async () => {
+    const result = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.chunking_threshold_lines: 5000",
+        "review.chunking_threshold_files: 150",
+      ].join("\n")),
+    });
+
+    expect(result.lines).toContain("WARN  Unknown key: 'review.chunking_threshold_lines' (possible typo?)");
+    expect(result.lines).toContain("WARN  Unknown key: 'review.chunking_threshold_files' (possible typo?)");
+    expect(result.lines).toContain("PASS  changeset.advisory_threshold_lines: 0");
+    expect(result.lines).toContain("PASS  changeset.advisory_threshold_files: 0");
   });
 
   it("distinguishes default, unset, and invalid quoted-empty fields", async () => {
@@ -148,7 +142,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR inbox.remind_after_days must be a positive integer (got '')",
     );
-    expect(result).toMatchObject({ passes: 27, warnings: 0, errors: 2, exitCode: 2 });
+    expect(result).toMatchObject({ passes: EMPTY_CONFIG_VALIDATION_PASSES - 1, warnings: 0, errors: 2, exitCode: 2 });
   });
 
   it("applies custom-pattern dependencies without compiling or echoing pattern bodies", async () => {
@@ -234,8 +228,10 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
     ]);
-    expect(result.lines.at(-1)).toBe("Summary: 27 passed, 3 warnings, 1 errors (31 checks)");
-    expect(result).toMatchObject({ passes: 27, warnings: 3, errors: 1, exitCode: 2 });
+    expect(result.lines.at(-1)).toBe(
+      `Summary: ${EMPTY_CONFIG_VALIDATION_PASSES - 1} passed, 3 warnings, 1 errors (${EMPTY_CONFIG_VALIDATION_PASSES + 3} checks)`,
+    );
+    expect(result).toMatchObject({ passes: EMPTY_CONFIG_VALIDATION_PASSES - 1, warnings: 3, errors: 1, exitCode: 2 });
   });
 
   it("enforces positive-safe-integer minima and accepts normalized boundaries", async () => {
@@ -350,5 +346,89 @@ describe("validateConfigFile", () => {
       "ERROR review.standard_max_passes: '9007199254740992' must be an unsigned base-10 safe integer >= 1",
     );
     expect(rejected.exitCode).toBe(2);
+  });
+
+  it("validates hosted await timing bounds and ordering", async () => {
+    const accepted = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.hosted_await_timeout_seconds: 90",
+        "review.hosted_await_initial_poll_interval_seconds: 10",
+        "review.hosted_await_attention_after_minutes: 40",
+      ].join("\n")),
+    });
+    expect(accepted.exitCode).toBe(0);
+
+    const rejected = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.hosted_await_timeout_seconds: 70",
+        "review.hosted_await_initial_poll_interval_seconds: 80",
+        "review.hosted_await_attention_after_minutes: 0",
+      ].join("\n")),
+    });
+    expect(rejected.lines).toContain(
+      "ERROR review.hosted_await_initial_poll_interval_seconds: '80' must be an unsigned base-10 safe integer >= 1 and <= 60",
+    );
+    expect(rejected.lines).toContain(
+      "ERROR review.hosted_await_attention_after_minutes: '0' must be an unsigned base-10 safe integer >= 1",
+    );
+    expect(rejected.exitCode).toBe(2);
+
+    const misordered = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.hosted_await_timeout_seconds: 10",
+        "review.hosted_await_initial_poll_interval_seconds: 15",
+      ].join("\n")),
+    });
+    expect(misordered.lines).toContain(
+      "ERROR review.hosted_await_initial_poll_interval_seconds must not exceed review.hosted_await_timeout_seconds",
+    );
+    expect(misordered.exitCode).toBe(2);
+  });
+
+  it("validates required-check await timing bounds and ordering", async () => {
+    const accepted = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 1800",
+        "review.checks_await_initial_poll_interval_seconds: 60",
+      ].join("\n")),
+    });
+    expect(accepted.exitCode).toBe(0);
+
+    const rejected = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 1801",
+        "review.checks_await_initial_poll_interval_seconds: 0",
+      ].join("\n")),
+    });
+    expect(rejected.lines).toContain(
+      "ERROR review.checks_await_timeout_seconds: '1801' must be an unsigned base-10 safe integer >= 1 and <= 1800",
+    );
+    expect(rejected.lines).toContain(
+      "ERROR review.checks_await_initial_poll_interval_seconds: '0' must be an unsigned base-10 safe integer >= 1 and <= 60",
+    );
+    expect(rejected.exitCode).toBe(2);
+
+    const misordered = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 10",
+        "review.checks_await_initial_poll_interval_seconds: 15",
+      ].join("\n")),
+    });
+    expect(misordered.lines).toContain(
+      "ERROR review.checks_await_initial_poll_interval_seconds must not exceed review.checks_await_timeout_seconds",
+    );
+    expect(misordered.exitCode).toBe(2);
   });
 });

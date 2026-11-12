@@ -39,7 +39,7 @@ import {
   renderInFlightWarning,
   type PrSource,
 } from "../git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../errand/record.js";
+import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
 import {
@@ -48,6 +48,9 @@ import {
   STATUS_USER_READY_COLUMNS,
   type StatusViewRow,
 } from "./render.js";
+
+/** Guidance shared by user-view acquisition paths when identity is unavailable. */
+export const USER_VIEW_IDENTITY_MESSAGE = "Status (User) requires an identity resolved from `arc.identity` or Git `user.name`. Set one with `git config arc.identity <name>`.";
 
 /** What produced the view output. */
 export type StatusUserViewSource = "rendered" | "cache" | "cache-missing" | "no-identity";
@@ -66,6 +69,8 @@ export interface StatusUserViewResult {
 export interface RunStatusUserViewOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Repository checkout used to resolve repository-common candidate claims. */
+  cwd?: string;
   /** Resolved identity; `null` short-circuits (the view is identity-scoped). */
   identity: string | null;
   /** Team mode — gates oracle identity filtering. */
@@ -90,7 +95,7 @@ export interface RunStatusUserViewOptions {
 }
 
 /** Compose the two-section user view from the resolved in-flight and ready slices. */
-function composeUserView(
+export function composeUserView(
   identity: string,
   inFlight: readonly StatusViewRow[],
   ready: readonly StatusViewRow[],
@@ -119,7 +124,7 @@ export async function runStatusUserView(
 
   if (identity === null) {
     return {
-      output: "Status (User) requires `arc.identity` to be set in git config.",
+      output: USER_VIEW_IDENTITY_MESSAGE,
       source: "no-identity",
       warnings: [],
     };
@@ -129,10 +134,13 @@ export async function runStatusUserView(
   // remote reachability so the unreachable path below never has to recompute it.
   const ready = await options.readReadyMine();
 
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const errandSlugByBranch = projectTransientInFlightRead(
+    await readTransientInFlightIndexes({ exec, identity }),
+  ).indexes.slugByBranch;
   const remoteResult = await deriveInFlight({
     exec,
     localOnly,
+    expandLiveOnly: false,
     baseBranch,
     timeoutMs,
     identity,

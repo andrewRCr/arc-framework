@@ -133,6 +133,7 @@ export type AssembledCommitMessageSource =
 /** Closed classification result for release-commit message input. */
 export type CommitMessageInputClassification =
   | { kind: "assembled"; source: AssembledCommitMessageSource }
+  | { kind: "reuse-head" }
   | { kind: "refused"; reason: "editor-required" }
   | {
       kind: "pass-through";
@@ -152,6 +153,7 @@ export interface ClassifyCommitMessageInputOptions {
 }
 
 type ScanState = {
+  amend: boolean;
   messages: string[];
   files: string[];
   invalidSource: boolean;
@@ -166,6 +168,7 @@ type ScanState = {
 };
 
 const LONG_ORDINARY_OPTIONS: ReadonlySet<string> = new Set([
+  "--amend",
   "--all",
   "--patch",
   "--interactive",
@@ -204,8 +207,29 @@ const LONG_AMBIGUOUS_OPTIONS: ReadonlySet<string> = new Set([
   "--untracked-files",
 ]);
 
+// Include specialized options alongside the grouped grammar for prefix resolution.
+const LONG_OPTION_NAMES: ReadonlySet<string> = new Set([
+  ...LONG_ORDINARY_OPTIONS,
+  ...LONG_NO_COMMIT_OPTIONS,
+  ...LONG_ORDINARY_REQUIRED,
+  ...LONG_AMBIGUOUS_OPTIONS,
+  "--message",
+  "--file",
+  "--signoff",
+  "--edit",
+  "--no-edit",
+  "--cleanup",
+  "--trailer",
+  "--reuse-message",
+  "--reedit-message",
+  "--template",
+  "--fixup",
+  "--squash",
+]);
+
 function createScanState(commitCleanup: string | null | undefined): ScanState {
   return {
+    amend: false,
     messages: [],
     files: [],
     invalidSource: false,
@@ -318,6 +342,12 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
     return false;
   }
 
+  if (name === "--no-edit") {
+    if (attached !== undefined) state.unsupported = true;
+    state.editorFreeMessage = true;
+    return false;
+  }
+
   if (name === "--cleanup" || name === "--trailer") {
     const operand = takeRequiredLongOperand(attached, args, index);
     if (operand.value === undefined) state.unsupported = true;
@@ -368,6 +398,7 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
 
   if (LONG_ORDINARY_OPTIONS.has(name)) {
     if (attached !== undefined) state.unsupported = true;
+    else if (name === "--amend") state.amend = true;
     return false;
   }
 
@@ -386,8 +417,23 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
   return false;
 }
 
+/** Report whether a token names an exact long option in the closed commit grammar. */
+export function isExactCommitLongOption(token: string): boolean {
+  return LONG_OPTION_NAMES.has(splitLongOption(token).name);
+}
+
+function resolveLongOperandOption(token: string): string | null {
+  const { name, attached } = splitLongOption(token);
+  if (isExactCommitLongOption(token)) return token;
+  const matches = [...LONG_OPTION_NAMES].filter((option) => option.startsWith(name));
+  const canonical = matches.length === 1 ? matches[0] : undefined;
+  if (canonical === undefined) return null;
+  return attached === undefined ? canonical : `${canonical}=${attached}`;
+}
+
 /**
- * Report whether one recognized commit option consumes the following argv token.
+ * Report whether an exact or unambiguously abbreviated commit option consumes
+ * the following argv token. Ambiguous and unknown options consume nothing.
  *
  * @param token - Candidate short or long commit option.
  * @param nextArg - Following argv token, when present.
@@ -395,43 +441,45 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
  */
 export function commitOptionConsumesNext(token: string, nextArg: string | undefined): boolean {
   if (token.startsWith("--")) {
+    const option = resolveLongOperandOption(token);
+    if (option === null) return false;
     const state = createScanState(undefined);
-    return applyLongOption(state, token, nextArg === undefined ? [token] : [token, nextArg], 0);
+    return applyLongOption(state, option, nextArg === undefined ? [option] : [option, nextArg], 0);
   }
   const walk = walkCommitShortOption(token, nextArg);
   return walk.kind === "recognized" && walk.consumedNext;
+}
+
+function scanCommitOptions(args: readonly string[], state: ScanState): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--") break;
+    if (!arg.startsWith("-") || arg === "-") continue;
+
+    if (scanCommitOption(args, index, arg, state)) index += 1;
+  }
+}
+
+function scanCommitOption(args: readonly string[], index: number, arg: string, state: ScanState): boolean {
+  if (arg.startsWith("--")) return applyLongOption(state, arg, args, index);
+  const walk = walkCommitShortOption(arg, args[index + 1]);
+  if (walk.kind === "unsupported") { state.unsupported = true; return false; }
+  for (const member of walk.members) applyShortMember(state, member);
+  return walk.consumedNext;
 }
 
 /**
  * Classify the commit-message input represented by `args`.
  *
  * @param options - Invocation argv, stdin TTY state, and resolved cleanup config.
- * @returns An assembled source, a non-interactive editor refusal, or pass-through.
+ * @returns An assembled source, proven HEAD-message reuse, an editor refusal, or pass-through.
  */
 export function classifyCommitMessageInput(
   options: ClassifyCommitMessageInputOptions,
 ): CommitMessageInputClassification {
   const state = createScanState(options.commitCleanup);
 
-  for (let index = 0; index < options.args.length; index += 1) {
-    const arg = options.args[index];
-    if (arg === undefined) break;
-    if (arg === "--") break;
-    if (!arg.startsWith("-") || arg === "-") continue;
-
-    if (arg.startsWith("--")) {
-      if (applyLongOption(state, arg, options.args, index)) index += 1;
-      continue;
-    }
-
-    const walk = walkCommitShortOption(arg, options.args[index + 1]);
-    if (walk.kind === "unsupported") {
-      state.unsupported = true;
-      continue;
-    }
-    for (const member of walk.members) applyShortMember(state, member);
-    if (walk.consumedNext) index += 1;
-  }
+  scanCommitOptions(options.args, state);
 
   const hasMessages = state.messages.length > 0;
   const hasFiles = state.files.length > 0;
@@ -474,6 +522,10 @@ export function classifyCommitMessageInput(
     (!hasExplicitSource && !state.editorFreeMessage);
   if (!options.stdinIsTTY && editorRequired) {
     return { kind: "refused", reason: "editor-required" };
+  }
+
+  if (state.amend && !hasExplicitSource && !state.gitManagedMessage && !state.messageModifier && !editorRequired) {
+    return { kind: "reuse-head" };
   }
 
   if (messageEncodingUnsupported) {
@@ -521,6 +573,26 @@ export function rewriteCommitFileSource(args: readonly string[], path: string): 
   return rewritten;
 }
 
+/** The options that supply a commit message, by short-option role and long name. */
+interface MessageSourceForms {
+  roles: ReadonlySet<CommitShortOptionRole>;
+  longOptions: ReadonlySet<string>;
+}
+
+const MESSAGE_OPERANDS: MessageSourceForms = {
+  roles: new Set(["message"]),
+  longOptions: new Set(["--message"]),
+};
+
+/** Every message source a prepared file can stand in for; a reused message also carries authorship, so it stays. */
+const EVERY_MESSAGE_SOURCE: MessageSourceForms = {
+  roles: new Set(["message", "file", "template"]),
+  longOptions: new Set(["--message", "--file", "--template"]),
+};
+
+const REUSE_ROLES: ReadonlySet<CommitShortOptionRole> = new Set(["reuse", "reedit"]);
+const REUSE_LONG_OPTIONS: ReadonlySet<string> = new Set(["--reuse-message", "--reedit-message"]);
+
 /**
  * Rewrite `args` by stripping every recognized `-m` / `--message` message
  * operand and routing the commit message through a snapshot file instead.
@@ -530,6 +602,60 @@ export function rewriteCommitFileSource(args: readonly string[], path: string): 
  * @returns A new argv with message operands removed and `-F path` appended.
  */
 export function rewriteCommitMessagesToFile(args: readonly string[], path: string): string[] {
+  return routeMessageSourcesToFile(args, path, MESSAGE_OPERANDS);
+}
+
+/**
+ * Replace every message source in `args` (messages, a message file, or a template) with `-F path` ahead of any `--`,
+ * keeping every other argument, so a retry repeats the same commit with a prepared message. A reused message (`-C`,
+ * `-c`) stays, since it also carries that commit's author and date; see {@link reusesCommitMessage}.
+ *
+ * @param args - The commit's argv.
+ * @param path - Prepared message file to name with `-F`.
+ * @returns A new argv whose only message source is `-F path`.
+ */
+export function replaceCommitMessageSource(args: readonly string[], path: string): string[] {
+  return routeMessageSourcesToFile(args, path, EVERY_MESSAGE_SOURCE);
+}
+
+/**
+ * Report whether `args` reuse another commit's message with `-C`, `-c`, or their long forms, which also carry that
+ * commit's author and date. Option operands and tokens after `--` remain data.
+ *
+ * @param args - The commit's argv.
+ * @returns Whether a prepared message file would change the commit's authorship.
+ */
+export function reusesCommitMessage(args: readonly string[]): boolean {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--") return false;
+    if (arg.startsWith("--") && REUSE_LONG_OPTIONS.has(splitLongOption(arg).name)) return true;
+    if (!arg.startsWith("--") && arg.startsWith("-") && arg !== "-") {
+      const walk = walkCommitShortOption(arg, args[index + 1]);
+      if (walk.kind === "recognized" && walk.members.some((member) => REUSE_ROLES.has(member.role))) return true;
+    }
+    if (commitOptionConsumesNext(arg, args[index + 1])) index += 1;
+  }
+  return false;
+}
+
+/**
+ * Copy the long option at `index` into `result` with any separate operand it consumes, or drop it when it is one of
+ * `forms`' message sources.
+ *
+ * @returns How many argv tokens the option spans.
+ */
+function copyLongOption(result: string[], args: readonly string[], index: number, forms: MessageSourceForms): number {
+  const arg = args[index] ?? "";
+  if (forms.longOptions.has(splitLongOption(arg).name)) return arg.includes("=") ? 1 : 2;
+  result.push(arg);
+  const operand = args[index + 1];
+  if (operand === undefined || !commitOptionConsumesNext(arg, operand)) return 1;
+  result.push(operand);
+  return 2;
+}
+
+function routeMessageSourcesToFile(args: readonly string[], path: string, forms: MessageSourceForms): string[] {
   const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -543,15 +669,12 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       return result;
     }
 
-    if (arg === "--message") {
-      index += 1;
-      continue;
-    }
-    if (arg.startsWith("--message=")) {
+    if (arg.startsWith("--")) {
+      index += copyLongOption(result, args, index, forms) - 1;
       continue;
     }
 
-    if (!arg.startsWith("-") || arg.startsWith("--") || arg === "-") {
+    if (!arg.startsWith("-") || arg === "-") {
       result.push(arg);
       continue;
     }
@@ -562,8 +685,8 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       continue;
     }
 
-    const messageMember = walk.members.find((member) => member.role === "message");
-    if (messageMember === undefined) {
+    const sourceMember = walk.members.find((member) => forms.roles.has(member.role));
+    if (sourceMember === undefined) {
       result.push(arg);
       if (walk.consumedNext) {
         index += 1;
@@ -573,7 +696,7 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       continue;
     }
 
-    const truncated = arg.slice(0, messageMember.offset);
+    const truncated = arg.slice(0, sourceMember.offset);
     if (truncated !== "-") result.push(truncated);
     if (walk.consumedNext) index += 1;
   }

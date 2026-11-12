@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | [TBD]        |
 
 - **Cohort:** [none]
-- **Depends On:** `arc-backend`
+- **Depends On:** `storage-contract`
 
 - **Origin:** [internal] — split from `arc-backend` (storage-substrate grooming, 2026-07-17)
 - **Design:** `draft-arc-coordination-service.md`

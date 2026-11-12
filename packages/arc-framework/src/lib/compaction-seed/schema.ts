@@ -8,6 +8,7 @@
  * @module
  */
 
+import { StateVersionSchema } from "../store/identity.js";
 import { posix } from "node:path";
 
 import { z } from "zod";
@@ -20,9 +21,13 @@ import {
   TaskListCursorReaderSchema,
   TaskListCursorSchema,
 } from "../task-list/cursor.js";
+import {
+  LocusAbsolutePathSchema,
+} from "../locus/schema/index.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 
 /** Current compaction-seed envelope version. */
-export const COMPACTION_SEED_SCHEMA_VERSION = 1;
+export const COMPACTION_SEED_SCHEMA_VERSION = 2;
 
 const REPOSITORY_RELATIVE_PATH_SCHEMA = z.string().refine(isRepositoryRelativePath, {
   error: "Path must be canonical and repository-relative",
@@ -34,7 +39,13 @@ const ABSOLUTE_REPOSITORY_ROOT_SCHEMA = z.string().refine((value) =>
     || /^[A-Za-z]:[\\/]/u.test(value)
     || value.startsWith("\\\\")
   ), { error: "Repository root must be absolute" });
-const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "integration"]);
+const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "prepublication", "integration"]);
+
+/** Checkout-local recovery hint captured from the entering derived frame. */
+export const CompactionSeedLocusHintSchema = z.strictObject({
+  checkoutPath: LocusAbsolutePathSchema,
+  parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
+});
 
 const COMPACTION_SEED_FIELDS = {
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
@@ -42,6 +53,7 @@ const COMPACTION_SEED_FIELDS = {
   repoRoot: ABSOLUTE_REPOSITORY_ROOT_SCHEMA,
   branch: z.string(),
   head: z.string(),
+  stateVersion: StateVersionSchema.nullable(),
   dirty: z.boolean(),
   activeWorkUnit: z.string().nullable(),
   metaPath: REPOSITORY_RELATIVE_PATH_SCHEMA.nullable(),
@@ -50,9 +62,10 @@ const COMPACTION_SEED_FIELDS = {
   taskCursor: TaskListCursorSchema.nullable(),
   loadSet: LoadSetManifestSchema,
   uncommittedFiles: z.array(REPOSITORY_RELATIVE_PATH_SCHEMA),
+  locus: CompactionSeedLocusHintSchema,
 };
 
-/** Strict producer authority for schema-v1 compaction seeds. */
+/** Strict producer authority for schema-v2 compaction seeds. */
 export const CompactionSeedSchema = z.strictObject(COMPACTION_SEED_FIELDS);
 
 /** Recursively unknown-stripping authority for persisted seed reads. */
@@ -60,9 +73,10 @@ export const CompactionSeedReaderSchema = z.object({
   ...COMPACTION_SEED_FIELDS,
   taskCursor: TaskListCursorReaderSchema.nullable(),
   loadSet: LoadSetManifestReaderSchema,
+  locus: z.object(CompactionSeedLocusHintSchema.shape),
 });
 
-/** Version literal for schema-v1 compaction-seed envelopes. */
+/** Version literal for schema-v2 compaction-seed envelopes. */
 export type CompactionSeedSchemaVersion = z.infer<typeof COMPACTION_SEED_FIELDS.schemaVersion>;
 
 /** Session lifecycle type captured by the seed when a WU is active. */
@@ -70,6 +84,30 @@ export type CompactionSeedSessionType = z.infer<typeof SESSION_TYPE_SCHEMA>;
 
 /** Schema-v1 compaction seed derived from its strict producer authority. */
 export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
+
+/** Exact entering-checkout and marker-parent facts retained by schema-v2 seeds. */
+export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
+
+/** Complete field set compared when auditing one locus-generation hint. */
+export const COMPACTION_SEED_LOCUS_HINT_FIELDS = Object.freeze(
+  Object.keys(CompactionSeedLocusHintSchema.shape) as (keyof CompactionSeedLocusHint)[],
+);
+
+type DerivedLocusProbe =
+  | { ok: true; value: DerivedLocusFrame }
+  | { ok: false; error: unknown };
+
+/** Derive exact physical checkout-local facts from the shared entering frame. */
+export function deriveCompactionSeedLocusHint(
+  probe: DerivedLocusProbe,
+): CompactionSeedLocusHint | null {
+  if (!probe.ok || probe.value.entering.kind !== "selected") return null;
+  const row = probe.value.entering.row;
+  return {
+    checkoutPath: row.checkout.path,
+    parentCheckoutPath: row.parentCheckoutPath,
+  };
+}
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */
 export interface CompactionSeedSchemaError {
@@ -110,7 +148,7 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
   }
 
   if (!isRecord(parsed) || getSchemaVersion(parsed) === undefined) {
-    return invalidSchema("compaction seed does not match schema v1");
+    return invalidSchema("compaction seed does not match schema v2");
   }
 
   if (parsed.schemaVersion !== COMPACTION_SEED_SCHEMA_VERSION) {
@@ -127,7 +165,7 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
 
   const result = CompactionSeedReaderSchema.safeParse(parsed);
   if (!result.success) {
-    return invalidSchema(`compaction seed does not match schema v1: ${formatIssues(result.error.issues)}`);
+    return invalidSchema(`compaction seed does not match schema v2: ${formatIssues(result.error.issues)}`);
   }
   return { ok: true, seed: result.data };
 }
@@ -154,7 +192,7 @@ export function isCompactionSeed(value: unknown): value is CompactionSeed {
 }
 
 /**
- * Assert that a value satisfies the strict schema-v1 producer contract.
+ * Assert that a value satisfies the strict schema-v2 producer contract.
  *
  * @param value - Unverified producer value
  * @throws When the version or record shape is invalid

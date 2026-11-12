@@ -4,6 +4,7 @@ import { ArcError } from "../kernel/index.js";
 import {
   assertMarkdownDependencyAlignment,
   type MarkdownDependencyVersions,
+  type MarkdownRuntimeVersions,
 } from "./dependency-alignment.js";
 import type { ReadIndexedBlob } from "./indexed-snapshot.js";
 
@@ -18,7 +19,7 @@ export const MARKDOWN_DEPENDENCY_PATHS = [
 export interface LoadIndexedMarkdownDependenciesOptions {
   readonly root: string;
   readonly readBlob: ReadIndexedBlob;
-  readonly runtimeVersions: MarkdownDependencyVersions;
+  readonly runtimeVersions: MarkdownRuntimeVersions;
 }
 
 function parseJson(path: string, bytes: Uint8Array): unknown {

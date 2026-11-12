@@ -1,0 +1,332 @@
+import { describe, expect, it } from "vitest";
+
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+import {
+  createCandidateAttestation,
+  createCandidateReviewResponseEvidence,
+  createCandidateSubjectSnapshot,
+  type CandidateManagedRecordV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
+import {
+  ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
+} from "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFixAuthorization } from
+  "../../../../../src/scripts/review-gate/core/fix-authorization.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { selectPendingCandidateReviewFixRecord } from
+  "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js";
+
+const objectId = (character: string): string => character.repeat(40);
+
+function candidateSubject(source: string) {
+  return createCandidateSubjectSnapshot([{
+    path: "src/index.ts",
+    mode: "100644",
+    digest: canonicalDigest({ source }),
+    treatment: "reviewable",
+  }]);
+}
+
+function candidateRecord(): CandidateManagedRecordV1 {
+  const subject = candidateSubject("root");
+  return {
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation: createCandidateAttestation({
+      workUnit: "example",
+      subject,
+      baseRevision: objectId("c"),
+      attestedBy: "author-1",
+      attestedAt: "2026-09-08T12:00:00.000Z",
+      verificationEvidenceRef: "verification://root",
+    }),
+    subject,
+    transitions: [],
+    lineageAttestations: [],
+  };
+}
+
+function approvedRecord(candidate: CandidateManagedRecordV1, operationId = "operation-1") {
+  const target = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha: objectId("c"),
+    headTree: objectId("d"),
+  });
+  const requirement = createReviewRequirement({
+    target,
+    projection: {
+      obligation: "recommended",
+      reasons: ["routine-code"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard" }),
+      retrigger: "full-final",
+      count: 1,
+    },
+    acceptableSources: [{ sourceKind: "frontline", qualifier: "coderabbit-cli" }],
+    initialAdmission: "checkpoint",
+  });
+  if (requirement === null) throw new Error("expected a review requirement");
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: target.targetId,
+      producerId: operationId,
+      resultDigest: canonicalDigest({ operationId, outcome: "findings" }),
+      policyVersion: requirement.policyVersion,
+      rubricVersion: requirement.rubricVersion,
+      rubricDigest: requirement.rubricDigest,
+      proposedBy: "arc-cli/0.1.0",
+      proposedVerification: "targeted",
+      findings: [{
+        findingId: "finding-1",
+        sourceIdentity: "coderabbit-cli",
+        locus: "src/index.ts:1",
+        sourceVerification: "verified",
+        verificationRefs: ["source:src/index.ts:1"],
+        reportedSeverity: "major",
+        verifiedSeverity: "major",
+        disposition: "fix",
+        gating: "blocking",
+        rationale: "The finding is supported.",
+        recommendation: "Apply the fix.",
+        openQuestions: [],
+      }],
+    })),
+    approvedBy: "author-1",
+    approvedAt: "2026-09-08T12:05:00.000Z",
+  });
+  return ApprovedDispositionRecordSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: target.repositoryId,
+    operationId,
+    candidate: { workUnit: "example", candidateId: candidate.attestation.candidateId },
+    errand: null,
+    deliveryMember: null,
+    source: { kind: "frontline", outcomeRef: `frontline://${operationId}` },
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: target.headSha,
+        sourceId: "coderabbit-cli",
+        reviewOperationId: operationId,
+        standardReview: {
+          obligation: requirement.obligation,
+          reasons: requirement.reasons,
+          rubricVersion: requirement.rubricVersion,
+          rubricDigest: requirement.rubricDigest,
+          retrigger: requirement.retrigger,
+          count: requirement.count,
+        },
+      }),
+      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget: target }),
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
+  });
+}
+
+describe("Candidate review-fix continuation", () => {
+  it("selects one exact unconsumed Candidate-bound fix authorization", () => {
+    const candidate = candidateRecord();
+    const record = approvedRecord(candidate);
+    const current = currentApprovedDispositionNode(record);
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [record],
+    })).toEqual({
+      status: "selected",
+      candidateId: candidate.attestation.candidateId,
+      operationId: record.operationId,
+      reviewedHead: current.fixAuthorization?.oldHeadSha,
+      record,
+    });
+  });
+
+  it("retains Candidate authority when frontline reviewed a bound private member", () => {
+    const candidate = candidateRecord();
+    const ordinary = approvedRecord(candidate);
+    const record = ApprovedDispositionRecordSchema.parse({
+      ...ordinary,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: currentApprovedDispositionNode(ordinary).fixAuthorization?.oldHeadSha,
+      },
+    });
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [record],
+    })).toMatchObject({
+      status: "selected",
+      candidateId: candidate.attestation.candidateId,
+      operationId: record.operationId,
+      reviewedHead: currentApprovedDispositionNode(record).fixAuthorization?.oldHeadSha,
+    });
+  });
+
+  it("does not revive authority already consumed by Candidate lineage", () => {
+    const candidate = candidateRecord();
+    const record = approvedRecord(candidate);
+    const advanced = {
+      ...candidate,
+      transitions: [createCandidateReviewResponseEvidence({
+        candidateId: candidate.attestation.candidateId,
+        oldTarget: { revision: objectId("c"), subject: candidate.subject },
+        newTarget: { revision: objectId("e"), subject: candidateSubject("fixed") },
+        dispositionId: currentApprovedDispositionNode(record).approvedDisposition.dispositionSet.dispositionSetId,
+        approvedBy: "author-1",
+        appliedBy: "arc-cli/0.1.0",
+        applicability: "targeted",
+        verificationEvidenceRefs: ["verification://targeted-fix"],
+        implementationChanged: true,
+      })],
+    };
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate: advanced,
+      records: [record],
+    })).toEqual({ status: "none" });
+  });
+
+  it("refuses ambiguous pending Candidate fix authority", () => {
+    const candidate = candidateRecord();
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [approvedRecord(candidate), approvedRecord(candidate, "operation-2")],
+    })).toEqual({ status: "refused", reason: "candidate-review-fix-response-ambiguous" });
+  });
+
+  it("refuses a pending record whose fix authorization no longer matches its approval", () => {
+    const candidate = candidateRecord();
+    const record = approvedRecord(candidate);
+    const current = currentApprovedDispositionNode(record);
+    if (current.fixAuthorization === null) throw new Error("expected fix authorization");
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [{
+        ...record,
+        approvedDispositionLineage: [{
+          ...current,
+          fixAuthorization: { ...current.fixAuthorization, authorizedBy: "different-author" },
+        }],
+      }],
+    })).toEqual({ status: "refused", reason: "candidate-review-fix-response-invalid" });
+  });
+});
+
+it("uses the supplied work-item store when local files hold another pending response", async ({ onTestFinished }) => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { createLifecycleHarness } = await import("../../../../helpers/store/lifecycle-harness.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const commonDir = await mkdtemp(join(tmpdir(), "arc-pending-candidate-"));
+  onTestFinished(() => rm(commonDir, { recursive: true, force: true }));
+  const candidate = candidateRecord();
+  const directory = join(commonDir, "arc/review-gate/evidence");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "disposition-earlier.json"), JSON.stringify(approvedRecord(candidate)));
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example");
+  const input = { cwd: "/unavailable", exec: scriptGitExec([
+    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: commonDir }] },
+  ]).exec, workUnitId: "example", candidate, store: h.store, workItem: meta.reference.owner };
+  expect(await readPendingCandidateReviewFixAuthority(input)).toEqual({ status: "none" });
+});
+
+it("validates pending Candidate authority from stored outcomes and approved evidence", async () => {
+  const { storedCandidateApproval } = await import("../../../../fixtures/review-family-access.js");
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const { harness, owner, candidate, original, producer } = await storedCandidateApproval(candidateRecord());
+  const result = await readPendingCandidateReviewFixAuthority({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+    store: harness.store, workItem: owner, workUnitId: "example", candidate });
+  expect(result).toEqual({ status: "selected", candidateId: candidate.attestation.candidateId,
+    operationId: original.operationId, reviewedHead: producer.target.headSha, reviewedTarget: producer.target });
+});
+
+async function storedFrontlineCandidateApproval(boundCandidateId?: `sha256:${string}`) {
+  const { createFrontlineMappingFixture } = await import("../../../../fixtures/review-mapping.js");
+  const { approvedRecord } = await import("../../../../fixtures/review-response-proof.js");
+  const { createReviewHarness } = await import("../../../../helpers/store/review-harness.js");
+  const { lifecycleSuccess } = await import("../../../../helpers/store/lifecycle-harness.js");
+  const { mapReviewRecords } = await import("../../../../../src/lib/store/kinds/review/mapping.js");
+  const candidate = candidateRecord(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  const h = createReviewHarness();
+  await h.seedProject(projectId);
+  const owner = (await h.seedMeta("example")).reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected work-item generation");
+  const { fixture, input } = await createFrontlineMappingFixture(projectId, "findings",
+    boundCandidateId ?? candidate.attestation.candidateId);
+  const producer = await fixture.reader.readResult(fixture.admission.operationId);
+  const initial = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const original = ApprovedDispositionRecordSchema.parse({ ...initial,
+    candidate: { workUnit: "example", candidateId: candidate.attestation.candidateId },
+    deliveryMember: fixture.outcomeRecord.responseBinding?.deliveryMember,
+    approvedDispositionLineage: initial.approvedDispositionLineage.map(node => ({ ...node,
+      fixAuthorization: createFixAuthorization({ dispositionState: node.approvedDisposition, oldTarget: producer.target }) })) });
+  input.workItems = [{ kind: "work-unit", slug: "example", uid: owner.uid, live: true }];
+  input.gate.push({ path: `arc/review-gate/evidence/disposition-${canonicalDigest({ operationId: original.operationId }).slice(7)}.json`,
+    bytes: new TextEncoder().encode(JSON.stringify(original)) });
+  const mapped = mapReviewRecords(input);
+  lifecycleSuccess(await h.store.batch({ writes: mapped.records.map(({ reference, contents }) => ({
+    action: "put", reference, expected: null, content: contents[0]!,
+  })), provenance: { verb: "review", lifecycleAction: "create" } }));
+  return { h, owner, candidate, producer, original };
+}
+
+async function readStoredPendingAuthority(boundCandidateId?: `sha256:${string}`) {
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const stored = await storedFrontlineCandidateApproval(boundCandidateId);
+  return { ...stored, result: await readPendingCandidateReviewFixAuthority({ cwd: "/unavailable",
+    exec: scriptGitExec([]).exec, store: stored.h.store, workItem: stored.owner, workUnitId: "example",
+    candidate: stored.candidate }) };
+}
+
+it("selects pending authority from an imported frontline command outcome with no run record", async () => {
+  const { candidate, producer, original, result } = await readStoredPendingAuthority();
+  expect(result).toEqual({ status: "selected", candidateId: candidate.attestation.candidateId,
+    operationId: original.operationId, reviewedHead: producer.target.headSha, reviewedTarget: producer.target });
+});
+
+it("refuses stored pending authority whose frontline response binding names another Candidate", async () => {
+  const { result } = await readStoredPendingAuthority(`sha256:${"8".repeat(64)}`);
+  expect(result).toEqual({ status: "refused", reason: "candidate-review-fix-response-invalid" });
+});

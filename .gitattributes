@@ -8,3 +8,7 @@
 # Windows scripts keep CRLF
 *.ps1  text eol=crlf
 *.bat  text eol=crlf
+
+# ARC Framework (managed by arc cli)
+.arc/backlog/ROADMAP.md merge=arc-roadmap
+# end ARC

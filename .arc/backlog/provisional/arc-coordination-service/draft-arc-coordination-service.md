@@ -1,11 +1,27 @@
 # Draft: ARC Coordination Service (Coordinated tier)
 
-- **Origin:** [internal] — split out of `draft-arc-backend.md` at the storage-substrate grooming (2026-07-17), so
+- **Origin:** [internal] — split out of `draft-storage-contract.md` at the storage-substrate grooming (2026-07-17), so
   the git-only substrate (tiers 1–3) could promote to planned while the service tier stays a someday-target.
 - **Cohort:** [none]
 - **Purpose:** The **Coordinated** tier of the storage substrate: a coordination layer fronting the same git
   backing store, for deployments whose needs outgrow a plain shared remote — per-record authorization,
   event-log gatekeeping, richer heal/refresh contracts, high-parallelism arbitration.
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Replace arc-coordination-service's `arc-backend` vocabulary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-coordination-service`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The draft still speaks in `arc-backend` terms — its tiers and "moved from arc-backend" — which the
+  `state-storage` re-cut renamed to `storage-contract` and ADR-035 re-shaped into backends behind one contract. It is
+  also the recorded home for the deferred service backend, per-record authorization, and very high write parallelism
+  (`storage-contract` C14).
+- _Approach:_ Re-frame the draft against ADR-035's backends and the storage contract's interface at next grooming.
 
 ---
 

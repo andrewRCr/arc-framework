@@ -7,7 +7,7 @@ override-active: false
 # Method: assess-parallel-fit
 
 > - **Workflow:** [in-flight-scope-check.md][in-flight-scope-check], [activate-work-unit.md][activate-work-unit],
->   [run-errand.md][run-errand], [session-init.md][session-init]
+>   [run-errand.md][run-errand], [discover-next-work.md][discover-next-work]
 > - **When:** A candidate is weighed against the in-flight work set — when a new WU is about to start (cold-start /
 >   spawn, via the in-flight scope check), at the Planning→Active flip, at the errand surface where `arc errand
 >   check` already emits overlap facts, and at the pick-time / next-work-discovery subset selection.
@@ -56,8 +56,8 @@ Read the candidate's domain against the in-flight set and map the overlap to a p
   WU touch the same code or document surface, or a shared piece of load-bearing infrastructure. The work can still
   proceed, but the overlap is a real integration cost — weigh sequencing the two over running them at once.
 - **Foreign-owned overlap → coordinate.** The overlapping surface belongs to another owner's in-flight WU (see
-  § Self/foreign asymmetry). Resolve the contention with that owner before proceeding — you cannot unilaterally
-  reorder work you don't own.
+  § Self/foreign asymmetry). Reordering their work is not yours to do; starting your own is, so raise the
+  contention with that owner first — the posture this read recommends, not a gate it enforces.
 
 ### Evidence-tiering ladder
 
@@ -81,8 +81,9 @@ Every WU is single-owner, so overlap on a shared surface reduces to one question
 
 - **Self-overlap → reorder freely.** The candidate overlaps your own in-flight WU. You own both, so sequence them
   in whatever order suits; there is no coordination cost beyond your own attention.
-- **Foreign-overlap → coordinate.** The overlapping WU belongs to another owner. Resolve the contention with that
-  owner before proceeding — you cannot unilaterally reorder work you don't own.
+- **Foreign-overlap → coordinate.** The overlapping WU belongs to another owner. Two acts sit here and only one
+  is yours: you cannot unilaterally reorder work you don't own, while starting your own work against the shared
+  surface commits nobody. Raise the contention with that owner first — advisory, per § Proportionality guard.
 
 In a single-owner-per-WU model this asymmetry is the whole judgment on a shared surface: the rubric's "shared" and
 "foreign-owned" rows are the same overlap read through the owner lens.
@@ -136,4 +137,4 @@ candidates at once is the same 2+-unsettled-design note surfacing here — infor
 [in-flight-scope-check]: ../workflows/arc/work-unit-lifecycle/in-flight-scope-check.md
 [activate-work-unit]: ../workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
-[session-init]: ../workflows/arc/session-lifecycle/session-init.md
+[discover-next-work]: discover-next-work.md

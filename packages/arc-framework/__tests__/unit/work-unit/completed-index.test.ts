@@ -1,15 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import {
-  branchToWorkUnitSlug,
-  computeArchiveDestination,
-  isShippedWorkUnit,
-  readCompletedEvidenceFromRef,
-  readShippedWorkUnits,
-  readShippedWorkUnitRecordsFromRef,
-  readShippedWorkUnitsFromRef,
-  type CompletedIndexFs,
-} from "../../../src/lib/work-unit/completed-index.js";
+import { computeArchiveDestination, isShippedWorkUnit, readArchivedWorkUnitMetaFromRef, readCompletedEvidenceFromRef, readShippedWorkUnits, readShippedWorkUnitRecordsFromRef, readShippedWorkUnitsFromRef, type CompletedIndexFs } from "../../../src/lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug, completedWorkUnitMetaSlug } from "../../../src/lib/work-unit/work-unit-slug.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 /**
@@ -63,6 +55,25 @@ function buildReaddirFs(dirs: Record<string, string[]>): CompletedIndexFs {
 
 const completed = "/repo/.arc/completed";
 
+describe("completedWorkUnitMetaSlug", () => {
+  it("admits an exact completed work-unit metadata path", () => {
+    expect(completedWorkUnitMetaSlug(
+      ".arc/completed/2026-q3/49_demo/meta-demo.md",
+    )).toBe("demo");
+  });
+
+  it.each([
+    ".arc/completed/2026-q3/49a_cohort-demo/cohort-demo.md",
+    ".arc/completed/2026-q3/49_demo/tasks-demo.md",
+    ".arc/completed/2026-q5/49_demo/meta-demo.md",
+    ".arc/completed/2026-q3/49_other/meta-demo.md",
+    ".arc/backlog/planned/demo/meta-demo.md",
+    ".arc/active/meta-demo.md",
+  ])("ignores an ineligible path: %s", (path) => {
+    expect(completedWorkUnitMetaSlug(path)).toBeNull();
+  });
+});
+
 describe("readShippedWorkUnits", () => {
   it("collects NN_<slug> dirs across every quarter into a slug set", async () => {
     const fs = buildReaddirFs({
@@ -107,6 +118,17 @@ describe("readShippedWorkUnits", () => {
     const shipped = await readShippedWorkUnits({ cwd: "/repo", fs });
 
     expect([...shipped]).toEqual(["doc-cascade-sweep"]);
+  });
+
+  it("collects a work unit whose slug starts with cohort- beside a cohort closeout", async () => {
+    const fs = buildReaddirFs({
+      [completed]: ["2026-q4"],
+      [`${completed}/2026-q4`]: ["33_cohort-verbs", "33a_cohort-demo"],
+    });
+
+    const shipped = await readShippedWorkUnits({ cwd: "/repo", fs });
+
+    expect([...shipped]).toEqual(["cohort-verbs"]);
   });
 
   it("returns an empty set when completed/ is absent", async () => {
@@ -184,8 +206,10 @@ describe("readShippedWorkUnitsFromRef", () => {
       blobs: {
         [metaPath]:
           "# Metadata: decompose-matrix\n\n"
-          + "- **State:** Shipped\n"
-          + "- **Completed:** 2026-06-20\n",
+          + "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n"
+          + "| --------- | --------- | ---------- | --------- | ------------ |\n"
+          + "| Shipped | — | — | — | — |\n\n"
+          + "- **Completed:** 2026-06-20\n\n---\n",
       },
     });
 
@@ -206,14 +230,61 @@ describe("readShippedWorkUnitsFromRef", () => {
     expect(records.has("cohort-demo")).toBe(false);
   });
 
+  it("reads a work unit whose slug starts with cohort- as shipped beside a cohort closeout", async () => {
+    const metaPath = ".arc/completed/2026-q4/33_cohort-verbs/meta-cohort-verbs.md";
+    const result = await readCompletedEvidenceFromRef(buildTreeExec({
+      paths: [
+        metaPath,
+        ".arc/completed/2026-q4/33_cohort-verbs/spec-cohort-verbs.md",
+        ".arc/completed/2026-q4/33a_cohort-demo/cohort-demo.md",
+      ],
+      blobs: {
+        [metaPath]:
+          "# Metadata: cohort-verbs\n\n"
+          + "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n"
+          + "| --------- | --------- | ---------- | --------- | ------------ |\n"
+          + "| Shipped | — | — | — | — |\n\n"
+          + "- **Completed:** 2026-11-10\n\n---\n",
+      },
+    }), "origin/main");
+
+    expect(result.status).toBe("available");
+    if (result.status === "available") {
+      expect([...result.records.keys()]).toEqual(["cohort-verbs"]);
+      expect(result.records.get("cohort-verbs")).toMatchObject({ completedAt: "2026-11-10" });
+    }
+  });
+
   it("parses PR identity and preserves available negative evidence", async () => {
     const withPr = ".arc/completed/2026-q2/03_widget/meta-widget.md";
     const withoutPr = ".arc/completed/2026-q2/04_plain/meta-plain.md";
     const result = await readCompletedEvidenceFromRef(buildTreeExec({
       paths: [withPr, withoutPr],
       blobs: {
-        [withPr]: "# Metadata\n\n- **PR URL:** https://github.com/o/r/pull/17\n",
-        [withoutPr]: "# Metadata\n\n- **PR URL:** [none]\n",
+        [withPr]: [
+          "# Metadata: widget",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "- **PR URL:** https://github.com/o/r/pull/17",
+          "",
+          "---",
+          "",
+        ].join("\n"),
+        [withoutPr]: [
+          "# Metadata: plain",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "- **PR URL:** [none]",
+          "",
+          "---",
+          "",
+        ].join("\n"),
       },
     }), "origin/main");
     expect(result.status).toBe("available");
@@ -272,6 +343,45 @@ describe("readShippedWorkUnitsFromRef", () => {
     const shipped = await readShippedWorkUnitsFromRef(exec, "origin/main");
 
     expect(shipped.size).toBe(0);
+  });
+});
+
+describe("readArchivedWorkUnitMetaFromRef", () => {
+  it("reads only the exact archived metadata blob for a work-unit slug", async () => {
+    const path = ".arc/completed/2026-q3/49_demo/meta-demo.md";
+    const result = await readArchivedWorkUnitMetaFromRef(buildTreeExec({
+      paths: [
+        path,
+        ".arc/completed/2026-q3/49_demo/tasks-demo.md",
+        ".arc/completed/2026-q3/50_other/meta-other.md",
+      ],
+      blobs: { [path]: "# Metadata: demo\n" },
+    }), "a".repeat(40), "demo");
+
+    expect(result).toEqual({ kind: "read", path, text: "# Metadata: demo\n" });
+  });
+
+  it("reads the metadata of a work unit whose slug starts with cohort-", async () => {
+    const path = ".arc/completed/2026-q4/33_cohort-verbs/meta-cohort-verbs.md";
+    const result = await readArchivedWorkUnitMetaFromRef(buildTreeExec({
+      paths: [path, ".arc/completed/2026-q4/33a_cohort-demo/cohort-demo.md"],
+      blobs: { [path]: "# Metadata: cohort-verbs\n" },
+    }), "a".repeat(40), "cohort-verbs");
+
+    expect(result).toEqual({ kind: "read", path, text: "# Metadata: cohort-verbs\n" });
+  });
+
+  it("preserves duplicate exact metadata paths as ambiguity", async () => {
+    const paths = [
+      ".arc/completed/2026-q2/12_demo/meta-demo.md",
+      ".arc/completed/2026-q3/49_demo/meta-demo.md",
+    ];
+
+    await expect(readArchivedWorkUnitMetaFromRef(
+      buildTreeExec({ paths, blobs: {} }),
+      "a".repeat(40),
+      "demo",
+    )).resolves.toEqual({ kind: "duplicate", paths });
   });
 });
 
@@ -342,6 +452,13 @@ describe("branchToWorkUnitSlug", () => {
 
   it("returns null for a branch carrying no <type>/ prefix", () => {
     expect(branchToWorkUnitSlug("main")).toBeNull();
+  });
+
+  it("reserves delivery branches as presentation refs rather than work-unit identities", () => {
+    expect(branchToWorkUnitSlug("delivery/example/first-member")).toBeNull();
+    expect(branchToWorkUnitSlug("feat/example")).toBe("example");
+    expect(branchToWorkUnitSlug("fix/example")).toBe("example");
+    expect(branchToWorkUnitSlug("plan/example")).toBe("example");
   });
 });
 

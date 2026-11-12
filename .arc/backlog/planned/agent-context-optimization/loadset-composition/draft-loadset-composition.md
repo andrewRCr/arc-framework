@@ -144,6 +144,37 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
   this capture is the pointer.
 
+### `[ ]` **Retire the vestigial `session-state` method**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: loadset-composition`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Phase 2.
+- _Concern:_ the method's three bullets duplicate always-loaded session-state rules, while its apparent override
+  seam is nonfunctional: session-init hard-codes its load set and the method default contains no document set.
+  Core session state is no longer a swappable mechanism; only specific elements are configurable.
+- _Fold-in:_ decide whether any genuine configurable residue survives and what it configures, then remove the
+  method from both copies, the install recipe and manifest, classification configuration, both lifecycle
+  workflows, and the session-init template. Keep this with the load-set owner rather than treating deletion as
+  a standalone cleanup.
+
+### `[ ]` **Record in `loadset-composition`'s draft that its always-loaded trims for session-init moved to `session-init-agenda`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ § Working Framing's decision rule, and the layers its meta records as independent of
+  `composable-workflows` (the decision rule and the manifest audit).
+
+- _Observation:_ the Owner carved the session-init overhaul as `session-init-agenda` (2026-10-31, in draft-design):
+  `composable-workflows`' D3 applied to session-init, with this draft's always-loaded trims (Gate B,
+  `RELEASE-GATES.md`, 2026-10-30). This draft still owns those trims, so two drafts claim the same decisions.
+
+- _Approach:_ record which trims and layers `session-init-agenda` takes, likely the always-loaded set's reductions and
+  whatever of the decision rule and manifest audit its design applies; keep the loop canon and the rest here, after the
+  deadline. Read `session-init-agenda`'s specification for what it took.
+
+- _Captured during:_ PM sequencing of the session-init start, 2026-10-31.
+
+---
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in
@@ -223,12 +254,11 @@ complementary and should land coherently.
 **Layer 2 — Audit.** Apply the rule to the current T1/T2 set; document keep-vs-demote per document with
 the reason. Expected outcome: briefs and DEV-RULES stay (constraints / low-cost narrative — demoting
 constraints is the riskiest move and the rule forbids it); QUICK-REFERENCE's residual demotes;
-process-task-loop splits (Layer 3).
-_Re-base (2026-07-02):_ the audit's object is now the shipped **`loadSet` manifest** — the probe's
-projection of Step 3 policy (with read-modes), parity-tested against the workflow's inline enumeration.
-Audit the manifest entries, not prose recollections of the load set; include the cohort-doc entry (from
-the buffer) and WORKING-MEMORY (whose per-session read cost `handoff-optimization`'s structured-trigger
-item attacks from the other side).
+process-task-loop splits (Layer 3). _Re-base (2026-07-02):_ the audit's object is now the shipped **`loadSet` manifest**
+— the probe's projection of Step 3 policy (with read-modes), parity-tested against the workflow's inline enumeration.
+Audit the manifest entries, not prose recollections of the load set; include the cohort-doc entry (from the buffer) and
+WORKING-MEMORY (whose per-session read cost `handoff-optimization`'s structured-trigger item attacks from the other
+side).
 
 **Layer 3 — Execution.** The demotions that pass the rule:
 
@@ -327,10 +357,9 @@ authoring a loop template.)
 
 ## Scope Estimate
 
-**Bounded — feels small-to-medium.** Precise scope
-deferred to PRD time (the loop split is the heaviest single piece and could be split out if scope
-balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), Layer 3 QUICK-REFERENCE
-(~0.5), process-task-loop core/detail split + loop-canon (~1–1.5), verification (~0.5).
+**Bounded — feels small-to-medium.** Precise scope deferred to PRD time (the loop split is the heaviest single piece and
+could be split out if scope balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), Layer 3
+QUICK-REFERENCE (~0.5), process-task-loop core/detail split + loop-canon (~1–1.5), verification (~0.5).
 
 ## Open Questions (PRD-time)
 

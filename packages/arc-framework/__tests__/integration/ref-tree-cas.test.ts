@@ -24,9 +24,9 @@ import {
   readRefTip,
   readTreeEntries,
   hashBlob,
+  isCasRejectionError,
   type RefTreeWriteIO,
 } from "../../src/lib/git/ref-tree.js";
-import { isCasRejectionError } from "../../src/lib/user-sync/notes-merge.js";
 
 const REF = "refs/arc/test/cas";
 

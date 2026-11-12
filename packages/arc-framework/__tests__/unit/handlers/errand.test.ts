@@ -3,8 +3,66 @@ import { describe, expect, it } from "vitest";
 import {
   buildErrandCheckJsonEnvelope,
   formatErrandCheckCaveats,
-  formatErrandPushDeferredWarning,
+  formatErrandCloseResult,
+  formatErrandNextResult,
 } from "../../../src/handlers/errand.js";
+import { buildErrandNextResult } from "../../../src/commands/errand-next.js";
+import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
+
+const queueProblems = {
+  leftOut: [{ inbox: "personal" as const, id: "12345678", reason: "The capture moved.", remedy: { text: "Select its current home." } }],
+  skipped: [{ inbox: "project" as const, id: "87654321", reason: "The entry has a conflict.", remedy: { text: "Resolve the disputed prose." } }],
+};
+const problemText = "Left out personal:12345678: The capture moved. Select its current home.\n"
+  + "Skipped project:87654321: The entry has a conflict. Resolve the disputed prose.";
+
+describe("arc errand next result", () => {
+  it.each([false, true])("renders qualified queue problems with an available offer=%s and preserves JSON", available => {
+    const result = buildErrandNextResult({ kind: "resolved", ...queueProblems,
+      nextOffer: available ? { kind: "errand", key: "personal:11111111", parentCheckoutPath: null } : null });
+    expect(formatErrandNextResult(result, false).text).toBe(`${result.recommendedPromptText}\n${problemText}`);
+    expect(JSON.parse(formatErrandNextResult(result, true).text)).toEqual(result);
+  });
+  it("preserves the queue provider's repair without substituting a legacy inbox instruction", () => {
+    const result = buildErrandNextResult({ kind: "refused", reason: "Queue record is conflicted", remedy: "Resolve the queue record, then retry." });
+    expect(result).toMatchObject({ state: "refused", remedy: "Resolve the queue record, then retry." });
+    expect(result.recommendedPromptText).toContain("Resolve the queue record, then retry.");
+  });
+
+  it("projects available, empty, and refused queue reads without opening work", () => {
+    const available = buildErrandNextResult({
+      kind: "resolved",
+      nextOffer: { kind: "errand", key: "First queued Errand", parentCheckoutPath: "/parent" },
+    });
+    const empty = buildErrandNextResult({ kind: "resolved", nextOffer: null });
+    const refused = buildErrandNextResult({ kind: "refused", reason: "queue malformed" });
+
+    expect(available).toMatchObject({
+      state: "available",
+      nextAction: "open-errand",
+      nextOffer: { key: "First queued Errand", parentCheckoutPath: null },
+    });
+    expect(empty).toMatchObject({ state: "empty", nextAction: "none", nextOffer: null });
+    expect(refused).toMatchObject({
+      state: "refused",
+      nextAction: "stop",
+      reason: "queue malformed",
+      remedy: "Repair the reported `USER-INBOX` condition.",
+      retryCommand: "arc errand next --json",
+    });
+    expect(formatErrandNextResult(refused, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(refused)}\n`,
+      exitCode: 1,
+    });
+    expect(formatErrandNextResult(refused, false)).toEqual({
+      stream: "stderr",
+      text: refused.recommendedPromptText,
+      exitCode: 1,
+    });
+  });
+});
 
 describe("formatErrandCheckCaveats", () => {
   it("renders caveat lines for skipped marked entries and indeterminate probes", () => {
@@ -66,29 +124,35 @@ describe("buildErrandCheckJsonEnvelope", () => {
   });
 });
 
-describe("formatErrandPushDeferredWarning", () => {
-  it("names every same-slug collision and gives the actual discard-side recovery", () => {
-    const warning = formatErrandPushDeferredWarning(
-      "Record-removal",
-      { kind: "conflict", slugs: ["alpha", "beta"] },
-      true,
-    );
-
-    expect(warning).toContain("alpha, beta");
-    expect(warning).toContain("arc errand close --force <slug>");
-    expect(warning).toContain("discarded side");
-    expect(warning).not.toContain("reconciles on the next `arc sync`");
+describe("formatErrandCloseResult", () => {
+  it("renders close queue problems while preserving the complete machine result", () => {
+    const result = createErrandTerminalResult({ outcome: "applied", operation: "errand-close", ...queueProblems,
+      subject: { kind: "partial-errand", slug: "finished", claimId: null }, generation: digestBytes(Buffer.from("partial marker")), checkoutPath: "/repo",
+      parentCheckoutPath: null, settlement: { kind: "capture", disposition: "removed", originEntry: "project:11111111" },
+      nextOffer: null, recommendedPromptText: "Closed the Errand." });
+    expect(formatErrandCloseResult(result, false)).toEqual({ stream: "stdout", exitCode: 0, text: `Closed the Errand.\n${problemText}` });
+    expect(JSON.parse(formatErrandCloseResult(result, true).text)).toEqual(result);
   });
+  it("renders the same validated result as human narration and JSON", () => {
+    const result = createErrandTerminalResult({
+      outcome: "refused",
+      operation: "errand-close",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
+      reason: "preservation-unproven",
+      recommendedPromptText: "The recorded head moved.",
+    });
 
-  it("surfaces when no sync-state record could retain the recovery marker", () => {
-    const warning = formatErrandPushDeferredWarning(
-      "Record",
-      { kind: "failed", error: new Error("offline") },
-      false,
-    );
-
-    expect(warning).toContain("recovery marker was not recorded");
-    expect(warning).toContain("retry recovery with `arc sync`");
-    expect(warning).not.toContain("it reconciles");
+    expect(formatErrandCloseResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "The recorded head moved.",
+      exitCode: 1,
+    });
+    expect(formatErrandCloseResult(result, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 1,
+    });
   });
 });

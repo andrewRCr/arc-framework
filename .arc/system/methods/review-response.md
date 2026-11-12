@@ -1,6 +1,9 @@
 ---
 name: review-response
 description: Provider-neutral author response contract for normalized review findings
+arc:
+  methods:
+    - review-model
 related:
   - review-triage
 override-active: false
@@ -8,7 +11,7 @@ override-active: false
 
 # Method: review-response
 
-> - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
+> - **Workflow:** [code-review](code-review.md).
 > - **When:** A local or hosted review returns normalized findings
 >
 > - **Contract:** Given an exact review target, normalized findings, effective routing result, and caller
@@ -23,12 +26,15 @@ override-active: false
 
 ## review-response.default
 
+Apply [review-model][review-model] before running or assessing this review.
+
 The caller supplies:
 
 - the exact current target and source-normalized findings with immutable loci;
 - the effective review-routing decision;
-- the effective severity-gating policy (`minorGating: blocking | record-only`);
-- the strict disposition state — absent, complete proposed set, or exact approved set;
+- the effective severity-gating policy as `proposal.severityGatingPolicy` (`minorGating: blocking | record-only`);
+- the strict disposition state — absent, complete proposed set, or exact approved set, including its approved
+  `proposedVerification` scope;
 - candidate-target, verification, and persistence evidence when fixes have run; and
 - capability availability for approval, mutation, persistence, caller-owned closure, and rerouting.
 
@@ -37,35 +43,105 @@ in that state:
 
 - `awaiting-approval` — present the complete disposition set; mutation is unavailable.
 - `ready-to-fix` — apply only the approved `fix` set as one bounded increment.
-- `ready-to-persist` — persist the verified candidate through the caller's release interlock.
+- `ready-to-persist` — persist the committed, verified candidate; reached only inside the verified-fix replay.
 - `ready-to-close` — return unchanged-target dispositions to the caller.
 - `reroute` — return the persisted changed target for re-routing.
 - `blocked` — stop because an exact binding, evidence item, or required capability is absent.
 
 Every result returns the approved disposition state when one exists, verification references, the old target, an
 explicit nullable new target, and `blocking: true | false`. `ready-to-fix` additionally returns one single-use
-authorization over the old target, approved-set identity, and approved fix findings; it never predicts the resulting
-target. Past-tense finding actions are settlement evidence, not approval state. The planner does not choose a
-provider, compose a provider command, or infer authority from host state.
+authorization over the old target, approved-set identity, approved fix findings, and `approvedVerification`; it never
+predicts the resulting target. The scope is carried authority, not permission to skip or narrow verification. Past-tense
+finding actions are settlement evidence, not approval state. The planner does not choose a provider, compose a provider
+command, or infer authority from host state.
 
-When building the disposition set, derive every item's gating from severity plus project policy: `blocker` and
-`major` are blocking, `nit` is record-only, and an ordinary `minor` uses `minorGating`. Keep every finding in the
-set. A blocking recurrence requests another round; a record-only finding does not. Carrier-native requested changes
-and required conversations remain independent blockers outside this planner, so ARC's record-only result cannot
-weaken host authority.
+When the response captures a conditional next pass, its envelope returns `conditionalPassAuthorizationId` and the
+same identity inside `payload.policyRequest.ceilingOverride`. Retain that policy request unchanged through response
+performance and target rerouting. At the named next-pass admission, carry the exact ceiling override as
+`policyJudgment.ceilingOverride` for local or frontline work, or as `ceilingOverride` for a hosted request. Never
+reconstruct the identity or treat it as authority for another admission; the lane owner consumes it before dispatch.
+
+When the governing approver retracts that unconsumed authority, or the performed fix exceeds the approved scope,
+submit the original source plus `conditionalNextPassWithdrawal` through `arc review respond -`. Copy its exact
+`conditionalPassAuthorizationId` and disposition-set identity, and name the withdrawing approver; do not resubmit the
+approved response or edit its disposition set. Only `conditional-authority-withdrawn` confirms withdrawal, with
+`payload.replayed` distinguishing an exact replay. A stale-disposition, foreign, consumed, or superseded refusal
+stops. Withdrawal preserves the invalidated capture as audit evidence and can never create authority for another pass.
+
+The proposal's separate `report` inputs render the agent's rubric anchors and trend reading without entering the
+approved set. The first approved call repeats the fix `tags`; it stores only those advisory tags beside the set,
+outside its identity. Later advances preserve them unchanged. Approved, verified-fix, and settlement reports read
+them and use the reduced shape: approved-set header with its verification scope, tagged table and sections, without
+rubric anchors, Trend, or Decisions. A record without stored tags renders in canonical order.
+
+A fix-check round and a successor complete pass are separate decisions under [review-model][review-model]. Never
+decline a repair check because a complete pass follows. Human review follows closed agentic review out of band and
+is never a pass.
+
+### Correct an approved disposition before response performance
+
+New source evidence or fix verification may disprove an approved judgment while its fix increment is still
+uncommitted. Use the canonical two-call supersession through `arc review respond -`; never edit the approved set or
+repair Git-common state directly.
+
+1. **Proposal call:** resubmit the original `source`, add `supersedes.predecessorDispositionSetId`, and list only the
+   authorized dirty paths in `supersedes.expectedFixPaths`. Supply a fresh, complete `proposal` covering every source
+   finding, with the separate `report` inputs from [review-triage][review-triage]. Only `awaiting-approval` yields
+   the canonical successor proposal and report for fresh human approval.
+2. **Approval call:** resubmit that same `source` and `supersedes`, add the ordinary `policyRequest`, and supply the
+   exact freshly approved successor as `dispositions` and its advisory fix `tags` again. If another conditional
+   complete pass is approved, supply its fresh
+   `conditionalNextPassAuthorization`; predecessor authority never transfers implicitly.
+
+On success, consume `payload.supersession` as the transition receipt. `status: published | replayed` distinguishes a
+new successor from idempotent re-entry; `successorDispositionSetId` is the new current set. For hosted findings,
+preserve `carriedFindingIds` without repeating their compatible exact settlement and perform only the returned
+`reopenedFindingIds` through `payload.hostedSettlementPlan`. The response planner may return the corrected fix,
+settlement, or close leaf; execute only that selected leaf.
+
+`supersedes` belongs to this transition alone. Re-entering the approval call before the fix is committed keeps it;
+every later call for the response, including the committed verified-fix replay, carries the approved successor
+without it.
+
+Expected fix dirt is an allowance, not a target rewrite: a changed reviewed head, an unrelated dirty path, consumed
+authority, ambiguous hosted settlement, stale predecessor, or conflicting successor returns `supersession-refused`.
+Stop on that result. Do not edit the record, retry with a different predecessor, or perform direct Git-common surgery;
+correct the stated condition and replay the same canonical call when the refusal permits it.
+
+When building the disposition set, copy `reportedSeverity` and optional `reportedNit` from the producer while triage
+supplies explicit nullable `verifiedSeverity` and optional `verifiedNit`. Derive gating only from the verified lane plus
+project policy: `critical` and `major` are blocking, a verified nit is record-only, and an ordinary verified `minor`
+uses `minorGating`. A `not-supported` finding has no ARC grade, must be rejected, and remains record-only. Keep every
+finding in the set. Convergence follows the approved verified material fixes, independently of gating: a fix check
+checks those repairs, and `full-final` also requires a complete pass after the rounds converge. Fix and delta checks
+are outside the complete-pass ceiling; a conditional next-pass authorization names only its complete pass. Carrier-native
+requested changes and required conversations remain independent blockers outside this planner, so ARC's record-only
+result cannot weaken host authority.
+
+A `fix` whose correction would change the design record or its derivation enters [`amend-design`][amend-design]
+before the set is approved. Its [entry gate][amend-design-gate] returns either that the ordinary fix path carries
+the correction and writes no record, or an amendment whose record row is proposed inside this disposition set, so
+the approved set already binds the amended target.
 
 ### Execute only the selected author leaf
 
 Follow the planner state; do not infer or combine transitions:
 
-- For `awaiting-approval`, verify and classify every finding with `review-triage`, present the complete proposal,
-  and return the approval or blocking questions. Do not mutate the target.
-- For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly
-  the approved `fix` findings as one review increment, run the affected quality gates, and return the candidate target
-  plus verification evidence. Do not persist it inside this method.
-- For `ready-to-persist`, report the verified candidate and return control to the caller's commit interlock. Bind the
-  authorization consumption to the actual old/new target, applying actor, and verification references before any push
-  interlock can release.
+- For `awaiting-approval`, return the canonical proposal and report to the governing caller. That caller already owns
+  `review-triage`, presentation, and complete-set approval; do not invoke triage again or mutate the target.
+- For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly the
+  approved `fix` findings as one review increment, run the caller's review-fix request, and return the candidate target
+  plus actual verification scope and evidence. The performed scope must equal or exceed `approvedVerification`; do not
+  use that floor to choose fewer checks. Do not persist the candidate inside this method: return control to the
+  caller, whose commit the complete-set approval releases where `arc.commitInterlock` allows; under `manual` it stops
+  at the commit interlock ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Once the fix is
+  committed and the worktree is clean, the caller replays the exact approved request with `verifiedFix`
+  (`reentryCommand: respond-verified-fix`), leaving out any `supersedes`: the fix commit moved the reviewed head that
+  supersession requires, so carrying it returns `supersession-refused`. A replay over an uncommitted fix refuses with
+  a remedy that names this commit-then-replay continuation.
+- `ready-to-persist` is reached inside that replay. The replay binds the authorization consumption to the actual
+  old/new target, applying actor, and verification references, so run it before any push interlock can release.
+  Preserve `approvedVerification` in the changed-target response continuation.
 - For `ready-to-close`, return the exact approved unchanged-target dispositions to the caller. Do not author replies
   or resolve conversations here.
 - For `reroute`, return the persisted changed target to the coordinator; do not choose or invoke a retrigger.
@@ -81,11 +157,18 @@ review source, persists, or performs adapter-owned closure within this method.
 - **Hosted:** The caller may reply or resolve only when its adapter supplies an authoritative address and declares
   the operation supported. A finding without that capability produces no hosted response; never create a roll-up
   comment. A finding with `settlement: not-applicable` is always in this no-response class: `fix`, `defer`, and
-  `reject` alike produce no reply, resolution, or compensating disposition comment.
+  `reject` alike produce no reply, resolution, or compensating disposition comment. For supported settlement, use the
+  returned plan's canonical `actorIdentity` unchanged; never translate a provider login or infer the provider's ID.
 
 Conversation state remains host-owned. Approval and an agent-authored explanation do not manufacture a host
 capability or satisfy a carrier-native review requirement.
 
 ---
 
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate
+[review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
+
+[review-model]: review-model.md
+
+[review-triage]: review-triage.md

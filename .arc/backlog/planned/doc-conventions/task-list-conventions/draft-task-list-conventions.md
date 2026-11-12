@@ -13,6 +13,67 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make the canonical task-list fixture actually validated, or drop the designation**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: TBD`
+
+- _Observation:_ `template-tasks.md` is named `CANONICAL_TASK_DESCRIPTOR_FIXTURE`, is selected by the descriptor
+  lint at both fire sites, and is a staged-gate trigger path — but its whole task-list example lives inside one
+  fenced block and the structural scanner skips fences. Scanning it yields zero phases, zero parents, zero
+  descriptor extents, and zero diagnostics. The shipped skeleton every author copies from is checked by nothing,
+  and the constant's name reads as coverage the repository does not have.
+
+- _Scope:_ the fence is load-bearing rather than an oversight — an unfenced example would fire the validators on
+  illustrative content — so this is a fork, not a bug fix. Mint a non-fenced canonical fixture the validators do
+  scan and assert the template's example against it; teach the validators to opt into a designated fence in a
+  designated file; or accept the limit and drop the designation, which today overstates what is verified.
+
+- _Approach:_ whichever way it resolves, the failure mode is already on the record — a task-list checklist entry
+  contradicted by the template went unnoticed across many work units, which is the evidence cited for mechanizing
+  structural checks rather than trusting a checklist.
+
+- _Captured during:_ `plan-segmentation` task generation — grounding the template edit against both lint fire
+  sites, 2026-09-07.
+
+### `[ ]` **Diagnose an open subtask beneath a completed parent instead of skipping it**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ `firstOpenCursor` in `packages/arc-framework/src/lib/task-list/cursor.ts` treats a parent's marker as
+  authoritative and never looks beneath a `[x]` parent, which is correct under the terminal-derived-state invariant
+  (a parent cascades to `[x]` only when every subtask is complete). But the inconsistent state — an open `X.Y.R` or
+  hand-added subtask under a `[x]` parent — is skipped silently rather than diagnosed, so session-init, handoff, and
+  `arc reopen --task` quietly lose the task. The older R-scheme practice of reopening a completed parent produced
+  exactly this shape in the archived `delivery-native-stack-composition` task list.
+- _Approach:_ emit a task-list diagnostic (staged gate and worktree lint, beside the segmentation scan) when a
+  parent marked `[x]` carries an open subtask; keep the cursor's behavior unchanged. Errand-sized, load-bearing
+  infra (`lib/task-list`), so the reviewed lane; no design fork.
+- _Captured during:_ `plan-amendment` draft-design, folding the first adversarial pass (2026-09-10).
+
+### `[ ]` **Align the verification phase and task descriptor contract with shipped practice**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` task generation.
+- _Concern:_ the strategy and finalization checklist require a verification-phase `_Purpose:_` and task `_Goal:_`,
+  while the template and recent shipped task lists consistently use the fixed pointer shape with only
+  `_Quality gates:_` and `_Success criteria:_`.
+- _Follow-up evidence:_ `delivery-native-stack-composition` again exposed the same contradiction at generation
+  and verification time; treat the task `_Goal:_` requirement as part of this existing contract decision rather
+  than a second task-list convention.
+- _Fold-in:_ settle the verification-specific exception once and align the strategy, template, and generation
+  checklist in both framework copies.
+
+### `[ ]` **Settle phase-numbering insertion semantics and letter-suffix drift**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` draft design.
+- _Concern:_ the documented revision forms do not cover practice's ad hoc phase letters or work discovered late
+  that must execute before an existing phase, leaving document order and execution order able to disagree.
+- _Fold-in:_ define the sanctioned suffix forms and their meanings, and decide whether append-only identifiers stay
+  additive while sequencing is expressed separately.
+
 ### `[ ]` **Validate generated task-list structure before execution**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
@@ -211,6 +272,43 @@
 - _Captured during:_ `session-locus-model` Task 7.E.i handoff, 2026-07-25.
 
 - WU_Target: task-list-conventions
+
+### `[ ]` **Re-check the confirm-gate batching gap now that the gate stops only for a decision**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the inbound entry "Structural task-list-shape conventions for long-running / observational / absorptive
+  WUs", gap 6, and § Scope's "Strengthen `2_generate-tasks.md` Pass 3 interlock language", whose unconditional stop
+  `generate-tasks` reversed in PR #949.
+
+- _Observation:_ the gap's premise is that the grounding audit's confirm gate fires once per substantive phase.
+  `generate-tasks` now stops it only for a phase whose audit returns a fix-before-starting finding, a masked design
+  decision, or a floor-raising signal; a phase with nothing to decide reports in passing and continues. Batching
+  addressed stop count, which the conditional gate already reduces, so the gap may shrink to batching only the
+  phases that do stop, or fall away.
+
+- _Approach:_ at the stub's next planning pass, re-read gap 6 against the current workflow and keep, narrow, or
+  drop it.
+
+- _Captured during:_ the `generate-tasks-conditional-confirm` Errand, 2026-10-13.
+
+### `[ ]` **Let a task name the work unit it waits on, in a form the cursor reads**
+
+- _Routed from:_ the `work-item-relations` mint Errand (2026-10-15).
+
+- _Shapes:_ the inbound entries "Let a task list express a sequencing override the cursor can read", "Forbid
+  non-linear blocked-open leaves in generated task lists", and "Task-list cursor marker grammar as a CLI contract".
+
+- _Observation:_ some tasks need another work unit to land when the tasks before them do not. `seam-locus`'s Tasks
+  1.1–1.4 need nothing from `seam-lifecycle` and Task 1.5 does; `storage-ref-backend`'s `seam-locus` edge holds only
+  Task 15.3.a. `work-item-relations` keeps its edges at work-unit granularity, with a `task` gate naming the provider,
+  and leaves which tasks wait to the task list (`draft-work-item-relations.md` § Decisions, D2).
+
+- _Approach:_ give a task an annotation naming the work unit it waits on, which the cursor reads: the loop stops at the
+  first waiting task, and task generation orders independent work ahead of it. The CLI checks annotations against the
+  meta's edges in both directions — each annotation's work unit has a `start` or `task` edge, and each `task` edge at
+  least one annotation. Settle the grammar with the cursor marker contract, and decide whether a wait is a third
+  shape beside the sequencing override and the linear-runnability rule or folds into one of them.
 
 ---
 

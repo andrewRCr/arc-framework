@@ -4,8 +4,10 @@ import {
   readHookInput,
 } from "./codex-recovery-marker.mjs";
 
-const { sessionId } = readHookInput();
-const { claimed } = claimPendingInjection(sessionId);
+const { sessionId, agentId } = readHookInput();
+// A subagent carries its parent's session_id; it never claims the parent's injection.
+if (agentId !== null) process.exit(0);
+const { root, claimed } = claimPendingInjection(sessionId);
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 
 // Turn-boundary channel: covers a compaction with no subsequent tool call — the
@@ -15,7 +17,7 @@ if (claimed.length === 0) {
   process.exit(0);
 }
 
-const additionalContext = buildRecoveryInstructions({ markers: claimed, arcCommand });
+const additionalContext = buildRecoveryInstructions({ root, markers: claimed, arcCommand });
 
 process.stdout.write(`${JSON.stringify({
   suppressOutput: true,

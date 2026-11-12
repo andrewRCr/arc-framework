@@ -12,6 +12,39 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Name the holder at every `[invariant]` firing site, or state the owner's standing once and reach it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: owner-authority-boundary (planned)`
+
+- _Observation:_ An `[invariant]` marker states a constraint but never says whose decision it withholds.
+  `DEV-RULES.ARC` § Rule Authority already carries the holder model — every invariant has a holder, the holder
+  making the reserved decision is the rule working rather than a waiver, and § Whose call resolves the holder from
+  role and governed surface — but that model sits in one place while the markers fire across the whole corpus. At
+  a firing site the constraint reads without its addressee, and the missing half is recoverable only by whoever
+  already holds § Rule Authority in context. The gap is reachability and addressing, not an absent model.
+
+- _Live instance:_ an agent told the Owner that review routing was "not mine or yours to settle by preference",
+  restating an agent-scoped restriction as one binding the principal — over a review policy the Owner authored,
+  including its owner-acceptance terminus. Nothing in the marker at the point of use would have caught that; the
+  correction came from the Owner.
+
+- _Why it matters twice:_ the correctness argument is that an unaddressed invariant reads as universal. The
+  product argument is independent and larger — an agent using ARC to imply the owner has less authority than they
+  do inverts what the methodology is for, and would be a serious defect in an adopter's hands whether or not the
+  underlying call was right.
+
+- _Open fork:_ per-firing-site addressee marking is precise but multiplies markup across every marker in the
+  corpus; a single universal rule — the owner or adopter is never bound by an agent-scoped invariant and their
+  direction governs, with CODEOWNERS-type delegation named as the exception — is one statement but still has to be
+  reachable from where a marker fires. Settle which shape before writing either.
+
+- _Prior art:_ `judgment-authority-model` (completed) shipped the § Rule Authority reading this sharpens; treat its
+  spec and notes as the baseline rather than re-deriving the territory.
+
+- _Captured during:_ `concurrent-integration-characterization` verification close, 2026-09-15.
+
 ### `[ ]` **Rebalance the Errand concept across AGENT-BRIEF.ARC / DEV-RULES.ARC (progressive disclosure)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
@@ -61,6 +94,31 @@
 - _Packet:_ `packet-297d2244598b0bafebe59474`; content digest
   `5165eeef557a46ea0b45e794eeb5f4807d89160764bd4acc425cf9e20e63bb0a`.
 - _Evidence:_ `domain-rules-name`; `scan-result.json#class-domain-rules-name`.
+
+### `[ ]` **Document where a rule marker attaches when one bullet carries both classes**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-30); captured during
+  `judgment-authority-model` Task 1.5.
+- _Concern:_ `[configurable]` and `[invariant]` are orthogonal markers, but no durable convention says which
+  rule a marker classifies. A mixed bullet can contain a default permission and an invariant prohibition;
+  attaching the marker to the bullet lead-in misclassifies the default half as invariant.
+- _Fold-in:_ state that each marker attaches to the lead-in of the rule it classifies, and use the amend-scope
+  bullet as the worked mixed-class example. Settle the authoritative surface among the rules preamble,
+  workflow-authoring conventions, and configurability strategy rather than relying on precedent.
+
+### `[ ]` **Remove extension declarations from candidate domain-rule trigger models**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: rules-restructure`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope; § Alternatives — Extension declaration; § Unknowns and Assumptions — Loading surface.
+
+- _Observation:_ The candidate auto-load model declares a domain on an extension and dispatches it at
+  session-init/workflow fire points. Retirement removes this declaration and activation surface.
+
+- _Approach:_ Re-evaluate trigger alternatives against the current domain-rules probe and surviving method/CLI
+  interfaces, without designing an extension migration or reintroducing .actions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
 ---
 

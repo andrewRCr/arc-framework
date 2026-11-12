@@ -6,10 +6,12 @@
 
 import { readFile } from "node:fs/promises";
 
-import { matchInboxEntryTitle } from "./user-sync/parser.js";
+import { matchInboxEntryTitle } from "./store/kinds/entry-fields.js";
 
 /** User-provided sources for an exact USER-INBOX entry title. */
 export interface InboxEntryOperand {
+  /** The selected backend requires qualified capture IDs. */
+  stateOffBranch?: boolean;
   /** Literal title received as an argv operand. */
   literal?: string;
   /** UTF-8 file containing the title, or `-` to read standard input. */
@@ -62,6 +64,10 @@ export async function resolveInboxEntryOperand(
   operand: InboxEntryOperand,
   io: InboxEntryOperandIO = defaultIO,
 ): Promise<string> {
+  if (operand.stateOffBranch) {
+    if (operand.file !== undefined || !/^(personal|project):[0-9a-f]{8}$/u.test(operand.literal ?? "")) throw new Error("Use --from-inbox personal:<id> or project:<id>; read arc inbox <list> for entry IDs. Title and title-file operands are unsupported.");
+    return operand.literal ?? "";
+  }
   const hasLiteral = operand.literal !== undefined;
   const hasFile = operand.file !== undefined;
   if (hasLiteral === hasFile) {

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { formatUnexpectedError } from "../lib/errors.js";
 import { gitExec } from "../lib/io-context.js";
+import type { GitExec } from "../lib/git/index.js";
 import {
   findStagedMarkdownWorktreeDrift,
   formatStagedMarkdownWorktreeDriftMessage,
@@ -34,8 +35,10 @@ export async function enforceStagedMarkdownWorktreeAlignment(
   write: (message: string) => void = (message) => { process.stderr.write(`${message}\n`); },
 ): Promise<number> {
   try {
-    const root = await resolveMarkdownRepositoryRoot({ cwd, exec: gitExec, realpath });
-    const drifted = await findStagedMarkdownWorktreeDrift({ root, exec: gitExec });
+    const indexFile = process.env.GIT_INDEX_FILE;
+    const indexedExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, indexFile });
+    const root = await resolveMarkdownRepositoryRoot({ cwd, exec: indexedExec, realpath });
+    const drifted = await findStagedMarkdownWorktreeDrift({ root, exec: indexedExec });
     if (drifted.length === 0) return 0;
     write(formatStagedMarkdownWorktreeDriftMessage(drifted));
     return 1;

@@ -64,7 +64,7 @@ We will introduce a **method override** system as the third customization mechan
 in ADR-003:
 
 | Mechanism       | What it does                | File                | Example                                    |
-|-----------------|-----------------------------|---------------------|--------------------------------------------|
+| --------------- | --------------------------- | ------------------- | ------------------------------------------ |
 | Config          | Toggles enforcement         | `arc-config.yml`    | `commit.format: any` disables hook         |
 | Extension       | Adds steps to workflows     | `arc-extensions.md` | Post-task quality: also run Snyk scan      |
 | Method override | Replaces default convention | `arc-methods.md`    | Task completion: update Jira, not markdown |
@@ -142,7 +142,7 @@ fewer is better than more.
 **Candidate preset methods** (to be finalized during WU2 when workflows are updated):
 
 | Method                   | Workflow             | Default                          | Common Override               |
-|--------------------------|----------------------|----------------------------------|-------------------------------|
+| ------------------------ | -------------------- | -------------------------------- | ----------------------------- |
 | Task completion tracking | process-task-loop    | Mark `[x]` in markdown task list | Update Jira/Linear status     |
 | Quality gate commands    | process-task-loop    | Project-specific lint/test/build | Team CI suite, security scans |
 | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
@@ -174,7 +174,7 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 **Hook behavior by config value:**
 
 | Setting value  | Hook behavior                                                |
-|----------------|--------------------------------------------------------------|
+| -------------- | ------------------------------------------------------------ |
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against `commit.custom_pattern` regex              |
 | `any`          | Skips format validation entirely                             |
@@ -342,7 +342,7 @@ followed the adapter workflow.
 The four mechanisms form a complete customization model:
 
 | Mechanism       | Purpose                   | File                 | Scope             |
-|-----------------|---------------------------|----------------------|-------------------|
+| --------------- | ------------------------- | -------------------- | ----------------- |
 | Config          | Toggle enforcement        | `arc-config.yml`     | Convention values |
 | Extension       | Add workflow steps        | `arc-extensions.md`  | New behavior      |
 | Method override | Replace convention impl   | `arc-methods.md`     | Alt. behavior     |
@@ -453,6 +453,15 @@ when encountering method references or platform-specific operations in workflows
   depends on the shell's regex engine. Extended regex syntax varies slightly across platforms (GNU grep vs. BSD
   grep). Patterns that work on Linux may behave differently on macOS. This is a hook implementation concern for
   WU2, not an architectural risk, but worth noting.
+
+**Amendment (2026-08-17):** Part 3's host-neutral naming was applied to a code-level entity for the first time,
+and it collides with a host term. The `change-request` vocabulary — the verb `arc review change-request resolve`
+and the modules around it — names the pull/merge request itself, while GitHub's `CHANGES_REQUESTED` names a
+reviewer decision; both appear in `change-request-lifecycle.ts`. The host-neutral term stands, on this decision's
+own reasoning: GitHub, GitLab, and Bitbucket disagree on the noun, and a verb serving all three cannot adopt one
+host's word. Two facts keep the collision from biting — the review state is always written in the host's own
+screaming case, and the two never occupy the same grammatical position. Recorded so the next reader meets the
+reconciliation rather than the ambiguity.
 
 ---
 

@@ -16,6 +16,10 @@ import {
   buildStatusSummary,
 } from "../../src/commands/status.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { describeStorePull } from "../../src/lib/session-init/store-user-pull.js";
+import { nameAsideFile } from "../../src/lib/store/projection/aside.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -23,7 +27,6 @@ import type {
 } from "../../src/commands/status.js";
 import type { ActiveStatusResult } from "../../src/commands/active/types.js";
 import type { ConfigStatusResult } from "../../src/commands/config/types.js";
-import type { ExtensionsStatusResult } from "../../src/commands/extensions/types.js";
 import type { UserStatusResult } from "../../src/commands/user/types.js";
 
 function okUser(): Probe<UserStatusResult> {
@@ -52,21 +55,6 @@ function okUser(): Probe<UserStatusResult> {
   };
 }
 
-function okExtensions(): Probe<ExtensionsStatusResult> {
-  return {
-    ok: true,
-    value: {
-      mode: "full",
-      extensions: [{ name: "pre-merge", active: true, description: "d" }],
-      activeCount: 1,
-      inactiveCount: 0,
-      orphanCount: 0,
-      orphans: [],
-      includeOrphanDetails: false,
-      warnings: [],
-    },
-  };
-}
 
 function okConfig(): Probe<ConfigStatusResult> {
   return {
@@ -79,16 +67,23 @@ function okConfig(): Probe<ConfigStatusResult> {
         "worktree.location_template": "../{repo}.{name}",
         "worktree.post_create": "",
         "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+        "storage.backing_repository": "",
         "commit.format": "conventional",
         "commit.context_footer": "required",
         "commit.custom_pattern": "",
         "commit.context_pattern": "",
         "merge.strategy": "merge",
+        "merge.lock": "none",
         "platform.type": "github",
       "review.frontline_sources": "[]",
       "review.standard_sources": "[]",
       "review.frontline_max_passes": "2",
       "review.standard_max_passes": "2",
+      "review.hosted_await_timeout_seconds": "120",
+      "review.hosted_await_initial_poll_interval_seconds": "15",
+      "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
         "pm.mode": "none",
         "team.mode": "false",
         "session.remote_sync": "enabled",
@@ -98,11 +93,16 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.init_load.notes": "prompt",
         "sync.auto_pull": "false",
         "archive.cadence": "with-integration",
+        "storage.track_design_docs": "specs",
+        "layout.active": "nested",
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
+        "inbound.retriage_after_entries": "10",
+        "inbound.retriage_after_days": "30",
+        "pause.review_after_days": "14",
         "integration.stale_after_days": "2",
-        "review.chunking_threshold_lines": "0",
-        "review.chunking_threshold_files": "0",
+        "changeset.advisory_threshold_lines": "0",
+        "changeset.advisory_threshold_files": "0",
       },
       defaultsApplied: [],
       warnings: [],
@@ -122,9 +122,9 @@ function makeFullResult(overrides: Partial<StatusResult> = {}): StatusResult {
     mode: "full",
     identity: { identity: "andrew", role: "maintainer" },
     user: okUser(),
-    extensions: okExtensions(),
     config: okConfig(),
     active: okActive(),
+    projection: { ok: true, value: { kind: "disabled" } },
     ...overrides,
   };
 }
@@ -135,6 +135,13 @@ function makeSessionInitResult(
   return {
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
+    derivedLocusState: { ok: false, error: { kind: "runtime", message: "fixture unavailable" } },
+    locusGuidance: {
+      kind: "ready",
+      identities: [],
+      cleanup: [],
+      diagnostics: [],
+    },
     user: {
       ok: true,
       value: {
@@ -155,6 +162,7 @@ function makeSessionInitResult(
         ahead: 0,
         behind: 0,
         branch: "main",
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
         identity: { kind: "primary" },
@@ -171,6 +179,8 @@ function makeSessionInitResult(
         behind: 0,
         base: "main",
         baseOid: "a".repeat(40),
+        headOid: "b".repeat(40),
+        movement: "disjoint",
         integrationEvidence: {
           coverage: "complete",
           scannedCommitCount: 0,
@@ -181,6 +191,7 @@ function makeSessionInitResult(
         },
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
         register: null,
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
       },
@@ -193,6 +204,9 @@ function makeSessionInitResult(
         behind: 0,
         base: "main",
         checkout: { kind: "not-checked-out" },
+        refreshRemedy: null,
+        guidance: null,
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
       },
@@ -200,10 +214,6 @@ function makeSessionInitResult(
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
     loadSet: { ok: true, value: { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries: [] } },
     recommendedCombinedPrompt: null,
-    extensions: {
-      ok: true,
-      value: { mode: "session-init", active: ["pre-merge"], warnings: [] },
-    },
     config: {
       ok: true,
       value: {
@@ -239,6 +249,7 @@ function makeSessionInitResult(
         },
       },
     },
+    hooksPath: { ok: true, value: { recommendedAction: "none" } },
     active: {
       ok: true,
       value: {
@@ -250,6 +261,7 @@ function makeSessionInitResult(
         sessionType: "execution",
         currentWorkflow: null,
         planningStage: null,
+        integrationBoundary: null,
         warnings: [],
       },
     },
@@ -262,28 +274,49 @@ function makeSessionInitResult(
 }
 
 describe("buildStatusSummary — full mode", () => {
+  it("renders projection file states, remedies, unseen conflicts, and retained-copy paths", () => {
+    const copy = nameAsideFile({ path: ".arc/document.md", base: "a".repeat(40), role: "aside",
+      writer: { pid: 123, processInstance: "status-test", processScope: "unit" } });
+    const conflict = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" },
+      kind: "personal/conflict-record", key: "11111111-1111-4111-8111-111111111111" });
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: true, value: { kind: "ready",
+      files: [{ path: ".arc/document.md", ownerless: false, pending: true, withheld: true,
+        refused: { reason: "parser: Invalid prose.", remedy: { text: "Repair this file.", argv: ["repair-prose", "local data"] } },
+        unshown: [conflict] }],
+      copies: [{ path: ".arc/document.md", copy, withheld: false }],
+    } } }));
+    for (const value of ["Projection", ".arc/document.md", "pending", "withheld", "Invalid prose.", "Repair this file.",
+      "repair-prose 'local data'", "personal/person/andrew/11111111-1111-4111-8111-111111111111", copy])
+      expect(text).toContain(value);
+  });
+
+  it("shows an unavailable projection alongside the healthy status sections", () => {
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: false,
+      error: { kind: "runtime", message: "Projection cannot be read." } } }));
+    for (const value of ["Projection", "Projection cannot be read.", "User", "Config", "Active"]) expect(text).toContain(value);
+  });
+
+  it("omits the retired probe heading", () => {
+    expect(buildStatusSummary(makeFullResult())).not.toContain("Extensions:");
+  });
+
   it("includes all section headers in stable order", () => {
     const summary = buildStatusSummary(makeFullResult());
-    // Top-level headers are at column 0; sub-sections (e.g., the
-    // extensions formatter's own "Active:" list header) are indented,
-    // so line-anchored matching is the discriminator.
     const lines = summary.split("\n");
     const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
     const identityIdx = idxOfLine("Identity:");
     const userIdx = idxOfLine("User:");
-    const extIdx = idxOfLine("Extensions:");
     const configIdx = idxOfLine("Config:");
     const activeIdx = idxOfLine("Active:");
     expect(identityIdx).toBeGreaterThanOrEqual(0);
     expect(userIdx).toBeGreaterThan(identityIdx);
-    expect(extIdx).toBeGreaterThan(userIdx);
-    expect(configIdx).toBeGreaterThan(extIdx);
+    expect(configIdx).toBeGreaterThan(userIdx);
     expect(activeIdx).toBeGreaterThan(configIdx);
   });
 
-  it("renders the identity block with arc.identity and arc.role values", () => {
+  it("renders the identity block with resolved identity and arc.role values", () => {
     const summary = buildStatusSummary(makeFullResult());
-    expect(summary).toContain("arc.identity: andrew");
+    expect(summary).toContain("\n  identity: andrew");
     expect(summary).toContain("arc.role:     maintainer");
   });
 
@@ -291,7 +324,7 @@ describe("buildStatusSummary — full mode", () => {
     const summary = buildStatusSummary(
       makeFullResult({ identity: { identity: null, role: null } }),
     );
-    expect(summary).toContain("arc.identity: (unset)");
+    expect(summary).toContain("\n  identity: (unset)");
     expect(summary).toContain("arc.role:     (unset)");
   });
 
@@ -299,10 +332,8 @@ describe("buildStatusSummary — full mode", () => {
     const summary = buildStatusSummary(makeFullResult());
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
-    // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
-    expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("29 agent-consumable settings");
+    expect(summary).toContain("41 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -310,11 +341,11 @@ describe("buildStatusSummary — full mode", () => {
   it("renders an (unavailable) marker for an errored slot", () => {
     const summary = buildStatusSummary(
       makeFullResult({
-        extensions: { ok: false, error: { kind: "runtime", message: "dir missing" } },
+        config: { ok: false, error: { kind: "runtime", message: "config unavailable" } },
       }),
     );
-    expect(summary).toContain("Extensions:");
-    expect(summary).toContain("(unavailable) dir missing");
+    expect(summary).not.toContain("Extensions:");
+    expect(summary).toContain("(unavailable) config unavailable");
     // Other slots still render
     expect(summary).toContain("Config:");
     expect(summary).toContain("Active:");
@@ -336,12 +367,41 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
-  it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
+  it("renders one precomposed delivery line, omits null, and reports isolated degradation", () => {
+    const line = "Delivery position: 1/2 landed; active operation: none.";
+    const healthy = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: {
+        ok: true,
+        value: {
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          workUnitId: SlugSchema.parse("delivery-plan-record"),
+          landedCount: 1,
+          totalCount: 2,
+          activeOperation: null,
+          line,
+        },
+      },
+    }));
+    expect(healthy.split(line)).toHaveLength(2);
+    expect(healthy).toContain("Delivery:");
+
+    const silent = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: true, value: null },
+    }));
+    expect(silent).not.toContain("Delivery:");
+
+    const failed = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: false, error: { kind: "runtime", message: "delivery unavailable" } },
+    }));
+    expect(failed).toContain("Delivery:\n  (unavailable) delivery unavailable");
+  });
+
+  it("includes identity block plus all probe sections (user, worktree, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");
     expect(summary).toContain("User:");
     expect(summary).toContain("Worktree:");
-    expect(summary).toContain("Extensions:");
+    expect(summary).not.toContain("Extensions:");
     expect(summary).toContain("Config:");
     expect(summary).toContain("Release Routing:");
     expect(summary).toContain("Active:");
@@ -351,7 +411,6 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("session-init remote state clean");
     expect(summary).toContain("clean (in sync with origin)");
-    expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
     expect(summary).toContain("session.remote_sync: enabled");
     expect(summary).toContain("user.notes_push: on-sync");
@@ -361,15 +420,15 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Resolved: .arc/active/technical/meta-foo.md");
   });
 
-  it("renders the Worktree section between User and Extensions", () => {
+  it("renders the Worktree section between User and Config", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     const lines = summary.split("\n");
     const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
     const userIdx = idxOfLine("User:");
     const worktreeIdx = idxOfLine("Worktree:");
-    const extIdx = idxOfLine("Extensions:");
     expect(worktreeIdx).toBeGreaterThan(userIdx);
-    expect(extIdx).toBeGreaterThan(worktreeIdx);
+    const configIdx = idxOfLine("Config:");
+    expect(configIdx).toBeGreaterThan(worktreeIdx);
   });
 
   it("renders worktree drift states with counts", () => {
@@ -382,6 +441,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             ahead: 0,
             behind: 3,
             branch: "main",
+            remoteEvidence: "exact",
             recommendedAction: "prompt",
             recommendedPromptText: "Worktree: branch is behind origin by 3 commit(s).\nPull?",
             identity: { kind: "primary" },
@@ -404,6 +464,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             behind: 0,
             branch: "main",
             failureReason: "timeout",
+            remoteEvidence: "unreachable",
             recommendedAction: "surface",
             recommendedPromptText: "",
             identity: { kind: "primary" },
@@ -413,6 +474,30 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("remote unavailable (timeout)");
+    expect(summary).not.toContain("remote object pending explicit refresh");
+  });
+
+  it("distinguishes pending worktree evidence from remote reachability failures", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: {
+            state: "remote-unavailable",
+            ahead: 0,
+            behind: 0,
+            branch: "main",
+            remoteEvidence: "pending-fetch",
+            recommendedAction: "prompt",
+            recommendedPromptText: "Refresh branch evidence?",
+            identity: { kind: "primary" },
+            supersession: null,
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("remote object pending explicit refresh");
+    expect(summary).not.toContain("remote unavailable");
   });
 
   it("renders worktree branch-gone with a deleted-upstream summary", () => {
@@ -425,6 +510,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             ahead: 0,
             behind: 0,
             branch: "feat/x",
+            remoteEvidence: "exact",
             recommendedAction: "surface",
             recommendedPromptText: "",
             identity: { kind: "primary" },
@@ -506,4 +592,49 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Domain Rules:");
     expect(summary).toContain("(unavailable) constitution dir missing");
   });
+});
+
+it("renders a store designation and omits an empty user slot", () => {
+  const value = { status: "designation-needed" as const, remote: "origin", choices: ["state", "code"],
+    summary: "Remote origin needs a store designation. arc store remote origin state",
+    remedy: { text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] },
+    actions: [{ text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] }] };
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }))).toContain(value.summary);
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value: null } }))).not.toContain("User:");
+});
+
+it("renders retained-conflict notices and their remedies in human session entry", () => {
+  const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record",
+    owner: { type: "work-item", name: "example", uid: "11111111-1111-4111-8111-111111111111" }, key: "retained-conflict" });
+  const remedy = { text: "Resolve the retained alternatives, then retry.", argv: ["arc", "store", "resolve"] };
+  const value = describeStorePull({ status: "pulled", notices: [{ kind: "ended-with-conflicts", item: conflict.owner,
+    conflicts: [conflict], condition: "The ended item retains conflicting alternatives.", remedy }] });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("The ended item retains conflicting alternatives.");
+  expect(text).toContain(remedy.text);
+  expect(value.actions).toContainEqual(remedy);
+});
+
+it.each(["unreachable", "incomplete"] as const)("renders %s pull failures and partial remedies in human session entry", status => {
+  const remedy = { text: "Repair the primary transport and retry." };
+  const partialRemedy = { text: "Repair the other remote's policy and retry." };
+  const value = describeStorePull({ status, condition: "Primary transport failed.", remedy,
+    ...(status === "unreachable" ? {} : { partial: { states: [], pulls: [{
+      status: "failed" as const, remote: "other", role: "state" as const, families: ["work-item" as const], notices: [],
+      failure: { code: "refused" as const, class: "terminal" as const, message: "Other policy failed.", condition: "Other policy failed.", remedy: partialRemedy },
+    }] } }) });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("Primary transport failed.");
+  expect(text).toContain(remedy.text);
+  if (status === "incomplete") {
+    expect(text).toContain("Other policy failed.");
+    expect(text).toContain(partialRemedy.text);
+  }
+  expect(value.actions).toContainEqual(remedy);
+});
+
+it("renders the entering checkout's pause before work starts", () => {
+  const result = makeSessionInitResult({ locusGuidance: { kind: "ready", identities: [], cleanup: [], diagnostics: [],
+    pause: "Paused: awaiting review. Resume with arc resume current." } });
+  expect(buildSessionInitStatusSummary(result)).toContain("Paused: awaiting review. Resume with arc resume current.");
 });

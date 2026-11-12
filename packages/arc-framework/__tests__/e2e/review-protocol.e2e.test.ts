@@ -1,13 +1,19 @@
+import { withReviewReport } from "../fixtures/review-report-input.js";
 import { delimiter, join } from "node:path";
 import {
   access,
   chmod,
   mkdir,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
+
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { fakeCodeRabbitCompletionLines } from "../helpers/fake-coderabbit.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
   cleanupTempDir,
@@ -64,6 +70,7 @@ interface ProposedDispositionState {
     rubricVersion: string;
     rubricDigest: string;
     proposedBy: string;
+    proposedVerification: "targeted" | "focused" | "full";
     findings: unknown[];
     dispositionSetId: string;
   };
@@ -104,24 +111,36 @@ async function fixture(): Promise<string> {
   roots.push(root);
   const initialized = await runArc(["init", "--yes", "--name", "review-protocol"], root);
   expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-  await git(root, ["add", ".arc", ".gitignore"]);
+  await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/review-protocol"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"), [
-    "# Metadata: review-protocol",
-    "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    "- **Branch:** feat/review-protocol",
-    "- **Class:** Light",
-    "- **Priority:** P2",
-    "- **Origin:** [internal]",
-    "",
-  ].join("\n"), "utf8");
+  await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"),
+    makeMetaFixture("review-protocol", {
+      owner: "test-user",
+      branch: "feat/review-protocol",
+      workClass: "Light",
+      priority: "P2",
+      taskList: "tasks-review-protocol.md",
+      lastCompleted: "verification",
+      nextAction: "verification complete",
+    }), "utf8");
+  await writeFile(
+    join(root, ".arc", "active", "tasks-review-protocol.md"),
+    "# Task List: Review Protocol\n\n- [x] Verification complete\n",
+    "utf8",
+  );
   await writeFile(join(root, "reviewed.txt"), "reviewed change\n", "utf8");
-  await git(root, ["add", ".arc/active/meta-review-protocol.md", "reviewed.txt"]);
+  await git(root, [
+    "add",
+    ".arc/active/meta-review-protocol.md",
+    ".arc/active/tasks-review-protocol.md",
+    "reviewed.txt",
+  ]);
   await git(root, ["commit", "-m", "add reviewed change"]);
+  const attested = await runArc(["attest", "review-protocol", "--json"], root);
+  expect(attested.exitCode, attested.stderr || attested.stdout).toBe(0);
+  await git(root, ["commit", "-m", "record verified Candidate"]);
   expect(await git(root, ["status", "--porcelain"])).toBe("");
   return root;
 }
@@ -183,21 +202,26 @@ async function approvedRejection(
   root: string,
   source: ReductionFindingsPayload["responseSource"],
 ) {
-  const prepared = await invoke(root, ["review", "respond", "-"], {
+  const prepared = await invoke(root, ["review", "respond", "-"], withReviewReport({
     schemaVersion: 1,
     source,
     proposal: {
+      proposedVerification: "full",
+      severityGatingPolicy: { minorGating: "record-only" },
       findings: [{
         findingId: "finding-1",
         sourceVerification: "verified",
         verificationRefs: ["source:reviewed.txt:1"],
+        verifiedSeverity: "major",
         disposition: "reject",
+        title: "Finding title",
+        issue: "The reviewer's claim.",
         rationale: "The reviewed source supports recording this disposition.",
         recommendation: "Record the rejected finding.",
         openQuestions: [],
       }],
     },
-  });
+  }));
   expect(prepared).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
   const proposal = (prepared.payload as AwaitingApprovalPayload).proposal;
   return {
@@ -215,6 +239,83 @@ async function approvedRejection(
 }
 
 describe("built review protocol", () => {
+  it("distinguishes the singleton status route from an unreadable boundary", async () => {
+    const root = await fixture();
+    const boundaryDir = join(root, ".arc", "system", ".internal", "candidates");
+    const boundaryPath = join(boundaryDir, "review-protocol.boundary.json");
+    expect(JSON.parse(await readFile(boundaryPath, "utf8"))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+
+    const result = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+
+    expect(result.exitCode).toBe(64);
+    const refusal = JSON.parse(result.stdout) as { remedy: { text: string } };
+    expect(refusal).toMatchObject({
+      mode: "review-status",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "wrong-route",
+      detail: expect.stringContaining("Use --target"),
+      remedy: {
+        argv: ["arc", "review", "status", "--help"],
+        text: expect.stringContaining("use --target"),
+      },
+    });
+    expect(refusal.remedy.text).not.toContain("Resolve the operational failure");
+
+    await writeFile(boundaryPath, "not JSON", "utf8");
+    const unreadable = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+    expect(unreadable.exitCode).toBe(1);
+    expect(JSON.parse(unreadable.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+
+    await rm(boundaryPath);
+    const missing = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+  });
+
+  it("returns a typed refusal when exact-target status runs outside an ARC project", async () => {
+    const root = await createTempRepo("arc-review-status-outside-");
+    roots.push(root);
+    const target = {
+      repository: "owner/repo",
+      headRef: "feat/review-status",
+      headSha: "d".repeat(40),
+    };
+
+    const result = await runArc([
+      "review",
+      "status",
+      "--target",
+      JSON.stringify(target),
+    ], root);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      mode: "review-status",
+      target,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
+    });
+  });
+
   it("completes and re-enters a clean local review through the public verbs", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);
@@ -252,6 +353,45 @@ describe("built review protocol", () => {
     })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
   });
 
+  it("cancels a pending dispatch and accepts a fresh evaluator without settling the old review", async () => {
+    const root = await fixture();
+    const prepared = await prepareLocal(root);
+    const request = { schemaVersion: 1, operationId: prepared.operationId };
+    const cancelled = await invoke(root, ["review", "local", "cancel", "-"], request);
+    expect(cancelled).toMatchObject({ state: "cancelled", nextAction: "rerun-review" });
+    expect(cancelled.payload).not.toHaveProperty("result");
+    expect(cancelled.payload).not.toHaveProperty("receiptRef");
+    await expect(access(prepared.reviewerPayload.reviewRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(invoke(root, ["review", "local", "cancel", "-"], request)).resolves.toMatchObject({
+      state: "terminal-operation", nextAction: "resume-review",
+    });
+    await expect(invoke(root, ["review", "local", "resume", "-"], request)).resolves.toMatchObject({
+      state: "terminal-operation", nextAction: "rerun-review",
+    });
+    await expect(invoke(root, ["review", "local", "attest", "-"], {
+      ...request, result: localResult(prepared, "clean"),
+    })).resolves.toMatchObject({ state: "terminal-operation", nextAction: "rerun-review" });
+
+    const fresh = await invoke(root, ["review", "local", "prepare", "-"], {
+      ...localPrepareRequest(), evaluatorIdentity: "reviewer-2",
+    });
+    expect(fresh).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    const replacement = fresh.payload as LocalPreparePayload;
+    expect(replacement.operationId).not.toBe(prepared.operationId);
+    expect(replacement.target).toEqual(prepared.target);
+    expect(replacement.request.evaluatorIdentity).toBe("reviewer-2");
+    await expect(invoke(root, ["review", "local", "attest", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId, result: localResult(replacement, "clean"),
+    })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+    await expect(invoke(root, ["review", "local", "cancel", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId,
+    })).resolves.toMatchObject({ state: "terminal-operation", nextAction: "resume-review" });
+    await expect(invoke(root, ["review", "local", "resume", "-"], {
+      schemaVersion: 1, operationId: replacement.operationId,
+    })).resolves.toMatchObject({ state: "review-complete", nextAction: "reduce" });
+    expect(await git(root, ["status", "--porcelain"])).toBe("");
+  });
+
   it("settles local findings and replays the approved disposition through public verbs", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);
@@ -279,11 +419,12 @@ describe("built review protocol", () => {
     const request = {
       schemaVersion: 1,
       source: responseSource,
+      policyRequest: await responsePolicyRequest(root, responseSource),
       dispositions: await approvedRejection(root, responseSource),
     };
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
-    await expect(invoke(root, ["review", "respond", "-"], request))
+    await expect(invoke(root, ["review", "respond", "-"], withReviewReport(request)))
       .resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
@@ -390,9 +531,147 @@ describe("built review protocol", () => {
     });
   });
 
+  it("withdraws an unused frontline admission through public verbs and refuses its old ready response", async () => {
+    const root = await fixture();
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const diffBaseSha = await git(root, ["merge-base", "main", "HEAD"]);
+    const target = { kind: "change-set", baseRef: "main", diffBaseSha, headSha };
+    const request = {
+      schemaVersion: 1, target,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    };
+    const ready = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    expect(ready.state).toBe("ready");
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], {
+      ...request, invocation: { mode: "skip" },
+    })).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+    const refused = await runArcWithStdin(["review", "frontline", "run", "-"], root,
+      JSON.stringify({ schemaVersion: 1, target, resolution: ready }));
+    expect(refused.exitCode).toBe(1);
+    const result = JSON.parse(refused.stdout);
+    expect(result).toMatchObject({
+      error: { code: "invalid-input" },
+      diagnostics: [{ code: "frontline-admission-missing-admission" }],
+      remedy: { argv: ["arc", "review", "frontline", "resolve", "-"], stdin: { target } },
+    });
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], result.remedy.stdin))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+  });
+
+  it("requires fresh classification after a target changes and accepts the fresh resolve request", async () => {
+    const root = await fixture();
+    const target = { kind: "change-set", baseRef: "main",
+      diffBaseSha: await git(root, ["merge-base", "main", "HEAD"]),
+      headSha: await git(root, ["rev-parse", "HEAD"]),
+    };
+    const request = {
+      schemaVersion: 1, target,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    };
+    const ready = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    expect(ready.state).toBe("ready");
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], {
+      ...request, invocation: { mode: "skip" },
+    })).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+    await writeFile(join(root, "reviewed.txt"), "changed target\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "change reviewed content"]);
+    const attested = await runArc(["attest", "review-protocol", "--json"], root);
+    expect(attested.exitCode).toBe(1);
+    const refresh = JSON.parse(attested.stdout);
+    expect(refresh).toMatchObject({ status: "blocked", nextAction: "establish-new-root" });
+    const refreshed = await runArc(refresh.continuation.argv.slice(1), root);
+    expect(refreshed.exitCode, refreshed.stderr || refreshed.stdout).toBe(0);
+    await git(root, ["commit", "-m", "record changed Candidate"]);
+    const current = { ...target, headSha: await git(root, ["rev-parse", "HEAD"]) };
+    const refused = await runArcWithStdin(["review", "frontline", "run", "-"], root,
+      JSON.stringify({ schemaVersion: 1, target: current, resolution: ready }));
+    expect(refused.exitCode).toBe(1);
+    const refusal = JSON.parse(refused.stdout);
+    expect(refusal).toMatchObject({
+      diagnostics: [{ code: "frontline-admission-stale-target" }],
+      remedy: { argv: ["arc", "review", "frontline", "resolve", "--schema"] },
+    });
+    expect(refusal.remedy).not.toHaveProperty("stdin");
+    const contract = await runArc(refusal.remedy.argv.slice(1), root);
+    expect(contract.exitCode, contract.stderr || contract.stdout).toBe(0);
+    const schema = JSON.parse(contract.stdout);
+    expect(schema.rootId).toBe("urn:arc:schema:review-frontline-resolve-request");
+    expect(schema.schemas["review-frontline-resolve-request"]).toMatchObject({
+      type: "object", properties: { changeSet: expect.any(Object), target: expect.any(Object) },
+    });
+    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
+      ...request, target: current, changeSet: { ...request.changeSet, reviewRisk: "sensitive" },
+    });
+    expect(resolved).toMatchObject({
+      state: "skipped", nextAction: "none",
+      diagnostics: [{ code: "frontline-phase-closed" }],
+      payload: { routing: { facts: { reviewRisk: "sensitive" } } },
+    });
+  });
+
+  it("replays an active frontline admission without waiting for its provider to finish", async () => {
+    const root = await fixture();
+    const target = { kind: "change-set", baseRef: "main",
+      headSha: await git(root, ["rev-parse", "HEAD"]),
+      diffBaseSha: await git(root, ["merge-base", "main", "HEAD"]),
+    };
+    const bin = join(root, ".git", "provider-bin");
+    const started = join(root, ".git", "provider-started");
+    const release = join(root, ".git", "provider-release");
+    const executable = join(bin, "coderabbit");
+    await mkdir(bin);
+    await writeFile(executable, ["#!/bin/sh",
+      'if [ "${1:-}" = "--version" ]; then printf "coderabbit 0.6.5\\n"; exit 0; fi',
+      'printf "started\\n" > "$STARTED_FILE"',
+      'while [ ! -f "$RELEASE_FILE" ]; do sleep 0.1; done',
+      ...fakeCodeRabbitCompletionLines(0), ""].join("\n"));
+    await chmod(executable, 0o755);
+    const request = {
+      schemaVersion: 1, target,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    };
+    const ready = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    const running = runArcWithStdin(["review", "frontline", "run", "-"], root,
+      JSON.stringify({ schemaVersion: 1, target, resolution: ready, timeoutMs: 30_000 }), {
+        env: { PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`, STARTED_FILE: started, RELEASE_FILE: release },
+      });
+    try {
+      await expect.poll(async () => access(started).then(() => true, () => false), { timeout: 10_000 }).toBe(true);
+      await expect(invoke(root, ["review", "frontline", "resolve", "-"], {
+        ...request, invocation: { mode: "skip" },
+      })).resolves.toMatchObject({ state: "ready", payload: ready.payload });
+    } finally {
+      await writeFile(release, "release\n");
+      await running;
+    }
+    expect(envelope(await running)).toMatchObject({ state: "clean", nextAction: "none" });
+  }, 60_000);
+
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
-    const prepared = await prepareLocal(root);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const diffBaseSha = await git(root, ["merge-base", "main", "HEAD"]);
+    const kind = "change-set";
+    const baseRef = "main";
     const bin = join(root, ".git", "provider-bin");
     const countFile = join(root, ".git", "coderabbit-runs");
     const executable = join(bin, "coderabbit");
@@ -405,8 +684,7 @@ describe("built review protocol", () => {
       "fi",
       "printf 'run\\n' >> \"$COUNT_FILE\"",
       "sleep 1",
-      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
-        + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
+      ...fakeCodeRabbitCompletionLines(0),
       "",
     ].join("\n"), "utf8");
     await chmod(executable, 0o755);
@@ -414,8 +692,9 @@ describe("built review protocol", () => {
       COUNT_FILE: countFile,
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
-    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
+    const resolveRequest = {
       schemaVersion: 1,
+      target: { kind, baseRef, diffBaseSha, headSha },
       changeSet: {
         schemaVersion: 1,
         changeSetState: "known",
@@ -428,12 +707,12 @@ describe("built review protocol", () => {
         activity: { selfReview: true, frontlineReview: true },
       },
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-      maxPasses: 2,
-    });
+    };
+    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest);
     expect(resolved).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     const runRequest = {
       schemaVersion: 1,
-      target: prepared.target,
+      target: { kind, baseRef, diffBaseSha, headSha },
       resolution: resolved,
       timeoutMs: 5_000,
     };
@@ -456,6 +735,9 @@ describe("built review protocol", () => {
     const second = envelope(secondResult);
     expect(second).toMatchObject({ state: "clean", nextAction: "none" });
     expect((await readFile(countFile, "utf8")).trim().split("\n")).toHaveLength(1);
+
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
 
     const operationId = (first.payload as FrontlineTerminalPayload).operationId;
     await expect(invoke(root, ["review", "reduce", "-"], {

@@ -66,10 +66,10 @@ hook will not reject non-conventional commits. The philosophy stands; the profil
 
 The adoption flexibility model simplifies from three axes to two:
 
-| Axis                 | What varies                   | Mechanism                      |
-| -------------------- | ----------------------------- | ------------------------------ |
-| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)     |
-| Functionality scope  | What features are installed   | PM mode selection (pm.mode)    |
+| Axis                 | What varies                   | Mechanism                   |
+| -------------------- | ----------------------------- | --------------------------- |
+| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)  |
+| Functionality scope  | What features are installed   | PM mode selection (pm.mode) |
 
 Enforcement depth is no longer a named axis — it is simply "edit `arc-config.yml`." The settings exist, the inline
 comments explain them, and adopters adjust what creates friction. This does not reduce capability; it removes a layer of

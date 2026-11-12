@@ -1,8 +1,9 @@
 /**
- * I/O boundary for the read-only `arc view` command.
+ * I/O boundary for ARC artifact viewing and editor handoff.
  *
  * @module
  */
+import { resolveStoreViewTarget, resolveStoreAmbientViewTarget, createStoreViewArtifactReader } from "./view-store.js";
 
 import { execFile, spawn } from "node:child_process";
 import { access, readdir } from "node:fs/promises";
@@ -13,13 +14,15 @@ import { z } from "zod";
 import {
   resolveTaskListPath,
   runActiveSessionInitStatusInternal,
-  type ActiveSessionInitInternalResult,
-} from "../commands/active.js";
+} from "../commands/active/status.js";
+import type { ActiveSessionInitInternalResult } from "../commands/active/types.js";
 import { runView } from "../commands/view.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
-import { gitConfigGet, resolveIdentity } from "../lib/git/index.js";
+import { gitConfigGet } from "../lib/git/exec.js";
+import type { GitExec } from "../lib/git/exec.js";
+import { resolveIdentity } from "../lib/git/identity.js";
 import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-path.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { createUserIOContext, readGitBlobEntry } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -38,16 +41,29 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  declareCliOptionSite, declareInteractionSite, type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import { resolveViewClock } from "../lib/view/clock.js";
-import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import type { LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import {
+  isComposedLifecycleSlugIndeterminate, resolveCallerComposedLifecycleIndex,
+  type ComposedLifecycleIndexResult,
+} from "../lib/work-unit/composed-lifecycle-index.js";
+import { resolveStartedViewTarget } from "../lib/view/started-artifacts.js";
+import type { WorkUnitArtifactReaders } from "../lib/status/work-unit-purpose.js";
+import type { Store } from "../lib/store/contract.js";
+import { openDefaultStore } from "./lifecycle-shared.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { launchViewEditor } from "./view-editor.js";
 
 const execFileAsync = promisify(execFile);
 
 export interface ViewCliOptions {
   project?: boolean;
   current?: boolean;
+  path?: boolean;
+  editor?: boolean;
   for?: string;
 }
 
@@ -58,13 +74,22 @@ export const ViewCommandInputSchema = z.object({
   }).optional(),
   project: z.boolean(),
   current: z.boolean(),
+  path: z.boolean(),
+  editor: z.boolean(),
   forSlug: z.string().refine(
     (value) => SlugSchema.safeParse(value).success,
     { message: "Invalid work-unit slug" },
   ).optional(),
 }).strict().superRefine((value, refinement) => {
+  if (value.editor && (value.path || value.current)) {
+    const conflict = value.path ? "--path" : "--current";
+    refinement.addIssue({ code: "custom", path: ["editor"], message: `--editor cannot be combined with ${conflict}` });
+  }
   if (value.current && value.kind !== undefined && value.kind !== "tasks") {
     refinement.addIssue({ code: "custom", path: ["current"], message: "--current is only valid with tasks" });
+  }
+  if (value.path && value.current) {
+    refinement.addIssue({ code: "custom", path: ["path"], message: "--path cannot be combined with --current" });
   }
   if (value.project && value.kind !== "inbox") {
     refinement.addIssue({ code: "custom", path: ["project"], message: "--project is only valid with inbox" });
@@ -86,22 +111,35 @@ export const viewCommandInputRegistration = {
     "operand.kind": "kind",
     "option.project": "project",
     "option.current": "current",
+    "option.path": "path",
+    "option.editor": "editor",
     "option.for": "forSlug",
   },
 } satisfies CommandInputRegistration;
 
-/** Presenter-process policies owned by the view adapter. */
+/** Presentation and editor-process policies owned by the view adapter. */
 export const viewCommandInputPolicyDeclarations = [{
   commandPath: "view",
   aliases: [],
-  sites: (["execFileAsync", "spawn"] as const).map((callee) => declareInteractionSite(
+  sites: [declareCliOptionSite("editor", {
+    acquisition: "interactive-only-override", schemaOwnership: "owned", schemaField: "editor",
+    cancellation: "not-applicable", automation: { noInput: "refuse", flags: ["--editor", "-e"], acceptedSyntax: [] },
+    mutationBoundary: "editor handoff", subprocess: "editor",
+  }), ...(["execFileAsync", "spawn"] as const).map((callee) => declareInteractionSite(
     { file: "handlers/view.ts", kind: "subprocess", callee, occurrence: 1 },
     {
       acquisition: "presenter", schemaOwnership: "none", cancellation: "not-applicable",
       automation: { noInput: "render-directly", flags: [], acceptedSyntax: [] },
       mutationBoundary: "view subprocess boundary", subprocess: "presenter",
     },
-  )),
+  )), declareInteractionSite(
+    { file: "handlers/view-editor.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+    {
+      acquisition: "interactive-only-override", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "refuse", flags: ["--editor", "-e"], acceptedSyntax: [] },
+      mutationBoundary: "editor handoff", subprocess: "editor",
+    },
+  )],
 }] satisfies readonly CommandInputDeclaration[];
 
 /** Convert the command-owned active envelope into the neutral viewer target. */
@@ -155,6 +193,8 @@ export async function handleView(
     ...(kind === undefined ? {} : { kind }),
     project: options.project === true,
     current: options.current === true,
+    path: options.path === true,
+    editor: options.editor === true,
     ...(options.for === undefined ? {} : { forSlug: options.for }),
   });
   if (!parsed.success) {
@@ -165,14 +205,20 @@ export async function handleView(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  if (parsed.data.editor && context.interaction === "forbidden") {
+    process.stderr.write("--editor requires an interactive terminal and allowed interaction.\n");
+    process.exitCode = 1;
+    return;
+  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
   const io = createUserIOContext(context.subprocess);
-  const identity = await resolveIdentity({ exec: gitExec });
-  const dependencies = createViewDependencies(cwd, io.readFile);
-  const clock = await resolveViewClock({
+  const exec = io.exec;
+  const identity = await resolveIdentity({ exec });
+  const dependencies = createViewDependencies(cwd, io.readFile, exec, identity);
+  const clock = parsed.data.editor ? undefined : await resolveViewClock({
     cwd,
-    exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, cwd }),
+    exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
     readFile: io.readFile,
   });
   const result = await runView({
@@ -181,14 +227,18 @@ export async function handleView(
     project: parsed.data.project,
     identity,
     current: parsed.data.current,
+    path: parsed.data.path,
+    editor: parsed.data.editor,
+    editorAllowed: context.interaction === "allowed",
     ...(parsed.data.forSlug === undefined ? {} : { forSlug: parsed.data.forSlug }),
     nonInteractive: context.subprocess.presenters === "forbidden",
   }, {
     resolveArtifact: (input) => resolveViewArtifact(input, dependencies),
-    readFile: io.readFile,
+    readFile: dependencies.readFile,
+    launchEditor: (path) => launchViewEditor(path, cwd, { exec }),
     resolveRenderer: () => resolveViewRenderer({
       cwd,
-      exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, cwd }),
+      exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
       readFile: io.readFile,
       probe: probePathCommand,
     }),
@@ -204,41 +254,93 @@ export async function handleView(
   process.exitCode = result.exitCode;
 }
 
-function createViewDependencies(
+/** Bind view targets, records, and filesystem effects to one selected operational store. */
+export function createViewDependencies(
   cwd: string,
   readUtf8: (path: string) => Promise<string>,
-): ViewArtifactDependencies {
+  exec: GitExec,
+  identity: string | null,
+  selectedStore?: Store,
+): ViewArtifactDependencies & { readFile: (path: string) => Promise<string> } {
+  const store = selectedStore ?? openDefaultStore(cwd, exec);
   return {
+    stateOffBranch: store.capabilities.stateOffBranch,
+    ...(store.capabilities.stateOffBranch ? { readStoreArtifact: createStoreViewArtifactReader({ cwd, store }) } : {}),
     resolveAmbientTarget: async ({ identity }) => {
+      if (store.capabilities.stateOffBranch) return resolveStoreAmbientViewTarget({ cwd, store });
       const result = await runActiveSessionInitStatusInternal({
         cwd,
         identity,
-        role: await gitConfigGet(gitExec, "arc.role"),
-        exec: gitExec,
+        role: await gitConfigGet(exec, "arc.role"),
+        exec,
       });
-      return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd));
+      return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd, exec));
     },
     resolveExplicitTarget: async ({ slug }) => {
-      const index = await buildLifecycleIndex({
-        cwd,
+      if (store.capabilities.stateOffBranch) return resolveStoreViewTarget({ cwd, store, slug });
+      const composition = await resolveCallerComposedLifecycleIndex({
+        cwd, exec, identity, acquisitionPolicy: "local",
         fs: {
           readdir: (path) => readdir(path, { withFileTypes: true }),
           readFile: readUtf8,
         },
       });
-      return resolveExplicitViewTarget({ cwd, slug, index, readFile: readUtf8 });
+      return resolveComposedViewTarget({
+        cwd, slug, composition,
+        readers: {
+          fs: { readFile: readUtf8 },
+          readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
+        },
+      });
     },
-    resolveCohort: ({ activeMetaPath }) => resolveActiveCohortDocPath({
+    resolveCohort: ({ activeMetaPath, metaContent }) => resolveActiveCohortDocPath({
       cwd,
       activeMetaPath,
-      fs: { readFile: readUtf8, pathExists },
+      fs: { readFile: metaContent === undefined ? readUtf8 : () => Promise.resolve(metaContent), pathExists },
     }),
     resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
-      resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
+      resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access, store }),
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
-      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec: gitExec }),
+      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec }),
     pathExists,
+    readFile: readUtf8,
+    readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
   };
+}
+
+/**
+ * Select one explicit viewer target from composed lifecycle truth.
+ * @param input - Composed records and caller-bound metadata readers.
+ * @returns The current target, or the composition's unavailable classification.
+ */
+export async function resolveComposedViewTarget(input: {
+  cwd: string;
+  slug: string;
+  composition: ComposedLifecycleIndexResult;
+  readers: WorkUnitArtifactReaders;
+}): Promise<ViewTargetResult> {
+  if (isComposedLifecycleSlugIndeterminate(input.composition, input.slug)) {
+    const warnings = input.composition.qualityFacts.bySlug.get(input.slug)?.warnings
+      ?? input.composition.qualityFacts.warnings;
+    return {
+      status: "unavailable", slug: input.slug,
+      message: warnings.map((warning) => warning.rendered).join(" ")
+        || `Work unit "${input.slug}" has indeterminate started metadata.`,
+    };
+  }
+  const record = input.composition.recordsBySlug.get(input.slug)?.selected;
+  if (record?.source.kind === "in-flight-meta") {
+    return await resolveStartedViewTarget({
+      record, worktreePath: input.composition.worktreePathBySlug.get(input.slug),
+      readers: input.readers, taskListPath: resolveTaskListPath,
+    });
+  }
+  const target = await resolveExplicitViewTarget({
+    cwd: input.cwd, slug: input.slug, index: input.composition.index,
+    readFile: (path) => input.readers.fs.readFile(path),
+  });
+  return target.status === "resolved"
+    ? { ...target, artifactSource: { kind: "checkout", cwd: input.cwd } } : target;
 }
 
 /** Classify one explicit slug from the checkout-local lifecycle projection. */
@@ -282,9 +384,9 @@ export async function resolveExplicitViewTarget(input: {
   }
 }
 
-async function resolveCurrentBranch(cwd: string): Promise<string | null> {
+async function resolveCurrentBranch(cwd: string, exec: GitExec): Promise<string | null> {
   try {
-    const result = await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
+    const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
     const branch = result.stdout.trim();
     return branch === "" || branch === "HEAD" ? null : branch;
   } catch {

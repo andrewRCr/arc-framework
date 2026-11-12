@@ -42,14 +42,14 @@ Concrete ordering:
 
 Default rules (refine at this stub's spec):
 
-| Pattern                                              | Disposition                       |
-|------------------------------------------------------|-----------------------------------|
-| `chore(spike): ...`                                  | **Drop**                          |
-| `chore(draft-iter): ...` or micro-edits to `draft-*` | **Drop**                          |
-| `chore(plan): graduate draft → spec`                 | **Keep**                          |
-| `chore(tasks): generate task list`                   | **Keep**                          |
-| `chore(planning): ...` ceremony commits              | **Keep**                          |
-| Anything not matching a drop pattern                 | **Keep** (conservative default)   |
+| Pattern                                              | Disposition                     |
+| ---------------------------------------------------- | ------------------------------- |
+| `chore(spike): ...`                                  | **Drop**                        |
+| `chore(draft-iter): ...` or micro-edits to `draft-*` | **Drop**                        |
+| `chore(plan): graduate draft → spec`                 | **Keep**                        |
+| `chore(tasks): generate task list`                   | **Keep**                        |
+| `chore(planning): ...` ceremony commits              | **Keep**                        |
+| Anything not matching a drop pattern                 | **Keep** (conservative default) |
 
 Cleanup is conservative-by-default — only commits matching known noise patterns are dropped. Anything else stays.
 
@@ -57,11 +57,11 @@ Cleanup is conservative-by-default — only commits matching known noise pattern
 
 Three modes, configurable per project (or per-invocation override):
 
-| Mode                       | Behavior                                                                                            |
-|----------------------------|-----------------------------------------------------------------------------------------------------|
-| **Conservative** (default) | Drops only known noise patterns; user reviews and confirms the rebase plan before execution         |
-| **Interactive**            | Shows the full commit list; user marks drop/keep per-commit                                         |
-| **Off**                    | No cleanup; state-flip happens with planning history intact                                         |
+| Mode                       | Behavior                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| **Conservative** (default) | Drops only known noise patterns; user reviews and confirms the rebase plan before execution |
+| **Interactive**            | Shows the full commit list; user marks drop/keep per-commit                                 |
+| **Off**                    | No cleanup; state-flip happens with planning history intact                                 |
 
 ## Safety mechanisms
 

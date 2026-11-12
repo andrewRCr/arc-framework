@@ -9,18 +9,25 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import type { StoreInFlightEntry, DeriveStoreInFlightOptions } from "../lib/git/in-flight-store.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
+import type { WorktreeRosterEntry } from "../lib/git/worktree-roster.js";
+import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import {
   buildActiveSessionInitSummary,
   buildActiveStatusSummary,
-  runActiveInFlight,
+  runActiveInFlightExpansion,
   runActiveRoster,
   runActiveSessionInitStatus,
   runActiveStatus,
 } from "../commands/active.js";
+import { resolveIdentity } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   renderInFlightWarning,
@@ -28,10 +35,11 @@ import {
 } from "../lib/git/in-flight-derivation.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec } from "../lib/io-context.js";
+import { createGitExec, createGitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
-import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { requireArcProjectRoot } from "./shared.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface ActiveStatusCliOptions {
   sessionInit?: boolean;
@@ -64,11 +72,17 @@ export const activeCommandInputPolicyDeclarations = [
 ] satisfies readonly CommandInputDeclaration[];
 
 /** Render one oracle entry with its lifecycle and local/remote location. */
-export function formatActiveInFlightLine(entry: InFlightEntry): string {
-  const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
+export function formatActiveInFlightLine(entry: InFlightEntry | StoreInFlightEntry): string {
+  const locationUnknown = entry.marks?.some(mark => mark === "indeterminate" || mark === "location-ambiguous") === true;
+  const where = entry.worktreePath ?? (locationUnknown ? "location unknown" : entry.remoteOnly ? "remote-only" : "no worktree");
   return entry.kind === "work-unit"
-    ? `${entry.branch}  (${entry.state})  ${where}`
-    : `${entry.branch}  (errand)  ${where}`;
+    ? `${entry.branch ?? entry.name}  (${entry.state}${entry.scheduling === "paused" ? ", paused" : ""})  ${where}`
+    : `${entry.branch ?? entry.slug}  (errand)  ${where}`;
+}
+
+/** Render one active work-unit registration for the human roster. */
+export function formatActiveRosterLine(entry: WorktreeRosterEntry): string {
+  return `${entry.branch ?? entry.workUnit}  (${entry.state ?? "unknown"})  ${entry.worktreePath}`;
 }
 
 export async function handleActiveStatus(
@@ -91,7 +105,7 @@ export async function handleActiveStatus(
     return;
   }
 
-  const result = await runActiveStatus({ cwd });
+  const result = await runActiveStatus({ cwd, exec });
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
@@ -110,7 +124,7 @@ export async function handleActiveRoster(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentity({ exec });
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
 
@@ -133,9 +147,7 @@ export async function handleActiveRoster(
   if (result.entries.length === 0) {
     p.note("No other work units in flight.", "In-flight");
   } else {
-    const lines = result.entries.map(
-      (e) => `${e.branch}  (${e.state ?? "unknown"})  ${e.worktreePath}`,
-    );
+    const lines = result.entries.map(formatActiveRosterLine);
     p.note(lines.join("\n"), "In-flight");
   }
   p.outro("Done.");
@@ -149,11 +161,12 @@ export async function handleActiveInFlight(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentity({ exec });
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
-  const parkedSlugs = listParkedSlugs(
+  const store = openDefaultStore(cwd, exec);
+  const parkedSlugs = store.capabilities.stateOffBranch ? new Set<string>() : listParkedSlugs(
     await buildLifecycleIndex({
       cwd,
       fs: {
@@ -163,8 +176,15 @@ export async function handleActiveInFlight(
     }),
   );
 
-  const result = await runActiveInFlight({
+  const locusPorts = store.capabilities.stateOffBranch ? createLocusPorts({ cwd, exec, store }) : undefined;
+  const roster = await readInFlightRoster({ cwd, store, exec, identity, baseBranch: settings["branch.base"] });
+  const result = await runActiveInFlightExpansion({
+    store,
+    ...(roster === undefined ? {} : { roster }),
+    ...(locusPorts === undefined ? {} : { findHoldingCheckout: locusPorts.findHoldingCheckout }),
     exec,
+    execInput: createGitExecInput(interaction?.subprocess),
+    cwd,
     identity,
     teamMode,
     localOnly,
@@ -174,19 +194,34 @@ export async function handleActiveInFlight(
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
+    if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
+      process.exitCode = 1;
+    }
     return;
   }
 
   p.intro("arc active in-flight");
-  const degradedNotice = result.reachable ? "" : "\n[remote unreachable — local-only view]";
+  const expansionNotice = result.remoteEvidence === "pending-fetch"
+    ? `\n[expansion partial — ${result.candidateExpansion.pendingBranchCount} advertised branches remain unavailable]`
+    : result.remoteEvidence === "unreachable"
+      ? `\n[expansion failed — remote ${result.failureReason}]`
+      : "";
   if (result.entries.length === 0) {
-    p.note(`No work units or errands in flight.${degradedNotice}`, "In-flight");
+    p.note(`No work units or errands in flight.${expansionNotice}`, "In-flight");
   } else {
     const lines = result.entries.map(formatActiveInFlightLine);
-    p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
+    p.note(`${lines.join("\n")}${expansionNotice}`, "In-flight");
   }
   for (const warning of result.warnings) {
     p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
+  if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
+    process.exitCode = 1;
+  }
+}
+
+async function readInFlightRoster(input: { cwd: string; store: Store; exec: GitExec; identity: string | null; baseBranch: string }): Promise<DeriveStoreInFlightOptions["roster"]> {
+  if (!input.store.capabilities.stateOffBranch || input.identity === null) return undefined;
+  return (await runDerivedLocusStateProbe({ ...input, identity: input.identity })).roster;
 }

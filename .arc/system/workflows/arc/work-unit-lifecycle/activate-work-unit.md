@@ -6,10 +6,7 @@ arc:
     - assess-parallel-fit
     - branch-format
     - classify-work-unit
-  extensions:
-    - pre-activation
-    - pre-push-review
-    - post-work-unit-activate
+    - route-discovered-work
 ---
 
 # Workflow: Activate Work Unit
@@ -36,21 +33,33 @@ Verify the activation context is well-formed:
 - Currently on a `plan/<name>` branch (per [`branch-format`][branch-format])
 - `.arc/active/meta-{name}.md` exists and shows `**State:** Planning`
 - `.arc/active/spec-{name}.md` and `.arc/active/tasks-{name}.md` are present
+- `arc user inbox-list --target {name} --json` reports `clear` — no capture, held or not, still names this work unit
 
 If any check fails, surface the mismatch and halt — do not proceed to state-flip or branch rename.
 
-### 2) Fire `pre-activation` extension
+A `refused` listing clears by applying its remedy, and a `named` one only by disposing of each listed capture at the
+Owner's pass.
 
-If `pre-activation` appears in the active-extensions list (established at session init), load and execute its
-`.actions`. Halt-on-fail surfaces an actionable message; user can fix-and-retry or explicit-invoke bypass.
-Otherwise, skip.
+**Method fire-point** · [`route-discovered-work`][route-discovered-work]:
 
-### 3) Supplementary alignment checks
+```yaml
+route-discovered-work:
+  entry: each listed capture
+  door: owner's planning pass
+  host: this work unit
+```
+
+On confirmation, carry out each outcome before the flip. A `fold` amends the spec and carries what it changes into the
+task list and its success criteria; no outcome holds the capture in this work unit. Remove each routed capture with
+`arc user inbox-remove`, or rewrite it in place when its outcome is itself a capture. Record each rejection or
+dismissal, with its reason, in the activation commit body. Then re-run the gate.
+
+### 2) Supplementary alignment checks
 
 #### PROJECT-PRD
 
 Fires only when PROJECT-PRD has been edited since the WU's PRD was approved. Soft check; rarely blocks. Surface
-any conflict with the WU's PRD; on conflict, halt and ask.
+any conflict with the WU's PRD; halt and ask on material disagreement.
 
 #### TECHNICAL-OVERVIEW
 
@@ -66,7 +75,7 @@ re-checks overlap, which may have drifted since the WU was scoped at pick/scaffo
 surface any overlap (a foreign-owned collision can warrant parking the WU until that unit integrates) and proceed
 unless the operator redirects.
 
-### 4) Run the `activate` transition + settle Class + draft-doc removal
+### 3) Run the `activate` transition + settle Class + draft-doc removal
 
 Compose the activation inputs (judgment — never fabricated):
 
@@ -93,6 +102,8 @@ Then settle the judgment + cleanup the executor doesn't own:
 
 Stage all edits.
 
+When a fold includes spec or task-list prose edits, run `arc check increment` before the activation commit.
+
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
 
@@ -104,18 +115,14 @@ chore(arc): activate {work-name} work unit
 - Set Next Task / Next Action; discharge satisfied Depends On edges
 - Settle Class (confirm-or-ratchet)
 - Remove draft-{name}.md (absorbed into the spec; safety-catch)
+- Capture {title}: {reject | dismiss} — {reason} (one line per rejected or dismissed capture; omit when none)
 
 Context: meta-{name}.md (activation)
 ```
 
-### 5) Push the rotated branch · 2-step routing
+### 4) Push the rotated branch · 2-step routing
 
-The local branch rename landed in Step 4 (executor-owned); only the remote legs remain.
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the `workflowPush` push.
-  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
-  Otherwise, skip.
+The local branch rename landed in Step 3 (executor-owned); only the remote legs remain.
 
 ```bash
 git push -u origin {type}/{name}            # workflowPush
@@ -132,7 +139,7 @@ covers paths that activated without going through `init-work-unit` first):
 arc user open {name}
 ```
 
-### 6) Absorption-source cleanup · `arc-in-git` only
+### 5) Absorption-source cleanup · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
@@ -159,14 +166,14 @@ Context: meta-{name}.md (activation)
 
 See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for the capture-routing table.
 
-### 7) ROADMAP regen · `arc-in-git` only
+### 6) ROADMAP regen · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
 Re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the WU is already In Flight from
 initialization, so this refreshes the ROADMAP rather than changing its tier.
 
-Default: dedicated `chore(arc):` commit. May ride the activation commit (Step 4) only when the regen is a
+Default: dedicated `chore(arc):` commit. May ride the activation commit (Step 3) only when the regen is a
 trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
 
 > [!CAUTION]
@@ -179,12 +186,6 @@ chore(arc): refresh roadmap for {name} activation
 
 Context: meta-{name}.md (activation)
 ```
-
-### 8) Fire `post-work-unit-activate` extension
-
-If `post-work-unit-activate` appears in the active-extensions list, load and execute its
-[`.actions`][arc-ext-post-activate]. Otherwise, skip. Stage any extension-produced changes as a dedicated
-commit (`workflowCommit`) per the extension's contract.
 
 ---
 
@@ -208,7 +209,7 @@ With activation complete, proceed to task execution:
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [branch-format]: ../../../methods/branch-format.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
-[arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
+[route-discovered-work]: ../../../methods/route-discovered-work.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [dev-rules-discovered-routing]: ../../../../system/rules/DEV-RULES.ARC.md#discovered-work-routing

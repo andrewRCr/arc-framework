@@ -1,0 +1,111 @@
+/** Filesystem adapter for work-unit Candidate lineage records. */
+
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { CandidateRecordVersionConflictError } from "../store/kinds/review/errors.js";
+import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
+
+import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { atomicWriteFile } from "../fs.js";
+import { SlugSchema } from "../kernel/schema/slug.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
+import {
+  parseCandidateManagedRecord,
+  serializeCandidateManagedRecord,
+  type CandidateManagedRecordV1,
+} from "./candidate-attestation.js";
+
+export { readRepositoryCandidateSupersessionChain, readRepositoryCandidateRecordRevision } from
+  "../store/kinds/review/candidate/history.js";
+export { resolveCandidateRecordRelativePath };
+
+export const CANDIDATE_RECORD_NAMESPACE = ".arc/system/.internal/candidates";
+
+export interface CandidateRecordStoreFs {
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  withLock<T>(path: string, action: () => Promise<T>): Promise<T>;
+}
+
+const nodeCandidateRecordStoreFs: CandidateRecordStoreFs = {
+  readFile: (path) => readFile(path, "utf8"),
+  writeFile: atomicWriteFile,
+  withLock: (path, action) => withAdvisoryLock(path, action),
+};
+
+export interface VersionedCandidateRecord {
+  record: CandidateManagedRecordV1 | null;
+  version: CanonicalDigest | null;
+}
+
+export { CandidateRecordVersionConflictError };
+
+/** Read and validate one Candidate record, or return null when absent. */
+export async function readCandidateRecord(
+  cwd: string,
+  name: string,
+  fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
+): Promise<CandidateManagedRecordV1 | null> {
+  return (await readCandidateRecordVersioned(cwd, name, fs)).record;
+}
+
+/** Read one Candidate record together with the exact bytes-version a later write must carry. */
+export async function readCandidateRecordVersioned(
+  cwd: string,
+  name: string,
+  fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
+): Promise<VersionedCandidateRecord> {
+  const workUnit = SlugSchema.parse(name);
+  const relativePath = resolveCandidateRecordRelativePath(workUnit);
+  const content = await readCandidateRecordContent(cwd, relativePath, fs);
+  if (content === null) return { record: null, version: null };
+  const record = parseCandidateManagedRecord(content);
+  if (record === null) throw new Error(`Candidate record is malformed: ${relativePath}`);
+  if (record.attestation.workUnit !== workUnit) {
+    throw new Error(`Candidate record work unit does not match its path: ${relativePath}`);
+  }
+  return { record, version: digestBytes(Buffer.from(content, "utf8")) };
+}
+
+/** Read only the exact bytes-version of one Candidate record, without parsing its contents. */
+export async function readCandidateRecordVersion(
+  cwd: string,
+  name: string,
+  fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
+): Promise<CanonicalDigest | null> {
+  const relativePath = resolveCandidateRecordRelativePath(name);
+  const content = await readCandidateRecordContent(cwd, relativePath, fs);
+  return content === null ? null : digestBytes(Buffer.from(content, "utf8"));
+}
+
+async function readCandidateRecordContent(
+  cwd: string,
+  relativePath: string,
+  fs: CandidateRecordStoreFs,
+): Promise<string | null> {
+  try {
+    return await fs.readFile(join(cwd, relativePath));
+  } catch (error) {
+    if ((error as { code?: unknown }).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Version-check and atomically replace one validated Candidate record. */
+export async function writeCandidateRecord(
+  cwd: string,
+  name: string,
+  record: CandidateManagedRecordV1,
+  expectedVersion: string | null,
+  fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
+): Promise<string> {
+  const relativePath = resolveCandidateRecordRelativePath(name);
+  const absolutePath = join(cwd, relativePath);
+  await fs.withLock(`${absolutePath}.lock`, async () => {
+    const current = await readCandidateRecordVersioned(cwd, name, fs);
+    if (current.version !== expectedVersion) throw new CandidateRecordVersionConflictError();
+    await fs.writeFile(absolutePath, serializeCandidateManagedRecord(record));
+  });
+  return relativePath;
+}

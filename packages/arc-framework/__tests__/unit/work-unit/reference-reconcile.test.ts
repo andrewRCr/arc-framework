@@ -5,15 +5,43 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReachableReferenceTransition,
 } from "../../../src/lib/work-unit/reference-reconcile.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 
 function rename(subject: string, targetSlug: string): ReachableReferenceTransition {
   return { subject, outcome: { kind: "rename", targetSlug } };
 }
 
+function decompose(subject: string): ReachableReferenceTransition {
+  return { subject, outcome: { kind: "decompose" } };
+}
+
 describe("planReferenceReconcile", () => {
+  it.each(["## Session Context\n\n", "---\n\n"])("preserves field-like narrative beyond the metadata boundary %j", boundary => {
+    const result = planReferenceReconcile({ transitions: [rename("former", "current")], artifacts: [{
+      path: "meta-dependent.md", heldDependencyEdges: ["former"],
+      content: `# Metadata: dependent\n\n- **Depends On:** \`former\`\n\n${boundary}- **Depends On:** former needs review.\n`,
+    }] });
+    expect(result).toMatchObject({ status: "ready", edits: [], conflicts: [], advisories: [
+      { subject: "former", context: "- **Depends On:** former needs review.", referenceKind: "narrative" },
+    ] });
+    expect(result.advisories).toHaveLength(1);
+  });
+
+  it("keeps held dependency values out of narrative review across wrapped lines while retaining prose", () => {
+    const result = planReferenceReconcile({ transitions: [rename("origin", "current"), rename("held", "other")], artifacts: [{
+      path: "meta-dependent.md", heldDependencyEdges: ["origin", "held"],
+      content: "# Metadata: dependent\n\n- **Depends On:** `origin`,\n  `held`\n- **Note:** origin still needs review.\n",
+    }] });
+    expect(result).toMatchObject({ status: "ready", edits: [], conflicts: [], advisories: [
+      { subject: "origin", line: 5, context: "- **Note:** origin still needs review.", referenceKind: "narrative" },
+    ] });
+    expect(result.advisories).toHaveLength(1);
+  });
+
   it("composes a unique rename chain into one final structured edit", () => {
     const result = planReferenceReconcile({
       transitions: [rename("origin", "middle"), rename("middle", "final")],
@@ -105,7 +133,7 @@ describe("planReferenceReconcile", () => {
 
   it("surfaces decomposed artifact references as dangling without guessing a target", () => {
     const result = planReferenceReconcile({
-      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+      transitions: [decompose("origin")],
       artifacts: [{
         path: "spec-dependent.md",
         content: "Compare `spec-origin.md`.\n",
@@ -121,5 +149,107 @@ describe("planReferenceReconcile", () => {
         suggestedDisposition: "remove-or-retarget",
       }],
     });
+  });
+
+  it.each([
+    ["direct", [decompose("origin")]],
+    ["rename-chain", [rename("origin", "middle"), decompose("middle")]],
+  ])("keeps narrative prose silent for a unique %s terminal decomposition", (_label, transitions) => {
+    const result = planReferenceReconcile({
+      transitions,
+      artifacts: [{
+        path: "notes-dependent.md",
+        content: "origin remains useful historical context.\n",
+      }],
+    });
+
+    expect(result).toEqual({
+      status: "ready",
+      edits: [],
+      advisories: [],
+      conflicts: [],
+    });
+  });
+
+  it.each(["origin", "origin/sub"])(
+    "does not treat the Cohort field value %s as a retired work-unit reference",
+    (cohort) => {
+      const result = planReferenceReconcile({
+        transitions: [{ subject: "origin", outcome: { kind: "removed" } }],
+        artifacts: [{
+          path: "meta-dependent.md",
+          content: [
+            `- **Cohort:** \`${cohort}\``,
+            "- **Note:** origin still appears in narrative context.",
+            "",
+          ].join("\n"),
+        }],
+      });
+
+      expect(result).toMatchObject({
+        status: "ready",
+        edits: [],
+        advisories: [{
+          line: 2,
+          context: "- **Note:** origin still appears in narrative context.",
+          referenceKind: "narrative",
+          subject: "origin",
+          suggestedDisposition: "remove-or-retarget",
+        }],
+      });
+    },
+  );
+});
+
+describe("enumerateTransitionReferenceTransitions", () => {
+  it("projects lean rename, abandon, and decompose kinds", () => {
+    const records: LineageRecord[] = [
+      LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "renamed" }, kind: "rename", successors: [{ name: "target" }], incoming: [] }),
+      LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "abandoned" }, kind: "abandon", successors: [], incoming: [] }),
+      LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: "decomposed" },
+        kind: "decompose",
+        successors: [{ name: "member" }],
+        incoming: [],
+        outgoing: [],
+      }),
+    ];
+
+    expect(enumerateTransitionReferenceTransitions({
+      status: "valid",
+      groups: records.map((record) => ({ origin: record.origin.name, records: [record] })),
+    })).toEqual({
+      status: "valid",
+      transitions: [
+        { subject: "renamed", outcome: { kind: "rename", targetSlug: "target" } },
+        { subject: "abandoned", outcome: { kind: "removed" } },
+        { subject: "decomposed", outcome: { kind: "decompose" } },
+      ],
+    });
+  });
+
+  it.each([
+    ["byte-identical", "target"],
+    ["divergent", "other-target"],
+  ])("refuses %s duplicate origin records before outcome de-duplication", (_label, secondTarget) => {
+    const first: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "origin" },
+      kind: "rename",
+      successors: [{ name: "target" }],
+      incoming: [],
+    });
+    const second: LineageRecord = LineageRecordSchema.parse({ ...first, successors: [{ name: secondTarget }] });
+
+    expect(enumerateTransitionReferenceTransitions({
+      status: "valid",
+      groups: [{ origin: "origin", records: [first, second] }],
+    })).toEqual({ status: "conflict", reason: "ambiguous-history", subject: "origin" });
+  });
+
+  it("fails closed on lean namespace corruption without digest-conflict vocabulary", () => {
+    expect(enumerateTransitionReferenceTransitions({ status: "namespace-corrupt" }))
+      .toEqual({ status: "conflict", reason: "namespace-corrupt" });
   });
 });

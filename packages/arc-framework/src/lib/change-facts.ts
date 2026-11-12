@@ -2,9 +2,10 @@
 
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { open, readFile, type FileHandle } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizeGitRepositoryEnvironment } from "./git/repository-environment.mjs";
 
 import type {
   CanonicalChange,
@@ -12,9 +13,14 @@ import type {
   ChangePathSet,
   ChangeSet,
 } from "./change-facts.schema.js";
+import type { RawGitExec, RawGitResult } from "./git/exec.js";
 
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
+
+function environmentForRawGit(): NodeJS.ProcessEnv {
+  return sanitizeGitRepositoryEnvironment(process.env);
+}
 
 /** Stable union of every affected path, including both move and copy endpoints. */
 export function affectedPaths(
@@ -27,18 +33,6 @@ export function affectedPaths(
   }
   return [...paths];
 }
-
-/** Result from a byte-preserving Git invocation. */
-export interface RawGitResult {
-  stdout: Uint8Array;
-  stderr?: Uint8Array;
-}
-
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
-export type RawGitExec = (
-  args: string[],
-  options?: { cwd?: string; input?: Uint8Array },
-) => Promise<RawGitResult>;
 
 const UNKNOWN: ChangeSet = { changeSet: "unknown", changes: [] };
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -233,30 +227,78 @@ export async function resolveChangeSet(
  * @param cwd - Default repository working directory
  * @returns A raw Git executor
  */
-export function createRawGitExec(cwd = process.cwd()): RawGitExec {
-  return (args, options) =>
-    new Promise((resolveResult, reject) => {
-      const child = spawn("git", args, {
-        cwd: options?.cwd ?? cwd,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const stdout: Buffer[] = [];
-      const stderr: Buffer[] = [];
+export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
+  return async (args, options) => {
+    if (options?.input !== undefined && options.inputFile !== undefined) {
+      throw new Error("Raw Git input and inputFile cannot both be supplied.");
+    }
+    // The direct Node entrypoint runs from source before a build or dependency install.
+    // Only callers supplying cancellation need the compiled-module support graph.
+    const cancellation = options?.signal === undefined ? undefined : await import("./git/process-cancellation.js");
+    const failures = options?.signal === undefined ? undefined : await import("./git/process-error.js");
+    const handles: FileHandle[] = [];
+    try {
+      const input = options?.inputFile === undefined ? undefined : await open(options.inputFile, "r");
+      if (input !== undefined) handles.push(input);
+      const output = options?.outputFile === undefined ? undefined : await open(options.outputFile, "wx", 0o600);
+      if (output !== undefined) handles.push(output);
+      return await new Promise<RawGitResult>((resolveResult, reject) => {
+        const effectiveArgs = options?.objectAccess === "local-only" ? ["--no-lazy-fetch", ...args] : args;
+        const effectiveCwd = options?.cwd ?? cwd;
+        const environment = Object.fromEntries(Object.entries(environmentForRawGit())
+          .filter(([name]) => !options?.removeEnvironment?.includes(name)));
+        const env = options?.objectAccess === "local-only" ? { ...environment, GIT_NO_LAZY_FETCH: "1" } : environment;
+        cancellation?.assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
+        const child = spawn("git", effectiveArgs, {
+          cwd: effectiveCwd, env,
+          stdio: [input?.fd ?? "pipe", output?.fd ?? "pipe", "pipe"],
+        });
+        let canceled = false;
+        let descendantsUnconfirmed = false;
+        let stdinError: Error | undefined;
+        const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }, unconfirmed => {
+          descendantsUnconfirmed = unconfirmed;
+          child.stdin?.destroy();
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+        }) ?? (() => Promise.resolve());
+        const stdout: Buffer[] = [], stderr: Buffer[] = [];
 
-      child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-      child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", reject);
-      child.on("close", (code) => {
-        const stdoutBytes = Buffer.concat(stdout);
-        const stderrBytes = Buffer.concat(stderr);
-        if (code === 0) {
-          resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
-          return;
-        }
-        reject(new Error(`git diff failed with exit code ${code ?? "unknown"}`));
+        child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
+        child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
+        child.stdin?.on("error", (error: Error) => { stdinError = error; });
+        child.on("error", (error) => { void dispose().then(() => {
+          if (canceled && failures !== undefined) {
+            reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+              stdout: Buffer.concat(stdout).toString("latin1"), stderr: Buffer.concat(stderr).toString("latin1"),
+              descendantsUnconfirmed, cause: error }));
+            return;
+          }
+          reject(error);
+        }).catch(reject); });
+        child.on("close", (code, signal) => { void dispose().then(() => {
+          const stdoutBytes = Buffer.concat(stdout), stderrBytes = Buffer.concat(stderr);
+          if (canceled && failures !== undefined) {
+            reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+              stdout: stdoutBytes.toString("latin1"), stderr: stderrBytes.toString("latin1"), descendantsUnconfirmed }));
+            return;
+          }
+          if (code === 0 && stdinError) {
+            reject(Object.assign(stdinError, { stdout: stdoutBytes, stderr: stderrBytes }));
+            return;
+          }
+          if (code === 0) { resolveResult({ stdout: stdoutBytes, stderr: stderrBytes }); return; }
+          reject(Object.assign(new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`), {
+            ...(code === null ? {} : { exitCode: code }), ...(signal === null ? {} : { signal }),
+            stdout: stdoutBytes, stderr: stderrBytes,
+          }));
+        }).catch(reject); });
+        child.stdin?.end(options?.input);
       });
-      child.stdin.end(options?.input);
-    });
+    } finally {
+      await Promise.all(handles.map(handle => handle.close()));
+    }
+  };
 }
 
 const CODE_SURFACE_GLOBS = [
@@ -274,24 +316,99 @@ const CODE_SURFACE_GLOBS = [
   "package-lock.json",
   "scripts/*.sh",
   ".github/workflows/ci.yml",
-  ".arc/system/extensions/*",
+  ".arc/system/arc-checks.yml",
 ] as const;
 
 const GENUINE_DOCS_GLOBS = [".arc/*", "docs/*", "mkdocs.yml"] as const;
 
+/**
+ * Project decision records and supplemental research and analysis. They record what was decided or found, and no
+ * integration or E2E test reads them; the content integration tier's declared inputs leave out the same globs.
+ */
+export const REFERENCE_RECORD_GLOBS = [
+  ".arc/reference/adr/adr-*.md",
+  ".arc/reference/supplemental/research/research-*.md",
+  ".arc/reference/supplemental/analysis/analysis-*.md",
+] as const;
+
 const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
-  "packages/arc-framework/arc/system/extensions/*",
   "packages/arc-framework/arc/system/.internal/*",
   "packages/arc-framework/arc/reference/templates/*",
   "packages/arc-framework/arc/*.template.md",
 ] as const;
 
+const PLANNING_RECORD_GLOBS = [".arc/backlog/*", ".arc/completed/*"] as const;
+
 const PORTABILITY_SURFACE_GLOBS = [
+  "packages/arc-framework/src/lib/paths.ts",
+  "packages/arc-framework/__tests__/unit/paths.test.ts",
+  "packages/arc-framework/src/lib/git/process-executor.ts",
+  "packages/arc-framework/src/lib/git/repository-environment.mjs",
+  "packages/arc-framework/__tests__/unit/git/repository-environment.test.ts",
+  "packages/arc-framework/__tests__/integration/raw-git-files.test.ts",
+  "packages/arc-framework/__tests__/integration/check-source-git.test.ts",
+  "packages/arc-framework/src/lib/checks/runner/*",
+  "packages/arc-framework/src/lib/checks/environment-*.ts",
+  "packages/arc-framework/src/lib/checks/process.ts",
+  "packages/arc-framework/src/lib/checks/result.ts",
+  "packages/arc-framework/src/lib/checks/batching.ts",
+  "packages/arc-framework/src/lib/checks/file-coordinates.ts",
+  "packages/arc-framework/src/lib/checks/forecast.ts",
+  "packages/arc-framework/src/lib/checks/shards.ts",
+  "packages/arc-framework/src/lib/checks/key.ts",
+  "packages/arc-framework/src/lib/ci-check-runner.ts",
+  "packages/arc-framework/src/lib/build-ownership.ts",
+  "packages/arc-framework/src/lib/vitest-*.ts",
+  "packages/arc-framework/src/handlers/check/run*.ts",
+  "packages/arc-framework/__tests__/unit/lib/checks/runner/*",
+  "packages/arc-framework/__tests__/unit/lib/checks/result.test.ts",
+  "packages/arc-framework/__tests__/unit/lib/checks/batching.test.ts",
+  "packages/arc-framework/__tests__/unit/lib/checks/forecast.test.ts",
+  "packages/arc-framework/__tests__/unit/lib/checks/key.test.ts",
+  "packages/arc-framework/__tests__/unit/lib/ci-check-runner.test.ts",
+  "packages/arc-framework/__tests__/unit/handlers/check/run-output*.test.ts",
+  "packages/arc-framework/__tests__/unit/heavy-first-sequencer.test.ts",
+  "packages/arc-framework/__tests__/unit/duration-artifacts.test.ts",
+  "packages/arc-framework/__tests__/unit/vitest-*.test.ts",
+  "packages/arc-framework/__tests__/integration/ci-check-runner.test.ts",
+  "packages/arc-framework/__tests__/integration/vitest-*.test.ts",
+  "packages/arc-framework/__tests__/integration/duration-layout-workflow.test.ts",
+  "packages/arc-framework/__tests__/helpers/sharded-check-fixture.ts",
+  "packages/arc-framework/__tests__/helpers/native-*.ts",
+  "packages/arc-framework/__tests__/helpers/vitest-*.ts",
+  "packages/arc-framework/__tests__/helpers/heavy-first-*.ts",
+  "packages/arc-framework/__tests__/helpers/duration-*.ts",
+  "packages/arc-framework/__tests__/helpers/merge-test-durations.ts",
+  "packages/arc-framework/__tests__/integration/check-runner-*.test.ts",
+  "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
+  "packages/arc-framework/__tests__/e2e/check-runner*.e2e.test.ts",
+  "packages/arc-framework/__tests__/fixtures/checks/*",
+  "packages/arc-framework/examples/check-runner/*",
+  "packages/arc-framework/src/lib/fs.ts",
+  "packages/arc-framework/src/lib/kernel/fs-retry.ts",
+  "packages/arc-framework/src/lib/local-test-admission.ts",
+  "packages/arc-framework/src/lib/local-vitest-runner.ts",
+  "packages/arc-framework/src/lib/git/worktree-marker.ts",
+  "packages/arc-framework/src/lib/git/exec.ts",
+  "packages/arc-framework/src/lib/release/commit-message-retry-store.ts",
+  "packages/arc-framework/src/lib/work-unit/park-planning-landing.ts",
+  "packages/arc-framework/src/lib/dev-check.ts",
+  "packages/arc-framework/src/lib/kernel/schema/generate.ts",
+  "packages/arc-framework/src/lib/test-cost/run.ts",
+  "packages/arc-framework/src/handlers/status.ts",
+  "packages/arc-framework/src/handlers/status/*",
+  "packages/arc-framework/src/lib/advisory-lock.ts",
+  "packages/arc-framework/src/lib/store/projection/*",
+  "packages/arc-framework/__tests__/*/store/projection/*",
   "packages/arc-framework/src/lib/git/ref-tree.ts",
   "packages/arc-framework/src/lib/errand/*",
   "packages/arc-framework/src/lib/user-sync/*",
   "packages/arc-framework/src/commands/user/shared.ts",
-  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts",
+  "packages/arc-framework/__tests__/unit/advisory-lock.test.ts",
+  "packages/arc-framework/__tests__/unit/fs.test.ts",
+  "packages/arc-framework/__tests__/unit/local-test-admission.test.ts",
+  "packages/arc-framework/__tests__/unit/git/worktree-marker.test.ts",
+  "packages/arc-framework/__tests__/unit/lib/release/commit-message-retry-store.test.ts",
   "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts",
   "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts",
   "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts",
@@ -339,16 +456,27 @@ export function isPortabilitySurfacePath(path: string): boolean {
   return matchesAny(path, PORTABILITY_SURFACE_GLOBS);
 }
 
+/**
+ * Whether a path's content can change integration results on a change the CI weight classifies as light: packaged
+ * Markdown the verified code tree records by shape alone, or project content outside the code surface, the
+ * planning record, and the reference records.
+ */
+export function isIntegrationTargetPath(path: string): boolean {
+  if (isPackagedArcPath(path)) return !isPackagedContentSensitivePath(path);
+  if (isCodeSurfacePath(path) || isPlanningArtifactPath(path)) return false;
+  return !matchesAny(path, PLANNING_RECORD_GLOBS) && !matchesAny(path, REFERENCE_RECORD_GLOBS);
+}
+
 /** Whether a path belongs to the formative planning-artifact lane. */
 export function isPlanningArtifactPath(path: string): boolean {
   const artifactName = "(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-[a-z0-9]+(?:-[a-z0-9]+)*\\.md";
   const workUnitDirectory = "[a-z0-9]+(?:-[a-z0-9]+)*";
   return path === ".arc/backlog/ROADMAP.md"
+    || new RegExp(`^\\.arc/system/\\.internal/transitions/${workUnitDirectory}\\.json$`, "u").test(path)
     || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
-    || new RegExp(
-      `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
-      "u",
-    ).test(path);
+    // A planned work unit may sit under a cohort and one subcohort; provisional stubs never nest that deep.
+    || new RegExp(`^\\.arc/backlog/planned/(?:${workUnitDirectory}/){1,3}${artifactName}$`, "u").test(path)
+    || new RegExp(`^\\.arc/backlog/provisional/(?:${workUnitDirectory}/){1,2}${artifactName}$`, "u").test(path);
 }
 
 function isPlainPlanningContentChange(change: CanonicalChange): boolean {
@@ -366,15 +494,22 @@ function isPlainPlanningContentChange(change: CanonicalChange): boolean {
   }
 }
 
-/** Reduce canonical exact-ref changes to the planning-clearance lane. */
-export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+function classifyPlanningPaths(
+  changeSet: ChangeSet,
+  pathEligible: (path: string) => boolean,
+): "planning" | "reviewed" {
   if (changeSet.changeSet === "unknown") return "reviewed";
   for (const change of changeSet.changes) {
     if (!isPlainPlanningContentChange(change)) return "reviewed";
     const endpoints = [change.path, ...(change.previousPath === undefined ? [] : [change.previousPath])];
-    if (!endpoints.every(isPlanningArtifactPath)) return "reviewed";
+    if (!endpoints.every(pathEligible)) return "reviewed";
   }
   return "planning";
+}
+
+/** Reduce canonical exact-ref changes to the planning-clearance lane. */
+export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+  return classifyPlanningPaths(changeSet, isPlanningArtifactPath);
 }
 
 /** Reduce canonical changes to the CI-weight classification. */
@@ -412,7 +547,7 @@ function parseNulPaths(input: Uint8Array): string[] | null {
   }
 }
 
-type PathProjection = "classify" | "lane" | "portability";
+type PathProjection = "classify" | "lane" | "portability" | "integration";
 
 function projectPaths(kind: PathProjection, input: Uint8Array): string {
   const paths = parseNulPaths(input);
@@ -423,6 +558,7 @@ function projectPaths(kind: PathProjection, input: Uint8Array): string {
   }
   if (kind === "classify") return paths.some(isCodeSurfacePath) ? "heavy" : "light";
   if (kind === "lane") return paths.every(isPlanningArtifactPath) ? "auto" : "reviewed";
+  if (kind === "integration") return paths.some(isIntegrationTargetPath) ? "true" : "false";
   return paths.some(isPortabilitySurfacePath) ? "true" : "false";
 }
 
@@ -519,7 +655,7 @@ async function optionalTreeFixture(ref: string): Promise<Uint8Array | undefined>
 
 async function runExecutable(args: string[]): Promise<void> {
   const [command, ...operands] = args;
-  const exec = createRawGitExec();
+  const exec = createSpawnRawGitExec();
 
   if (command === "classification") {
     const [base, head, ...rest] = operands;
@@ -535,20 +671,11 @@ async function runExecutable(args: string[]): Promise<void> {
     return;
   }
 
-  if (command === "planning-lane") {
-    const [base, head, ...rest] = operands;
-    const changeSet =
-      base === undefined || head === undefined || rest.length !== 0
-        ? UNKNOWN
-        : await resolveChangeSet(exec, base, head);
-    process.stdout.write(`${classifyPlanningLane(changeSet)}\n`);
-    return;
-  }
-
   const pathProjection = {
     "classify-paths": "classify",
     "lane-paths": "lane",
     "portability-paths": "portability",
+    "integration-paths": "integration",
   }[command ?? ""] as PathProjection | undefined;
   if (pathProjection !== undefined && operands.length === 0) {
     process.stdout.write(`${projectPaths(pathProjection, readFileSync(0))}\n`);

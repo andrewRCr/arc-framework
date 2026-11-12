@@ -51,7 +51,7 @@ human involvement.
 - **The methodology for the execution pair** — how a developer and an agent work through
   implementation together: planning, execution, verification, and context preservation. The
   governance unit is one developer + one agent + one work unit at a time.
-- **Configurable conventions over fixed shape** — config values, methods, extensions, and strong
+- **Configurable conventions over fixed shape** — config values, check declarations, method overrides, and strong
   defaults that teams replace at convention level. Principles are non-negotiable; everything else
   adapts.
 - **Workflows for the full work-unit lifecycle** — specification generation, task decomposition,
@@ -120,7 +120,7 @@ software development.
 
 - **Configurability with strong defaults over a fixed shape**: Chose adaptable conventions + a
   non-negotiable principle core over a single prescribed methodology. Cost: steeper initial
-  learning curve (principles, conventions, methods, extensions); larger documentation surface;
+  learning curve (principles, conventions, methods, checks); larger documentation surface;
   more decisions to make at adoption time.
 
 - **Co-development primacy over universal agent compatibility**: Chose in-flight, shared-context
@@ -172,11 +172,12 @@ software development.
 - [`the-framework.md`][the-framework] — session lifecycle, skills, task execution, committing,
   handoffs.
 - [`STRATEGY-INDEX.md`][strategy-index] — codified strategy guidance across domains.
-- Forward-compat check-docs — internal architectural direction along three evolution axes:
+- Forward-compat check-docs — internal architectural direction along four evolution axes:
   [`strategy-storage-evolution.md`][storage-evolution] (where state lives),
   [`strategy-knowledge-evolution.md`][knowledge-evolution] (where guidance lives), and
-  [`strategy-procedure-evolution.md`][procedure-evolution] (how procedure executes). Each points at its
-  north-star draft; consult per its Self-Check when planning work in its axis.
+  [`strategy-procedure-evolution.md`][procedure-evolution] (how procedure executes), and
+  [`strategy-pm-composition-evolution.md`][pm-composition-evolution] (how ARC composes with external PM
+  authorities). Consult each document's Self-Check when planning work in its axis.
 
 ---
 
@@ -187,3 +188,4 @@ software development.
 [storage-evolution]: strategies/project/strategy-storage-evolution.md
 [knowledge-evolution]: strategies/project/strategy-knowledge-evolution.md
 [procedure-evolution]: strategies/project/strategy-procedure-evolution.md
+[pm-composition-evolution]: strategies/project/strategy-pm-composition-evolution.md

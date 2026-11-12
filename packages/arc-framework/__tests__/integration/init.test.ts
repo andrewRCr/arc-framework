@@ -15,19 +15,20 @@ import {
   createTempRepo,
   cleanupTempDir,
   makeIOContext,
-  loadRecipe,
   DEFAULT_PROMPTS,
   listFiles,
   sha256,
   readFile,
   join,
+  dirname,
+  rm,
+  fileExists,
   execFileAsync,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   readManifestFile,
   readPristineStore,
   manifestPath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
@@ -275,6 +276,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(projectBriefing.isFile()).toBe(true);
   });
 
+  it("resolves the pull-request method links in an installed core corpus", async () => {
+    const method = await readFile(join(arcDir, "system/methods/pull-request-format.md"), "utf8");
+    const targets = [...method.matchAll(/^\[[^\]]+\]:\s+([^#\s]+)/gmu)].map((match) => match[1]!);
+    expect(targets.length).toBeGreaterThan(0);
+    for (const target of targets) {
+      const installed = join(arcDir, "system/methods", target);
+      await expect(readFile(installed, "utf8")).resolves.not.toBe("");
+    }
+  });
+
   it("installs the canonical design-audit skill source as core Framework", async () => {
     const skillPath = "system/.internal/skills/arc-design-audit/SKILL.md";
     expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
@@ -284,90 +295,93 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(manifest.files[skillPath]?.layer).toBe("core");
   });
 
-  // --- Per-File Methods and Extensions ---
+  it("installs the canonical amend-design skill source as core Framework", async () => {
+    const skillPath = "system/.internal/skills/arc-amend-design/SKILL.md";
+    expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[skillPath]?.classification).toBe("Framework");
+    expect(manifest.files[skillPath]?.layer).toBe("core");
+  });
+
+  // --- Per-File Methods ---
 
   it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
-      "assess-cohort-fit.md",
+      "assess-boundary-fit.md",
       "assess-design-proportionality.md",
       "assess-draft-readiness.md",
+      "assess-evidence-applicability.md",
       "adversarial-review.md",
-      "classify-work-unit.md", "commit-footer.md",
+      "route-discovered-work.md", "classify-review-risk.md", "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
+      "pull-request-format.md",
       "design-audit.md",
-      "frontline-review.md",
-      "standard-review.md",
+      "disposition-report.md",
+      "code-review-frontline.md",
+      "code-review-standard.md",
       "implementation-audit.md",
       "review-chunking.md",
-      "self-review.md",
+      "code-review-author.md",
       "issue-triage.md",
-      "quality-gate-commands.md",
+      "resolve-plan-segmentation.md",
       "resolve-planning-depth.md",
+      "review-model.md",
+      "planning-review.md",
+      "code-review.md",
+      "verification-review.md",
       "review-response.md",
       "review-triage.md",
       "session-state.md",
+      "read-load-set.md",
+      "assess-start-readiness.md",
+      "discover-next-work.md",
+      "assess-parallel-fit.md",
+      "source-grounding.md",
       "spec-review.md",
       "task-audit.md",
       "test-first.md",
+      "testing-standards.md",
+      "validate-criteria.md",
       "README.md",
     ];
     for (const name of methodFiles) {
       const s = await stat(join(arcDir, "system/methods", name));
       expect(s.isFile(), `expected system/methods/${name}`).toBe(true);
     }
+    await expect(stat(join(arcDir, "system/methods/assess-cohort-fit.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
-  it("installs all 13 per-file extensions plus README in system/extensions/", async () => {
-    const extensionFiles = [
-      "post-context-load.md",
-      "post-task-completion.md",
-      "post-task-quality.md",
-      "post-unit-quality.md",
-      "post-work-unit-activate.md",
-      "post-work-unit-archive.md",
-      "pre-activation.md",
-      "pre-commit-review.md",
-      "pre-merge.md",
-      "pre-pr-open.md",
-      "post-pr-open.md",
-      "pre-push-review.md",
-      "pre-spec-finalization-review.md",
-      "README.md",
-    ];
-    for (const name of extensionFiles) {
-      const s = await stat(join(arcDir, "system/extensions", name));
-      expect(s.isFile(), `expected system/extensions/${name}`).toBe(true);
-    }
+  it("installs the amend-design supplemental workflow as core Framework", async () => {
+    const workflowPath = "system/workflows/arc/supplemental/amend-design.md";
+    expect((await stat(join(arcDir, workflowPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[workflowPath]?.classification).toBe("Framework");
+    expect(manifest.files[workflowPath]?.layer).toBe("core");
   });
 
   it(
-    "registers all per-file methods/extensions in the manifest",
+    "registers all per-file methods in the manifest",
     async () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
-        "implementation-audit", "review-chunking", "self-review", "design-audit",
-        "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "task-audit", "test-first",
-      ];
-      const extensionNames = [
-        "post-context-load", "post-task-completion", "post-task-quality",
-        "post-unit-quality", "post-work-unit-activate",
-        "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
+        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
+        "assess-evidence-applicability", "adversarial-review",
+        "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format", "pull-request-format",
+        "code-review-frontline", "code-review-standard", "implementation-audit", "review-chunking", "code-review-author",
+        "design-audit", "disposition-report",
+        "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
+        "review-model", "planning-review", "code-review", "verification-review", "review-response", "review-triage",
+        "session-state", "read-load-set", "assess-start-readiness", "discover-next-work", "assess-parallel-fit", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
+        "validate-criteria",
       ];
 
       for (const name of methodNames) {
         const key = `system/methods/${name}.md`;
-        const entry = manifest.files[key];
-        expect(entry, `manifest missing ${key}`).toBeDefined();
-        expect(entry!.classification, `${key} classification`).toBe("Configurable");
-      }
-
-      for (const name of extensionNames) {
-        const key = `system/extensions/${name}.md`;
         const entry = manifest.files[key];
         expect(entry, `manifest missing ${key}`).toBeDefined();
         expect(entry!.classification, `${key} classification`).toBe("Configurable");
@@ -378,9 +392,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       expect(methodsReadme).toBeDefined();
       expect(methodsReadme!.classification).toBe("Framework");
 
-      const extensionsReadme = manifest.files["system/extensions/README.md"];
-      expect(extensionsReadme).toBeDefined();
-      expect(extensionsReadme!.classification).toBe("Framework");
     },
   );
 
@@ -428,8 +439,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         return failure.stdout;
       });
 
-    // This pm.mode=none fixture intentionally omits files checked by other verifier sections.
-    expect(exitCode).toBe(2);
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toMatch(/^(?:ERROR|WARN) /m);
+    expect(stdout).toContain("Integrity check: all clear");
     expect(stdout).toContain("commit-msg hook: exists and executable");
     const hookSection = stdout.match(/--- Hook Status ---([\s\S]*?)--- Strategy Index ---/)?.[1];
     expect(hookSection).toBeDefined();
@@ -476,8 +488,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: none");
-    expect(config).toContain("review.chunking_threshold_lines: 0");
-    expect(config).toContain("review.chunking_threshold_files: 0");
+    expect(config).toContain("changeset.advisory_threshold_lines: 0");
+    expect(config).toContain("changeset.advisory_threshold_files: 0");
+    expect(config).not.toContain("review.chunking_threshold_lines");
+    expect(config).not.toContain("review.chunking_threshold_files");
   });
 
   it("writes arc-config.yml with solo team mode defaults", async () => {
@@ -717,6 +731,57 @@ describe("init integration (existing installation)", () => {
   });
 });
 
+describe("init integration — files already at install paths", () => {
+  let tempDir: string;
+  const INSTALLED_FILE = "system/rules/DEV-RULES.ARC.md";
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-init-occupied-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  const init = async () => runInit({
+    cwd: tempDir,
+    io: makeIOContext(tempDir),
+    templateDir,
+    internalTemplateDir,
+    recipe: await loadRecipe(),
+    prompts,
+    identityResult: "test-user",
+  });
+
+  it("a foreign file at an install path → refuses before writing, and installs once moved aside", async () => {
+    const foreign = join(tempDir, ".arc", INSTALLED_FILE);
+    await mkdir(dirname(foreign), { recursive: true });
+    await writeFile(foreign, "# Earlier rules\n");
+
+    const refusal = await init().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(UserFacingError);
+    expect(refusal).toMatchObject({ code: "manifest.install-paths-occupied" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${INSTALLED_FILE}`);
+    expect(await readFile(foreign, "utf-8")).toBe("# Earlier rules\n");
+    expect(await fileExists(join(tempDir, ".arc", "system", "arc-config.yml"))).toBe(false);
+    expect(await fileExists(manifestPath(tempDir))).toBe(false);
+
+    await rm(foreign);
+    expect(await init()).not.toBeNull();
+    expect(await readFile(foreign, "utf-8")).toBe(await readFile(join(templateDir, INSTALLED_FILE), "utf-8"));
+  });
+
+  it("a file at an install path that already holds what init writes → installs", async () => {
+    const installed = join(tempDir, ".arc", INSTALLED_FILE);
+    await mkdir(dirname(installed), { recursive: true });
+    await writeFile(installed, await readFile(join(templateDir, INSTALLED_FILE), "utf-8"));
+
+    expect(await init()).not.toBeNull();
+    expect(await fileExists(manifestPath(tempDir))).toBe(true);
+  });
+});
+
 describe("init integration — template path boundary", () => {
   let tempDir: string;
 
@@ -840,5 +905,24 @@ describe("join integration", () => {
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
     expect(hooksPath.trim()).toBe(".arc/system/.internal/githooks");
+  });
+});
+
+describe("fresh membership across recipe arms", () => {
+  it.each([
+    ["none", false], ["none", true], ["external", false], ["external", true],
+    ["arc-in-git", false], ["arc-in-git", true],
+  ] as const)("omits retired files and managed records for pm=%s, team=%s", async (pmMode, teamMode) => {
+    const cwd = await createTempRepo("arc-retired-install-");
+    try {
+      await runInit({ cwd, io: makeIOContext(cwd), templateDir, internalTemplateDir,
+        recipe: await loadRecipe(), prompts: { ...prompts, pm_mode: pmMode, team_mode: teamMode },
+        identityResult: "test-user" });
+      await expect(stat(join(cwd, ".arc/system/extensions"))).rejects.toMatchObject({ code: "ENOENT" });
+      for (const records of [(await readManifestFile(cwd)).files, await readPristineStore(cwd)]) {
+        expect(Object.keys(records).some((path) => path.startsWith("system/extensions/"))).toBe(false);
+      }
+      expect((await stat(join(cwd, ".arc/system/methods/test-first.md"))).isFile()).toBe(true);
+    } finally { await cleanupTempDir(cwd); }
   });
 });

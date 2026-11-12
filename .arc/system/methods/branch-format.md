@@ -47,9 +47,13 @@ WU (discovery, draft-doc iteration, spec authoring, task generation). Rotates to
 prefixes above at activation. See `strategy-work-organization.md` § Branching for the rotation
 mechanics.
 
-The `plan/` prefix is invariant — it carries semantic coupling to ARC's `State: Planning`
-state-machine value and session-init's branch-pattern fallback. The type set above is the
-overridable surface; the planning prefix is not.
+**The `plan/` prefix is not overridable** · `[invariant]` — the type set above is the overridable
+surface, but the planning prefix carries semantic coupling to ARC's `State: Planning` state-machine
+value and session-init's branch-pattern fallback.
+
+**The `delivery/` prefix is a reserved presentation namespace, not a work-unit type** · `[invariant]`.
+Delivery member refs use `delivery/{wu-slug}/{chunk-key}` for human legibility, but ARC excludes them from
+work-unit branch parsing and resolves member identity only from exact delivery-state ref/head bindings.
 
 **Branch name conventions:**
 
@@ -64,8 +68,8 @@ that arrives in a worktree ARC did not create is advisory only: ARC warns when i
 convention but never refuses or relocates it, so ARC composes with externally-created branches rather than
 rejecting them.
 
-**Relationship to Conventional Branch.** ARC's default set is _inspired by_ Conventional Branch
-but doesn't strictly match its recommended set. CB's recommended set is
+**Relationship to Conventional Branch.** ARC's default set is _inspired by_ Conventional
+Branch but doesn't strictly match its recommended set. CB's recommended set is
 `feature|feat | bugfix|fix | chore | hotfix | release`. ARC:
 
 - Adopts `feat`, `fix`, `chore`, `hotfix` (4 of 5).

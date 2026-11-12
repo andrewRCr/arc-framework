@@ -11,8 +11,6 @@ import type {
   CommitCheckPolicyResolution,
 } from "./types.js";
 
-export { COMMIT_CHECK_CONFIG_FIELDS } from "../config/schema.js";
-
 /** Defaults shared with the installed commit-msg hook. */
 export const COMMIT_CHECK_DEFAULTS = Object.freeze(Object.fromEntries(
   COMMIT_CHECK_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),

@@ -9,6 +9,9 @@
  */
 
 import { isAbsolute, relative, sep } from "node:path";
+import { readConfigSettings } from "../config/status-reader.js";
+import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
+import type { GitExec } from "../git/exec.js";
 
 import type {
   InFlightEntryMark,
@@ -24,8 +27,44 @@ import {
   type ProjectReadinessOracleOptions,
   type ProjectViewFs,
 } from "../status/project-view.js";
+import type { TransitionOverlayCompositionInput } from "./transition-overlay.js";
 
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "./lifecycle-index.js";
+
+/** Caller-bound I/O and acquisition policy for ordinary lifecycle queries. */
+export interface CallerComposedLifecycleOptions {
+  cwd: string;
+  identity: string | null;
+  acquisitionPolicy: "local" | "passive-live";
+  exec: GitExec;
+  fs: ProjectViewFs;
+}
+
+/**
+ * Compose ordinary lifecycle reads with configured base and transient-branch classification.
+ * @param options - Caller-bound checkout, identity, acquisition, and I/O.
+ * @returns The shared lifecycle index and selected record provenance.
+ */
+export async function resolveCallerComposedLifecycleIndex(
+  options: CallerComposedLifecycleOptions,
+): Promise<ComposedLifecycleIndexResult> {
+  const [{ settings }, transientRead] = await Promise.all([
+    readConfigSettings(options.cwd),
+    readTransientInFlightIndexes({ exec: options.exec, identity: options.identity }),
+  ]);
+  const transient = projectTransientInFlightRead(transientRead);
+  return await resolveComposedLifecycleIndex({
+    cwd: options.cwd,
+    fs: options.fs,
+    oracle: {
+      exec: options.exec,
+      acquisitionPolicy: options.acquisitionPolicy,
+      baseBranch: settings["branch.base"],
+      errandSlugByBranch: transient.indexes.slugByBranch,
+      errandRecordsComplete: transient.complete,
+    },
+  });
+}
 
 /** Native quality facts for one slug, including entries omitted from the lifecycle index. */
 export interface ComposedLifecycleSlugQuality {
@@ -48,9 +87,11 @@ export interface ResolveComposedLifecycleIndexOptions {
   cwd: string;
   fs?: ProjectViewFs;
   /** Omit for exact tree-only parity. `baseBranch` is required because exclusion is load-bearing. */
-  oracle?: Omit<ProjectReadinessOracleOptions, "baseBranch"> & { baseBranch: string };
+  oracle?: ProjectReadinessOracleOptions & { baseBranch: string };
   /** Optional staged-tree precedence for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
+  /** Optional receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */
@@ -164,6 +205,7 @@ export async function resolveComposedLifecycleIndex(
     ...(options.fs !== undefined ? { fs: options.fs } : {}),
     ...(options.oracle !== undefined ? { oracle: options.oracle } : {}),
     ...(options.prospective !== undefined ? { prospective: options.prospective } : {}),
+    ...(options.transitionOverlays !== undefined ? { transitionOverlays: options.transitionOverlays } : {}),
   });
   const oracleResult = composition.oracleResult;
   const treeBySlug = new Map(composition.treeRecords.map((record) => [record.slug, record] as const));
@@ -197,11 +239,14 @@ export async function resolveComposedLifecycleIndex(
       })),
     ),
     recordsBySlug,
-    qualityFacts: qualityFactsFor(oracleResult, options.oracle !== undefined && options.oracle.localOnly !== true),
+    qualityFacts: qualityFactsFor(
+      oracleResult,
+      options.oracle !== undefined && options.oracle.acquisitionPolicy !== "local",
+    ),
     worktreePathBySlug,
     liveRefs: { ...(oracleResult?.liveRefs ?? {}) },
     reachable: oracleResult?.reachable ?? false,
-    readQuality: options.oracle === undefined || options.oracle.localOnly === true
+    readQuality: options.oracle === undefined || options.oracle.acquisitionPolicy === "local"
       ? "tree-only"
       : oracleResult?.reachable === true ? "reachable" : "degraded",
   };

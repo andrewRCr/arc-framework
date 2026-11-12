@@ -17,7 +17,7 @@ import {
   type NotesCompactionPair,
 } from "./compaction-manifest.js";
 import { NOTES_COMPACTION_SNAPSHOT_MESSAGE, listNoteEntries, listNoteTreeEntries } from "./notes-ref.js";
-import { isCasRejectionError, isRemoteUnavailableError } from "./notes-merge.js";
+import { isCasRejectionError, isRemoteUnavailableError } from "../git/ref-tree.js";
 
 /** Inputs for publishing one compacted snapshot commit. */
 export interface CompactNotesRefSnapshotInput {

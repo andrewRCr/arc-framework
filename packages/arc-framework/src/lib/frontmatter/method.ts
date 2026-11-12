@@ -2,8 +2,8 @@
  * Method-file frontmatter schema parser.
  *
  * Validates the required fields (name, description, override-active) and
- * optional `related` (array), `override-mode` (`replace` | `extend`), and
- * registry-scoped `active` boolean.
+ * optional `arc.methods` dependencies, `related` (array), `override-mode`
+ * (`replace` | `extend`), and registry-scoped `active` boolean.
  * Enforces that `name` matches the file basename — the structural contract
  * that ties registration to filesystem location.
  *
@@ -21,7 +21,10 @@ const METHOD_FRONTMATTER_FIELDS = new Set([
   "related",
   "override-mode",
   "review-augmentation",
+  "arc",
 ]);
+
+const METHOD_ARC_FRONTMATTER_FIELDS = new Set(["methods"]);
 
 /** Validated method frontmatter. */
 export interface MethodFrontmatter {
@@ -32,6 +35,7 @@ export interface MethodFrontmatter {
   related?: string[];
   "override-mode"?: "replace" | "extend";
   "review-augmentation"?: unknown;
+  arc?: { methods?: string[] };
 }
 
 /** Parse result: frontmatter is present when errors is empty. */
@@ -63,6 +67,8 @@ export function parseMethodFrontmatter(
   const related = data.related;
   const overrideMode = data["override-mode"];
   const reviewAugmentation = data["review-augmentation"];
+  const arc = data.arc;
+  let methodDependencies: string[] | undefined;
 
   if (typeof name !== "string") errors.push("missing or invalid `name` (expected string)");
   if (typeof description !== "string") errors.push("missing or invalid `description` (expected string)");
@@ -80,6 +86,24 @@ export function parseMethodFrontmatter(
   if (overrideMode !== undefined && overrideMode !== "replace" && overrideMode !== "extend") {
     errors.push('invalid `override-mode` (expected "replace" or "extend")');
   }
+  if (arc !== undefined) {
+    if (arc === null || typeof arc !== "object" || Array.isArray(arc)) {
+      errors.push("invalid `arc` (expected mapping)");
+    } else {
+      const arcData = arc as Record<string, unknown>;
+      errors.push(...Object.keys(arcData)
+        .filter((key) => !METHOD_ARC_FRONTMATTER_FIELDS.has(key))
+        .sort()
+        .map((key) => `unknown method \`arc\` frontmatter field \`${key}\``));
+      if (arcData.methods !== undefined) {
+        if (!isStringArray(arcData.methods)) {
+          errors.push("invalid `arc.methods` (expected array of strings)");
+        } else {
+          methodDependencies = arcData.methods;
+        }
+      }
+    }
+  }
   if (typeof name === "string" && name !== basename) {
     errors.push(`\`name\` "${name}" does not match file basename "${basename}"`);
   }
@@ -95,5 +119,6 @@ export function parseMethodFrontmatter(
   if (related !== undefined) frontmatter.related = related as string[];
   if (overrideMode !== undefined) frontmatter["override-mode"] = overrideMode as "replace" | "extend";
   if (reviewAugmentation !== undefined) frontmatter["review-augmentation"] = reviewAugmentation;
+  if (arc !== undefined) frontmatter.arc = methodDependencies === undefined ? {} : { methods: methodDependencies };
   return { frontmatter, errors: [] };
 }

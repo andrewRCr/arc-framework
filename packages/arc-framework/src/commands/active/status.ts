@@ -5,7 +5,7 @@
  *
  * - {@link runActiveStatus} — full per-WU enumeration for default rendering.
  * - {@link runActiveSessionInitStatus} — resolved path / null / candidate
- *   list for the session-init harness (Step 2 Item 8 consumer).
+ *   list for structured session entry.
  *
  * Both share the filesystem work through {@link readActiveMetaCandidates};
  * the session-init variant applies a thin resolution-state shaping on top.
@@ -13,13 +13,17 @@
  * @module
  */
 
+import type { createActiveReviewAccess } from "../../lib/store/active-review-access.js";
+import type { OwnerIdentity } from "../../lib/store/identity.js";
+import type { CandidateManagedRecordV1 } from "../../lib/store/kinds/review/candidate/schema.js";
 import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
-import { isPlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
-import { getCurrentBranch } from "../../lib/git/index.js";
-import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
+import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
+import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
+import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workflow-consistency.js";
+import { getCurrentBranch } from "../../lib/git/exec.js";
+import { createRawGitExec, gitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type {
@@ -34,9 +38,11 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
-
-/** The planning entry stage — the default sub-stage when a meta carries no `Current Workflow` field. */
-const PLANNING_ENTRY_STAGE: PlanningWorkflow = "draft-design";
+import {
+  type CandidateTargetProjector,
+} from "../../lib/work-unit/candidate-effective-target.js";
+import type { CandidateReviewFixAuthorityReader } from
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -45,13 +51,6 @@ const TASK_LIST_FULL_PATTERN = /^tasks-(.+)\.md$/;
 
 /** Task-list values that signal "no associated task list" → planning. */
 const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
-
-/**
- * Next-Action prefixes that signal integration phase (case-insensitive).
- * The negative lookahead rejects hyphen-extended identifiers so a stray
- * `integrate-work-unit-foo` token wouldn't false-match.
- */
-const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
 
 /**
  * Branch-name pattern signaling a planning session: `plan/<name>`.
@@ -75,26 +74,20 @@ const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
  * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
  *   `currentBranch` matches `plan/<name>` → `planning`; otherwise `null`.
  * - All other States — `Active` (codified phase, not session-type) and any
- *   unrecognized value — fall through to Task-List / Next-Action inference:
+ *   unrecognized value — fall through to Task-List inference:
  *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
- *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
  *     - Otherwise → `execution`
  *
- * **Design — State carries phase, Next-Action carries activity.** State alone
- * is decisive only for the unambiguous endpoints: `Planning` opens a WU before
- * task work; `Integrating` / `Shipped` close it after. `Active` spans the full
- * execution interior, where session-type depends on the current activity —
- * `State: Active + Next-Action: integrate-work-unit` routes to integration
- * via the Next-Action arm, because the codified phase doesn't disambiguate
- * what's happening within it. The structural fall-through doubles as
- * defensive forward-compat for unrecognized State values.
+ * State owns lifecycle scheduling. Free-form narration cannot move an Active
+ * work unit into integration; typed boundary projections carry tail-end work.
+ * The structural fall-through doubles as defensive forward-compat for
+ * unrecognized State values.
  *
  * Caller handles the `multiple` (deferred → null) case at `classifyResolution`.
  */
 export function inferSessionType(
   state: string | null,
   taskList: string | null,
-  nextAction: string | null,
   currentBranch: string | null,
 ): SessionType | null {
   if (state === "Planning") return "planning";
@@ -105,12 +98,6 @@ export function inferSessionType(
   }
   if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
     return "planning";
-  }
-  // Strip code spans for the token match — the narrow meta reader preserves narrative
-  // backticks verbatim, so a backticked workflow pointer (`` `integrate-work-unit` ``)
-  // would otherwise miss the `^`-anchored prefix.
-  if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(stripInlineCode(nextAction))) {
-    return "integration";
   }
   return "execution";
 }
@@ -124,7 +111,24 @@ function inferFromBranchPattern(currentBranch: string | null): SessionType | nul
 export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
-  const { layout, candidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const exec = options.exec ?? gitExec;
+  const access = (await import("../../lib/store/active-review-access.js")).createActiveReviewAccess({ ...options, exec });
+  const { layout, candidates: rawCandidates, warnings, owners } = await readActiveMetaCandidates(options.cwd, { store: access.store });
+  const projectCandidateTarget = options.projectCandidateTarget
+    ?? createRepositoryCandidateTargetProjector(exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec }));
+  const candidates = await Promise.all(rawCandidates.map((candidate) =>
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+      { access, owner: owners?.get(candidate.path) },
+    )));
   return {
     mode: "full",
     layout,
@@ -134,20 +138,11 @@ export async function runActiveStatus(
 }
 
 /**
- * Produce the session-init-scoped result for
- * `arc active status --session-init`.
+ * Project active-namespace evidence as none, single, or multiple candidates.
  *
- * Resolution states map to session-init.md Step 2 Item 8:
- *
- * - `none` — zero-file case; session-init reports no active work.
- * - `single` — one-file case; the harness loads the resolved path.
- * - `multiple` — many-file case; the harness applies the documented
- *   precedence (SESSION-NOTES `**Working On:**`, branch match,
- *   `**State:** In Progress`, user prompt) over the returned candidates.
- *
- * The probe does not apply the precedence itself — SESSION-NOTES lives
- * in the user workspace and requires identity-scoped path resolution
- * the agent already does.
+ * Only a single resolved candidate populates the selected path. Context consumers
+ * use the composition layer's bound checkout and subject rather than selecting
+ * agent context from this projection alone.
  */
 export async function runActiveSessionInitStatus(
   options: ActiveSessionInitOptions,
@@ -178,21 +173,64 @@ export async function runActiveSessionInitStatusInternal(
       sessionType: inferFromBranchPattern(currentBranch),
       currentWorkflow: null,
       planningStage: null,
+      integrationBoundary: null,
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     }, resolved: null, candidates: [] };
   }
 
-  const readerOptions = resolveReaderOptions(role, identity);
+  const access = (await import("../../lib/store/active-review-access.js")).createActiveReviewAccess(options);
+  const readerOptions = { ...resolveReaderOptions(role, identity), store: access.store };
   const [scan, currentBranch] = await Promise.all([
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
-  const semantic = resolveCandidateSemantics(scan.candidates, role, identity, scan.warnings);
+  const projectCandidateTarget = options.projectCandidateTarget
+    ?? createRepositoryCandidateTargetProjector(options.exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
+  const projected = await Promise.all(scan.candidates.map((candidate) =>
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      scan.warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+      { access, owner: scan.owners?.get(candidate.path) },
+    )));
+  const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
     ? semantic.candidates.find((entry) => entry.candidate.path === result.path) ?? null
     : null;
   return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [] };
+}
+
+/**
+ * Project one exact candidate from an already-scanned active namespace.
+ *
+ * @param options - Internal scan result, target path, and checkout root.
+ * @returns A single-candidate session projection, or `null` when the path is not exact.
+ */
+export async function projectActiveSessionInitCandidate(options: {
+  cwd: string;
+  state: ActiveSessionInitInternalResult;
+  path: string;
+}): Promise<ActiveSessionInitResult | null> {
+  const candidates = options.state.resolved === null
+    ? options.state.candidates
+    : [options.state.resolved];
+  const matches = candidates.filter((entry) => entry.candidate.path === options.path);
+  if (matches.length !== 1 || matches[0] === undefined) return null;
+  const candidate = matches[0].candidate;
+  return resolveSessionInit(
+    options.cwd,
+    options.state.result.layout,
+    [candidate],
+    [...options.state.result.warnings],
+    candidate.branch,
+  );
 }
 
 function resolveCandidateSemantics(
@@ -263,11 +301,31 @@ function classifyResolution(
     };
   }
   if (input.length === 1) {
+    if (only.state !== "Planning" && checkCurrentWorkflowConsistency({
+      state: only.state,
+      currentWorkflow: only.currentWorkflow ?? null,
+      design: [],
+    }).length > 0) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
+    if (only.state === "Integrating"
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
+    if (only.state === "Active"
+      && only.candidateId !== null
+      && only.candidateId !== undefined
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
     return {
       resolution: "single",
       path: only.path,
       candidates: [],
-      sessionType: inferSessionType(only.state, only.taskList, only.nextAction, currentBranch),
+      sessionType: only.state === "Active" && only.integrationBoundary !== null
+        && only.integrationBoundary !== undefined
+        ? "prepublication"
+        : inferSessionType(only.state, only.taskList, currentBranch),
     };
   }
   return { resolution: "multiple", path: null, candidates: input, sessionType: null };
@@ -287,6 +345,7 @@ async function resolveSessionInit(
     ...fields,
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings,
   };
 
@@ -298,32 +357,184 @@ async function resolveSessionInit(
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
       result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
-      result.planningStage = resolvePlanningStage(only, fields.sessionType);
+      result.planningStage = resolvePlanningStage(result.currentWorkflow, fields.sessionType);
+      result.integrationBoundary = only.integrationBoundary ?? null;
     }
   }
 
   return result;
 }
 
-/**
- * Resolve the planning sub-stage for a single-candidate session by reading the
- * meta's `Current Workflow` field directly. Returns `null` outside a planning
- * session (only planning loads a sub-stage workflow).
- *
- * A meta carrying no usable field value — absent, `[none]`, or any non-stage
- * token — resolves to the `draft-design` entry stage. This covers a fresh
- * in-place scaffold (which starts at `draft-design` anyway) and any legacy meta
- * predating the field; the executor writes the real stage at the next planning
- * transition, and the encoding-consistency check guards drift on the write side.
- */
-function resolvePlanningStage(
+async function projectCandidateIntegrationBoundary(
+  cwd: string,
   candidate: MetaFileCandidate,
-  sessionType: SessionType | null,
-): PlanningWorkflow | null {
-  if (sessionType !== "planning") return null;
-  return isPlanningWorkflow(candidate.currentWorkflow)
-    ? candidate.currentWorkflow
-    : PLANNING_ENTRY_STAGE;
+  warnings: string[],
+  projectCandidateTarget: CandidateTargetProjector,
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader,
+  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity },
+): Promise<MetaFileCandidate> {
+  let selected;
+  try { selected = await authority.access.readSubject(candidate, authority.owner); }
+  catch (error) {
+    warnings.push(`Candidate authority for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return { ...candidate, integrationBoundary: null };
+  }
+  candidate = selected.candidate;
+  if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
+  if (candidate.state === "Active"
+    && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
+    return { ...candidate, integrationBoundary: null };
+  }
+  const [
+    { readSubmissionBoundary },
+    { readCandidateRecord },
+    {
+      projectCandidateFixResumeBoundary,
+      projectCandidateReviewBoundary,
+      recoverPrePublicationBoundary,
+      recoverIntegratingBoundary,
+    },
+  ] = await Promise.all([
+    import("../../lib/store/kinds/review/integration-boundary/access.js"),
+    import("../../lib/store/kinds/review/candidate/access.js"),
+    import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
+  ]);
+  const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
+  const slug = match?.[1];
+  if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
+  const accessOptions = { store: authority.access.store, owner: selected.owner };
+  const record = selected.record === undefined ? await readCandidateRecord(cwd, slug, accessOptions) : selected.record;
+  if (record === null || record.attestation.candidateId !== candidate.candidateId) {
+    warnings.push(
+      `Candidate authority for ${candidate.filename} is unavailable or does not match its managed record.`,
+    );
+    return { ...candidate, integrationBoundary: null };
+  }
+  const target = await selectCandidateBoundaryTarget(cwd, slug, candidate, record, warnings, projectCandidateTarget,
+    input => readPendingCandidateFix({ ...input, store: authority.access.store,
+      projectId: authority.access.projectId, workItem: selected.owner }));
+  if (target === null) return { ...candidate, integrationBoundary: null };
+  const { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix } = target;
+  const schemaVersion = authority.access.store.capabilities.stateOffBranch ? 2 : 1;
+  if (candidate.state === "Integrating") {
+    const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
+    if (candidate.branch === null) return candidate;
+    if (requireExactDurableBoundary && stored?.candidateSubjectDigest !== candidateSubjectDigest) {
+      warnings.push(
+        `Candidate boundary for ${candidate.filename} does not match its durable Candidate subject.`,
+      );
+      return { ...candidate, integrationBoundary: null };
+    }
+    const recovered = recoverIntegratingBoundary({
+      stored,
+      workUnit: slug,
+      branch: candidate.branch,
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest,
+    });
+    return {
+      ...candidate,
+      integrationBoundary: recovered,
+    };
+  }
+  if (candidate.state !== "Active") return candidate;
+  if (pendingCandidateFix) {
+    return {
+      ...candidate,
+      integrationBoundary: projectCandidateFixResumeBoundary({
+        workUnit: slug,
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest,
+      }, schemaVersion),
+    };
+  }
+  const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
+  const recovered = recoverPrePublicationBoundary({
+    stored,
+    workUnit: slug,
+    candidateId: candidate.candidateId,
+    candidateSubjectDigest,
+  });
+  return {
+    ...candidate,
+    integrationBoundary: recovered ?? projectCandidateReviewBoundary({
+      workUnit: slug,
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest,
+    }, schemaVersion),
+  };
+}
+
+async function selectCandidateBoundaryTarget(cwd: string, slug: string, candidate: MetaFileCandidate,
+  record: CandidateManagedRecordV1, warnings: string[], projectCandidateTarget: CandidateTargetProjector,
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader): Promise<{
+    candidateSubjectDigest: string; requireExactDurableBoundary: boolean; pendingCandidateFix: boolean;
+  } | null> {
+  const { reduceCandidateDurableBaseline } = await import("../../lib/work-unit/candidate-attestation.js");
+  let candidateSubjectDigest: string;
+  let requireExactDurableBoundary = false;
+  let pendingCandidateFix = false;
+  try {
+    const effective = await projectCandidateTarget({ cwd, name: slug, record });
+    if (effective.state === "current") {
+      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
+    } else if (candidate.state === "Integrating") {
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      requireExactDurableBoundary = true;
+    } else if (effective.state === "changed" || effective.state === "decision-required") {
+      const pending = await readPendingCandidateFix({ cwd, workUnitId: slug, candidate: record });
+      if (pending.status === "refused") {
+        warnings.push(`Candidate review-fix authority for ${candidate.filename} is unavailable (${pending.reason}).`);
+        return null;
+      }
+      if (pending.status === "none") {
+        warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+        return null;
+      }
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      pendingCandidateFix = true;
+    } else {
+      warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+      return null;
+    }
+  } catch (error) {
+    warnings.push(
+      `Candidate target for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+  return { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix };
+}
+
+function createRepositoryCandidateTargetProjector(
+  exec: NonNullable<ActiveStatusOptions["exec"]>,
+): CandidateTargetProjector {
+  const baseBranches = new Map<string, Promise<string>>();
+  const rawExecs = new Map<string, ReturnType<typeof createRawGitExec>>();
+  return async ({ cwd, name, record }) => {
+    let baseBranch = baseBranches.get(cwd);
+    if (baseBranch === undefined) {
+      baseBranch = import("../../lib/config/status-reader.js")
+        .then(({ readConfigSettings }) => readConfigSettings(cwd))
+        .then(({ settings }) => settings["branch.base"]);
+      baseBranches.set(cwd, baseBranch);
+    }
+    let rawExec = rawExecs.get(cwd);
+    if (rawExec === undefined) {
+      rawExec = createRawGitExec(cwd);
+      rawExecs.set(cwd, rawExec);
+    }
+    return (await import(
+      "../../lib/work-unit/git-candidate-effective-target.js"
+    )).projectGitCandidateEffectiveTarget({
+      cwd,
+      name,
+      baseBranch: await baseBranch,
+      record,
+      exec,
+      rawExec,
+    });
+  };
 }
 
 export function resolveTaskListPath(
@@ -373,13 +584,12 @@ function resolveMetaRelativeTaskListPath(
 /**
  * Derive companion-file paths (`notes-{stem}.md`, `atomic-{stem}.md`) for the
  * resolved task list. Returns `undefined` when the task-list value is absent
- * or doesn't match the Full-layout `tasks-{stem}.md` pattern (Lite-shape
- * `tasks.md` and `[none]` both fall here). Otherwise returns paths relative
- * to cwd, with `null` for absent files.
+ * or doesn't match the `tasks-{stem}.md` pattern. Otherwise returns paths
+ * relative to cwd, with `null` for absent files.
  *
  * Task-list value may be a full path or a bare filename. Bare filenames
  * resolve to the status file's directory — co-location of status + task list
- * is invariant across full / lite / contributor layouts.
+ * applies to project and contributor roots.
  */
 async function deriveCompanions(
   cwd: string,

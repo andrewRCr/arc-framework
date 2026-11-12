@@ -10,25 +10,24 @@ git hooks, and a CLI package — all agent-platform agnostic.
 `arc-handoff`. State files: active work unit's
 `meta-{name}.md` (tracked, `active/`) and `SESSION-NOTES.md` (gitignored, `user/{identity}/{work-unit}/`).
 
-**Work pipeline:** PRD → task generation → task execution loop. One task = one review
-increment; see DEV-RULES.ARC § Task Execution.
+**Work pipeline:** Design → spec → task generation → task execution loop. One task = one review increment;
+see DEV-RULES.ARC § Task Execution.
 
-**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`,
-loaded when workflow YAML frontmatter declares them.
+**Methods:** Behavior modules under `system/methods/`. Workflows root the
+declared method graph; methods carry their own nested dependencies, and each loads at its direct fire-point.
 
-**Review authority:** Agent-side review methods and extensions are best-effort ergonomics. They improve a change
+**Review authority:** Agent-side review methods are best-effort ergonomics. They improve a change
 and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.
-Only a configured required host-side check structurally enforces merge safety; never infer that guarantee from
-`self-review`, `frontline-review`, a clean report, or passing local checks.
-
-**Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
-`quality-gate-commands` method.
+Host-side merge controls are distinct from agent-layer discipline: a required status check is fail-closed repo
+configuration; draft-state lock (`merge.lock: draft`) is a per-PR structural hold whose installation is procedural.
+**Never infer merge safety from `code-review-author`, `code-review-frontline`, a clean report, or passing local checks**
+· `[invariant]`.
 
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
 invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist). After the interlock-validation
 cascade, `arc release commit` accepts the same message/flags as `git commit`; `arc release push` supplies
-`origin <current-branch>` itself, takes no target argument, and refuses destructive flags. See DEV-RULES.ARC
-§ Commit Discipline.
+`origin <current-branch>` itself and accepts that matching pair, with or without `-u`. It refuses destructive flags.
+See DEV-RULES.ARC § Commit Discipline.
 
 ## Vocabulary
 
@@ -44,7 +43,7 @@ Precise meanings — assume the technical sense.
   not yet in the problem domain), not _composed_ from existing patterns. Indicates weight across planning,
   execution, and review — intrinsic demand, not output volume — and is the signal roadmap and parallelism
   planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
-  from the quality-gate `Tier 1/2/3`.
+  from quality gates.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
   group's shared coordination. The work unit is the leaf. Nesting is path-valued via the `Cohort` field, capped at
   one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
@@ -54,33 +53,59 @@ Precise meanings — assume the technical sense.
   coverage, and a seam review preserve local and cross-chunk review. Delivery vocabulary is reserved compatibly:
   a **deliverable** is a chunk given an independent merge boundary (`deliverable ⊂ chunk`), and a **stack** is a
   dependency ordering over a set of deliverables. Projects that never separate merge topology need only `chunk`.
+- **Segment:** A contiguous run of one or more task-plan phases that closes on one stated kind of progress. It is a
+  task-plan boundary, never a delivery member. A `spike` runs before a design exists to de-risk inputs and cannot
+  falsify the design; a segment executes against a settled design and can. A `chunk` remains a review boundary, and
+  a `deliverable` remains a chunk with an independent merge boundary. Every segment carries one mode:
+    - **`slice`** — closes on a thin end-to-end capability that can be exercised.
+    - **`layer`** — closes on a complete, settled substrate layer.
+    - **`replication`** — closes when an enumerated transformation surface is exhausted and batch-verified.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
-  lifecycle — state derives from its branch + PR.
+  WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.
+- **Locus:** One registered checkout plus the ARC role derived from its marker, tracked lifecycle, transient
+  identity, and Git topology. A WU-owned locus is exclusive from spawn, materialization, or explicit `--here` entry
+  through exact teardown. The physical primary is the launchpad only while its marker is absent, it is clean, and
+  it is on the configured base; transient allocation never displaces a WU role.
+- **Transient identity:** The exact logical claim for an Errand, grooming set, or housekeep sweep. It may outlive
+  local occupancy while paused or awaiting merge, but creates no WU meta, task list, or SESSION-NOTES.
 - **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A
   descriptor, not a wrapper; inboxes route by _fate_ (Errand vs WU), not character. Not the concurrency sense.
+- **Default:** A rule the agent may set aside in the moment by naming the fact that discharges it and disclosing
+  that fact where the developer is already reading. Every rule ARC states is one unless marked `[invariant]`; see
+  DEV-RULES.ARC § Rule Authority for the reading that classifies an unmarked rule and the discharge protocol. Not
+  "optional" — silent divergence is a violation, not a discharge.
+- **Invariant:** A rule the agent may not set aside on its own authority, marked `[invariant]` where the classifying
+  reading does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant
+  has a **holder**, and that holder making the reserved decision is the rule working rather than a waiver.
+  Orthogonal to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
+- **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
+  to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
+  said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
+- **Quality gate:** A deadline named by the event a check must pass before: the commit gate, push gate, or merge
+  quality gate. A request labels a result's kind `enforcement` when its deadline gate includes the check, and
+  `feedback` otherwise. Enforcement failures hold the gate and are never the agent's to set aside. Feedback failures
+  are reported and handled under DEV-RULES.ARC § Quality gate failure; an intentionally carried failure is named in
+  the completion report and accepted at its approval gate before the deadline.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
 - **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
-  commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
+  commit invocation, wrapped or raw. Applies
   universally — task list work, off-task / incidental, workflow stages.
-  **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
-  or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock
-  auto-fire also suspends when `on-task-approval`.
 
 ## Key Documents
 
-| Document                    | Purpose                                       | Location                  |
-|-----------------------------|-----------------------------------------------|---------------------------|
-| AGENT-BRIEF.PROJECT.md      | Project overview, tech stack, friction points | `reference/briefs/`       |
-| DEV-RULES.ARC.md            | ARC methodology rules                         | `system/rules/`           |
-| DEV-RULES.PROJECT.md        | Project quality standards                     | `system/rules/`           |
-| QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
-| arc-config.yml              | Project settings                              | `system/`                 |
-| meta-{name}.md              | Current task, blockers, next action           | `active/`                 |
+| Document               | Purpose                                       | Location            |
+| ---------------------- | --------------------------------------------- | ------------------- |
+| AGENT-BRIEF.PROJECT.md | Project overview, tech stack, friction points | `reference/briefs/` |
+| DEV-RULES.ARC.md       | ARC methodology rules                         | `system/rules/`     |
+| DEV-RULES.PROJECT.md   | Project quality standards                     | `system/rules/`     |
+| QUICK-REFERENCE.md     | Commands and environment context              | `reference/`        |
+| arc-config.yml         | Project settings                              | `system/`           |
+| meta-{name}.md         | Current task, blockers, next action           | `active/`           |
 
 ## Directory Structure
 
@@ -92,11 +117,4 @@ Precise meanings — assume the technical sense.
 └── user/        — Per-developer session state
 ```
 
-`backlog/planned/` may nest work units one directory deeper under cohort directories; resolve work units by slug
-rather than assuming the planned backlog is flat.
-
 ---
-
-_Shared ARC framework entry point for all AI agents. Project-specific context lives in
-[AGENT-BRIEF.PROJECT.md](AGENT-BRIEF.PROJECT.md); agent-specific guidance lives in harness-level
-files (e.g., `CLAUDE.md`, `AGENTS.md`) outside ARC._

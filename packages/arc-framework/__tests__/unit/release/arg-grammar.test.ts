@@ -138,3 +138,16 @@ describe("normalizeReleasePushArgs — mismatch refusal", () => {
     });
   });
 });
+
+describe("push operands before the wrapper target", () => {
+  it.each([
+    ["--push-opt", "ci.skip"],
+    ["--receive-pack", "git-receive-pack"],
+    ["--exec", "git-receive-pack"],
+    ["--repo", "origin"],
+  ])("keeps the operand of %s separate from the target", (option, value) => {
+    expect(normalizeReleasePushArgs([option, value, "origin", CURRENT], CURRENT)).toEqual({
+      kind: "ok", args: [option, value],
+    });
+  });
+});

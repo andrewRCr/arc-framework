@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import {
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   SchemaError,
   SlugSchema,
   WorkClassSchema,
@@ -125,10 +127,19 @@ describe("kernel schema registry", () => {
   it("creates fresh registries containing exactly the kernel vocabulary", () => {
     const first = createKernelRegistry();
     const second = createKernelRegistry();
-    expect(first.ids()).toEqual(["priority", "slug", "work-class", "work-unit-state"]);
+    expect(first.ids()).toEqual([
+      "priority",
+      "remote-evidence",
+      "remote-failure-reason",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
     expect(first.get("work-unit-state")).toBe(WorkUnitStateSchema);
     expect(first.get("work-class")).toBe(WorkClassSchema);
     expect(first.get("priority")).toBe(PrioritySchema);
+    expect(first.get("remote-evidence")).toBe(RemoteEvidenceSchema);
+    expect(first.get("remote-failure-reason")).toBe(RemoteFailureReasonSchema);
     expect(first.get("slug")).toBe(SlugSchema);
     for (const id of first.ids()) expect(first.meta(id)).toEqual(strict(id));
     first.register(z.boolean(), strict("extension"));
@@ -137,11 +148,20 @@ describe("kernel schema registry", () => {
 
   it("projects stable default and custom schema identities without metadata leakage", () => {
     const registry = createKernelRegistry();
-    const defaults = registry.toJSONSchema();
-    const custom = registry.toJSONSchema({ uri: (id) => `urn:arc:${id}` });
+    const defaults = registry.toJSONSchema({ io: "output" });
+    const custom = registry.toJSONSchema({ io: "output", uri: (id) => `urn:arc:${id}` });
 
-    expect(Object.keys(defaults.schemas)).toEqual(["priority", "slug", "work-class", "work-unit-state"]);
-    expect(defaults.schemas.slug?.$id).toBe("slug.schema.json");
+    expect(Object.keys(defaults.schemas)).toEqual([
+      "priority",
+      "remote-evidence",
+      "remote-failure-reason",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    expect(defaults.schemas["remote-evidence"]?.$id).toBe("urn:arc:schema:remote-evidence");
+    expect(defaults.schemas["remote-failure-reason"]?.$id).toBe("urn:arc:schema:remote-failure-reason");
+    expect(defaults.schemas.slug?.$id).toBe("urn:arc:schema:slug");
     expect(custom.schemas.slug?.$id).toBe("urn:arc:slug");
     expect(JSON.stringify(defaults)).not.toMatch(/migrationPosture|version/u);
     expect(JSON.stringify(defaults)).not.toContain("$ref");
@@ -154,8 +174,8 @@ describe("kernel schema registry", () => {
     registry.register(child, strict("child"));
     registry.register(parent, strict("parent"));
 
-    const bundle = registry.toJSONSchema();
-    expect(bundle.schemas.parent?.properties?.child).toEqual({ $ref: "child.schema.json" });
+    const bundle = registry.toJSONSchema({ io: "output" });
+    expect(bundle.schemas.parent?.properties?.child).toEqual({ $ref: "urn:arc:schema:child" });
   });
 
   it("projects byte-identical bundles regardless of registration order", () => {
@@ -168,6 +188,6 @@ describe("kernel schema registry", () => {
     reverse.register(two, strict("two"));
     reverse.register(one, strict("one"));
 
-    expect(JSON.stringify(reverse.toJSONSchema())).toBe(JSON.stringify(forward.toJSONSchema()));
+    expect(JSON.stringify(reverse.toJSONSchema({ io: "output" }))).toBe(JSON.stringify(forward.toJSONSchema({ io: "output" })));
   });
 });

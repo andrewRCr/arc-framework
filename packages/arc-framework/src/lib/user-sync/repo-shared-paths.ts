@@ -8,9 +8,9 @@
  * @module
  */
 
-import { isAbsolute, join, resolve } from "node:path";
+import { join } from "node:path";
 
-import type { GitExec } from "../git/exec.js";
+import { resolveGitCommonDir, type GitExec } from "../git/exec.js";
 
 const REPO_SHARED_ARC_DIR = "arc";
 const REPO_SHARED_USER_DIR = "user";
@@ -24,14 +24,4 @@ export async function getRepoSharedUserInternalDir(
 ): Promise<string> {
   const commonDir = await resolveGitCommonDir(exec, cwd);
   return join(commonDir, REPO_SHARED_ARC_DIR, REPO_SHARED_USER_DIR, identity, REPO_SHARED_INTERNAL_DIR);
-}
-
-/** Resolve Git's common directory as an absolute path for the current worktree. */
-export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
-  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
-  const commonDir = stdout.trim();
-  if (commonDir.length === 0) {
-    throw new Error("git rev-parse --git-common-dir returned an empty path");
-  }
-  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
 }

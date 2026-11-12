@@ -2,14 +2,15 @@
 name: review-chunking
 description: Contract-cohesive bounded scopes for reviewing one exact change set
 related:
-  - frontline-review
-  - standard-review
+  - code-review-frontline
+  - code-review-standard
 override-active: false
 ---
 
 # Method: review-chunking
 
-> - **When:** A caller explicitly selects chunked review, or exact-target tripwires recommend considering it
+> - **When:** A caller explicitly selects chunked review, or the derived exact-target changeset-size attention
+>   signal recommends considering it
 >
 > - **Contract:** Partition one exact change set into bounded review scopes without changing its work-unit, branch,
 >   pull-request, or merge boundary. Preserve complete local and cross-chunk review through dependency closure,
@@ -45,9 +46,9 @@ Derive boundaries through **seed → judgment → guard**:
 - **Guard:** Check changed consumer-to-declaration edges with type checking and definition/reference navigation for
   code, or explicit reference inspection for prose. Re-run against the current exact target if it moves.
 
-The configured line and file tripwires select attention only. They can recommend considering chunks, but never draw
-boundaries, cap chunk size, or make a numeric budget a validity rule. Explicit callers may apply this method even
-when automatic consideration is disabled.
+The configured exact-target changeset-size advisory thresholds derive an attention signal only. They can recommend
+considering chunks, but never draw boundaries, cap chunk size, or make a numeric budget a validity rule. Explicit
+callers may apply this method even when automatic consideration is disabled.
 
 Closure establishes validity; it does not by itself establish that a chunk is bounded enough for one review pass.
 After closure and test cohesion hold, inspect the candidate's residual attention burden using its available size,
@@ -65,6 +66,11 @@ review carrier; do not silently treat size alone as proof that the pass is bound
 Require `change-set − union(chunks) = empty`. Close or surface every uncovered file or hunk; an unmeasured or
 uncovered region is not implicitly small or reviewed.
 
+For an incremental correction pass, the change set is the range from the pass's predecessor head to its current
+head. The earlier range back to the complete review is covered by the recorded coverage chain and is not partitioned
+again. Re-examine each material finding the correction scope carries at its locus, in the chunk whose scope contains
+that locus, or in the seam when no chunk does.
+
 Add a dedicated seam scope whenever boundaries create cross-chunk surface. Review changed contracts at their use
 sites and inspect boundary-spanning duplication, abstraction choices, and naming consistency. The seam complements
 the local chunks; it does not re-read every chunk body as one diluted whole-target pass.
@@ -73,6 +79,6 @@ Recursive chunking forms a hierarchy: local seams reconcile sibling chunks, and 
 domain roots. Higher seams consume the cross-boundary contracts and bounded child summaries they need, not every
 descendant body or raw diff wholesale.
 
-`frontline-review` and `standard-review` may consume this method only through a carrier capable of curated scopes
-and complete aggregation. Partial chunk reports have no standalone review authority. The role-specific methods own
-carrier eligibility, evaluator isolation, pass accounting, and their existing authority boundaries.
+`code-review-frontline` and `code-review-standard` may consume this method only through a carrier capable of curated
+scopes and complete aggregation. Partial chunk reports have no standalone review authority. The role-specific methods
+own carrier eligibility, evaluator isolation, pass accounting, and their existing authority boundaries.

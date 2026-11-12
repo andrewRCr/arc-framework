@@ -44,6 +44,7 @@ export interface HostedGitHubReview {
 export interface HostedGitHubThreadComment {
   id: string;
   reviewId: string;
+  replyToReviewId: string | null;
   actorIdentity: string | null;
   body: string;
   url: string;
@@ -76,6 +77,14 @@ export interface HostedGitHubCheckRun {
   summary: string;
 }
 
+export interface HostedGitHubCommitStatus {
+  context: string;
+  state: "pending" | "success" | "failure";
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type HostedGitHubWriteResult =
   | {
     kind: "created";
@@ -92,6 +101,7 @@ export interface HostedGitHubPort extends HostedSettlementPort {
   readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]>;
   readIssueComments(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubIssueComment[]>;
   readCheckRuns(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubCheckRun[]>;
+  readCommitStatuses(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubCommitStatus[]>;
   findReplies(input: {
     target: HostedTarget;
     commentId: string;

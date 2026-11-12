@@ -16,6 +16,8 @@ import {
 } from "../../../src/command-input-registrations.js";
 import type { CommandInputDeclaration } from "../../../src/lib/command-input/declaration.js";
 
+const REPOSITORY_SCAN_TIMEOUT = 30_000;
+
 const sourceRoot = resolve(import.meta.dirname, "../../../src");
 
 describe("repository command-input inventory", () => {
@@ -29,11 +31,17 @@ describe("repository command-input inventory", () => {
       commandInputRegistrations,
       commandInputPolicyDeclarations,
     );
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
-  it("reconciles every live syntax and interaction site exactly once", () => {
+  it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(
       (count, command) => count + command.operands.length + command.options.length,
+      0,
+    );
+    const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
+      (count, declaration) => count + declaration.sites.filter(
+        (site) => site.origin === "prompt" || ("interaction" in site.source && site.source.interaction !== undefined),
+      ).length,
       0,
     );
     const declaredSemanticSites = inventory.entries
@@ -41,15 +49,30 @@ describe("repository command-input inventory", () => {
       .map((entry) => entry.identity);
 
     expect(inventory.entries).toHaveLength(
-      syntaxCount + snapshot.source.interactions.length + declaredSemanticSites.length,
+      syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
-      "join:semantic.identity",
-      "join:semantic.tools",
-      "start:safety.indeterminate-lifecycle",
+      "agenda:semantic.interaction-context",
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ identity: "status:option.conflicts", schemaField: "conflicts" }),
+      expect.objectContaining({ identity: "pause:option.no-waits-on", schemaField: "waitsOn" }),
+      expect.objectContaining({ identity: "pause:option.no-resume-notes", schemaField: "resumeNotes" }),
+      expect.objectContaining({ identity: "pause:option.no-open", schemaField: "open" }),
+      expect.objectContaining({ identity: "handover:option.to", schemaField: "to" }),
+      expect.objectContaining({
+        identity: "task close:operand.ids",
+        schemaField: "ids",
+      }),
+      expect.objectContaining({
+        identity: "task close:option.commit",
+        schemaField: "commit",
+      }),
+      expect.objectContaining({
+        identity: "task defer:operand.id",
+        schemaField: "id",
+      }),
       expect.objectContaining({
         identity: "init:option.name",
         schemaField: "projectName",
@@ -63,15 +86,60 @@ describe("repository command-input inventory", () => {
         schemaField: "teamMode",
       }),
       expect.objectContaining({
-        identity: "user open:interaction.handlers-user.ts-prompt-p.select-1",
+        identity: "user open:prompt.stale-subdir",
+        origin: "prompt",
+        liveSource: expect.objectContaining({ callee: "prompt", declaredId: "prompt.stale-subdir" }),
         acquisition: "safe-default",
         cancellation: "safe-default",
         noInput: "use-default",
       }),
       expect.objectContaining({
-        identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
+        identity: "user sync:prompt.user-sync.conflict",
         acquisition: "safe-default",
         noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.task-list",
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "taskList",
+        noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-branch:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.landed-prefix",
+        acquisition: "required-evidence",
+        schemaOwnership: "owned",
+        schemaField: "landedPrefix",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan abandon:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-ref",
+        acquisition: "parser-required",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-sha",
+        acquisition: "parser-required",
       }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
@@ -80,9 +148,40 @@ describe("repository command-input inventory", () => {
     );
   });
 
+  it("excludes rejection-only review JSON flags from accepted inputs", () => {
+    const rejectedPaths = [
+      "review change-request resolve",
+      "review status",
+      "review resolve",
+      "review merge-method resolve",
+      "review checks await",
+      "review pre-publication",
+    ];
+    for (const path of rejectedPaths) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.options.some((option) => option.flags === "--json"), path).toBe(false);
+      expect(inventory.entries.some((entry) => entry.identity === `${path}:option.json`), path).toBe(false);
+    }
+  });
+
+  it("joins all seven start confirmations to their own declared callers", () => {
+    const questions = inventory.entries.filter((entry) => entry.commandPath === "start" && entry.origin === "prompt");
+    expect(questions.map((entry) => ({ id: entry.siteId, noInput: entry.noInput, callee: "callee" in entry.liveSource ? entry.liveSource.callee : undefined })))
+      .toEqual([
+        { id: "safety.indeterminate-lifecycle", noInput: "refuse", callee: "confirmStep" },
+        { id: "prompt.start.create-new", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.cold-start", noInput: "proceed", callee: "prompt" },
+      ].sort((left, right) => left.id.localeCompare(right.id)));
+  });
+
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {
     const declared = new Set(commandInputPolicyDeclarations.flatMap((declaration) => declaration.sites.flatMap(
       (site) => {
+        if (site.origin === "prompt") return [site.id];
         if (!("interaction" in site.source) || site.source.interaction === undefined) return [];
         const { interaction } = site.source;
         return [
@@ -92,6 +191,7 @@ describe("repository command-input inventory", () => {
     )));
     const counts = new Map<string, number>();
     const missing = snapshot.source.interactions.flatMap((site) => {
+      if (site.declaredId !== undefined) return declared.has(site.declaredId) ? [] : [site.declaredId];
       const base = `${site.file}|${site.kind}|${site.callee}`;
       const occurrence = (counts.get(base) ?? 0) + 1;
       counts.set(base, occurrence);
@@ -131,6 +231,69 @@ describe("repository command-input inventory", () => {
     expect(bypasses).toEqual([]);
   });
 
+  it("routes merge-lock JSON commands under a constant machine-mode policy", () => {
+    for (const path of ["merge lock resolve", "merge lock hold", "merge lock release"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes review resolve-family JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review resolve", "review merge-method resolve", "review checks await",
+      "review readiness", "review frontline resolve", "review changeset resolve",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes hosted review JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review hosted request", "review hosted await", "review hosted settle", "review hosted dismiss",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes local review and response JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review local prepare", "review local attest", "review local resume",
+      "review respond", "review reduce",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("declares JSON mode on attest, publish, rename, and locus", () => {
+    for (const path of ["attest", "publish", "rename", "locus"]) {
+      expect(inventory.entries.find((entry) => entry.identity === `${path}:option.json`)?.acquisition, path)
+        .toBe("machine-mode");
+    }
+    const locus = snapshot.source.commands.find((entry) => entry.path === "locus");
+    expect(locus?.action?.interactionContext).toBe(true);
+  });
+
+  it("routes value-bearing human-output commands through the interaction adapter", () => {
+    for (const path of ["user close", "config validate", "release setup print-patterns", "log standalone"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
+  it("routes release opt-in and opt-out through the interaction adapter", () => {
+    for (const path of ["release opt-in", "release opt-out"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")
@@ -149,6 +312,133 @@ describe("repository command-input inventory", () => {
     expect(command?.action?.interactionContext).toBe(true);
   });
 
+  it("classifies runner protocol stdin independently of terminal input for every check form", () => {
+    const runnerSites = inventory.entries
+      .filter(entry => entry.siteId === "interaction.lib-checks-runner-session-process.ts-subprocess-execa-1")
+      .map(entry => ({ command: entry.commandPath, stdin: entry.subprocess, noInput: entry.noInput }));
+    expect(runnerSites).toEqual(["check gate", "check increment", "check new-head", "check pre-commit", "check pre-push",
+      "check run", "check segment"].map(command => ({ command, stdin: "explicit-stdin", noInput: "same" })));
+  });
+
+  it("assigns the byte-preserving raw Git boundary to its command families", () => {
+    const rawGitCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-git-process-executor.ts-subprocess-execa-2")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(rawGitCommands).toEqual([
+      "abandon",
+      "activate",
+      "archive",
+      "attest",
+      "base merge",
+      "candidate applicability resolve",
+      "deactivate",
+      "decompose",
+      "delivery compose",
+      "delivery eligibility close",
+      "delivery eligibility prepare",
+      "delivery entry inspect",
+      "delivery land apply",
+      "delivery land prepare",
+      "delivery native land-prepare",
+      "delivery native land-release",
+      "delivery native land-select",
+      "delivery native land-status",
+      "delivery native land-submit",
+      "delivery native link",
+      "delivery native observe",
+      "delivery native unlink",
+      "delivery plan abandon",
+      "delivery plan from-branch",
+      "delivery plan from-tasks",
+      "delivery position",
+      "delivery publish",
+      "delivery reconcile",
+      "delivery refresh execute",
+      "delivery rematerialize",
+      "delivery rewrite",
+      "delivery teardown",
+      "delivery top-remedy",
+      "demote",
+      "finalize",
+      "handover",
+      "integrate checkpoint",
+      "integrate merge",
+      "materialize",
+      "park",
+      "pause",
+      "promote",
+      "publish",
+      "release commit",
+      "rename",
+      "reopen",
+      "repoint-design",
+      "resume",
+      "review change-request resolve",
+      "review changeset resolve",
+      "review planning-grooming resolve",
+      "review planning-lane",
+      "review pre-publication",
+      "review status",
+      "review terminus accept",
+      "set-class",
+      "set-stage",
+      "start",
+      "status",
+      "store conflict",
+      "store migrate",
+      "store remote",
+      "store repair-review-roots",
+      "stub",
+      "task close",
+      "task defer",
+      "teardown",
+      "user reconcile-references",
+      "wu reconcile",
+    ]);
+  });
+
+  it("assigns the post-action development build refresh to its head-moving command families", () => {
+    const refreshCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-dev-check.ts-subprocess-execfile-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(refreshCommands).toEqual([
+      "base merge",
+      "delivery review-fix continue",
+      "errand close",
+      "errand open",
+    ]);
+  });
+
+  it("assigns the close-stdin hosted GitHub boundary to every reachable command family", () => {
+    const hostedCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.scripts-review-gate-hosted-gh-process.ts-subprocess-execa-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(hostedCommands).toEqual([
+      "delivery native land-prepare",
+      "delivery native land-release",
+      "delivery native land-select",
+      "delivery native land-status",
+      "delivery native land-submit",
+      "delivery native link",
+      "delivery native observe",
+      "delivery native unlink",
+      "delivery refresh execute",
+      "delivery top-remedy",
+      "integrate checkpoint",
+      "integrate merge",
+      "review",
+      "review pre-publication",
+      "review status",
+      "review terminus accept",
+    ]);
+  });
+
   it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
     const adapterCommands = new Map(snapshot.source.commands.map((command) => [
       command.path,
@@ -163,14 +453,18 @@ describe("repository command-input inventory", () => {
       "materialize",
       "activate",
       "deactivate",
-      "integrate",
+      "publish",
       "reopen",
       "archive",
       "teardown",
+      "set-class",
       "set-stage",
       "finalize",
       "repoint-design",
-      "errand retire",
+      "pause",
+      "handover",
+      "task close",
+      "task defer",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);
@@ -227,11 +521,33 @@ describe("repository command-input inventory", () => {
     expect(missing).toEqual([]);
   });
 
-  it("exact-matches every interaction-capable command to the real-process matrix", () => {
-    const interactionCommands = [...new Set(inventory.entries
+  it("retains one matrix entry for every non-prompt interaction command", () => {
+    const interactionCommands = new Set(inventory.entries
       .filter((entry) => entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
-      .map((entry) => entry.commandPath))].sort();
-    expect(NO_INPUT_MATRIX.map((entry) => entry.commandPath).sort()).toEqual(interactionCommands);
+      .map((entry) => entry.commandPath));
+    const promptCommands = new Set(NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined)
+      .map((entry) => entry.commandPath));
+    const plain = NO_INPUT_MATRIX.filter((entry) => entry.promptSite === undefined && entry.upstreamRefusalFor === undefined).map((entry) => entry.commandPath);
+    expect(plain.sort()).toEqual([...interactionCommands].filter((path) => !promptCommands.has(path)).sort());
+    for (const command of interactionCommands) {
+      expect(NO_INPUT_MATRIX.some((entry) => entry.commandPath === command), command).toBe(true);
+    }
+  });
+
+  it("reconciles named native prompt kinds and the sole upstream refusal exception", () => {
+    const kinds = new Set(inventory.entries.filter((entry) => entry.origin === "prompt").map((entry) => entry.noInput));
+    const upstream = NO_INPUT_MATRIX.filter((entry) => entry.upstreamRefusalFor !== undefined);
+    expect(upstream.map((entry) => ({ command: entry.commandPath, site: entry.upstreamRefusalFor }))).toEqual([
+      { command: "start", site: "safety.indeterminate-lifecycle" },
+    ]);
+    const cases = NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined);
+    const reached = cases.map((entry) => inventory.entries.find((site) =>
+      site.commandPath === entry.commandPath && site.siteId === (entry.promptSite ?? entry.upstreamRefusalFor) && site.origin === "prompt"));
+    expect(reached.every((site) => site !== undefined)).toBe(true);
+    const refusal = inventory.entries.find((site) => site.commandPath === "start"
+      && site.siteId === "safety.indeterminate-lifecycle");
+    expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
+    expect([...new Set(reached.map((site) => site?.noInput))].sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {

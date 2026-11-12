@@ -4,6 +4,7 @@ import { execa } from "execa";
 
 import type {
   HostedGitHubCheckRun,
+  HostedGitHubCommitStatus,
   HostedGitHubIssueComment,
   HostedGitHubPort,
   HostedGitHubReview,
@@ -11,14 +12,19 @@ import type {
   HostedGitHubWriteResult,
 } from "./github.js";
 import { HostedGitHubReadError } from "./github.js";
+import type { HostedDismissalReview, HostedReviewDismissalPort, HostedReviewDismissalWrite } from "./dismiss.js";
 import type { HostedArtifact, HostedTarget } from "./request.js";
 import type { HostedSettlementReply } from "./settle.js";
 
 export interface HostedProcessRunner {
-  run(args: string[], options?: { signal?: AbortSignal }): Promise<{ stdout: string; stderr: string }>;
+  run(
+    args: string[],
+    options?: { signal?: AbortSignal; allowFailure?: boolean },
+  ): Promise<{ stdout: string; stderr: string }>;
 }
 
 export class HostedProcessError extends Error {
+  readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number | null;
   readonly httpStatus: number | null;
@@ -28,9 +34,11 @@ export class HostedProcessError extends Error {
     stderr: string,
     exitCode: number | null = null,
     httpStatus: number | null = null,
+    stdout = "",
   ) {
     super(message);
     this.name = "HostedProcessError";
+    this.stdout = stdout;
     this.stderr = stderr;
     this.exitCode = exitCode;
     this.httpStatus = httpStatus;
@@ -49,15 +57,27 @@ export const hostedGhRunner: HostedProcessRunner = {
       const result = await execa("gh", args, {
         stdin: "ignore",
         timeout: 60_000,
+        reject: options?.allowFailure !== true,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
+      if (options?.signal?.aborted === true || result.isCanceled) {
+        const reason = options?.signal?.reason as unknown;
+        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
+      }
+      if (result.timedOut) {
+        throw new DOMException("The hosted process timed out.", "TimeoutError");
+      }
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       if (options?.signal?.aborted === true) {
         const reason = options.signal.reason as unknown;
         throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
       }
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+        throw error;
+      }
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
+      const stdout = typeof record.stdout === "string" ? record.stdout : "";
       const stderr = typeof record.stderr === "string" ? record.stderr : "";
       const message = error instanceof Error ? error.message : String(error);
       throw new HostedProcessError(
@@ -65,6 +85,7 @@ export const hostedGhRunner: HostedProcessRunner = {
         stderr,
         typeof record.exitCode === "number" ? record.exitCode : null,
         parseHttpStatus(`${message}\n${stderr}`),
+        stdout,
       );
     }
   },
@@ -93,7 +114,16 @@ function integerString(value: unknown, path: string): string {
 
 function parse(text: string, path: string): unknown {
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(text, (key: string, value: unknown, context?: { source: string }) => {
+      if ((key === "id" || key === "in_reply_to_id")
+        && typeof value === "number" && !Number.isSafeInteger(value)) {
+        // Numeric primitives retain their original JSON token in the Node 24+ reviver context.
+        const source = context?.source;
+        if (source === undefined) throw new Error("JSON identity token is unavailable");
+        return source;
+      }
+      return value;
+    }) as unknown;
   } catch {
     throw new HostedGitHubReadError("terminal-failure", `${path}: malformed JSON`);
   }
@@ -168,7 +198,7 @@ function issueComment(value: unknown, path: string): HostedGitHubIssueComment {
 }
 
 /** Developer-authenticated GitHub reads and mutations for hosted review. */
-export class GhHostedReviewPort implements HostedGitHubPort {
+export class GhHostedReviewPort implements HostedGitHubPort, HostedReviewDismissalPort {
   private readonly runner: HostedProcessRunner;
 
   constructor(runner: HostedProcessRunner) {
@@ -297,9 +327,41 @@ export class GhHostedReviewPort implements HostedGitHubPort {
     });
   }
 
+  async readCommitStatuses(
+    target: HostedTarget,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedGitHubCommitStatus[]> {
+    const rawStatuses = await this.read([
+      apiPath(target, `commits/${target.headSha}/statuses?per_page=100`),
+      "--paginate",
+      "--slurp",
+    ], options);
+    return pages(rawStatuses, "commit-statuses").map((entry, index) => {
+      const item = record(entry, `commit-statuses[${index}]`);
+      const state = string(item.state, `commit-statuses[${index}].state`).toLowerCase();
+      if (!["pending", "success", "failure", "error"].includes(state)) {
+        throw new HostedGitHubReadError(
+          "terminal-failure",
+          `commit-statuses[${index}].state: unsupported ${state}`,
+        );
+      }
+      const normalizedState: HostedGitHubCommitStatus["state"] = state === "error"
+        ? "failure"
+        : state as HostedGitHubCommitStatus["state"];
+      return {
+        context: string(item.context, `commit-statuses[${index}].context`),
+        state: normalizedState,
+        description: typeof item.description === "string" ? item.description : "",
+        createdAt: string(item.created_at, `commit-statuses[${index}].created_at`),
+        updatedAt: string(item.updated_at, `commit-statuses[${index}].updated_at`),
+      };
+    });
+  }
+
   async readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]> {
-    const commentFields = "id databaseId body url path line originalLine commit{oid} "
-      + "pullRequestReview{id} author{... on User{databaseId} ... on Bot{databaseId}}";
+    const commentFields = "id fullDatabaseId body url path line originalLine commit{oid} "
+      + "pullRequestReview{id} replyTo{pullRequestReview{id}} "
+      + "author{... on User{databaseId} ... on Bot{databaseId}}";
     const query = `query($owner:String!,$repo:String!,$number:Int!,$threadCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$threadCursor){nodes{id isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}`;
     const commentQuery = `query($id:ID!,$commentCursor:String){node(id:$id){... on PullRequestReviewThread{id comments(first:100,after:$commentCursor){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}}}}`;
     const [owner, repo] = target.repository.split("/");
@@ -375,8 +437,14 @@ export class GhHostedReviewPort implements HostedGitHubPort {
             ? null
             : record(item.author, `${path}.author`);
           return {
-            id: integerString(item.databaseId, `${path}.databaseId`),
+            id: integerString(item.fullDatabaseId, `${path}.fullDatabaseId`),
             reviewId: string(record(item.pullRequestReview, `${path}.pullRequestReview`).id, `${path}.reviewId`),
+            replyToReviewId: item.replyTo === null
+              ? null
+              : string(record(
+                  record(item.replyTo, `${path}.replyTo`).pullRequestReview,
+                  `${path}.replyTo.pullRequestReview`,
+                ).id, `${path}.replyTo.reviewId`),
             actorIdentity: author === null || author.databaseId === null || author.databaseId === undefined
               ? null
               : integerString(author.databaseId, `${path}.author.databaseId`),
@@ -455,6 +523,58 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         : { kind: "ambiguous" as const };
     } catch {
       return { kind: "ambiguous" as const };
+    }
+  }
+
+  async readReview(target: HostedTarget, reviewId: number): Promise<HostedDismissalReview | null> {
+    let stdout: string;
+    try {
+      stdout = (await this.runner.run(["api", apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}`)]))
+        .stdout;
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 404) return null;
+      return readFailure(error);
+    }
+    const review = record(parse(stdout, "review"), "review");
+    const state = string(review.state, "review.state");
+    const states: Record<string, HostedDismissalReview["state"]> = {
+      APPROVED: "approved",
+      CHANGES_REQUESTED: "changes-requested",
+      COMMENTED: "commented",
+      DISMISSED: "dismissed",
+      PENDING: "pending",
+    };
+    const mapped = states[state];
+    if (mapped === undefined) throw new HostedGitHubReadError("terminal-failure", `review.state: unsupported ${state}`);
+    return {
+      state: mapped,
+      actorIdentity: integerString(record(review.user, "review.user").id, "review.user.id"),
+      commitSha: typeof review.commit_id === "string" && review.commit_id.length > 0 ? review.commit_id : null,
+    };
+  }
+
+  async dismissReview(
+    target: HostedTarget,
+    reviewId: number,
+    message: string,
+  ): Promise<HostedReviewDismissalWrite> {
+    try {
+      const output = await this.runner.run([
+        "api",
+        apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}/dismissals`),
+        "--method", "PUT",
+        "--raw-field", `message=${message}`,
+        "--raw-field", "event=DISMISS",
+      ]);
+      return record(parse(output.stdout, "dismissal"), "dismissal").state === "DISMISSED"
+        ? { kind: "dismissed" }
+        : { kind: "ambiguous" };
+    } catch (error) {
+      const status = error instanceof HostedProcessError ? error.httpStatus : null;
+      if (error instanceof HostedProcessError && status !== null && status >= 400 && status < 500 && status !== 429) {
+        return { kind: "refused", reason: `${error.message}\n${error.stderr}`.trim() };
+      }
+      return { kind: "ambiguous" };
     }
   }
 }

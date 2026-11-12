@@ -78,20 +78,14 @@ distinction sorts inbox items, individual tasks, and whole work units.
   planning pipeline rather than executing as-is. The line from atomic is not pass-count but **durability** — needing
   a tracked plan that outlives the session, not merely more than one review pass.
 
-**Character is not the wrapper floor** — the wrapper is the **spec-worthiness** gate ([§ Class Model](#class-model)
-boundary test #1) — but character and wrapper relate tightly. **An Errand is always atomic:** one indivisible
-self-evident concern bounded to one session (a determinate sweep — a doc-grooming pass, a `ROADMAP` re-render, a
-housekeep drain that fans out — is _one_ concern, however many files, commits, or in-session review passes it lands
-in). What makes work multi-step — and so a **Work Unit** (however light) — is needing a **durable** decomposition: a
-tracked plan that outlives the session, which is also what authoring or recording a design needs. A second _review
-pass_ alone does not cross the line; needing a _tracked plan_ does. A WU is spec-worthy — a design worth recording,
-or a durable plan a correct execution must navigate — and is _usually_ multi-step, though a small spec-worthy
-concern can be atomic in character too; the WU is decided by spec-worthiness, not by counting passes.
+**Character is not the wrapper floor** — [classify-work-unit][classify-work-unit] boundary test 1 decides
+Errand versus Work Unit by its record test. An Errand is always atomic: one indivisible concern, bounded to a
+single session; a determinate sweep remains one concern however many files, commits, or in-session review passes
+it takes. A Work Unit is usually multi-step, though a small concern that clears the record test can be atomic too.
 
-**One indivisible concern, one session** is the sharp line — not increment- or pass-count. "Is this _one_ concern
-that fits a single session without a durable plan?" carries irreducible boundary judgment — two careful readers can
-split a marginal case differently and both be ARC-correct. The ambiguity is deliberate: within the bounds, the
-developer decides, and a mis-call is cheap to correct via the Errand→WU promotion edge (`arc errand promote`).
+**One indivisible concern, one session** describes atomic character, not a session-fit estimate for the wrapper.
+Apply the four questions in [classify-work-unit][classify-work-unit] test 1; the Owner decides with the agent's
+answers shown. A mis-call is cheap to correct through Errand-to-WU promotion when an answer flips.
 
 **Route by fate, not by wrapper.** Capture surfaces sort on what the work _becomes_ — Errand vs WU (spec-worthy?),
 not which artifact happened to produce it. For the during-WU-vs-later routing table, see
@@ -154,14 +148,8 @@ distinct planning shape (a discovery / research phase + an ADR), suggested, neve
 Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
 promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation axis alone:
 
-1. **Errand vs. WU (the wrapper floor).** _Is this spec-worthy — does it clear the floor on either intrinsic axis
-   (a design worth recording, or a durable plan a correct execution must navigate — a substantial grounding surface
-   or cross-session tracking), or is it self-evident on both?_ This reads the same two axes below at their
-   **sub-floor** — the Errand is the shared below-floor tier of one spectrum, not a separate cardinality gate.
-   **Below floor on both** → it is an [Errand](#errand-work-class), not a WU (one indivisible self-evident concern,
-   atomic in character — _typically_ one review increment, a determinate one extended to a bounded few in-session
-   passes, however many commits): below the wrapper, no meta, no `Class`. **Clears either floor** → it is a WU
-   (spec-worthy); continue.
+1. **Errand vs. WU (the wrapper floor).** Apply [classify-work-unit][classify-work-unit] boundary test 1,
+   the canonical record test. An Errand stops outside the `Class` model; a Work Unit continues here.
 2. **Derivation trigger (→ `heavy`).** _Must a real design be authored — concerns, alternatives, tradeoffs that do
    not exist until someone works them out — before a competent engineer can start?_ **Yes** → `heavy`. Count only
    _spec-worthy_ design (the floor above): a choice resolved during implementation is not derivation.
@@ -183,8 +171,8 @@ commits_ — the re-based gate's admission is that commit-count alone no longer 
   nothing to author and no substantial grounding a correct plan must navigate. Below floor on both axes — one
   concern reviewed once, an Errand.
 - **Widely-used-symbol rename → `heavy` WU.** A rename whose correct plan must verify call-sites across a broad
-  surface clears the _scale_ floor: spec-worthy by grounding demand, so a WU even though the design is
-  determinate.
+  surface clears record question 1: its correct plan cannot name the call sites until the surface is mapped,
+  so it is a WU even though the design is determinate.
 
 The two axes form a 2×2; each cell is recognizable in retrospect:
 
@@ -300,7 +288,7 @@ is a separate axis. The work unit remains the **leaf deliverable**; the cohort i
 
 This taxonomy complements the [Class Model](#class-model): `Class` is the _weight_ of one WU; a cohort is the
 _shape_ a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
-a cohort — and where the cuts fall — is the `assess-cohort-fit` method's; this section defines what a cohort _is_
+a cohort — and where the cuts fall — is the `assess-boundary-fit` method's; this section defines what a cohort _is_
 once that cut is made.
 
 ### One grouping kind; coordination by degree
@@ -369,8 +357,8 @@ groupings. Use `### Cross-cohort` for named coordination across boundaries, not 
 → `completed/<dated>/<NN>a_cohort-<name>/` when the cohort's last member ships — as a pure `git mv` with no
 content edit. The archived doc's `Parent` field preserves nesting context; the archive directory uses the
 cohort doc's own slug, not the full parent path. It therefore adopts the movable-artifact relocatability and
-reference-hygiene invariant wholesale: inbound references to it are
-backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
+reference-hygiene invariant wholesale: inbound references to it are backticked-filename-only
+(no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
 _by construction_ — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
 derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
 special handling.
@@ -422,9 +410,15 @@ one concern" fact is preserved as **provenance — an immutable past-event recor
 
 ### Active-state decomposition
 
-Decomposition is normally a planning-time act, before code is written. Mid-implementation the supported path is
-**extraction**: the origin stays active and only its _unbuilt_ scope splits off into new members — committed code
-stays put. ARC runs this directly.
+Decomposition is normally a planning-time act, before code is written. Extraction is the supported source-preserving
+arm for a started `Planning` or `Active` source. It is entered through its own command mode, and the core retirement
+transform remains unchanged. Extraction preserves the origin in its current lifecycle state and keeps its committed
+code in place while retained unbuilt scope stays with the origin and transferred unbuilt scope splits into new
+members.
+
+The surviving origin is the natural continuation, not a selected successor. Extraction writes no transition
+record or receipt and stores no launch advice or publication packet. New leaves become startable only through their
+landed base metas and ordinary lifecycle resolution.
 
 Splitting an origin's _already-committed_ code across several members — a **full split** — is not an ARC operation;
 there is no `arc decompose` for it. It is the ordinary git task of dividing a branch's history across branches, and
@@ -448,7 +442,7 @@ Decompositions that author member design on a live planning branch stay full lif
 ### WU sizing standard
 
 Decomposition keys on **orthogonality, not size** — but size is the heads-up that prompts the question. This is
-the sizing standard the `assess-cohort-fit` method consumes:
+the sizing standard the `assess-boundary-fit` method consumes:
 
 - **Count distinct deliverables and independently-reviewable surfaces** — the primary signal. Several unrelated
   review surfaces in one WU is the decompose trigger.
@@ -456,9 +450,9 @@ the sizing standard the `assess-cohort-fit` method consumes:
   `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_ — review defect
   detection craters past a few hundred LOC per increment. Tightly-coupled work designed as a whole stays one WU
   even when large; the per-task review grain carries quality.
-- **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** — dependency-ordered WUs, each its
-  own branch, merged in order; independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
-  dependency-ordered delivery mode, not one WU spread across many branches.
+- **Stack vs. cohort:** a **stack** orders deliverables by dependency; a **cohort** groups sibling WUs. A cohort may
+  order its members, and one WU's delivery plan may order several deliverables — delivery topology does not decide
+  the concern boundary.
 
 ---
 
@@ -479,12 +473,11 @@ delivery shapes follow from the cut:
 
 **Branch scope:** One work unit per branch. Switching work units implies switching branches.
 
-**Per-WU meta file behavior on branches.** Each active WU carries its own
-`meta-{name}.md` at `active/`. The file is created by
-[activate-work-unit][activate-work-unit] on the WU's branch and deleted by
-[archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
-independent branches carry different files — no cross-branch mutation conflict is possible at
-the meta-file layer.
+**Per-WU meta file behavior on branches.** Each active WU carries its own `meta-{name}.md`
+at `active/`. The file is created by [activate-work-unit][activate-work-unit]
+on the WU's branch and deleted by [archive-work-unit][archive-work-unit] at
+the end of the WU's lifecycle. Parallel WUs on independent branches carry different
+files — no cross-branch mutation conflict is possible at the meta-file layer.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
@@ -498,12 +491,16 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 
 ### State Enum
 
-| Value         | Set By                                            | Meaning                                                                       |
-| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
-| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Task execution underway (the common case)                                     |
-| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
-| `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
+| Value         | Set By                                          | Meaning                                                                      |
+| ------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Planning`    | [init-work-unit][init-work-unit]                | Spec and task list being authored; task execution not yet begun              |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 3 | Implementation or private preparation underway; publication has not begun    |
+| `Integrating` | [prepare-work-unit][prepare-work-unit] Step 3   | Publication/public integration underway until the archive transition         |
+| `Shipped`     | [archive-work-unit][archive-work-unit]          | Archived final form; the default cadence may retain an incomplete merge tail |
+
+With the default `archive.cadence: with-integration`, archival produces a mergeable `Shipped` candidate before the
+final push and merge. Under `manual`, the work unit stays `Integrating` through merge and becomes `Shipped` when
+archive runs afterward.
 
 ### Readiness ladder
 
@@ -550,11 +547,11 @@ parked one — keeping them typographically distinct keeps that divergence legib
 
 Creating a backlog stub (`arc stub`) is the lifecycle's create edge — it mints a WU's `meta-{name}.md` directly at a
 backlog rung, with no ceremony. "No ceremony" is not "no inputs": the command **requires the judgment values
-supplied** and fabricates none. A stub names its **commitment** (`provisional` or `planned` — the readiness rung) and
-its **priority**; a `planned` stub additionally carries a resolved `**Class:**` — the same forcing point the
-[readiness ladder](#readiness-ladder) names (`[TBD]` is legal only in `provisional`). `Origin`, `Design`, and `Cohort`
-are optional. The command owns the mechanics (path, meta scaffold, ROADMAP regen); the commitment, priority, and
-`Class` calls are judgment it will not invent.
+supplied** · `[invariant]` and fabricates none. A stub names its **commitment** (`provisional` or `planned` — the
+readiness rung) and its **priority**; a `planned` stub additionally carries a resolved `**Class:**` — the same
+forcing point the [readiness ladder](#readiness-ladder) names (`[TBD]` is legal only in `provisional`). `Origin`,
+`Design`, and `Cohort` are optional. The command owns the mechanics (path, meta scaffold, ROADMAP regen); the
+commitment, priority, and `Class` calls are judgment it will not invent.
 
 ---
 
@@ -574,8 +571,10 @@ its depth selects — lives downstream of this strategy.
    lifecycle.
 
 2. **Task list structure is invariant across `Class`.** When a task list exists, its shape is fixed
-   — phase headings, leaf task format, completion markers, Success Criteria section. `Class`-scaled
-   ceremony varies the artifact's presence and rigor; the structural shape stays uniform.
+   — phase headings, leaf task format, completion markers, Success Criteria section. When the task list carries a
+   Delivery Plan, grouping criteria beneath delivery-member and seam headings is part of that fixed section shape,
+   not a departure from it. `Class`-scaled ceremony varies the artifact's presence and rigor; the structural shape
+   stays uniform.
 
 3. **A parseable spec exists in some form before task-list generation.** Spec form varies by mode
    × `Class` — `brief` / `outline` / `detailed`, or an external tracker entry — but existence
@@ -699,24 +698,22 @@ contains exactly the spawning WU's meta file plus its companions, and nothing el
 
 ## Main-on-Main Pattern
 
-The **main worktree** — the primary checkout the repository was cloned into — stays on `main`. It is not
-a work unit's worktree; it is the stable reference every WU worktree spawns from (see
-[§ Per-Worktree Isolation](#per-worktree-isolation)) and the launchpad for work that has no WU branch of
-its own: planning entry, stale-worktree sweep, repository-wide edits, and Errand launches (atomic fixes
-and other short-lived off-WU work — see [§ Errand Work Class](#errand-work-class)).
+The **physical primary** — the checkout the repository was cloned into — rests on the configured base while its
+marker is absent. In that state it is the stable reference spawned worktrees use (see
+[§ Per-Worktree Isolation](#per-worktree-isolation)) and the free launchpad for planning entry, cleanup, grooming,
+housekeeping, and Errand allocation (see [§ Errand Work Class](#errand-work-class)).
 
-ARC defines no separate, dedicated administrative worktree. Admin operations run from the main worktree
-directly — keeping `main` checked out there is what makes them safe to launch and gives every spawn a
-clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
-as the primary workspace _is_ the main worktree, with no extra setup.
+ARC defines no permanent administrative worktree. Allocation uses the free primary first and, under full
+protection, may provision a transient worktree when the primary is occupied or isolation is requested. The pattern
+composes with externally spawned worktrees: whatever checkout Git identifies as the physical primary is the
+launchpad when its derived role is free.
 
-Two disciplines keep the launchpad dependable. **`main` is the resting state, not a lock:** an Errand or
-grooming pass may occupy the main worktree with its short-lived branch as a bounded excursion, returning
-it to `main` at close — it is never parked on a branch between excursions. **One out-of-WU session at a
-time:** the main worktree is a single checkout (two sessions sharing it share HEAD, index, and
-per-checkout state), so out-of-WU work serializes through it; when it is occupied — or isolation is
-preferred — the Errand occupies an ephemeral worktree instead (see
-[§ Errand Work Class](#errand-work-class)).
+Two disciplines keep the launchpad dependable. **Base with no marker is the resting state:** a transient role may
+occupy the primary as a bounded excursion, and its close returns the checkout to base before removing its marker.
+**WU ownership is exclusive:** full protection spawns WUs by default; explicit `--here` converts the physical primary
+into a WU-owned occupied locus until exact teardown removes the marker and restores the configured base. While
+occupied by a WU, the primary is not available to any transient or another WU. Allocation refuses rather than
+displacing an existing role.
 
 ### Operational constraint
 
@@ -1121,8 +1118,8 @@ Planned work units require a branch from inception (single-branch-per-WU per
 branch before a work unit is initialized — is sanctioned under partial protection: it runs without a
 planning branch, cut when the work formalizes into a tracked WU. Its lack of a `meta-{name}.md` is
 **temporal, not a protection trait** — the meta is minted at `init` under either mode; partial protection
-shapes only the ship layer (branch/PR), never the record. Routine commits
-may go directly to the base branch as documented exceptions:
+shapes only the ship layer (branch/PR), never the record. Routine commits may
+go directly to the base branch as documented exceptions:
 
 - Framework maintenance: documentation updates, linting fixes
 - Off-work-unit maintenance commits (no associated task list or work-unit branch)
@@ -1150,18 +1147,19 @@ concrete GitHub-flavored recipe ships in [`reference/templates/arc/merge-gate/`]
 
 Two lanes, by what the PR touches — classified by artifact **prefix**, not by directory:
 
-- **Auto-merge lane** — per-WU and per-cohort planning grooming: the movable artifacts `draft-*`, `tasks-*`,
-  `meta-*`, `notes-*`, and the `cohort-*` coordination record, under `active/` or `backlog/`. Single-increment
-  grooming with no design authority. Merges automatically once required checks pass; no human review required.
+- **Auto-merge lane** — per-WU and per-cohort planning content: the movable artifacts `draft-*`, `tasks-*`,
+  `meta-*`, `notes-*`, `research-*`, and `analysis-*`, and the `cohort-*` coordination record, under `active/` or
+  `backlog/`, plus the generated `backlog/ROADMAP.md`, so regenerating readiness does not force a planning change
+  onto the reviewed lane. Merges automatically once required checks pass; no human review required.
 - **Reviewed lane** — everything else. Explicitly: **design-authority** artifacts (`spec-*`, `prd-*`); the
   **constitutional** surfaces — rules (`DEV-RULES.*`), ADRs (`reference/adr/**`), strategies
-  (`reference/strategies/**`); the **derived or shared project surfaces** — `ROADMAP` (rendered from metas, so a
-  hand-edit must not silently diverge from its source) and the shared backlog inboxes (a hand-edit to one
-  is reviewed; the between-WUs drain's own disciplined flush is the carve-out below); and all code. Always
-  requires owner review before merge.
+  (`reference/strategies/**`); the **shared project surfaces** — the shared backlog inboxes (a hand-edit to one is
+  reviewed; the between-WUs drain's own disciplined flush is the carve-out below) and a work unit's transition
+  record, which classifies as planning for CI job selection but stays owner-reviewed as authoritative history; any
+  other artifact kind; and all code. Always requires owner review before merge.
 
-A PR that touches any reviewed-lane path is reviewed-lane as a whole — the lanes never split a single PR. Keep
-grooming PRs path-pure to stay on the auto-merge lane.
+**A PR that touches any reviewed-lane path is reviewed-lane as a whole** · `[invariant]` — the lanes never split a
+single PR. Keep grooming PRs path-pure to stay on the auto-merge lane.
 
 The lane classifies by **content type, not concurrency**: it decides whether a change needs a human to read it,
 not whether two branches edit the same artifact at once. Concurrent edits to a shared record — a multi-owner
@@ -1228,10 +1226,10 @@ lane: whether it warrants a hard gate or only a notification, and at what granul
 
 Three conditions compose the lane on any host:
 
-1. A **stable required status check present on every PR** — call it `merge-ok`. It runs unconditionally, so
-   branch protection always has a check to wait on. This is why the recipe uses a conditional status job and
-   **not** a path-ignored CI workflow: a required check that is path-filtered away never reports, stays
-   _Pending_, and blocks the merge indefinitely.
+1. A **stable required status check present on every PR** — call it `ci-ok`, since it asserts only that required
+   CI passed, not that the PR may merge. It runs unconditionally, so branch protection always has a check to wait
+   on. This is why the recipe uses a conditional status job and **not** a path-ignored CI workflow: a required
+   check that is path-filtered away never reports, stays _Pending_, and blocks the merge indefinitely.
 2. **Owner review required for reviewed-lane paths only** — a code-owners mapping that names owners for the
    constitutional surfaces and leaves auto-merge-lane paths unowned, so only reviewed-lane PRs require approval.
 3. **Native auto-merge enabled** — the PR merges itself the moment its required conditions are satisfied
@@ -1243,10 +1241,12 @@ the classification as doctrine plus manual review discipline.
 
 Code-owners patterns are a path-ownership approximation: they cannot express the canonical filename grammar,
 rename/copy identity, or Git type/mode changes. ARC-managed workflows therefore rerun the canonical exact-base/head
-classifier immediately before arming native auto-merge and permit arming only on literal `planning`; a confidently
-recognized human-only review condition may still move that result to reviewed, never the reverse. Without the
-optional ARC merge guard this is procedural enforcement at the integration interlock. When `arc-cleared` is
-installed and required, its planning writer makes the same exact classification structural at the host.
+classifier immediately before arming native auto-merge and permit arming only on literal `planning`.
+**Escalation is one-directional** · `[invariant]` — a confidently recognized human-only review condition may move
+that result to reviewed, never the reverse. That classifier gate plus the integration interlock is procedural
+enforcement — never infer merge safety from agent-layer discipline alone. Optional draft-state lock
+(`merge.lock: draft`) is a separate per-PR structural hold on host mergeability; the classifier decision and the
+integration interlock remain the arming and merge authorities.
 
 **Solo repositories.** Condition 2 is a two-party primitive — a sole maintainer cannot approve their own PR, so
 requiring code-owner review would block every reviewed-lane PR. A solo repo instead requires only the stable
@@ -1262,25 +1262,21 @@ for a solo maintainer it stands in for the missing second pair of eyes.
 
 ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
 
-- **Work Unit (WU)** — a bounded unit of design-bearing or trackable work with its own branch, a
-  `meta-{name}.md`, a lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
+- **Work Unit (WU)** — a concern that clears [classify-work-unit][classify-work-unit] boundary test 1, with its
+  own branch, `meta-{name}.md`, lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
   planning entry point (spawn or cold-start; see [§ Branching](#branching)).
-- **Errand** — a single self-evident concern below the WU wrapper, **below floor on both intrinsic `Class` axes**
-  (nothing worth recording as design, no durable plan a correct execution must navigate — neither a substantial
-  grounding surface nor cross-session tracking) and validated by intent + diff + review. **Atomic in character** —
-  one indivisible concern bounded to a single session; _typically_ one review increment, though a determinate sweep
-  may stage into a bounded few **in-session** review passes (the _extended errand_) and stays an Errand, however
-  many commits it lands in. No meta, no lifecycle, no name as a WU. Tracked by git history (Conventional Commits +
-  the `standalone (...)` context footer — see [`commit-footer`][commit-footer-method]), not by the planning layer
-  (ROADMAP, backlog, `active/`).
+- **Errand** — a concern below [classify-work-unit][classify-work-unit] boundary test 1. Atomic in character:
+  one indivisible concern bounded to a single session, typically one review increment; a determinate sweep may take
+  bounded in-session review passes and multiple commits. No meta, no WU lifecycle. Tracked by git history
+  (Conventional Commits + the `standalone (...)` context footer; see [commit-footer][commit-footer-method]).
 
 ### Two layers — one character, a mode-scaled mechanism
 
 An Errand is one **work character** (off-WU, a single self-evident concern below the wrapper) whose **mechanism is
 a mode-scaled projection** of `branch.protection`:
 
-- **Character layer (universal).** The Errand-vs-WU gate — spec-worthiness ([§ Class Model](#class-model) boundary
-  test #1) — is the same judgment in every protection mode, learned once.
+- **Character layer (universal).** The record test in [classify-work-unit][classify-work-unit] boundary
+  test 1 is the same judgment in every protection mode, learned once.
 - **Mechanism layer (mode-scaled).** _Partial — the floor:_ a direct base commit tracked by its `standalone (...)`
   context footer; commit-then-done, no branch, no lifecycle. _Full — the lattice:_ a short-lived branch + PR with a
   derived lifecycle (see [§ Cheap-branch path](#cheap-branch-path)).
@@ -1297,39 +1293,23 @@ path. Work you are not committing to now is an inbox capture — triaged at a la
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
 § Discovered Work Routing). A third case sits outside the matrix entirely: work your **own work unit's spec
 already claims** — a coordination write-back it scoped in — is WU scope and rides the WU's PR, never an Errand;
-the matrix governs _incidental_ cross-cutting work only. For that incidental case, two axes govern the choice:
-**create vs. maintain** decides whether the work needs the Work-Unit wrapper at all; **self-contained vs.
-cross-cutting** decides how an Errand routes once it does not.
+the matrix governs _incidental_ cross-cutting work only. For that incidental case,
+[classify-work-unit][classify-work-unit] boundary test 1 decides whether the work needs the Work-Unit wrapper;
+**self-contained vs. cross-cutting** decides how an Errand routes.
 
-| Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
-| ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
-| **Create** — a new tracked unit of future work | Work Unit                      | Work Unit                                          |
-| **Maintain** — an existing artifact            | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
+| Once committed to act ↓             | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
+| ----------------------------------- | ------------------------------ | -------------------------------------------------- |
+| **Maintain** — an existing artifact | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
 
-Create resolves to a Work Unit in both columns: minting a tracked deliverable is itself what trips the
-threshold, so the routing axis only bites for **maintain**. A create that also touches a foreign artifact is
-two concerns — mint the Work Unit, and route the foreign edit as its own maintain Errand.
+Making a new stub is [route-discovered-work][route-discovered-work]'s `new-stub` outcome for a concern the record
+test calls a Work Unit, a transient act through `arc stub`. A stub change that
+also touches a foreign artifact is two concerns: make the stub, and route the foreign edit
+as its own maintain Errand.
 
-**Create vs. maintain — the Work-Unit/Errand axis.** _Creating_ a new tracked unit of future work — a backlog
-stub — is a (small) Work Unit even at one commit, because its output is a tracked deliverable with a meta file
-and a roadmap slot. _Maintaining_ an existing artifact — a dependency note, a cross-reference, a doc fix — is
-an Errand. The split operationalizes the general Work-Unit threshold: promote to a Work Unit when the work is
-**spec-worthy** — _any_ of these hold —
-
-1. it clears the **scale floor** — a correct plan must navigate a _substantial_ codebase-grounding pass, beyond
-   the routine floor (spec-worthy by grounding demand);
-2. it carries **design that must be authored and referenced** (a Spec — the derivation floor);
-3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
-   cross-session lifecycle).
-
-None of these → it is an Errand, _however many commits it spans_ — and, when determinate, however many in-session
-review passes it is staged into. Create trips criterion 3; a maintain edit that turns out to clear a floor —
-substantial grounding, authored design, or a need for cross-session tracking — trips 1, 2, or 3 and likewise
-promotes, but spanning multiple commits or staging review into a few in-session passes never does on its own. As an
-empirical _symptom_ check — not the primary criterion — a candidate too large to review in one window
-(~400 lines / ~60 minutes) is either an **extended errand** (determinate, reviewed in a bounded few in-session
-passes) or hides authored design / a substantial grounding surface / a need for cross-session tracking — re-examine
-it against floors 1–3 to tell which.
+The record test alone decides the wrapper. A roadmap slot is when, not what: Errand-shaped work for later waits
+as a `§ Errand` capture. An owner follows from the wrapper and never decides it. A dependency is waiting, which
+record question 1 excludes. As a symptom check, re-examine a candidate too large to review in one window against
+the four questions; size alone may describe an extended Errand and never decides the line.
 
 **Self-contained vs. cross-cutting — the Errand-routing axis.** This axis applies once the work resolves to an
 Errand. A **self-contained** Errand touches only artifacts in your own scope and takes the cheap-branch path
@@ -1357,39 +1337,35 @@ The cheap-branch mechanism lands an Errand without WU machinery. Behavior depend
 
 - **Partially protected:** an Errand commits directly to the base branch (the documented off-WU-maintenance
   path).
-- **Fully protected:** an Errand uses a short-lived ephemeral branch with a `chore`-type prefix (per
-  [`branch-format`][branch-format-method]) plus a PR. The branch exists only long enough for review and
-  merge, then is torn down. It is not a planning branch, carries no meta, and never enters lifecycle.
+- **Fully protected:** an Errand uses a short-lived ephemeral branch plus a PR. `arc errand open --type <type>` selects
+  `fix`, `chore`, `refactor`, or `hotfix` for the work's nature, defaulting to `chore`; the identity record determines
+  that it is an Errand. The branch exists only long enough for review and merge, then is torn down. It is not a planning
+  branch, carries no meta, and never enters lifecycle.
 
 Either way, the work is tracked by its commit's `standalone (...)` context footer (vocabulary:
 `maintenance | planning | documentation | refactor`; see [`commit-footer`][commit-footer-method]) rather than
 by an `active/` entry.
 
+Under full protection, a paused exact WIP head or an exact awaiting-merge change request retains the Errand
+identity and exact saved head or change-request evidence after local occupancy ends. These are operational re-entry
+states for the same atomic concern, not a durable plan: they create no WU meta, task list, SESSION-NOTES, or
+planning branch. A later session materializes or resumes the exact generation; unmatched marker or identity
+evidence is residue. Work that needs cross-session decomposition promotes to a WU instead.
+
 ### The cut→occupy invariant
 
-Cutting a `chore/<slug>` branch and _occupying_ it are **separate mechanics with a strict ordering** — the branch is
-cut off the base, then occupied: an in-place switch of the main worktree when it is free (the default locus — see
-[§ Main-on-Main Pattern](#main-on-main-pattern)), or an ephemeral worktree when it is occupied or isolation is
-preferred. The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
-caller on its launch branch, writing the Errand's commits to the wrong place.
-
-`arc errand open` is the sole errand entry verb, and it **composes** the two — the internal cut mechanic
-(`cutErrandBranch`) followed by the occupy — in a single step, so the invariant holds by construction. There is no
-standalone cut command: exposing the cut half alone would let a caller create the branch and forget to occupy it,
-the exact failure the invariant forbids. Any internal site that cuts a branch carries the same obligation — cut,
-then immediately occupy.
+`arc errand open` is the sole Errand entry verb. Under full protection it atomically claims the Errand identity,
+allocates the free primary or a spawned transient worktree, and establishes the role before work begins. Under
+partial protection it occupies only the free primary or refuses. There is no in-place displacement fallback and no
+standalone branch-cut operation: a branch is never exposed without its matching occupied locus.
 
 ### Entry path
 
 An Errand runs through the `run-errand` workflow, dispatched by `arc-session` (via `--errand`, or surfaced at
-between-WU orientation). It launches from **any worktree**: the workflow's Launch phase resolves the base branch
-and relocates the execution locus itself onto the cheap-branch path (see
-[§ Cheap-branch path](#cheap-branch-path)) — to the main worktree when it is free (the default locus), or into an
-ephemeral worktree when it is occupied or isolation is preferred — so the caller need not pre-switch worktrees. It
-does not invoke
-planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has neither of. The
-Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded by git history
-through its commit footer, and tears down.
+between-WU orientation). It may be requested from any locus, but allocation never switches or repurposes a WU-owned
+checkout. The entry verb returns the exact primary or spawned transient locus to use. It does not invoke planning
+entry — WU start scaffolds meta files and lifecycles, which an Errand has neither of. The Errand mints no `active/`
+artifact; it ships, is recorded by git history through its commit footer, and closes through its subject verb.
 
 ### Batch execution — the sequential drain
 
@@ -1420,11 +1396,11 @@ adding parallelism.
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
 subdirs would be redundant — concurrency comes from more worktrees, not more metas in one `active/`.
-Artifact applicability scales with mode and `Class`; see
-[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
-the pre-PRD synthesis artifact, deleted at PRD creation per `create-spec.md` (with optional
-graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
-Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
+Artifact applicability scales with mode and `Class`; see [§ Spec-Flow Invariants](#spec-flow-invariants)
+for the invariants and scaling axes. `draft-*.md` is the pre-PRD synthesis artifact,
+deleted at PRD creation per `create-spec.md` (with optional graduation of substantive
+persisting content into `notes-*.md`); it never appears in `active/`. Archive-phase
+content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
 the meta file at integration — there is no separate `completion-<name>.md` artifact.
 
 ### Alignment
@@ -1455,6 +1431,7 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 [promote-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/promote-work-unit.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[prepare-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
@@ -1463,3 +1440,4 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/
 [merge-gate-templates]: ../../templates/arc/merge-gate/README.md
+[route-discovered-work]: ../../../system/methods/route-discovered-work.md

@@ -112,6 +112,10 @@ export async function removeGitBackedDirs(
 export interface CreateTempRepoOptions {
   /** Temp directory name prefix (tier personality). */
   prefix?: string;
+  /** Explicit ref storage for fixtures exercising both supported Git formats. */
+  refFormat?: "files" | "reftable";
+  /** Explicit object hashing for fixtures exercising both Git object formats. */
+  objectFormat?: "sha1" | "sha256";
   /**
    * When provided, sets `arc.identity` on the repo so `arc init --yes` skips
    * the interactive identity prompt. E2E fixtures pre-set `"test-user"`;
@@ -135,10 +139,10 @@ export interface CreateTempRepoOptions {
  * @returns Absolute path to the initialized temp repo. Caller owns teardown via {@link removeGitBackedDir}.
  */
 export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
-  const { prefix = "arc-test-", identity } = options;
+  const { prefix = "arc-test-", identity, refFormat, objectFormat } = options;
   const dir = await mkdtemp(join(tmpdir(), prefix));
   try {
-    await execFileAsync("git", ["init", "-b", "main", dir]);
+    await execFileAsync("git", ["init", "-b", "main", ...(refFormat ? [`--ref-format=${refFormat}`] : []), ...(objectFormat ? [`--object-format=${objectFormat}`] : []), dir]);
     await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
     await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
     await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
@@ -158,4 +162,16 @@ export async function createTempRepoCore(options: CreateTempRepoOptions = {}): P
     }
     throw error;
   }
+}
+
+/**
+ * Commit the whole working tree of a fixture repository, with its installed hooks off.
+ *
+ * @param dir - Repository root.
+ * @param message - Commit message.
+ */
+export async function commitAll(dir: string, message = "chore: commit fixture state"): Promise<void> {
+  await execFileAsync("git", ["add", "-A"], { cwd: dir });
+  await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "--allow-empty", "-m", message],
+    { cwd: dir });
 }

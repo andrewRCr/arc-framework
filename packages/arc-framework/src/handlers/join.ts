@@ -4,7 +4,9 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import { confirmPersonalIdentity } from "./identity-setup.js";
+import * as p from "../lib/terminal.js";
+import { joinIdentityPromptSite, joinIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { unlink, rmdir } from "node:fs/promises";
 
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
@@ -14,25 +16,87 @@ import { runJoinPrompts } from "../prompts/join-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
-import { gitExec } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
-  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  requireArcProjectRoot, requireSetupGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
+import { execa } from "execa";
+import type { GitExec } from "../lib/git/exec.js";
+import { SlugSchema, type Slug } from "../lib/kernel/index.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { consumePull, pullDesignation } from "../lib/store/pull-consumption.js";
+import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
+import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
+import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
+
+/** Optional backend bindings for the identity being set up. */
+export interface JoinStorePorts {
+  openStore?: (input: { cwd: string; exec: GitExec; identity: Slug }) => Store;
+  sync?: (store: Store) => StoreSyncPort;
+  execute?: (argv: readonly string[], cwd: string, context: InteractionContext) => Promise<JoinDesignationOutcome>;
+  renderer?: PromptRenderer;
+}
+
+/** A designation run's outcome; a failed run's own output already reached the terminal it inherited. */
+export type JoinDesignationOutcome = { status: "ok" } | { status: "failed"; reason: string };
+
+/** Cancellation stops setup before identity or workspace writes. */
+export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" } | null;
+
+/** Pull the selected person's state and offer an explicit remote designation when required. */
+export async function pullJoinStore(input: { cwd: string; exec: GitExec; identity: Slug | null; context: InteractionContext },
+  ports: JoinStorePorts = {}): Promise<JoinStorePullResult> {
+  if (input.identity === null) return null;
+  const store = ports.openStore?.({ cwd: input.cwd, exec: input.exec, identity: input.identity })
+    ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
+  if (!store.capabilities.stateOffBranch) return null;
+  const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
+  const value = describeStorePull(result), consumed = consumePull(result);
+  const notices = consumed.notices.filter(notice => notice !== consumed.designationNotice);
+  for (const line of [...consumed.kind === "stop" ? [consumed.reason] : [], ...notices]) p.log.warn(line);
+  const designation = pullDesignation(result);
+  if (designation === undefined) return value;
+  p.log.info(value.summary);
+  if (input.context.interaction !== "allowed") return value;
+  const remedyArgv = designation.remedy.argv ?? [];
+  const recommended = remedyArgv.at(-1);
+  const answer = await prompt(joinStoreDesignationSite, input.context, {
+    message: `How should remote ${designation.remote} serve store state?`,
+    options: designation.choices.map(choice => ({ value: choice, label: choice,
+      ...(choice === recommended ? { hint: remedyArgv.join(" ") } : {}) })),
+    ...(recommended !== undefined && designation.choices.includes(recommended) ? { initialValue: recommended } : {}),
+  }, ports.renderer);
+  if (answer.kind === "cancelled") return { status: "cancelled" };
+  if (answer.kind !== "answered" || !designation.choices.includes(answer.value)) return value;
+  const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", designation.remote, answer.value];
+  const designated = await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
+  if (designated.status === "failed") {
+    p.log.warn(`${argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);
+  }
+  return value;
+}
+
+async function executeJoinDesignation(argv: readonly string[], cwd: string, context: InteractionContext): Promise<JoinDesignationOutcome> {
+  const [command, ...args] = argv;
+  if (command === undefined) return { status: "ok" };
+  const result = await execa(command, args, { cwd, reject: false, stdin: context.subprocess.ambientStdin === "closed" ? "ignore" : "inherit",
+    stdout: "inherit", stderr: "inherit", env: context.subprocess.terminalPrompts === "forbidden" ? { GIT_TERMINAL_PROMPT: "0" } : {} });
+  if (!result.failed) return { status: "ok" };
+  return { status: "failed", reason: result.exitCode !== undefined ? `exited with code ${result.exitCode}`
+    : result.signal ? `was ended by ${result.signal}` : `could not start: ${result.shortMessage}` };
+}
+
 export type JoinOptions = JoinCommandOptions;
 
-export async function handleJoin(opts: JoinOptions, suppliedContext?: InteractionContext): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
+/** Set up a personal workspace, then pull through its selected-identity store. */
+export async function handleJoin(opts: JoinOptions, context: InteractionContext, storePorts: JoinStorePorts = {}): Promise<void> {
+  const io = createIOContext(context.subprocess);
 
   if (opts.reconfigure) {
     await handleJoinReconfigure(opts, context);
@@ -41,19 +105,18 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
 
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireSetupGitRepo(io.exec, "join"))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext(context.subprocess);
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
     }),
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: () => resolveIdentityWithPrompt(joinIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);
@@ -68,6 +131,13 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
   spinner.start("Setting up developer workspace...");
 
   try {
+    const identity = identityResult === null ? null : SlugSchema.parse(identityResult);
+    const store = identity === null ? undefined : storePorts.openStore?.({ cwd, exec: io.exec, identity })
+      ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec, identity }));
+    if (store?.capabilities.stateOffBranch) {
+      const pulled = await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, openStore: () => store });
+      if (pulled?.status === "cancelled") { spinner.stop("Workspace setup cancelled."); return; }
+    }
     const result = await runJoin({
       cwd,
       io,
@@ -75,9 +145,14 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
       internalTemplateDir: getInternalTemplatePath(),
       prompts,
       identityResult,
+      store,
+      confirmIdentityInUse: confirmPersonalIdentity(joinIdentityInUsePromptSite, context, storePorts.renderer),
     });
 
     spinner.stop("Workspace setup complete.");
+    if (!store?.capabilities.stateOffBranch) {
+      await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, ...(store === undefined ? {} : { openStore: () => store }) });
+    }
 
     p.note(buildPostJoinMessage(result), "What's next");
   } catch (err) {
@@ -106,17 +181,17 @@ function reportJoinInputFailure(input: Exclude<InputResolution<unknown>, { kind:
 
 async function handleJoinReconfigure(opts: JoinOptions, context: InteractionContext): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure Workspace`);
+  const io = createIOContext(context.subprocess);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireSetupGitRepo(io.exec, "join"))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext(context.subprocess);
 
   // Read current role from git config
   let currentRole: "maintainer" | "contributor" = "maintainer";
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.role"]);
+    const result = await io.exec("git", ["config", "--get", "arc.role"]);
     const val = result.stdout.trim();
     if (val === "contributor") currentRole = "contributor";
   } catch {
@@ -126,7 +201,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   // Read current tools from git config
   let currentTools: string[] = [];
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.tools"]);
+    const result = await io.exec("git", ["config", "--get", "arc.tools"]);
     const val = result.stdout.trim();
     if (val) {
       currentTools = val.split(",").map((t) => t.trim()).filter(Boolean);
@@ -138,14 +213,12 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    current: { role: currentRole, tools: currentTools },
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
       currentRole,
       currentTools,
     }),
-    resolveIdentity: resolveIdentityWithPrompt,
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);

@@ -2,9 +2,8 @@
 
 ## Status
 
-Proposed. **Flip trigger:** flips to _Accepted_ at the kickoff of the `operational-state-docs` work unit
-(Decision §9) — "just before implementation," per the ADR lifecycle. That work unit carries the flip as an
-explicit first action; until then the model is decided-in-principle, not yet in build.
+Accepted (2026-10-10), where the 2026-09-29 amendment set it: before any `storage-seam` member starts building the
+family parsers — "just before implementation," per the ADR lifecycle.
 
 Builds on [ADR-019][adr-019] (Work Organization Reform — always-present `meta-*`, meta files as the state
 source of truth) and [ADR-020][adr-020] (the derived-vs-mutated split, the invariant floor). It does not
@@ -35,12 +34,11 @@ independently re-encoded by scattered consumers (`meta-reader`, `worktree-roster
 - The cross-WU merge parses markdown on the hot path; a whole-format convention change fails silently (the
   merge finds zero entries and reverts to most-recent-wins — the clobbering bug it exists to prevent).
 
-The customization line is also muddled. ARC's file-classification taxonomy
-(`Framework / Configurable / Scaffolded / Project-Owned`) is organized around **update behavior**, not
-**structural ownership** — it has no concept for "the CLI depends on this file's structure." `Framework`
-incidentally locks structure via overwrite-on-update, but that is a side effect, not an articulated
-property; `ROADMAP` is classified `Scaffolded` (adopter-editable) while strategy says never edit it; and
-`strategy-configurability-architecture` contains a live contradiction — its "File-customizable" path lists
+The customization line is also muddled. ARC's file-classification taxonomy (`Framework / Configurable / Scaffolded /
+Project-Owned`) is organized around **update behavior**, not **structural ownership** — it has no concept for "the CLI
+depends on this file's structure." `Framework` incidentally locks structure via overwrite-on-update, but that is a side
+effect, not an articulated property; `ROADMAP` is classified `Scaffolded` (adopter-editable) while strategy says never
+edit it; and `strategy-configurability-architecture` contains a live contradiction — its "File-customizable" path lists
 "template formats" as adopter-customizable, against its own "Structural contract: fill in, don't redesign."
 
 The decisive finding from a corpus survey (the agile-parallelism cohort, the architecture-remediation /
@@ -157,8 +155,7 @@ structured-record source-of-truth model for them.
    of the current markdown-canonical documents. It depends on `cli-substrate-adoption` (zod substrate) and
    **subsumes** two scattered captures: the `USER-INBOX` "structured-storage + routed-write" entry (Move B
    for `WORKING-MEMORY` / `USER-INBOX`) and `cli-substrate-adoption`'s "Complete-Migration" placeholder, for
-   the
-   managed-document surfaces.
+   the managed-document surfaces.
 
 ## Consequences
 
@@ -199,8 +196,8 @@ structured-record source-of-truth model for them.
 - **The reconciled-editable-region parse-back is a new correctness surface.** A malformed region must fail
   loudly and recover, not silently drop content. Mitigated by the round-trip test harness and a robust
   importer/recovery path (the markdown-to-record direction survives as a one-way recovery import).
-- **Notes-synced members depend on transport reliability.** `cross-machine-sync-coherence` addresses a known
-  partial-push gap; any "notes-synced" assignment here depends on it and must not assume it solved.
+- **Notes-synced members depend on transport reliability.** `partial-push-marker` closed a known partial-push
+  gap, and any "notes-synced" assignment here depends on that hardening.
 - **Storage-agnosticism must be enforced**, or the schema layer could re-bake in-repo assumptions (the
   `git log .arc/...` anti-pattern). The new work unit self-checks against `strategy-storage-evolution`.
 
@@ -213,7 +210,7 @@ units. The alignment edits below are the propagation set.
   engine, write primitive, `structural_contract` annotation + manifest wiring, round-trip harness,
   migration). Subsumes the `USER-INBOX` "structured-storage + routed-write" capture and
   `cli-substrate-adoption`'s "Complete-Migration" placeholder for managed-document surfaces. Created in
-  `backlog/planned/`; its kickoff (activation) flips this ADR to _Accepted_ (see Status).
+  `backlog/planned/`.
 - **`configurable-lifecycle-artifacts` (new, provisional)** — captures the out-of-scope concern: lifecycle
   workflows are rigidly coupled to authored-artifact template shapes, with no configurable primitive bounding
   non-negotiable structure vs. swap-in slots. Rough shape only.
@@ -232,8 +229,8 @@ units. The alignment edits below are the propagation set.
   name the record/schema as authority, with `template-meta.md` as its render skeleton.
 - **`cli-substrate-adoption`** — enumerate full managed-document schema coverage (it currently covers four
   surfaces); resolve the schema-home convention; the meta record is its schema, consumed by this model.
-- **`schema-introspection-layer`** — the `arc schema` registry exposes the managed-document schemas; scope
-  which at launch.
+- **`schema-introspection-layer`** — the managed-document schemas publish through the `arc schema` registry as
+  each registers in production.
 - **`lib-layer-type-extraction`** — carve out managed-document types that become `z.infer` from the schema;
   do not re-home them as hand-written types.
 - **`roadmap-tooling`** — `ROADMAP` / `STATUS.PROJECT` is the canonical derived member; its renderer is the
@@ -254,7 +251,7 @@ units. The alignment edits below are the propagation set.
   owner (with `cli-substrate-adoption`) of `arc-config.yml`'s structure-vs-value model — the adjacent archetype
   of this ADR's structural-ownership principle (keys code-owned, values customizable); keep its key-schema
   treatment consistent with the managed-document schemas.
-- **`cross-machine-sync-coherence`** — notes-synced members depend on its transport hardening.
+- **`partial-push-marker`** — notes-synced members depend on its transport hardening.
 - **`arc-backend` / `strategy-storage-evolution`** — the record layer must be forward-compatible with the
   backend tier; self-check against the storage-evolution principles.
 - **`doc-naming-convention`** — owns the file renames (`WORKING-MEMORY → MEMORY.USER`, etc.); this ADR
@@ -275,6 +272,15 @@ units. The alignment edits below are the propagation set.
 
 <!-- Three-tier amendment model (strategy-adr-methodology.md): corrections fixed directly; amendments
 appended as dated annotations below; supersession via a new ADR + a Status update here. -->
+
+**Amendment (2026-09-29):** File-as-record replaces the rendered projection for every member except the derived ones.
+Under ADR-035's storage contract the markdown file is itself the record: each family's parser reads its fields from the
+file, and the contract validates them when the file is written back, refusing a malformed field rather than rendering
+drift away. Rendering stays for derived members only (§4's first arm). This redirects §2; §4's agent-maintained members
+merge entry by entry over entries parsed from the file (ADR-035's item 7 amendment); and §5's reconciled editable region
+is no longer needed, since nothing renders over prose. §8's interim storage assignment gives way to ADR-035. Of §9, the
+parsers are built by the storage program as it routes each family through the contract, and `operational-state-docs`
+keeps the conformance gate and its user-surface verbs.
 
 ---
 

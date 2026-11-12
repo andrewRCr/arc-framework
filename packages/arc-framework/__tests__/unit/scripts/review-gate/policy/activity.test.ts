@@ -97,8 +97,8 @@ describe("review method activity port", () => {
     expect(defaults.activations.frontlineReview.source).toBe("package-default");
 
     const project = bindReviewMethodActivity(files({
-      "self-review": method("self-review", false),
-      "frontline-review": method("frontline-review", true),
+      "code-review-author": method("code-review-author", false),
+      "code-review-frontline": method("code-review-frontline", true),
     }));
     expect(resolveReviewMethodActivity(project.activityPort)).toEqual({
       activity: { selfReview: false, frontlineReview: true },
@@ -110,24 +110,24 @@ describe("review method activity port", () => {
 
   it("falls back per method for missing or malformed project activation", () => {
     const bound = bindReviewMethodActivity(files({
-      "self-review": "not frontmatter",
-      "frontline-review": method("frontline-review", "enabled"),
+      "code-review-author": "not frontmatter",
+      "code-review-frontline": method("code-review-frontline", "enabled"),
     }));
     expect(resolveReviewMethodActivity(bound.activityPort).activity).toEqual({
       selfReview: true,
       frontlineReview: false,
     });
     expect(bound.diagnostics).toEqual(expect.arrayContaining([
-      expect.stringContaining("self-review"),
-      expect.stringContaining("frontline-review"),
+      expect.stringContaining("code-review-author"),
+      expect.stringContaining("code-review-frontline"),
     ]));
   });
 
   it("keeps activation independent of override population and mode", () => {
     const bound = bindReviewMethodActivity(files({
-      "self-review": method("self-review", false, ["override-active: true", "override-mode: extend"])
+      "code-review-author": method("code-review-author", false, ["override-active: true", "override-mode: extend"])
         .replace("override-active: false\n", ""),
-      "frontline-review": method("frontline-review", true),
+      "code-review-frontline": method("code-review-frontline", true),
     }));
     expect(resolveReviewMethodActivity(bound.activityPort).activity).toEqual({
       selfReview: false,

@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ConfigSessionInitResultSchema } from "../../src/commands/config/status.js";
 
 import {
   buildConfigSessionInitSummary,
@@ -15,30 +16,40 @@ import {
 import type {
   ConfigSessionInitResult,
   ConfigSessionInitSettings,
-  ConfigSettings,
   ConfigStatusResult,
 } from "../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../src/lib/config/schema.js";
 
 const FULL_SETTINGS: ConfigSettings = {
   "inbox.remind_after_days": "1",
+  "inbound.retriage_after_entries": "10",
+  "inbound.retriage_after_days": "30",
+  "pause.review_after_days": "14",
   "integration.stale_after_days": "2",
-  "review.chunking_threshold_lines": "0",
-  "review.chunking_threshold_files": "0",
+  "changeset.advisory_threshold_lines": "0",
+  "changeset.advisory_threshold_files": "0",
   "branch.base": "main",
   "branch.protection": "full",
   "worktree.location_template": "../{repo}.{name}",
   "worktree.post_create": "",
   "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+  "storage.backing_repository": "",
   "commit.format": "conventional",
   "commit.context_footer": "required",
   "commit.custom_pattern": "",
   "commit.context_pattern": "",
   "merge.strategy": "merge",
+  "merge.lock": "none",
   "platform.type": "github",
   "review.frontline_sources": "[]",
   "review.standard_sources": "[]",
   "review.frontline_max_passes": "2",
   "review.standard_max_passes": "2",
+  "review.hosted_await_timeout_seconds": "120",
+  "review.hosted_await_initial_poll_interval_seconds": "15",
+  "review.hosted_await_attention_after_minutes": "15",
+  "review.checks_await_timeout_seconds": "300",
+  "review.checks_await_initial_poll_interval_seconds": "5",
   "pm.mode": "arc-in-git",
   "team.mode": "false",
   "session.remote_sync": "enabled",
@@ -48,6 +59,8 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.init_load.notes": "prompt",
   "sync.auto_pull": "false",
   "archive.cadence": "with-integration",
+  "storage.track_design_docs": "specs",
+  "layout.active": "nested",
   "user.notes_push": "on-sync",
 };
 
@@ -189,7 +202,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
 
   it("session-init result preserves fields through JSON.stringify/parse", () => {
     const result = sessionInitResult({ defaultsApplied: ["pm.mode"] });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigSessionInitResult;
+    const roundTripped = ConfigSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
     expect(roundTripped.settings["session.remote_sync"]).toBe("enabled");

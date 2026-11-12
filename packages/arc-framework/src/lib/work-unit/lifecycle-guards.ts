@@ -11,7 +11,7 @@
  *   nameCollisionGuard} wires it onto the create-new edge as the belt-and-braces
  *   rejection (a forced scaffold over an existing name never lands a second meta).
  * - **worktree-occupancy** — one active work unit per worktree.
- *   {@link makeWorktreeOccupancyGuard} composes the lite/full-aware active-meta
+ *   {@link makeWorktreeOccupancyGuard} composes the active-meta
  *   reader (the same one session-init's active-resolution uses) with the
  *   slug→state derivation, rejecting when the worktree already holds a *different*
  *   work unit in an occupying state (`planning` / `active` / `integrating`)
@@ -26,11 +26,18 @@
  * @module
  */
 
+import { inspectCheckoutMarker, type MarkerOccupancy } from "../locus/marker-occupancy.js";
+import { decodeWorktreeMarkerOwnership } from "../git/worktree-marker.js";
+import { ownedInFlight, type UnboundMarkerClassification } from "../locus/unbound-marker.js";
+import { sameReference } from "../store/identity.js";
+import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
+import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
+import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import type { MetaFileCandidate } from "../../commands/active/types.js";
 import type { ReaderResult } from "../active/meta-reader.js";
-import type { GitExec } from "../git/exec.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
-import type { GuardValidator } from "./lifecycle-executor.js";
+import type { GuardValidator, GuardResult } from "./lifecycle-executor.js";
 import type { LifecycleIndex } from "./lifecycle-index.js";
 import { deriveState, resolveSlugState } from "./lifecycle-resolver.js";
 import { resolveLifecyclePosition } from "./lifecycle-state.js";
@@ -70,17 +77,20 @@ export const nameCollisionGuard: GuardValidator = ({ index, slug }) =>
 /** The derived states in which a work unit occupies a branch / worktree. */
 const OCCUPYING = new Set(["planning", "active", "integrating"]);
 
-/** Recover a candidate's slug from its `meta-<slug>.md` filename, or `null` (e.g. a lite `status.md`). */
+/** Recover a candidate's slug from its `meta-<slug>.md` filename, or `null` for an unmatched filename. */
 function candidateSlug(candidate: MetaFileCandidate): string | null {
   return META_FILENAME_RE.exec(candidate.filename)?.[1] ?? null;
 }
 
 /** Dependencies for {@link makeWorktreeOccupancyGuard}. */
 export interface WorktreeOccupancyDeps {
+  identity?: string;
+  /** The same operational store bound by the lifecycle invocation. */
+  store?: Store;
   /** The worktree root whose `active/` is checked for occupancy. */
   cwd: string;
   /**
-   * The lite/full-aware active-meta reader (production binds
+   * The active-meta reader (production binds
    * `readActiveMetaCandidates`); injected for testability and to keep the guard
    * off the filesystem directly.
    */
@@ -90,7 +100,7 @@ export interface WorktreeOccupancyDeps {
 /**
  * Whether a transition materializes the WU's `active/` presence in the *current*
  * checkout — the only case the occupancy check is meaningful for. The signals are
- * `inputs.worktreeOp.{inPlace, createBranch}` (see {@link ReconcileWorktreeOp}):
+ * `inputs.worktreeOp.{inPlace, createBranch}` (see {@link ReconcileWorkUnitWorktreeOp}):
  *
  * - **in-place** (`inPlace === true`, the `--here` arms) — `git checkout [-b]`
  *   lands the WU in the current checkout. Materializes here.
@@ -112,10 +122,10 @@ function materializesInCurrentCheckout(inputs: {
   worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean };
   materializesCurrentCheckout?: boolean;
 }): boolean {
+  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   const op = inputs.worktreeOp;
   if (op?.mutation !== "spawn") return true;
   if (op.inPlace === true) return true;
-  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   return op.createBranch !== false;
 }
 
@@ -135,30 +145,25 @@ function materializesInCurrentCheckout(inputs: {
  *
  * Reads the worktree's active-meta candidates, derives each one's state from its
  * `(phase, location)` (never `git branch` inference), and rejects on the first
- * foreign occupant. A candidate that *is* the target (same slug, or — when the
- * slug is underivable, e.g. a lite `status.md` — the same branch the start would
- * take) is not a collision.
+ * foreign occupant. Operational occupancy matches the selected primary's UID;
+ * materialize alone may bind an eligible unbound marker.
  *
  * @param deps - The worktree root and the injected active-meta reader.
  * @returns An async guard validator.
  */
 export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardValidator {
-  return async ({ slug, inputs }) => {
+  return async ({ slug, inputs, primary, admitUnbound }) => {
     // A fresh spawn that re-attaches an existing branch lands nothing in this
     // checkout, so a current occupant is no collision; every other placement
     // (in-place, or a branch-creating spawn) materializes here and is checked.
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
+    if (deps.store !== undefined) return readStoreOccupancy({ cwd: deps.cwd, store: deps.store, slug, identity: deps.identity, primary, admitUnbound });
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
-    const targetBranch =
-      inputs.worktreeOp?.mutation === "spawn" ? inputs.worktreeOp.branch : undefined;
 
     for (const candidate of candidates) {
       const cSlug = candidateSlug(candidate);
       if (cSlug === slug) continue; // the target work unit itself
-      if (cSlug === null && targetBranch !== undefined && candidate.branch === targetBranch) {
-        continue; // lite layout: same branch ⇒ same work unit
-      }
 
       const state = deriveState(
         resolveLifecyclePosition({ path: candidate.path, state: candidate.state }),
@@ -177,62 +182,73 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
   };
 }
 
-/** Dependencies for {@link makeWorktreeCleanGuard}. */
-export interface WorktreeCleanDeps {
-  /** Git executor — runs `git status --porcelain` scoped to the worktree being torn down. */
-  exec: GitExec;
-}
-
-/**
- * Build the `worktree-clean` guard — refuses a worktree-teardown leg (`park`,
- * `abandon`) when the WU's worktree carries uncommitted work, *before* any
- * mutation fires. This is the table-level fail-fast that keeps a dirty teardown
- * from half-applying (e.g. `abandon` removing the artifact set, then throwing on
- * the dirty-worktree leg with the branch/worktree still intact).
- *
- * The worktree to check is the teardown op's target — `inputs.worktreeOp.worktreePath`
- * (every cell declaring this guard carries a teardown `worktreeOp`). An edge that
- * declares the guard but supplies no teardown op resolves cleanly (`ok`): there is
- * no worktree to gate (the verb-orchestrated arms drive their own teardown). The
- * underlying {@link isWorktreeClean} treats an exec failure as not-clean, so
- * uncertainty rejects (the safe default).
- *
- * @param deps - The git executor the clean check runs through.
- * @returns An async guard validator.
- */
-export function makeWorktreeCleanGuard(deps: WorktreeCleanDeps): GuardValidator {
-  return async ({ inputs }) => {
-    const op = inputs.worktreeOp;
-    // No teardown target ⇒ no worktree to gate (the verb drives its own teardown).
-    if (op?.mutation !== "teardown") return { ok: true };
-    if (await isWorktreeClean({ exec: deps.exec, cwd: op.worktreePath })) return { ok: true };
-    return {
-      ok: false,
-      message:
-        `refusing to tear down a dirty worktree: \`${op.worktreePath}\` has uncommitted work — ` +
-        `commit or stash it first (\`--force\` stays the rollback-only path).`,
-    };
-  };
-}
-
 /**
  * Assemble the index-aware / IO guard validators — the foot-gun guards the
  * executor leaves to its caller — into the map `executeTransition` merges over
  * its pure defaults.
  *
- * @param deps - The worktree-occupancy guard's dependencies plus the git executor for `worktree-clean`.
- * @returns The `name-collision` + `worktree-occupancy` + `worktree-clean` validators.
+ * @param deps - The worktree-occupancy guard's dependencies.
+ * @returns The `name-collision` + `worktree-occupancy` validators.
  */
 export function buildFootgunGuards(
-  deps: WorktreeOccupancyDeps & WorktreeCleanDeps,
+  deps: WorktreeOccupancyDeps,
 ): {
   "name-collision": GuardValidator;
   "worktree-occupancy": GuardValidator;
-  "worktree-clean": GuardValidator;
 } {
   return {
     "name-collision": nameCollisionGuard,
     "worktree-occupancy": makeWorktreeOccupancyGuard(deps),
-    "worktree-clean": makeWorktreeCleanGuard(deps),
   };
+}
+
+/** Bind the authoritative pause gate for advancing work, dormant before the flip.
+ * @param store - Store selected by the invocation.
+ * @param basis - Exact primary version used by the store transition.
+ * @returns Guard that names the resume action for every present pause.
+ */
+export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidator {
+  return async ({ slug }) => {
+    if (store === undefined || !usesOffBranchState(store)) return { ok: true };
+    const checked = await checkAdvancingPause(store, slug, basis);
+    return checked.status === "clear" ? { ok: true } : { ok: false, message: checked.reason,
+      ...(checked.remedy === undefined ? {} : { remedy: checked.remedy }) };
+  };
+}
+
+interface StoreOccupancyInput { cwd: string; store: Store; slug: string; identity?: string; primary?: StoreRecord; admitUnbound?: boolean }
+/** Enforce identity-based occupancy using the bound store's resolver. */
+async function readStoreOccupancy(input: StoreOccupancyInput): Promise<GuardResult> {
+  const offBranch = usesOffBranchState(input.store);
+  const marker = offBranch ? await inspectCheckoutMarker(input) : { kind: "clear" as const };
+  const admitted = admitMarkerOccupancy(input, marker);
+  if (!admitted.ok) return admitted;
+  const current = await resolveCurrentWorkUnit(input);
+  if (current.status === "unbound") return admitted.bind !== undefined && canBindUnbound(input, current.unbound)
+    ? admitted : { ok: false, message: current.unbound.reason };
+  if (current.status === "none" && current.warnings.length === 0) return admitted;
+  if (current.status !== "resolved" || current.candidate.record === undefined) return {
+    ok: false, message: `Unable to resolve this checkout's work-unit occupancy. ${current.warnings.join(" ")}`,
+  };
+  const name = current.candidate.reference.owner.name;
+  const own = offBranch ? input.primary !== undefined && sameReference(input.primary.reference, current.candidate.reference) : name === input.slug;
+  if (own || (!offBranch && !OCCUPYING.has(current.candidate.record.state?.toLowerCase() ?? ""))) return admitted;
+  return { ok: false, message: `worktree already holds an active work unit \`${name}\` — one active work unit per worktree.` };
+}
+function admitMarkerOccupancy(input: StoreOccupancyInput, occupancy: MarkerOccupancy): GuardResult {
+  if (occupancy.kind === "clear") return { ok: true };
+  if (occupancy.kind === "unbound" && canBindUnbound(input, occupancy.unbound)) return { ok: true, bind: { expected: occupancy.marker.bytes } };
+  if (occupancy.kind === "occupied" && markerBelongsToPrimary(input.primary, occupancy)) return { ok: true };
+  return { ok: false, message: occupancy.reason };
+}
+function canBindUnbound(input: StoreOccupancyInput, unbound: UnboundMarkerClassification): boolean {
+  if (!input.admitUnbound || input.primary === undefined || input.identity === undefined) return false;
+  return ownedInFlight(input.primary, input.identity) && unbound.exit.kind === "bind"
+    && sameReference(input.primary.reference, unbound.exit.reference);
+}
+function markerBelongsToPrimary(primary: StoreRecord | undefined, occupancy: Extract<MarkerOccupancy, { kind: "occupied" }>): boolean {
+  const uid = primary?.reference.owner.type === "work-item" ? primary.reference.owner.uid : undefined;
+  const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
+  return uid !== undefined && occupancy.marker.marker.husk === undefined && ownership.kind === "current"
+    && ownership.subject.kind === "work-unit" && ownership.subject.uid === uid;
 }

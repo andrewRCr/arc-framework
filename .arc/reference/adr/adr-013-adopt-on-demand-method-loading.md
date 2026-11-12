@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (extension half of per-file layout and declaration/loading superseded by ADR-038)
 
 ## Context
 
@@ -69,7 +69,7 @@ relevant section of arc-methods.md — checking `.override` first, falling back 
 **Method classification by trigger:**
 
 | Method                | Trigger Workflow    | Applicability                            |
-|-----------------------|---------------------|------------------------------------------|
+| --------------------- | ------------------- | ---------------------------------------- |
 | leave-it-cleaner      | process-task-loop   | Universal — every task execution session |
 | quality-gate-commands | process-task-loop   | Universal — every task execution session |
 | test-first            | process-task-loop   | Conditional — test-first marker present  |

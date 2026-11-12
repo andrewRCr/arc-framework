@@ -1,6 +1,14 @@
+import { StateVersionSchema, type StateVersion } from "../../../src/lib/store/identity.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { join } from "node:path";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { createRefStore } from "../../../src/lib/store/create.js";
+import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
+import { beginProjectionCommand } from "../../../src/lib/store/projection/process-state.js";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, onTestFinished } from "vitest";
 
 import {
   emitCompactionSeed,
@@ -12,10 +20,16 @@ import {
   stringifyCompactionSeed,
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
+import { buildDeliveryTaskInventory } from "../../../src/lib/delivery/task-inventory.js";
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
+import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { analyzeTaskList } from "../../../src/lib/task-list/cursor.js";
+import { scanTaskListStructure } from "../../../src/lib/task-list/scanner.js";
+import { scanTaskListSegmentation } from "../../../src/lib/task-list/segmentation.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -31,10 +45,184 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const CURSOR = {
+  status: "found" as const,
+  cursor: {
+    section: {
+      id: "2.1",
+      title: "Define the task-list cursor",
+      lineHint: 66,
+    },
+    leaf: {
+      id: "2.1.a",
+      title: "Parse cursor markers",
+      lineHint: 70,
+    },
+  },
+};
+
+const SEGMENTED_COMPATIBILITY_FIXTURE = [
+  "# Task List: segmented-compatible",
+  "",
+  "## Delivery Plan",
+  "",
+  "### `[x]` **9.9 Rendered member**",
+  "",
+  "## **Phase 1:** Foundation",
+  "",
+  "_Mode:_ `layer` through Phase 2 — closes on the consumer chain.",
+  "",
+  "### `[x]` **1.1 Build foundation**",
+  "",
+  "- _Goal:_ Build the shared foundation.",
+  "",
+  "## **Phase 2:** Exercise",
+  "",
+  "_Exit criterion:_ The consumer chain preserves the segmented plan shape.",
+  "",
+  "### `[ ]` **2.1 Exercise the chain** — validate exit criterion at segment scope",
+  "",
+  "- _Goal:_ Exercise the segmented consumer chain.",
+  "",
+  "    - `[ ]` **2.1.a Preserve the cursor**",
+  "",
+  "### `[ ]` **2.2 Close the member** — validate criteria at member scope",
+  "",
+  "- _Goal:_ Close the delivery member.",
+  "",
+  "## **Phase 3:** Verification",
+  "",
+  "### `[ ]` **3.1 Verify the work unit**",
+  "",
+].join("\n");
+
+function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFrame {
+  const row = {
+    kind: "transient" as const,
+    checkout: {
+      folderPresent: true,
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: "errand/compaction-recovery",
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: `sha256:${"b".repeat(64)}`,
+    parentCheckoutPath,
+    origin: null,
+    identity: {
+      kind: "errand" as const,
+      key: "compaction-recovery",
+      claimId: "c".repeat(32),
+      protection: "full" as const,
+      purpose: "errand" as const,
+      origin: "description" as const,
+      originEntry: null,
+      state: "open" as const,
+      branch: "errand/compaction-recovery",
+      savedHead: null,
+      changeRequest: null,
+    },
+    context: null,
+    lifecycleLocation: null,
+    diagnostics: [],
+    subject: { kind: "errand" as const, key: "compaction-recovery", claimId: "c".repeat(32) },
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["primary-missing"] },
+    identityDiscovery: { kind: "complete", identities: [row.identity], diagnostics: [] },
+    active: null,
+  };
+}
+
+function derivedWorkUnitFrame(options: {
+  sessionType?: "planning" | "execution" | "prepublication" | "integration";
+  workflow?: string;
+  loadSet?: LoadSetManifest;
+  taskCursor?: typeof CURSOR;
+} = {}): DerivedLocusFrame {
+  const sessionType = options.sessionType ?? "execution";
+  const workflow = options.workflow ?? "process-task-loop";
+  const loadSet = options.loadSet ?? LOAD_SET;
+  const planningStage: "draft-design" | "create-spec" | "generate-tasks" = workflow === "draft-design"
+    || workflow === "create-spec"
+    || workflow === "generate-tasks"
+    ? workflow
+    : "create-spec";
+  const row = {
+    kind: "work-unit" as const,
+    checkout: {
+      folderPresent: true,
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: "feat/compaction-recovery",
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: null,
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context: {
+      kind: "resolved" as const,
+      metaPath: ".arc/active/meta-compaction-recovery.md",
+      owner: "andrew",
+      branch: "feat/compaction-recovery",
+      sessionType,
+      workflow: sessionType === "planning" ? "planning" : workflow,
+      stage: sessionType === "planning" ? planningStage : null,
+      taskListPath: ".arc/active/tasks-compaction-recovery.md",
+      taskCursor: options.taskCursor ?? (sessionType === "planning" ? null : CURSOR),
+      cohortDocPath: null,
+      loadSet,
+      integrationBoundary: null,
+    },
+    lifecycleLocation: "active" as const,
+    diagnostics: [],
+    subject: { kind: "work-unit" as const, key: "compaction-recovery" },
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["primary-missing"] },
+    identityDiscovery: { kind: "absent" },
+    active: { checkoutPath: "/repo", subject: row.subject, context: row.context },
+  };
+}
+
+function unresolvedWorkUnitFrame(): DerivedLocusFrame {
+  const resolved = derivedWorkUnitFrame();
+  if (resolved.entering.kind !== "selected") throw new Error("expected selected checkout");
+  const row = {
+    ...resolved.entering.row,
+    kind: "unresolved-checkout" as const,
+    context: null,
+    diagnostics: [{
+      code: "topology-mismatch",
+      message: "Observed checkout topology does not corroborate the authority-derived subject",
+    }],
+  };
+  return {
+    ...resolved,
+    roster: [row],
+    entering: { kind: "selected", row },
+    active: null,
+  };
+}
+
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
-    worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
+    derivedLocusState: { ok: true, value: derivedWorkUnitFrame() },
+    worktree: {
+      ok: true,
+      value: {
+        branch: "feat/compaction-recovery",
+        identity: { kind: "linked", path: "/repo" },
+      },
+    },
     active: {
       ok: true,
       value: {
@@ -48,18 +236,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
       ok: true,
       value: {
         status: "found",
-        cursor: {
-          section: {
-            id: "2.1",
-            title: "Define the task-list cursor",
-            lineHint: 66,
-          },
-          leaf: {
-            id: "2.1.a",
-            title: "Parse cursor markers",
-            lineHint: 70,
-          },
-        },
+        cursor: CURSOR.cursor,
       },
     },
     ...overrides,
@@ -67,14 +244,21 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 }
 
 async function emit(overrides: {
+  cwd?: string;
   uncommittedFiles?: string[];
+  snapshotBranch?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
+  store?: Pick<Store, "version">;
+  stateVersion?: StateVersion | null;
 } = {}) {
   return emitCompactionSeed({
-    cwd: "/repo",
+    cwd: overrides.cwd ?? "/repo",
+    store: overrides.store ?? { version: async () => ({ status: "ok", result: StateVersionSchema.parse("state-distinct-from-code") }) },
+    ...(overrides.stateVersion === undefined ? {} : { stateVersion: overrides.stateVersion }),
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
+      branch: overrides.snapshotBranch ?? "feat/compaction-recovery",
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
       uncommittedFiles: overrides.uncommittedFiles ?? [],
     },
@@ -154,6 +338,111 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it.each([true, false])("inherits only a healthy parent's exact nested meta and identity (healthy=%s)", async healthy => {
+    const metaPath = ".arc/active/current/meta-parent-wu.md";
+    const loadSet: LoadSetManifest = { ...LOAD_SET, entries: [
+      { path: metaPath, readMode: { kind: "full" } },
+      ...LOAD_SET.entries.map(entry => entry.readMode.kind === "partial-strategic"
+        ? { ...entry, path: ".arc/active/current/tasks-parent-wu.md" } : entry),
+    ] };
+    const cwd = await mkdtemp(join(tmpdir(), "arc-inherited-seed-"));
+    onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); beginProjectionCommand(); });
+    await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z",
+      createdFor: { kind: "errand", slug: "compaction-recovery", claimId: "c".repeat(32) }, provisioning: "ready" });
+    await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), "branch.protection: invalid\n");
+    createRefStore(createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null }));
+    const frame = derivedFrame("/repo-parent"), parentFrame = derivedWorkUnitFrame({ loadSet });
+    if (frame.entering.kind !== "selected") throw new Error("Expected selected Errand");
+    const entering = { ...frame.entering.row, checkout: { ...frame.entering.row.checkout, path: cwd } };
+    if (parentFrame.entering.kind !== "selected" || parentFrame.entering.row.kind !== "work-unit"
+      || parentFrame.entering.row.context === null) throw new Error("Expected the fixture's resolved parent");
+    const row = parentFrame.entering.row, context = row.context;
+    if (context === null) throw new Error("Expected parent context");
+    const parent = { ...row, checkout: { ...row.checkout, path: "/repo-parent" },
+      subject: { kind: "work-unit" as const, key: "parent-wu" },
+      context: { ...context, metaPath, taskListPath: ".arc/active/current/tasks-parent-wu.md" },
+      diagnostics: healthy ? row.diagnostics : [{ code: "topology-mismatch", message: "The parent topology no longer corroborates its subject" }],
+    };
+    const result = await emit({ cwd, envelope: { derivedLocusState: { ok: true, value: {
+      ...frame, entering: { kind: "selected", row: entering }, roster: [entering, parent],
+    } } } });
+    expect(result).toMatchObject({ status: "written", seed: { metaPath: healthy ? metaPath : null,
+      activeWorkUnit: healthy ? "parent-wu" : null, currentWorkflow: "run-errand" } });
+    if (result.status === "written" && healthy) expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining(loadSet.entries));
+  });
+
+  it.each([StateVersionSchema.parse("captured-before-task-update"), null])("retains a paired frame anchor %j when state advances before emission", async stateVersion => {
+    const result = await emit({ stateVersion, store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("advanced-after-task-update") }) } });
+    expect(result).toMatchObject({ status: "written", seed: { stateVersion, taskCursor: CURSOR.cursor,
+      currentWorkflow: "process-task-loop", head: "72d145021bf4166fa70efc5b9fd11916cf0a359a" } });
+  });
+  it("records an independent state version beside the explicit code baseline under the advanced schema", async () => {
+    const result = await emit();
+    expect(result).toMatchObject({ status: "written", seed: { schemaVersion: 2,
+      stateVersion: "state-distinct-from-code", head: "72d145021bf4166fa70efc5b9fd11916cf0a359a" } });
+    if (result.status === "written") expect(parseCompactionSeedJson(stringifyCompactionSeed(result.seed)))
+      .toEqual({ ok: true, seed: result.seed });
+  });
+
+  it("takes the completed meta path from the shared load set through the layout", async () => {
+    const metaPath = ".arc/completed/2029-q2/88_compaction-recovery/meta-compaction-recovery.md";
+    const loadSet = { ...LOAD_SET, entries: [{ path: metaPath, readMode: { kind: "full" as const } }, ...LOAD_SET.entries] };
+    const frame = derivedWorkUnitFrame({ loadSet, sessionType: "integration", workflow: "integrate-work-unit" });
+    if (frame.entering.kind !== "selected" || frame.entering.row.context === null) throw new Error("Missing context");
+    frame.entering.row.context.metaPath = metaPath;
+    const result = await emit({ envelope: { derivedLocusState: { ok: true, value: frame } } });
+    expect(result).toMatchObject({ status: "written", seed: { metaPath, activeWorkUnit: "compaction-recovery", loadSet } });
+  });
+
+  it("records a refusing state version as null", async () => {
+    const result = await emit({ store: { version: async () => ({ status: "refused", refusal: {
+      code: "unsupported", class: "recoverable", case: "uncovered-state-version", condition: "No version is available.", remedy: { text: "Rebuild from current state." },
+    } }) } });
+    expect(result).toMatchObject({ status: "written", seed: { stateVersion: null } });
+  });
+
+  it("persists only the entering checkout and optional marker parent as locus facts", async () => {
+    const result = await emit({
+      envelope: { derivedLocusState: { ok: true, value: derivedFrame("/repo-parent") } },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.locus).toEqual({
+        checkoutPath: "/repo",
+        parentCheckoutPath: "/repo-parent",
+      });
+      expect(JSON.stringify(result.seed.locus)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
+    }
+  });
+
+  it("persists physical locus facts without promoting an unresolved subject", async () => {
+    const result = await emit({
+      snapshotBranch: "main",
+      envelope: {
+        derivedLocusState: { ok: true, value: unresolvedWorkUnitFrame() },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.locus).toEqual({ checkoutPath: "/repo", parentCheckoutPath: null });
+      expect(result.seed.branch).toBe("main");
+      expect(result.seed.activeWorkUnit).toBeNull();
+      expect(result.seed.sessionType).toBeNull();
+      expect(result.seed.currentWorkflow).toBeNull();
+      expect(result.seed.taskCursor).toBeNull();
+      expect(result.seed.metaPath).toBeNull();
+      expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md" }),
+        expect.objectContaining({ path: ".arc/user/andrew/WORKING-MEMORY.md" }),
+      ]));
+      expect(result.seed.loadSet.entries).not.toContainEqual(
+        expect.objectContaining({ path: ".arc/active/tasks-compaction-recovery.md" }),
+      );
+    }
+  });
+
   it("embeds the load-set manifest supplied by the session-init envelope", async () => {
     const result = await emit();
 
@@ -218,15 +507,99 @@ describe("emitCompactionSeed", () => {
     }
   });
 
-  it("sets taskCursor to null in planning sessions", async () => {
+  it("preserves segmented plan shape across task consumers and compaction", async () => {
+    const structure = scanTaskListStructure(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(structure.status).toBe("scanned");
+    if (structure.status !== "scanned") throw new Error("expected task-list structure");
+    expect(structure.events
+      .filter((event) => event.type === "parent")
+      .map((event) => event.item.id))
+      .toEqual(["1.1", "2.1", "2.2", "3.1"]);
+
+    const segmentation = scanTaskListSegmentation({
+      path: ".arc/active/tasks-segmented-compatible.md",
+      content: SEGMENTED_COMPATIBILITY_FIXTURE,
+    });
+    expect(segmentation).toMatchObject({
+      diagnostics: [],
+      segments: [{
+        mode: "layer",
+        openingPhase: { id: "1" },
+        closingPhase: { id: "2" },
+        phaseIds: ["1", "2"],
+        exitCriterion: { text: "The consumer chain preserves the segmented plan shape." },
+      }],
+    });
+
+    const analysis = analyzeTaskList(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(analysis).toEqual({
+      status: "found",
+      cursor: {
+        section: { id: "2.1", title: "Exercise the chain", lineHint: 19 },
+        leaf: { id: "2.1.a", title: "Preserve the cursor", lineHint: 23 },
+      },
+      phaseHeadingLine: 15,
+      tallies: {
+        phase: { current: 2, total: 3 },
+        taskId: "2.1",
+        subtask: { current: 1, total: 1 },
+        overall: { done: 1, total: 5 },
+      },
+    });
+    if (analysis.status !== "found") throw new Error("expected task-list cursor");
+
+    const inventory = buildDeliveryTaskInventory(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(inventory).toMatchObject({
+      status: "ok",
+      inventory: {
+        parents: [
+          { taskId: "1.1", role: { kind: "implementation" } },
+          { taskId: "2.1", role: { kind: "verification", scope: "segment" } },
+          { taskId: "2.2", role: { kind: "verification", scope: "member" } },
+          { taskId: "3.1", role: { kind: "verification", scope: "work-unit" } },
+        ],
+      },
+    });
+
+    const taskCursor = { status: "found" as const, cursor: analysis.cursor };
     const result = await emit({
       envelope: {
+        derivedLocusState: {
+          ok: true,
+          value: derivedWorkUnitFrame({ taskCursor }),
+        },
+        taskCursor: { ok: true, value: taskCursor },
+      },
+    });
+    expect(result.status).toBe("written");
+    if (result.status === "written") expect(result.seed.taskCursor).toEqual(analysis.cursor);
+  });
+
+  it("omits a written Planning task-list cursor from the seed", async () => {
+    const loadSet = resolveLoadSetManifest({
+      identity: "andrew",
+      activeWorkUnit: "compaction-recovery",
+      metaPath: ".arc/active/meta-compaction-recovery.md",
+      sessionType: "planning",
+      planningStage: "generate-tasks",
+      taskListPath: ".arc/active/tasks-compaction-recovery.md",
+      cohortDocPath: null,
+    });
+    const result = await emit({
+      envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "planning",
+          workflow: "generate-tasks",
+          taskCursor: CURSOR,
+          loadSet,
+        }) },
+        loadSet: { ok: true, value: loadSet },
         active: {
           ok: true,
           value: {
             path: ".arc/active/meta-compaction-recovery.md",
             sessionType: "planning",
-            currentWorkflow: "create-spec",
+            currentWorkflow: "generate-tasks",
           },
         },
       },
@@ -241,6 +614,10 @@ describe("emitCompactionSeed", () => {
   it("keeps a resolved task cursor for integration sessions", async () => {
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "integration",
+          workflow: "integrate-work-unit Step 4",
+        }) },
         active: {
           ok: true,
           value: {
@@ -282,9 +659,29 @@ describe("emitCompactionSeed", () => {
     }
   });
 
+  it("keeps the local snapshot branch when the remote-dependent worktree probe is unavailable", async () => {
+    // A branch the envelope never carries, so the assertion proves the local snapshot
+    // was the source rather than matching whatever the worktree probe would have said.
+    const result = await emit({
+      snapshotBranch: "feat/local-snapshot-only",
+      envelope: {
+        worktree: { ok: false, error: new Error("remote snapshot unavailable") },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.branch).toBe("feat/local-snapshot-only");
+    }
+  });
+
   it("uses currentWorkflow from the resolved active envelope without rereading the meta", async () => {
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "integration",
+          workflow: "integrate-work-unit Step 4",
+        }) },
         active: {
           ok: true,
           value: {
@@ -318,6 +715,12 @@ describe("emitCompactionSeed", () => {
     const writeSeed = vi.fn();
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          loadSet: {
+            ...LOAD_SET,
+            entries: [{ path: "../escape.md", readMode: { kind: "full" } }],
+          } as LoadSetManifest,
+        }) },
         loadSet: {
           ok: true,
           value: {
@@ -361,6 +764,7 @@ describe("emitCompactionSeed", () => {
       cwd: "/repo",
       envelope: envelope({ identity: { identity: null } }),
       gitSnapshot: {
+        branch: "feat/compaction-recovery",
         head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
         uncommittedFiles: [],
       },

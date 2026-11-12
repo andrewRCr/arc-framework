@@ -16,6 +16,46 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Isolate exact-entry inbox settlement from unrelated malformed entries**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `shared-inbox-model`
+
+- _Observation:_ Closing PR #589 cleaned the merged Errand's refs, then refused its origin-capture settlement because
+  two unrelated Work Unit captures carried an Errand-only `_Disposition: route-on-drain` field. The intended entry
+  remained recoverable, but completion required manually correcting foreign captures and confirming the now-foreign
+  retained generation. One malformed entry can therefore interrupt an unrelated lifecycle transition after partial
+  cleanup.
+
+- _Approach:_ Make exact-entry settlement validate and mutate only the addressed capture while preserving unrelated
+  entries byte-for-byte. Surface malformed foreign entries as separate diagnostics without poisoning the target
+  operation. Settle transaction ordering so ref cleanup cannot precede a capture failure without an ordinary
+  idempotent retry path; coordinate the analogous shared-ledger recovery constraints in
+  `identity-conflict-recovery` without conflating the two stores.
+
+- _Captured during:_ `make-self-mutating-correction-drives-hand-off-a-fresh-dev-build` post-merge close, 2026-09-11.
+
+- _Additional routed recurrence:_ **Exact-entry settlement still aborts a lifecycle transition after partial
+  cleanup** — `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: shared-inbox-model`
+
+- _Relation:_ a second instance of this WU's existing entry "Isolate exact-entry inbox settlement from unrelated
+  malformed entries", which recorded the PR #589 occurrence. Recurrence evidence only; the approach there stands.
+
+- _Observation:_ `arc errand close delivery-entry-input-shape` reaped the merged Errand's refs, then refused its
+  origin-capture settlement because an unrelated § Errand capture carried a descriptor ahead of its
+  `_Disposition:_`. Completing required correcting the foreign entry and re-running with
+  `--confirm-foreign-generation`, exactly the #589 shape. Two properties the earlier instance did not establish:
+  the trigger is not specific to a retired `_Disposition: route-on-drain` field — any displacing descriptor does
+  it — and the ordering hazard survived #589, so ref cleanup still precedes capture settlement.
+
+- _Note:_ the refusal's legibility half shipped separately (PR #651); it now names the offending descriptor. That
+  shortens recovery but does not address the transaction ordering, which is this WU's half.
+
+- _Captured during:_ the `delivery-entry-input-shape` errand close, 2026-09-18.
+
 ### `[ ]` **Reopen promote-by-default under parallelism-GA shared-file churn**
 
 - _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).
@@ -68,7 +108,200 @@
   semantics plus CLI/record support and failure-path coverage; this WU owns routing/re-home semantics, while OSD
   owns deterministic entry I/O and arc-backend supplies the long-term cross-store consistency contract.
 
+### `[ ]` **Take the routing-disposition rubric as the one `route-discovered-work` method**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § Routing disposition (over-routing / under-execution), its references to an `assess-wu-target`
+  method family there and in § Consumption wiring item 4, and the aging-enforced retain in § The retention line.
+
+- _Observation:_ `inbound-routing-method` settles the rubric this stub hands it: a four-test disposition gate — still
+  live, Errand-shaped stays an Errand, coupling (`_Shapes:_`), scope boundary (`spec-inbound-routing-method.md` D2).
+  Test 2 sends an Errand-shaped concern to the execute lane whatever its target's horizon, which covers the
+  under-execution failure, so the horizon test becomes an advisory to the Owner rather than a gate. It ships as one
+  method, `route-discovered-work`, not an `assess-wu-target` family (D9). The aging-enforced retain is the
+  `USER-INBOX` analog of its re-triage at touch (D5).
+
+- _Approach:_ point the references at the one method and the advisory horizon test.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Run the discovery-at-start sweep through the routing method's existing doors**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Consumption wiring item 4, the Discovery-at-WU-start sweep, which "may land via
+  `inbound-routing-method`'s `assess-wu-target` family".
+
+- _Observation:_ the sweep runs in the starting work unit's checkout. `inbound-routing-method` gives it existing
+  doors rather than a new one: an item the work unit's own change already covers is pulled in without the gate,
+  anything else it brings into that work unit takes the owner's-pass door, and anything it would change in a sibling
+  stub follows the until-the-flip writer line — only a routing change off the base writes another work unit's draft;
+  otherwise a pre-routed capture goes (`spec-inbound-routing-method.md` D2, D8, D9). Whether to keep
+  the sweep, and where it sits, stays this stub's call.
+
+- _Approach:_ if kept, call `route-discovered-work` once per candidate entry with those doors.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Let a session ask for the next queued Errand of its kind**
+
+- _Routed from:_ Owner direction at the housekeep drain (2026-10-09), routed directly.
+
+- _Shapes:_ the decision its buffer entry "Re-base the shared-inbox model on the storage contract's inbox and Errand
+  decisions" leaves here: how a session and its person agree the Errand queue and how the next Errand is offered
+  from it.
+
+- _Observation:_ the Owner runs design-nuanced Errands with one model family and routine, mechanical ones with
+  another, in two concurrent sessions over one Errand queue — a preference many people hold about which models they
+  trust with which work. The queue is one ordered list with nothing to select on, so the split rides queue order and
+  a stop title handed to the routine session: it runs `arc-session --errand --next` until it reaches the first
+  design-nuanced title. Before the flip two gaps sit beside it: no verb takes an entry off the queue short of running
+  or abandoning its Errand, and the next offer does not skip an entry whose Errand is already open.
+
+- _Approach:_ a binary label on each queued Errand — design-nuanced or mechanical; names to decide — set when the
+  drain queues the entry, and a filter on the next offer so each session asks for the next of its kind. Keep it
+  forward-compatible with the storage contract's Errand queue (`spec-storage-contract.md` D6, D11): the queue is
+  entry-ID references, set whole through `arc errand queue set` and merged by entry, and the next offer takes the
+  first entry a start would accept. The label is then either a queue-member field, where a re-label on both sides is
+  a same-entry clash, or an entry field the offer reads; decide which beside how the next Errand is offered. The
+  contract already closes the two pre-flip gaps: setting the queue whole removes a member, and starting an Errand
+  moves its entry out of the inbox, one live Errand per entry. Neither earns a pre-flip fix.
+
+- _Boundary:_ the person chooses the model; ARC records the label and filters on it, and never selects a model.
+  Running sessions in parallel also needs each session's compaction seed bound to its own working checkout —
+  evidence routed to `recovery-hardening`.
+
 ---
+
+### `[ ]` **Give USER-INBOX a managed amend path so enrichment does not bypass the write lock**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the managed inbox surface is `inbox-mark-execute-bound` and `inbox-remove` — mark, order, and
+  delete. There is no verb that amends an existing capture. Enriching one (adding observations to a live entry,
+  which grooming asks for routinely) therefore has to be a raw whole-file rewrite, outside the serialized path
+  that `inbox-writer.ts` documents itself as running inside ("one exact entry mutation in a lock-serialized inbox
+  batch"). On 2026-09-19 this session appended to a Work Unit capture by direct edit while the primary session
+  concurrently closed two shipped Errands, which removes their originating captures. Both survived on
+  interleaving alone. The file is gitignored, so a lost write leaves no diff, no history, and no recovery.
+
+- _Not a defect in the managed path:_ the lock is real and the managed verbs use it. The gap is that the managed
+  surface does not cover a normal operation, so the normal operation routes around the lock.
+
+- _Approach:_ add an amend/append verb that takes an entry title plus the block to merge, and runs through the
+  same locked read-modify-write as the existing mutations. A content-digest precondition with a re-read
+  instruction on mismatch would also close the raw-edit case for callers that still need one.
+
+- _Scope:_ the inbox write surface only; no change to entry grammar, sections, or the execute-bound queue.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
+
+### `[ ]` **Re-base the shared-inbox model on the storage contract's inbox and Errand decisions**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `shared-inbox-model`
+
+- _Observation:_ `spec-storage-contract.md` changes premises the draft rests on:
+    - `INBOX.USER` is personal — fetched and projected only for its person — but not private: anyone who can read the
+      state host can read it. "User-relative", not "private".
+    - Entry merge on the project inbox's own ref removes the merge-conflict reason for "the drain is the sole
+      promotion point", so that rule stands or falls on its own merits; the interim base-branch serialization and the
+      event-log idea are superseded, and the `arc-backend` wording is stale.
+    - The "Errand adoption from `INBOX.PROJECT`" build scope is settled: an Errand's origin names the inbox and the
+      entry ID; starting an Errand moves its entry into the Errand's description; one live Errand per entry, the later
+      of two starts yielding; abandon returns it to the inbox it came from; and each person's Errand queue — entry IDs
+      from either inbox, replacing the execute-bound marks and their file order — orders what they run next and claims
+      nothing. The cited `record.ts` v1 and `runUserInboxRemove` are gone.
+    - A started Errand that stalls holds its entry, and only its owner can abandon it. Prior art pairs every claim with
+      an inactivity signal and a takeover after notice (Zulip's contributor guide: ask, wait two to three days, then
+      take it over). Decide what the in-flight view shows of an Errand's last activity, and whether a teammate may take
+      over or return a stalled Errand after notice; the owner is one field, so either is a field write. The spec
+      records this as left to this design, an exception to its rule that another person's work items are read-only.
+    - "Queued" now names the Errand queue: from the flip `arc errand queue` and `arc errand queue set` replace the
+      execute-bound marks, and the drain calls those entries queued. The draft's proposed `_Hold:_` → `_Queued:_`
+      rename for the retained set would give one word two states; pick another word for the retain flag, or keep
+      `_Hold:_`.
+    - Inbox entries carry a `[ ]` checkbox nothing ever checks: an entry leaves its inbox when done, and the record
+      holds an Errand's state. Consider retiring the checkbox from the entry format.
+    - Both inboxes always project, empty or not.
+
+- _Approach:_ the model stays here — dispositions, the retention line, writer classes, consumption wiring, how a
+  session and its person agree the Errand queue and how the next Errand is offered from it, and the `INBOX.USER` /
+  `INBOX.PROJECT` naming with `naming-conventions`. Re-test "solo ≡ team" against the evidence: with promotion banned,
+  13 of 19 `USER-INBOX § Errand` entries sat held (oldest 2026-09-07), a project inbox living in the triage buffer;
+  `storage-contract`'s recommendation is to keep the project inbox, with no presence toggle. Also fix the shipped
+  prose left from the single-inbox era: `strategy-team-coordination.md` (:61, :210), `user/README.md`,
+  `template-pull-request.md`, and `AGENT-BRIEF.CONTRIBUTOR.md` call `ATOMIC-INBOX` personal and gitignored, against
+  `strategy-planning-module.md:37`; and `process-task-loop.template.md:382` ticks finished entries where
+  `strategy-planning-module.md:138` deletes them.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
+---
+
+### `[ ]` **Warn before an inbox record nears the store's 1 MB cap**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Consumption wiring (the rot fix), whose session-init probe would carry a size signal.
+
+- _Observation:_ after the flip, each person's `USER-INBOX` and the project's `ATOMIC-INBOX` are each one projected
+  record (`personal/inbox`, `project-inbox/inbox`; `lib/store/registry.ts:102`, `:113`), and the store refuses any
+  projected record over 1 MB (`store.size-cap`, `lib/store/serialization.ts:17`). Every capture to a full inbox then
+  fails, and nothing warns first. This identity's `USER-INBOX` reached 344 KB on 2026-11-10, about 9 KB a day between
+  drains.
+
+- _Approach:_ a size signal well before the cap (the session-init inbox probe, by size as well as age), and a drain
+  prompted by size, since with many sessions in parallel the between-work-units drain rarely comes round.
+
+- _Captured during:_ `project-manager.ARC`'s inbox-size review, 2026-11-10 (Owner-approved); the record shape
+  confirmed by `draft-design.CF` the same day (the flip keeps it, D11).
+
+---
+
+### `[ ]` **Give held entries that wait on an event or a decision their own handling, and keep captures short**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § The retention line (drain fork, sharpened).
+
+- _Observation:_ the retention line reads a hold as "I am doing this myself, soon", but most of this identity's 89 held
+  entries on 2026-11-10 waited on something else: about 33 on the storage cutover, about 17 on an Owner decision.
+  Drains keep them, so held entries made up 177 KB of the inbox's 344 KB. Entries also run long, a median of about
+  1.7 KB and several of 5–8 KB, carrying evidence and design analysis that belongs in the target's draft.
+
+- _Approach:_ an entry waiting only on a decision gets it at the drain (Owner direction, 2026-11-10; working memory
+  carries it until this lands); one waiting on an event routes once its home exists and otherwise names the event; a
+  capture is a short pointer, its analysis written in the target's draft.
+
+- _Captured during:_ `project-manager.ARC`'s inbox-size review, 2026-11-10 (Owner-approved).
+
+---
+
+### `[ ]` **Plan the inbox for team scale: name the decider, own triage, and let a tracker take unassigned work**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § The retention line (promote-by-default's destination) and § The Model.
+
+- _Observation:_ the model is being planned from a solo repository, where parallel agent sessions supply team-like
+  volume (77 captures in ten days, 2026-11) but not team-like coordination. Solo use hides five things: who decides
+  (a held entry waiting on "the Owner" would need to name whose decision, which `DEV-RULES.ARC` § Rule Authority
+  resolves by role and surface); who triages the project inbox, unclaimed entries and stalled Errands; duplicates
+  across people, unseen while each personal inbox is read only by its person; who hears of what (watchers, mentions,
+  assignment, not one person's host conventions); and conventions kept in one person's files, not shared configuration.
+
+- _Approach:_ at planning, trace a three-person scenario through capture, drain, promote, claim and stall, as
+  `external-pm-composition` requires of its own design. Keep promote-by-default's destination a seam, so a project
+  composed with a tracker sends unassigned work there instead of `INBOX.PROJECT` (the standalone and composed postures
+  of `strategy-pm-composition-evolution.md`). The agent-side discipline stays here in both: short captures routed to a
+  design unit's draft, no item with a known home resting in an inbox, Errand execution.
+
+- _Related:_ the companion capture for `external-pm-composition`; `collaborative-team-planning`.
+
+- _Captured during:_ `project-manager.ARC` with the Owner, 2026-11-10, after the inbox-size review (Owner-approved).
 
 ## Problem / Motivation
 
@@ -217,7 +450,7 @@ writes ride the entry-level all-owner gate (R22); foreign-owned overlap → coor
   coordination point); outside the sweep, foreign-entry writes surface the R22 gate.
 - **Backend lift.** Entry-granular ops map 1:1 onto the arc-backend event log (append-plus-tombstone), and
   per-entry version-checked writes replace the serialization convention at the shared tier. Compose notes
-  recorded in `draft-arc-backend.md` (2026-07-02).
+  recorded in `draft-storage-contract.md` (2026-07-02).
 
 ## Workflow shape (fork resolved)
 
@@ -259,11 +492,14 @@ on (it now does). The visible consequence — entries rotting — is the trigger
 ## Dependencies / Coordination
 
 - **`concurrent-work-doctrine`** — shipped; the meta edge is satisfied (discharge lands at activation).
+- **`state-storage`** — waits on `storage-cutover`. The tracked project inbox stops being a multi-writer hotspot
+  once it is a store surface; the inbox model itself is independent of storage. Its storage-shaped mechanisms are
+  rows in `cohort-state-storage.md`'s storage-coupling register.
 - **`operational-state-docs`** — owns the record substrate: the slug-keyed grammar, `arc inbox add` +
   `removeInboxEntry` as a paired I/O surface, `_Awaiting:_` codification. **Seam correction owed:** its buffer's
   `_Awaiting:_` entry records the shared inbox as "sweep-based and nudge-free"; this model adds the staleness
   nudge — OSD consumes the corrected assumption at its next iteration. The entry-granular record shape is
-  load-bearing for the backend lift (recorded in `draft-arc-backend.md`).
+  load-bearing for the backend lift (recorded in `draft-storage-contract.md`).
 - **`inbound-routing-method`** — receives the disposition rubric (coupling + horizon) as a buffer entry (routed
   2026-07-02); coordinate the disposition → homing → integration family boundary, and the
   discovery-at-WU-start placement.

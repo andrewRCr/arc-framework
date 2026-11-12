@@ -5,168 +5,306 @@
  * Command logic lives in `src/handlers/`, orchestrators in `src/commands/`,
  * and I/O adapters in `src/lib/io-context.ts`.
  */
+import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
+import { formatCommandPath } from "./lib/command-input/command-path.js";
+import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
+import { projectionCommandBinding } from "./lib/store/projection/engine.js";
 
 import { fileURLToPath } from "node:url";
 
-import { Command, Option } from "commander";
+import { Command, CommanderError, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
+import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
 import { formatUnexpectedError } from "./lib/errors.js";
-import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
-import { isHandoffCritical } from "./lib/handoff-critical.js";
+import {
+  runDevBuildGuard,
+  createDevBuildGuardDeps,
+  refreshDevBuildAfterAction,
+} from "./lib/dev-check.js";
+import { reviewRequestAction } from "./lib/command-input/review-request-action.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
-import { handleInit, type InitOptions } from "./handlers/init.js";
-import { handleJoin, type JoinOptions } from "./handlers/join.js";
-import { handleStart, type StartOptions } from "./handlers/start.js";
-import {
-  handleErrandCheck,
-  handleErrandOpen,
-  handleErrandLink,
-  handleErrandClose,
-  handleErrandRetire,
-  handleErrandPromote,
-  type ErrandCheckOptions,
-  type ErrandOpenOptions,
-  type ErrandLinkOptions,
-  type ErrandCloseOptions,
-  type ErrandPromoteOptions,
+import { isDecomposeMachineReadableInvocation } from "./lib/work-unit/decompose-command-routing.js";
+import { throwCheckParserResult, writeCheckParserDiagnostic } from "./lib/checks/usage.js";
+import type { InitOptions } from "./handlers/init.js";
+import type { JoinOptions } from "./handlers/join.js";
+import type { StartOptions } from "./handlers/start.js";
+import type {
+  ErrandCheckOptions,
+  ErrandNextOptions,
+  ErrandOpenOptions,
+  ErrandLinkOptions,
+  ErrandMaterializeOptions,
+  ErrandLeaveOptions,
+  ErrandCloseOptions,
+  ErrandAbandonOptions,
+  ErrandPromoteOptions,
 } from "./handlers/errand.js";
-import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
-import {
-  handleBaseDrift,
-  handleBaseSync,
-  type BaseDriftOptions,
-  type BaseSyncOptions,
+import type { ErrandMergeOptions } from "./handlers/errand-merge.js";
+import type { HousekeepCheckOptions } from "./handlers/housekeep.js";
+import type {
+  BaseDriftOptions,
+  BaseMergeOptions,
+  BaseSyncOptions,
 } from "./handlers/base.js";
-import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
-import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
-import {
-  handleStub,
-  handleDecompose,
-  handlePromote,
-  handleDemote,
-  handlePark,
-  handleResume,
-  handleMaterialize,
-  handleActivate,
-  handleDeactivate,
-  handleIntegrate,
-  handleReopen,
-  handleAbandon,
-  handleArchive,
-  handleTeardown,
-  handleSetStage,
-  handleFinalizeStage,
-  handleRepointDesign,
-  handleRename,
-  type PromoteOptions,
-  type StubOptions,
-  type ParkOptions,
-  type ResumeOptions,
-  type MaterializeOptions,
-  type ActivateOptions,
-  type IntegrateOptions,
-  type ReopenOptions,
-  type AbandonOptions,
-  type ArchiveOptions,
-  type TeardownOptions,
-  type DecomposeOptions,
+import type { PlanCheckOptions } from "./handlers/plan.js";
+import type {
+  DeliveryComposeOptions,
+  DeliveryPlanAbandonOptions,
+  DeliveryPlanFromBranchOptions,
+  DeliveryPlanFromTasksOptions,
+  DeliveryPlanInventorySchemaOptions,
+} from "./handlers/delivery.js";
+import type { DeliveryExecutionOptions } from "./handlers/delivery-execution.js";
+import type { DeliveryEntryInspectOptions } from "./handlers/delivery-entry.js";
+import type {
+  DeliveryTransferExportOptions,
+  DeliveryTransferImportOptions,
+} from "./handlers/delivery-transfer.js";
+import type {
+  PromoteOptions,
+  StubOptions,
+  ParkOptions,
+  ResumeOptions,
+  MaterializeOptions,
+  ActivateOptions,
+  PublishOptions,
+  ReopenOptions,
+  AbandonOptions,
+  ArchiveOptions,
+  TeardownOptions,
 } from "./handlers/lifecycle.js";
-import {
-  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
-  handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
-  handleUserReconcileReferences,
-  type UserInboxRemoveOptions,
-  type UserReconcileReferencesOptions,
-  type UserPushOptions,
-  type UserFetchOptions,
-  type UserCompactHandlerOptions,
-  type UserStatusOptions,
-  type UserLoadOptions,
-  type UserPullOptions,
+import type { DecomposeOptions } from "./handlers/decompose.js";
+import type { AttestOptions } from "./handlers/lifecycle-delivery-review.js";
+import type {
+  UserInboxListCommandOptions,
+  UserInboxRemoveOptions,
+  UserReconcileReferencesOptions,
+  UserPushOptions,
+  UserFetchOptions,
+  UserCompactHandlerOptions,
+  UserStatusOptions,
+  UserLoadOptions,
+  UserPullOptions,
 } from "./handlers/user.js";
-import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
-import {
-  handleConfigStatus,
-  handleConfigValidate,
-  type ConfigStatusCliOptions,
-} from "./handlers/config.js";
-import {
-  handleActiveStatus,
-  handleActiveRoster,
-  handleActiveInFlight,
-  type ActiveStatusCliOptions,
-  type ActiveRosterCliOptions,
-  type ActiveInFlightCliOptions,
+import type { ConfigStatusCliOptions, ConfigValidateCliOptions } from "./handlers/config.js";
+import type {
+  ActiveStatusCliOptions,
+  ActiveRosterCliOptions,
+  ActiveInFlightCliOptions,
 } from "./handlers/active.js";
-import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
-import { handleView, type ViewCliOptions } from "./handlers/view.js";
-import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
-import { handleSync, type SyncOptions } from "./handlers/sync.js";
-import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
-import { handleLogStandalone } from "./handlers/log.js";
-import {
-  handleReviewReadiness,
-  handleReviewResolve,
-  handleReviewUnlock,
-  handleReviewChunkingResolve,
-  handleReviewFrontlineResolve,
-  handleReviewFrontlineRun,
-  handleReviewHostedAwait,
-  handleReviewHostedRequest,
-  handleReviewHostedSettle,
-  handleReviewLocalAttest,
-  handleReviewLocalPrepare,
-  handleReviewLocalResume,
-  handleReviewPlanningLane,
-  handleReviewReduce,
-  handleReviewRespond,
-  type ReviewPlanningLaneOptions,
+import type { StatusCliOptions } from "./handlers/status.js";
+import type { AgendaCliOptions } from "./commands/agenda/index.js";
+import type { SchemaListOptions, SchemaInstallOptions } from "./handlers/schema.js";
+import type { LocusCliOptions } from "./handlers/locus.js";
+import type { ViewCliOptions } from "./handlers/view.js";
+import type { RecoverAuditOptions } from "./handlers/recover.js";
+import type { SyncOptions } from "./handlers/sync.js";
+import type { UserSyncOptions } from "./handlers/user-sync.js";
+import type { LogStandaloneOptions } from "./handlers/log.js";
+import type {
+  IntegrationCheckpointOptions,
+  IntegrationMergeOptions,
+} from "./handlers/integration.js";
+import type {
+  ReviewPrePublicationOptions,
+  ReviewPlanningLaneOptions,
+  ReviewChangeRequestResolveOptions,
+  ReviewMergeMethodResolveOptions,
+  ReviewChecksAwaitOptions,
+  ReviewStatusOptions,
 } from "./handlers/review.js";
-import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
-import {
-  handleCheckCommitMessage,
-  type HandleCheckCommitMessageOptions,
-} from "./commands/check.js";
-import {
-  handleReleaseCommit,
-  handleReleaseOptIn,
-  handleReleaseOptOut,
-  handleReleasePush,
-  handleReleaseSetupInstall,
-  handleReleaseSetupPrintPatterns,
-  handleReleaseSetupUninstall,
-  handleReleaseSetupVerify,
-  handleReleaseStatus,
-  type ReleaseSetupInstallOptions,
-  type ReleaseSetupPrintPatternsOptions,
-  type ReleaseSetupUninstallOptions,
-  type ReleaseSetupVerifyOptions,
+import type { DeliveryMemberChecksOptions } from "./handlers/delivery-member-checks.js";
+import type { WuReconcileOptions } from "./handlers/reconcile.js";
+import type { HandleCheckCommitMessageOptions } from "./commands/check.js";
+import type {
+  ReleaseSetupInstallOptions,
+  ReleaseSetupPrintPatternsOptions,
+  ReleaseSetupUninstallOptions,
+  ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
-import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
-import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
+configureArcHelp(program);
 
 program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
+  .option("--skip-projection", "Skip automatic projection work for this command, leaving edits pending")
   .version(getFrameworkVersion());
 
 // --- Checks ---
 
 const checkCmd = program
   .command("check")
-  .description("Run standalone repository checks");
+  .description("Run standalone repository checks")
+  .configureOutput({ writeErr: writeCheckParserDiagnostic })
+  .exitOverride(throwCheckParserResult);
 
-program
-  .command("hook-validate-decompose-record", { hidden: true })
-  .action(runDecomposeRecordValidation);
+checkCmd
+  .command("run")
+  .description("Run declared checks by id. A selection check receives the whole selection with no scope or --all, "
+    + "named paths with --paths, and changed selection with --changed, --staged, or --range.")
+  .argument("<ids...>", "Declared check identifiers")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, ids: string[], opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckRun(ids, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("gate")
+  .description("Run a declared check gate")
+  .argument("<gate>", "commit, push, or merge")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, gate: string, opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckGate(gate, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("segment")
+  .description("Run commit and push checks over the unpublished segment, plus changed projected selection feedback")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckSegment(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("new-head")
+  .description("Run checks over a newly committed head")
+  .requiredOption("--from <ref>", "Earlier head to compare")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions & { from: string }) => {
+      await (await import("./commands/check.js")).handleCheckNewHead(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("increment")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback; list other push checks as left to the push gate")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckIncrement(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("pre-commit")
+  .description("Run declared checks over the commit index")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPreCommit(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("pre-push")
+  .description("Run declared checks over the checked-out branch's pushed range")
+  .argument("<remote>", "Pushed remote name, or empty under a hook manager")
+  .argument("<url>", "Pushed remote URL, or empty under a hook manager")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, remote: string, url: string, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPrePush(remote, url, opts, context);
+    },
+  ));
 
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
-  .action(runRoadmapConflictAutoRemedyCommand);
+  .action(async () => {
+    await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
+  });
+
+const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("repair-review-roots").argument("[file]", "JSON request file, or - for stdin")
+  .option("--schema", "Emit the versioned JSON request schema")
+  .action(withInteractionContext({ machineReadable: () => true },
+    async (_context, file: string | undefined, options: import("./commands/store-review-root-repair.js").StoreReviewRootRepairOptions) => {
+      await (await import("./commands/store-review-root-repair.js")).handleStoreReviewRootRepair(file, options);
+    }));
+storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+  .argument("<id>", "Exact conflict ID")
+  .option("--discard", "Accept the current state and discard this retained alternative")
+  .option("--json", "Emit the complete conflict or resolution result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
+      await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
+    }));
+storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
+  .option("--trial", "Build and report the move without landing it")
+  .option("--leave-source", "Finish leaving the recorded source")
+  .option("--import", "Import the current operational state")
+  .option("--json", "Emit the move report or refusal as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, options: import("./commands/store-migrate.js").StoreMigrateOptions) => {
+      await (await import("./commands/store-migrate.js")).handleStoreMigrate(options, context);
+    }));
+storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
+  .option("--own-state", "Publish everything this clone's store holds on the selected remote")
+  .option("--json", "Emit the store result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, remote: string | undefined, role: string | undefined, options: import("./commands/store-remote.js").StoreRemoteOptions) => {
+      await (await import("./commands/store-remote.js")).handleStoreRemote(remote, role, options, context);
+    }));
+
+program
+  .command("hook-validate-frontmatter", { hidden: true })
+  .argument("[paths...]", "Staged paths to validate")
+  .action(async (paths: string[]) => {
+    (await import("./scripts/validate-frontmatter.js")).runValidateFrontmatterCommand(paths);
+  });
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -193,11 +331,16 @@ checkCmd
   .option("--json", "Emit a versioned JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, input: string[], opts: HandleCheckCommitMessageOptions) =>
-      handleCheckCommitMessage(input, {
-        ...opts,
-        dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
-      }, context),
+    async (context, input: string[], opts: HandleCheckCommitMessageOptions) => {
+      await (await import("./commands/check.js")).handleCheckCommitMessage(
+        input,
+        {
+          ...opts,
+          dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+        },
+        context,
+      );
+    },
   ));
 
 // --- Init & Join ---
@@ -215,7 +358,9 @@ program
   .option("--dry-run", "Preview reconfigure changes without applying (requires --reconfigure)")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: InitOptions) => handleInit(opts, context),
+    async (context, opts: InitOptions) => {
+      await (await import("./handlers/init.js")).handleInit(opts, context);
+    },
   ));
 
 program
@@ -228,7 +373,9 @@ program
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: JoinOptions) => handleJoin(opts, context),
+    async (context, opts: JoinOptions) => {
+      await (await import("./handlers/join.js")).handleJoin(opts, context);
+    },
   ));
 
 // --- Work units ---
@@ -244,7 +391,9 @@ wu
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string | undefined, opts: WuReconcileOptions) => handleWuReconcile(slug, opts, context),
+    async (context, slug: string | undefined, opts: WuReconcileOptions) => {
+      await (await import("./handlers/reconcile.js")).handleWuReconcile(slug, opts, context);
+    },
   ));
 
 program
@@ -259,7 +408,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
+    "Seed a new work unit started with --here — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
@@ -269,7 +418,9 @@ program
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, name: string | undefined, opts: StartOptions) => handleStart(name, opts, context),
+    async (context, name: string | undefined, opts: StartOptions) => {
+      await (await import("./handlers/start.js")).handleStart(name, opts, context);
+    },
   ));
 
 // --- Lifecycle verbs (top-level peers of `arc start`) ---
@@ -283,29 +434,71 @@ program
   .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
-  .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
+  .option(
+    "--cohort <path>",
+    "Enrol under <cohort> or <cohort>/<subcohort>: place the member in that planned-tier cohort path",
+  )
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },
-    (context, name: string | undefined, opts: StubOptions) => handleStub(name, opts, context),
+    async (context, name: string | undefined, opts: StubOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleStub(name, opts, context);
+    },
   ));
 
 program
   .command("decompose <origin>")
-  .description("Split a work unit into a cohort of members per a structured cut-map file")
-  .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
-  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
+  .description("Plan, execute, extract, finish, revise, or discard one decomposition")
+  .option("--preflight", "Emit a canonical read-only starter map for the storage backend")
+  .option("--execute <cut-map>", "Stage an exact repository result; with off-branch state, create members and store the cut")
+  .option("--extract <cut-map>", "Stage an additive extraction; with off-branch state, store the cut while preserving its origin")
+  .option("--finish [cut-map]", "Preview source thinning from a map; with off-branch state, finish the stored cut without an operand")
+  .option("--revise [cut-map]", "Revise a stored cut when state is off branch (no operand emits a fresh map)")
+  .option("--discard", "Discard a stored cut when state is off branch")
+  .option("--apply <authority>", "Apply an approved finish, revision, or discard preview authority")
+  .option("--advance-base <cut-map>", "Advance a committed repository candidate (unavailable when state is off branch)")
   .action(withInteractionContext(
-    {},
-    (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
+    {
+      machineReadable: isDecomposeMachineReadableInvocation,
+    },
+    async (context, origin: string | undefined, opts: DecomposeOptions) => {
+      await (await import("./handlers/decompose.js")).handleDecompose(origin, opts, context);
+    },
   ));
 
 program
   .command("rename <slug> <new-slug>")
-  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .description("Rename a work unit or cohort selected by slug or UID, with a work unit's branch, workspace, remote, marker, and worktree identities")
+  .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
-    {},
-    (context, slug: string, newSlug: string) => handleRename(slug, newSlug, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
+    },
+  ));
+
+const cohort = program.command("cohort").description("Manage cohorts selected by slug or UID");
+cohort
+  .command("close <cohort>")
+  .description("Close a cohort selected by slug or UID")
+  .option("--yes", "Confirm closing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortClose(subject, opts, context);
+    },
+  ));
+cohort
+  .command("remove <cohort>")
+  .description("Remove an empty cohort selected by slug or UID")
+  .option("--yes", "Confirm removing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortRemove(subject, opts, context);
+    },
   ));
 
 program
@@ -314,7 +507,9 @@ program
   .option("--class <value>", "Resolved Class (Light | Heavy | Novel) when the stub is still `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },
-    (context, slug: string | undefined, opts: PromoteOptions) => handlePromote(slug, opts, context),
+    async (context, slug: string | undefined, opts: PromoteOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePromote(slug, opts, context);
+    },
   ));
 
 program
@@ -322,7 +517,9 @@ program
   .description("Lower a planned stub back to provisional")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined) => handleDemote(slug, context),
+    async (context, slug: string | undefined) => {
+      await (await import("./handlers/lifecycle.js")).handleDemote(slug, context);
+    },
   ));
 
 program
@@ -332,7 +529,9 @@ program
   .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts, context),
+    async (context, slug: string | undefined, opts: ParkOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePark(slug, opts, context);
+    },
   ));
 
 program
@@ -344,7 +543,9 @@ program
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts, context),
+    async (context, slug: string | undefined, opts: ResumeOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleResume(slug, opts, context);
+    },
   ));
 
 program
@@ -356,7 +557,9 @@ program
   .option("--here", "Check out in the current worktree instead of spawning a new one")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts, context),
+    async (context, slug: string | undefined, opts: MaterializeOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleMaterialize(slug, opts, context);
+    },
   ));
 
 program
@@ -367,7 +570,9 @@ program
   .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts, context),
+    async (context, slug: string | undefined, opts: ActivateOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleActivate(slug, opts, context);
+    },
   ));
 
 program
@@ -375,27 +580,71 @@ program
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined) => handleDeactivate(slug, context),
+    async (context, slug: string | undefined) => {
+      await (await import("./handlers/lifecycle.js")).handleDeactivate(slug, context);
+    },
   ));
 
 program
-  .command("integrate [slug]")
-  .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
-  .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
-  .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .command("publish [slug]")
+  .description("Schedule publication for an Active work unit: Active → Integrating (defaults to the current WU)")
+  .option("--last-completed <work>", "Override meta `Last Completed` (default: the task list's last completed task)")
+  .option("--action <action>", "Override meta `Next Action` (default: the publication boundary's own pointer)")
   .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
+  .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(
-    {},
-    (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string | undefined, opts: PublishOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePublish(slug, opts, context);
+    },
+  ));
+
+const integrateCmd = program
+  .command("integrate")
+  .description("Run integration checkpoint and merge procedures");
+
+integrateCmd.action(() => {
+  console.error("error: `arc integrate` is a procedure namespace; use `arc publish` to schedule publication.");
+  const subcommands = integrateCmd.commands.map((command) => `arc integrate ${command.name()}`);
+  console.error(
+    subcommands.length > 0
+      ? `Available subcommands: ${subcommands.join(", ")}.`
+      : "Available subcommands: none yet.",
+  );
+  process.exitCode = 1;
+});
+
+integrateCmd
+  .command("checkpoint <name>")
+  .description("Compose one typed integration-readiness verdict")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, name: string, opts: IntegrationCheckpointOptions) => {
+      await (await import("./handlers/integration.js")).handleIntegrationCheckpoint(name, opts, context);
+    },
+  ));
+
+integrateCmd
+  .command("merge <name>")
+  .description("Execute one approved integration checkpoint and merge its exact head")
+  .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, name: string, opts: IntegrationMergeOptions) => {
+      await (await import("./handlers/integration.js")).handleIntegrationMerge(name, opts, context);
+    },
   ));
 
 program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
+  .option("--task <task>", "Return to an exact reopened task instead of Candidate preparation")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),
+    async (context, slug: string | undefined, opts: ReopenOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleReopen(slug, opts, context);
+    },
   ));
 
 program
@@ -404,7 +653,9 @@ program
   .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts, context),
+    async (context, slug: string | undefined, opts: AbandonOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleAbandon(slug, opts, context);
+    },
   ));
 
 program
@@ -414,21 +665,73 @@ program
   .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts, context),
+    async (context, slug: string | undefined, opts: ArchiveOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleArchive(slug, opts, context);
+    },
   ));
 
 program
   .command("teardown [name]")
-  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
+  .description("Clean up a retired work unit by slug or UID: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
+    "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
     {},
-    (context, name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts, context),
+    async (context, name: string | undefined, opts: TeardownOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
+    },
+  ));
+
+program
+  .command("pause [slug]")
+  .description("Pause work in place and report unshared changes")
+  .option("--reason <text>", "Reason (required for the first pause)")
+  .option("--waits-on <slug>", "Work unit that blocks resumption")
+  .option("--waits-on-note <text>", "Prose describing what resumption awaits")
+  .option("--resume-notes <text>", "Context for resuming work")
+  .option("--open", "Open to takers")
+  .option("--no-waits-on", "Clear the wait")
+  .option("--no-resume-notes", "Clear resume notes")
+  .option("--no-open", "Close to takers")
+  .action(withInteractionContext({}, async (context, slug: string | undefined, opts: import("./handlers/lifecycle-collaboration.js").PauseCommandOptions) => {
+    await (await import("./handlers/lifecycle.js")).handlePause(slug, opts, context);
+  }));
+program
+  .command("handover [slug]")
+  .description("Hand a work unit to another owner once its work is shared")
+  .requiredOption("--to <identity>", "New owner")
+  .action(withInteractionContext({}, async (context, slug: string | undefined, opts: { to?: string }) => {
+    await (await import("./handlers/lifecycle.js")).handleHandover(slug, opts, context);
+  }));
+
+const task = program.command("task").description("Close or defer work-unit tasks");
+task
+  .command("close [ids...]")
+  .description("Close tasks and capture the increment's code commits")
+  .option("--commit <sha>", "Capture an explicit commit (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[] }) => {
+    await (await import("./handlers/task.js")).handleTaskClose(ids, opts, context);
+  }));
+task
+  .command("defer <id>")
+  .description("Defer a task and cascade its parent marker")
+  .action(withInteractionContext({}, async (context, id: string) => {
+    await (await import("./handlers/task.js")).handleTaskDefer(id, context);
+  }));
+
+program
+  .command("set-class <class> [slug]")
+  .description("Set a work unit's Class at any lifecycle placement: Light | Heavy | Novel")
+  .action(withInteractionContext(
+    {},
+    async (context, workClass: string, slug?: string) => {
+      await (await import("./handlers/lifecycle.js")).handleSetClass(workClass, slug, context);
+    },
   ));
 
 program
@@ -443,19 +746,69 @@ program
   )
   .action(withInteractionContext(
     {},
-    (context, stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts, context),
+    async (context, stage: string, opts: { advance?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleSetStage(stage, opts, context);
+    },
   ));
 
 program
   .command("finalize <fire-point>")
   .description(
     "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
-    + "at its fire-point: create-spec | generate-tasks | verify",
+    + "at its fire-point: create-spec | amend-design | generate-tasks",
   )
-  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
+  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at every fire-point")
   .action(withInteractionContext(
     {},
-    (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+    async (context, firePoint: string, opts: { class?: string }) => {
+      await (await import("./handlers/lifecycle.js")).handleFinalizeStage(firePoint, opts, context);
+    },
+  ));
+
+program
+  .command("attest <name>")
+  .description("Attest a verified work-unit Candidate while leaving lifecycle State unchanged")
+  .option("--json", "Emit the typed pre-publication locus as JSON")
+  .option(
+    "--new-root",
+    "Root a new lineage over the current fully verified subject, superseding a blocked Candidate",
+  )
+  .option("--scope <scope>", "Verification scope for convergence: focused | full", "full")
+  .option(
+    "--verification-evidence-ref <reference>",
+    "Fresh verification evidence reference for a convergence attestation",
+  )
+  .option(
+    "--expected-candidate <candidate-id>",
+    "Require the blocked Candidate selected by a prior attestation refusal",
+  )
+  .option(
+    "--expected-subject <subject-digest>",
+    "Require the staged subject selected by a prior attestation refusal",
+  )
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, name: string, opts: AttestOptions) => {
+      await (await import("./handlers/lifecycle-delivery-review.js")).handleAttest(name, opts, context);
+    },
+  ));
+
+const candidate = program
+  .command("candidate")
+  .description("Resolve Candidate lineage transitions");
+
+const candidateApplicability = candidate
+  .command("applicability")
+  .description("Classify and bind Candidate applicability");
+
+candidateApplicability
+  .command("resolve <name> <input>")
+  .description("Re-derive and bind one exact applicability selection")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, name: string, input: string) => {
+      await (await import("./handlers/candidate.js")).handleCandidateApplicabilityResolve(name, input, context);
+    },
   ));
 
 program
@@ -466,77 +819,164 @@ program
   )
   .action(withInteractionContext(
     {},
-    (context, event: string) => handleRepointDesign(event, context),
+    async (context, event: string) => {
+      await (await import("./handlers/lifecycle.js")).handleRepointDesign(event, context);
+    },
   ));
 
 const errand = program
   .command("errand")
-  .description("Errand operations. `open` launches an errand; `check` reports in-flight overlap.");
+  .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
+
+const errandQueue = errand
+  .command("queue")
+  .description("List the person's reference-based execution queue")
+  .option("--json", "Emit the typed queue listing")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: { json?: boolean }) => {
+    await (await import("./handlers/errand-queue.js")).handleErrandQueue(opts, context);
+  }));
+
+errandQueue
+  .command("set <file>")
+  .description("Replace the execution queue from a versioned JSON file or - for stdin")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, file: string) => {
+    await (await import("./handlers/errand-queue.js")).handleErrandQueueSet(file, context);
+  }));
+
+errand
+  .command("next")
+  .description("Resolve the first execute-bound USER-INBOX Errand without opening it")
+  .option("--json", "Emit the typed queue-head result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: ErrandNextOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandNext(opts, context);
+    },
+  ));
 
 errand
   .command("check")
-  .description("Report which in-flight work units touch the target path(s) — advisory, never blocks")
+  .description("Report which in-flight work units and Errands touch the target path(s) — advisory, never blocks")
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
   .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ErrandCheckOptions) => handleErrandCheck(opts, context),
+    async (context, opts: ErrandCheckOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandCheck(opts, context);
+    },
   ));
 
 errand
   .command("open <slug>")
-  .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
-  .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
+  .description("Open an errand in the free primary or a provisioned transient worktree")
+  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore; full protection only)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
-  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
+  .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--isolate", "Always provision a transient worktree, leaving the primary free (full protection only)")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandOpenOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandOpen(slug, opts, context);
+    },
   ));
 
 errand
   .command("link <slug>")
   .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
+  .option("--from-inbox <entry-title>", "Associate an inbox capture with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandLinkOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandLink(slug, opts, context);
+    },
+  ));
+
+errand
+  .command("leave <slug>")
+  .description("Preserve an Errand tail and close its local occupancy")
+  .addOption(new Option("--state <state>", "Tail state")
+    .choices(["paused", "awaiting-merge"])
+    .makeOptionMandatory())
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandLeaveOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandLeave(slug, opts, context);
+    },
+  ));
+
+errand
+  .command("materialize <slug>")
+  .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--claim-id <claim-id>", "Require the selected Errand claim generation")
+  .option("--expected-head <oid>", "Require the selected retained head")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandMaterializeOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandMaterialize(slug, opts, context);
+    },
+  ));
+
+errand
+  .command("merge <slug> <input>")
+  .description("Merge one exact approved Errand target through the typed terminal operation")
+  .option("--json", "Emit the typed terminal result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, input: string, opts: ErrandMergeOptions) => {
+      await (await import("./handlers/errand-merge.js")).handleErrandMerge(slug, input, opts, context);
+    },
   ));
 
 errand
   .command("close <slug>")
-  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
-  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .description("Complete an Errand selected by slug or UID, release its exact occupancy, and drop its originating inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandCloseOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandClose(slug, opts, context);
+    },
   ));
 
 errand
-  .command("retire <slug>")
-  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
+  .command("abandon <slug>")
+  .description("Abandon a safely preserved Errand selected by slug or UID and retain its inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string) => handleErrandRetire(slug, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandAbandonOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandAbandon(slug, opts, context);
+    },
   ));
 
 errand
   .command("promote <slug>")
-  .description("Promote an errand to a work unit: rename the branch, mint the meta, retire the record")
+  .description("Promote an Errand to a receipt-backed work unit and settle its exact identity")
   .option("--name <name>", "The new work-unit name (meta filename + branch leaf); defaults to the slug")
   .option("--type <type>", "WU branch nature-type prefixing the name (default: feat)")
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, opts: ErrandPromoteOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandPromote(slug, opts, context);
+    },
   ));
 
 const housekeep = program
@@ -552,7 +992,9 @@ housekeep
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: HousekeepCheckOptions) => handleHousekeepCheck(opts, context),
+    async (context, opts: HousekeepCheckOptions) => {
+      await (await import("./handlers/housekeep.js")).handleHousekeepCheck(opts, context);
+    },
   ));
 
 const baseCmd = program
@@ -565,7 +1007,22 @@ baseCmd
   .option("--json", "Emit the typed base-drift analysis as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+    async (context, opts: BaseDriftOptions) => {
+      await (await import("./handlers/base.js")).handleBaseDrift(opts, context);
+    },
+  ));
+
+baseCmd
+  .command("merge")
+  .description("Merge one checkpointed base revision append-only")
+  .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
+  .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
+  .option("--regenerate-roadmap", "Apply the checkpoint-authorized ROADMAP-only conflict remedy")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, opts: BaseMergeOptions) => {
+      await (await import("./handlers/base.js")).handleBaseMerge(opts, context);
+    },
   ));
 
 baseCmd
@@ -574,7 +1031,9 @@ baseCmd
   .option("--json", "Emit the typed synchronization outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: BaseSyncOptions) => handleBaseSync(opts, context),
+    async (context, opts: BaseSyncOptions) => {
+      await (await import("./handlers/base.js")).handleBaseSync(opts, context);
+    },
   ));
 
 const plan = program
@@ -591,7 +1050,294 @@ plan
   .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+    async (context, opts: PlanCheckOptions) => {
+      await (await import("./handlers/plan.js")).handlePlanCheck(opts, context);
+    },
+  ));
+
+const delivery = program
+  .command("delivery")
+  .description("Author, compose, and manage delivery plans");
+
+const deliveryAuthoring = delivery.command("authoring").description("Resolve deterministic authoring locators");
+deliveryAuthoring.command("locate").description("Resolve exact candidate refs and detached gate paths")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-locate", { ...opts, input }, context);
+  }));
+deliveryAuthoring.command("rematerialize").description("Prepare one exact private candidate ref and detached gate pair")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rematerialize", { ...opts, input }, context);
+  }));
+deliveryAuthoring.command("rebind").description("Bind one clean detached authoring head to its candidate ref")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rebind", { ...opts, input }, context);
+  }));
+
+delivery.command("closeout").description("Reap completed delivery residue and retire its exact records")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("closeout", { ...opts, input }, context);
+  }));
+
+delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
+  .command("inspect").description("Read authoritative delivery intent and binding facts")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, input: string, opts: Omit<DeliveryEntryInspectOptions, "input">) => {
+      await (await import("./handlers/delivery-entry.js")).handleDeliveryEntryInspect({ ...opts, input }, context);
+    },
+  ));
+
+delivery.command("checks").description("Observe exact delivery-member required checks")
+  .command("observe").description("Qualify required checks for one exact member head without mutation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (_context, input: string, options: DeliveryMemberChecksOptions) => {
+      await (await import("./handlers/delivery-member-checks.js")).handleDeliveryMemberChecksObserve({
+        ...options,
+        input,
+      });
+    },
+  ));
+
+const deliveryEligibility = delivery.command("eligibility").description("Validate one exact delivery candidate chain");
+deliveryEligibility.command("prepare").description("Pin and validate the authored candidate chain")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-prepare", { ...opts, input }, context);
+  }));
+deliveryEligibility.command("close").description("Close the post-gate eligibility observation window")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-close", { ...opts, input }, context);
+  }));
+delivery.command("publish").description("Publish exact member refs and open or adopt every change request")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("publish", { ...opts, input }, context);
+  }));
+const deliveryNative = delivery.command("native").description("Compose optional host-native stack presentation");
+deliveryNative.command("observe").description("Observe exact native registration without mutation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-observe", { ...opts, input }, context);
+  }));
+deliveryNative.command("link").description("Optionally register an already-materialized exact chain")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-link", { ...opts, input }, context);
+  }));
+deliveryNative.command("unlink").description("Remove native presentation before sequential delivery")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-unlink", { ...opts, input }, context);
+  }));
+deliveryNative.command("land-select").description("Select the native or unlinked landing arm from fresh facts")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-select", { ...opts, input }, context);
+  }));
+deliveryNative.command("land-prepare").description("Validate and reserve one exact native landing set")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-prepare", { ...opts, input }, context);
+  }));
+deliveryNative.command("land-submit").description("Submit one freshly authorized native landing effect")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-submit", { ...opts, input }, context);
+  }));
+deliveryNative.command("land-status").description("Poll and reconcile one persisted native landing identity")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-status", { ...opts, input }, context);
+  }));
+deliveryNative.command("land-release").description("Decline one settled native landing and release its reservation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-release", { ...opts, input }, context);
+  }));
+const deliveryRefresh = delivery.command("refresh")
+  .description("Plan, execute, or adopt one provider-refreshed suffix");
+deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-plan", { ...opts, input }, context);
+  }));
+deliveryRefresh.command("execute").description("Prepare and publish one provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-execute", { ...opts, input }, context);
+  }));
+deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-adopt", { ...opts, input }, context);
+  }));
+const deliveryReviewFix = delivery.command("review-fix")
+  .description("Route and publish one approved delivery-member review fix");
+deliveryReviewFix.command("continue").description("Resume the exact delivery review-fix continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-continue", { ...opts, input }, context);
+  }));
+deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-plan", { ...opts, input }, context);
+  }));
+deliveryReviewFix.command("publish").description("Publish one selected member before provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-publish", { ...opts, input }, context);
+  }));
+deliveryReviewFix.command("acknowledge").description("Consume one completed review-fix verification continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context);
+  }));
+delivery.command("position").description("Derive the exact current delivery position")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("position", { ...opts, input }, context);
+  }));
+const deliveryLand = delivery.command("land").description("Prepare and apply one attended member landing");
+deliveryLand.command("prepare").description("Prepare one exact landing presentation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-prepare", { ...opts, input }, context);
+  }));
+deliveryLand.command("apply").description("Apply one freshly authorized landing")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-apply", { ...opts, input }, context);
+  }));
+delivery.command("reconcile").description("Reconcile one persisted delivery operation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("reconcile", { ...opts, input }, context);
+  }));
+delivery.command("rewrite").description("Rewrite one reviewed suffix member by exact lease")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rewrite", { ...opts, input }, context);
+  }));
+delivery.command("rematerialize").description("Reclose and rewrite one complete reviewed suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rematerialize", { ...opts, input }, context);
+  }));
+delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("teardown", { ...opts, input }, context);
+  }));
+delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("top-remedy", { ...opts, input }, context);
+  }));
+
+delivery
+  .command("compose")
+  .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--landed-prefix <json>", "Fresh plan-ordered landed deliverable ID JSON array")
+  .option("--json", "Emit the typed composition result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryComposeOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryCompose(opts, context);
+    },
+  ));
+
+const deliveryPlan = delivery
+  .command("plan")
+  .description("Create or abandon transient delivery-plan authoring state");
+
+const deliveryPlanInventory = deliveryPlan
+  .command("inventory")
+  .description("Inspect delivery-plan design-inventory authoring contracts");
+
+deliveryPlanInventory
+  .command("schema")
+  .description("Emit the registered strict design-inventory input schema")
+  .option("--json", "Emit the schema through the typed delivery command envelope")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: DeliveryPlanInventorySchemaOptions) => {
+      (await import("./handlers/delivery.js")).handleDeliveryPlanInventorySchema(opts);
+    },
+  ));
+
+deliveryPlan
+  .command("from-tasks")
+  .description("Create a delivery authoring map from the active task list")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--task-list <path>", "Explicit repository-relative task-list path")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryPlanFromTasksOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanFromTasks(opts, context);
+    },
+  ));
+
+deliveryPlan
+  .command("from-branch")
+  .description("Create a delivery authoring map from a branch contribution")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--base <commit-ish>", "Selected base line (defaults to the configured base)")
+  .option("--head <commit-ish>", "Branch head (defaults to HEAD)")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryPlanFromBranchOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanFromBranch(opts, context);
+    },
+  ));
+
+deliveryPlan
+  .command("abandon")
+  .description("Delete the outstanding authoring map idempotently")
+  .option("--json", "Emit the typed abandonment result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryPlanAbandonOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanAbandon(opts, context);
+    },
+  ));
+
+const deliveryTransfer = delivery
+  .command("transfer")
+  .description("Transfer exact delivery plan and state records between clones");
+
+deliveryTransfer
+  .command("export")
+  .description("Export the active work unit's exact delivery plan and state")
+  .option("--output <path>", "Write the transfer bundle to a new file")
+  .option("--json", "Emit the typed export result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryTransferExportOptions) => {
+      await (await import("./handlers/delivery-transfer.js")).handleDeliveryTransferExport(opts, context);
+    },
+  ));
+
+deliveryTransfer
+  .command("import")
+  .description("Import an exact delivery plan and state for the active work unit")
+  .option("--input <path>", "Read the transfer bundle from a file")
+  .option("--json", "Emit the typed import result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: DeliveryTransferImportOptions) => {
+      await (await import("./handlers/delivery-transfer.js")).handleDeliveryTransferImport(opts, context);
+    },
   ));
 
 // --- Lifecycle ---
@@ -600,20 +1346,30 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
+  .option(
+    "--keep-local-without-baseline",
+    "Keep customized files that have no merge baseline as they are, skipping their upstream changes",
+  )
   .action(withInteractionContext(
     {},
-    (context, opts: { quiet?: boolean }) => handleUpdate(opts, context),
+    async (context, opts: { quiet?: boolean; keepLocalWithoutBaseline?: boolean }) => {
+      await (await import("./handlers/installation.js")).handleUpdate(opts, context);
+    },
   ));
 
 program
   .command("health")
   .description("Show health of installed ARC framework files")
-  .action(handleHealth);
+  .action(async () => {
+    await (await import("./handlers/installation.js")).handleHealth();
+  });
 
 program
   .command("diff")
   .description("Show differences between installed and latest framework files")
-  .action(handleDiff);
+  .action(async () => {
+    await (await import("./handlers/installation.js")).handleDiff();
+  });
 
 // --- User ---
 
@@ -628,7 +1384,9 @@ userCmd
   .description("Create a user directory for a team member")
   .action(withInteractionContext(
     {},
-    (context, identity: string) => handleUserAdd(identity, context),
+    async (context, identity: string) => {
+      await (await import("./handlers/user.js")).handleUserAdd(identity, context);
+    },
   ));
 
 userCmd
@@ -636,28 +1394,64 @@ userCmd
   .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
   .action(withInteractionContext(
     {},
-    (context, wuName: string) => handleUserOpen(wuName, context),
+    async (context, wuName: string) => {
+      await (await import("./handlers/user.js")).handleUserOpen(wuName, context);
+    },
   ));
 
 userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
-  .action(handleUserClose);
+  .action(withInteractionContext({}, async (context, wuName: string) => {
+    void context;
+    await (await import("./handlers/user.js")).handleUserClose(wuName);
+  }));
+
+userCmd
+  .command("inbox-mark-execute-bound")
+  .description("Atomically mark and order the complete execute-bound USER-INBOX queue as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", '\nRequest JSON:\n  {"schemaVersion":1,"orderedTitles":["First","Second"]}\n')
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, input: string) => {
+      await (await import("./handlers/user.js")).handleUserInboxMarkExecuteBound(input, context);
+    },
+  ));
+
+userCmd
+  .command("inbox-list")
+  .description("List the inbox captures whose WU_Target names a work unit, held or not")
+  .requiredOption("--target <slug>", "Work unit slug the captures name")
+  .option("--json", "Emit the typed listing result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: UserInboxListCommandOptions) => {
+      await (await import("./handlers/user.js")).handleUserInboxList(opts, context);
+    },
+  ));
 
 userCmd
   .command("inbox-remove [slug]")
+  .option("--id <id>", "Entry ID from arc inbox personal")
+  .option("--expected-version <version>", "Exact entry version observed when listing")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts, context),
+    async (context, slug: string | undefined, opts: UserInboxRemoveOptions) => {
+      await (await import("./handlers/user.js")).handleUserInboxRemove(slug, opts, context);
+    },
   ));
 
 userCmd
   .command("save")
   .description("Save user directory to user notes on HEAD")
-  .action(handleUserSave);
+  .action(async () => {
+    await (await import("./handlers/user.js")).handleUserSave();
+  });
 
 userCmd
   .command("load")
@@ -665,7 +1459,9 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: UserLoadOptions) => handleUserLoad(opts, context),
+    async (context, opts: UserLoadOptions) => {
+      await (await import("./handlers/user.js")).handleUserLoad(opts, context);
+    },
   ));
 
 userCmd
@@ -674,7 +1470,9 @@ userCmd
   .option("--force", "Force-push even when remote and local notes conflict")
   .action(withInteractionContext(
     {},
-    (context, opts: UserPushOptions) => handleUserPush(opts, context),
+    async (context, opts: UserPushOptions) => {
+      await (await import("./handlers/user.js")).handleUserPush(opts, context);
+    },
   ));
 
 userCmd
@@ -683,7 +1481,9 @@ userCmd
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .action(withInteractionContext(
     {},
-    (context, opts: UserFetchOptions) => handleUserFetch(opts, context),
+    async (context, opts: UserFetchOptions) => {
+      await (await import("./handlers/user.js")).handleUserFetch(opts, context);
+    },
   ));
 
 userCmd
@@ -693,7 +1493,9 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, opts: UserPullOptions) => handleUserPull(opts, context),
+    async (context, opts: UserPullOptions) => {
+      await (await import("./handlers/user.js")).handleUserPull(opts, context);
+    },
   ));
 
 userCmd
@@ -702,7 +1504,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: UserCompactHandlerOptions) => handleUserCompact(opts, context),
+    async (context, opts: UserCompactHandlerOptions) => {
+      await (await import("./handlers/user.js")).handleUserCompact(opts, context);
+    },
   ));
 
 userCmd
@@ -715,7 +1519,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (context, opts: UserStatusOptions) => handleUserStatus(opts, context),
+    async (context, opts: UserStatusOptions) => {
+      await (await import("./handlers/user.js")).handleUserStatus(opts, context);
+    },
   ));
 
 userCmd
@@ -725,7 +1531,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts, context),
+    async (context, opts: UserReconcileReferencesOptions) => {
+      await (await import("./handlers/user.js")).handleUserReconcileReferences(opts, context);
+    },
   ));
 
 userCmd
@@ -734,24 +1542,42 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, opts: UserSyncOptions) => handleUserSync(opts, context),
+    async (context, opts: UserSyncOptions) => {
+      await (await import("./handlers/user-sync.js")).handleUserSync(opts, context);
+    },
   ));
 
-// --- Extensions ---
+// --- Schema ---
 
-const extensionsCmd = program
-  .command("extensions")
-  .description("Inspect ARC extensions state");
+const schemaCmd = program.command("schema").description("Discover registered ARC contracts");
 
-extensionsCmd
-  .command("status")
-  .description("Show active/inactive extensions and orphaned references")
-  .option("--session-init", "Emit the active-extensions list consumed by session-init")
-  .option("--all", "Include the full orphan-reference detail list")
+schemaCmd.command("list")
+  .description("List registered contract identities and metadata")
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (_context, opts: ExtensionsStatusCliOptions) => handleExtensionsStatus(opts),
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: SchemaListOptions) => {
+      (await import("./handlers/schema.js")).handleSchemaList(opts, context);
+    },
+  ));
+
+schemaCmd.command("install")
+  .description("Refresh editor documents for the current checkout")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: SchemaInstallOptions) => {
+      await (await import("./handlers/schema.js")).handleSchemaInstall(opts, context);
+    },
+  ));
+
+schemaCmd.command("get <id>")
+  .description("Emit one self-contained registered contract as JSON")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, id: string) => {
+      (await import("./handlers/schema.js")).handleSchemaGet(id, context);
+    },
   ));
 
 // --- Config ---
@@ -767,14 +1593,19 @@ configCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
+    async (context, opts: ConfigStatusCliOptions) => {
+      await (await import("./handlers/config.js")).handleConfigStatus(opts, context);
+    },
   ));
 
 configCmd
   .command("validate")
   .description("Validate arc-config.yml settings")
   .option("--file <path>", "Validate an explicitly selected configuration file")
-  .action(handleConfigValidate);
+  .action(withInteractionContext({}, async (context, opts: ConfigValidateCliOptions) => {
+    void context;
+    await (await import("./handlers/config.js")).handleConfigValidate(opts);
+  }));
 
 // --- Active ---
 
@@ -789,7 +1620,9 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (context, opts: ActiveStatusCliOptions) => handleActiveStatus(opts, context),
+    async (context, opts: ActiveStatusCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveStatus(opts, context);
+    },
   ));
 
 activeCmd
@@ -798,7 +1631,9 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ActiveRosterCliOptions) => handleActiveRoster(opts, context),
+    async (context, opts: ActiveRosterCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveRoster(opts, context);
+    },
   ));
 
 activeCmd
@@ -809,74 +1644,127 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ActiveInFlightCliOptions) => handleActiveInFlight(opts, context),
+    async (context, opts: ActiveInFlightCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveInFlight(opts, context);
+    },
   ));
 
 // --- View ---
 
 program
   .command("view")
-  .description("Render an artifact from the current ARC work context")
+  .description("View an artifact from the current ARC work context")
   .argument(
     "[kind]",
-    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox",
+    "Artifact kind: tasks | spec | draft | meta | design | notes | cohort | session-notes | working-memory | inbox",
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
-  .option("--for <slug>", "Override ambient context with the named work-unit slug")
+  .option("--path", "Print the selected file's absolute path; refuse ref-only artifacts")
+  .option("-e, --editor", "Open the selected real file in the configured editor; refuse ref-only artifacts")
+  .option("--for <slug>", "Select a work unit's registered checkout or a ref this clone holds")
+  .addHelpText("after", [
+    "",
+    "Bare selection: tasks -> spec -> draft -> meta.",
+    "Ordinary view renders the selected copy.",
+    "--for reads a started work unit's registered checkout, including uncommitted",
+    "edits; otherwise it renders its selected ref. It reads only refs this clone",
+    "already holds. Without a registered checkout, --path and --editor refuse;",
+    "use rendering to read it.",
+    "Editor handoff:",
+    "  --editor / -e opens the same real absolute file as --path.",
+    "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",
+    "  VISUAL, EDITOR, then its compile-time default (usually vi).",
+    "  Requires interactive stdin/stdout; --no-input, CI, and piped streams refuse.",
+    "  Cannot combine --editor with --path or --current.",
+    "  Inherits terminal streams and waits for the command, preserving wait flags.",
+    "  Command success confirms handoff; buffer opening and saving depend on",
+    "  the editor.",
+    "  Example: ARC_EDITOR='code --wait' arc view -e",
+    "",
+  ].join("\n"))
   .action(withInteractionContext(
     {},
-    (context, kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts, context),
+    async (context, kind: string | undefined, opts: ViewCliOptions) => {
+      await (await import("./handlers/view.js")).handleView(kind, opts, context);
+    },
   ));
 
 // --- Status (composite) ---
 
 program
+  .command("agenda")
+  .description("Compile session initialization steps")
+  .argument("<ceremony>", "Ceremony to compile: session-init")
+  .argument("[seed]", "Optional entry seed")
+  .option("--plan [stub]", "Enter planning for a backlog stub")
+  .option("--errand [concern]", "Enter an isolated errand")
+  .option("--next", "Proceed to the next action when the session permits")
+  .option("--isolate", "Give an errand its own checkout")
+  .option("--start <slug>", "Assess a named work unit for launch")
+  .option("--housekeep", "Enter inbox housekeeping")
+  .option("--context", "Load context without discovering next work")
+  .option("--answered <key=answer>", "Carry a recorded answer (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--done <id>", "Carry a completed action id (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--json", "Emit the compiled agenda as JSON")
+  .action(withInteractionContext({ machineReadable: opts => opts.json === true },
+    async (context, ceremony: string, seed: string | undefined, opts: AgendaCliOptions) => {
+      await (await import("./commands/agenda/index.js")).handleAgenda(ceremony, seed, opts, context);
+    }));
+
+program
   .command("status")
-  .description("Composite probe: identity + user-sync + extensions + config + active state")
+  .description("Composite probe: identity + user-sync + config + active state")
   .argument(
     "[slug]",
-    "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
+    "Work unit to inspect; omit for composite status",
   )
   .addOption(
     new Option(
       "--session-init",
-      "Emit the session-init-scoped subset for harness consumption",
-    ).conflicts("session-handoff"),
+      "Select session initialization context; add --json for JSON output",
+    ).conflicts(["sessionHandoff", "conflicts"]),
   )
   .addOption(
     new Option(
       "--session-handoff",
-      "Emit the session-handoff envelope for arc-handoff",
-    ).conflicts(["session-init", "recover"]),
+      "Select handoff context; requires --json",
+    ).conflicts(["sessionInit", "recover", "conflicts"]),
   )
   .addOption(
     new Option(
       "--recover",
-      "Emit the lean recover envelope for compaction recovery",
-    ).conflicts(["session-init", "session-handoff", "user"]),
+      "Select recovery context; requires --json",
+    ).conflicts(["sessionInit", "sessionHandoff", "user", "conflicts"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover", "project"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "project", "conflicts"]),
   )
   .addOption(
     new Option(
       "--project",
       "Render the live project status view",
-    ).conflicts(["session-init", "session-handoff", "recover", "user"]),
+    ).conflicts(["sessionInit", "sessionHandoff", "recover", "user", "conflicts"]),
+  )
+  .addOption(
+    new Option("--conflicts [conflict]", "List open store conflicts or inspect a conflict token")
+      .conflicts(["sessionInit", "sessionHandoff", "recover", "user", "project"]),
   )
   .option("--fetch", "With status <slug>: upgrade the local-default query with live remote membership")
   .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
+  .option("--write", "With --project --staged: write ROADMAP atomically; requires omitting --json")
   .addOption(
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user", "project"]),
+    ).conflicts(["recover", "sessionHandoff", "user", "project", "conflicts"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
@@ -886,8 +1774,56 @@ program
         || opts.sessionHandoff === true
         || opts.recover === true,
     },
-    (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
+    async (context, slug: string | undefined, opts: StatusCliOptions) => {
+      await (await import("./handlers/status.js")).handleStatus(slug, opts, context);
+    },
   ));
+
+// --- Locus ---
+
+const locus = program
+  .command("locus")
+  .description("Inspect the local checkout and session locus roster")
+  .option("--json", "Emit one typed session locus envelope as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: LocusCliOptions) => {
+    void context;
+    await (await import("./handlers/locus.js")).handleLocus(opts);
+  }));
+
+locus
+  .command("release [slug]")
+  .description("Release the current checkout's work-item occupancy")
+  .action(withInteractionContext({}, async (_context, slug: string | undefined) => {
+    await (await import("./handlers/locus-release.js")).handleLocusRelease(slug, locus.opts<LocusCliOptions>());
+  }));
+
+program
+  .command("inbox <list>")
+  .description("List entries in a personal, project, or work-item inbox")
+  .option("--target <slug>", "Filter the personal inbox by work-unit target")
+  .option("--json", "Emit the typed inbox listing")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, list: string, opts: { target?: string; json?: boolean }) => {
+    await (await import("./handlers/inbox.js")).handleInbox(list, opts, context);
+  }));
+
+program
+  .command("route [entry-id]")
+  .description("Move a versioned entry, or insert an entry from standard input")
+  .option("--from <list>", "Source list for an existing entry")
+  .option("--expected-version <version>", "Entry version observed in the source listing")
+  .requiredOption("--to <destination>", "Destination inbox or work item")
+  .option("--section <name>", "Destination section when its kind has more than one")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, entryId: string | undefined, opts: { from?: string; expectedVersion?: string; to: string; section?: string }) => {
+    await (await import("./handlers/route.js")).handleRoute(entryId, opts, context);
+  }));
+
+const handoff = program.command("handoff").description("Write session handoff state");
+handoff
+  .command("write <file>")
+  .description("Write a versioned JSON handoff request from a file or - for stdin")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, file: string) => {
+    await (await import("./handlers/handoff-write.js")).handleHandoffWrite(file, context);
+  }));
 
 // --- Recover ---
 
@@ -898,10 +1834,54 @@ const recoverCmd = program
 recoverCmd
   .command("audit")
   .description("Audit the latest compaction seed against fresh recovery state")
+  .option("--seed-path <path>", "Use an exact adapter-supplied compaction seed path")
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: RecoverAuditOptions) => handleRecoverAudit(opts, context),
+    async (context, opts: RecoverAuditOptions) => {
+      await (await import("./handlers/recover.js")).handleRecoverAudit(opts, context);
+    },
+  ));
+
+// --- Editor ---
+
+program
+  .command("editor")
+  .description("Configure checkout editor settings for projected files")
+  .argument("<editor>", "Editor to configure (vscode or zed)")
+  .option("--remove", "Remove ARC's editor settings")
+  .action(withInteractionContext({}, async (_context, editor: "vscode" | "zed", opts: { remove?: boolean }) => {
+    const binding = projectionCommandBinding();
+    await (await import("./handlers/editor.js")).handleEditor({ editor, ...opts }, binding.store, binding.checkout);
+  }));
+
+// --- Selection ---
+
+program
+  .command("selection")
+  .description("List editable projected Markdown files")
+  .option("--changed", "List only files changed since the last arc save")
+  .option("--json", "Emit the selected paths as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { changed?: boolean; json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/selection.js")).handleSelection(opts, binding.store, binding.checkout);
+    },
+  ));
+
+// --- Save ---
+
+program
+  .command("save")
+  .description("Save pending edits in every projected root")
+  .option("--resolve <conflict>", "Resolve an indexed conflict shown without markers")
+  .option("--json", "Emit the complete save result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { resolve?: string; json?: boolean }) => {
+      await (await import("./handlers/save.js")).handleSave(opts, projectionCommandBinding().store);
+    },
   ));
 
 // --- Sync (orchestrator) ---
@@ -924,7 +1904,9 @@ program
   // injectable `output` parameter.
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
-    (context, opts: SyncOptions) => handleSync(opts, undefined, context),
+    async (context, opts: SyncOptions) => {
+      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context);
+    },
   ));
 
 // --- Release ---
@@ -944,7 +1926,9 @@ releaseCmd
   .argument("[args...]", "Arguments forwarded to `git commit`")
   .action(withInteractionContext(
     {},
-    (context, args: string[]) => handleReleaseCommit({ args }, context),
+    async (context, args: string[]) => {
+      await (await import("./commands/release.js")).handleReleaseCommit({ args }, context);
+    },
   ));
 
 releaseCmd
@@ -956,7 +1940,9 @@ releaseCmd
   .argument("[args...]", "Arguments forwarded to `git push`")
   .action(withInteractionContext(
     {},
-    (context, args: string[]) => handleReleasePush({ args }, context),
+    async (context, args: string[]) => {
+      await (await import("./commands/release.js")).handleReleasePush({ args }, context);
+    },
   ));
 
 releaseCmd
@@ -964,18 +1950,18 @@ releaseCmd
   .description(
     "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseOptedIn = true`)",
   )
-  .action(async () => {
-    await handleReleaseOptIn();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptIn(context);
+  }));
 
 releaseCmd
   .command("opt-out")
   .description(
     "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseOptedIn = false`)",
   )
-  .action(async () => {
-    await handleReleaseOptOut();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptOut(context);
+  }));
 
 releaseCmd
   .command("status")
@@ -983,7 +1969,9 @@ releaseCmd
   .option("--json", "Emit a schemaVersion 2 JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    async (context, opts: { json?: boolean }) => handleReleaseStatus({ json: opts.json }, context),
+    async (context, opts: { json?: boolean }) => {
+      await (await import("./commands/release.js")).handleReleaseStatus({ json: opts.json }, context);
+    },
   ));
 
 const setupCmd = releaseCmd
@@ -1007,7 +1995,9 @@ setupCmd
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
-    (context, opts: ReleaseSetupInstallOptions) => handleReleaseSetupInstall(opts, context),
+    async (context, opts: ReleaseSetupInstallOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupInstall(opts, context);
+    },
   ));
 
 setupCmd
@@ -1019,9 +2009,10 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action((opts: ReleaseSetupPrintPatternsOptions) => {
-    handleReleaseSetupPrintPatterns(opts);
-  });
+  .action(withInteractionContext({}, async (context, opts: ReleaseSetupPrintPatternsOptions) => {
+    void context;
+    (await import("./commands/release.js")).handleReleaseSetupPrintPatterns(opts);
+  }));
 
 setupCmd
   .command("uninstall")
@@ -1031,7 +2022,9 @@ setupCmd
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ReleaseSetupUninstallOptions) => handleReleaseSetupUninstall(opts, context),
+    async (context, opts: ReleaseSetupUninstallOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupUninstall(opts, context);
+    },
   ));
 
 setupCmd
@@ -1040,7 +2033,9 @@ setupCmd
   .option("--harness <name>", "Filter verification report to a harness")
   .action(withInteractionContext(
     {},
-    async (context, opts: ReleaseSetupVerifyOptions) => handleReleaseSetupVerify(opts, context),
+    async (context, opts: ReleaseSetupVerifyOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupVerify(opts, context);
+    },
   ));
 
 // --- Log ---
@@ -1060,7 +2055,60 @@ logCmd
     "--category <category>",
     "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
-  .action(handleLogStandalone);
+  .action(withInteractionContext({}, async (context, opts: LogStandaloneOptions) => {
+    await (await import("./handlers/log.js")).handleLogStandalone(opts, context);
+  }));
+
+// --- Merge ---
+
+const mergeCmd = program
+  .command("merge")
+  .description("Merge-control operations");
+
+const mergeLockCmd = mergeCmd
+  .command("lock")
+  .description("Resolve and transition the host merge lock");
+
+const mergeLockResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+});
+const mergeLockTransitionHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+  target: { repository: "owner/repo", pullRequest: 123, headSha: "0".repeat(40) },
+  vehicle: { kind: "errand", slug: "example" },
+});
+
+mergeLockCmd
+  .command("resolve")
+  .description("Resolve how a pull request should open as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockResolve(input, {}, context);
+  }));
+
+mergeLockCmd
+  .command("hold")
+  .description("Lock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockHold(input, {}, context);
+  }));
+
+mergeLockCmd
+  .command("release")
+  .description("Unlock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockRelease(input, {}, context);
+  }));
 
 // --- Review ---
 
@@ -1069,32 +2117,199 @@ const reviewCmd = program
   .description("Resolve and execute review workflows");
 
 reviewCmd
+  .command("change-request")
+  .description("Exact-head change-request operations")
+  .command("resolve")
+  .description("Resolve the host disposition for one exact head as JSON")
+  .requiredOption("--head-ref <branch>", "Proposed branch name")
+  .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
+  .option("--require-remote", "Require the remote branch to match the exact head")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, options: ReviewChangeRequestResolveOptions) => {
+      await (await import("./handlers/review.js")).handleReviewChangeRequestResolve(options, context);
+    },
+  ));
+
+reviewCmd
+  .command("status")
+  .description("Resolve exact-target review, check, and base status as JSON")
+  .option("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
+  .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
+  .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
+  .option("--coverage <coverage>", "Requested review coverage (complete or incremental; hosted sources require complete)")
+  .option("--source <source-id>", "Explicit standard-review source for this status invocation")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, options: ReviewStatusOptions) => {
+      await (await import("./handlers/review.js")).handleReviewStatus(options, context);
+    },
+  ));
+
+reviewCmd
+  .command("terminus")
+  .description("Explicit review-terminus operations")
+  .command("accept")
+  .description("Accept one exact delivery-member Owner terminus as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    '\nContinuation:\n  Submit the returned terminusAction with one added field:\n  '
+      + '{"judgment":{"mode":"owner-accepted"}}\n',
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext(
+    { machineReadable: true },
+    async (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        (await import("./handlers/review.js")).handleReviewRequestSchema("review-terminus-accept-request", input);
+        return;
+      }
+      await (await import("./handlers/review.js")).handleReviewTerminusAccept(input ?? "", context);
+    },
+  ));
+
+reviewCmd
+  .command("merge-method")
+  .description("Configured merge-method operations")
+  .command("resolve")
+  .description("Validate the configured method against live repository policy as JSON")
+  .option(
+    "--stack-position <position>",
+    "Merge-method stack position (non-delivery, intermediate, or top)",
+    "non-delivery",
+  )
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewMergeMethodResolveOptions) => {
+    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options, {}, context);
+  }));
+
+reviewCmd
+  .command("checks")
+  .description("Required status-check operations")
+  .command("await")
+  .description("Await required checks on one exact pull-request head as JSON")
+  .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
+  .requiredOption("--pull-request <number>", "Pull-request number")
+  .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
+  .option("--timeout-ms <milliseconds>",
+    "Bounded wait duration; a longer one waits 1800000 (default: review.checks_await_timeout_seconds)")
+  .option(
+    "--poll-interval-ms <milliseconds>",
+    "Initial polling interval; a longer one polls every 60000 (default: review.checks_await_initial_poll_interval_seconds)",
+  )
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
+    await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
+  }));
+
+reviewCmd.command("adversarial").description("Record approved adversarial passes").command("record")
+  .description("Record one approved adversarial pass as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-adversarial-record-request",
+    async (input, context) => (await import("./handlers/review-adversarial.js")).handleReviewAdversarialRecord(input, {}, context))));
+
+reviewCmd.command("lane").description("Read review lineage history").command("read")
+  .description("Read lineage rejections and standard-lane facts as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-lane-read-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewLaneRead(input, {}, context))));
+
+reviewCmd
   .command("readiness")
   .description("Validate exact-head lifecycle readiness as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewReadiness(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-readiness-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewReadiness(input, {}, context))));
 
 reviewCmd
-  .command("planning-lane <base> <head>")
+  .command("planning-lane")
   .description("Classify an exact Git change for planning clearance")
+  .argument("<base>", "Full base commit SHA, 40 or 64 hex characters")
+  .argument("<head>", "Full head commit SHA, the same width as base")
   .option("--repository <path>", "Repository containing both exact commits")
-  .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
-    handleReviewPlanningLane(base, head, opts));
+  .action(async (base: string, head: string, opts: ReviewPlanningLaneOptions) => {
+    await (await import("./handlers/review.js")).handleReviewPlanningLane(base, head, opts);
+  });
+
+const planningGroomingResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  target: {
+    baseRef: "main",
+    diffBaseSha: "0".repeat(40),
+    headSha: "1".repeat(40),
+  },
+  routingFacts: {
+    contentKind: "documentation",
+    reviewRisk: "routine",
+    changeDeterminacy: "atomic",
+    ownership: "self",
+    surfaceAuthority: "planning-grooming",
+  },
+});
 
 reviewCmd
-  .command("unlock")
-  .description("Preflight and dispatch exact-head ARC clearance as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewUnlock(input));
+  .command("planning-grooming")
+  .description("Transient planning-grooming review applicability")
+  .command("resolve")
+  .description("Resolve exact planning-grooming review exemption as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
+  .action(withInteractionContext(
+    { machineReadable: true },
+    async (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        (await import("./handlers/review.js")).handleReviewRequestSchema(
+          "review-planning-grooming-resolve-request",
+          input,
+        );
+        return;
+      }
+      await (await import("./handlers/review.js")).handleReviewPlanningGroomingResolve(input ?? "", {}, context);
+    },
+  ));
 
 reviewCmd
   .command("resolve")
   .description("Resolve the next configured review-policy action as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewResolve(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin; required unless --schema is selected")
+  .option("--schema", "Print the request schema and referenced definitions; use without request input")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-resolve-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "", {}, context);
+  }));
 
 const frontlineCmd = reviewCmd
   .command("frontline")
@@ -1103,18 +2318,31 @@ const frontlineCmd = reviewCmd
 frontlineCmd
   .command("resolve")
   .description("Resolve explicit change-set facts and one-run intent as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewFrontlineResolve(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-frontline-resolve-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewFrontlineResolve(input, {}, context))));
 
 frontlineCmd
   .command("run")
   .description("Execute one exact-target frontline review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string) => handleReviewFrontlineRun(input, {}, context),
+    async (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-run-request", input);
+        return;
+      }
+      await (await import("./handlers/review.js")).handleReviewFrontlineRun(input ?? "", {}, context);
+    },
   ));
 
 const hostedCmd = reviewCmd
@@ -1124,32 +2352,91 @@ const hostedCmd = reviewCmd
 hostedCmd
   .command("request")
   .description("Request one hosted pull-request review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewHostedRequest(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-request-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("await")
   .description("Await one requested hosted pull-request review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewHostedAwait(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-await-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("settle")
   .description("Reply to and resolve one hosted review finding as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewHostedSettle(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-settle-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
+  }));
+
+hostedCmd
+  .command("dismiss")
+  .description("Dismiss one review service's settled change-request review as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nInput:\n  The open pull request's exact head and one blocking review as `arc review status` reports it.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (_context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-dismiss-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedDismiss(input ?? "");
+  }));
 
 reviewCmd
-  .command("chunking")
-  .description("Exact-target review chunking operations")
+  .command("changeset")
+  .description("Exact-target changeset-size review operations")
   .command("resolve")
-  .description("Resolve one immutable target's chunking recommendation as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewChunkingResolve(input));
+  .description("Resolve one immutable target's changeset-size recommendation as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-chunking-resolve-request",
+    async (input, context) => (await import("./handlers/review.js")).handleReviewChunkingResolve(input, {}, context))));
 
 const localReviewCmd = reviewCmd
   .command("local")
@@ -1158,92 +2445,156 @@ const localReviewCmd = reviewCmd
 localReviewCmd
   .command("prepare")
   .description("Derive and prepare one immutable local review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalPrepare(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-prepare-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("attest")
   .description("Attest one normalized local review result as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalAttest(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-attest-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
+
+localReviewCmd
+  .command("cancel")
+  .description("Cancel a pending local review dispatch without settling its review obligation")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-cancel-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalCancel(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("resume")
   .description("Resume one durable local review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalResume(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-resume-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalResume(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("respond")
-  .description("Prepare or persist one source-bound review disposition set as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewRespond(input));
+  .description("Prepare, persist, or withdraw one source-bound review disposition or continuation as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-respond-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("reduce")
   .description("Reduce one durable review operation as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewReduce(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-reduce-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "", {}, context);
+  }));
+
+reviewCmd
+  .command("pre-publication <name>")
+  .description("Resolve one work unit's typed pre-publication review procedure as JSON")
+  .option("--self-review <state>", "Report completed author self-review: settled")
+  .option("--change-set <file | ->", "Change-set routing facts as JSON; omitted routes as unestablished")
+  .option(
+    "--lanes <file | ->",
+    "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
+  )
+  .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, name: string, options: ReviewPrePublicationOptions) => {
+      await (await import("./handlers/review.js")).handleReviewPrePublication(name, options, {}, context);
+    },
+  ));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 
+let devBuildRefreshEligible = false;
+
 program.hook("preAction", (_thisCommand, actionCommand) => {
-  const verdict = checkDevBuildStaleness(
-    createDevCheckDeps(fileURLToPath(import.meta.url)),
-  );
-  if (verdict.kind === "skip" || verdict.kind === "fresh") return;
-
-  const distAgeText = verdict.distAge === null
-    ? "dist/cli.js missing"
-    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
-  const baseMsg
-    = `arc dev build is stale (${verdict.newestSrc} changed `
-    + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
-
-  const critical = isHandoffCritical({
-    name: actionCommand.name(),
-    parentName: actionCommand.parent?.name(),
-    opts: actionCommand.opts(),
-  });
-  if (critical) {
-    const cmdPath = formatCommandPath(actionCommand);
-    process.stderr.write(
-      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
-      + "run `npm run build`, then retry.\n",
-    );
-    process.exit(1);
-  }
-
-  process.stderr.write(
-    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+  devBuildRefreshEligible = runDevBuildGuard(
+    {
+      commandPath: formatCommandPath(actionCommand),
+      writeCompactionSeed: actionCommand.opts<Record<string, unknown>>().writeCompactionSeed === true,
+    },
+    createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
 });
 
-function formatCommandPath(cmd: Command): string {
-  const parts: string[] = [];
-  let cur: Command | null = cmd;
-  while (cur !== null) {
-    parts.unshift(cur.name());
-    cur = cur.parent;
+program.hook("postAction", async () => {
+  if (!devBuildRefreshEligible) return;
+  const result = await refreshDevBuildAfterAction(fileURLToPath(import.meta.url));
+  if (result.kind === "not-required") return;
+  if (result.kind === "refreshed") {
+    process.stderr.write("info: refreshed the arc dev build after bundled source changed.\n");
+    return;
   }
-  return parts.join(" ");
-}
+  process.stderr.write(
+    `error: arc could not refresh the dev build (${result.message}); run \`${result.command}\` before continuing.\n`,
+  );
+  process.exitCode = 1;
+});
 
-function formatAge(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86_400)}d`;
-}
+registerProjectionHooks(program, { mint: async input => (await import("./handlers/projection-stub.js")).mintProjectionStub(input) });
 
 // --- Entry ---
 
+applyArcHelp(program);
 program.parseAsync().catch((err: unknown) => {
+  if (err instanceof CommanderError) {
+    process.exitCode = err.exitCode;
+    return;
+  }
   console.error(formatUnexpectedError(err));
   process.exitCode = 1;
 });

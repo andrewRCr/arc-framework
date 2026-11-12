@@ -3,6 +3,11 @@ import { resolve } from "node:path";
 
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
+
+import type { BaseMergeResult } from "../../src/scripts/base/merge.js";
+import { RespondVerifiedFixSchema } from "../../src/scripts/review-gate/runtime/respond-command.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
@@ -27,76 +32,141 @@ function stepValue(workflow: string, jobName: string, stepId: string): Record<st
 }
 
 function sectionBetween(content: string, start: string, end?: string): string {
-  const startIndex = content.indexOf(start);
+  const startIndex = start.startsWith("#")
+    ? content.indexOf(start)
+    : indexOfSoftWrappedProse(content, start);
   if (startIndex === -1) throw new Error(`missing section start: ${start}`);
   if (end === undefined) return content.slice(startIndex);
-  const endIndex = content.indexOf(end, startIndex + start.length);
+  const endIndex = end.startsWith("#")
+    ? content.indexOf(end, startIndex + 1)
+    : indexOfSoftWrappedProse(content, end, startIndex + 1);
   if (endIndex === -1) throw new Error(`missing section end after "${start}": ${end}`);
   return content.slice(startIndex, endIndex);
 }
 
-interface ClearanceStatusFixture {
-  context: string;
-  previousHead: string;
-  replacementHead: string;
-  statuses: Array<{
-    context: string;
-    sha: string;
-    state: "success";
-  }>;
-}
-
-function hasClearanceSuccess(
-  fixture: ClearanceStatusFixture,
-  sha: string,
-): boolean {
-  return fixture.statuses.some(
-    (status) => status.context === fixture.context
-      && status.sha === sha
-      && status.state === "success",
-  );
-}
 
 describe("trusted review-gate workflows", () => {
-  it("publishes independent CI truth and a thin compatibility alias", async () => {
+  it("publishes CI truth as the single ci-ok roll-up", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]",
     );
-    expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
+    expect(workflow).toContain("scripts/classify-change.sh integration --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");
   });
 
-  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+  it("runs the Linux CI graph on GitHub-hosted runners with no self-hosted routing", async () => {
     const workflow = await read("ci.yml");
-    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    expect(workflow).not.toContain("ARC_CI_LINUX_RUNNER");
     const linuxJobs = [
       "classify",
       "setup",
+      "build",
       "lint-typecheck",
       "unit",
       "integration",
       "e2e",
       "portability",
       "ci_ok",
-      "merge-ok",
+      "record-verified-tree",
     ];
-    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe("ubuntu-latest");
 
     expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
-    for (const name of ["docs.yml", "arc-clearance.yml"]) {
+    for (const name of ["docs.yml", "arc-lane-attestation.yml"]) {
       const hostedWorkflow = await read(name);
       const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
       for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
         expect(value["runs-on"], `${name}:${job}`).toBe("ubuntu-latest");
       }
     }
+  });
+
+  it("sizes Vitest natively on hosted runners unless the repository variable retunes it", async () => {
+    const workflow = await read("ci.yml");
+    const parsed = load(workflow) as {
+      env?: Record<string, unknown>;
+      jobs?: Record<string, { env?: Record<string, unknown> }>;
+    };
+    expect(parsed.env?.VITEST_MAX_WORKERS).toBe("${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}");
+    expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
+  });
+
+  it("times each CI test job and reports its advisory budget after the tests", async () => {
+    const workflow = await read("ci.yml");
+    const jobs = [
+      ["unit", "unit", "unit", "unit-${{ matrix.shard }}"],
+      ["integration", "integration", "integration", "integration-${{ matrix.shard }}"],
+      ["e2e", "e2e", "e2e", "e2e-${{ matrix.shard }}"],
+    ] as const;
+
+    for (const [jobName, tier, projectSet, ciJob] of jobs) {
+      const steps = jobValue(workflow, jobName).steps;
+      expect(Array.isArray(steps)).toBe(true);
+      const ordered = steps as Array<Record<string, unknown>>;
+      expect(ordered.at(0)?.name, jobName).toBe("Start test budget clock");
+      expect(ordered.at(0)?.run, jobName).toContain("$(date +%s)");
+      expect(ordered.at(0)?.run, jobName).not.toContain("%N");
+      const report = ordered.at(-1);
+      expect(report?.name, jobName).toBe("Report test budget");
+      expect(report?.run, jobName).toContain(`--tier ${tier}`);
+      expect(report?.run, jobName).toContain(`--project-set ${projectSet}`);
+      expect(report?.run, jobName).toContain(`--ci-job "${ciJob}"`);
+      expect(report?.run, jobName).toContain("--started-at-seconds");
+    }
+  });
+
+  it("retains unit durations and timeout metadata even when tests fail", async () => {
+    const unit = jobValue(await read("ci.yml"), "unit");
+    expect(unit.permissions).toMatchObject({ contents: "read", actions: "write" });
+    const steps = unit.steps as Array<Record<string, unknown>>;
+    const test = steps.find((step) => step.id === "test");
+    expect(test?.run).toContain("--reporter=default");
+    expect(test?.run).toContain("--reporter=github-actions");
+    expect(test?.run).toContain("--reporter=json");
+    expect(test?.run).toContain("--outputFile=unit-test-report.json");
+    const upload = steps.find((step) => step.name === "Upload unit test report");
+    expect(upload?.uses).toMatch(/^actions\/upload-artifact@/u);
+    expect(upload?.if).toBe("${{ !cancelled() }}");
+    expect(upload?.with).toMatchObject({
+      name: "unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}",
+      path: "packages/arc-framework/unit-test-report.json",
+      "if-no-files-found": "error",
+    });
+    expect(steps.at(-1)?.name).toBe("Report test budget");
+  });
+
+  it("runs four E2E shards from the declaration forecast", async () => {
+    const workflow = await read("ci.yml");
+    const e2e = jobValue(workflow, "e2e");
+    expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
+    expect(e2e.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
+    const steps = e2e.steps as Array<Record<string, unknown>>;
+    const runs = steps.map((step) => step.run)
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run e2e test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run e2e test --shard ${{ matrix.shard }}"]);
+    expect(steps.some((step) => typeof step.run === "string" && step.run.includes("--exclude"))).toBe(false);
+  });
+
+  it("runs four integration shards from the declaration forecast", async () => {
+    const workflow = await read("ci.yml");
+    const integration = jobValue(workflow, "integration");
+
+    expect(integration.name).toBe("Integration Tests (${{ matrix.shard }})");
+    expect(integration.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
+
+    const steps = integration.steps;
+    expect(Array.isArray(steps)).toBe(true);
+    const runs = (steps as Array<Record<string, unknown>>)
+      .map((step) => step.run)
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run integration test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run integration test --shard ${{ matrix.shard }}"]);
   });
 
   it("provisions Node before the classifier hashes the code tree", async () => {
@@ -112,6 +182,22 @@ describe("trusted review-gate workflows", () => {
 
     expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
     expect(classifierIndex).toBeGreaterThan(setupNodeIndex);
+  });
+
+  it("gives recorded integration field runs complete repository history", async () => {
+    const workflow = await read("ci.yml");
+    const integrationSteps = jobValue(workflow, "integration").steps;
+    expect(Array.isArray(integrationSteps)).toBe(true);
+
+    const checkout = (integrationSteps as Array<Record<string, unknown>>).find(
+      (step) => typeof step.uses === "string" && step.uses.startsWith("actions/checkout@"),
+    );
+    expect(checkout).toMatchObject({
+      with: {
+        "fetch-depth": 0,
+        "persist-credentials": false,
+      },
+    });
   });
 
   it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
@@ -140,29 +226,40 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
-        "github.event_name == 'schedule' }}",
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only || inputs.portability_files)) || " +
+        "github.event_name == 'schedule') }}",
     );
-    // The pair consumes no classify output, so it is dependency-free: a `needs`
-    // paired with a custom `if` would let a failed classify start it anyway.
-    expect(jobValue(workflow, "portability-cross-platform")).not.toHaveProperty("needs");
+    expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
     const triggers = (load(workflow) as { on?: Record<string, unknown> }).on;
     expect(triggers?.workflow_dispatch).toMatchObject({
       inputs: { run_portability_pair: { type: "boolean", default: false } },
     });
-    const targetedJob = sectionBetween(workflow, "  portability-cross-platform:", "  ci_ok:");
+    const targetedJob = JSON.stringify(jobValue(workflow, "portability-cross-platform"));
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
 
   it("keeps the public review CLI inside the published graph", async () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
+    const productionRegistry = await readFile(
+      resolve(root, "packages/arc-framework/src/production-schema-registry.ts"),
+      "utf8",
+    );
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
       scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
-    expect(tsup).toContain("registerReviewDomainSchemas");
+    expect(productionRegistry).toContain("registerReviewDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryAuthoringSchemas");
+    expect(productionRegistry).toContain("registerSessionEnvelopeSchemas");
+    expect(productionRegistry).toContain("registerDecomposeSchemas");
+    const compactRegistry = productionRegistry.replace(/\s+/gu, " ");
+    expect(compactRegistry).toContain(
+      "registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerCutMapSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
+      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), ))))));",
+    );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
     const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
@@ -178,31 +275,48 @@ describe("trusted review-gate workflows", () => {
       scripts: Record<string, string>;
     };
     expect(packageManifest.scripts["test:arc-contracts"]).toBe(
-      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+      "node --import tsx src/scripts/run-local-test-tier.ts arc-contracts",
     );
     expect(rootManifest.scripts["test:arc-contracts"]).toBe(
-      "npm run test:arc-contracts -w packages/arc-framework",
+      "npm run test:arc-contracts -w packages/arc-framework --",
     );
 
     const workflow = await read("ci.yml");
     const lintSteps = jobValue(workflow, "lint-typecheck").steps;
     expect(Array.isArray(lintSteps)).toBe(true);
     const focused = (lintSteps as Array<Record<string, unknown>>)
-      .filter((step) => step.run === "npm run test:arc-contracts");
-    expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
+      .filter((step) => step.id === "arc-contracts");
+    expect(focused).toEqual([{ id: "arc-contracts", if: "${{ needs.classify.outputs.weight == 'light' }}",
+      run: "node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts" }]);
 
-    const unitCondition = "${{ !cancelled() && github.event_name != 'schedule' && " +
-      "needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && " +
-      "needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}";
+    const unitCondition = "${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
+      "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
+      "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
-
-    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
-      "needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && " +
-      "needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || " +
-      "github.event_name == 'workflow_dispatch') }}";
-    for (const jobName of ["integration", "e2e", "portability"]) {
-      expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
-    }
+    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
+      "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
+      "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
+    const integrationTarget = "needs.classify.outputs.integration_target == 'true'";
+    const contentSuiteCondition = broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    );
+    expect(jobValue(workflow, "e2e").if).toBe(contentSuiteCondition);
+    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
+    // Both suites read content outside the verified code tree, and the shared target also requests their build.
+    expect(jobValue(workflow, "integration").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ));
+    // The store suites run by reach on a pull request and in full on every push to main, which needs the build too.
+    expect(jobValue(workflow, "store").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ).replace(" || github.event_name == 'workflow_dispatch'", " || github.event_name == 'push' || github.event_name == 'workflow_dispatch'"));
+    expect(jobValue(workflow, "build").if).toBe("${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
+      "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
+      `${integrationTarget} || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || ` +
+      "github.event_name == 'schedule') && needs.setup.result == 'success' }}");
   });
 
   it("parses every workflow and pins every external action", async () => {
@@ -217,10 +331,14 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("retains only the clearance workflow from the retired review-gate family", async () => {
+  it("retains only the lane attestation from the retired review-gate family", async () => {
     const names = (await readdir(resolve(root, ".github/workflows"))).filter((name) => /\.ya?ml$/u.test(name));
     expect(names.filter((name) => name.startsWith("review-gate"))).toEqual([]);
-    expect(names).toContain("arc-clearance.yml");
+    expect(names).toContain("arc-lane-attestation.yml");
+    // The clearance producer and its required status retired together — a surviving
+    // producer with no requirement is harmless, but a requirement with no producer
+    // blocks every pull request permanently.
+    expect(names).not.toContain("arc-clearance.yml");
   });
 
   it("assembles a provisional candidate only after authoritative review settlement", async () => {
@@ -232,163 +350,102 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(projectRules).toBe(packagedRules);
-    expect(packagedRules).toMatch(/sole bounded exception[\s\S]*provisional integration candidate/iu);
-    expect(packagedRules).toMatch(/implementation or finding-driven fix[\s\S]*structured approval gate/iu);
-    expect(packagedRules).toMatch(/exact-head integration authorization/iu);
+    expect(packagedRules).toMatch(softWrappedPattern(/sole\s+bounded\s+exception[\s\S]*provisional\s+integration\s+candidate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/implementation\s+fix\s+still\s+requires\s+its\s+structured\s+approval\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/finding-driven\s+fix,\s+the\s+complete-set\s+disposition\s+approval\s+is\s+that\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/exact-head\s+integration\s+authorization/iu));
 
     const candidate = sectionBetween(
       packaged,
       "## Phase 2: Compose, sweep, ship",
-      "### 13) Behind-base reconcile gate and merge",
+      "### 10) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
-    expect(candidate).toContain("candidate-entry state");
-    expect(candidate).toContain("never merge readiness");
-    expect(candidate).toMatch(/raw local clean report[\s\S]*unattested/iu);
-    expect(candidate).toMatch(/canonical settled WU change set[\s\S]*completed task outcomes/u);
-    expect(candidate).toMatch(/spec intent and\s+non-goals[\s\S]*success-criteria disposition/u);
-    expect(candidate).toContain("verification evidence");
-    expect(candidate).toMatch(/alignment disagreement|failed quality gate|base conflict|unexpected state/u);
-    expect(candidate).toContain("Recompose its exact target");
-    expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not\s+prospective merge authority/u);
-    expect(candidate).not.toContain("Stop before composition begins");
-    expect(candidate).not.toContain("proceed to commit + sweep + push");
+    expect(candidate).toMatch(softWrappedProse("candidate-entry state"));
+    expect(candidate).toMatch(softWrappedProse("never merge readiness"));
+    expect(candidate).toMatch(softWrappedPattern(/raw\s+local\s+clean\s+report[\s\S]*unattested/iu));
+    expect(candidate).toMatch(softWrappedPattern(/canonical\s+settled\s+WU\s+change\s+set[\s\S]*completed\s+task\s+outcomes/u));
+    expect(candidate).toMatch(softWrappedPattern(/spec\s+intent\s+and\s+non-goals[\s\S]*success-criteria\s+disposition/u));
+    expect(candidate).toMatch(softWrappedProse("verification evidence"));
+    expect(candidate).toMatch(softWrappedPattern(/alignment\s+disagreement|failed\s+quality\s+gate|base\s+conflict|unexpected\s+state/u));
+    expect(candidate).toMatch(softWrappedProse("Recompose its exact target"));
+    expect(candidate).toMatch(softWrappedPattern(/pre-composition\s+direction[\s\S]*not\s+prospective\s+merge\s+authority/u));
+    expect(candidate).not.toMatch(softWrappedProse("Stop before composition begins"));
+    expect(candidate).not.toMatch(softWrappedProse("proceed to commit + sweep + push"));
   });
 
-  it("keeps composition public and surfaces the complete candidate tail", async () => {
+  it("keeps composition public and delegates final evidence rendering to the checkpoint", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
     const releaseNotes = sectionBetween(
       packaged,
-      "### 8) Compose Release Notes Entry",
-      "### 9) Compose Completion Notes",
+      "### 5) Compose Release Notes Entry",
+      "### 6) Compose Completion Notes",
     );
-    expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
-    expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
-    expect(releaseNotes).toMatch(/roadmap pointers[\s\S]*internal review or provider machinery/u);
-    expect(releaseNotes).toContain("planned-but-unshipped work");
-    expect(releaseNotes).toMatch(/publicly supported review concepts and configuration[\s\S]*shipped outcome/iu);
-    expect(releaseNotes).toMatch(/\*\*Infrastructure\*\*[\s\S]*externally meaningful operational change/u);
-    expect(releaseNotes).toMatch(/\*\*Breaking\s+Changes\*\*[\s\S]*affected stability contract[\s\S]*migration/u);
+    expect(releaseNotes).toMatch(softWrappedPattern(/shipped\s+reader\/operator-visible\s+outcomes/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/WU\s+names\s+or\s+slugs[\s\S]*task\s+or\s+phase\s+references[\s\S]*branches/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/roadmap\s+pointers[\s\S]*internal\s+review\s+or\s+provider\s+machinery/u));
+    expect(releaseNotes).toMatch(softWrappedProse("planned-but-unshipped work"));
+    expect(releaseNotes).toMatch(softWrappedPattern(/publicly\s+supported\s+review\s+concepts\s+and\s+configuration[\s\S]*shipped\s+outcome/iu));
+    expect(releaseNotes).toContain("`### <Category>`");
+    expect(releaseNotes).toMatch(softWrappedPattern(/dash\s+and\s+one\s+space[\s\S]*continuation\s+lines\s+at\s+least\s+two\s+spaces/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/Infrastructure[\s\S]*externally\s+meaningful[\s\S]*operational\s+change/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/`### Breaking Changes`[\s\S]*affected\s+stability\s+contract[\s\S]*migration/u));
 
     const completionNotes = sectionBetween(
       packaged,
-      "### 9) Compose Completion Notes",
-      "### 10) Commit completion content",
+      "### 6) Compose Completion Notes",
+      "### 7) Commit completion content",
     );
-    expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
-    expect(completionNotes).toContain("verified evidence");
-    expect(completionNotes).toMatch(/never repeat[\s\S]*(?:task list|git history)/iu);
+    expect(completionNotes).toMatch(softWrappedPattern(/delivered\s+scope[\s\S]*material\s+deviations\s+or\s+supersessions/u));
+    expect(completionNotes).toMatch(softWrappedProse("verified evidence"));
+    expect(completionNotes).toMatch(softWrappedPattern(/never\s+repeat[\s\S]*(?:task\s+list|git\s+history)/iu));
 
     const finalGate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
-    expect(finalGate).toMatch(/exact candidate-tail diff[\s\S]*not excerpts alone/u);
-    expect(finalGate).toMatch(/task and notes cleanup[\s\S]*composition[\s\S]*cohort closeout/u);
-    expect(finalGate).toMatch(/archive moves[\s\S]*readiness regeneration[\s\S]*reconcile commits/u);
+    expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
+    expect(finalGate).toMatch(softWrappedPattern(/approved\s+responses[\s\S]*already\s+performed[\s\S]*not\s+re-approved/iu));
+    expect(finalGate).not.toMatch(softWrappedProse("exact candidate-tail diff"));
   });
 
-  it("routes frontline and local review through the public advisory command surface", async () => {
-    const paths = [
-      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
-      "system/workflows/arc/supplemental/run-errand.md",
-    ];
-    for (const path of paths) {
-      const [packaged, project] = await Promise.all([
-        readRepositoryFile(`packages/arc-framework/arc/${path}`),
-        readRepositoryFile(`.arc/${path}`),
-      ]);
-      expect(project).toBe(packaged);
-      for (const command of [
-        "arc review frontline resolve -",
-        "arc review frontline run -",
-        "arc review local prepare -",
-        "arc review local attest -",
-        "arc review local resume -",
-        "arc review respond -",
-        "arc review reduce -",
-      ]) {
-        expect(packaged).toContain(command);
-      }
-      expect(packaged).toMatch(/runtime-owned bindings/iu);
-      expect(packaged).toContain("`findings / respond`");
-      expect(packaged).toContain("review applicability");
-      expect(packaged).toContain("targeted verification");
-      expect(packaged).toMatch(/command error\s+envelope/iu);
-      expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
-      expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
-      expect(packaged).not.toMatch(/project review coordinator|coordinate-pr-review/iu);
-    }
-  });
-
-  it("routes Errand review and re-entry through the public command protocol", async () => {
+  it("discloses the applicability calls, dispositions, and narrowed tail diff at the merge stop", async () => {
     const [packaged, project] = await Promise.all([
-      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
-      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
-    expect(packaged).toMatch(/arc review resolve -[\s\S]*review-response/iu);
-    expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
-    expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
-    expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
-    expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
-  });
 
-  it("settles the Errand exact head without importing WU products", async () => {
-    const packaged = await readRepositoryFile(
-      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
-    );
-    const full = sectionBetween(packaged, "### Ship — full protection", "### Ship — partial protection");
-    expect(full).toContain("arc base drift --json");
-    expect(full).toContain("review applicability");
-    expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*complete review/u);
-    expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
-    expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
-    expect(full).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
-
-    const preMerge = full.lastIndexOf("`#pre-merge`");
-    const interlock = full.lastIndexOf("`integration-interlock`");
-    const autoMerge = full.lastIndexOf("gh pr merge <pr-number>");
-    expect(preMerge).toBeLessThan(interlock);
-    expect(interlock).toBeLessThan(autoMerge);
-    expect(full).toMatch(/after approval[\s\S]*recompose[\s\S]*re-read PR status[\s\S]*base drift/u);
-    expect(full).toContain("--match-head-commit {approved-head-sha}");
-
-    const partial = sectionBetween(packaged, "### Ship — partial protection", "### Complete");
-    expect(partial).toContain("direct base-branch commit");
-    expect(partial).not.toContain("pre-merge");
-    expect(partial).not.toContain("integration-interlock");
-  });
-
-  it("covers Errand review outcomes and exact-target re-entry", async () => {
-    const packaged = await readRepositoryFile(
-      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
-    );
-    const frontline = sectionBetween(
+    const finalGate = sectionBetween(
       packaged,
-      "Compose the immutable policy target",
-      "3. **Resolve the Errand PR**",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
-    expect(frontline).toContain("`findings / respond`");
-    expect(frontline).toContain("`arc review respond -`");
-    expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
-    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
-    expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
+    const interlock = finalGate.slice(finalGate.lastIndexOf("`integration-interlock`"));
+    const tailDiff = indexOfSoftWrappedProse(interlock, "candidate-tail diff");
+    const readerNotes = indexOfSoftWrappedProse(interlock, "Release Notes entry and Completion Notes", tailDiff);
+    expect(tailDiff).toBeGreaterThan(-1);
+    expect(readerNotes).toBeGreaterThan(tailDiff);
+    expect(interlock).toMatch(softWrappedProse("named rather than diffed"));
+    expect(interlock).toMatch(softWrappedProse("review applicability calls and targeted verification"));
+    expect(interlock).toMatch(softWrappedProse("approved responses already performed there and the final dispositions carried by the checkpointed settlement plan"));
+    expect(interlock).not.toMatch(softWrappedProse("proposed final dispositions"));
+    expect(interlock).not.toMatch(softWrappedProse("applies final dispositions"));
+    expect(finalGate).toMatch(softWrappedProse("Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`"));
+    expect(interlock).toMatch(softWrappedProse("the Owner direction obtained for any `hostReview` blocker"));
 
-    const openPr = sectionBetween(
+    const reviewCoordination = sectionBetween(
       packaged,
-      "4. **Enter the open PR.**",
-      "5. **Settle the final head.**",
+      "### 3) Confirm review coordination",
+      "### 4) Spec-presence + alignment checks",
     );
-    expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
-    expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
-    expect(openPr).toMatch(/target movement[\s\S]*review applicability/iu);
-    expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
-    expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
+    expect(reviewCoordination).toMatch(softWrappedProse("approved no-action record-only set"));
+    expect(reviewCoordination).toMatch(softWrappedProse("cannot remain merely proposed"));
   });
 
   it("covers Errand merge lanes and already-merged cleanup", async () => {
@@ -400,20 +457,52 @@ describe("trusted review-gate workflows", () => {
       "3. **Resolve the Errand PR**",
       "4. **Enter the open PR.**",
     );
-    expect(prResolution).toMatch(/one merged match at the current head[\s\S]*skip review\/merge[\s\S]*Complete cleanup/iu);
+    expect(prResolution).toContain("arc review change-request resolve --head-ref");
+    expect(prResolution).toMatch(/`merged-at-head \/ complete`[\s\S]*Complete/u);
+    expect(prResolution).toContain("`closed-unmerged / reopen-change-request`");
 
-    const lanes = sectionBetween(packaged, "6. Land per lane:", "### Ship — partial protection");
-    expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
-    expect(lanes).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(lanes).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
-    expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
+    const terminal = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
+    expect(terminal.match(/arc errand merge <slug> - --json/gu)).toHaveLength(1);
+    expect(terminal).toMatch(/errandMergeRequest[\s\S]*integration-interlock[\s\S]*arc errand merge/iu);
+    expect(terminal).toMatch(softWrappedPattern(/approval\s+authorizes[\s\S]*bounded\s+exact-head\s+wait/iu));
+    expect(terminal).toMatch(softWrappedPattern(/green\s+\|\s+not-required\s+\/\s+complete[\s\S]*pass\s+`errandMergeRequest`\s+unchanged/iu));
+    expect(terminal).toMatch(softWrappedPattern(/pending\s+\/\s+await[\s\S]*exact\s+`errandMergeRequest`/iu));
+    expect(terminal).toMatch(softWrappedPattern(/awaiting-checks\s+\/\s+retry[\s\S]*exact\s+continuation/iu));
+    expect(terminal).toMatch(/reconcile-base[\s\S]*reconcile-regenerable[\s\S]*supplied\s+remedy/iu);
+    expect(terminal).toMatch(softWrappedPattern(/applicability-judgment-required[\s\S]*fresh\s+integration\s+approval/iu));
+    expect(terminal).toMatch(softWrappedPattern(/arc merge lock release -[\s\S]*separate\s+operation\s+authorizes\s+no\s+merge/iu));
+    expect(terminal).not.toContain("gh pr merge");
+    expect(terminal.match(/arc review checks await/gu)).toHaveLength(1);
+    expect(terminal).toContain("--repository <approvedTarget.repository>");
+    expect(terminal).toContain("--pull-request <approvedTarget.pullRequest>");
+    expect(terminal).toContain("--head-sha <approvedTarget.headSha>");
+    expect(terminal).not.toContain("--timeout-ms");
+    expect(terminal).not.toContain("arc merge lock hold");
 
     const complete = sectionBetween(packaged, "### Complete");
-    expect(complete).toMatch(/arc errand close <slug>[\s\S]*reaps the branch[\s\S]*removes the record/iu);
-    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*next session-init's errand sweep/iu);
+    expect(complete).toMatch(
+      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*drops\s+only\s+its\s+origin\s+capture/iu),
+    );
+    expect(complete).toMatch(
+      softWrappedPattern(/conversation[\s\S]*exact\s+next\s+Errand[\s\S]*takes\s+precedence\s+over\s+`nextOffer`[\s\S]*no\s+additional\s+completion\s+offer/iu),
+    );
+    expect(complete).toContain("**Post-leave merge.**");
+    expect(complete).toMatch(softWrappedProse("identity's owning open or materialize driver"));
+    expect(complete).toContain("Exact replay is");
+
+    const leave = sectionBetween(packaged, "7. **Leave", "### Ship — partial protection");
+    expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
+    expect(terminal).not.toContain("arc errand leave <slug>");
+    expect(leave).toMatch(softWrappedPattern(/session\s+is\s+ending[\s\S]*moving\s+machines/iu));
+    expect(leave).toMatch(
+      softWrappedPattern(/Do\s+not\s+leave[\s\S]*change\s+request\s+is\s+open[\s\S]*ordinary\s+next-Errand\s+queue\s+advancement/iu),
+    );
+    expect(leave).toMatch(
+      softWrappedPattern(/another\s+Errand\s+must\s+land\s+before\s+the\s+current\s+one\s+can\s+complete[\s\S]*restoration\s+checkout[\s\S]*Never\s+open\s+a\s+different\s+Errand\s+from\s+an\s+active\s+transient/iu),
+    );
   });
 
-  it("keeps auto-merge arming on canonical classification without requiring ARC clearance", async () => {
+  it("keeps auto-merge arming on canonical classification", async () => {
     const paths = {
       errand: "system/workflows/arc/supplemental/run-errand.md",
       drain: "system/workflows/arc/supplemental/drain-inbox.md",
@@ -431,20 +520,27 @@ describe("trusted review-gate workflows", () => {
     }));
     const documents = Object.fromEntries(entries);
 
-    expect(documents.errand).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(documents.errand).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
+    expect(documents.errand).toContain("arc review planning-lane <base-sha> <head-sha>");
+    expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
+    expect(documents.errand).toContain("arc errand merge <slug> - --json");
+    expect(documents.errand).not.toContain("gh pr merge");
+    expect(documents.errand).toMatch(softWrappedPattern(
+      /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
+    ));
+    expect(documents.errand).not.toMatch(/healthy\s+reading/u);
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
     expect(documents.setup).toMatch(/canonical\s+classifier/iu);
-    expect(documents.setup).toMatch(/without\s+`arc-cleared`[\s\S]*procedural enforcement/iu);
-    expect(documents.setup).toMatch(/when `arc-cleared`\s+is required[\s\S]*structural/iu);
-    expect(documents.readme).toMatch(/without `arc-cleared`[\s\S]*canonical classifier/iu);
-    expect(documents.codeowners).not.toContain("required arc-cleared");
-    expect(documents.initial).toMatch(/planning auto-merge lane[\s\S]*canonical classifier/iu);
+    expect(documents.setup).toMatch(softWrappedPattern(/procedural\s+boundary[\s\S]*never\s+infer\s+merge\s+safety/iu));
+    expect(documents.readme).toMatch(/canonical\s+classifier/iu);
+    expect(documents.initial).toMatch(softWrappedPattern(/planning\s+auto-merge\s+lane[\s\S]*canonical\s+classifier/iu));
+    expect(documents.initial).toMatch(softWrappedPattern(/Draft-state\s+merge\s+lock[\s\S]*merge\.lock:\s*draft/iu));
+    expect(documents.strategy).toMatch(/merge\.lock:\s*draft/iu);
+    expect(documents.strategy).toMatch(softWrappedPattern(/never\s+infer\s+merge\s+safety\s+from\s+agent-layer\s+discipline\s+alone/iu));
   });
 
-  it("uses one late authoritative base-reconcile mutation site", async () => {
+  it("uses typed procedures for the late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -456,124 +552,254 @@ describe("trusted review-gate workflows", () => {
 
     const gate = sectionBetween(
       packageIntegration,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
-    expect(gate).toContain("candidate's final mutation site");
-    expect(gate).toMatch(/`unavailable`[\s\S]*`skipped`[\s\S]*(?:malformed|unrecognized)[\s\S]*stop/u);
-    expect(gate).toMatch(/typed[\s\S]*empty[\s\S]*substantivePaths/u);
-    expect(gate).toMatch(/base conflict[\s\S]*analyzer\/host disagreement/u);
-    expect(gate).toContain("review applicability judgment");
-    expect(gate).toMatch(/targeted verification[\s\S]*focused or\s+complete review/u);
-    expect(gate).toMatch(/push[\s\S]*CI and routing[\s\S]*`pre-merge`/u);
-    expect(gate).toMatch(/base moves again[\s\S]*same Step 13/u);
-    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
-    expect(gate).toContain("git merge --no-edit {baseOid}");
-    expect(gate).toContain(
-      "result = arc base drift --json\n"
-      + "if <result is authoritative clean>:\n"
-      + "    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}",
-    );
-    expect(gate).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
-    expect(gate).not.toContain("arc base drift --json\ngit merge");
-    expect(gate).not.toContain("arc base drift --json\ngh pr merge");
-    const approval = gate.indexOf("Approve (or redirect)?");
-    const refreshedPr = gate.indexOf("re-read PR status", approval);
-    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
-    expect(approval).toBeLessThan(refreshedPr);
-    expect(refreshedPr).toBeLessThan(finalDrift);
-    expect(gate.indexOf("git merge --no-edit {baseOid}")).toBeLessThan(
-      gate.indexOf("run Tier 1 quality gates"),
-    );
-    expect(finalDrift).toBeLessThan(gate.lastIndexOf("gh pr merge {pr-number}"));
+    const checkpoint = gate.indexOf("arc integrate checkpoint {name}");
+    const baseMerge = indexOfSoftWrappedProse(gate, "checkpoint's supplied `remedy.argv` unchanged");
+    const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
+    const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
+    expect(reconcile).toBeGreaterThan(-1);
+    expect(checkpoint).toBeGreaterThan(reconcile);
+    expect(baseMerge).toBeGreaterThan(checkpoint);
+    expect(merge).toBeGreaterThan(baseMerge);
+    expect(gate).not.toContain("arc review status --target '{targetRef}'");
+    expect(gate).toMatch(softWrappedPattern(/checkpoint\s+now\s+owns\s+Candidate\s+applicability,[\s\S]*review\s+status/u));
+    expect(gate).toContain("`base-moved / rerun-checkpoint`");
+    expect(gate).not.toContain("arc review checks await");
+    expect(gate).toMatch(softWrappedProse("keeps the checkpoint and draft lock"));
+    expect(gate).toContain("`payload.observationKind`");
+    expect(gate).toContain("`payload.diagnosticFailures`");
+    expect(gate).toContain("`payload.detail`");
+    expect(gate).toContain("`payload.retry.argv`");
+    expect(gate).toMatch(softWrappedProse("Do not re-invoke recursively"));
+    expect(gate).not.toMatch(softWrappedProse("re-invokes this same command immediately"));
+    expect(gate).not.toContain("payload.elapsedMs");
+    expect(gate).not.toMatch(softWrappedProse("returned deadline"));
+    expect(gate).not.toMatch(softWrappedProse("otherwise render `None`"));
+    expect(gate).not.toMatch(softWrappedProse("exact-head mutability action"));
+    expect(gate).toMatch(softWrappedPattern(/no\s+applicability\s+or\s+review\s+judgment\s+before\s+the\s+checkpoint\s+classifies/iu));
+    expect(gate).not.toContain("git merge --no-edit");
+    expect(gate).not.toContain("gh pr merge");
   });
 
-  it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
-    const [packageIntegration, instanceIntegration] = await Promise.all([
-      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-    ]);
-    expect(packageIntegration).toBe(instanceIntegration);
-    const reviewSettlement = sectionBetween(
-      packageIntegration,
-      "### 6) Confirm review coordination",
-      "### 7) Spec-presence + alignment checks",
-    );
-    expect(reviewSettlement).not.toContain("git merge");
-    expect(reviewSettlement).toContain("`review-settled`");
-    const advisory = packageIntegration.indexOf("Before spending a hosted pass");
-    const finalGate = packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge");
-    expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
-    expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBeGreaterThan(finalGate);
-  });
-
-  it("preserves lifecycle readiness through an exact-head merge window", async () => {
+  it("dispatches every exact-base merge result before a later fire point", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
     const gate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
-    expect(gate).toContain("arc status {name} --json");
-    expect(gate).toMatch(/`with-integration`[\s\S]*`shipped`[\s\S]*`completed`/u);
-    expect(gate).toMatch(/`manual`[\s\S]*`integrating`/u);
-    expect(gate).toMatch(/Completion Notes[\s\S]*applicable Release Notes/u);
-    expect(gate).toMatch(/No `gh pr merge`[\s\S]*auto-merge enablement[\s\S]*queued merge/u);
-    expect(gate).toContain("integration-interlock is the sole merge authority");
-    expect(gate).toMatch(/candidate mutation[\s\S]*invalidates[\s\S]*checkpoint/u);
+    const actions = {
+      merged: "run-quality-gates",
+      "skipped-clean": "continue-reconcile",
+      "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
+      conflict: "stop",
+      "regenerable-refused": "stop",
+      blocked: "stop",
+    } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
 
-    const lifecycleReady = gate.indexOf("arc status {name} --json");
-    const preMerge = gate.indexOf("Fire `pre-merge`");
-    const approval = gate.indexOf("Approve (or redirect)?");
-    const refreshedHead = gate.indexOf("Immediately after approval", approval);
-    const refreshedPr = gate.indexOf("re-read PR status", approval);
-    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
-    const merge = gate.lastIndexOf("gh pr merge {pr-number}");
-    expect(lifecycleReady).toBeLessThan(preMerge);
-    expect(preMerge).toBeLessThan(approval);
-    expect(approval).toBeLessThan(refreshedHead);
-    expect(refreshedHead).toBeLessThan(refreshedPr);
-    expect(refreshedPr).toBeLessThan(finalDrift);
-    expect(finalDrift).toBeLessThan(merge);
+    for (const [state, nextAction] of Object.entries(actions)) {
+      expect(gate).toContain(`\`${state} / ${nextAction}\``);
+    }
+    const stop = gate.search(
+      softWrappedPattern(/`blocked \/ stop`,\s+`conflict \/ stop`,\s+and\s+`regenerable-refused \/ stop`\s+stop\s+before\s+every\s+later\s+fire\s+point/u),
+    );
+    expect(stop).toBeGreaterThan(-1);
+    expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
+  });
+
+  it("gates and pushes only a successfully merged Errand reconcile", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const terminal = sectionBetween(packaged, "6. **Run the approved terminal operation.", "7. **Leave");
+    const actions = {
+      merged: "run-quality-gates",
+      "skipped-clean": "continue-reconcile",
+      "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
+      conflict: "stop",
+      "regenerable-refused": "stop",
+      blocked: "stop",
+    } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
+
+    for (const [state, nextAction] of Object.entries(actions)) {
+      expect(terminal).toContain(`\`${state} / ${nextAction}\``);
+    }
+    expect(terminal).toMatch(softWrappedPattern(/merged\s+\/\s+run-quality-gates`[\s\S]*arc check new-head --from <pre-merge head>[\s\S]*pushes[\s\S]*Step 4/iu));
+    expect(terminal).toMatch(softWrappedPattern(/skipped-clean\s+\/\s+continue-reconcile[\s\S]*without\s+gates\s+or\s+push/iu));
+    expect(terminal).toMatch(softWrappedPattern(/conflict\s+\/\s+stop[\s\S]*blocked\s+\/\s+stop[\s\S]*explanation\s+and\s+stop/iu));
+  });
+
+  it("passes the exact approved Errand target to release-only lock transition", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const releaseOnly = sectionBetween(
+      packaged,
+      "After approval, apply the approved final dispositions and channel settlements.",
+      "6. **Run the approved terminal operation.",
+    );
+    expect(releaseOnly).toContain("`schemaVersion: 1`");
+    expect(releaseOnly).toContain("`treeRoot`");
+    expect(releaseOnly).toContain("`target: { repository, pullRequest, headSha }`");
+    expect(releaseOnly).toContain('`vehicle: { kind: "errand", slug }`');
+    expect(releaseOnly).toMatch(softWrappedProse("Pass `releaseRequest` as JSON stdin to `arc merge lock release -`"));
+  });
+
+  it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
+    for (const applicability of ["targeted", "focused", "full"] as const) {
+      assertSchemaAccepts(RespondVerifiedFixSchema, {
+        applicability,
+        verificationEvidenceRefs: ["verification://evidence"],
+      });
+    }
+    assertSchemaRefuses(RespondVerifiedFixSchema, {
+      applicability: "complete",
+      verificationEvidenceRefs: ["verification://evidence"],
+    });
+  });
+
+  it("limits handoff session-notes overrides to discretionary planning and execution phases", async () => {
+    for (const name of ["session-handoff"] as const) {
+      const [packaged, instance] = await Promise.all([
+        readRepositoryFile(
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/${name}.template.md`,
+        ),
+        readRepositoryFile(`.arc/system/workflows/arc/session-lifecycle/${name}.md`),
+      ]);
+      for (const content of [packaged, instance]) {
+        expect(content).toMatch(/planning \| execution/u);
+        expect(content).toMatch(
+          /prepublication\/integration phases cannot be overridden|prepublication` and `integration` are\s+state-determined/iu,
+        );
+      }
+    }
+  });
+
+  it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
+    const reviewSettlement = sectionBetween(
+      packageIntegration,
+      "### 3) Confirm review coordination",
+      "### 4) Spec-presence + alignment checks",
+    );
+    expect(reviewSettlement).not.toContain("git merge");
+    expect(reviewSettlement).toContain("`review-settled`");
+    const advisory = indexOfSoftWrappedProse(packageIntegration, "Before spending a hosted pass");
+    const finalGate = packageIntegration.indexOf("### 10) Behind-base reconcile gate and merge");
+    expect(advisory).toBeGreaterThan(-1);
+    expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
+    const advisoryText = packageIntegration.slice(advisory, finalGate);
+    expect(advisoryText).toMatch(softWrappedProse("authorizes no merge, commit, push, or target recomposition"));
+    expect(advisoryText).not.toContain("use an append-only merge");
+    expect(indexOfSoftWrappedProse(packageIntegration, "checkpoint's supplied `remedy.argv` unchanged", finalGate)).toBeGreaterThan(finalGate);
+    expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
+
+    const errandAdvisoryText = sectionBetween(
+      packageErrand,
+      "4. **Enter the open PR.**",
+      "5. **Settle the final head.**",
+    );
+    expect(errandAdvisoryText).toMatch(softWrappedProse("authorizes no merge, commit, push, or target recomposition"));
+    expect(errandAdvisoryText).not.toContain("use an append-only merge");
+  });
+
+  it("preserves checkpoint readiness through an exact-head merge window", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    const gate = sectionBetween(
+      packaged,
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
+    );
+    expect(gate).toContain("payload.interlockSurface.machineEvidence.text");
+    expect(gate).toMatch(softWrappedProse("The integration interlock is the sole merge authority"));
+    expect(gate).toMatch(softWrappedProse(
+      "not an instruction to invoke merge this turn while those checks are pending",
+    ));
+    expect(gate).toMatch(
+      softWrappedPattern(/surfaced\s+required\s+checks\s+as\s+not\s+green[\s\S]*do\s+not\s+invoke\s+merge\s+this\s+turn/iu),
+    );
+    expect(gate).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
+    expect(gate).not.toMatch(softWrappedProse("head mutation returns to the checkpoint"));
+
+    const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
+    const approval = indexOfSoftWrappedProse(gate, "Approve (or redirect)?");
+    const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
+    expect(lifecycleReady).toBeLessThan(approval);
+    expect(approval).toBeLessThan(merge);
   });
 
   it("resumes swept candidates and refires after append-only corrections", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Local diff preflight");
-    expect(resume).toMatch(/resolver `state: shipped`[\s\S]*open[\s\S]*not merged[\s\S]*Step 13/iu);
-    expect(resume).toMatch(/PR already merged[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
-    expect(resume).toContain("first incomplete candidate-tail step");
+    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "`push-interlock` release");
+    expect(resume).toMatch(softWrappedPattern(/`shipped`\s+in\s+`completed`;\s+`open`[\s\S]*Step\s+10/u));
+    expect(resume).toMatch(softWrappedPattern(/`merged-at-head`[\s\S]*Verify\s+Phase\s+2\s+products[\s\S]*Step\s+10\s+tail/u));
+    expect(resume).toContain("`closed-unmerged`");
+    expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
+    expect(resume).toMatch(softWrappedPattern(/`ambiguous`[\s\S]*emitted\s+remedy\s+text/iu));
+    expect(resume).toMatch(softWrappedProse("first incomplete candidate-tail step"));
+
+    const creation = sectionBetween(
+      packaged,
+      "Invoke `arc review change-request resolve --head-ref",
+      "### 2) Review iteration",
+    );
+    const resolver = creation.indexOf("arc review change-request resolve --head-ref");
+    const remoteReplay = creation.indexOf("--require-remote");
+    const create = creation.indexOf("gh pr create --base");
+    expect(resolver).toBeGreaterThan(-1);
+    expect(remoteReplay).toBeGreaterThan(resolver);
+    expect(create).toBeGreaterThan(remoteReplay);
+    expect(creation).toMatch(softWrappedProse("`closed-unmerged / reopen-change-request`"));
+    expect(creation).toMatch(softWrappedProse("pre-create exact-head validation"));
+    expect(creation).toContain("load [pull-request-format][pull-request-format]");
+    expect(creation).not.toContain("`Local review` field");
 
     const gate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
-    expect(gate).toContain("requested composition correction");
-    expect(gate).toMatch(/Append[\s\S]*never amend/u);
-    expect(gate).toMatch(/rerun affected gates and routing[\s\S]*push[\s\S]*refire the integration-interlock/u);
-    expect(gate).toMatch(/post-composition failure[\s\S]*unmerged[\s\S]*first\s+incomplete candidate-tail step/u);
-    expect(gate).toMatch(/headSha[\s\S]*differs[\s\S]*invalidate the approval/u);
+    expect(gate).toMatch(softWrappedProse("requested composition correction"));
+    expect(gate).toMatch(softWrappedPattern(/Append[\s\S]*never\s+amend/u));
+    expect(gate).toMatch(softWrappedPattern(/rerun\s+affected\s+gates\s+and\s+routing[\s\S]*push[\s\S]*rebuild\s+the\s+checkpoint/u));
+    expect(gate).toMatch(softWrappedProse("`invalidated / checkpoint` returns to the checkpoint"));
+    expect(gate).not.toMatch(softWrappedProse("Any candidate mutation or review action invalidates the checkpoint"));
+    expect(gate).not.toMatch(softWrappedProse("authorizes merge only if"));
+    expect(gate).not.toMatch(softWrappedProse("If its `headSha` differs"));
   });
 
   it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
-      ["decompose-work-unit.md", "arc decompose"],
-      ["integrate-work-unit.md", "arc status {name} --json"],
+      ["integrate-work-unit.md", "arc integrate checkpoint {name}"],
       ["park-work-unit.md", "arc park"],
       ["resume-work-unit.md", "arc resume"],
     ]);
     let commandCount = 0;
     for (const name of (await readdir(directory)).filter((entry) => entry.endsWith(".md"))) {
       const workflow = await readRepositoryFile(`packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/${name}`);
-      for (const command of workflow.matchAll(/^\s*gh pr merge[^\n]*/gmu)) {
+      for (const command of workflow.matchAll(/^\s*(?:gh pr merge|arc integrate merge)[^\n]*/gmu)) {
         commandCount += 1;
         const prefix = workflow.slice(0, command.index);
         const product = requiredProduct.get(name);
@@ -582,7 +808,29 @@ describe("trusted review-gate workflows", () => {
         expect(prefix.lastIndexOf("`integration-interlock`")).toBeGreaterThan(prefix.lastIndexOf(product ?? ""));
       }
     }
-    expect(commandCount).toBe(4);
+    expect(commandCount).toBe(3);
+  });
+
+  it("gates full-protection decomposition merge after PR status", async () => {
+    const decompose = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
+    );
+    const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
+    const full = sectionBetween(
+      decompose,
+      "### Full protection",
+      "## 7. Confirm lifecycle readiness and finish",
+    );
+    const status = indexOfSoftWrappedProse(full, "Surface PR status");
+    const interlock = full.indexOf("`integration-interlock`");
+    const merge = indexOfSoftWrappedProse(full, "merge according to project policy");
+    for (const position of [status, interlock, merge]) expect(position).toBeGreaterThan(-1);
+
+    expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
+    expect(partial).not.toContain("`integration-interlock`");
+    expect(status).toBeGreaterThan(-1);
+    expect(interlock).toBeGreaterThan(status);
+    expect(merge).toBeGreaterThan(interlock);
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {
@@ -593,256 +841,205 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration).toBe(instanceIntegration);
     const resumeEntry = sectionBetween(
       packageIntegration,
-      "#### Resume entry",
-      "### 2) Local diff preflight",
+      "### 1) Push the branch and open the PR",
+      "`push-interlock` release",
     );
-    expect(resumeEntry).toContain("A merged PR proves only that the merge ran");
-    expect(resumeEntry).toContain("Completion Notes");
-    expect(resumeEntry).toContain("under `with-integration`, the resolver reports `shipped` in `completed`");
-    expect(resumeEntry).toMatch(/do not\s+invoke `arc user close` or `arc teardown`/u);
-    expect(resumeEntry).toContain("lifecycle-only repair change request");
+    expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
+    expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
+    expect(resumeEntry).toMatch(softWrappedPattern(/under\s+`with-integration`,\s+the\s+resolver\s+reports\s+`shipped`\s+in\s+`completed`/iu));
+    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close`\s+or\s+`arc teardown`/u));
+    expect(resumeEntry).toMatch(softWrappedProse("lifecycle-only repair change request"));
   });
 
-  it("validates clearance with pinned code while treating the detached PR checkout only as data", async () => {
-    const clearance = await read("arc-clearance.yml");
-    const workflow = load(clearance) as {
-      on?: unknown;
-      permissions?: unknown;
-    };
-    expect(workflow.on).toEqual({ repository_dispatch: { types: ["arc-clearance"] } });
-    expect(workflow.permissions).toEqual({});
+  it("attests the lane only from trusted pull-request-target code", async () => {
+    const [ci, workflow] = await Promise.all([read("ci.yml"), read("arc-lane-attestation.yml")]);
+    const parsed = load(workflow) as { on?: Record<string, unknown>; permissions?: unknown };
+    const stamp = jobValue(workflow, "lane-attestation");
 
-    const validation = jobValue(clearance, "validate");
-    expect(validation.permissions).toEqual({
+    expect(ci).not.toContain("planning-classify:");
+    expect(ci).not.toContain("lane-attestation:");
+    expect(parsed.on).toEqual({
+      pull_request_target: { types: ["opened", "reopened", "synchronize", "edited"] },
+    });
+    // The dispatch producer retired with the required status; a surviving trigger
+    // would be a second entry point into a job that now only observes.
+    expect(parsed.on).not.toHaveProperty("repository_dispatch");
+    expect(parsed.on).not.toHaveProperty("pull_request");
+    expect(parsed.permissions).toEqual({});
+    expect(stamp.if).toContain("head.repo.full_name == github.repository");
+    // Review projections are stacked draft pull requests that never merge, so they spend no attestation run.
+    expect(stamp.if).toContain("!startsWith(github.event.pull_request.head.ref, 'review-projection/')");
+    expect(stamp.permissions).toEqual({
       contents: "read",
       "pull-requests": "read",
+      statuses: "write",
     });
-    expect(validation).not.toHaveProperty("environment");
-    expect(validation).not.toHaveProperty("statuses");
+    expect(stamp["runs-on"]).toBe("ubuntu-latest");
 
-    const trustedCheckout = stepValue(clearance, "validate", "trusted-checkout");
+    const trustedCheckout = stepValue(workflow, "lane-attestation", "lane-trusted-checkout");
     expect(trustedCheckout.with).toMatchObject({
       ref: "${{ github.workflow_sha }}",
       "persist-credentials": false,
     });
     expect(trustedCheckout.with).not.toHaveProperty("path");
+    const target = stepValue(workflow, "lane-attestation", "lane-target");
+    expect(target.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
+    expect(target.run).toContain('test "$(jq -r .state <<<"$pull_request")" = open');
+    expect(target.run).toContain('test "$(jq -r .base.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
+    expect(target.run).toContain('test "$(jq -r .head.repo.full_name <<<"$pull_request")" = "$GITHUB_REPOSITORY"');
 
-    const dataCheckout = stepValue(clearance, "validate", "data-checkout");
+    const steps = stamp.steps as Array<Record<string, unknown>>;
+    const buildIndex = steps.findIndex((step) => step.run === "npm run build");
+    const targetIndex = steps.findIndex((step) => step.id === "lane-target");
+    const resetIndex = steps.findIndex((step) => step.id === "lane-reset");
+    const dataIndex = steps.findIndex((step) => step.id === "lane-data");
+    const publishIndex = steps.findIndex((step) => step.id === "lane-status");
+    expect(buildIndex).toBeGreaterThanOrEqual(0);
+    expect(publishIndex).toBeGreaterThan(buildIndex);
+    expect(resetIndex).toBeGreaterThan(targetIndex);
+    expect(dataIndex).toBeGreaterThan(resetIndex);
+    const reset = stepValue(workflow, "lane-attestation", "lane-reset");
+    expect(reset.env).toMatchObject({
+      HEAD_SHA: "${{ steps.lane-target.outputs.head_sha }}",
+    });
+    expect(reset.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
+    expect(reset.run).toContain("-f state=pending -f context=arc-lane");
+
+    const dataCheckout = stepValue(workflow, "lane-attestation", "lane-data");
     expect(dataCheckout.with).toMatchObject({
-      ref: "${{ steps.target.outputs.head_sha }}",
-      path: "_arc_pr_data",
-      "persist-credentials": false,
-    });
-
-    const readiness = stepValue(clearance, "validate", "readiness");
-    expect(readiness.run).toContain(
-      "./node_modules/.bin/tsx packages/arc-framework/src/cli.ts review readiness",
-    );
-    expect(readiness.run).toContain("treeRoot:$treeRoot");
-    expect(readiness.run).toContain('test "$(jq -r .state <<<"$result")" = ready');
-
-    const executableSteps = (validation.steps as Array<Record<string, unknown>>)
-      .filter((step) => typeof step.run === "string");
-    for (const step of executableSteps) {
-      expect(step["working-directory"]).not.toBe("_arc_pr_data");
-      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
-    }
-    expect(clearance).not.toMatch(/(?:npm|npx|tsx).*(?:github\.event\.client_payload|_arc_pr_data\/)/u);
-  });
-
-  it("isolates clearance publication and binds success to the still-current full SHA", async () => {
-    const clearance = await read("arc-clearance.yml");
-    const writer = jobValue(clearance, "write-status");
-    expect(writer.needs).toBe("validate");
-    expect(writer.if).toBe("${{ needs.validate.result == 'success' }}");
-    expect(writer.environment).toBe("arc-clearance");
-    expect(writer.permissions).toEqual({
-      "pull-requests": "read",
-      statuses: "write",
-    });
-    expect(writer).not.toHaveProperty("secrets");
-
-    const steps = writer.steps;
-    expect(Array.isArray(steps)).toBe(true);
-    expect(steps).toHaveLength(1);
-    const publish = (steps as Array<Record<string, unknown>>)[0] ?? {};
-    expect(publish).not.toHaveProperty("uses");
-    expect(publish.env).toMatchObject({
-      PR_NUMBER: "${{ github.event.client_payload.pull_request }}",
-      STATUS_CONTEXT: "arc-cleared",
-      VALIDATED_HEAD: "${{ needs.validate.outputs.head_sha }}",
-      READINESS_JSON: "${{ needs.validate.outputs.readiness_json }}",
-    });
-    expect(publish.run).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
-    expect(publish.run).toContain('test "$(jq -r .payload.target.headSha <<<"$READINESS_JSON")" = "$VALIDATED_HEAD"');
-    expect(publish.run).toContain('pull_request="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"');
-    expect(publish.run).toContain('live_head="$(jq -r .head.sha <<<"$pull_request")"');
-    expect(publish.run).toContain('test "$live_head" = "$VALIDATED_HEAD"');
-    expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD"');
-    expect(publish.run).not.toMatch(/statuses\/\$(?:HEAD_BRANCH|GITHUB_HEAD_REF)|refs\/pull|merge-ref/u);
-    expect(JSON.stringify(writer)).not.toMatch(/_arc_pr_data|client_payload\.(?:slug|vehicle_kind|archive_cadence)/u);
-  });
-
-  it("does not inherit clearance across heads or let a stale unlock clear its replacement", async () => {
-    const fixture = JSON.parse(await readRepositoryFile(
-      "packages/arc-framework/__tests__/fixtures/review-gate/clearance-status-history.json",
-    )) as ClearanceStatusFixture;
-    expect(hasClearanceSuccess(fixture, fixture.previousHead)).toBe(true);
-    expect(hasClearanceSuccess(fixture, fixture.replacementHead)).toBe(false);
-
-    expect(fixture.previousHead).not.toBe(fixture.replacementHead);
-    const statusesAfterStaleUnlock = [...fixture.statuses, {
-      context: fixture.context,
-      sha: fixture.previousHead,
-      state: "success" as const,
-    }];
-    expect(hasClearanceSuccess({ ...fixture, statuses: statusesAfterStaleUnlock }, fixture.replacementHead)).toBe(false);
-  });
-
-  it("runs base-pinned classification on every CI event and posts clearance only for planning", async () => {
-    const workflow = await read("ci.yml");
-    const classifier = jobValue(workflow, "planning-classify");
-    const stamp = jobValue(workflow, "planning-clearance");
-    expect(classifier.name).toBe("Classify PR lane for ARC clearance");
-    expect(stamp.name).toBe("Post ARC clearance for planning-only PR");
-    expect(classifier).not.toHaveProperty("if");
-    expect(classifier.permissions).toEqual({ contents: "read" });
-    expect(stamp.if).toBe("${{ needs.planning-classify.outputs.lane == 'planning' }}");
-    expect(stamp.needs).toBe("planning-classify");
-    expect(stamp.permissions).toEqual({ statuses: "write" });
-    expect(classifier["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
-    expect(stamp["runs-on"]).toBe("${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}");
-
-    const trustedCheckout = stepValue(workflow, "planning-classify", "planning-classifier");
-    expect(trustedCheckout.with).toMatchObject({
-      ref: "${{ github.event.pull_request.base.sha || github.sha }}",
-      "persist-credentials": false,
-    });
-    const dataCheckout = stepValue(workflow, "planning-classify", "planning-data");
-    expect(dataCheckout.if).toContain("head.repo.full_name == github.repository");
-    expect(dataCheckout.with).toMatchObject({
-      repository: "${{ github.event.pull_request.head.repo.full_name }}",
-      ref: "${{ github.event.pull_request.head.sha }}",
-      path: "_arc_change_data",
+      repository: "${{ steps.lane-target.outputs.head_repository }}",
+      ref: "${{ steps.lane-target.outputs.head_sha }}",
+      path: ".cache/arc-lane-change-data",
       "fetch-depth": 0,
       "persist-credentials": false,
     });
+    expect(workflow).toContain(
+      "# Pull-request content is inert classification data; no command executes from this checkout.",
+    );
 
-    const classify = stepValue(workflow, "planning-classify", "planning-lane");
-    expect(classify.run).toContain("classifier_usage=");
-    expect(classify.run).toContain("trusted base predates planning-lane; defaulting to reviewed");
-    expect(classify.run).toContain('lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data"');
-    expect(classify.run).toContain('bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA"');
-    expect(classify.run).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
-
-    const publish = stepValue(workflow, "planning-clearance", "planning-status");
-    expect(publish.run).toContain('if [ "$LANE" = planning ]; then');
+    const publish = stepValue(workflow, "lane-attestation", "lane-status");
+    expect(publish.run).toContain(
+      'lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA"',
+    );
+    expect(publish.run).toContain('--repository "$GITHUB_WORKSPACE/.cache/arc-lane-change-data")"');
+    expect(publish.run).not.toContain("npx arc");
+    expect(publish.run).toContain('test "$lane" = planning || test "$lane" = reviewed');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
-    expect(publish.run).toContain("-f context=arc-cleared");
-    expect(JSON.stringify(stamp)).not.toContain("needs.classify.outputs.lane");
-    expect(JSON.stringify(stamp)).not.toMatch(/actions\/checkout|_arc_change_data/u);
+    expect(publish.run).toContain("-f context=arc-lane");
+    expect(publish.run).toContain(
+      'bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY"',
+    );
 
-    expect(jobValue(workflow, "ci_ok").needs).not.toContain("planning-clearance");
-    expect(jobValue(workflow, "merge-ok").needs).toBe("ci_ok");
+    for (const step of steps.filter((candidate) => typeof candidate.run === "string")) {
+      expect(step["working-directory"]).not.toBe(".cache/arc-lane-change-data");
+      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+\.cache\/arc-lane-change-data\//u);
+    }
   });
 
-  it("keeps the planning stamp and reviewed unlock as disjoint writers of one context", async () => {
-    const [ci, clearance, codeowners] = await Promise.all([
+  it("records a terminal verdict on both classifier arms without vetoing either", async () => {
+    const [ci, attestation, codeowners] = await Promise.all([
       read("ci.yml"),
-      read("arc-clearance.yml"),
+      read("arc-lane-attestation.yml"),
       readRepositoryFile(".github/CODEOWNERS"),
     ]);
-    const writers = [ci, clearance].flatMap((workflow, workflowIndex) =>
-      [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\S]{0,180}?context="?(\$STATUS_CONTEXT|arc-cleared)"?/gu)]
-        .map((match) => ({ workflowIndex, sha: match[1], context: match[2] })));
+    const writers = [ci, attestation].flatMap((workflow, workflowIndex) =>
+      [...workflow.matchAll(/gh api "repos\/\$GITHUB_REPOSITORY\/statuses\/\$([A-Z_]+)"[\s\\]+-f state=(\w+) -f context=([\w-]+)/gu)]
+        .map((match) => ({ workflowIndex, sha: match[1], state: match[2], context: match[3] })));
+    // One pending reset and one terminal write, both on the same exact head. The
+    // attestation never publishes a failing state: it is not a required check, so a
+    // red verdict on an ordinary reviewed-lane change would report a problem that
+    // does not exist.
     expect(writers).toEqual([
-      { workflowIndex: 0, sha: "HEAD_SHA", context: "arc-cleared" },
-      { workflowIndex: 1, sha: "VALIDATED_HEAD", context: "$STATUS_CONTEXT" },
+      { workflowIndex: 1, sha: "HEAD_SHA", state: "pending", context: "arc-lane" },
+      { workflowIndex: 1, sha: "HEAD_SHA", state: "success", context: "arc-lane" },
     ]);
-    expect(ci).toContain('if [ "$LANE" = planning ]; then');
-    expect(clearance).toContain('test "$(jq -r .state <<<"$READINESS_JSON")" = ready');
+    expect(ci).not.toContain("statuses/$HEAD_SHA");
+
+    // Both arms reach the single terminal write; only the eligible one confirms the
+    // live pair, and the description is where the verdict survives.
+    const publish = stepValue(attestation, "lane-attestation", "lane-status");
+    expect(publish.run).toContain('if [ "$lane" = planning ]; then');
+    expect(publish.run).toMatch(/description='planning lane; live pull-request pair confirmed/u);
+    expect(publish.run).toMatch(/else\s+description='reviewed lane;/u);
+    expect(publish.run).toContain('-f description="$description"');
+
     expect(codeowners).toContain("* @andrewRCr");
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
-    expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
   });
 
-  it("ships an installable clearance workflow pinned to the installed framework version", async () => {
-    const templatePath = "packages/arc-framework/arc/reference/templates/arc/merge-gate/arc-clearance.yml";
-    const setupPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md";
-    const [template, setup, recipe, codeowners, recipeReadme] = await Promise.all([
-      readRepositoryFile(templatePath),
-      readRepositoryFile(setupPath),
+  it("ships the merge-gate host-policy inventory with live-pair support", async () => {
+    const [recipe, codeowners, recipeReadme, livePairScript] = await Promise.all([
       readRepositoryFile("packages/arc-framework/init-recipe.json"),
       readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
       readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/.internal/scripts/confirm-live-change-pair.sh",
+      ),
     ]);
     const inventory = JSON.parse(recipe) as { include_files: string[] };
-    const installedWorkflow = load(template) as {
-      on?: Record<string, unknown>;
-      jobs?: Record<string, unknown>;
-    };
+    const mergeGateShipped = [
+      "reference/templates/arc/merge-gate/README.md",
+      "reference/templates/arc/merge-gate/CODEOWNERS",
+      "system/workflows/arc/supplemental/setup-merge-gate.md",
+      "system/.internal/scripts/confirm-live-change-pair.sh",
+    ];
 
-    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/README.md");
-    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/arc-clearance.yml");
-    expect(inventory.include_files).toContain("reference/templates/arc/merge-gate/CODEOWNERS");
-    expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-arc-clearance.md");
-    expect(inventory.include_files).toContain("system/workflows/arc/supplemental/setup-merge-gate.md");
-    expect(template).toContain("@arc-framework/cli@{{ARC_FRAMEWORK_VERSION}}");
-    expect(template).toContain("npm exec --yes --package=");
-    expect(installedWorkflow.on).toHaveProperty("pull_request");
-    expect(installedWorkflow.on).toHaveProperty("repository_dispatch");
-    expect(installedWorkflow.jobs).toHaveProperty("planning-clearance");
-    expect(template).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
-    expect(template.match(/@arc-framework\/cli@\{\{ARC_FRAMEWORK_VERSION\}\}/gu)).toHaveLength(2);
-    expect(template).not.toMatch(/@(?:latest|next|beta)|node_modules\/.bin|packages\/arc-framework\/src/u);
-    expect(template).toContain("path: _arc_pr_data");
-    expect(template).not.toMatch(/working-directory: _arc_pr_data|(?:bash|node|npm|npx|tsx)\s+_arc_pr_data\//u);
-    expect(codeowners).not.toContain("/.arc/backlog/**/");
+    for (const path of mergeGateShipped) {
+      expect(inventory.include_files).toContain(path);
+    }
+    expect(livePairScript.length).toBeGreaterThan(0);
     expect(codeowners).toContain("/.arc/backlog/planned/*/*/spec-*.md");
     expect(codeowners).toContain("/.arc/backlog/provisional/*/meta-*.md");
-    expect(recipeReadme).not.toContain("git diff --name-only");
     expect(recipeReadme).toContain('arc review planning-lane "$BASE_SHA" "$HEAD_SHA"');
     expect(recipeReadme).toContain('[ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]');
-    expect(setup).toContain(".arc/system/.internal/manifest.json");
-    expect(setup).toContain("arc --version");
-    expect(setup).toContain("{{ARC_FRAMEWORK_VERSION}}");
-    expect(setup).toContain("both fixed writers");
+    expect(recipeReadme).toMatch(softWrappedProse("classification checkout must fetch branch refs"));
   });
 
-  it("keeps clearance setup additive, idempotent, and fail-closed at protection settlement", async () => {
-    const [packaged, project] = await Promise.all([
-      readRepositoryFile(
-        "packages/arc-framework/arc/system/workflows/arc/supplemental/setup-arc-clearance.md",
-      ),
-      readRepositoryFile(".arc/system/workflows/arc/supplemental/setup-arc-clearance.md"),
+  it("keeps every shipped host-policy asset byte-identical to its project mirror", async () => {
+    const paths = [
+      "reference/templates/arc/merge-gate/CODEOWNERS",
+      "reference/templates/arc/merge-gate/README.md",
+      "system/.internal/scripts/confirm-live-change-pair.sh",
+      "system/workflows/arc/supplemental/setup-merge-gate.md",
+      "system/workflows/arc/initial-setup/01_verify-and-configure.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project, path).toBe(packaged);
+    }
+  });
+
+  it("keeps authoritative transition history review-owned across merge-gate surfaces", async () => {
+    const [repositoryOwners, templateOwners, readme, setup] = await Promise.all([
+      readRepositoryFile(".github/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/setup-merge-gate.md"),
     ]);
-    expect(project).toBe(packaged);
-    expect(packaged).toMatch(/detect current state[\s\S]*workflow[\s\S]*environment[\s\S]*required context/iu);
-    expect(packaged).toMatch(/workflow is present on the (?:live )?default\s+branch/iu);
-    expect(packaged).toContain("stop before changing required checks");
-    expect(packaged).toContain("arc-clearance");
-    expect(packaged).toContain("protected_branches");
-    expect(packaged).toContain("custom_branch_policies");
-    expect(packaged).toContain("reviewers");
-    expect(packaged).toContain("total_count");
-    expect(packaged).toContain('["arc-cleared"]');
-    expect(packaged).toMatch(/add[\s\S]*without replacing/iu);
-    expect(packaged).toMatch(/missing admin[\s\S]*guided-manual fallback/iu);
-    expect(packaged).not.toMatch(/PATCH[\s\S]*branches\/.*\/protection(?!\/required_status_checks\/contexts)/u);
+
+    for (const owners of [repositoryOwners, templateOwners]) {
+      expect(owners).not.toContain("/.arc/system/.internal/transitions/*.json");
+    }
+    expect(readme).toMatch(softWrappedPattern(/transition-record\s+namespace\s+remains\s+review-owned/iu));
+    expect(setup).toMatch(softWrappedPattern(/transition-record\s+namespace\s+owned/iu));
   });
 
-  it("offers review-source and merge-guard setup as independent default-off choices", async () => {
+  it("offers review-source and merge-lock setup as independent default-off choices", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
       ".arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
     ];
     const [packaged, project] = await Promise.all(paths.map((path) => readRepositoryFile(path)));
     expect(project).toBe(packaged);
-    expect(packaged).toContain("Optional: Choose Review Sources and Merge Guards");
-    expect(packaged).toContain("Frontline sources");
-    expect(packaged).toContain("Standard-review sources");
-    expect(packaged).toContain("ARC merge guard");
+    expect(packaged).toContain("### Optional: Choose Review Sources and Merge Guards");
+    expect(packaged).toMatch(softWrappedProse("Frontline sources"));
+    expect(packaged).toMatch(softWrappedProse("Standard-review sources"));
+    expect(packaged).toMatch(softWrappedProse("Draft-state merge lock"));
+    expect(packaged).toMatch(/merge\.lock:\s*draft/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
-    expect(packaged).toContain("setup-arc-clearance.md");
   });
 });

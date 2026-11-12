@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent — distilled "what + why," not
-  framing prose. Body sections carry the full context.}
+- **Purpose:** {One- to three-line north-star summary of the WU's intent, opening with a one-sentence thesis.
+  Distilled "what + why," not framing prose; body sections carry the full context.}
 
 ---
 
@@ -12,6 +12,12 @@ _recording_: the decisions and scope want a durable home, yet the change doesn't
 of a `detailed` spec. It firmly settles its Decisions and Scope while omitting requirement IDs and a
 success-criteria matrix (those belong to a `detailed` spec). It is structurally its own form — not "a PRD
 with sections removed."}
+
+{Record the complete settled decisions, decisive rationale, boundaries, consequences, and checkable criteria without
+relying on planning history. Replace planning references with their required substance; supplemental notes carry no
+otherwise missing obligation or decision. Preserve technical precision and permitted references, and define unshipped
+prerequisites as expected contracts with availability conditions. Apply [spec-review][spec-review]'s common reader
+checks; tracking and amendment anchors cannot supply missing design.}
 
 ## Problem / Context
 
@@ -26,6 +32,8 @@ These are fixed, not provisional: if a choice here is still genuinely open, it b
 the work isn't `outline`-ready yet.
 
 ## Scope boundary (No-gos)
+
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this work explicitly will _not_ do. Be specific about what's out and why — this section is fixed alongside
 Decisions and keeps the work from drifting wider during execution.
@@ -46,3 +54,17 @@ aspirations: each should be unambiguously true or false when the work is done.
 Questions worked out _during_ this work — not design debt deferred to a later WU. An `outline` settles all
 settle-able design upfront; this section holds the genuinely-emergent items that resolve through
 implementation. If a "settle-before-starting" blocker lands here, the spec isn't ready.
+
+## Amendments
+
+{The amendment log. One row per amendment — the amendment's identity, and the only mandatory write on every arm.
+The first amendment adds this section when the form's template predates it; the row grammar and its token sets are
+defined once, in [`amend-design`][amend-design]. Replace the example row with the first real one.}
+
+- **A1** — {YYYY-MM-DD} — design: {one-sentence summary of what the amendment settles}. _Supersedes:_
+  § Scope boundary ¶2. _Trigger:_ 4.2 member. _Work:_ 4.R. _Revalidated:_ 4.R.c.
+
+---
+
+[amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -7,11 +8,14 @@ import {
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ApprovedDispositionRecord } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import {
   FrontlineFollowUpAdviceSchema,
   projectFrontlineFollowUpAdvice,
   resolveFrontlineFollowUp,
 } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
+import { settledFrontlineAdviceReader } from "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = (head: string) => createReviewTarget({
@@ -32,6 +36,7 @@ const finding = {
   severity: "major" as const,
   locus: "src/index.ts:7",
   evidenceUrlOrId: "frontline:finding-1",
+  sourceOrdinal: 1,
 };
 const source = {
   sourceId: "review-cli",
@@ -41,9 +46,10 @@ const source = {
 };
 
 function outcome(
-  severity: "blocker" | "major" | "minor" = "major",
+  severity: "critical" | "major" | "minor" = "major",
   maxPasses = 2,
   pass = 1,
+  nit = false,
 ) {
   return {
     schemaVersion: 1 as const,
@@ -53,27 +59,31 @@ function outcome(
     target: oldTarget,
     pass,
     maxPasses,
-    findings: [{ ...finding, severity }],
+    findings: [{ ...finding, severity, ...(nit ? { nit: true as const } : {}) }],
     reason: null,
   };
 }
 
-function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
+function approved(severity: "critical" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
   const dispositionSet = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: oldTarget.targetId,
+    producerId: "frontline-operation",
+    resultDigest: canonicalDigest({ result: "frontline-operation" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,
       locus: finding.locus,
       sourceVerification: "verified" as const,
       verificationRefs: ["source:src/index.ts:7"],
-      severity,
+      reportedSeverity: severity,
+      verifiedSeverity: severity,
       disposition,
       gating: severity === "minor" ? "record-only" as const : "blocking" as const,
       rationale: "The source supports this disposition.",
@@ -91,14 +101,51 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
   };
 }
 
+function approvedRegradeFromReviewerNit() {
+  const dispositionSet = createDispositionSet({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId: oldTarget.targetId,
+    producerId: "frontline-operation",
+    resultDigest: canonicalDigest({ result: "frontline-operation" }),
+    policyVersion: canonicalDigest({ policy: "review" }),
+    rubricVersion: "implementation-audit/v1",
+    rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+    proposedBy: "author-1",
+    proposedVerification: "full",
+    findings: [{
+      findingId: finding.findingId,
+      sourceIdentity: source.sourceId,
+      locus: finding.locus,
+      sourceVerification: "verified" as const,
+      verificationRefs: ["source:src/index.ts:7"],
+      reportedSeverity: "minor" as const,
+      reportedNit: true as const,
+      verifiedSeverity: "major" as const,
+      disposition: "fix" as const,
+      gating: "blocking" as const,
+      rationale: "The source supports a material regrade.",
+      recommendation: "Apply the approved response.",
+      openQuestions: [],
+    }],
+  });
+  return {
+    dispositionState: approveDispositionState({
+      proposed: proposeDispositionSet(dispositionSet),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-20T20:00:00Z",
+    }),
+  };
+}
+
 describe("frontline follow-up policy", () => {
   it("rejects advice whose next pass exceeds its bound ceiling", () => {
-    expect(FrontlineFollowUpAdviceSchema.safeParse({
+    assertSchemaRefuses(FrontlineFollowUpAdviceSchema, {
       action: "follow-up-after-fix",
       pass: 3,
       maxPasses: 2,
       nextCommand: "frontline-resolve",
-    }).success).toBe(false);
+    });
   });
 
   it("projects a non-durable fresh-head instruction before the approved fix exists", () => {
@@ -113,7 +160,7 @@ describe("frontline follow-up policy", () => {
     });
   });
 
-  it.each(["major", "blocker"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
+  it.each(["major", "critical"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
     expect(resolveFrontlineFollowUp({
       outcome: outcome(severity),
       ...approved(severity),
@@ -131,6 +178,13 @@ describe("frontline follow-up policy", () => {
       maxPasses: 3,
       nextCommand: "frontline-resolve",
     });
+  });
+
+  it("accepts a reviewer nit that ARC regrades as a material fix", () => {
+    expect(projectFrontlineFollowUpAdvice({
+      outcome: outcome("minor", 2, 1, true),
+      ...approvedRegradeFromReviewerNit(),
+    })).toMatchObject({ action: "follow-up-after-fix", pass: 2 });
   });
 
   it("does not spend a follow-up on minor-only or deferred findings", () => {
@@ -179,4 +233,33 @@ describe("frontline follow-up policy", () => {
       })).toEqual({ action: "stop", reason: `outcome-${terminal}` });
     },
   );
+});
+
+describe("settled frontline advice reader", () => {
+  function reader(kind: ReviewResult["kind"], approval: ReturnType<typeof approved> | null) {
+    const { dispositionState } = approval ?? {};
+    return settledFrontlineAdviceReader(
+      { readResult: async () => ({ kind, outcome: outcome("major") }) as unknown as ReviewResult },
+      {
+        readDispositionRecord: async () => dispositionState === undefined ? null : {
+          currentDispositionSetId: dispositionState.dispositionSet.dispositionSetId,
+          approvedDispositionLineage: [{ approvedDisposition: dispositionState }],
+        } as unknown as ApprovedDispositionRecord,
+      },
+    );
+  }
+
+  it("projects a settled producer's advice from its current approved dispositions", async () => {
+    await expect(reader("frontline", approved("major", "defer"))("frontline-operation"))
+      .resolves.toEqual({ action: "stop", reason: "no-approved-material-fix" });
+    await expect(reader("frontline", approved("major"))("frontline-operation"))
+      .resolves.toMatchObject({ action: "follow-up-after-fix", pass: 2 });
+  });
+
+  it("refuses a producer that is not frontline or lacks an approved disposition record", async () => {
+    await expect(reader("hosted", approved("major"))("hosted-operation"))
+      .rejects.toThrow(/does not match its immutable result/u);
+    await expect(reader("frontline", null)("frontline-operation"))
+      .rejects.toThrow(/lack an approved disposition record/u);
+  });
 });

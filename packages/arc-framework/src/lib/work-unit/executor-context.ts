@@ -11,27 +11,32 @@
  * root — a relocation `git mv` and a worktree `add` stay correct regardless of
  * `process.cwd()`.
  *
- * Scope: this binder wires the four encoding mutators, the foot-gun guards, and the
- * `reconcile-roadmap` / `reconcile-status-user` / `user-workspace` side-effects the
- * `start` dispatch's executor-routed arms (graduate / resume) declare, plus the
- * prepared current-WU reconcile seam used by dependent-owned write ceremonies and
- * the `withdraw-pr` side-effect the `reopen` edge fires
- * (a `gh` write — close or draft the open PR, degrading to an advisory when `gh` is
- * unavailable so the applied phase flip is never left mid-transition). The
- * destructive `scaffold` / `remove` artifact runner is left to the verbs that build
- * their own runner (`stub` / `abandon`).
- *
- * `reconcile-status-user` renders for real here: it composes the per-developer
- * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
- * uses) in local-only mode and writes `STATUS.USER.md`, degrading to an advisory
- * rather than failing the transition if the render or write throws.
- * `reconcile-roadmap` writes and stages the project readiness view through the
- * shared status renderer.
+ * Scope: this binder wires the four encoding mutators, the foot-gun guards, the
+ * `user-workspace` side-effect the `start` dispatch's executor-routed arms (graduate /
+ * resume) declare, and the `withdraw-pr` side-effect the `reopen` edge fires (a `gh`
+ * write — close or draft the open PR, degrading to an advisory when `gh` is
+ * unavailable so the applied phase flip is never left mid-transition). It composes
+ * two sibling bindings over the same seams: the status-view side-effects
+ * (`reconcile-roadmap` / `reconcile-status-user`, {@link buildStatusSideEffects}) and
+ * the prepared current-WU reconcile seam used by dependent-owned write ceremonies
+ * ({@link buildCurrentWuReconcile}). The destructive `scaffold` / `remove` artifact
+ * runner is left to the verbs that build their own runner (`stub` / `abandon`).
  *
  * @module
  */
 
-import { readdir, rmdir } from "node:fs/promises";
+import type { StoreRecord } from "../store/read.js";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  rmdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
@@ -45,41 +50,52 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
-import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
-import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
-import { resolveUserSurfaceResolver } from "../user-surfaces.js";
+import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
+import { createProjectIdentityReader } from "../store/project-identity.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import type { Store } from "../store/contract.js";
+import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
+import type { RawGitExec } from "../git/exec.js";
+import { createExecaRawGitExec } from "../git/process-executor.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
-import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "./git-retirement-record-enumeration.js";
-import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
-import { listParkedSlugs } from "./lifecycle-resolver.js";
-import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
+import { buildCurrentWuReconcile } from "./executor-context-current-wu.js";
+import { buildStatusSideEffects } from "./executor-context-status.js";
+import type { LifecycleIndexFs } from "./lifecycle-index.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  provisionSpawnedWorktree,
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
-import {
-  applyPreparedCurrentWuReconcile,
-  prepareCurrentWuReconcile,
-  type CurrentWuReconcileHost,
-} from "./side-effects/discharge-dep-edges.js";
-import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
-import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import type { CurrentWuReconcileHost } from "./side-effects/discharge-dep-edges.js";
+import { withdrawPr, preparePrWithdrawal, type RecoverablePrWithdrawalHandler } from "./side-effects/withdraw-pr.js";
+import { createLocusPorts } from "../locus/lifecycle-ports.js";
+import type { LocusPorts } from "./locus-ports.js";
+import { linkedWorkBranch } from "./linked-work-branch.js";
+import { readWorkUnit, usesOffBranchState } from "../store/lifecycle-write.js";
+import { atomicGraduate } from "./atomic-graduation.js";
+import { createNodeTeardownSelectionReader } from "./teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "./teardown-worktree-transaction.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
+  /** Locus-owned checkout claim operations. */
+  locusPorts?: LocusPorts;
+  /** Injected operational store; defaults lazily to this checkout. */
+  store?: Store;
+  /** Reopen a production default on a new checkout; explicit injections omit this factory. */
+  reopenStore?: (cwd: string, exec: GitExec) => Store;
+  /** Project identity resolved once by a linking verb. */
+  projectId?: () => Promise<string>;
   /** Repository root containing `.arc/` — the executor's cwd and the path-resolution base. */
   cwd: string;
   /** I/O context carrying the git executor and filesystem ops. */
@@ -92,6 +108,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Optional byte-preserving Git seam for transition history reads. */
+  transitionExec?: RawGitExec;
 }
 
 /**
@@ -111,10 +129,20 @@ export function buildExecutorContext(
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
 
   // Git executor defaulting to the repository root, so cwd-relative `git mv` /
-  // worktree ops resolve — but an explicit per-call `cwd` wins (the `worktree-clean`
-  // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
+  // worktree ops resolve — but an explicit per-call `cwd` wins so operations
+  // can target a worktree other than the base repo. Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  const store = deps.store ?? deps.reopenStore?.(cwd, exec) ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const locusPorts = deps.locusPorts ?? (usesOffBranchState(store) ? createLocusPorts({ cwd, exec, store }) : undefined);
+  const projectId = deps.projectId ?? (usesOffBranchState(store) ? createProjectIdentityReader(store) : undefined);
+  const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
+  const readTeardownSelection = identity === null
+    ? undefined
+    : createNodeTeardownSelectionReader({ exec, identity });
+  const teardownWorktree = identity === null
+    ? undefined
+    : createNodeTeardownWorktreeTransactionDriver({ exec, identity, cwd });
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -152,14 +180,8 @@ export function buildExecutorContext(
   // transient `gh` outage — degrade to an advisory rather than throwing, so the
   // already-applied `Integrating → Active` flip isn't left mid-transition (the
   // operator finishes the withdrawal by hand).
-  const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
-    const metaPath = resolveArcPath({
-      kind: "work-unit-artifact",
-      placement: { kind: "active", scope: { kind: "project" } },
-      slug: SlugSchema.parse(slug),
-      artifact: "meta",
-    });
-    const { branch } = parseMetaRecord(await io.readFile(at(metaPath)));
+  const legacyWithdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
+    const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug, inputs.storeTransition?.primary);
     const mode = inputs.prWithdrawMode ?? "close";
     if (branch === null) {
       return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
@@ -173,10 +195,22 @@ export function buildExecutorContext(
     }
     return undefined;
   };
+  const withdrawPrHandler: RecoverablePrWithdrawalHandler = Object.assign(legacyWithdrawPrHandler, {
+    prepareWithdrawal: async ({ slug, inputs }: Parameters<SideEffectHandler>[0]) => {
+      const branch = await withdrawalBranch({ store, exec, cwd, io, at, projectId }, slug, inputs.storeTransition?.primary);
+      if (branch === null) throw new Error(`Cannot withdraw the PR for \`${slug}\`: no work branch is linked.`);
+      return preparePrWithdrawal({ exec }, { branch, mode: inputs.prWithdrawMode ?? "close" });
+    },
+  });
 
   return {
     cwd,
-    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
+    store,
+    execRaw: transitionExec,
+    ...(locusPorts === undefined ? {} : { locusPorts }),
+    ...(projectId === undefined ? {} : { projectId }),
+    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd, projectId, locusPorts,
+      ...(deps.reopenStore === undefined ? {} : { store: undefined }) }),
     exec,
     indexFs,
 
@@ -198,8 +232,28 @@ export function buildExecutorContext(
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
+    reconcileWorkUnitWorktree: (op) => {
+      return reconcileWorkUnitWorktree({
+        exec,
+        store,
+        ...(locusPorts === undefined ? {} : { locusPorts }),
+        chdir: (dir) => { process.chdir(at(dir)); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        ...(readTeardownSelection === undefined ? {} : { readTeardownSelection }),
+        ...(teardownWorktree === undefined ? {} : { teardownWorktree }),
+      }, op);
+    },
+    atomicGraduate: (transaction) => {
+      return atomicGraduate(transaction, {
+        cwd,
+        exec,
+        fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+          { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
+          op,
+        ),
+      });
+    },
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
@@ -217,6 +271,15 @@ export function buildExecutorContext(
     },
 
     writeCurrentWorkflowField: async (metaPath, stage) => {
+      const content = await io.readFile(at(metaPath));
+      const next = setMetaCurrentWorkflow(content, stage);
+      const record = parseMetaRecord(next);
+      const diagnostics = checkCurrentWorkflowConsistency(record);
+      if (diagnostics.length > 0) throw new Error(diagnostics[0]);
+      await io.writeFile(at(metaPath), next);
+    },
+
+    writeCurrentWorkflowRecoveryMarker: async (metaPath, stage) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
     },
@@ -250,91 +313,34 @@ export function buildExecutorContext(
       await exec("git", ["add", at(metaPath)]);
     },
 
-    currentWuReconcile: {
-      prepare: async (op) =>
-        prepareCurrentWuReconcile(
-          {
-            index: await buildLifecycleIndex({ cwd, fs: indexFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
-            listArtifactPaths: (slug, ownedMetaPath) =>
-              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
-            readFile: (path) => io.readFile(at(path)),
-          },
-          op,
-        ),
-      apply: (prepared) =>
-        applyPreparedCurrentWuReconcile(
-          {
-            readFile: (path) => io.readFile(at(path)),
-            writeFile: (path, content) => io.writeFile(at(path), content),
-            stagePaths: async (paths, indexFile) => {
-              if (paths.length > 0) await exec("git", ["add", "--", ...paths], { indexFile });
-            },
-            captureIndexState: () => captureGitIndexState(exec, cwd),
-          },
-          prepared,
-        ),
-    },
+    currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at, store }),
 
-    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
+    guardValidators: buildFootgunGuards({ cwd, store, identity: identity ?? undefined, readActiveMetaCandidates }),
 
     sideEffects: {
-      "reconcile-roadmap": ({ slug, from, to, inputs }) =>
-        reconcileRoadmap(
-          {
-            composeView: async () => {
-              const currentBranch = await getCurrentBranch(exec);
-              const { result } = await renderRoadmapFromIndexViewResult({
-                cwd,
-                exec,
-                ...(baseBranch !== undefined ? { baseBranch } : {}),
-                currentBranch,
-                ...(inputs.supersededSource === undefined
-                  ? {}
-                  : { superseded: inputs.supersededSource }),
-              });
-              return {
-                content: result.markdown,
-                advisories: result.warnings.map((warning) => warning.rendered),
-              };
-            },
-            mkdir: io.mkdir,
-            writeFile: io.writeFile,
-            stageFile: async (path) => {
-              await exec("git", ["add", path]);
-            },
-          },
-          { cwd, slug, from, to },
-        ),
-      "reconcile-status-user": ({ slug, from, to }) =>
-        reconcileStatusUserSideEffect(
-          {
-            composeView: async () =>
-              (
-                await assembleStatusUserView({
-                  cwd,
-                  exec,
-                  identity,
-                  teamMode,
-                  localOnly: true,
-                  parkedSlugs: listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs })),
-                  readFile: io.readFile,
-                })
-              ).output,
-            mkdir: io.mkdir,
-            writeFile: io.writeFile,
-            resolveIdentityGlobalRoot: async (resolvedIdentity) =>
-              (await resolveUserSurfaceResolver({
-                cwd,
-                identity: SlugSchema.parse(resolvedIdentity),
-                exec,
-              })).identityGlobalRoot,
-          },
-          { cwd, identity, slug, from, to },
-        ),
+      ...buildStatusSideEffects({
+        cwd,
+        io,
+        exec,
+        identity,
+        teamMode,
+        ...(baseBranch !== undefined ? { baseBranch } : {}),
+        indexFs,
+      }),
       "user-workspace": userWorkspaceHandler,
       "withdraw-pr": withdrawPrHandler,
     },
   };
+}
+
+async function withdrawalBranch(input: { store: Store; exec: GitExec; cwd: string; io: UserIOContext;
+  at: (path: string) => string; projectId?: () => Promise<string> }, slug: string, primary?: StoreRecord): Promise<string | null> {
+  if (usesOffBranchState(input.store)) {
+    const read = primary === undefined ? await readWorkUnit(input.store, slug) : await input.store.read({ reference: primary.reference });
+    if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+    return linkedWorkBranch(input, read.result);
+  }
+  const metaPath = resolveArcPath({ kind: "work-unit-artifact", placement: { kind: "active", scope: { kind: "project" } },
+    slug: SlugSchema.parse(slug), artifact: "meta" });
+  return parseMetaRecord(await input.io.readFile(input.at(metaPath))).branch;
 }

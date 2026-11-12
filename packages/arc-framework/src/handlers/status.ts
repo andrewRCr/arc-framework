@@ -1,310 +1,146 @@
-/**
- * Handler for `arc status` — the composite probe orchestrator.
- *
- * Reads configured identity and role pointers in parallel,
- * builds the default probe bundle from real I/O, and delegates orchestration
- * to {@link runStatus} / {@link runSessionInitStatus}. Branches on scope
- * (`--session-init`) and format (`--json`); `--json` bypasses Clack and
- * writes the typed result to stdout for harness consumption.
- *
- * The handler never exits non-zero on per-probe failure — the composite
- * shape carries per-slot errors so session-init can inspect the result and
- * decide what to do.
- *
- * @module
- */
+/** Status CLI validation and dispatch to lifecycle, view, and session handlers. */
 
-import { access, readdir, readFile } from "node:fs/promises";
+import * as p from "../lib/terminal.js";
+import { withPausedCurrentWuActions } from "../lib/session-init/paused-current-wu-actions.js";
+import { openDefaultStore } from "./lifecycle-shared.js";
+import { createStoreSessionProbes } from "./status/store-session.js";
+import { createProjectIdentityReader } from "../lib/store/project-identity.js";
+import type { Store } from "../lib/store/contract.js";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
-import * as p from "@clack/prompts";
 import { z } from "zod";
-import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-
-import {
-  buildSessionInitStatusSummary,
-  buildStatusSummary,
-  runRecoverStatus,
-  runSessionHandoffStatus,
-  runSessionInitStatus,
-  runStatus,
-} from "../commands/status.js";
-import type {
-  CompactionSeedWriteStatus,
-  SessionHandoffProbes,
-  SessionInitProbes,
-  StatusProbes,
-} from "../commands/status.js";
-import {
-  runActiveSessionInitStatus,
-  runActiveStatus,
-} from "../commands/active.js";
-import {
-  runConfigSessionInitStatus,
-  runConfigStatus,
-} from "../commands/config.js";
+import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runDomainRulesSessionInitStatus } from "../commands/constitution.js";
+import type { SessionInitProbes } from "../commands/status.js";
+import { buildSessionInitStatusSummary, runSessionInitStatus } from "../commands/status.js";
+import { assertSessionInitProbeResult } from "../commands/status/schema.js";
+import { runUserSessionInitStatus } from "../commands/user.js";
+import { createCurrentBaseDriftAdapters, workUnitPathTreatmentContext } from "../lib/base-drift/current-adapters.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { emitCompactionSeed } from "../lib/compaction-seed/emitter.js";
+import { resolveAllSettings } from "../lib/config/resolved-settings.js";
+import { projectDeliveryContributionEndpoints } from "../lib/delivery/contribution-proof.js";
+import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import { observeDeliveryEligibilityRef } from "../lib/delivery/git-eligibility.js";
+import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
 import {
-  runExtensionsSessionInitStatus,
-  runExtensionsStatus,
-} from "../commands/extensions.js";
+  projectTransientInFlightRead,
+  readFetchedTransientInFlightIndexes,
+  readTransientInFlightIndexes,
+} from "../lib/errand/record.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { analyzeBaseBranchSnapshot, readLocalBaseOid, resolveBaseCheckoutLocus } from "../lib/git/base-branch-sync.js";
+import { analyzeBaseDistanceSnapshot, buildBaseDistanceNotApplicable } from "../lib/git/base-distance.js";
+import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
+import type { RawGitExec } from "../lib/git/exec.js";
 import {
-  runUserSessionInitStatus,
-  runUserStatus,
-} from "../commands/user.js";
-import {
-  filterRosterByIdentity,
-  runIdentityScopedWorktreeRoster,
-  runWorktreeRoster,
-} from "../lib/git/index.js";
-import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
-import {
-  deriveInFlight,
+  analyzeInFlightSnapshot,
   renderInFlightWarning,
   type InFlightEntry,
   type InFlightResidue,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
-import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
-import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
-import {
-  runBranchGoneRecovery,
-  RECOVERY_RECENCY_DAYS,
-} from "../lib/session-init/branch-gone-recovery.js";
-import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
-import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
-import { revalidateDecodedHuskRetirementEvidence } from "../lib/work-unit/teardown-retirement-driver.js";
-import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
-import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
-import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
-import { runErrandState } from "../lib/session-init/errand-state.js";
-import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
-import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
-import { runInboxState } from "../lib/session-init/inbox-state.js";
-import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
-import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
-import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
-import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
-import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
-import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
-import { runHeadHashStatus } from "../lib/git/head-hash.js";
-import { runPushabilityStatus } from "../lib/git/pushability.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
-import { runBaseDrift } from "../lib/git/base-distance.js";
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
-import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
-import { detectSupersession } from "../lib/git/supersession.js";
+import type { GitExec } from "../lib/git/index.js";
+import { filterRosterByIdentity, runIdentityScopedWorktreeRoster, runWorktreeRoster } from "../lib/git/index.js";
+import { analyzeRecentRemoteBranchesSnapshot } from "../lib/git/recent-remote-branches.js";
+import { readLocalInFlightRefSnapshot } from "../lib/git/remote-ref-reader.js";
+import { analyzeSupersessionSnapshot, emptySupersessionResult } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
-import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
-import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
-import {
-  resolveAllSettings,
-  type ResolvedSettingsResult,
-} from "../lib/config/resolved-settings.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
-import type { InteractionContext } from "../lib/command-input/interaction-context.js";
-import type { GitExec } from "../lib/git/index.js";
-import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
-import {
-  listErrandRecordsResult,
-  type ErrandRecord,
-  type ListErrandRecordsResult,
-} from "../lib/errand/record.js";
-import { resolveReleaseRouting } from "../lib/release/routing.js";
-import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import {
-  emitCompactionSeed,
-  parseUncommittedFiles,
-  type CompactionSeedGitSnapshot,
-  type EmitCompactionSeedResult,
-} from "../lib/compaction-seed/emitter.js";
-import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
-import {
-  composeProjectReadinessViewResult,
-  resolveProjectReadinessRenderStamp,
-  resolveProjectReadinessViewInput,
-  type ProjectReadinessWarning,
-} from "../lib/status/project-view.js";
-import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
-import {
-  assertSessionInitProbeResult,
-  assertSessionRecoverProbeResult,
-} from "../commands/status/schema.js";
-import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
-import {
-  projectUserReferenceSessionResult,
-  resolveUserReferenceAuthority,
-} from "../lib/user-reference-reconcile.js";
+import { resolveWorktreePathsByBranchResult } from "../lib/git/worktree-roster.js";
+import { analyzeWorktreeSnapshot, readConfiguredUpstreamBranch } from "../lib/git/worktree-sync.js";
+import { createGitExec, createRawGitExec, readGitBlobBytes } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/index.js";
-import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { RECOVERY_RECENCY_DAYS, runBranchGoneRecovery } from "../lib/session-init/branch-gone-recovery.js";
+import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
+import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
+import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
+import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
+import { runErrandState } from "../lib/session-init/errand-state.js";
+import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
+import { runPausedWork } from "../lib/session-init/paused-work.js";
+import { runInboundBackPressure } from "../lib/session-init/inbound-back-pressure.js";
+import { runInboxState } from "../lib/session-init/inbox-state.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
-import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
-import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
-import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
+  composeMaterializableDiscoveryRefreshRemedy,
+  findMaterializableWorkUnits,
+} from "../lib/session-init/materializable-work-units.js";
+import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
+import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
+import { runHooksPathSessionAdvisory } from "../lib/session-init/hooks-path-advisory.js";
+import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
+import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
+import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
+import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
+import { analyzeUserReferenceAuthority, projectUserReferenceSessionResult } from "../lib/user-reference-reconcile.js";
+import {
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
-import { createRecoverStatusProbes } from "./recover-probes.js";
-import { readIdentityPointers } from "./identity-pointers.js";
+import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
+import { revalidateDecodedHuskRetirementEvidenceStrict } from "../lib/work-unit/teardown-retirement-driver.js";
+import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import { readDerivedLocusStateSnapshot, runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import { requireArcProjectRoot } from "./shared.js";
-import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import {
+  createSessionRemoteContextReader,
+  sessionRemotePrerequisites,
+  type SessionRemoteContext,
+} from "./status-remote-context.js";
+import type { SessionStatusContext } from "./status/session-context.js";
+import {
+  createSessionDeliveryObservationHost,
+  ERRAND_NUDGE_MARKER_RELATIVE,
+  errorMessage,
+  exactSessionBaseOid,
+  NOTES_COMPACTION_NUDGE_MARKER_RELATIVE,
+  parsePositiveInteger,
+  readCompactionSeedGitSnapshot,
+  readSessionBranch,
+  releaseRoutingFromSettings,
+  resolveNudgeState,
+  resolveSessionInitDirtyState,
+  sessionCleanupBaseEvidence,
+  sessionPathTreatmentWorkUnit,
+  summarizeCompactionSeedWrite,
+  surfaceCompactionSeedWrite,
+  WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE,
+} from "./status/session-evidence.js";
 
-export interface StatusCliOptions {
-  sessionInit?: boolean;
-  sessionHandoff?: boolean;
-  recover?: boolean;
-  user?: boolean;
-  project?: boolean;
-  /** `--local`: render explicit user/project views from local refs without a network read. */
-  local?: boolean;
-  /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
-  staged?: boolean;
-  /** `true` opts a slug query into live membership; `false` skips network reads for live-default views. */
-  fetch?: boolean;
-  json?: boolean;
-  /** With --session-init: write the machine-local compaction seed sidecar. */
-  writeCompactionSeed?: boolean;
-}
+import { StatusCommandInputSchema, type StatusCliOptions } from "./status/input.js";
+import { handleLifecycleStatus } from "./status/lifecycle.js";
+import { createSessionStatusContext, readWorkingMemoryFromStore } from "./status/session-context.js";
+import { handleCompositeStatus, handleRecoverStatus, handleSessionHandoffStatus } from "./status/session.js";
+import { handleConflictStatus } from "./status/conflicts.js";
+import { handleProjectStatus, handleUserStatus } from "./status/views.js";
 
-/** Validated composite status mode and optional subject. */
-export const StatusCommandInputSchema = z.object({
-  slug: SlugSchema.optional(),
-  sessionInit: z.boolean().optional(),
-  sessionHandoff: z.boolean().optional(),
-  recover: z.boolean().optional(),
-  user: z.boolean().optional(),
-  project: z.boolean().optional(),
-  local: z.boolean().optional(),
-  staged: z.boolean().optional(),
-  fetch: z.boolean().optional(),
-  json: z.boolean().optional(),
-  writeCompactionSeed: z.boolean().optional(),
-}).strict().superRefine((value, refinement) => {
-  const modes = [value.slug !== undefined, value.sessionInit, value.sessionHandoff, value.recover, value.user, value.project]
-    .filter(Boolean).length;
-  if (modes > 1) {
-    refinement.addIssue({
-      code: "custom",
-      message: "A status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.",
-    });
-  }
-  if (value.writeCompactionSeed === true && value.sessionInit !== true) {
-    refinement.addIssue({ code: "custom", path: ["writeCompactionSeed"], message: "Requires --session-init." });
-  }
-  if (value.staged === true && value.project !== true) {
-    refinement.addIssue({ code: "custom", path: ["staged"], message: "Requires --project." });
-  }
-});
-
-/** Registry contribution owned by composite status. */
-export const statusCommandInputRegistration = {
-  commandPath: "status",
-  schema: StatusCommandInputSchema,
-  schemaFields: {
-    "operand.slug": "slug",
-    "option.session-init": "sessionInit",
-    "option.session-handoff": "sessionHandoff",
-    "option.recover": "recover",
-    "option.user": "user",
-    "option.project": "project",
-    "option.local": "local",
-    "option.no-fetch": "fetch",
-    "option.staged": "staged",
-    "option.fetch": "fetch",
-    "option.json": "json",
-    "option.write-compaction-seed": "writeCompactionSeed",
-  },
-} satisfies CommandInputRegistration;
-
-/** Machine-output policies owned by the status adapter. */
-export const statusCommandInputPolicyDeclarations = [{
-  commandPath: "status",
-  aliases: [],
-  sites: ([
-    ["json", "json"], ["recover", "recover"], ["session-handoff", "sessionHandoff"],
-    ["session-init", "sessionInit"],
-  ] as const).map(([option, schemaField]) => declareCliOptionSite(option, {
-    acquisition: "machine-mode", schemaOwnership: "owned", schemaField,
-    cancellation: "not-applicable", automation: { noInput: "same", flags: [`--${option}`], acceptedSyntax: [] },
-    mutationBoundary: "output selection", subprocess: "none",
-  })).concat({
-    id: "semantic.interaction-context",
-    source: { file: "handlers/status.ts", symbol: "handleStatus" },
-    origin: "declaration",
-    acquisition: "derived",
-    schemaOwnership: "none",
-    derivationSource: "shared InteractionContext",
-    cancellation: "not-applicable",
-    automation: { noInput: "same", flags: ["--no-input", "--json"], acceptedSyntax: [] },
-    mutationBoundary: "status probe orchestration",
-    subprocess: "terminal-prompts",
-  }),
-}] satisfies readonly CommandInputDeclaration[];
-
-function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
-  for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
-}
-
-function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
-  return resolveReleaseRouting({
-    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
-    commitInterlock: settings.resolved.commitInterlock.value,
-    pushInterlock: settings.resolved.pushInterlock.value,
-  });
-}
-
-const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
+export {
+  statusCommandInputPolicyDeclarations,
+  statusCommandInputRegistration,
+  StatusCommandInputSchema,
+} from "./status/input.js";
+export type { StatusCliOptions } from "./status/input.js";
+export {
+  createSessionDeliveryObservationHost,
+  exactSessionBaseOid,
+  resolveSessionInitDirtyState,
+  sessionPathTreatmentWorkUnit,
+} from "./status/session-evidence.js";
 
 /**
- * Marker for the work-unit staleness nudge — a separate per-user file from the
- * errand reminder so the two batch independently (the errand reminder clears at
- * housekeep; WU staleness clears when the WU merges / archives).
+ * Validate and dispatch a status invocation before acquiring mode-specific I/O.
+ * @param slug - Optional lifecycle subject.
+ * @param opts - CLI status options.
+ * @param interaction - Invocation subprocess policy.
+ * @returns Completion after writing the selected status output.
  */
-const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
-const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-nudge.txt";
-
-function parsePositiveInteger(raw: string, fallback: number): number {
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-/**
- * Resolve once-per-calendar-day marker state for a batched session-init nudge
- * from its per-user marker file. Shared across the rate-limited surfaces (errand
- * reminder / stale-errand, work-unit staleness) — each passes its own
- * `markerRelative` so the surfaces batch independently.
- */
-async function resolveNudgeState(
-  cwd: string,
-  io: ReturnType<typeof createUserIOContext>,
-  identity: string | null,
-  markerRelative: string,
-  resolveSurfaces?: (identity: string) => Promise<UserSurfaceResolver>,
-): Promise<NudgeMarkerState> {
-  const today = new Date().toISOString().slice(0, 10);
-  if (identity === null) {
-    return { shouldNudge: false, markerPath: null, today };
-  }
-  const surfaces = resolveSurfaces !== undefined
-    ? await resolveSurfaces(identity)
-    : await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
-  const markerPath = surfaces.identityGlobalDisplayPath(markerRelative);
-  const absoluteMarkerPath = surfaces.identityGlobalPath(markerRelative);
-  const lastNudge = await io.readFile(absoluteMarkerPath).then(
-    (content) => content.trim(),
-    () => null,
-  );
-  return {
-    shouldNudge: shouldNudge({ lastNudge, today }),
-    markerPath,
-    today,
-  };
-}
-
 export async function handleStatus(
   slug: string | undefined,
   opts: StatusCliOptions,
@@ -326,10 +162,11 @@ export async function handleStatus(
     opts.recover,
     opts.user,
     opts.project,
+    opts.conflicts !== undefined && opts.conflicts !== false,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, --project, and --conflicts are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -342,736 +179,780 @@ export async function handleStatus(
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const json = Boolean(opts.json);
+  const transitionExec = createRawGitExec(cwd);
+  const localOnlyTransitionExec: RawGitExec = (args, options) => transitionExec(args, {
+    ...options,
+    objectAccess: "local-only",
+  });
 
+  const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   if (slug !== undefined) {
-    // Slug→state query: a subject-keyed read over the lifecycle-complete index.
-    // The index walk binds real I/O; the resolution stays a pure lib projection.
-    // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
-    // branches are not mis-emitted as `no-record-or-meta` residue.
-    const { settings } = await readConfigSettings(cwd);
-    const { identity } = await readIdentityPointers(exec);
-    // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
-    // (not degraded). Degraded `complete: false` is only for a failed read.
-    const recordResult: ListErrandRecordsResult = identity === null
-      ? { records: [], complete: true, warnings: [] }
-      : await listErrandRecordsResult({ exec, identity });
-    const errandSlugByBranch = new Map(
-      recordResult.records.map((record) => [record.branch, record.slug]),
-    );
-    const composed = await resolveComposedLifecycleIndex({
-      cwd,
-      fs: {
-        readdir: (path) => readdir(path, { withFileTypes: true }),
-        readFile: (path) => readFile(path, "utf8"),
-      },
-      oracle: {
-        exec,
-        localOnly: opts.fetch !== true,
-        baseBranch: settings["branch.base"],
-        errandSlugByBranch,
-        errandRecordsComplete: recordResult.complete,
-      },
-    });
-    const query = resolveSlugQuery(composed.index, slug);
-    const worktreePath = composed.worktreePathBySlug.get(slug);
-    const warnings = [
-      ...composed.qualityFacts.warnings.map(renderInFlightWarning),
-      ...(opts.fetch === true && composed.qualityFacts.unreachable === true
-        ? ["Remote unreachable; query derived from local refs only."]
-        : []),
-    ];
-    const output = {
-      ...query,
-      ...(worktreePath !== undefined ? { worktreePath } : {}),
-      ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
-    };
-    if (json) {
-      process.stdout.write(`${JSON.stringify(output)}\n`);
-      return;
-    }
-    p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { worktreePath, warnings: output.warnings ?? [] }), "Lifecycle state");
-    p.outro("Done.");
+    await handleLifecycleStatus(context, slug, opts);
     return;
   }
+  if (opts.sessionHandoff) return handleSessionHandoffStatus(context, opts);
+  if (opts.recover) return handleRecoverStatus(context, opts);
+  if (opts.sessionInit) return handleSessionInitStatus(context, opts);
+  if (opts.user) return handleUserStatus(context, opts);
+  if (opts.project) return handleProjectStatus(context, opts);
+  if (opts.conflicts !== undefined && opts.conflicts !== false) return handleConflictStatus(context, opts);
+  await handleCompositeStatus(context, opts);
+}
 
-  const lifecycleFs = {
-    readdir: (path: string) => readdir(path, { withFileTypes: true }),
-    readFile: (path: string) => readFile(path, "utf8"),
-  };
-  const io = createUserIOContext(interaction?.subprocess);
-  const { identity, role } = await readIdentityPointers(exec);
-  const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
-  const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
-    let resolver = userSurfaceResolvers.get(id);
-    if (resolver === undefined) {
-      resolver = resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(id), exec });
-      userSurfaceResolvers.set(id, resolver);
-    }
-    return resolver;
-  };
-  // Both the inbox-state and reminder-sweep probes read the same personal
-  // `USER-INBOX.md`; a missing file reads as empty (no captures).
-  const readUserInbox = (id: string): Promise<string> =>
-    userSurfacesFor(id)
-      .then((surfaces) => io.readFile(surfaces.identityGlobalPath("USER-INBOX.md")))
-      .catch(() => "");
-
-  if (opts.sessionHandoff) {
-    if (!json) {
-      process.stderr.write(
-        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
-      );
-      process.exitCode = 1;
-      return;
-    }
-    // Cache the resolution promise instead of awaiting eagerly: a thrown
-    // settings-resolution error now surfaces through the orchestrator's typed
-    // per-probe Result channel rather than aborting the whole
-    // command and breaking the composite-result contract. The mode-validation
-    // early-return above runs first to avoid leaving an unawaited rejection on
-    // the non-JSON exit path.
-    const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
-    const probes: SessionHandoffProbes = {
-      dirty: () => runDirtyStateStatus({ exec }),
-      worktree: async () => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
-      },
-      user: async (id) => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
-      },
-      syncInterlock: async () => {
-        // syncInterlock is per-developer-only; the generic resolver type
-        // still permits a "yaml" source, but no runtime path produces it
-        // for this key. Coerce defensively to keep HandoffSyncInterlock's
-        // narrower source union honest.
-        const resolved = (await resolvedSettingsP).resolved.syncInterlock;
-        const source = resolved.source === "yaml" ? "default" : resolved.source;
-        return { value: resolved.value, source };
-      },
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
-      head: () => runHeadHashStatus({ exec }),
-      pushability: () => runPushabilityStatus({
-        exec,
-        access,
-        target: "worktree",
-      }),
-      restateCandidates: async () => {
-        let sessionNotes: string | null = null;
-        if (identity !== null) {
-          const path = await resolveSessionNotesPath(cwd, identity, io);
-          if (path !== null) {
-            sessionNotes = await io.readFile(path).catch(() => null);
-          }
-        }
-        return deriveRestateCandidates({ exec, sessionNotes });
-      },
-      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
-    };
-    const result = await runSessionHandoffStatus({ identity, role, probes });
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-
-  if (opts.recover) {
-    if (!json) {
-      process.stderr.write(
-        "Error: --recover currently requires --json (interactive rendering not implemented).\n",
-      );
-      process.exitCode = 1;
-      return;
-    }
-    const result = await runRecoverStatus({
-      identity,
-      role,
-      probes: createRecoverStatusProbes({
-        cwd,
-        dirty: () => runDirtyStateStatus({ exec }),
-      }),
-      workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
-    });
-    assertSessionRecoverProbeResult(result);
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-
-  if (opts.sessionInit) {
-    // See sessionHandoff branch above for the rationale on caching the
-    // resolution promise rather than awaiting eagerly.
-    const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
-    const compactionSeedGitSnapshotP = opts.writeCompactionSeed
-      ? readCompactionSeedGitSnapshot(cwd, exec)
-      : null;
-    // Shared in-flight oracle slice — the bounded network read (live remote
-    // membership → pruned-ref derivation) feeding both the errand-state and
-    // materializable-WU probes. Both gate on the no-active-WU arm, so when one
-    // fires the other does too; memoizing keeps it a single read. Lazy: a resume
-    // session forces neither probe, so the network read never runs there.
-    let oraclePromise: Promise<{
-      entries: InFlightEntry[];
-      residue: InFlightResidue[];
-      warnings: InFlightWarning[];
-      reachable: boolean;
-    }> | undefined;
-    // Errand records — the errand-identity oracle, shared by the in-flight
-    // derivation (errand-vs-WU classification) and the errand-state probe
-    // (resume + discovery). Identity-scoped and local, so read once and reused;
-    // empty when no identity resolved (no record ref exists).
-    let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
-    const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
-      errandRecordsPromise ??= identity === null
-        ? Promise.resolve({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec, identity });
-      return errandRecordsPromise;
-    };
-    const getErrandRecords = async (): Promise<ErrandRecord[]> => (await getErrandRecordsResult()).records;
-    const getOracle = (): Promise<{
-      entries: InFlightEntry[];
-      residue: InFlightResidue[];
-      warnings: InFlightWarning[];
-      reachable: boolean;
-    }> => {
-      oraclePromise ??= (async () => {
-        // Fire the dead-ref prune before derivation so every oracle caller
-        // observes the same pruned ref set, regardless of call order.
-        await pruneRemoteTrackingRefs(exec);
-        const resolved = await resolvedSettingsP;
-        const teamMode = resolved.settings["team.mode"] === "true";
-        const [recordResult, parkedSlugs] = await Promise.all([
-          getErrandRecordsResult(),
-          buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-        ]);
-        const records = recordResult.records;
-        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
-        const result = await deriveInFlight({
-          exec,
-          localOnly: false,
-          baseBranch: resolved.settings["branch.base"],
-          identity,
-          teamMode,
-          errandSlugByBranch,
-          errandRecordsComplete: recordResult.complete,
-          parkedSlugs,
-        });
-        // Unreachable: derive nothing rather than a half-resolved view over
-        // un-pruned local refs. Consumers surface no candidates / skip discovery.
-        if (!result.reachable) {
-          return { entries: [], residue: result.residue, warnings: result.warnings, reachable: false };
-        }
-        return {
-          entries: result.entries,
-          residue: result.residue,
-          warnings: result.warnings,
-          reachable: result.reachable,
-        };
-      })();
-      return oraclePromise;
-    };
-    const probes: SessionInitProbes = {
-      user: async (id) => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
-      },
-      worktree: async () => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
-      },
-      worktreeIdentity: () => resolveWorktreeIdentity(exec),
-      currentHusk: async (worktreePath) => {
-        const [marker, headResult, resolved] = await Promise.all([
-          readWorktreeMarker(worktreePath),
-          exec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
-          resolvedSettingsP,
-        ]);
-        return await resolveCurrentHuskAdvisory({
-          worktreePath,
-          branch: null,
-          head: headResult.stdout,
-          marker,
-        }, async (stamp, decoded) => {
-          const baseBranch = resolved.settings["branch.base"];
-          return await revalidateDecodedHuskRetirementEvidence(
-            exec,
-            stamp,
-            decoded,
-            resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
-            (ref, path) => readGitBlobBytes(cwd, ref, path),
-          );
-        });
-      },
-      baseDistance: async () => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runBaseDrift({
-          exec,
-          baseBranch: resolved.settings["branch.base"],
-          mode: "advisory",
-          remoteSyncEnabled,
-          ...createCurrentBaseDriftAdapters(exec),
-        });
-      },
-      baseBranchSync: async () => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runBaseBranchSyncStatus({
-          exec,
-          baseBranch: resolved.settings["branch.base"],
-          remoteSyncEnabled,
-        });
-      },
-      supersession: (branch) => detectSupersession({ exec, branch }),
-      dirty: () => resolveSessionInitDirtyState({
-        compactionSeedGitSnapshotP,
-        fallback: () => runDirtyStateStatus({ exec }),
-      }),
-      extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec }),
-      domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
-      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      currentWuReconcile: async ({ slug, metaPath }) =>
-        runCurrentWuReconcileSessionProbe(
-          {
-            index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
-            listArtifactPaths: (slug, ownedMetaPath) =>
-              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
-            readFile: (path) => io.readFile(resolve(cwd, path)),
-          },
-          { slug, metaPath },
-        ),
-      userReferenceReconcile: async ({ slug }) => {
-        if (identity === null) throw new Error("User-reference probe requires an identity.");
-        const resolved = await resolvedSettingsP;
-        const surfaces = await userSurfacesFor(identity);
-        const authority = await resolveUserReferenceAuthority({
-          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
-          baseBranch: resolved.settings["branch.base"],
-          refreshRemoteBase: async () => {
-            try {
-              await exec("git", ["fetch", "origin", resolved.settings["branch.base"]]);
-              await exec("git", [
-                "rev-parse",
-                "--verify",
-                "--quiet",
-                `origin/${resolved.settings["branch.base"]}`,
-              ]);
-              return true;
-            } catch {
-              return false;
-            }
-          },
-          enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
-        });
-        const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
-        return projectUserReferenceSessionResult(authority, {
-          userInbox: {
-            path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
-            content: await readUserInbox(identity),
-          },
-          workingMemory: {
-            path: surfaces.workingMemoryDisplayPath,
-            content: await io.readFile(surfaces.workingMemoryPath).catch(() => ""),
-          },
-          sessionNotes: {
-            path: sessionNotesPath,
-            content: await io.readFile(sessionNotesPath).catch(() => ""),
-          },
-        });
-      },
-      roster: async () => {
-        const resolved = await resolvedSettingsP;
-        const teamMode = resolved.settings["team.mode"] === "true";
-        const roster = await runWorktreeRoster({
-          exec,
-          fs: {
-            readdir: (path) => readdir(path),
-            readFile: (path) => readFile(path, "utf8"),
-          },
-        });
-        return filterRosterByIdentity(roster, { identity, teamMode });
-      },
-      cleanupRoster: async () => {
-        const resolved = await resolvedSettingsP;
-        const teamMode = resolved.settings["team.mode"] === "true";
-        return runIdentityScopedWorktreeRoster({
-          exec,
-          fs: {
-            readdir: (path) => readdir(path),
-            readFile: (path) => readFile(path, "utf8"),
-          },
-          identity,
-          teamMode,
-        });
-      },
-      recovery: async (roster, currentBranch) => {
-        const resolved = await resolvedSettingsP;
-        const recentBranches = await runRecentRemoteBranches({
-          exec,
-          withinDays: RECOVERY_RECENCY_DAYS,
-        });
-        return runBranchGoneRecovery({
-          roster,
-          currentBranch,
-          baseBranch: resolved.settings["branch.base"],
-          recentBranches,
-          exec,
-        });
-      },
-      sweep: async (roster, worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
-        return runStaleWorktreeSweep({
-          roster,
-          worktreeIdentity,
-          baseBranch: resolved.settings["branch.base"],
-          exec,
-          identity,
-          teamMode: resolved.settings["team.mode"] === "true",
-          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
-          excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
-          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
-        });
-      },
-      orphanBranchSweep: async (worktreeIdentity) => {
-        const resolved = await resolvedSettingsP;
-        // Record-carrying errand branches are excluded — the errand surfaces
-        // (resume, close replay) own their cleanup. With no resolved identity
-        // the records are unreadable, so pass `null` and the sweep declines
-        // rather than offering deletes that could orphan a record.
-        const errandRecords = identity === null ? null : await getErrandRecords();
-        return runOrphanBranchSweep({
-          worktreeIdentity,
-          baseBranch: resolved.settings["branch.base"],
-          errandBranches:
-            errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
-          exec,
-        });
-      },
-      retiredSubdirs: async (id) => {
-        const resolved = await resolvedSettingsP;
-        return runRetiredSubdirDetection({
-          cwd,
-          identity: id,
-          baseBranch: resolved.settings["branch.base"],
-          exec,
-          readDir: io.readDir,
-          readFile: io.readFile,
-        });
-      },
-      errandSweep: async (id) => {
-        const resolved = await resolvedSettingsP;
-        const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
-        const { entries } = extractReminderEntries({ content: await readUserInbox(id) });
-        return runErrandStalenessSweep({ entries, thresholdDays });
-      },
-      errandState: async (input) => {
-        const resolved = await resolvedSettingsP;
-        const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
-        // Errand records are the identity oracle for resume + discovery (shared
-        // with the in-flight derivation); empty when no identity resolved.
-        const recordResult = await getErrandRecordsResult();
-        const records = recordResult.records;
-        let entries: InFlightEntry[] | null = null;
-        let residue: InFlightResidue[] = [];
-        let oracleWarnings: string[] = [...recordResult.warnings];
-        if (input.includeDiscovery) {
-          const oracle = await getOracle();
-          entries = oracle.reachable ? oracle.entries : null;
-          residue = oracle.residue;
-          oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
-        }
-        return runErrandState({
-          exec,
-          currentBranch: input.currentBranch,
-          hasBackingMeta: input.hasBackingMeta,
-          includeDiscovery: input.includeDiscovery,
-          entries,
-          residue,
-          oracleWarnings,
-          records,
-          baseBranch: resolved.settings["branch.base"],
-          staleThresholdDays: thresholdDays,
-          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),
-        });
-      },
-      materializableWorkUnits: async () => {
-        const { entries, warnings, reachable } = await getOracle();
-        const renderedWarnings = warnings.map(renderInFlightWarning);
-        if (!reachable) return { candidates: [], warnings: renderedWarnings };
-        return { ...findMaterializableWorkUnits({ entries, identity }), warnings: renderedWarnings };
-      },
-      workUnitState: async (input) => {
-        const resolved = await resolvedSettingsP;
-        const staleThresholdDays = parsePositiveInteger(
-          resolved.settings["integration.stale_after_days"],
-          2,
-        );
-        return runWorkUnitState({
-          exec,
-          roster: input.roster.entries,
-          identity,
-          baseBranch: resolved.settings["branch.base"],
-          staleThresholdDays,
-          nudge: await resolveNudgeState(
-            cwd,
-            io,
-            identity,
-            WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE,
-            userSurfacesFor,
-          ),
-          prSource: input.includeSharpening ? createGhWorkUnitPrSource(exec) : undefined,
-        });
-      },
-      inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
-      partialPushMarker: (id) => runPartialPushMarkerSurface({
-        exec,
-        identity: id,
-        now: new Date().toISOString(),
-      }),
-      compactionAdvisory: async (id) => runNotesCompactionSessionAdvisory({
-        exec,
-        identity: id,
-        nudge: await resolveNudgeState(
-          cwd,
-          io,
-          id,
-          NOTES_COMPACTION_NUDGE_MARKER_RELATIVE,
-          userSurfacesFor,
-        ),
-      }),
-      cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-        cwd,
-        activeMetaPath,
-        fs: {
-          readFile: (path) => readFile(path, "utf8"),
-          pathExists: (path) => access(path).then(() => true, () => false),
-        },
-      }),
-      taskCursor: async (taskListPath) =>
-        resolveTaskListCursorFromFile({ cwd, taskListPath }),
-    };
-    const workingMemoryPath = identity === null
-      ? null
-      : (await userSurfacesFor(identity)).workingMemoryPath;
-    const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath });
-    if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
-      try {
-        const gitSnapshot = await compactionSeedGitSnapshotP;
-        result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
-          cwd,
-          envelope: result,
-          gitSnapshot,
-        }));
-        surfaceCompactionSeedWrite(result.compactionSeedWrite);
-      } catch (err) {
-        result.compactionSeedWrite = {
-          status: "failed",
-          reason: "git-failed",
-          message: errorMessage(err),
-        };
-        surfaceCompactionSeedWrite(result.compactionSeedWrite);
-      }
-    }
-    assertSessionInitProbeResult(result);
-    if (json) {
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-      return;
-    }
-    p.intro("arc status");
-    p.note(buildSessionInitStatusSummary(result), "Session Init");
-    p.outro("Done.");
-    return;
-  }
-
-  if (opts.user) {
-    const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
-    const teamMode = resolved.settings["team.mode"] === "true";
-    const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
-    const view = await assembleStatusUserView({
-      cwd,
-      exec,
-      identity,
-      teamMode,
-      localOnly,
-      baseBranch: resolved.settings["branch.base"],
-      parkedSlugs,
-      readFile: io.readFile,
-      writeFile: io.writeFile,
-      mkdir: (path, options) => io.mkdir(path, options).then(() => undefined),
-    });
-    if (json) {
-      process.stdout.write(`${JSON.stringify(view)}\n`);
-      return;
-    }
-    process.stdout.write(`${view.output}\n`);
-    return;
-  }
-
-  if (opts.project) {
-    const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
-    if (opts.staged) {
-      // Render the project view from the git index — the same source the
-      // pre-commit ROADMAP regen check validates against, so
-      // `arc status --project --staged > ROADMAP` produces exactly what the
-      // hook expects (staged sweep or clean tree).
-      const { result } = await renderRoadmapFromIndexViewResult({
-        cwd,
-        exec,
-        baseBranch: resolved.settings["branch.base"],
-      });
-      if (json) {
-        process.stdout.write(`${JSON.stringify(result)}\n`);
-        return;
-      }
-      writeProjectReadinessWarnings(result.warnings);
-      process.stdout.write(`${result.markdown}\n`);
-      return;
-    }
-    const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const [parkedSlugs, recordResult] = await Promise.all([
-      buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-      identity === null
-        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
-        : listErrandRecordsResult({ exec, identity }),
-    ]);
-    const errandSlugByBranch = new Map(
-      recordResult.records.map((record) => [record.branch, record.slug]),
-    );
-    const input = await resolveProjectReadinessViewInput({
-      cwd,
-      fs: lifecycleFs,
-      oracle: {
-        exec,
-        localOnly,
-        baseBranch: resolved.settings["branch.base"],
-        parkedSlugs,
-        errandSlugByBranch,
-        errandRecordsComplete: recordResult.complete,
-      },
-    });
-    const result = composeProjectReadinessViewResult({
-      ...input,
-      renderedRef: await resolveProjectReadinessRenderStamp({
-        exec,
-        cwd,
-        scope: localOnly ? "tree + local refs" : "tree + live refs",
-        liveView: "arc status --project",
-      }),
-    });
-    if (json) {
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-      return;
-    }
-    writeProjectReadinessWarnings(result.warnings);
-    process.stdout.write(`${result.markdown}\n`);
-    return;
-  }
-
-  const probes: StatusProbes = {
-    user: (id) => runUserStatus({ cwd, io, identity: id }),
-    extensions: () => runExtensionsStatus({ cwd }),
-    config: () => runConfigStatus({ cwd }),
-    active: () => runActiveStatus({ cwd }),
-  };
-  const result = await runStatus({ identity, role, probes });
-
-  if (json) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-
+/** Execute the session-init probe and retain its existing seed/output boundary. */
+async function handleSessionInitStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
+  const { result, seedInputs } = await composeSessionInitStatus(context, { writeCompactionSeed: opts.writeCompactionSeed });
+  if (seedInputs !== null) await writeSessionCompactionSeed({ ...seedInputs, result });
+  assertSessionInitProbeResult(result);
+  if (opts.json) { process.stdout.write(`${JSON.stringify(result)}\n`); return; }
   p.intro("arc status");
-  p.note(buildStatusSummary(result), "Status");
+  p.note(buildSessionInitStatusSummary(result), "Session Init");
   p.outro("Done.");
 }
 
-async function readCompactionSeedGitSnapshot(cwd: string, exec: GitExec): Promise<CompactionSeedGitSnapshot> {
-  const [headResult, statusResult] = await Promise.all([
-    exec("git", ["rev-parse", "HEAD"], { cwd }),
-    exec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
-  ]);
-  return {
-    head: headResult.stdout.trim(),
-    uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
-  };
+/** Probe values and deferred seed inputs from one request-scoped composition. */
+export interface SessionInitComposition {
+  result: Awaited<ReturnType<typeof runSessionInitStatus>>;
+  seedInputs: Omit<Parameters<typeof writeSessionCompactionSeed>[0], "result"> | null;
 }
 
-function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapshot) {
-  const fileCount = snapshot.uncommittedFiles.length;
-  return {
-    state: fileCount === 0 ? "clean" as const : "dirty" as const,
-    fileCount,
-  };
-}
-
-export async function resolveSessionInitDirtyState(options: {
-  compactionSeedGitSnapshotP: Promise<CompactionSeedGitSnapshot> | null;
-  fallback: () => Promise<DirtyStateResult>;
-}): Promise<DirtyStateResult> {
-  if (options.compactionSeedGitSnapshotP === null) {
-    return options.fallback();
-  }
-  try {
-    return dirtyStateFromCompactionSeedSnapshot(await options.compactionSeedGitSnapshotP);
-  } catch {
-    return options.fallback();
-  }
-}
-
-function summarizeCompactionSeedWrite(result: EmitCompactionSeedResult): CompactionSeedWriteStatus {
-  if (result.status === "written") {
-    return { status: "written", path: result.path };
-  }
-  return result;
-}
-
-function surfaceCompactionSeedWrite(result: CompactionSeedWriteStatus): void {
-  if (result.status === "failed") {
-    process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
-  }
-  if (result.status === "skipped" && result.reason === "identity-missing") {
-    process.stderr.write("warn: compaction seed not written: identity not configured\n");
-  }
-  if (result.status === "skipped" && result.reason === "load-set-unresolved") {
-    process.stderr.write("warn: compaction seed not written: load-set unresolved\n");
-  }
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-/** Compact human render of a slug→state query for the non-`--json` path. */
-function formatSlugStateQuery(
-  query: SlugStateQuery,
-  enrichment: { worktreePath?: string; warnings?: readonly string[] } = {},
-): string {
-  const position =
-    query.position === null
-      ? "—"
-      : `${query.position.phase} · ${query.position.location}`;
-  const lines = [
-    `${query.slug} → ${query.state}`,
-    `position: ${position}`,
-    `occupied: ${query.occupied} · shipped: ${query.shipped}`,
-  ];
-  if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
-  if (query.dependsOn.length > 0) {
-    lines.push("depends on:");
-    for (const dep of query.dependsOn) {
-      lines.push(`  - ${dep.slug} — ${dep.landed ? "landed" : "not landed"}`);
+/** Compose the shared session-init probes without writing a seed or rendering output. */
+export async function composeSessionInitStatus(
+  context: SessionStatusContext,
+  options: { writeCompactionSeed?: boolean } = {},
+): Promise<SessionInitComposition> {
+  const {
+    cwd,
+    exec,
+    transitionExec,
+    localOnlyTransitionExec,
+    io,
+    identity,
+    role,
+    lifecycleFs,
+    userSurfacesFor,
+    readUserInbox,
+  } = context;
+  const store = context.store ?? openDefaultStore(cwd, exec);
+  const stateOffBranch = store.capabilities.stateOffBranch;
+  const projectId = store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined;
+  // A missing stdin-capable executor degrades object availability inside the remote
+  // context rather than aborting here: throwing before any probe runs would deny the
+  // caller the whole composite envelope over one unrelated capability.
+  // See sessionHandoff branch above for the rationale on caching the
+  // resolution promise rather than awaiting eagerly.
+  const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  const deliveryPublisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+  const deliveryPlans = new RepositoryDeliveryPlanStore(deliveryPublisher, DeliveryPlanV1Codec);
+  const deliveryStates = new RepositoryDeliveryStateStore(deliveryPublisher);
+  const getRemoteContext = createSessionRemoteContextReader({
+    cwd,
+    exec,
+    execInput: io.execInput,
+    remoteSyncEnabled: async () =>
+      (await resolvedSettingsP).settings["session.remote_sync"] === "enabled",
+  });
+  const derivedLocusStatePromises = new Map<string, ReturnType<typeof readDerivedLocusStateSnapshot>>();
+  const getDerivedLocusStateSnapshot = (
+    id: string,
+  ): ReturnType<typeof readDerivedLocusStateSnapshot> => {
+    let pending = derivedLocusStatePromises.get(id);
+    if (pending === undefined) {
+      pending = (async () => {
+        // The user slot owns pull failures; sibling probes can still read local state.
+        if (stateOffBranch) await getStoreUser().catch(() => null);
+        const resolved = await resolvedSettingsP;
+        return readDerivedLocusStateSnapshot({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec, store,
+        });
+      })();
+      derivedLocusStatePromises.set(id, pending);
     }
+    return pending;
+  };
+  const getDerivedLocusState = (id: string): ReturnType<typeof runDerivedLocusStateProbe> =>
+    getDerivedLocusStateSnapshot(id).then(snapshot => snapshot.frame);
+  const getOptionalDerivedFrame = async () => {
+    if (identity === null) return null;
+    try {
+      return await getDerivedLocusState(identity);
+    } catch {
+      return null;
+    }
+  };
+  const getOptionalDerivedRoster = async () => (await getOptionalDerivedFrame())?.roster ?? null;
+  const operational = stateOffBranch ? createStoreSessionProbes({
+    store, sync: context.storeSync, cwd, exec, identity, projectId,
+    readFrame: getOptionalDerivedFrame,
+    readSettings: async () => (await resolvedSettingsP).settings,
+    readUserInbox,
+  }) : null;
+  let storeUserPull: ReturnType<NonNullable<typeof operational>["user"]> | undefined;
+  const getStoreUser = () => storeUserPull ??= operational?.user() ?? Promise.resolve(null);
+  const compactionSeedGitSnapshotP = options.writeCompactionSeed
+    ? readCompactionSeedGitSnapshot(cwd, exec)
+    : null;
+  // Shared in-flight oracle slice over the request's immutable remote context.
+  // Errand state and materializable-WU discovery share one local classification
+  // pass; the separately typed transient-identity read remains outside the code
+  // repository snapshot.
+  let oraclePromise: Promise<{
+    entries: InFlightEntry[];
+    residue: InFlightResidue[];
+    warnings: InFlightWarning[];
+    reachable: boolean;
+    remoteEvidence: "exact" | "pending-fetch" | "unreachable" | "not-applicable";
+    failureReason?: "network" | "auth" | "timeout" | "error";
+    pendingBranchCount: number;
+    locallyPresentBranches: ReadonlySet<string>;
+  }> | undefined;
+  let oracleContext: SessionRemoteContext | undefined;
+  let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
+  let discoveryTransientIndexesPromise: ReturnType<typeof readFetchedTransientInFlightIndexes> | undefined;
+  const getTransientIndexes = () => {
+    transientIndexesPromise ??= readTransientInFlightIndexes({ exec, identity });
+    return transientIndexesPromise;
+  };
+  const getDiscoveryTransientIndexes = () => {
+    discoveryTransientIndexesPromise ??= readFetchedTransientInFlightIndexes({
+      exec,
+      identity,
+      remote: "origin",
+    });
+    return discoveryTransientIndexesPromise;
+  };
+  const getOracle = (context: SessionRemoteContext): Promise<{
+    entries: InFlightEntry[];
+    residue: InFlightResidue[];
+    warnings: InFlightWarning[];
+    reachable: boolean;
+    remoteEvidence: "exact" | "pending-fetch" | "unreachable" | "not-applicable";
+    failureReason?: "network" | "auth" | "timeout" | "error";
+    pendingBranchCount: number;
+    locallyPresentBranches: ReadonlySet<string>;
+  }> => {
+    if (oracleContext !== undefined && oracleContext !== context) {
+      return Promise.reject(new Error("In-flight oracle received a different session remote context."));
+    }
+    oracleContext = context;
+    oraclePromise ??= (async () => {
+      const prerequisites = sessionRemotePrerequisites(context);
+      if (prerequisites.kind === "not-needed") {
+        return {
+          entries: [],
+          residue: [],
+          warnings: [],
+          reachable: false,
+          remoteEvidence: "not-applicable" as const,
+          pendingBranchCount: 0,
+          locallyPresentBranches: new Set<string>(),
+        };
+      }
+      if (prerequisites.snapshot.kind === "unreachable") {
+        return {
+          entries: [],
+          residue: [],
+          warnings: [],
+          reachable: false,
+          remoteEvidence: "unreachable" as const,
+          failureReason: prerequisites.snapshot.failureReason,
+          pendingBranchCount: 0,
+          locallyPresentBranches: new Set<string>(),
+        };
+      }
+      const resolved = await resolvedSettingsP;
+      const teamMode = resolved.settings["team.mode"] === "true";
+      const [transientRead, parkedSlugs, derivedRoster, localRefs, worktrees] = await Promise.all([
+        getDiscoveryTransientIndexes(),
+        buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+        getOptionalDerivedRoster(),
+        // Default remote, request root: these local reads join the snapshot and
+        // availability facts this request context already carries.
+        readLocalInFlightRefSnapshot(exec, undefined, cwd),
+        resolveWorktreePathsByBranchResult(exec, cwd),
+      ]);
+      const transient = projectTransientInFlightRead(transientRead);
+      const transientIndexes = transient.indexes;
+      const result = await analyzeInFlightSnapshot({
+        exec,
+        snapshot: prerequisites.snapshot,
+        objectAvailability: prerequisites.objectAvailability,
+        history: prerequisites.history,
+        localRefs,
+        worktrees,
+        baseBranch: resolved.settings["branch.base"],
+        identity,
+        teamMode,
+        errandSlugByBranch: transientIndexes.slugByBranch,
+        expectedTransientByBranch: transientIndexes.expectedByBranch,
+        errandRecordsComplete: transient.complete,
+        parkedSlugs,
+        derivedRoster,
+      });
+      return {
+        entries: result.entries,
+        residue: result.residue,
+        warnings: result.warnings,
+        reachable: true,
+        remoteEvidence: result.pendingBranchCount > 0 ? "pending-fetch" as const : "exact" as const,
+        pendingBranchCount: result.pendingBranchCount,
+        locallyPresentBranches: new Set([
+          ...Object.keys(localRefs.refs.localHeads),
+          ...worktrees.paths.keys(),
+        ]),
+      };
+    })();
+    return oraclePromise;
+  };
+  const probes: SessionInitProbes = {
+    derivedLocusState: async (id) => {
+      return getDerivedLocusState(id);
+    },
+    remoteContext: getRemoteContext,
+    user: async (id) => {
+      if (operational !== null) return getStoreUser();
+      const resolved = await resolvedSettingsP;
+      const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+      return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
+    },
+    worktree: async (context) => {
+      const resolved = await resolvedSettingsP;
+      const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+      const branch = await readSessionBranch(exec, cwd);
+      const prerequisites = sessionRemotePrerequisites(context);
+      const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
+        ? null
+        : await readConfiguredUpstreamBranch(exec, branch, cwd);
+      const supplied = prerequisites.kind === "supplied"
+        ? prerequisites
+        : {
+            snapshot: { kind: "unreachable" as const, failureReason: "error" as const },
+            objectAvailability: { kind: "unavailable" as const, reason: "execution" as const },
+            history: { kind: "unavailable" as const, reason: "execution" as const },
+          };
+      return analyzeWorktreeSnapshot({
+        exec,
+        remoteSyncEnabled,
+        originConfigured: !(context.kind === "not-needed" && context.reason === "no-remote"),
+        branch,
+        upstreamBranch,
+        ...supplied,
+      });
+    },
+    worktreeIdentity: () => resolveWorktreeIdentity(exec),
+    currentHusk: async (context, worktreePath) => {
+      const [marker, headResult, resolved] = await Promise.all([
+        readWorktreeMarker(worktreePath),
+        exec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
+        resolvedSettingsP,
+      ]);
+      return await resolveCurrentHuskAdvisory({
+        worktreePath, stateOffBranch,
+        branch: null,
+        head: headResult.stdout,
+        marker,
+      }, async (stamp, decoded) => {
+        const baseBranch = resolved.settings["branch.base"];
+        const baseOid = exactSessionBaseOid(sessionCleanupBaseEvidence(context), baseBranch);
+        return baseOid !== null && await revalidateDecodedHuskRetirementEvidenceStrict(
+          exec,
+          stamp,
+          decoded,
+          baseOid,
+          (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
+        );
+      });
+    },
+    baseDistance: async (context) => {
+      const resolved = await resolvedSettingsP;
+      const baseBranch = resolved.settings["branch.base"];
+      const prerequisites = sessionRemotePrerequisites(context);
+      // Detachment outranks the remote shortcuts, as it does inside the analyzer:
+      // returning early on a disabled or absent remote would drop the detached-HEAD
+      // reason whenever both conditions hold.
+      if (await readSessionBranch(exec, cwd) === null) {
+        return buildBaseDistanceNotApplicable("detached-head", baseBranch);
+      }
+      if (prerequisites.kind === "not-needed") {
+        return prerequisites.reason === "remote-sync-disabled"
+          ? buildBaseDistanceNotApplicable("skipped", baseBranch)
+          : buildBaseDistanceNotApplicable("no-remote", baseBranch);
+      }
+      const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+        ...options,
+        objectAccess: "local-only",
+      });
+      const frame = await getOptionalDerivedFrame();
+      const workUnit = frame === null ? null : sessionPathTreatmentWorkUnit(frame);
+      return analyzeBaseDistanceSnapshot({
+        exec,
+        baseBranch,
+        mode: "advisory",
+        snapshot: prerequisites.snapshot,
+        objectAvailability: prerequisites.objectAvailability,
+        history: prerequisites.history,
+        ...createCurrentBaseDriftAdapters(
+          localOnlyExec,
+          workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
+        ),
+      });
+    },
+    baseBranchSync: async (context) => {
+      const resolved = await resolvedSettingsP;
+      const baseBranch = resolved.settings["branch.base"];
+      const [checkout, localBaseOid] = await Promise.all([
+        resolveBaseCheckoutLocus(exec, baseBranch),
+        readLocalBaseOid(exec, baseBranch, cwd),
+      ]);
+      const prerequisites = sessionRemotePrerequisites(context);
+      if (prerequisites.kind === "not-needed") {
+        return {
+          state: prerequisites.reason === "remote-sync-disabled" ? "skipped" as const : "no-remote" as const,
+          ahead: 0,
+          behind: 0,
+          base: baseBranch,
+          checkout,
+          refreshRemedy: null,
+          guidance: null,
+          remoteEvidence: "not-applicable" as const,
+        };
+      }
+      return analyzeBaseBranchSnapshot({
+        exec,
+        baseBranch,
+        localBaseOid,
+        checkout,
+        snapshot: prerequisites.snapshot,
+        objectAvailability: prerequisites.objectAvailability,
+        history: prerequisites.history,
+      });
+    },
+    supersession: (context, branch) => {
+      const prerequisites = sessionRemotePrerequisites(context);
+      if (prerequisites.kind === "not-needed") {
+        return Promise.resolve(emptySupersessionResult());
+      }
+      return analyzeSupersessionSnapshot({ exec, branch, ...prerequisites });
+    },
+    dirty: () => resolveSessionInitDirtyState({
+      compactionSeedGitSnapshotP,
+      fallback: () => runDirtyStateStatus({ exec }),
+    }),
+    config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
+    domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
+    hooksPath: () => runHooksPathSessionAdvisory({
+      cwd,
+      exec: async (command, args, opts) => {
+        const { stdout } = await exec(command, [...args], { cwd: opts.cwd });
+        return { stdout };
+      },
+    }),
+    releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+    currentWuReconcile: async ({ slug, metaPath }) => {
+      const result = await runCurrentWuReconcileSessionProbe(
+        stateOffBranch ? { store } : {
+          index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
+          queryDisposition: (input) =>
+            queryGitTransitionDisposition(transitionExec, "HEAD", input),
+          enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
+          listArtifactPaths: (slug, ownedMetaPath) =>
+            listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
+          readFile: (path) => io.readFile(resolve(cwd, path)),
+        },
+        { slug, metaPath, checkoutPath: cwd },
+      );
+      return stateOffBranch
+        ? withPausedCurrentWuActions(result, store, (await getOptionalDerivedFrame())?.active?.context ?? null) : result;
+    },
+    deliveryPosition: async (context, { workUnitId }) => {
+      const result = await readDeliveryPositionView(workUnitId, {
+        plans: {
+          enumerateCurrentReadOnly: () => deliveryPlans.enumerateCurrentReadOnly(),
+        },
+        states: deliveryStates,
+        observe: async (plan, state, revision) => {
+          const prerequisites = sessionRemotePrerequisites(context);
+          const objectAvailability = prerequisites.kind === "supplied"
+            ? prerequisites.objectAvailability
+            : null;
+          if (prerequisites.kind === "not-needed"
+            || prerequisites.snapshot.kind !== "available"
+            || objectAvailability?.kind !== "complete") {
+            return { status: "refused" };
+          }
+          const resolved = await resolvedSettingsP;
+          const configuration = await resolveChangeRequestLifecycleConfiguration(
+            exec,
+            `refs/heads/${resolved.settings["branch.base"]}`,
+          );
+          const deliveryHost = createSessionDeliveryObservationHost(hostedGhRunner);
+          return configuration === null
+            ? { status: "refused" }
+            : observeRepositoryDeliveryPosition(plan, state, revision, {
+              exec,
+              cwd,
+              host: deliveryHost,
+              repository: configuration.repositoryRef,
+              remoteHeads: prerequisites.snapshot.tips,
+              localCommits: objectAvailability.commits,
+              materializeTarget: async (coordinates) => {
+                if (objectAvailability.commits[coordinates.head] !== true) return false;
+                const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+                  ...options,
+                  cwd,
+                  objectAccess: "local-only",
+                });
+                const local = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+                return local?.head === coordinates.head && local.tree === coordinates.tree;
+              },
+              observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
+                observeGitDeliveryLandingResult({
+                  exec, cwd, remote: "origin", resultHead: mergeCommitSha, strategy, beforeMember,
+                })
+              ),
+              proveContribution: (endpoints) => proveGitDeliveryContribution({
+                exec: createRawGitExec(cwd),
+                ...projectDeliveryContributionEndpoints(endpoints),
+              }),
+            }, { terminalAuthoringMovement: "allow-append-only" });
+        },
+      });
+      if (result.status === "refused") {
+        throw new Error(`Delivery position is unavailable: ${result.reason}.`);
+      }
+      return result.value;
+    },
+    userReferenceReconcile: async (context, { slug }) => {
+      if (operational !== null) return operational.userReferenceReconcile(slug);
+      if (identity === null) throw new Error("User-reference probe requires an identity.");
+      const resolved = await resolvedSettingsP;
+      const surfaces = await userSurfacesFor(identity);
+      const protection = resolved.settings["branch.protection"] === "full" ? "full" : "partial";
+      const baseBranch = resolved.settings["branch.base"];
+      const prerequisites = sessionRemotePrerequisites(context);
+      const authority = prerequisites.kind === "supplied" || protection === "partial"
+        ? await analyzeUserReferenceAuthority({
+          protection,
+          baseBranch,
+          // The unsupplied arms are reachable only under `partial` protection, which
+          // returns before either is read. They are placeholders for an unused
+          // parameter rather than evidence, and never reach a result.
+          snapshot: prerequisites.kind === "supplied"
+            ? prerequisites.snapshot
+            : { kind: "unreachable", failureReason: "error" },
+          objectAvailability: prerequisites.kind === "supplied"
+            ? prerequisites.objectAvailability
+            : { kind: "unavailable", reason: "execution" },
+          enumerateAt: (ref) => enumerateGitTransitionRecords(localOnlyTransitionExec, ref),
+        })
+        : {
+            // `not-needed` means remote sync is off or no remote is configured. That is
+            // a deliberate configuration, not a failed read, so this reports the
+            // not-applicable qualifier as the sibling probes do rather than fabricating
+            // an unreachable reading the operator would read as a network fault.
+            status: "unavailable" as const,
+            ref: `origin/${baseBranch}`,
+            reason: "remote-not-required" as const,
+            remoteEvidence: "not-applicable" as const,
+          };
+      const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
+      return projectUserReferenceSessionResult(authority, {
+        userInbox: {
+          path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
+          content: await readUserInbox(identity),
+        },
+        workingMemory: {
+          path: surfaces.workingMemoryDisplayPath,
+          content: await readWorkingMemoryFromStore(store, identity).catch(() => ""),
+        },
+        sessionNotes: {
+          path: sessionNotesPath,
+          content: await io.readFile(sessionNotesPath).catch(() => ""),
+        },
+      });
+    },
+    roster: async () => {
+      const resolved = await resolvedSettingsP;
+      const teamMode = resolved.settings["team.mode"] === "true";
+      const roster = await runWorktreeRoster({
+        exec,
+        store, cwd,
+        fs: {
+          readdir: (path) => readdir(path),
+          readFile: (path) => readFile(path, "utf8"),
+        },
+      });
+      return filterRosterByIdentity(roster, { identity, teamMode });
+    },
+    cleanupRoster: async () => {
+      const resolved = await resolvedSettingsP;
+      const teamMode = resolved.settings["team.mode"] === "true";
+      return runIdentityScopedWorktreeRoster({
+        exec,
+        store, cwd,
+        fs: {
+          readdir: (path) => readdir(path),
+          readFile: (path) => readFile(path, "utf8"),
+        },
+        identity,
+        teamMode,
+      });
+    },
+    recovery: async (context, roster, currentBranch) => {
+      const [resolved, derivedRoster] = await Promise.all([resolvedSettingsP, getOptionalDerivedRoster()]);
+      const baseBranch = resolved.settings["branch.base"];
+      const baseEvidence = sessionCleanupBaseEvidence(context);
+      const recent = baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+        ? await analyzeRecentRemoteBranchesSnapshot({
+            exec,
+            tips: baseEvidence.snapshot.tips,
+            objectAvailability: baseEvidence.objectAvailability,
+            history: baseEvidence.history,
+            excludeBranches: new Set([baseBranch, ...(currentBranch === null ? [] : [currentBranch])]),
+            withinDays: RECOVERY_RECENCY_DAYS,
+          })
+        : { branches: [], pendingBranchCount: 0 };
+      return runBranchGoneRecovery({
+        roster,
+        derivedRoster,
+        currentBranch,
+        baseBranch,
+        recentBranches: recent.branches,
+        recentPendingBranchCount: recent.pendingBranchCount,
+        baseEvidence,
+        exec,
+      });
+    },
+    sweep: async (context, roster, worktreeIdentity) => {
+      const [resolved, derivedRoster] = await Promise.all([
+        resolvedSettingsP,
+        getOptionalDerivedRoster(),
+      ]);
+      return runStaleWorktreeSweep({
+        roster,
+        worktreeIdentity,
+        baseBranch: resolved.settings["branch.base"],
+        baseEvidence: sessionCleanupBaseEvidence(context),
+        exec,
+        identity,
+        teamMode: resolved.settings["team.mode"] === "true",
+        protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
+        excludeWorktreePath: stateOffBranch ? cwd : worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
+        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
+        derivedRoster, store, projectId,
+      });
+    },
+    orphanBranchSweep: async (context, worktreeIdentity) => {
+      const [resolved, frame] = await Promise.all([
+        resolvedSettingsP,
+        getOptionalDerivedFrame(),
+      ]);
+      // Identity-carrying transient branches are excluded because their own
+      // lifecycle surfaces own cleanup. An incomplete identity basis declines
+      // the sweep rather than offering deletes that could orphan a claim.
+      const transient = stateOffBranch || identity === null
+        ? null
+        : projectTransientInFlightRead(await getTransientIndexes());
+      return runOrphanBranchSweep({
+        worktreeIdentity,
+        baseBranch: resolved.settings["branch.base"],
+        baseEvidence: sessionCleanupBaseEvidence(context),
+        errandBranches:
+          transient === null || !transient.complete
+            ? null
+            : new Set(transient.indexes.slugByBranch.keys()),
+        exec,
+        derivedRoster: frame?.roster ?? null, store, projectId, identity: identity ?? undefined,
+        claims: frame?.identityDiscovery.kind === "store" ? frame.identityDiscovery.claims : undefined,
+      });
+    },
+    retiredSubdirs: async (context, id) => {
+      if (stateOffBranch) return { candidates: [] };
+      const resolved = await resolvedSettingsP;
+      return runRetiredSubdirDetection({
+        cwd,
+        identity: id,
+        baseBranch: resolved.settings["branch.base"],
+        baseEvidence: sessionCleanupBaseEvidence(context),
+        exec,
+        readDir: io.readDir,
+        readFile: io.readFile,
+      });
+    },
+    errandSweep: async (id) => {
+      const resolved = await resolvedSettingsP;
+      const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+      const { entries } = extractReminderEntries({ content: await readUserInbox(id) });
+      return runErrandStalenessSweep({ entries, thresholdDays });
+    },
+    errandState: async (context, input) => {
+      const resolved = await resolvedSettingsP;
+      const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+      const baseEvidence = sessionCleanupBaseEvidence(context);
+      const storeRemoteTips = new Map(baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+        ? Object.entries(baseEvidence.snapshot.tips) : []);
+      if (operational !== null) return operational.errandState({ exec,
+        currentBranch: input.currentBranch, hasBackingMeta: input.hasBackingMeta, includeDiscovery: input.includeDiscovery,
+        remoteTips: storeRemoteTips,
+        baseEvidence: sessionCleanupBaseEvidence(context), baseBranch: resolved.settings["branch.base"], staleThresholdDays: thresholdDays,
+        nudge: input.includeNudge ? await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor)
+          : { shouldNudge: false, markerPath: null, today: new Date().toISOString().slice(0, 10) },
+      });
+      const transientRead = await (input.includeDiscovery
+        ? getDiscoveryTransientIndexes()
+        : getTransientIndexes());
+      const transientState = projectTransientInFlightRead(transientRead);
+      const transientIndexes = transientState.indexes;
+      let entries: InFlightEntry[] | null = null;
+      let residue: InFlightResidue[] = [];
+      const remoteTips = new Map(
+        baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+          ? Object.entries(baseEvidence.snapshot.tips)
+          : [],
+      );
+      let oracleWarnings: string[] = transientState.degraded === null ? [] : [transientState.degraded];
+      let locallyPresentBranches: ReadonlySet<string> = new Set();
+      if (input.includeDiscovery) {
+        const oracle = await getOracle(context);
+        entries = oracle.reachable ? oracle.entries : null;
+        residue = oracle.residue;
+        locallyPresentBranches = oracle.locallyPresentBranches;
+        oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
+      }
+      return runErrandState({
+        exec,
+        currentBranch: input.currentBranch,
+        hasBackingMeta: input.hasBackingMeta,
+        includeDiscovery: input.includeDiscovery,
+        entries,
+        residue,
+        oracleWarnings,
+        records: transientIndexes.records,
+        recordsComplete: transientState.complete,
+        remoteTips,
+        locallyPresentBranches,
+        baseEvidence,
+        baseBranch: resolved.settings["branch.base"],
+        staleThresholdDays: thresholdDays,
+        nudge: input.includeNudge
+          ? await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor)
+          : { shouldNudge: false, markerPath: null, today: new Date().toISOString().slice(0, 10) },
+      });
+    },
+    materializableWorkUnits: async (context) => {
+      if (operational !== null) return operational.materializableWorkUnits();
+      const {
+        entries,
+        warnings,
+        reachable,
+        remoteEvidence,
+        failureReason,
+        pendingBranchCount,
+      } = await getOracle(context);
+      const renderedWarnings = warnings.map(renderInFlightWarning);
+      if (!reachable) {
+        return remoteEvidence === "unreachable"
+          ? {
+              candidates: [],
+              warnings: renderedWarnings,
+              remoteEvidence,
+              failureReason: failureReason ?? "error",
+              pendingBranchCount: 0 as const,
+              refreshRemedy: null,
+            }
+          : {
+              candidates: [],
+              warnings: renderedWarnings,
+              remoteEvidence: "not-applicable" as const,
+              pendingBranchCount: 0 as const,
+              refreshRemedy: null,
+            };
+      }
+      const materializable = findMaterializableWorkUnits({ entries, identity, pendingBranchCount });
+      return pendingBranchCount > 0
+        ? {
+            ...materializable,
+            warnings: renderedWarnings,
+            remoteEvidence: "pending-fetch" as const,
+            pendingBranchCount,
+            refreshRemedy: composeMaterializableDiscoveryRefreshRemedy(),
+          }
+        : {
+            ...materializable,
+            warnings: renderedWarnings,
+            remoteEvidence: "exact" as const,
+            pendingBranchCount: 0 as const,
+            refreshRemedy: null,
+          };
+    },
+    workUnitState: async (context, input) => {
+      const resolved = await resolvedSettingsP;
+      const staleThresholdDays = parsePositiveInteger(
+        resolved.settings["integration.stale_after_days"],
+        2,
+      );
+      return runWorkUnitState({
+        exec,
+        roster: input.roster.entries,
+        identity,
+        baseBranch: resolved.settings["branch.base"],
+        baseEvidence: sessionCleanupBaseEvidence(context),
+        staleThresholdDays,
+        nudge: await resolveNudgeState(
+          cwd,
+          io,
+          identity,
+          WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE,
+          userSurfacesFor,
+        ),
+        prSource: input.includeSharpening ? createGhWorkUnitPrSource(exec) : undefined,
+      });
+    },
+    inboxState: async (id) => operational !== null ? operational.inboxState(id) : runInboxState({ content: await readUserInbox(id) }),
+    pausedWork: () => operational !== null ? operational.pausedWork() : Promise.resolve(runPausedWork()),
+    inboundBackPressure: () => operational !== null ? operational.inboundBackPressure() : Promise.resolve(runInboundBackPressure()),
+    partialPushMarker: (id) => stateOffBranch ? Promise.resolve({ markers: [] }) : runPartialPushMarkerSurface({
+      exec,
+      identity: id,
+      now: new Date().toISOString(),
+    }),
+    compactionAdvisory: stateOffBranch ? undefined : async (id) => runNotesCompactionSessionAdvisory({
+      exec,
+      identity: id,
+      nudge: await resolveNudgeState(
+        cwd,
+        io,
+        id,
+        NOTES_COMPACTION_NUDGE_MARKER_RELATIVE,
+        userSurfacesFor,
+      ),
+    }),
+  };
+  const workingMemoryPath = identity === null
+    ? null
+    : (await userSurfacesFor(identity)).workingMemoryPath;
+  const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath, stateOffBranch });
+  return { result, seedInputs: compactionSeedGitSnapshotP === null ? null : {
+    cwd, exec, store, gitSnapshot: compactionSeedGitSnapshotP,
+    snapshot: derivedLocusStatePromises.get(identity ?? ""),
+  } };
+}
+
+async function writeSessionCompactionSeed(input: {
+  cwd: string; exec: GitExec; store: Store; result: Awaited<ReturnType<typeof runSessionInitStatus>>;
+  gitSnapshot: ReturnType<typeof readCompactionSeedGitSnapshot>; snapshot?: ReturnType<typeof readDerivedLocusStateSnapshot>;
+}): Promise<void> {
+  try {
+    const [gitSnapshot, snapshot] = await Promise.all([input.gitSnapshot, input.snapshot?.catch(() => undefined)]);
+    input.result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
+      cwd: input.cwd, exec: input.exec, envelope: input.result, gitSnapshot, store: input.store,
+      ...(input.store.capabilities.stateOffBranch ? { stateVersion: snapshot?.stateVersion ?? null } : {}),
+    }));
+  } catch (err) {
+    input.result.compactionSeedWrite = { status: "failed", reason: "git-failed", message: errorMessage(err) };
   }
-  for (const warning of enrichment.warnings ?? []) lines.push(`warning: ${warning}`);
-  return lines.join("\n");
+  surfaceCompactionSeedWrite(input.result.compactionSeedWrite);
 }

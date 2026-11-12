@@ -1,0 +1,96 @@
+/** Build fixed portable invocations and runtime probes before placement. */
+import { randomUUID } from "node:crypto";
+import { checkInvocationArguments, checkShardArguments, checkShardBatches, type CheckInvocationCoordinate } from "../shards.js";
+import type { CheckDeclaration } from "../declaration.js";
+import type { FrozenSourcePresentation } from "./source-presentation.js";
+import { InvocationSchema, ProbeSchema, type Invocation, type Probe } from "./contract-execution.js";
+import { relative, resolve } from "node:path";
+import { batchPortableCheckPaths, checkFileArguments } from "../batching.js";
+import { resolveSourceDirectory } from "./source-cwd.js";
+import { sourcePathContains } from "./source-paths.js";
+
+/** Native selection and captured source used to form one check's execution plan. */
+export interface PlanCheckExecutionInput {
+  callerRoot: string;
+  source: Pick<FrozenSourcePresentation, "root" | "manifest" | "codePaths">;
+  check: CheckDeclaration["checks"][string];
+  paths: readonly string[];
+  globalRuntimeInputs?: readonly (readonly string[])[];
+}
+/** Owned immutable commands whose order and partitions cannot change during preparation. */
+export interface CheckExecutionPlan {
+  readonly invocations: readonly Invocation[];
+  readonly coordinates?: readonly CheckInvocationCoordinate[];
+  readonly probes: Readonly<{ global: readonly Probe[]; check: readonly Probe[] }>;
+}
+
+/** Plan commands against captured source while retaining native selection and content policy. */
+export async function planCheckExecution(input: PlanCheckExecutionInput): Promise<CheckExecutionPlan> {
+  const check = { ...input.check, ...(input.check.shards === undefined ? {} : { shards: { ...input.check.shards } }) };
+  const callerRoot = input.callerRoot;
+  const sourceRoot = input.source.root;
+  const command = typeof check.command === "string" ? [check.command] : [...check.command];
+  const paths = capturedFileArguments(input, check);
+  const globalProbes = (input.globalRuntimeInputs ?? []).map(argv => [...argv]);
+  const checkProbes = check.runtime_inputs.map(argv => [...argv]);
+  const { tree, base, merged } = input.source.manifest.coordinates;
+  const commandContent = check.mode === "files" ? { tree, ...(base === undefined ? {} : { base }),
+    ...(merged.length === 0 ? {} : { merged: [...merged] }) } : undefined;
+  const declaredCwd = resolve(callerRoot, check.root);
+  if (!sourcePathContains(callerRoot, declaredCwd)) {
+    throw new Error("Cannot plan check.root outside source paths. Repair the root and retry; keep the check local or declare an explicit input boundary for external files.");
+  }
+  const directory = await resolveSourceDirectory(sourceRoot, relative(callerRoot, declaredCwd));
+  const cwd = directory.cwd;
+  const received = checkFileArguments(directory.root, directory.directory, paths, process.platform);
+  const suffixes = check.shards?.routed ? checkShardArguments(check.shards) : [undefined];
+  const coordinates: CheckInvocationCoordinate[] = [];
+  const invocations = checkShardBatches(check, command, received, suffixes).flatMap((batch, index) =>
+    suffixes.map((suffix, shardIndex) => {
+      coordinates.push(Object.freeze({ batch: index + 1, ...(suffix === undefined ? {} : {
+        shard: Object.freeze({ index: shardIndex + 1, count: suffixes.length }),
+      }) }));
+      return fixedInvocation({ id: randomUUID(), argv: checkInvocationArguments(command, batch, suffix, check.shell),
+        cwd, shell: check.shell, ...(commandContent === undefined ? {} : { commandContent }) });
+    }));
+  return Object.freeze({ invocations: Object.freeze(invocations), coordinates: Object.freeze(coordinates), probes: Object.freeze({
+    global: Object.freeze(planProbes(globalProbes, "global-probe", ".")),
+    check: Object.freeze(planProbes(checkProbes, "check-probe", cwd)),
+  }) });
+}
+
+function capturedFileArguments(input: PlanCheckExecutionInput, check: PlanCheckExecutionInput["check"]): string[] {
+  if (check.mode !== "files" || !check.pass_paths) return [];
+  return input.paths.map(path => {
+    const stored = input.source.codePaths.get(path);
+    if (stored === undefined) throw new Error("Cannot establish captured source spelling for a selected path. Repair the selection and retry; keep the check local if the path is outside captured source.");
+    return stored;
+  });
+}
+
+function planProbes(commands: readonly string[][], group: string, cwd: string): Probe[] {
+  return commands.map((argv, index) => {
+    batchPortableCheckPaths(argv, []);
+    const parsed = ProbeSchema.safeParse({ id: `${group}:${index}`, argv, cwd });
+    if (!parsed.success) throw invalidPlanArgv(parsed.error);
+    const probe = parsed.data;
+    Object.freeze(probe.argv);
+    return Object.freeze(probe);
+  });
+}
+
+function fixedInvocation(value: unknown): Invocation {
+  const parsed = InvocationSchema.safeParse(value);
+  if (!parsed.success) throw invalidPlanArgv(parsed.error);
+  const invocation = parsed.data;
+  Object.freeze(invocation.argv);
+  if (invocation.commandContent !== undefined) {
+    if (invocation.commandContent.merged !== undefined) Object.freeze(invocation.commandContent.merged);
+    Object.freeze(invocation.commandContent);
+  }
+  return Object.freeze(invocation);
+}
+
+function invalidPlanArgv(cause: unknown): Error {
+  return new Error("Invalid literal argv in a declared command or runtime probe. Repair the command or runtime probe declaration and retry; keep the check local if it cannot use the portable contract.", { cause });
+}

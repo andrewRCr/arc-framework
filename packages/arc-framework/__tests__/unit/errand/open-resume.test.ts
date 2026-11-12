@@ -1,0 +1,441 @@
+/** Exact preservation and host authorization for ordinary Errand resume. */
+
+import { describe, expect, it } from "vitest";
+
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
+import { authorizeOrdinaryErrandResume } from "../../../src/lib/errand/open-runtime.js";
+import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
+import { openOrdinaryErrand, type OpenOrdinaryErrandOptions } from "../../../src/lib/errand/open.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
+const HEAD = "a".repeat(40);
+
+function awaiting(): OrdinaryErrandRecord {
+  return parseOrdinaryErrandRecord({
+    version: 3,
+    slug: "fix-output",
+    claimId: "c".repeat(32),
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: "fix output",
+    branch: "chore/fix-output",
+    origin: "description",
+    originEntry: null,
+    state: "awaiting-merge",
+    savedHead: null,
+    changeRequest: {
+      repositoryRef: "owner/repo",
+      hostRef: "github.com",
+      baseRef: "main",
+      headRef: "chore/fix-output",
+      headSha: HEAD,
+    },
+  });
+}
+
+function paused(): OrdinaryErrandRecord {
+  return parseOrdinaryErrandRecord({
+    version: 3,
+    slug: "fix-output",
+    claimId: "c".repeat(32),
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: "fix output",
+    branch: "chore/fix-output",
+    origin: "description",
+    originEntry: null,
+    state: "paused",
+    savedHead: HEAD,
+    changeRequest: null,
+  });
+}
+
+function hostExec(overrides: Record<string, unknown> = {}): GitExec {
+  return scriptGitExec([
+    { match: ["config", "--get", "remote.origin.url"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { command: "gh", match: { prefix: ["pr", "list"] },
+      responses: [{ stdout: JSON.stringify([{
+          number: 7,
+          state: "OPEN",
+          baseRefName: "main",
+          headRefName: "chore/fix-output",
+          headRefOid: HEAD,
+          reviewDecision: "CHANGES_REQUESTED",
+          ...overrides,
+        }]), stderr: "" }] },
+  ]).exec;
+}
+
+function pausedExec(movedHead: string): GitExec {
+  return scriptGitExec([
+    { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["fetch"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["merge-base"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["rev-parse"] }, responses: [({ args }) => ({
+      stdout: `${args[3]?.includes("refs/heads/") === true ? HEAD : movedHead}\n`, stderr: "",
+    })] },
+    { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "", stderr: "" }] },
+  ]).exec;
+}
+
+function unavailableHostExec(): GitExec {
+  return scriptGitExec([
+    { match: ["config", "--get", "remote.origin.url"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { command: "gh", match: { prefix: ["pr", "list"] },
+      responses: [() => { throw new Error("host unavailable"); }] },
+  ]).exec;
+}
+
+describe("ordinary Errand resume authorization", () => {
+  it("refuses a descendant paused remote tip under strict materialization re-entry", async () => {
+    const movedHead = "b".repeat(40);
+    const exec = pausedExec(movedHead);
+
+    await expect(authorizeOrdinaryErrandResume(exec, "main", paused(), "advisory", "exact"))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/exact remote head/iu) });
+  });
+
+  it("retains ancestry-based authorization for ordinary paused re-entry", async () => {
+    const movedHead = "b".repeat(40);
+    const exec = pausedExec(movedHead);
+
+    await expect(authorizeOrdinaryErrandResume(exec, "main", paused()))
+      .resolves.toMatchObject({ kind: "authorized", authorization: { remoteBranchTip: movedHead } });
+  });
+
+  it.each([
+    ["requested work", {}, "requested-work"],
+    ["ordinary open review", { reviewDecision: "" }, "open"],
+  ] as const)("authorizes an exact %s change request", async (_label, overrides, expected) => {
+    await expect(authorizeOrdinaryErrandResume(hostExec(overrides), "main", awaiting()))
+      .resolves.toMatchObject({ kind: "authorized", authorization: { kind: expected } });
+  });
+
+  it("warns and proceeds when an open change request head moved", async () => {
+    await expect(authorizeOrdinaryErrandResume(hostExec({ headRefOid: "b".repeat(40) }), "main", awaiting()))
+      .resolves.toMatchObject({
+        kind: "authorized",
+        authorization: { kind: "changed-head" },
+        advisory: expect.stringMatching(/head moved/iu),
+      });
+  });
+
+  it("refuses a moved head under strict materialization re-entry", async () => {
+    await expect(authorizeOrdinaryErrandResume(
+      hostExec({ headRefOid: "b".repeat(40) }),
+      "main",
+      awaiting(),
+      "strict",
+    )).resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/changed-head/iu) });
+  });
+
+  it("warns and proceeds when the host is unreachable", async () => {
+    const exec = unavailableHostExec();
+    await expect(authorizeOrdinaryErrandResume(exec, "main", awaiting()))
+      .resolves.toMatchObject({
+        kind: "authorized",
+        authorization: { kind: "unreachable" },
+        advisory: expect.stringMatching(/confirm.*still open/iu),
+      });
+  });
+
+  it("refuses an unreachable host under strict materialization re-entry", async () => {
+    const exec = unavailableHostExec();
+    await expect(authorizeOrdinaryErrandResume(exec, "main", awaiting(), "strict"))
+      .resolves.toMatchObject({ kind: "refused", reason: expect.stringMatching(/unreachable/iu) });
+  });
+
+  it.each([
+    ["merged", { state: "MERGED", reviewDecision: "" },
+      "Host truth is merged, not an open change request."],
+    ["closed without merge", { state: "CLOSED", reviewDecision: "" },
+      "Host truth is closed-unmerged, not an open change request."],
+  ] as const)("refuses %s host truth", async (_label, overrides, expected) => {
+    await expect(authorizeOrdinaryErrandResume(hostExec(overrides), "main", awaiting()))
+      .resolves.toEqual({ kind: "refused", reason: expected });
+  });
+});
+
+function resumeFixture(record: OrdinaryErrandRecord) {
+  let basis = new Map([[record.slug, record]]);
+  let provisioned = false;
+  let branch = "main";
+  const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
+    kind: "free-primary", subject: null,
+    checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+    lifecycleLocation: null, diagnostics: [],
+  };
+  const options: OpenOrdinaryErrandOptions = {
+    slug: record.slug, protection: "full", base: "main", createdAt: "2026-07-20T12:02:00.000Z",
+    identityName: "andrew", locationTemplate: "../{name}", repo: "repo",
+    dependencies: {
+      readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
+        primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+        identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
+      readIdentity: async () => ({ kind: "ready", record: basis.get(record.slug) ?? null }),
+      authorizeResume: async () => authorizeOrdinaryErrandResume(
+        record.state === "paused" ? pausedExec(HEAD) : hostExec({ headRefName: record.branch }), "main", record,
+      ),
+      resume: async (previous, authorization, updatedAt) => {
+        const decision = ordinaryErrandTransform({ kind: "resume", previous, authorization, updatedAt })(basis);
+        if (decision.kind === "refused") return decision;
+        if (decision.value === null) throw new Error("Resume returned no identity");
+        if (decision.kind === "applied") basis = new Map([[record.slug, decision.value]]);
+        return { kind: decision.kind, record: decision.value };
+      },
+      claim: async () => { throw new Error("Resume must not mint a claim"); },
+      rollbackClaim: async () => { throw new Error("Resume must not roll back a new claim"); },
+      provision: async (input) => {
+        provisioned = true;
+        branch = input.branch ?? "main";
+        return { kind: "provisioned", receipt: {
+          disposition: "applied", allocation: "primary", checkoutPath: "/repo",
+          branch: { name: input.branch, created: false, head: HEAD, base: null },
+          worktree: { path: "/repo", created: false, head: HEAD },
+          marker: { state: "ready", bytes: Buffer.from("ready") },
+        } };
+      },
+    },
+  };
+  return {
+    run: async (overrides: Pick<OpenOrdinaryErrandOptions, "intent" | "inbox" | "type"> = {}) =>
+      openOrdinaryErrand({ ...options, ...overrides }),
+    read: () => ({ record: basis.get(record.slug), provisioned }),
+    branch: () => branch,
+  };
+}
+
+describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s resume continuity remedies", (_state, makeRecord) => {
+  it("preserves the recorded nature-type when no type is supplied", async () => {
+    const original = makeRecord();
+    const record = parseOrdinaryErrandRecord({ ...original, branch: "fix/fix-output",
+      ...(original.state === "awaiting-merge" ? { changeRequest: { ...original.changeRequest, headRef: "fix/fix-output" } } : {}) });
+    const fixture = resumeFixture(record);
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: { branch: record.branch, claimId: record.claimId } });
+    expect(fixture.branch()).toBe(record.branch);
+  });
+
+  it("refuses an explicit type change without modifying the generation and resumes after correction", async () => {
+    const fixture = resumeFixture(makeRecord());
+    const original = fixture.read();
+    const refused = await fixture.run({ type: "fix" });
+    expect(refused).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refused.recommendedPromptText).toContain("without --type");
+    expect(fixture.read()).toEqual(original);
+    expect(await fixture.run({ type: "chore" })).toMatchObject({ outcome: "applied" });
+    expect(fixture.branch()).toBe("chore/fix-output");
+  });
+  it("names the recorded intent and resumes after omitting the changed intent", async () => {
+    const record = makeRecord(); const fixture = resumeFixture(record);
+    const refusal = await fixture.run({ intent: "replace the intent" });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText).toContain('Recorded intent: "fix output".');
+    expect(refusal.recommendedPromptText).toContain("Rerun without --intent");
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", origin: "description" },
+    });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+
+  it.each([
+    ["different title", "fix output"],
+    ["replacement generation", "fix output"],
+    ["description origin", "fix output"],
+    ["maximum intent", "x".repeat(4_096)],
+    ["escape-expanding intent", "\u0001".repeat(1_024)],
+  ] as const)("names both selectors for a changed intent with %s and resumes without them", async (change, intent) => {
+    const record = parseOrdinaryErrandRecord({ ...makeRecord(), intent,
+      ...(change === "description origin" ? {} : { origin: "inbox", originEntry: "Fix output capture",
+        originEntrySourceDigest: `sha256:${"a".repeat(64)}` }) });
+    const fixture = resumeFixture(record);
+    const refusal = await fixture.run({ intent: "changed", inbox: {
+      title: change === "replacement generation" ? "Fix output capture" : "Other capture",
+      sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: true,
+    } });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText.length).toBeLessThanOrEqual(4_096);
+    expect(refusal.recommendedPromptText).toContain("Recorded intent: ");
+    expect(refusal.recommendedPromptText).toContain(JSON.stringify(intent.slice(0, 16)).slice(1, -1));
+    expect(refusal.recommendedPromptText).toContain("Rerun without --intent and any inbox selector");
+    expect(refusal.recommendedPromptText).toMatch(/\(--from-inbox, --inbox-title-file, or --inbox-entry-file\) to resume with the recorded intent and origin\.$/u);
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
+    } });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+
+  it.each([
+    ["intent", "maximum length", "x".repeat(4_096)],
+    ["intent", "escape expansion", "\u0001".repeat(1_024)],
+    ["inbox entry", "maximum length", "x".repeat(4_096)],
+    ["inbox entry", "escape expansion", "\u0001".repeat(1_024)],
+  ] as const)("bounds the recorded %s at %s and resumes without the conflicting selector", async (field, _boundary, value) => {
+    const record = parseOrdinaryErrandRecord({ ...makeRecord(), ...(field === "intent" ? { intent: value } : {
+      origin: "inbox", originEntry: value, originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
+    }) });
+    const fixture = resumeFixture(record);
+    const refusal = await fixture.run(field === "intent" ? { intent: "changed" } : { inbox: {
+      title: "Other capture", sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: true,
+    } });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText.length).toBeLessThanOrEqual(4_096);
+    expect(refusal.recommendedPromptText).toContain(`Recorded ${field}: `);
+    expect(refusal.recommendedPromptText).toContain(JSON.stringify(value.slice(0, 16)).slice(1, -1));
+    expect(refusal.recommendedPromptText).toContain("(truncated)");
+    expect(refusal.recommendedPromptText).toMatch(field === "intent"
+      ? /Rerun without --intent to resume with the recorded intent\.$/u
+      : /Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file to resume with the recorded origin\.$/u);
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
+    } });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+
+  it.each(["different title", "replacement generation", "description origin"])("names the recorded inbox entry for a %s and resumes without the selector", async (change) => {
+    const record = change === "description origin" ? makeRecord() : parseOrdinaryErrandRecord({ ...makeRecord(), origin: "inbox", originEntry: "Fix output capture",
+      originEntrySourceDigest: `sha256:${"a".repeat(64)}` });
+    const fixture = resumeFixture(record);
+    const refusal = await fixture.run({ inbox: {
+      title: change === "different title" ? "Other capture" : "Fix output capture",
+      sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: true,
+    } });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText).toContain(change === "description origin"
+      ? "Recorded inbox entry: none (description-origin Errand)." : 'Recorded inbox entry: "Fix output capture".');
+    expect(refusal.recommendedPromptText).toContain("Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file");
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
+      ...(record.origin === "inbox" ? { originEntrySourceDigest: record.originEntrySourceDigest } : {}) },
+    });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+});
+
+
+function newOpenFixture() {
+  let record: OrdinaryErrandRecord | null = null;
+  let provisioned = false;
+  let authority: unknown;
+  const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
+    kind: "free-primary", subject: null,
+    checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+    lifecycleLocation: null, diagnostics: [],
+  };
+  const options: OpenOrdinaryErrandOptions = {
+    slug: "fix-output", intent: "fix output", protection: "full", base: "main",
+    createdAt: "2026-07-20T12:00:00.000Z", identityName: "andrew", locationTemplate: "../{name}", repo: "repo",
+    dependencies: {
+      mintClaimId: () => "c".repeat(32),
+      readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
+        primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+        identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
+      readIdentity: async () => ({ kind: "ready", record }),
+      claim: async (value) => { record = value; return { kind: "applied", record: value }; },
+      rollbackClaim: async () => { record = null; return { kind: "rolled-back" }; },
+      provision: async (input) => {
+        provisioned = true;
+        authority = input.authority;
+        return { kind: "provisioned", receipt: {
+          disposition: "applied", allocation: "primary", checkoutPath: "/repo",
+          branch: { name: input.branch, created: input.branch !== null, head: HEAD,
+            base: input.branch === null ? null : "main" },
+          worktree: { path: "/repo", created: false, head: HEAD },
+          marker: { state: "ready", bytes: Buffer.from("ready") },
+        } };
+      },
+    },
+  };
+  return {
+    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox" | "type">> = {}) =>
+      openOrdinaryErrand({ ...options, ...overrides }),
+    read: () => ({ record, provisioned }),
+    authority: () => authority,
+  };
+}
+
+describe("ordinary Errand branch types", () => {
+  it.each(["fix", "refactor", "hotfix"] as const)("opens a new %s identity on its nature-typed branch", async (type) => {
+    const fixture = newOpenFixture();
+    expect(await fixture.run({ type })).toMatchObject({ outcome: "applied", identity: { branch: `${type}/fix-output` } });
+    expect(fixture.read()).toMatchObject({ record: { branch: `${type}/fix-output` }, provisioned: true });
+  });
+});
+
+describe("invalid ordinary Errand open input remedies", () => {
+  it.each([
+    { name: "empty slug", input: { slug: " " }, condition: "non-empty", remedy: "Choose a valid" },
+    { name: "malformed slug", input: { slug: "fix.output" }, condition: "slug", remedy: "Choose a valid" },
+    { name: "reserved namespace", input: { slug: "groom-alpha" },
+      condition: "groom-* namespace is reserved", remedy: "groom-* namespace has no Errand opener" },
+    { name: "overlong branch", input: { slug: "a".repeat(4091) }, condition: "branch", remedy: "Correct the reported" },
+    { name: "overlong intent", input: { intent: "x".repeat(4097) }, condition: "intent", remedy: "Correct the reported" },
+  ])("reports $name before mutation and opens after the input is corrected", async ({ input, condition, remedy }) => {
+    const fixture = newOpenFixture();
+    const refusal = await fixture.run(input);
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText).toContain(condition);
+    expect(refusal.recommendedPromptText).toContain(remedy);
+    expect(refusal.recommendedPromptText).toContain("arc errand open");
+    expect(fixture.read()).toEqual({ record: null, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: { key: "fix-output", state: "open" } });
+    expect(fixture.read()).toMatchObject({ record: { slug: "fix-output" }, provisioned: true });
+  });
+});
+
+
+describe("reserved Errand namespace protection modes", () => {
+  it("qualifies the reserved-namespace refusal to full protection", async () => {
+    const fixture = newOpenFixture();
+    const result = await fixture.run({ slug: "groom-alpha", protection: "full" });
+    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(result.recommendedPromptText).toContain("groom-* namespace is reserved");
+    expect(result.recommendedPromptText).toContain("no Errand opener under full protection");
+    expect(fixture.read()).toEqual({ record: null, provisioned: false });
+  });
+
+  it("keeps partial protection claim-free and accepts the same slug", async () => {
+    const fixture = newOpenFixture();
+    const result = await fixture.run({ slug: "groom-alpha", protection: "partial" });
+    expect(result).toMatchObject({ outcome: "applied", identity: null,
+      subject: { kind: "errand", key: "groom-alpha", claimId: null },
+      allocation: { kind: "primary", checkoutPath: "/repo" } });
+    expect(fixture.read()).toEqual({ record: null, provisioned: true });
+  });
+});
+
+// The version arm must reach provisioning rather than becoming an unbound origin.
+it("binds partial store origins to their exact entry version", async () => {
+ const fixture = newOpenFixture();
+ await fixture.run({protection:"partial",inbox:{title:"project:12345678",sourceDigest:null,executeBound:false,version:"v1:1234567890abcdef"}});
+ expect(fixture.authority()).toEqual({kind:"partial-errand",key:"fix-output",originEntry:"project:12345678",originEntryVersion:"v1:1234567890abcdef"});
+});
+it("resumes a qualified-ID origin using the persisted null digest re-fed by materialization",async()=>{
+ const record=parseOrdinaryErrandRecord({...paused(),origin:"inbox",originEntry:"project:12345678",originEntrySourceDigest:null});
+ const {restoreErrandInboxOrigin}=await import("../../../src/lib/errand/inbox-origin.js");
+ expect(await resumeFixture(record).run({inbox:restoreErrandInboxOrigin(record.originEntry,record.origin==="inbox"?record.originEntrySourceDigest:null)})).toMatchObject({outcome:"applied",identity:{originEntry:"project:12345678",originEntrySourceDigest:null}});
+});

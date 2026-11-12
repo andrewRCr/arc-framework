@@ -20,9 +20,9 @@ const cli = scanCommanderSource({
 });
 
 const handlerText = `
-  import * as p from "@clack/prompts";
+  import { execFile } from "node:child_process";
   export async function handleCreate() {
-    return p.text({ message: "Name" });
+    return execFile("git", ["status"]);
   }
 `;
 
@@ -68,10 +68,10 @@ const declaration = (): CommandInputDeclaration => ({
       subprocess: "none",
     },
     {
-      id: "prompt.name",
+      id: "process.status",
       source: {
         file: "handlers/create.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+        interaction: { kind: "subprocess", callee: "execFile", occurrence: 1 },
       },
       origin: "declaration",
       acquisition: "handler-required",
@@ -97,7 +97,7 @@ describe("command-input inventory reconciliation", () => {
       "create:operand.name",
       "create:option.json",
       "create:option.priority",
-      "create:prompt.name",
+      "create:process.status",
     ]);
     expect(result.entries[3]).toMatchObject({
       commandPath: "create",
@@ -134,7 +134,7 @@ describe("command-input inventory reconciliation", () => {
   });
 
   it("reconciles two interaction sites that share one source line", () => {
-    const sameLineText = 'import * as p from "@clack/prompts"; p.text({ message: "A" }); p.text({ message: "B" });';
+    const sameLineText = 'import { execFile } from "node:child_process"; execFile("git", ["status"]); execFile("git", ["log"]);';
     const sameLineInteractions = scanInteractionSource({
       file: "handlers/create.ts",
       sourceText: sameLineText,
@@ -144,10 +144,10 @@ describe("command-input inventory reconciliation", () => {
       ...value.sites.slice(0, 3),
       ...([1, 2] as const).map((occurrence) => ({
         ...value.sites[3]!,
-        id: `prompt.name-${String(occurrence)}`,
+        id: `process.status-${String(occurrence)}`,
         source: {
           file: "handlers/create.ts",
-          interaction: { kind: "prompt" as const, callee: "p.text", occurrence },
+          interaction: { kind: "subprocess" as const, callee: "execFile", occurrence },
         },
       })),
     ];
@@ -158,7 +158,52 @@ describe("command-input inventory reconciliation", () => {
       sourceFiles: { "cli.ts": "handleCreate", "handlers/create.ts": sameLineText },
     });
 
-    expect(result.entries.filter((entry) => entry.siteId.startsWith("prompt.name-"))).toHaveLength(2);
+    expect(result.entries.filter((entry) => entry.siteId.startsWith("process.status-"))).toHaveLength(2);
+  });
+
+  it("shares one interaction site across commands only when its physical policy matches", () => {
+    const sharedCli = scanCommanderSource({
+      file: "cli.ts",
+      sourceText: `
+        const program = new Command();
+        program.command("create").action(handleCreate);
+        program.command("delete").action(handleDelete);
+      `,
+    });
+    const site = declaration().sites[3]!;
+    const createPolicy: CommandInputDeclaration = {
+      commandPath: "create",
+      aliases: [],
+      sites: [{ ...site, mutationBoundary: "create handler" }],
+    };
+    const deletePolicy: CommandInputDeclaration = {
+      commandPath: "delete",
+      aliases: [],
+      sites: [{ ...site, mutationBoundary: "delete handler" }],
+    };
+    const source = { commands: sharedCli.commands, interactions: interactions.sites };
+    const sourceFiles = { "cli.ts": "handleCreate handleDelete", "handlers/create.ts": handlerText };
+
+    const result = reconcileCommandInputInventory({
+      source,
+      declarations: [createPolicy, deletePolicy],
+      sourceFiles,
+    });
+
+    expect(result.entries.map((entry) => entry.identity)).toEqual([
+      "create:process.status",
+      "delete:process.status",
+    ]);
+
+    const conflictingPolicy: CommandInputDeclaration = {
+      ...deletePolicy,
+      sites: [{ ...site, mutationBoundary: "delete handler", subprocess: "terminal-prompts" }],
+    };
+    expect(() => reconcileCommandInputInventory({
+      source,
+      declarations: [createPolicy, conflictingPolicy],
+      sourceFiles,
+    })).toThrow(/Interaction site is multiply classified/u);
   });
 
   it("rejects a declaration whose interaction selector no longer resolves", () => {
@@ -167,7 +212,7 @@ describe("command-input inventory reconciliation", () => {
       ...stale.sites[3]!,
       source: {
         file: "handlers/create.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 2 },
+        interaction: { kind: "subprocess", callee: "execFile", occurrence: 2 },
       },
     };
 

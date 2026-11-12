@@ -7,7 +7,7 @@
  * cascade is phase-polymorphic: a backlog stub is just an artifact removal; a
  * started WU (`planning` / `active`) removes its artifacts in-verb but defers its
  * branch, worktree, and user-workspace cleanup until the retirement evidence has
- * landed; a `parked` WU follows the same receipt-backed branch cleanup path.
+ * landed; a `parked` WU follows the same structurally authorized branch cleanup path.
  * `integrating` and merged / `shipped` are illegal — post-merge backout is a new
  * origin-linked WU. The mutators, the remove runner, and the side-effects reach
  * the contract as spies, so each behavior is asserted over an in-memory index.
@@ -15,9 +15,9 @@
 
 import { describe, it, expect } from "vitest";
 
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
-import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
+import type { PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
+import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -29,11 +29,7 @@ import {
   type LifecycleIndexFs,
 } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
-import {
-  validateReceiptMatrix,
-  type RetirementReceipt,
-} from "../../../../src/lib/work-unit/retirement-authority.js";
-import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+import type { LineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
@@ -69,7 +65,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -83,7 +79,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       dirAbs = parent;
     }
     const filename = `meta-${meta.slug}.md`;
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${dirAbs}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
@@ -112,15 +108,14 @@ interface Harness {
   calls: string[];
   removed: string[];
   rmdirs: string[];
-  recordedReceipts: RetirementReceipt[];
+  recordedTransitions: LineageRecord[];
 }
 
-function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
+function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
-  const recordedReceipts: RetirementReceipt[] = [];
-  const sourceArtifactDigest = canonicalDigest({ artifact: "foo-source" });
+  const recordedTransitions: LineageRecord[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -136,9 +131,9 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
       return op.mutation === "teardown"
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
@@ -149,16 +144,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
-    // The `worktree-clean` IO guard is a caller-supplied seam (production binds the
-    // real `git status` read via `buildFootgunGuards`); the started-WU abandon
-    // cells declare it as the fail-fast that keeps a dirty teardown from
-    // half-applying (artifacts removed, branch/worktree intact).
-    guardValidators: {
-      "worktree-clean": () =>
-        worktreeClean
-          ? { ok: true }
-          : { ok: false, message: "refusing to tear down a dirty worktree: /repo/../wt-foo has uncommitted work." },
-    },
   };
 
   // The artifact-removal seam: list the WU's files, delete each, drop the emptied subdir.
@@ -191,7 +176,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
             head: "a".repeat(40),
           },
         },
-        artifactDigest: sourceArtifactDigest,
         sourceArtifactPaths: TRANSITION_OPERATIONS.map((operation) => operation.path),
         resultArtifactPaths: [],
       };
@@ -203,14 +187,8 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
           authorityVersion: canonicalDigest({ authority: "before-abandon" }),
           sourceRefOid: "a".repeat(40),
           resultRefOid: "a".repeat(40),
-          recordState: "absent",
         },
       }),
-      record: async (receipt) => {
-        calls.push("retirement:record");
-        recordedReceipts.push(receipt);
-        return { status: "recorded", authorityVersion: canonicalDigest({ authority: "after-abandon" }) };
-      },
     },
     stageTransition: async () => {
       calls.push("retirement:stage-transition");
@@ -218,10 +196,42 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     rollbackTransition: async () => {
       calls.push("retirement:rollback-transition");
     },
+    rollbackRefusedCommit: async () => {
+      calls.push("retirement:rollback-refused");
+      return { status: "rolled-back" };
+    },
+    completeTransition: async () => {
+      calls.push("retirement:complete");
+      return { status: "completed-no-record", authorityVersion: canonicalDigest({ authority: "after-abandon" }) };
+    },
     readTransitionPatch: async () => TRANSITION_OPERATIONS,
   };
 
-  return { ctx: { executor, fs, retirement }, calls, removed, rmdirs, recordedReceipts };
+  return {
+    ctx: {
+      removal: { exec: async () => ({ stdout: "", stderr: "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) },
+      executor,
+      fs,
+      retirement,
+      transitionWriter: {
+        record: async (transition) => {
+          calls.push("transition:record");
+          recordedTransitions.push(transition);
+          return { status: "recorded" };
+        },
+        rollback: async (transition) => {
+          calls.push("transition:rollback");
+          const index = recordedTransitions.indexOf(transition);
+          if (index >= 0) recordedTransitions.splice(index, 1);
+          return { status: "rolled-back" };
+        },
+      },
+    },
+    calls,
+    removed,
+    rmdirs,
+    recordedTransitions,
+  };
 }
 
 const BASE: AbandonParams = { name: "foo", confirmed: true };
@@ -275,82 +285,78 @@ describe("runAbandon — composed write authority", () => {
 });
 
 describe("runAbandon — started WU (active)", () => {
-  it("captures the source branch, HEAD, and artifact digest before removing the artifact set", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+  it("captures the source branch and HEAD before removing the artifact set", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
     expect(calls).toContain("retirement:capture:foo:0:feat/foo");
-    expect(recordedReceipts).toHaveLength(1);
-    expect(recordedReceipts[0]?.source).toEqual({
-      branch: "feat/foo",
-      head: "a".repeat(40),
-      artifactDigest: canonicalDigest({ artifact: "foo-source" }),
-    });
-    expect(recordedReceipts[0]?.transitionPatchDigest).toBe(patchDigest(TRANSITION_OPERATIONS));
-    expect(recordedReceipts[0]).toMatchObject({ schemaVersion: 2, inventoryRead: "tree-only" });
+    expect(calls).toContain("retirement:complete");
   });
 
-  it("stages the transition before recording the receipt for the same commit", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+  it("stages lean history before completing the same direct transition", async () => {
+    const { ctx, calls, recordedTransitions } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
-    expect(calls).toContain("retirement:record");
-    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
-    expect(recordedReceipts).toHaveLength(1);
+    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("transition:record"));
+    expect(calls.indexOf("transition:record")).toBeLessThan(calls.indexOf("retirement:complete"));
+    expect(recordedTransitions).toEqual([{
+      schemaVersion: 2,
+      origin: { name: "foo" },
+      kind: "abandon",
+      successors: [],
+      incoming: [],
+    }]);
   });
 
-  it("rolls back the transition and leaves destructive cleanup deferred when recording refuses", async () => {
+  it("maps an occupied transition origin to a stable refusal and rolls back the direct transition", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
-    ctx.retirement.authority.record = async () => ({
+    ctx.transitionWriter.record = async () => ({ status: "origin-occupied" });
+
+    await expect(runAbandon(ctx, BASE)).resolves.toEqual({
+      status: "rejected",
+      reason: "The abandon transition was rolled back because transition history could not be recorded: "
+        + "origin-occupied.",
+    });
+    expect(calls).toContain("retirement:rollback-refused");
+  });
+
+  it("rolls back transition and lean history when completion refuses", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.retirement.completeTransition = async () => ({
       status: "refused",
       reason: "authority-conflict",
-      diagnostic: "Receipt cleanup was incomplete: record removal failed.",
+      diagnostic: "staged paths changed",
     });
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: record removal failed\./iu),
+      reason: expect.stringMatching(/rolled back.*staged paths changed/iu),
     });
-    expect(calls).toContain("retirement:rollback-transition");
+    expect(calls).toContain("retirement:rollback-refused");
+    expect(calls).toContain("transition:rollback");
     expect(calls).not.toContain("side:user-workspace");
     expect(calls.some((call) => call.startsWith("branch:"))).toBe(false);
   });
 
-  it("records the explicit absent result for a nonexistent lifecycle outcome", async () => {
-    const { ctx, recordedReceipts } = buildCtx([ACTIVE]);
+  it("records lean abandon history without receipt-shaped result evidence", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
 
     expect(result.status).toBe("abandoned");
-    expect(recordedReceipts[0]).toMatchObject({
-      transition: "abandon",
-      authorization: "discard-confirmed",
-      result: { kind: "discard", artifactDigest: "absent" },
-    });
-    const [recorded] = recordedReceipts;
-    if (recorded === undefined) throw new Error("expected an abandon receipt");
-    expect(validateReceiptMatrix(recorded, "nonexistent")).toBeNull();
-    expect(validateReceiptMatrix(recorded, "planned")).toBe("evidence-mismatch");
-    expect(queryRetirementDisposition({
-      status: "valid",
-      records: [{
-        id: recorded.receiptId,
-        content: "",
-        record: { kind: "receipt", value: recorded },
-      }],
-    }, {
-      retiredSubject: "foo",
-      dependentSlug: "consumer",
-    })).toMatchObject({
-      status: "unique",
-      disposition: { kind: "abandoned" },
-    });
+    expect(recordedTransitions).toEqual([{
+      schemaVersion: 2,
+      origin: { name: "foo" },
+      kind: "abandon",
+      successors: [],
+      incoming: [],
+    }]);
   });
 
   it("records pending cleanup without deleting refs or closing the live user workspace", async () => {
@@ -368,7 +374,7 @@ describe("runAbandon — started WU (active)", () => {
     expect(removed).toContain("/repo/.arc/active/meta-foo.md");
     expect(removed).toContain("/repo/.arc/active/spec-foo.md");
     expect(removed.some((p) => p.includes("cohort-other"))).toBe(false);
-    // Every destructive cleanup leg stays deferred until the receipt and result
+    // Every destructive cleanup leg stays deferred until the result
     // are authoritative on the protection-aware base.
     expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
     expect(calls).not.toContain("side:user-workspace");
@@ -376,11 +382,6 @@ describe("runAbandon — started WU (active)", () => {
     expect(result.lifecycle).toEqual({
       subject: { slug: "foo", branch: "feat/foo" },
       transition: "abandon",
-      authority: {
-        kind: "receipt-backed",
-        receiptId: result.receipt.receiptId,
-        authorityVersion: result.authorityVersion,
-      },
       cleanup: {
         branch: { status: "pending" },
         worktree: { status: "pending" },
@@ -392,22 +393,6 @@ describe("runAbandon — started WU (active)", () => {
         remedy: null,
       },
     });
-  });
-});
-
-describe("runAbandon — started WU on a dirty worktree", () => {
-  it("no longer gates on worktree cleanliness — the deferred teardown owns the worktree", async () => {
-    const { ctx, calls, removed } = buildCtx([ACTIVE], /* worktreeClean */ false);
-
-    const result = await runAbandon(ctx, BASE);
-
-    // The started-WU abandon edges dropped the `worktree-clean` guard along with the
-    // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
-    // artifact removal; landed receipt-backed `arc teardown` owns the worktree.
-    expect(result.status).toBe("abandoned");
-    if (result.status !== "abandoned") return;
-    expect(removed).toContain("/repo/.arc/active/meta-foo.md");
-    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
 
@@ -433,7 +418,7 @@ describe("runAbandon — backlog stub (provisional)", () => {
 });
 
 describe("runAbandon — parked WU", () => {
-  it("records the preserved branch as an unchanged projection and defers its cleanup", async () => {
+  it("preserves the parked branch and defers its cleanup", async () => {
     const { ctx, calls } = buildCtx([PARKED]);
 
     const result = await runAbandon(ctx, { name: "foo", confirmed: true });
@@ -444,14 +429,13 @@ describe("runAbandon — parked WU", () => {
     expect(calls).toContain("retirement:unchanged:feat/foo:.arc/active");
     expect(calls).not.toContain("branch:delete:feat/foo");
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
-    expect(result.receipt.retiringProjection).toEqual({ kind: "unchanged" });
     expect(result.lifecycle.cleanup.branch).toEqual({ status: "pending" });
     expect(result.lifecycle.cleanup.worktree).toEqual({ status: "not-applicable" });
   });
 });
 
 describe("planAbandon — the impact plan per from-state", () => {
-  it("a started WU plans artifacts plus landed receipt-backed teardown", () => {
+  it("a started WU plans artifacts plus landed structural teardown", () => {
     const plan = planAbandon("active", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
     expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
@@ -468,7 +452,7 @@ describe("planAbandon — the impact plan per from-state", () => {
     expect(plan.lines.some((l) => /Branch:|Worktree:|Teardown:/.test(l))).toBe(false);
   });
 
-  it("a parked WU plans landed receipt-backed cleanup of its preserved branch", () => {
+  it("a parked WU plans landed structural cleanup of its preserved branch", () => {
     const plan = planAbandon("parked", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
     expect(plan.lines.some((l) => /Teardown:.*arc teardown foo.*feat\/foo/.test(l))).toBe(true);
@@ -496,5 +480,38 @@ describe("runAbandon — illegal sources", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/reopen|integrat/i);
     expect(removed).toEqual([]);
+  });
+});
+
+describe("abandon removal preflight", () => {
+  it("reads the selected repository's lock through an ambient executor and abandons after owner unlock", async () => {
+    const { ctx, removed, recordedTransitions } = buildCtx([ACTIVE]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] !== "worktree" ? "" : options?.cwd === CWD
+        ? `worktree ${CWD}\0HEAD ${"a".repeat(40)}\0branch refs/heads/feat/foo\0${locked ? "locked owner holds checkout\0" : ""}\0`
+        : `worktree /ambient\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0` }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("owner holds checkout") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]);
+    locked = false;
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(removed.length).toBeGreaterThan(0); expect(recordedTransitions).toHaveLength(1);
+  });
+  it.each(["Planning", "Active"])("refuses dirty %s work before recording or staging", async (state) => {
+    const { ctx, removed, recordedTransitions, calls } = buildCtx([{ ...ACTIVE, state }]);
+    ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed-file") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]); expect(calls).not.toContain("retirement:stage-transition");
+  });
+  it.each([PROVISIONAL, PARKED])("keeps no-checkout abandon available for $state $tier", async (meta) => {
+    const { ctx } = buildCtx([meta]);
+    ctx.removal = { exec: async () => ({ stdout: " M dirty\n" }), folderExists: async () => true };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+  });
+  it("retains dirty anchored changes while recording abandonment", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
+    ctx.removal = { exec: async () => { throw Error("Git must not be read for release"); }, readMarker: async () => ({ kind: "present", marker: { spawnedByArc: false, wuName: "foo", spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z" } }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(recordedTransitions).toHaveLength(1);
   });
 });

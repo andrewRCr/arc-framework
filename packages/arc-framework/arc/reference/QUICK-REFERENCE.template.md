@@ -7,26 +7,17 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands` —
 load on demand when workflow steps reference them.
 
 ### Critical Path Reference
 
-<!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
-
-| Resource        | Location from Repo Root | Why It Matters            |
-|-----------------|-------------------------|---------------------------|
-| [Resource name] | `[path]`                | [brief explanation]       |
-| [Resource name] | `[path]`                | [brief explanation]       |
-| ARC docs        | `.arc/`                 | Development documentation |
+| Resource         | Location from Repo Root | Why It Matters       |
+| ---------------- | ----------------------- | -------------------- |
+| \[Resource name] | `[path]`                | \[brief explanation] |
+| \[Resource name] | `[path]`                | \[brief explanation] |
 
 ### Runtime Environment
-
-<!-- Describe what's needed to run the project. Examples: -->
-<!-- "Docker Compose must be running (3 containers: api, web, db)" -->
-<!-- "Python 3.12+ with venv at backend/.venv/" -->
-<!-- "Node.js 20+ with dependencies installed via npm" -->
-<!-- "Documentation-only — no runtime services needed" -->
 
 [Runtime description]
 
@@ -107,64 +98,70 @@ All commands from **repository root**.
 
 ---
 
-## Quality Gate Commands
-
-Reference commands for DEV-RULES.PROJECT quality gates. See
-[Quality Gates Strategy](strategies/arc/strategy-quality-gates.md) for the tiered approach
-(when to run which level of checks).
-
-### Incremental — Tier 1 (per-task)
-
-<!-- Targeted commands for modified files only. Run after completing each task. -->
-
-```bash
-# Lint specific file
-[lint_command_single]
-
-# Type check specific file
-[type_check_command_targeted]
-
-# Run specific test
-[test_command_single]
-```
-
-### Integration — Tier 2 (coherent unit)
-
-<!-- Project-scoped checks. Run after completing a parent task or coherent unit. -->
-
-```bash
-# Full markdown lint
-[md_lint_command_all]
-
-# Full code lint + type check
-[lint_command_all]
-[type_check_command_all]
-
-# Full test suite (or relevant subset)
-[test_command_all]
-```
-
-### Full Suite — Tier 3 (per-phase / pre-PR)
-
-<!-- All checks at full project scope. Run after completing a phase or before creating a PR. -->
-
-```bash
-# 1. [Quality gate name]
-[command]
-
-# 2. [Quality gate name]
-[command]
-
-# 3. Markdown Linting
-[md_lint_command_all]
-
-# 4. Git Status Check
-git status
-```
-
----
-
 ## ARC CLI Commands
+
+### Command Prerequisites and Remote Access
+
+ARC requires Node.js 24 or newer and Git 2.53 or newer.
+
+`arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
+generation and inspects only objects already present locally. It does not fetch code objects, update or create code
+refs, prune, or run maintenance. This holds in linked worktrees, where ref and object writes would target the shared
+Git common directory. Missing advertised objects return `pending-fetch`; unreachable transport returns
+`unreachable`; disabled or absent transport returns `not-applicable`. Shallow history or missing partial-clone
+trees/blobs cannot produce an exact graph or content result and do not trigger lazy fetching.
+
+Use an explicit operation when acquisition is intended:
+
+```bash
+# Expand live in-flight candidates; may fetch missing advertised candidate objects
+arc active in-flight --json
+
+# Fast-forward the local base ref from advertised remote state
+arc base sync --json
+```
+
+Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
+Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
+code-head evidence. See [Session Operations Strategy](strategies/arc/strategy-session-operations.md) § Remote
+access boundary.
+
+### Schema Discovery
+
+Use `arc schema list` to find registered contracts and `arc schema get <id>` to retrieve one. Read a result's
+`editorDocument` field to locate its editor document.
+
+Run `arc schema install` to refresh checkout editor documents after a CLI upgrade or in a checkout provisioned before
+the command existed.
+
+### Artifact Viewing
+
+`arc view [kind]` renders an artifact. With no kind, it checks **tasks → spec → draft → meta**. The `design` kind
+follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
+`--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
+
+`--for <slug>` selects the named work unit through its composed lifecycle. For a started work unit, it reads the
+registered checkout's file, including uncommitted edits, or otherwise the selected ref this clone already holds.
+A start whose branch this clone has never fetched reads as its backlog copy until a fetch brings the ref in.
+Without a registered checkout, `--path` and `--editor` refuse with the work unit and ref; render the artifact to read
+it instead. The work unit's own artifacts and cohort metadata follow the selected copy; the cohort document and
+session notes remain local to the invoking checkout. `inbox --project` selects the shared project inbox.
+
+Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
+delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,
+usually `vi`.
+
+Editor mode inherits terminal streams and requires allowed interaction. `--no-input`, CI, piped stdin, or piped
+stdout refuse with a nonzero diagnostic. `--editor` also conflicts with `--path` and `--current`. Missing artifacts,
+failed editor selection or launch, and unsuccessful exits report failures; set `ARC_EDITOR` to repair the command
+and retry.
+
+ARC waits for the configured command to exit and preserves its wait flags. A successful exit confirms handoff;
+buffer opening and saving depend on the editor. For a GUI command that waits for the file to close:
+
+```bash
+ARC_EDITOR="code --wait" arc view -e
+```
 
 ### Setup and Configuration
 
@@ -199,7 +196,9 @@ by design, not a missing ceremony.
 arc status <slug> [--json]
 
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
-arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
+# --cohort accepts <cohort> or <cohort>/<subcohort> and requires the planned tier.
+arc stub <name> --commitment <provisional|planned> --priority <P#> \
+  [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
@@ -208,10 +207,20 @@ arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 # Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
 arc rename <slug> <new-slug>
 
+# Set Class at any lifecycle placement; the slug defaults to the checkout's work unit
+arc set-class <Light|Heavy|Novel> [slug]
+
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
 arc demote <slug>
+
+# Set the current WU's planning-stage pointer; --advance also resets Next Action for the new stage.
+arc set-stage <draft-design|create-spec|generate-tasks> [--advance]
+# Advance the current WU's Design pointer at a planning event.
+arc repoint-design <draft-created|spec-finalized>
+# Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
+arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
 
 # Activate a planning WU: Planning → Active (activate-work-unit.md)
 arc activate [slug] --type <type> --task <first task> --action <next action>
@@ -223,20 +232,28 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
-# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
-arc integrate [slug] --last-completed <work> --action <next action>
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc attest <name> --json [--new-root]
+
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name>
+arc integrate merge <name> --checkpoint <handle>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
 # Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --cut-map <file>
+arc decompose <origin> --execute <file>
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 14)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree
@@ -245,12 +262,16 @@ arc base sync [--json]
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand next [--json]
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--isolate] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
+arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
+arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> \
+  [--confirm-foreign-generation <generation>] [--json]
 ```
 
 ### Session State Portability
@@ -322,12 +343,11 @@ arc release status --json
 See [`commit-format`](../system/methods/commit-format.md) for multiline transport, direct-file matcher fallback,
 message structure, and wrapper retry behavior.
 
-Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+Refusal exit codes 10–17 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See
-[DEV-RULES.ARC](../system/rules/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
-opt-in semantics.
+`commit-message-preflight-failed`, and `close-precheck-failed`; audit entries land at
+`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC](../system/rules/DEV-RULES.ARC.md) § Commit
+Discipline for the trust model and opt-in semantics.
 
 ### Standalone Work History
 
@@ -347,10 +367,10 @@ ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
 Azure DevOps, or another platform, replace these commands with your team's CLI
 equivalents.
 
-| Operation    | Command                                           |
-|--------------|---------------------------------------------------|
-| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
-| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
-| View PR/MR   | `gh pr view --json number,url,state`              |
-| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
-| Create issue | `gh issue create`                                 |
+| Operation    | Command                                      |
+| ------------ | -------------------------------------------- |
+| Create PR/MR | `gh pr create --base {base} --head {branch}` |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`   |
+| View PR/MR   | `gh pr view --json number,url,state`         |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`            |
+| Create issue | `gh issue create`                            |

@@ -1,15 +1,13 @@
 /** Production adapters for the local review resume command. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
+import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
-import {
-  LocalApprovedDispositionRecordStore,
-} from "../hosts/local/disposition-record-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import {
   ensureLocalReviewSourceMaterialized,
 } from "../hosts/local/review-materialization.js";
@@ -17,22 +15,22 @@ import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import type { LocalResumeDependencies } from "./local-resume-command.js";
 
 /** Bind local resume to the same trusted target, sweep, and Git-common stores as preparation. */
-export function createLocalResumeDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): LocalResumeDependencies {
-  const prepare = createLocalPrepareDependencies(input);
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+export function createLocalResumeDependencies(input: LocalReviewInvocationInput): LocalResumeDependencies {
+  const context = createReviewCompositionContext(input);
+  const prepare = createLocalPrepareDependencies({ ...input, ...context });
+  const { publisher, family } = context;
   let receiptStore: Promise<ForwardReviewReceiptStore> | null = null;
   const receipts = async () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, context)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
   return {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation({ ...input, ...context }, reference),
     sweep: () => prepare.sweep(),
-    withSourceLock: (action) => prepare.withSourceLock(action),
+    withLocalReviewLock: (action) => prepare.withLocalReviewLock(action),
     operationStore: prepare.operationStore,
+    ...(prepare.outcomes === undefined ? {} : { outcomes: prepare.outcomes }),
     sourceStore: prepare.sourceStore,
     receiptStore: {
       readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
@@ -40,7 +38,8 @@ export function createLocalResumeDependencies(input: {
         (await receipts()).appendReceipt(receipt, expectedLedgerVersion)
       ),
     },
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore: family.ports.dispositions,
+    resultReader: createRepositoryReviewResultReader(publisher, context),
     confirmTarget: (target) => prepare.confirmTarget(target),
     materialize: (source) => ensureLocalReviewSourceMaterialized({
       exec: input.exec,

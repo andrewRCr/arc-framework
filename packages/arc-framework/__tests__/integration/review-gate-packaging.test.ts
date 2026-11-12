@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,47 +10,40 @@ const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("review-gate package boundary", () => {
-  it("keeps hosted Codex guidance repository-owned and inherited by Claude", async () => {
-    const [agents, claude] = await Promise.all([
-      readFile(resolve(root, "AGENTS.md"), "utf8"),
-      readFile(resolve(root, "CLAUDE.md"), "utf8"),
-    ]);
-
-    expect(claude.trim()).toBe("@AGENTS.md");
-    expect(agents).toContain("<!-- arc:review-guidance:start -->");
-    expect(agents).toContain("<!-- arc:review-guidance:end -->");
+  it("ships review workflows without repository controller implementation", async () => {
+    const packageState = await mkdtemp(join(tmpdir(), "arc-review-package-state-"));
+    const isolatedHome = join(packageState, "home");
+    const isolatedCache = join(packageState, "npm-cache");
+    await mkdir(isolatedHome);
+    try {
+      const { stdout } = await run(
+        "npm",
+        ["pack", "--dry-run", "--json", "--ignore-scripts", "--workspace", "@arc-framework/cli"],
+        {
+          cwd: root,
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30_000,
+          env: { ...process.env, HOME: isolatedHome, npm_config_cache: isolatedCache },
+        },
+      );
+      const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
+      const paths = packs[0]?.files.map(({ path }) => path) ?? [];
+      expect(paths).toContain("arc/system/workflows/arc/supplemental/run-errand.md");
+      for (const file of ["README.md", "local.mjs", "local-inputs.mjs", "local-process.mjs", "local-runtime.mjs"]) {
+        expect(paths).toContain(`examples/check-runner/${file}`);
+      }
+      expect(paths.some((path) => path.includes("src/scripts/review-gate"))).toBe(false);
+      expect(paths.some((path) => path.startsWith(".github/"))).toBe(false);
+      expect(paths.some((path) => path.includes("coordinate-pr-review"))).toBe(false);
+      await expect(access(join(isolatedHome, ".npm"))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(isolatedCache)).resolves.toBeUndefined();
+    } finally {
+      await rm(packageState, { recursive: true, force: true });
+    }
   });
 
-  it("ships extension shells without repository controller implementation", async () => {
-    const { stdout } = await run("npm", ["pack", "--dry-run", "--json", "--workspace", "@arc-framework/cli"], {
-      cwd: root, maxBuffer: 10 * 1024 * 1024, timeout: 30_000,
-    });
-    const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
-    const paths = packs[0]?.files.map(({ path }) => path) ?? [];
-    expect(paths).toContain("arc/system/extensions/pre-pr-open.md");
-    expect(paths).toContain("arc/system/extensions/post-pr-open.md");
-    expect(paths).toContain("arc/system/workflows/arc/supplemental/run-errand.md");
-    expect(paths.some((path) => path.includes("src/scripts/review-gate"))).toBe(false);
-    expect(paths.some((path) => path.startsWith(".github/"))).toBe(false);
-    expect(paths.some((path) => path.includes("coordinate-pr-review"))).toBe(false);
-  });
 
-  it("keeps project and packaged extension seams inactive", async () => {
-    const [projectPostOpen, projectPreMerge, packagePostOpen, packagePreMerge] = await Promise.all([
-      readFile(resolve(root, ".arc/system/extensions/post-pr-open.md"), "utf8"),
-      readFile(resolve(root, ".arc/system/extensions/pre-merge.md"), "utf8"),
-      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/post-pr-open.md"), "utf8"),
-      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/pre-merge.md"), "utf8"),
-    ]);
-    expect(projectPostOpen).toContain("active: false");
-    expect(projectPreMerge).toContain("active: false");
-    expect(projectPostOpen).not.toMatch(/coordinate-pr-review|controller/iu);
-    expect(projectPreMerge).not.toMatch(/coordinate-pr-review|controller/iu);
-    expect(packagePostOpen).toContain("[No extension configured]");
-    expect(packagePreMerge).toContain("[No extension configured]");
-  });
-
-  it("adds no production dependency, CLI command, or provider registry", async () => {
+  it("keeps declared dependencies and excludes review-only entry points", async () => {
     const [manifestText, rootManifestText, tsup] = await Promise.all([
       readFile(resolve(root, "packages/arc-framework/package.json"), "utf8"),
       readFile(resolve(root, "package.json"), "utf8"),
@@ -66,9 +60,10 @@ describe("review-gate package boundary", () => {
       "commander",
       "execa",
       "js-yaml",
-      "neverthrow",
+      "node-diff3",
       "semver",
       "string-width",
+      "which-command",
       "zod",
     ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);

@@ -12,7 +12,9 @@
  * @module
  */
 
-import type { GitExec } from "../git/index.js";
+import { Buffer } from "node:buffer";
+
+import type { GitExec, GitExecInput } from "../git/index.js";
 import { gitFailureText } from "../git/process-error.js";
 
 import { NOTES_COMPACTION_MANIFEST_PATH } from "./compaction-manifest.js";
@@ -23,6 +25,8 @@ const USER_NOTES_REF = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const EXACT_RENAME_STATUS = ["R", "100"].join("");
 const NOTES_HISTORY_COMMIT_SEPARATOR = "ARC-NOTES-HISTORY-COMMIT";
+/** Keep each captured `cat-file` response below the shared 64 MiB process-output ceiling. */
+const NOTE_CONTENT_BATCH_BYTES = 32 * 1024 * 1024;
 
 /**
  * Commit subject of a compaction snapshot — the in-band marker recent-note
@@ -189,6 +193,145 @@ export async function readNoteContentAtAnnotatedCommit(
   } catch {
     return null;
   }
+}
+
+/**
+ * Read note contents for annotated commits through size-bounded batch object reads when available.
+ *
+ * @param exec - Standard Git runner used by the tolerant compatibility fallback.
+ * @param execInput - Optional stdin-capable Git runner for batch object reads.
+ * @param fullRef - Full notes ref used by the compatibility fallback.
+ * @param entries - Note blob and annotated-commit pairs to read.
+ * @returns Readable note content keyed by annotated commit.
+ */
+export async function readNoteContentsAtEntries(
+  exec: GitExec,
+  execInput: GitExecInput | undefined,
+  fullRef: string,
+  entries: readonly NoteEntry[],
+): Promise<Map<string, string>> {
+  if (entries.length === 0) return new Map();
+
+  if (execInput !== undefined) {
+    const blobs = [...new Set(entries.map((entry) => entry.blob))];
+    try {
+      const sizes = parseBatchBlobSizes(
+        await execInput(
+          ["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
+          `${blobs.join("\n")}\n`,
+        ),
+        blobs,
+      );
+      if (sizes !== null) {
+        const contentByBlob = new Map<string, string>();
+        for (const batch of partitionBlobBatches(blobs, sizes)) {
+          const stdout = await execInput(["cat-file", "--batch"], `${batch.join("\n")}\n`);
+          const batchContents = parseBatchBlobContents(stdout, batch);
+          if (batchContents === null) throw new Error("Malformed git cat-file batch output");
+          for (const [blob, content] of batchContents) contentByBlob.set(blob, content);
+        }
+        return new Map(entries.flatMap((entry) => {
+          const content = contentByBlob.get(entry.blob);
+          return content === undefined ? [] : [[entry.commit, content]];
+        }));
+      }
+    } catch {
+      // Fall through to the established per-note tolerant reader.
+    }
+  }
+
+  const reads = await Promise.all(entries.map(async (entry) => ({
+    commit: entry.commit,
+    content: await readNoteContentAtAnnotatedCommit(exec, fullRef, entry.commit),
+  })));
+  return new Map(reads.flatMap((read) => (
+    read.content === null ? [] : [[read.commit, read.content]]
+  )));
+}
+
+function parseBatchBlobSizes(
+  stdout: string,
+  requestedBlobs: readonly string[],
+): Map<string, number> | null {
+  const lines = stdout.endsWith("\n") ? stdout.slice(0, -1).split("\n") : stdout.split("\n");
+  if (lines.length !== requestedBlobs.length) return null;
+
+  const sizes = new Map<string, number>();
+  for (const [index, requestedBlob] of requestedBlobs.entries()) {
+    const match = /^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)$/u.exec(lines[index] ?? "");
+    if (match === null || match[1] !== requestedBlob) return null;
+    const byteLength = Number(match[2]);
+    if (!Number.isSafeInteger(byteLength)) return null;
+    sizes.set(requestedBlob, byteLength);
+  }
+  return sizes;
+}
+
+function partitionBlobBatches(
+  blobs: readonly string[],
+  sizes: ReadonlyMap<string, number>,
+): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+
+  for (const blob of blobs) {
+    const size = sizes.get(blob);
+    if (size === undefined) throw new Error(`Missing batch size for note blob ${blob}`);
+    const framedBytes = blob.length + " blob ".length + String(size).length + 2 + size;
+    if (batch.length > 0 && batchBytes + framedBytes > NOTE_CONTENT_BATCH_BYTES) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(blob);
+    batchBytes += framedBytes;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+function parseBatchBlobContents(
+  stdout: string,
+  requestedBlobs: readonly string[],
+): Map<string, string> | null {
+  const contents = new Map<string, string>();
+  let cursor = 0;
+
+  for (const requestedBlob of requestedBlobs) {
+    const headerEnd = stdout.indexOf("\n", cursor);
+    if (headerEnd < 0) return null;
+    const header = stdout.slice(cursor, headerEnd);
+    const match = /^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)$/u.exec(header);
+    if (match === null || match[1] !== requestedBlob) return null;
+
+    const byteLength = Number(match[2]);
+    if (!Number.isSafeInteger(byteLength)) return null;
+    const content = readUtf8Bytes(stdout, headerEnd + 1, byteLength);
+    if (content === null || stdout[content.end] !== "\n") return null;
+    contents.set(requestedBlob, content.value);
+    cursor = content.end + 1;
+  }
+
+  return cursor === stdout.length ? contents : null;
+}
+
+function readUtf8Bytes(
+  value: string,
+  start: number,
+  byteLength: number,
+): { value: string; end: number } | null {
+  let bytesRead = 0;
+  let end = start;
+  while (bytesRead < byteLength && end < value.length) {
+    const codePoint = value.codePointAt(end);
+    if (codePoint === undefined) return null;
+    const character = String.fromCodePoint(codePoint);
+    bytesRead += Buffer.byteLength(character, "utf8");
+    if (bytesRead > byteLength) return null;
+    end += character.length;
+  }
+  return bytesRead === byteLength ? { value: value.slice(start, end), end } : null;
 }
 
 /** The annotated commit a note path addresses, or `null` when the path isn't a note. */

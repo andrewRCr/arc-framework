@@ -1,40 +1,124 @@
-/** Exact command-level coverage matrix for interaction-capable CLI source sites. */
+/** Command interaction coverage, reachable prompt policies, and one explicit upstream refusal. */
 
 export interface NoInputMatrixCase {
   readonly commandPath: string;
+  readonly promptSite?: string;
+  readonly upstreamRefusalFor?: "safety.indeterminate-lifecycle";
   readonly args: readonly string[];
   readonly fixture?: "bare" | "arc-project";
-  readonly setup?: "provisional-stub" | "planned-stub";
+  readonly setup?: "provisional-stub" | "planned-stub" | "local-notes" | "reachable-origin" | "unreachable-origin" | "store-pointer";
+  readonly configuration?: "full-protection";
   readonly expected: { readonly exitCode: number; readonly outputIncludes?: string };
   readonly stdin?: string;
   readonly preservesWorktree?: true;
 }
 
 /**
- * Each case runs in a fresh piped-stdio repository with CI and `--no-input` set.
- * Repository inventory tests exact-match these command paths to live interaction sites.
+ * Each case runs from an independent repository under distinct unavailable-interaction contexts.
+ * Repository inventory tests reconcile command coverage and named prompt-policy coverage separately.
  */
-export const NO_INPUT_MATRIX = Object.freeze([
+export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
+  { commandPath: "agenda", args: ["agenda", "session-init", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"mode\":\"agenda\"" } },
+  { commandPath: "inbox", args: ["inbox", "personal", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "route", args: ["route", "--to", "project"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "locus release", args: ["locus", "release"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "handoff write", args: ["handoff", "write", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort close", args: ["cohort", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort remove", args: ["cohort", "remove", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "abandon", args: ["abandon", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "attest", args: ["attest", "matrix", "--json"], expected: { exitCode: 1, outputIncludes: "\"status\":\"rejected\"" } },
+  { commandPath: "base merge", args: ["base", "merge", "--expected-base", "invalid", "--expected-head", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "candidate applicability resolve", args: ["candidate", "applicability", "resolve", "matrix", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"state\":\"invalid-input\"" } },
   { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
-  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "full-protection verb" } },
+  { commandPath: "check increment", args: ["check", "increment", "--json", "--force"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check gate", args: ["check", "gate", "commit", "--all", "--dry-run", "--serial", "--ci", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check run", args: ["check", "run", "missing", "--json"], fixture: "arc-project", expected: { exitCode: 2, outputIncludes: "Unknown check missing" } },
+  { commandPath: "check segment", args: ["check", "segment", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check new-head", args: ["check", "new-head", "--from", "HEAD", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check pre-commit", args: ["check", "pre-commit", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check pre-push", args: ["check", "pre-push", "origin", "local-origin", "--json"], stdin: "", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "no refs selected" } },
+  { commandPath: "deactivate", args: ["deactivate", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "decompose", args: ["decompose", "origin", "--preflight"], fixture: "arc-project", expected: { exitCode: 1 } },
+  { commandPath: "delivery compose", args: ["delivery", "compose", "--landed-prefix", "not-json", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery checks observe", args: ["delivery", "checks", "observe", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "invalid-input" } },
+  { commandPath: "delivery eligibility close", args: ["delivery", "eligibility", "close", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery eligibility prepare", args: ["delivery", "eligibility", "prepare", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery entry inspect", args: ["delivery", "entry", "inspect", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery land apply", args: ["delivery", "land", "apply", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery land prepare", args: ["delivery", "land", "prepare", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-prepare", args: ["delivery", "native", "land-prepare", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-release", args: ["delivery", "native", "land-release", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-select", args: ["delivery", "native", "land-select", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-status", args: ["delivery", "native", "land-status", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-submit", args: ["delivery", "native", "land-submit", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native link", args: ["delivery", "native", "link", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native observe", args: ["delivery", "native", "observe", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native unlink", args: ["delivery", "native", "unlink", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery plan abandon", args: ["delivery", "plan", "abandon", "--json"], expected: { exitCode: 1 } },
+  { commandPath: "delivery plan from-branch", args: ["delivery", "plan", "from-branch", "--json"], expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery plan from-tasks", args: ["delivery", "plan", "from-tasks", "--json"], expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery position", args: ["delivery", "position", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery publish", args: ["delivery", "publish", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery reconcile", args: ["delivery", "reconcile", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery refresh execute", args: ["delivery", "refresh", "execute", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery rematerialize", args: ["delivery", "rematerialize", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery review-fix continue", args: ["delivery", "review-fix", "continue", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery rewrite", args: ["delivery", "rewrite", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery teardown", args: ["delivery", "teardown", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery top-remedy", args: ["delivery", "top-remedy", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "demote", args: ["demote", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "errand merge", args: ["errand", "merge", "matrix", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: '"operation":"errand-close"' } },
+  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
+  { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
-  { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"], fixture: "bare", expected: { exitCode: 0 } },
-  { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
-  { commandPath: "join", args: ["join", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
-  { commandPath: "promote", args: ["promote", "matrix"], setup: "provisional-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --class" } },
+  { commandPath: "hook-validate-frontmatter", args: ["hook-validate-frontmatter"], fixture: "bare", expected: { exitCode: 0 } },
+  { commandPath: "init", promptSite: "prompt.init.tools", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
+  { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
+  { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "publish", args: ["publish", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "join", args: ["join", "--tools", "", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
+  { commandPath: "materialize", args: ["materialize", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "pause", args: ["pause", "matrix", "--reason", "blocked", "--no-waits-on", "--no-resume-notes", "--no-open"], expected: { exitCode: 1 } },
+  { commandPath: "handover", args: ["handover", "matrix", "--to", "other"], expected: { exitCode: 1 } },
+  { commandPath: "task close", args: ["task", "close"], expected: { exitCode: 1 } },
+  { commandPath: "task defer", args: ["task", "defer", "1.1"], expected: { exitCode: 1 } },
+  { commandPath: "park", args: ["park", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "promote", args: ["promote", "matrix"], setup: "provisional-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --class <value>" } },
   { commandPath: "release commit", args: ["release", "commit"], expected: { exitCode: 11, outputIncludes: "interlock-not-authorized" } },
-  { commandPath: "release setup install", args: ["release", "setup", "install", "--json"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "missing required input" } },
-  { commandPath: "release setup uninstall", args: ["release", "setup", "uninstall", "--harness", "matrix", "--json"], preservesWorktree: true, expected: { exitCode: 0, outputIncludes: "\"command\": \"uninstall\"" } },
+  { commandPath: "rename", args: ["rename"], expected: { exitCode: 1 } },
+  { commandPath: "reopen", args: ["reopen", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "repoint-design", args: ["repoint-design", "invalid"], expected: { exitCode: 1 } },
+  { commandPath: "resume", args: ["resume", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "review", args: ["review", "reduce", "-"], stdin: "", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
-  { commandPath: "review chunking resolve", args: ["review", "chunking", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review changeset resolve", args: ["review", "changeset", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review change-request resolve", args: ["review", "change-request", "resolve", "--head-ref", "feat/matrix", "--head-sha", "invalid"], fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "review frontline run", args: ["review", "frontline", "run", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
-  { commandPath: "start", args: ["start", "matrix", "--here"], setup: "planned-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "cannot start `matrix`" } },
+  { commandPath: "review planning-grooming resolve", args: ["review", "planning-grooming", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review planning-lane", args: ["review", "planning-lane", "invalid", "invalid"], expected: { exitCode: 64 } },
+  { commandPath: "review pre-publication", args: ["review", "pre-publication", "invalid"], expected: { exitCode: 1 } },
+  { commandPath: "review status", args: ["review", "status", "--target", "{}"], fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "review terminus accept", args: ["review", "terminus", "accept", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "set-class", args: ["set-class", "invalid"], expected: { exitCode: 1 } },
+  { commandPath: "set-stage", args: ["set-stage", "invalid"], expected: { exitCode: 1 } },
+  { commandPath: "start", promptSite: "prompt.start.create-new", args: ["start", "matrix", "--new"], setup: "reachable-origin", expected: { exitCode: 0, outputIncludes: "Ceremony committed and pushed." } },
+  { commandPath: "start", upstreamRefusalFor: "safety.indeterminate-lifecycle", args: ["start", "matrix", "--new"], setup: "unreachable-origin", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "could not completely expand remote work-unit candidates; retry `arc start`." } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
-  { commandPath: "stub", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input" } },
+  { commandPath: "store conflict", args: ["store", "conflict", "11111111-1111-4111-8111-111111111111", "work-item/conflict-record", "absent", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"status":"absent"' } },
+  { commandPath: "store repair-review-roots", args: ["store", "repair-review-roots", "-"], stdin: "{}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "review.evidence-root-selection.request" } },
+  { commandPath: "store migrate", args: ["store", "migrate", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"move":"layout"' } },
+  { commandPath: "store remote", promptSite: "prompt.store.own-state", args: ["store", "remote", "origin", "push"], fixture: "bare", setup: "store-pointer", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "--own-state" } },
+  { commandPath: "stub", promptSite: "prompt.stub.commitment", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --commitment <tier>, --priority <priority>" } },
   { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 1, outputIncludes: "notes-blocked" } },
+  { commandPath: "teardown", args: ["teardown", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "update", args: ["update", "--quiet"], expected: { exitCode: 0, outputIncludes: "Update complete" } },
-  { commandPath: "user open", args: ["user", "open", "matrix"], expected: { exitCode: 0, outputIncludes: "User workspace opened" } },
-  { commandPath: "user pull", args: ["user", "pull"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Remote unavailable" } },
-  { commandPath: "user sync", args: ["user", "sync"], expected: { exitCode: 1, outputIncludes: "No remote configured" } },
+  { commandPath: "user inbox-mark-execute-bound", args: ["user", "inbox-mark-execute-bound", "-"], stdin: "{\"schemaVersion\":1,\"orderedTitles\":[\"Matrix errand\"]}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "\"state\":\"refused\"" } },
+  { commandPath: "user pull", promptSite: "prompt.user-pull.overwrite", args: ["user", "pull", "--identity", "matrix"], setup: "local-notes", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Local notes would be overwritten; re-run with --yes to authorize the pull." } },
+  { commandPath: "user reconcile-references", args: ["user", "reconcile-references", "--json"], expected: { exitCode: 0 } },
   { commandPath: "view", args: ["view"], expected: { exitCode: 1, outputIncludes: "No active work unit" } },
-] satisfies readonly NoInputMatrixCase[]);
+  { commandPath: "wu reconcile", args: ["wu", "reconcile", "--json"], expected: { exitCode: 1 } },
+]);

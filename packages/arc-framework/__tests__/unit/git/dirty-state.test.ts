@@ -7,20 +7,31 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
-import { runDirtyStateStatus } from "../../../src/lib/git/dirty-state.js";
+import { DirtyStateResultSchema, runDirtyStateStatus } from "../../../src/lib/git/dirty-state.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 
 function execWithPorcelain(stdout: string): GitExec {
-  return async (cmd, args) => {
-    if (cmd !== "git" || args[0] !== "status" || args[1] !== "--porcelain") {
-      throw new Error(`unexpected git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    return { stdout, stderr: "" };
-  };
+  return scriptGitExec([{ match: ["status", "--porcelain"], responses: [{ stdout }] }]).exec;
 }
 
 describe("runDirtyStateStatus", () => {
+  it.each([
+    ["", "clean"],
+    [" M src/foo.ts\n", "dirty"],
+  ] as const)("parses producer output in the %s case", async (porcelain, state) => {
+    const result = await runDirtyStateStatus({ exec: execWithPorcelain(porcelain) });
+    expect(result.state).toBe(state);
+    assertSchemaAccepts(DirtyStateResultSchema, result);
+  });
+
+  it("names an undeclared dirty-state field", async () => {
+    const result = await runDirtyStateStatus({ exec: execWithPorcelain(" M src/foo.ts\n") });
+    expect(() => DirtyStateResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/);
+  });
+
   it("returns clean state when porcelain output is empty", async () => {
     const result = await runDirtyStateStatus({ exec: execWithPorcelain("") });
     expect(result).toEqual({ state: "clean", fileCount: 0 });

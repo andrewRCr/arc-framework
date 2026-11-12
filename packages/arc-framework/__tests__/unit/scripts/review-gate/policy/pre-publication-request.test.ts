@@ -1,0 +1,1607 @@
+/**
+ * Lane policy-request composition for the pre-publication procedure.
+ *
+ * The composition's contract is that the CLI owns what the caller must not carry — per-attempt
+ * progress, source order, pass ceilings — and refuses rather than guessing at what the repository
+ * cannot supply.
+ */
+
+import { describe, expect, it, vi } from "vitest";
+
+import { approvedRecord as approvedResponseRecord } from "../../../../fixtures/review-response-proof.js";
+
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
+import {
+  applyCarriedOwnerAcceptedTerminus,
+  applyCarriedStandardReviewReservation,
+  composePrePublicationReviewRequest,
+  type AssuranceRead,
+  type CandidateRead,
+  type ImmutableTargetRead,
+  type PrePublicationCompositionDependencies,
+  type ReviewLane,
+  type TargetRead,
+} from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
+import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
+import {
+  ReviewOperationStateSchema,
+  type ReviewOperationState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { ReviewOperationStateStore } from
+  "../../../../../src/scripts/review-gate/core/ports.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
+import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
+import { resolveNativeExtraPassJudgment } from "../../../../../src/scripts/review-gate/runtime/native-extra-pass.js";
+import {
+  readLaneProgressAcrossLineage,
+  recordLaneAttempt,
+} from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { createStandardReviewReservation } from
+  "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  projectPrePublicationCandidateRead,
+  selectPrePublicationReservationTarget,
+} from "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { resolveReviewRouting } from
+  "../../../../../src/scripts/review-gate/policy/routing.js";
+import { projectStandardReviewObligation } from
+  "../../../../../src/scripts/review-gate/policy/standard-review-projection.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  type CandidateManagedRecordV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
+
+const HEAD = "a".repeat(40);
+const PREPUBLICATION_HEAD = "b".repeat(40);
+const CANDIDATE_ID: `sha256:${string}` = `sha256:${"c".repeat(64)}`;
+const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
+const WORK_UNIT_ID = SlugSchema.parse("example");
+const OWNER_TERMINUS = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-terminus/v1" as const,
+  kind: "owner-accepted" as const,
+  lane: "standard" as const,
+  acceptedBy: "andrew",
+  completedPasses: 5,
+};
+const digest = (value: string) => canonicalDigest({ value });
+
+const currentCandidate: CandidateRead = {
+  status: "current",
+  candidateId: CANDIDATE_ID,
+  headSha: HEAD,
+  subjectDigest: `sha256:${"d".repeat(64)}`,
+  implementationChanged: false,
+  convergenceVerification: "satisfied",
+  convergenceScope: null,
+  lineageHeadShas: [HEAD],
+};
+
+const resolvedAssurance: AssuranceRead = {
+  status: "resolved",
+  assurance: { workContext: "work-unit", workClass: "Heavy" },
+  activity: { selfReview: true, frontlineReview: false },
+};
+
+const resolvedTarget: TargetRead = {
+  status: "resolved",
+  target: { repository: "arc-framework/example", pullRequest: null, headSha: HEAD },
+};
+
+const immutableTarget: ImmutableTargetRead = {
+  status: "resolved",
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "arc-framework/example",
+    baseRef: "main",
+    diffBaseSha: "c".repeat(40),
+    diffBaseTree: "d".repeat(40),
+    headSha: HEAD,
+    headTree: "e".repeat(40),
+  }),
+};
+
+function deliveryMemberTarget(input: {
+  deliverableCharacter: string;
+  baseCharacter: string;
+  headCharacter: string;
+}) {
+  const head = input.headCharacter.repeat(40);
+  return {
+    target: createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "arc-framework/example",
+      baseRef: "main",
+      diffBaseSha: input.baseCharacter.repeat(40),
+      diffBaseTree: input.baseCharacter.repeat(40),
+      headSha: head,
+      headTree: input.headCharacter.repeat(40),
+    }),
+    vehicle: {
+      kind: "delivery-member" as const,
+      planId: DELIVERY_PLAN_ID,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${input.deliverableCharacter.repeat(64)}`),
+      workUnitId: WORK_UNIT_ID,
+      head,
+    },
+  };
+}
+
+function frontlineCleanResult(
+  producerId: string,
+  member: ReturnType<typeof deliveryMemberTarget>,
+): ReviewResult {
+  const source = {
+    sourceId: "coderabbit-cli",
+    kind: "command" as const,
+    executable: "coderabbit",
+    argv: ["review"],
+  };
+  const outcome = {
+    schemaVersion: 1 as const,
+    semanticsVersion: "frontline-review/v1" as const,
+    source,
+    target: member.target,
+    pass: 1,
+    maxPasses: 2,
+    outcome: "clean" as const,
+    findings: [],
+    reason: null,
+  };
+  return {
+    kind: "frontline",
+    producerId,
+    repositoryId: member.target.repositoryId,
+    target: member.target,
+    sourceIdentity: source.sourceId,
+    originalOutcome: "clean",
+    findings: [],
+    resultDigest: digest(producerId),
+    admission: {
+      lineage: {
+        kind: "delivery-member",
+        planId: member.vehicle.planId,
+        deliverableId: member.vehicle.deliverableId,
+        workUnitId: member.vehicle.workUnitId,
+      },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      scopeMode: "whole-target",
+      policyVersion: digest("frontline-policy"),
+    },
+    outcomeRef: `frontline/${producerId}`,
+    sourceBindingId: digest(source.sourceId),
+    executableIdentity: null,
+    outcome,
+  };
+}
+
+const defaultStandardReview = projectStandardReviewObligation(resolveReviewRouting({
+  schemaVersion: 1,
+  changeSetState: "unknown",
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+  assurance: resolvedAssurance.assurance,
+  activity: resolvedAssurance.activity,
+}).decision);
+
+function hostedFindingsResult(
+  producerId: string,
+  pullRequest: number,
+  projection = defaultStandardReview,
+): ReviewResult {
+  if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+  const requirement = createReviewRequirement({
+    target: immutableTarget.target,
+    projection,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("expected requirement");
+  return {
+    kind: "hosted",
+    producerId,
+    repositoryId: immutableTarget.target.repositoryId,
+    target: immutableTarget.target,
+    sourceIdentity: "codex-pr",
+    originalOutcome: "findings",
+    findings: [{
+      findingId: "finding-1",
+      severity: "major",
+      locus: "src/example.ts:1",
+      evidenceUrlOrId: "hosted:finding-1",
+      sourceOrdinal: 1,
+    }],
+    resultDigest: digest(`${producerId}-result`),
+    admission: {
+      lineage: { kind: "candidate", candidateId: CANDIDATE_ID },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      scopeMode: "whole-target",
+      policyVersion: requirement.policyVersion,
+    },
+    laneOperationId: "lane-progress-standard",
+    actorIdentity: "reviewer-1",
+    hostedTarget: {
+      repository: "arc-framework/example",
+      pullRequest,
+      headSha: HEAD,
+    },
+    requirement,
+    hostSettlementFindingIds: [],
+    noHostSettlementFindingIds: [],
+    settled: false,
+  };
+}
+
+function approvedRecord(result: ReviewResult) {
+  return approvedResponseRecord(result, [{
+    sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
+  }]);
+}
+
+function evidenceDependencies(results: readonly ReviewResult[]) {
+  const dispositions = new Map(results.filter((result) => result.originalOutcome === "findings")
+    .map((result) => [result.producerId, approvedRecord(result)]));
+  return {
+    resultReader: {
+      readResult: vi.fn(async (producerId: string) => {
+        const result = results.find((candidate) => candidate.producerId === producerId);
+        if (result === undefined) throw new Error("missing result");
+        return result;
+      }),
+    },
+    dispositionStore: {
+      readDispositionRecord: vi.fn(async (producerId: string) => dispositions.get(producerId) ?? null),
+    },
+    readResponsePerformance: vi.fn(async () => null),
+  };
+}
+
+function dependencies(
+  overrides: Partial<PrePublicationCompositionDependencies> = {},
+): PrePublicationCompositionDependencies {
+  return {
+    resultReader: {
+      readResult: vi.fn(async () => {
+        throw new Error("unexpected review result read");
+      }),
+    },
+    dispositionStore: {
+      readDispositionRecord: vi.fn(async () => null),
+    },
+    readResponsePerformance: vi.fn(async () => null),
+    confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),
+    confirmPriorProducerApplicability: vi.fn(async () => "applicable" as const),
+    readCandidate: vi.fn(async () => currentCandidate),
+    readAssurance: vi.fn(async () => resolvedAssurance),
+    resolveTarget: vi.fn(async () => resolvedTarget),
+    readReservationTarget: vi.fn(async (_workUnit, singleton) => ({
+      status: "resolved" as const,
+      target: { kind: "pinned-head" as const, ...singleton },
+    })),
+    readDeliveryReviewTargets: vi.fn(async () => ({ status: "absent" as const })),
+    deriveImmutableTarget: vi.fn(async () => immutableTarget),
+    readOwnerTerminusAuthority: vi.fn(async () => ({
+      status: "authorized" as const,
+      ownerIdentity: "andrew",
+    })),
+    readLaneProgress: vi.fn(async (): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: 0,
+      completePasses: 0,
+      attempts: [],
+    })),
+    readLanePolicy: vi.fn(async (lane: ReviewLane) => lane === "frontline"
+      ? { sources: [], maxPasses: 2 }
+      : { sources: ["codex-pr"], maxPasses: 2 }),
+    ...overrides,
+  };
+}
+
+function memoryOperationStore(): ReviewOperationStateStore {
+  const records = new Map<string, { version: number; state: ReviewOperationState }>();
+  return {
+    readOperation: async (operationId) => records.get(operationId) ?? { version: 0, state: null },
+    publishOperation: async (state, expectedVersion) => {
+      const current = records.get(state.operationId);
+      if ((current?.version ?? 0) !== expectedVersion) throw new Error("version-conflict");
+      records.set(state.operationId, {
+        version: expectedVersion + 1,
+        state: ReviewOperationStateSchema.parse(state),
+      });
+      return { version: expectedVersion + 1 };
+    },
+  };
+}
+
+function twoMemberCeilingFixture() {
+  const first = deliveryMemberTarget({
+    deliverableCharacter: "1",
+    baseCharacter: "2",
+    headCharacter: "3",
+  });
+  const second = deliveryMemberTarget({
+    deliverableCharacter: "4",
+    baseCharacter: "3",
+    headCharacter: "5",
+  });
+  const firstResult = frontlineCleanResult("first-clean", first);
+  const deps = Object.assign(dependencies({
+    ...evidenceDependencies([firstResult]),
+    readAssurance: async () => ({
+      ...resolvedAssurance,
+      activity: { selfReview: true, frontlineReview: true },
+    }),
+    readLanePolicy: async (lane) => lane === "frontline"
+      ? { sources: ["coderabbit-cli", "codex-cli"], maxPasses: 2 }
+      : { sources: ["codex-pr"], maxPasses: 2 },
+    readLaneProgress: async (lane, headSha) => lane === "frontline" && headSha === first.target.headSha
+      ? {
+          status: "recorded" as const,
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [{
+            attemptId: "first-clean",
+            logicalPass: 1,
+            sourceId: "coderabbit-cli",
+            outcome: "clean" as const,
+          }],
+        }
+      : lane === "frontline"
+        ? {
+            status: "recorded" as const,
+            completedPasses: 2,
+            completePasses: 2,
+            attempts: [{
+              attemptId: "second-rate-limited",
+              logicalPass: 2,
+              sourceId: "coderabbit-cli",
+              outcome: "rate-limited" as const,
+            }],
+          }
+        : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
+    readReservationTarget: async (_workUnit, singleton) => ({
+      status: "resolved" as const,
+      target: {
+        kind: "delivery" as const,
+        repository: singleton.repository,
+        planId: DELIVERY_PLAN_ID,
+        workUnitId: WORK_UNIT_ID,
+      },
+    }),
+  }), {
+    readDeliveryReviewTargets: async () => ({
+      status: "composed" as const,
+      planId: DELIVERY_PLAN_ID,
+      targets: [first, second],
+    }),
+  });
+  return { first, second, deps };
+}
+
+describe("composePrePublicationReviewRequest", () => {
+  it("preserves a corrupt lane-record error for the command's repair refusal", async () => {
+    const corrupt = Object.assign(new Error("malformed disposition record"), { code: "corrupt-state" });
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" },
+      dependencies({ readLaneProgress: async () => { throw corrupt; } }))).rejects.toBe(corrupt);
+  });
+
+  it("re-enters after a frontline timeout retry with one composable source attempt", async () => {
+    if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+    const store = memoryOperationStore();
+    const sourceId = "coderabbit-cli";
+    const source = { sourceId, kind: "command" as const, executable: "coderabbit", argv: ["review"] };
+    const routingResolution = resolveReviewRouting({
+      schemaVersion: 1,
+      changeSetState: "unknown",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "ordinary",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: { selfReview: true, frontlineReview: true },
+    });
+    const admit = (retryGeneration: number) => createFrontlineAdmission({
+      lineage: { kind: "candidate", candidateId: CANDIDATE_ID },
+      target: immutableTarget.target,
+      routing: { facts: routingResolution.facts, decision: routingResolution.decision },
+      frontlineReview: {
+        schemaVersion: 1,
+        semanticsVersion: "frontline-review/v1",
+        action: "attempt",
+        reasons: ["routine-code"],
+        source,
+        maxPasses: 2,
+        promptText: "Review the aggregate candidate.",
+      },
+      logicalPass: 1,
+      retryGeneration,
+      maxPasses: 2,
+    });
+    const firstAdmission = admit(0);
+    const retryAdmission = admit(1);
+    const cleanResult: ReviewResult = {
+      kind: "frontline",
+      producerId: retryAdmission.operationId,
+      repositoryId: immutableTarget.target.repositoryId,
+      target: immutableTarget.target,
+      sourceIdentity: sourceId,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest(retryAdmission.operationId),
+      admission: {
+        lineage: retryAdmission.lineage,
+        logicalPass: 1,
+        retryGeneration: 1,
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        scopeMode: "whole-target",
+        policyVersion: retryAdmission.policyVersion,
+      },
+      outcomeRef: `frontline/${retryAdmission.operationId}`,
+      sourceBindingId: digest(sourceId),
+      executableIdentity: null,
+      outcome: {
+        schemaVersion: 1,
+        semanticsVersion: "frontline-review/v1",
+        source,
+        target: immutableTarget.target,
+        pass: 1,
+        maxPasses: 2,
+        outcome: "clean",
+        findings: [],
+        reason: null,
+      },
+    };
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      lineage: firstAdmission.lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: firstAdmission.operationId,
+      sourceId,
+      outcome: "timed-out",
+      consumedPass: false,
+      chunkSeriesComplete: false,
+      frontline: { admission: firstAdmission, effectiveCoverage: null },
+      now: "2026-08-15T12:00:00Z",
+    });
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      lineage: retryAdmission.lineage,
+      logicalPass: 1,
+      retryGeneration: 1,
+      attemptId: retryAdmission.operationId,
+      sourceId,
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      frontline: { admission: retryAdmission, effectiveCoverage: "complete" },
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        ...evidenceDependencies([cleanResult]),
+        readAssurance: async () => ({
+          ...resolvedAssurance,
+          activity: { selfReview: true, frontlineReview: true },
+        }),
+        readLanePolicy: async (lane) => lane === "frontline"
+          ? { sources: [sourceId], maxPasses: 2 }
+          : { sources: ["codex-pr"], maxPasses: 2 },
+        readLaneProgress: async (lane, headSha, lineageHeadShas, lineage) =>
+          readLaneProgressAcrossLineage(store, {
+            lane,
+            repositoryId: immutableTarget.target.repositoryId,
+            headSha,
+            lineageHeadShas,
+            ...(lineage === undefined ? {} : { lineage }),
+          }),
+      }),
+    );
+
+    expect(composition.status, composition.status === "refused" ? composition.reason : undefined).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      completedPasses: 1,
+      attempts: [{ sourceId, outcome: "clean" }],
+    });
+  });
+
+  it("recomposes the reviewed head while an approved Candidate fix awaits settlement", () => {
+    const subject = createCandidateSubjectSnapshot([]);
+    const attestation = createCandidateAttestation({
+      workUnit: "example",
+      subject,
+      baseRevision: HEAD,
+      attestedBy: "andrew",
+      attestedAt: "2026-09-08T12:00:00.000Z",
+      verificationEvidenceRef: "verification://root",
+    });
+    const record: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation,
+      subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+
+    expect(projectPrePublicationCandidateRead({
+      record,
+      effective: {
+        schemaVersion: 1,
+        mode: "candidate-effective-target",
+        state: "changed",
+        nextAction: "establish-new-root",
+        candidateId: attestation.candidateId,
+        durableBaselineTarget: { revision: HEAD, subject },
+        currentTarget: {
+          revision: PREPUBLICATION_HEAD,
+          subject: createCandidateSubjectSnapshot([{
+            path: "src/index.ts",
+            mode: "100644",
+            digest: `sha256:${"f".repeat(64)}`,
+            treatment: "reviewable",
+          }]),
+        },
+        projectionDigest: `sha256:${"1".repeat(64)}`,
+        residualDigest: `sha256:${"2".repeat(64)}`,
+        selectedBy: "andrew",
+      },
+      pending: {
+        status: "selected",
+        candidateId: attestation.candidateId,
+        operationId: "operation-1",
+        reviewedHead: "9".repeat(40),
+        reviewedTarget: createReviewTarget({
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "delivery-member",
+          repositoryId: "arc-framework/example",
+          baseRef: "main",
+          diffBaseSha: "8".repeat(40),
+          diffBaseTree: "7".repeat(40),
+          headSha: "9".repeat(40),
+          headTree: "6".repeat(40),
+        }),
+      },
+    })).toMatchObject({
+      status: "current",
+      candidateId: attestation.candidateId,
+      headSha: "9".repeat(40),
+      subjectDigest: subject.subjectDigest,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      lineageHeadShas: expect.arrayContaining([HEAD, "9".repeat(40)]),
+    });
+  });
+
+  it.each(["planned", "bound"] as const)(
+    "selects a delivery marker from one authoritative %s plan",
+    (status) => {
+      expect(selectPrePublicationReservationTarget({
+        workUnit: "example",
+        singleton: { repository: "arc-framework/example", headSha: HEAD },
+        delivery: {
+          status,
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: WORK_UNIT_ID,
+        },
+      })).toEqual({
+        status: "resolved",
+        target: {
+          kind: "delivery",
+          repository: "arc-framework/example",
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: WORK_UNIT_ID,
+        },
+      });
+    },
+  );
+
+  it("selects the singleton target only from authoritative plan absence", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: { status: "absent" },
+    })).toEqual({
+      status: "resolved",
+      target: { kind: "pinned-head", repository: "arc-framework/example", headSha: HEAD },
+    });
+  });
+
+  it("refuses when delivery authority cannot establish the reservation target", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: { status: "unavailable" },
+    })).toEqual({
+      status: "refused",
+      reason: "The pre-publication reservation target could not be resolved from delivery records.",
+    });
+  });
+
+  it("refuses a resolved plan that belongs to a different work unit", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: {
+        status: "planned",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+        workUnitId: "other",
+      },
+    })).toMatchObject({ status: "refused" });
+  });
+
+  it("keeps a carried reservation's source order after an approved Candidate subject advance", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: [], maxPasses: 2 }
+        : { sources: ["codex-pr", "coderabbit-pr"], maxPasses: 2 },
+    }));
+    const rebound = applyCarriedStandardReviewReservation(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      reservation: createStandardReviewReservation({
+        candidateId: CANDIDATE_ID,
+        sourceId: "coderabbit-pr",
+        sources: ["coderabbit-pr", "codex-pr"],
+        repository: "arc-framework/example",
+        headSha: PREPUBLICATION_HEAD,
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"e".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      }),
+    });
+
+    expect(rebound.status).toBe("composed");
+    if (rebound.status !== "composed") return;
+    expect(rebound.request.standard.target.headSha).toBe(HEAD);
+    expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
+  });
+
+  it("reapplies an Owner terminus only to the exact stored Candidate subject", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    const carried = applyCarriedOwnerAcceptedTerminus(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
+      terminus: OWNER_TERMINUS,
+    });
+    const findingsAdvanced = applyCarriedOwnerAcceptedTerminus(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      terminus: OWNER_TERMINUS,
+    });
+
+    expect(carried.status).toBe("composed");
+    if (carried.status !== "composed" || findingsAdvanced.status !== "composed") return;
+    expect(carried.request.standard.terminus).toEqual(OWNER_TERMINUS);
+    expect(findingsAdvanced.request.standard).not.toHaveProperty("terminus");
+  });
+
+  it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      lane: "frontline",
+      target: resolvedTarget.status === "resolved" ? resolvedTarget.target : null,
+      sources: [],
+      maxPasses: 2,
+      completedPasses: 0,
+    });
+    expect(composition.request.standard).toMatchObject({
+      lane: "standard",
+      sources: ["codex-pr"],
+      maxPasses: 2,
+    });
+    expect(composition.request.candidateId).toBe(CANDIDATE_ID);
+  });
+
+  it("composes the exact target the operations it routes to bind against", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target)
+      .toEqual(immutableTarget.status === "resolved" ? immutableTarget.target : null);
+    // The lane target routes; the exact target identifies. Conflating them is what left the
+    // exact-target operations with no obtainable input.
+    expect(composition.request.frontline.target).not.toHaveProperty("targetId");
+  });
+
+  it("selects the first outstanding delivery member while retaining the root Candidate", async () => {
+    const first = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const second = deliveryMemberTarget({
+      deliverableCharacter: "4",
+      baseCharacter: "3",
+      headCharacter: "5",
+    });
+    const deriveImmutableTarget = vi.fn(async () => immutableTarget);
+    const firstResult = frontlineCleanResult("first-clean", first);
+    const readLaneProgress = vi.fn(async (
+      lane: ReviewLane,
+      headSha: string,
+    ): Promise<LaneProgressProjection> => lane === "frontline" && headSha === first.target.headSha
+      ? {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [{ attemptId: "first-clean", logicalPass: 1, sourceId: "coderabbit-cli", outcome: "clean" }],
+        }
+      : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
+    const deps = Object.assign(dependencies({
+      ...evidenceDependencies([firstResult]),
+      deriveImmutableTarget,
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: ["coderabbit-cli"], maxPasses: 2 }
+        : { sources: ["codex-pr"], maxPasses: 2 },
+      readLaneProgress,
+      readReservationTarget: async (_workUnit, singleton) => ({
+        status: "resolved" as const,
+        target: {
+          kind: "delivery" as const,
+          repository: singleton.repository,
+          planId: DELIVERY_PLAN_ID,
+          workUnitId: WORK_UNIT_ID,
+        },
+      }),
+    }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [first, second],
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(second.target);
+    expect(composition.request.frontline.target).toEqual({
+      repository: "arc-framework/example",
+      pullRequest: null,
+      headSha: second.target.headSha,
+    });
+    expect(composition.request.standard.target).toEqual(composition.request.frontline.target);
+    expect(composition.request.responseBinding).toEqual({
+      candidate: { workUnit: WORK_UNIT_ID, candidateId: CANDIDATE_ID, head: HEAD },
+      deliveryMember: second.vehicle,
+    });
+    expect(deriveImmutableTarget).toHaveBeenCalledOnce();
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha], {
+      kind: "delivery-member", planId: first.vehicle.planId,
+      deliverableId: first.vehicle.deliverableId, workUnitId: first.vehicle.workUnitId,
+    });
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha], {
+      kind: "delivery-member", planId: second.vehicle.planId,
+      deliverableId: second.vehicle.deliverableId, workUnitId: second.vehicle.workUnitId,
+    });
+  });
+
+  it("resumes a pending private-member fix whose reviewed head differs from the Candidate head", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const readDeliveryReviewTargets = vi.fn();
+    const deriveImmutableTarget = vi.fn();
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "frontline" ? 1 : 2,
+      completePasses: lane === "frontline" ? 1 : 2,
+      attempts: [],
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, pendingReviewTarget: member.target }),
+        readDeliveryReviewTargets,
+        deriveImmutableTarget,
+        readLaneProgress,
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(member.target);
+    expect(composition.request.frontline.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.frontline.completedPasses).toBe(1);
+    expect(composition.request.standard.completedPasses).toBe(2);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", member.target.headSha, [member.target.headSha], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", member.target.headSha, [member.target.headSha], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
+    expect(composition.request.responseBinding).toBeUndefined();
+    expect(readDeliveryReviewTargets).not.toHaveBeenCalled();
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+  });
+
+  it("retains the terminal member after every delivery-member frontline result settles", async () => {
+    const first = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const terminal = deliveryMemberTarget({
+      deliverableCharacter: "4",
+      baseCharacter: "3",
+      headCharacter: "5",
+    });
+    const results = [
+      frontlineCleanResult(`clean-${first.target.headSha}`, first),
+      frontlineCleanResult(`clean-${terminal.target.headSha}`, terminal),
+    ];
+    const deps = Object.assign(dependencies({
+      ...evidenceDependencies(results),
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: ["coderabbit-cli"], maxPasses: 2 }
+        : { sources: ["codex-pr"], maxPasses: 2 },
+      readLaneProgress: async (lane, headSha) => lane === "frontline"
+        ? {
+            status: "recorded" as const,
+            completedPasses: 1,
+            completePasses: 1,
+            attempts: [{
+              attemptId: `clean-${headSha}`,
+              logicalPass: 1,
+              sourceId: "coderabbit-cli",
+              outcome: "clean" as const,
+            }],
+          }
+        : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
+      readReservationTarget: async (_workUnit, singleton) => ({
+        status: "resolved" as const,
+        target: {
+          kind: "delivery" as const,
+          repository: singleton.repository,
+          planId: DELIVERY_PLAN_ID,
+          workUnitId: WORK_UNIT_ID,
+        },
+      }),
+    }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [first, terminal],
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(terminal.target);
+    expect(composition.request.frontline.target.headSha).toBe(terminal.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(terminal.target.headSha);
+    expect(composition.request.reservationTarget).toMatchObject({
+      kind: "delivery",
+      planId: DELIVERY_PLAN_ID,
+    });
+  });
+
+  it("applies a native frontline ceiling judgment to the selected member alone, whatever the others' counts", async () => {
+    const { first, second, deps } = twoMemberCeilingFixture();
+    const h = createReviewHarness(), owner = (await h.seedMeta("example")).reference.owner;
+    const facts = { decisions: createReviewDecisionPort(h.store, owner), readProjectId: async () => "arc-framework/example" };
+    const native: PrePublicationCompositionDependencies = { ...deps, stateOffBranch: true,
+      resolveExtraPassJudgment: async context => (await resolveNativeExtraPassJudgment({ ...context, facts,
+        repositoryId: context.repositoryId ?? "arc-framework/example", actor: "owner", now: "2026-10-30T12:00:00Z" })).judgment };
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example",
+      lanes: { frontline: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } } }, native);
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(second.target);
+    expect(composition.request.frontline.ceilingOverride).toMatchObject({
+      target: { headSha: second.target.headSha }, exhaustedPassCount: 2, nextPass: 3 });
+    const decisions = await facts.decisions.list();
+    expect(decisions.status === "complete" && decisions.records.map(({ value }) => value.subject.headSha)).toEqual([second.target.headSha]);
+    expect(first.target.headSha).not.toBe(second.target.headSha);
+  });
+
+  it("applies a frontline ceiling override only to its bound outstanding delivery member", async () => {
+    const { first, second, deps } = twoMemberCeilingFixture();
+    const lanes = {
+      frontline: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
+    };
+
+    const matching = await composePrePublicationReviewRequest({
+      workUnit: "example",
+      lanes,
+      frontlineCeilingHeadSha: second.target.headSha,
+    }, deps);
+    expect(matching.status).toBe("composed");
+    if (matching.status !== "composed") return;
+    expect(matching.request.target).toEqual(second.target);
+    expect(matching.request.frontline.ceilingOverride).toMatchObject({
+      target: { headSha: second.target.headSha },
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    });
+
+    const stale = await composePrePublicationReviewRequest({
+      workUnit: "example",
+      lanes,
+      frontlineCeilingHeadSha: first.target.headSha,
+    }, deps);
+    expect(stale.status).toBe("composed");
+    if (stale.status !== "composed") return;
+    expect(stale.request.target).toEqual(second.target);
+    expect(stale.request.frontline.ceilingOverride).toBeUndefined();
+  });
+
+  it("refuses unavailable delivery-member composition without an aggregate fallback", async () => {
+    const deriveImmutableTarget = vi.fn(async () => immutableTarget);
+    const deps = Object.assign(dependencies({ deriveImmutableTarget }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "refused" as const,
+        reason: "checkout-dirty",
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition).toEqual({
+      status: "refused",
+      reason: "The pre-publication delivery-member targets could not be composed (checkout-dirty).",
+    });
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+  });
+
+  it("refuses member targets that do not match the freshly selected delivery reservation", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const deps = Object.assign(dependencies(), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [member],
+      }),
+    });
+
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" }, deps)).resolves.toEqual({
+      status: "refused",
+      reason: "The pre-publication delivery targets do not match the selected reservation.",
+    });
+  });
+
+  it("refuses independently resolved targets that do not identify the Candidate head", async () => {
+    const policyMismatch = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      resolveTarget: vi.fn(async (): Promise<TargetRead> => ({
+        status: "resolved",
+        target: { repository: "arc-framework/example", pullRequest: null, headSha: "b".repeat(40) },
+      })),
+    }));
+    expect(policyMismatch).toMatchObject({ status: "refused", reason: expect.stringMatching(/Candidate head/u) });
+
+    const immutableMismatch = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      deriveImmutableTarget: vi.fn(async (): Promise<ImmutableTargetRead> => ({
+        status: "resolved",
+        target: createReviewTarget({
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "change-set",
+          repositoryId: "arc-framework/example",
+          baseRef: "main",
+          diffBaseSha: "c".repeat(40),
+          diffBaseTree: "d".repeat(40),
+          headSha: "b".repeat(40),
+          headTree: "e".repeat(40),
+        }),
+      })),
+    }));
+    expect(immutableMismatch).toMatchObject({
+      status: "refused",
+      reason: expect.stringMatching(/Candidate head/u),
+    });
+  });
+
+  it("reports an underivable exact target without refusing the work that needs none", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      deriveImmutableTarget: vi.fn(async (): Promise<ImmutableTargetRead> => ({
+        status: "unavailable",
+        reason: "the working tree is dirty",
+      })),
+    }));
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toBeNull();
+    expect(composition.advisories.join(" ")).toContain("the working tree is dirty");
+  });
+
+  it("routes an unestablished change set to a required standard obligation", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.standardReview.obligation).toBe("required");
+    expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
+  });
+
+  it.each([
+    ["asserts it known", { changeSetState: "known" }],
+    ["omits its state", {}],
+    ["asserts it unknown", { changeSetState: "unknown" }],
+  ])("routes a supplied change set whose caller %s through the router, not the unestablished default", async (_label, state) => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        changeSet: {
+          ...state,
+          contentKind: "documentation",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "planning-grooming",
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.standardReview.obligation).toBe("exempt");
+    expect(composition.request.standard.standardReview.reasons).not.toContain("unknown-change-set");
+    expect(composition.request.routingFacts.changeSetState).toBe("known");
+    expect(composition.advisories).toHaveLength(0);
+    expect(composition.routingDiagnostics).toBeUndefined();
+  });
+
+  it("reduces supplied facts in the composition rather than accepting a caller's obligation", async () => {
+    // The caller asserts facts; the two the repository establishes are not among them. A caller
+    // claiming a light class or an inactive method must not lower the route it receives.
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        changeSet: {
+          changeSetState: "known",
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "atomic",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+          assurance: { workContext: "work-unit", workClass: "Light" },
+          activity: { selfReview: false, frontlineReview: true },
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    // The caller's facts reached the reducer — an atomic code change set softens to `recommended`.
+    expect(composition.request.standard.standardReview.obligation).toBe("recommended");
+    // Its claims about the repository's own two facts did not: the fixture holds the inverse of both.
+    expect(composition.request.routingFacts).toEqual({
+      schemaVersion: 1,
+      changeSetState: "known",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "atomic",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: resolvedAssurance.activity,
+    });
+    expect(composition.request.frontline.frontlineActive).toBe(false);
+    expect(composition.request.selfReview).toBe("pending");
+    expect(composition.advisories).toHaveLength(0);
+  });
+
+  it.each([
+    ["an unrecognized fact value", { changeSetState: "known", contentKind: "prose" }, "contentKind"],
+    ["an unrecognized fact key", { changeSetState: "known", blastRadius: "wide" }, "blastRadius"],
+    ["a non-record change set", "documentation", "$"],
+    ["a change set missing facts", { contentKind: "documentation" }, "reviewRisk"],
+  ])("normalizes %s to the conservative route and says why", async (_label, changeSet, path) => {
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", changeSet },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.standardReview.obligation).toBe("required");
+    expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
+    expect(composition.advisories).toHaveLength(1);
+    expect(composition.advisories[0]).toContain(path);
+    expect(composition.routingDiagnostics).toContain(path);
+  });
+
+  it("refuses a producer prepared under other facts with both routings, and composes once they match", async () => {
+    const prepared = { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" };
+    const project = (facts: Record<string, string>) => {
+      const projection = projectStandardReviewObligation(resolveReviewRouting({ schemaVersion: 1,
+        changeSetState: "known", ...facts, assurance: resolvedAssurance.assurance, activity: resolvedAssurance.activity,
+      }).decision);
+      return { ...projection, reasons: [...projection.reasons].sort() };
+    };
+    const producer = hostedFindingsResult("attempt-1", 42, project(prepared));
+    const compose = (changeSet: Record<string, string>) => composePrePublicationReviewRequest(
+      { workUnit: "example", changeSet }, dependencies({
+        ...evidenceDependencies([producer]),
+        resolveTarget: async () => ({ status: "resolved", target: { ...resolvedTarget.target, pullRequest: 42 } }),
+        readLaneProgress: async (lane) => lane === "standard"
+          ? { status: "recorded", completedPasses: 1, completePasses: 1,
+              attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }] }
+          : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+      }));
+
+    expect(await compose({ ...prepared, reviewRisk: "routine" })).toMatchObject({
+      status: "refused",
+      code: "invalid-input",
+      routingMismatch: {
+        producerReview: project(prepared),
+        requestReview: { ...project({ ...prepared, reviewRisk: "routine" }), reasons: expect.any(Array) },
+      },
+    });
+    expect(await compose(prepared)).toMatchObject({ status: "composed" });
+  });
+
+  it("binds each lane's scope and ceiling judgment to the resolved target and lane", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: {
+          frontline: { scopeMode: "chunked" },
+          standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    // The caller supplies the judgment; the target and lane it would otherwise restate come from
+    // the composition, so a target or lane mismatch is not reachable from this path.
+    expect(composition.request.frontline.scopeSelection)
+      .toEqual({ mode: "chunked", target: resolvedTarget.status === "resolved" ? resolvedTarget.target : null });
+    expect(composition.request.frontline.ceilingOverride).toBeUndefined();
+    expect(composition.request.standard.scopeSelection).toBeUndefined();
+    expect(composition.request.standard.ceilingOverride).toMatchObject({
+      lane: "standard",
+      exhaustedPassCount: 2,
+      nextPass: 3,
+      target: resolvedTarget.status === "resolved" ? resolvedTarget.target : null,
+    });
+  });
+
+  it("carries explicit per-run lane invocations beside bounded scope", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: {
+          frontline: { scopeMode: "chunked", invocation: { mode: "skip" } },
+          standard: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "codex-pr" } },
+        },
+      },
+      dependencies({
+        readAssurance: async () => ({
+          ...resolvedAssurance,
+          activity: { selfReview: true, frontlineReview: true },
+        }),
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      frontlineActive: true,
+      invocation: { mode: "skip" },
+      scopeSelection: { mode: "chunked" },
+    });
+    expect(composition.request.standard).toMatchObject({
+      invocation: { mode: "force", sourceId: "codex-pr" },
+      scopeSelection: { mode: "whole-target" },
+    });
+  });
+
+  it("binds a conversational terminus to the authoritative Owner and observed standard progress", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: { standard: { terminus: { mode: "owner-accepted" } } },
+      },
+      dependencies({
+        readLaneProgress: async (lane) => ({
+          status: "recorded",
+          completedPasses: lane === "standard" ? 5 : 0,
+          completePasses: lane === "standard" ? 5 : 0,
+          attempts: [],
+        }),
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.terminus).toEqual({
+      schemaVersion: 1,
+      semanticsVersion: "review-terminus/v1",
+      kind: "owner-accepted",
+      lane: "standard",
+      acceptedBy: "andrew",
+      completedPasses: 5,
+    });
+    expect(composition.request.frontline).not.toHaveProperty("terminus");
+  });
+
+  it("refuses a conversational terminus when the active identity is not the Work Unit Owner", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: { standard: { terminus: { mode: "owner-accepted" } } },
+      },
+      dependencies({
+        readOwnerTerminusAuthority: async () => ({
+          status: "refused",
+          reason: "The active identity does not match the Work Unit Owner.",
+        }),
+      }),
+    );
+
+    expect(composition).toEqual({
+      status: "refused",
+      reason: "The active identity does not match the Work Unit Owner.",
+    });
+  });
+
+  it("omits both per-lane inputs when no judgment is supplied", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline.scopeSelection).toBeUndefined();
+    expect(composition.request.standard.ceilingOverride).toBeUndefined();
+  });
+
+  it.each([
+    ["an unrecognized scope mode", { standard: { scopeMode: "partial" } }],
+    ["a half-supplied ceiling override", { standard: { ceilingOverride: { nextPass: 3 } } }],
+    ["a caller-restated target", { standard: { scopeMode: "chunked", target: { repository: "x/y" } } }],
+    ["an unrecognized lane", { hosted: { scopeMode: "chunked" } }],
+    ["a frontline override on the standard lane", { standard: { invocation: { mode: "skip" } } }],
+    ["a standard source override on frontline", {
+      frontline: { invocation: { mode: "force", sourceId: "coderabbit-cli" } },
+    }],
+    ["an Owner terminus on frontline", { frontline: { terminus: { mode: "owner-accepted" } } }],
+  ])("refuses %s rather than dropping it to the unbounded default", async (_label, lanes) => {
+    // Deliberately unlike the change-set facts, which normalize: silently dropping a bounded scope
+    // reviews the whole target, and dropping an override re-blocks a pass already approved.
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", lanes },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("refused");
+    expect(composition.status === "refused" && composition.reason)
+      .toContain("per-lane review judgment is not composable");
+  });
+
+  it("carries the effective method activity into both lanes and the self-review state", async () => {
+    const active = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+    }));
+    const inactive = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: false, frontlineReview: false },
+      }),
+    }));
+
+    expect(active.status === "composed" && active.request.frontline.frontlineActive).toBe(true);
+    expect(active.status === "composed" && active.request.selfReview).toBe("pending");
+    expect(inactive.status === "composed" && inactive.request.frontline.frontlineActive).toBe(false);
+    expect(inactive.status === "composed" && inactive.request.selfReview).toBe("inactive");
+  });
+
+  it("prefers the author's self-review report over the method's activity", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", selfReview: "settled" },
+      dependencies(),
+    );
+
+    expect(composition.status === "composed" && composition.request.selfReview).toBe("settled");
+  });
+
+  it("replays each lane's durable progress rather than accepting caller-supplied attempts", async () => {
+    const result = hostedFindingsResult("attempt-1", 42);
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> =>
+      lane === "standard"
+        ? {
+            status: "recorded",
+            completedPasses: 1,
+            completePasses: 1,
+            attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }],
+          }
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
+
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        ...evidenceDependencies([result]),
+        readLaneProgress,
+        resolveTarget: async () => ({
+          status: "resolved",
+          target: { repository: "arc-framework/example", pullRequest: 42, headSha: HEAD },
+        }),
+      }),
+    );
+
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD, [HEAD], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [HEAD], {
+      kind: "candidate",
+      candidateId: CANDIDATE_ID,
+    });
+    expect(composition.status === "composed" && composition.request.standard).toMatchObject({
+      completedPasses: 1,
+      nextPassContext: { completePasses: 1, convergence: "pending", responseDue: true, incremental: null },
+      attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
+    });
+    expect(composition.status === "composed" && composition.request.pendingResponse.standard)
+      .toMatchObject({ kind: "hosted" });
+  });
+
+  it("carries the review ceiling across a fix-induced Candidate head change", async () => {
+    const priorHead = "9".repeat(40);
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "standard" ? 2 : 0,
+      completePasses: lane === "standard" ? 2 : 0,
+      attempts: [],
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", selfReview: "settled" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, lineageHeadShas: [priorHead, HEAD] }),
+        readLaneProgress,
+      }),
+    );
+
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [priorHead, HEAD], {
+      kind: "candidate",
+      candidateId: CANDIDATE_ID,
+    });
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.completedPasses).toBe(2);
+  });
+
+  it("composes changed-head incremental policy from lane-owner applicability and response performance", async () => {
+    if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+    const predecessor = hostedFindingsResult("attempt-prior", 42);
+    if (predecessor.kind !== "hosted") throw new Error("expected hosted predecessor");
+    const { targetId: _targetId, ...currentTargetInput } = immutableTarget.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentTargetInput,
+      headSha: PREPUBLICATION_HEAD,
+      headTree: "f".repeat(40),
+    });
+    const currentRequirement = createReviewRequirement({
+      target: currentTarget,
+      projection: defaultStandardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (currentRequirement === null) throw new Error("expected current requirement");
+    const current: ReviewResult = {
+      ...predecessor,
+      producerId: "attempt-current",
+      target: currentTarget,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest("attempt-current-result"),
+      admission: {
+        ...predecessor.admission,
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: {
+          schemaVersion: 1,
+          predecessorProducerId: predecessor.producerId,
+          predecessorHeadSha: predecessor.target.headSha,
+          basisHeadSha: predecessor.target.headSha,
+          headSha: currentTarget.headSha,
+          requiredFindings: [],
+        },
+        policyVersion: currentRequirement.policyVersion,
+      },
+      hostedTarget: { ...predecessor.hostedTarget, headSha: currentTarget.headSha },
+      requirement: currentRequirement,
+    };
+    const record = approvedRecord(predecessor);
+    const currentDisposition = record.approvedDispositionLineage.at(-1)?.approvedDisposition;
+    if (currentDisposition === undefined) throw new Error("expected approved disposition");
+    const readResponsePerformance = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      producerId: predecessor.producerId,
+      dispositionSetId: currentDisposition.dispositionSet.dispositionSetId,
+      originatingHeadSha: predecessor.target.headSha,
+      producedHeadSha: currentTarget.headSha,
+      performedAt: "2026-09-10T12:00:00.000Z",
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", selfReview: "settled" },
+      dependencies({
+        readCandidate: async () => ({
+          ...currentCandidate,
+          headSha: currentTarget.headSha,
+          lineageHeadShas: [predecessor.target.headSha, currentTarget.headSha],
+        }),
+        resolveTarget: async () => ({
+          status: "resolved",
+          target: {
+            repository: "arc-framework/example",
+            pullRequest: 42,
+            headSha: currentTarget.headSha,
+          },
+        }),
+        deriveImmutableTarget: async () => ({ status: "resolved", target: currentTarget }),
+        resultReader: {
+          readResult: async (producerId) => producerId === predecessor.producerId
+            ? predecessor
+            : current,
+        },
+        dispositionStore: {
+          readDispositionRecord: async (producerId) => producerId === predecessor.producerId
+            ? record
+            : null,
+        },
+        readResponsePerformance,
+        readLaneProgress: async (lane) => lane === "standard"
+          ? {
+              status: "recorded",
+              completedPasses: 2,
+              completePasses: 1,
+              attempts: [{
+                attemptId: current.producerId,
+                logicalPass: 2,
+                sourceId: "codex-pr",
+                outcome: "clean",
+              }],
+            }
+          : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+      }),
+    );
+
+    expect(composition.status === "composed" && composition.request.standard).toMatchObject({
+      completedPasses: 2,
+      nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+      attempts: [],
+      sources: ["codex-pr"],
+    });
+  });
+
+  it("propagates a hosted producer target mismatch", async () => {
+    // The hosted result names a PR that the live policy target no longer names.
+    // Evidence binding must preserve that mismatch as an error.
+    const result = hostedFindingsResult("attempt-1", 42);
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      ...evidenceDependencies([result]),
+      readLaneProgress: async (lane) => lane === "standard"
+        ? {
+            status: "recorded",
+            completedPasses: 1,
+            completePasses: 1,
+            attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }],
+          }
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+    }))).rejects.toThrow("hosted review producer target does not match the policy target");
+  });
+
+  it("reports an unrecorded lane instead of silently composing it as never attempted", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readLaneProgress: async (lane) => lane === "standard"
+        ? { status: "unrecorded" }
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+    }));
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.completedPasses).toBe(0);
+    expect(composition.request.standard.attempts).toEqual([]);
+    expect(composition.advisories).toHaveLength(1);
+    expect(composition.advisories[0]).toContain("standard lane has no durable progress");
+  });
+
+  it.each([
+    ["a missing Candidate record", { readCandidate: async (): Promise<CandidateRead> => ({ status: "missing" }) }, "No managed Candidate record", undefined],
+    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification.", continuation: { kind: "re-enter" } }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
+    ["an unbindable rubric", { readAssurance: async (): Promise<AssuranceRead> => ({ status: "refused", reason: "rubric unavailable" }) }, "rubric unavailable", undefined],
+    ["unresolvable origin coordinates", { resolveTarget: async (): Promise<TargetRead> => ({ status: "refused", reason: "no origin" }) }, "no origin", undefined],
+  ] as const)("refuses on %s", async (_label, override, expected, expectedCode) => {
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies(override),
+    );
+
+    expect(composition.status).toBe("refused");
+    expect(composition.status === "refused" && composition.reason).toContain(expected);
+    expect(composition.status === "refused" ? composition.code : undefined).toBe(expectedCode);
+    expect(composition.status === "refused" ? composition.candidateContinuation : undefined)
+      .toEqual(expectedCode === undefined ? undefined : { kind: "re-enter" });
+  });
+
+  it("does not read assurance, target, or progress once the Candidate read refuses", async () => {
+    const readAssurance = vi.fn();
+    const resolveTarget = vi.fn();
+    const readLaneProgress = vi.fn();
+
+    await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readCandidate: async () => ({ status: "missing" }),
+      readAssurance,
+      resolveTarget,
+      readLaneProgress,
+    }));
+
+    expect(readAssurance).not.toHaveBeenCalled();
+    expect(resolveTarget).not.toHaveBeenCalled();
+    expect(readLaneProgress).not.toHaveBeenCalled();
+  });
+});

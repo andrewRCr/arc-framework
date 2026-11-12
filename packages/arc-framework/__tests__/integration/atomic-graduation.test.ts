@@ -1,0 +1,547 @@
+import { execFile } from "node:child_process";
+import { chmod, mkdir, readFile, rename, rm, rmdir, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
+import { parseGitWorktreePorcelain } from "../../src/lib/git/worktree-porcelain.js";
+import { localPathsEqual } from "../../src/lib/local-path-identity.js";
+import {
+  nodeReconcileWorkUnitWorktreeFs,
+  provisionSpawnedWorktree,
+} from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
+import {
+  atomicGraduate,
+} from "../../src/lib/work-unit/atomic-graduation.js";
+import {
+  prepareValidatedGraduationTransaction,
+  type GraduationStoredArtifact,
+} from "../../src/lib/work-unit/validated-graduation-transaction.js";
+import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
+
+const execFileAsync = promisify(execFile);
+
+async function createInPlaceFixture(): Promise<{
+  repo: string;
+  exec: GitExec;
+  transaction: Extract<
+    ReturnType<typeof prepareValidatedGraduationTransaction>,
+    { status: "ready" }
+  >["transaction"];
+  sourceDirectory: string;
+  targetDirectory: string;
+  indexTree: string;
+}> {
+  const repo = await createTempRepo("arc-atomic-graduate-failure-");
+  const sourceDirectory = ".arc/backlog/planned/widget";
+  const targetDirectory = ".arc/active";
+  await mkdir(join(repo, sourceDirectory), { recursive: true });
+  const metaContent = renderMetaFile("widget", {
+    state: "Planning",
+    owner: "andrew",
+    workClass: "Heavy",
+    design: ["draft-widget.md"],
+    currentWorkflow: "create-spec",
+  });
+  await writeFile(join(repo, sourceDirectory, "meta-widget.md"), metaContent);
+  await writeFile(join(repo, sourceDirectory, "draft-widget.md"), "# Draft\n");
+  await chmod(join(repo, sourceDirectory, "draft-widget.md"), 0o755);
+  await execFileAsync("git", ["add", "-A"], { cwd: repo });
+  await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "stub"], { cwd: repo });
+  const processExec = createExecaGitExec();
+  const exec: GitExec = (command, args, options) => processExec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? repo,
+  });
+  const { stdout: head } = await exec("git", ["rev-parse", "HEAD"]);
+  const { stdout: tree } = await exec("git", ["write-tree"]);
+  const artifacts: GraduationStoredArtifact[] = [];
+  for (const basename of ["draft-widget.md", "meta-widget.md"]) {
+    const sourcePath = `${sourceDirectory}/${basename}`;
+    const { stdout: entry } = await exec("git", ["ls-files", "--stage", "--", sourcePath]);
+    const match = /^(100644|100755) ([0-9a-f]{40,64}) 0\t/u.exec(entry);
+    if (match?.[1] === undefined || match[2] === undefined) throw new Error("fixture index entry missing");
+    const bytes = new Uint8Array(await readFile(join(repo, sourcePath)));
+    artifacts.push({
+      basename,
+      sourcePath,
+      targetPath: `${targetDirectory}/${basename}`,
+      objectKind: "blob",
+      mode: match[1] === "100755" ? "100755" : "100644",
+      oid: match[2],
+      contentDigest: digestBytes(bytes),
+      bytes,
+    });
+  }
+  const prepared = prepareValidatedGraduationTransaction({
+    slug: "widget",
+    location: "planned",
+    sourceDirectory,
+    targetDirectory,
+    artifacts,
+    destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
+    classResolution: { kind: "preserved", value: "Heavy" },
+    occupation: {
+      mode: "in-place",
+      baseHead: head.trim(),
+      branch: { kind: "absent", ref: "refs/heads/plan/widget" },
+      worktree: { kind: "current", path: repo, head: head.trim(), branch: "main" },
+      indexTree: tree.trim(),
+      operation: { kind: "in-place", branch: "plan/widget", worktreePath: repo },
+    },
+  });
+  if (prepared.status !== "ready") throw new Error(`fixture transaction refused: ${prepared.reason}`);
+  return {
+    repo,
+    exec,
+    transaction: prepared.transaction,
+    sourceDirectory,
+    targetDirectory,
+    indexTree: tree.trim(),
+  };
+}
+
+describe("atomicGraduate", () => {
+  const cleanup: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(cleanup.splice(0).map((path) => cleanupTempDir(path)));
+  });
+
+  it("graduates in place through exact files and one installed index", async () => {
+    const repo = await createTempRepo("arc-atomic-graduate-");
+    cleanup.push(repo);
+    const sourceDirectory = ".arc/backlog/planned/widget";
+    const targetDirectory = ".arc/active";
+    await mkdir(join(repo, sourceDirectory), { recursive: true });
+    const metaContent = renderMetaFile("widget", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Heavy",
+      design: ["draft-widget.md"],
+      currentWorkflow: "create-spec",
+    });
+    await writeFile(join(repo, sourceDirectory, "meta-widget.md"), metaContent);
+    await writeFile(join(repo, sourceDirectory, "draft-widget.md"), "# Draft\n");
+    await chmod(join(repo, sourceDirectory, "draft-widget.md"), 0o755);
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "stub"], { cwd: repo });
+    const processExec = createExecaGitExec();
+    const exec: GitExec = (command, args, options) => processExec(command, args, {
+      ...options,
+      cwd: options?.cwd ?? repo,
+    });
+    const { stdout: head } = await exec("git", ["rev-parse", "HEAD"]);
+    const { stdout: tree } = await exec("git", ["write-tree"]);
+    const artifacts: GraduationStoredArtifact[] = [];
+    for (const basename of ["draft-widget.md", "meta-widget.md"]) {
+      const sourcePath = `${sourceDirectory}/${basename}`;
+      const { stdout: entry } = await exec("git", ["ls-files", "--stage", "--", sourcePath]);
+      const match = /^(100644|100755) ([0-9a-f]{40,64}) 0\t/u.exec(entry);
+      if (match?.[1] === undefined || match[2] === undefined) throw new Error("fixture index entry missing");
+      const bytes = new Uint8Array(await readFile(join(repo, sourcePath)));
+      artifacts.push({
+        basename,
+        sourcePath,
+        targetPath: `${targetDirectory}/${basename}`,
+        objectKind: "blob",
+        mode: match[1] === "100755" ? "100755" : "100644",
+        oid: match[2],
+        contentDigest: digestBytes(bytes),
+        bytes,
+      });
+    }
+    const prepared = prepareValidatedGraduationTransaction({
+      slug: "widget",
+      location: "planned",
+      sourceDirectory,
+      targetDirectory,
+      artifacts,
+      destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
+      classResolution: { kind: "preserved", value: "Heavy" },
+      occupation: {
+        mode: "in-place",
+        baseHead: head.trim(),
+        branch: { kind: "absent", ref: "refs/heads/plan/widget" },
+        worktree: { kind: "current", path: repo, head: head.trim(), branch: "main" },
+        indexTree: tree.trim(),
+        operation: { kind: "in-place", branch: "plan/widget", worktreePath: repo },
+      },
+    });
+    if (prepared.status !== "ready") throw new Error(`fixture transaction refused: ${prepared.reason}`);
+
+    const result = await atomicGraduate(prepared.transaction, {
+      cwd: repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    if (result.status !== "applied") throw new Error(JSON.stringify(result));
+    await expect(readFile(join(repo, targetDirectory, "draft-widget.md"), "utf8")).resolves.toBe("# Draft\n");
+    await expect(readFile(join(repo, sourceDirectory, "draft-widget.md"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    const { stdout: branch } = await exec("git", ["branch", "--show-current"]);
+    expect(branch.trim()).toBe("plan/widget");
+    const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"]);
+    expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
+  });
+
+  it("graduates into a spawned worktree with exact meta authority and ownership", async () => {
+    const repo = await createTempRepo("arc-atomic-graduate-spawn-");
+    const worktreePath = `${repo}-widget`;
+    cleanup.push(repo, worktreePath);
+    const sourceDirectory = ".arc/backlog/planned/widget";
+    const targetDirectory = ".arc/active";
+    await mkdir(join(repo, sourceDirectory), { recursive: true });
+    const metaContent = renderMetaFile("widget", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Heavy",
+      design: ["draft-widget.md"],
+      currentWorkflow: "create-spec",
+    });
+    await writeFile(join(repo, sourceDirectory, "meta-widget.md"), metaContent);
+    await writeFile(join(repo, sourceDirectory, "draft-widget.md"), "# Draft\n");
+    await chmod(join(repo, sourceDirectory, "draft-widget.md"), 0o755);
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "stub"], { cwd: repo });
+    const processExec = createExecaGitExec();
+    const exec: GitExec = (command, args, options) => processExec(command, args, {
+      ...options,
+      cwd: options?.cwd ?? repo,
+    });
+    const { stdout: head } = await exec("git", ["rev-parse", "HEAD"]);
+    const { stdout: tree } = await exec("git", ["write-tree"]);
+    const artifacts: GraduationStoredArtifact[] = [];
+    for (const basename of ["draft-widget.md", "meta-widget.md"]) {
+      const sourcePath = `${sourceDirectory}/${basename}`;
+      const { stdout: entry } = await exec("git", ["ls-files", "--stage", "--", sourcePath]);
+      const match = /^(100644|100755) ([0-9a-f]{40,64}) 0\t/u.exec(entry);
+      if (match?.[1] === undefined || match[2] === undefined) throw new Error("fixture index entry missing");
+      const bytes = new Uint8Array(await readFile(join(repo, sourcePath)));
+      artifacts.push({
+        basename,
+        sourcePath,
+        targetPath: `${targetDirectory}/${basename}`,
+        objectKind: "blob",
+        mode: match[1] === "100755" ? "100755" : "100644",
+        oid: match[2],
+        contentDigest: digestBytes(bytes),
+        bytes,
+      });
+    }
+    const prepared = prepareValidatedGraduationTransaction({
+      slug: "widget",
+      location: "planned",
+      sourceDirectory,
+      targetDirectory,
+      artifacts,
+      destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
+      classResolution: { kind: "preserved", value: "Heavy" },
+      occupation: {
+        mode: "spawned",
+        baseHead: head.trim(),
+        branch: { kind: "absent", ref: "refs/heads/plan/widget" },
+        worktree: { kind: "absent", path: worktreePath },
+        indexTree: tree.trim(),
+        operation: {
+          kind: "spawned",
+          branch: "plan/widget",
+          base: head.trim(),
+          worktreePath,
+          locationTemplate: `${repo}-{name}`,
+          repo: "repo",
+          wuName: "widget",
+          spawningIdentity: "andrew",
+        },
+      },
+    });
+    if (prepared.status !== "ready") throw new Error(`fixture transaction refused: ${prepared.reason}`);
+
+    const result = await atomicGraduate(prepared.transaction, {
+      cwd: repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+      provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+        { exec, chdir: () => undefined, fs: nodeReconcileWorkUnitWorktreeFs,
+          writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+        op,
+      ),
+    });
+
+    if (result.status !== "applied") throw new Error(JSON.stringify(result));
+    expect(result.worktreePath).toBe(worktreePath);
+    expect(result.postCreateNotice).toMatch(/worktree\.post_create/u);
+    const meta = parseMetaRecord(await readFile(join(worktreePath, targetDirectory, "meta-widget.md"), "utf8"));
+    expect(meta.design).toEqual(["draft-widget.md"]);
+    expect(meta.taskList).toBeNull();
+    expect(meta.currentWorkflow).toBe("create-spec");
+    await expect(readFile(resolveWorktreeMarkerPath(worktreePath), "utf8")).resolves.toContain("\"wuName\": \"widget\"");
+    const { stdout: staged } = await exec("git", ["diff", "--cached", "--name-status"], { cwd: worktreePath });
+    expect(staged).toContain(`${"R"}${100}\t${sourceDirectory}/draft-widget.md\t${targetDirectory}/draft-widget.md`);
+  });
+
+  it.each(["branch", "first-move", "second-move", "meta-write", "index-stage"] as const)(
+    "restores exact in-place preimages when %s application fails",
+    async (boundary) => {
+      const fixture = await createInPlaceFixture();
+      cleanup.push(fixture.repo);
+      const draftMode = (await stat(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"))).mode;
+      let renameCalls = 0;
+      const exec: GitExec = async (command, args, options) => {
+        if (boundary === "branch" && args[0] === "checkout" && args[1] === "-b") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected branch failure" });
+        }
+        if (boundary === "index-stage" && args[0] === "add" && options?.indexFile !== undefined) {
+          throw makeGitProcessError({ command, args, exitCode: 128,
+            stderr: "injected index staging failure" });
+        }
+        return fixture.exec(command, args, options);
+      };
+      const injectedWriteFile: typeof writeFile = async (path, data, options) => {
+        if (boundary === "meta-write"
+          && String(path) === join(fixture.repo, fixture.targetDirectory, "meta-widget.md")) {
+          throw new Error("injected meta write failure");
+        }
+        return writeFile(path, data, options);
+      };
+      const result = await atomicGraduate(fixture.transaction, {
+        cwd: fixture.repo,
+        exec,
+        fs: {
+          chmod,
+          mkdir,
+          readFile,
+          rename: async (from, to) => {
+            renameCalls += 1;
+            if ((boundary === "first-move" && renameCalls === 1)
+              || (boundary === "second-move" && renameCalls === 2)) {
+              throw new Error(`injected ${boundary} failure`);
+            }
+            await rename(from, to);
+          },
+          rm,
+          rmdir,
+          stat,
+          writeFile: injectedWriteFile,
+        },
+      });
+
+      expect(result.status).toBe("rejected");
+      await expect(readFile(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"), "utf8"))
+        .resolves.toBe("# Draft\n");
+      expect((await stat(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"))).mode).toBe(draftMode);
+      await expect(readFile(join(fixture.repo, fixture.targetDirectory, "draft-widget.md")))
+        .rejects.toMatchObject({ code: "ENOENT" });
+      const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
+      expect(branch.trim()).toBe("main");
+      const { stdout: created } = await fixture.exec(
+        "git",
+        ["for-each-ref", "--format=%(refname)", "refs/heads/plan/widget"],
+      );
+      expect(created).toBe("");
+      const { stdout: tree } = await fixture.exec("git", ["write-tree"]);
+      expect(tree.trim()).toBe(fixture.indexTree);
+      await expect(readFile(resolveWorktreeMarkerPath(fixture.repo))).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
+  it("returns exact non-authoritative residue when rollback cannot remove the created branch", async () => {
+    const fixture = await createInPlaceFixture();
+    cleanup.push(fixture.repo);
+    const exec: GitExec = async (command, args, options) => {
+      if (args[0] === "add" && options?.indexFile !== undefined) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected staging failure" });
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected rollback failure" });
+      }
+      return fixture.exec(command, args, options);
+    };
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({
+      status: "graduation-recovery-required",
+      residue: {
+        slug: "widget",
+        branch: "plan/widget",
+        mode: "in-place",
+        failures: expect.arrayContaining([
+          expect.objectContaining({ stage: "branch", locus: "refs/heads/plan/widget" }),
+        ]),
+      },
+    });
+  });
+
+  it.each(["worktree-add", "spawn-provision", "editor-documents"] as const)(
+    "removes spawned occupation when %s fails",
+    async (boundary) => {
+      const fixture = await createInPlaceFixture();
+      const worktreePath = `${fixture.repo}-widget`;
+      cleanup.push(fixture.repo, worktreePath);
+      fixture.transaction.occupation = {
+        mode: "spawned",
+        baseHead: fixture.transaction.occupation.baseHead,
+        branch: fixture.transaction.occupation.branch,
+        worktree: { kind: "absent", path: worktreePath },
+        indexTree: fixture.transaction.occupation.indexTree,
+        operation: {
+          kind: "spawned",
+          branch: "plan/widget",
+          base: fixture.transaction.occupation.baseHead,
+          worktreePath,
+          locationTemplate: `${fixture.repo}-{name}`,
+          repo: "repo",
+          wuName: "widget",
+          spawningIdentity: "andrew",
+        },
+      };
+      const exec: GitExec = async (command, args, options) => {
+        if (boundary === "worktree-add" && args[0] === "worktree" && args[1] === "add") {
+          throw makeGitProcessError({ command, args, exitCode: 128,
+            stderr: "injected worktree add failure" });
+        }
+        return fixture.exec(command, args, options);
+      };
+      const result = await atomicGraduate(fixture.transaction, {
+        cwd: fixture.repo,
+        exec,
+        fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        provisionSpawnedWorktree: async (op) => {
+          if (boundary === "spawn-provision") throw new Error("injected marker failure");
+          if (boundary === "editor-documents") return provisionSpawnedWorktree({
+            exec, chdir: () => undefined, fs: nodeReconcileWorkUnitWorktreeFs,
+            writeEditorDocuments: async () => ({ ok: false, target: "documents", detail: "editor documents denied" }),
+          }, op);
+          return null;
+        },
+      });
+
+      expect(result.status).toBe("rejected");
+      await expect(stat(worktreePath)).rejects.toMatchObject({ code: "ENOENT" });
+      const { stdout: listing } = await fixture.exec("git", ["worktree", "list", "--porcelain"]);
+      const listed = await Promise.all(parseGitWorktreePorcelain(listing)
+        .map(({ path }) => localPathsEqual(path, worktreePath)));
+      expect(listed).not.toContain(true);
+      const { stdout: created } = await fixture.exec(
+        "git",
+        ["for-each-ref", "--format=%(refname)", "refs/heads/plan/widget"],
+      );
+      expect(created).toBe("");
+    },
+  );
+
+  it("refuses source snapshot drift without occupying or moving another artifact set", async () => {
+    const fixture = await createInPlaceFixture();
+    cleanup.push(fixture.repo);
+    await writeFile(join(fixture.repo, fixture.sourceDirectory, "draft-widget.md"), "# changed\n");
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec: fixture.exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("source preimage changed") });
+    const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
+    expect(branch.trim()).toBe("main");
+    await expect(readFile(join(fixture.repo, fixture.targetDirectory, "draft-widget.md")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["forward slashes", "a linked alias"] as const)(
+    "graduates in place when Git spells the current checkout with %s",
+    async (spelling) => {
+      const fixture = await createInPlaceFixture();
+      cleanup.push(fixture.repo);
+      const alias = `${fixture.repo}-alias`;
+      if (spelling === "a linked alias") await symlink(fixture.repo, alias, "junction");
+      const observed = spelling === "a linked alias" ? alias : fixture.repo.replaceAll("\\", "/");
+      const exec: GitExec = async (command, args, options) => (args[0] === "rev-parse" && args[1] === "--show-toplevel"
+        ? { stdout: `${observed}\n`, stderr: "" }
+        : fixture.exec(command, args, options));
+      try {
+        const result = await atomicGraduate(fixture.transaction, {
+          cwd: fixture.repo,
+          exec,
+          fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        });
+        expect(result.status, JSON.stringify(result)).toBe("applied");
+      } finally {
+        if (spelling === "a linked alias") await unlink(alias);
+      }
+    },
+  );
+
+  it("refuses in-place graduation when Git reports a different checkout", async () => {
+    const fixture = await createInPlaceFixture();
+    const other = await createTempRepo("arc-atomic-graduate-other-");
+    cleanup.push(fixture.repo, other);
+    const exec: GitExec = async (command, args, options) => (args[0] === "rev-parse" && args[1] === "--show-toplevel"
+      ? { stdout: `${other}\n`, stderr: "" }
+      : fixture.exec(command, args, options));
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("occupation or index preimage") });
+    const { stdout: branch } = await fixture.exec("git", ["branch", "--show-current"]);
+    expect(branch.trim()).toBe("main");
+  });
+
+  it("refuses a spawned destination Git lists in its own path spelling", async () => {
+    const fixture = await createInPlaceFixture();
+    const worktreePath = `${fixture.repo}-widget`;
+    cleanup.push(fixture.repo, worktreePath);
+    fixture.transaction.occupation = {
+      mode: "spawned",
+      baseHead: fixture.transaction.occupation.baseHead,
+      branch: fixture.transaction.occupation.branch,
+      worktree: { kind: "absent", path: worktreePath },
+      indexTree: fixture.transaction.occupation.indexTree,
+      operation: {
+        kind: "spawned",
+        branch: "plan/widget",
+        base: fixture.transaction.occupation.baseHead,
+        worktreePath,
+        locationTemplate: `${fixture.repo}-{name}`,
+        repo: "repo",
+        wuName: "widget",
+        spawningIdentity: "andrew",
+      },
+    };
+    const listedSpelling = worktreePath.replaceAll("\\", "/");
+    const exec: GitExec = async (command, args, options) => {
+      const result = await fixture.exec(command, args, options);
+      if (args[0] !== "worktree" || args[1] !== "list") return result;
+      return { ...result, stdout: `${result.stdout.trimEnd()}\n\nworktree ${listedSpelling}\nHEAD `
+        + `${fixture.transaction.occupation.baseHead}\nbranch refs/heads/stale\n` };
+    };
+
+    const result = await atomicGraduate(fixture.transaction, {
+      cwd: fixture.repo,
+      exec,
+      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+    });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("destination is no longer absent") });
+    await expect(stat(worktreePath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+});

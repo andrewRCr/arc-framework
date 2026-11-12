@@ -1,0 +1,307 @@
+/** Production provisioning adapter contracts over real exact-generation storage. */
+
+import { mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+import { createNodeProvisioningDependencies } from "../../../src/lib/locus/provisioning-runtime.js";
+import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
+
+const roots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+describe("node provisioning runtime", () => {
+  const HEAD = "a".repeat(40);
+
+  function spawnedRuntime(exec: GitExec) {
+    return createNodeProvisioningDependencies({
+      exec,
+      base: "main",
+      branch: "chore/sample",
+      postCreateScript: "",
+      registeredHarnessDirs: "",
+    });
+  }
+
+  it("keeps copied relative skill links inside the destination checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-provision-harness-"));
+    roots.push(root);
+    const primary = join(root, "primary");
+    const destination = join(root, "linked");
+    const relativeTarget = "../../.arc/system/.internal/skills/arc-inbox";
+    const sourceSkill = join(primary, ".arc/system/.internal/skills/arc-inbox");
+    const destinationSkill = join(destination, ".arc/system/.internal/skills/arc-inbox");
+    await mkdir(sourceSkill, { recursive: true });
+    await mkdir(destinationSkill, { recursive: true });
+    await mkdir(join(primary, ".claude/skills"), { recursive: true });
+    await writeFile(join(sourceSkill, "SKILL.md"), "primary\n");
+    await writeFile(join(destinationSkill, "SKILL.md"), "linked\n");
+    await symlink(relativeTarget, join(primary, ".claude/skills/arc-inbox"), "dir");
+    const runtime = createNodeProvisioningDependencies({
+      exec: async () => { throw new Error("unexpected Git invocation"); },
+      base: "main",
+      branch: "chore/sample",
+      postCreateScript: "",
+      registeredHarnessDirs: ".claude",
+    });
+
+    await runtime.setupWorktree(destination, primary);
+
+    const copiedLink = join(destination, ".claude/skills/arc-inbox");
+    expect(await readlink(copiedLink)).toBe(relativeTarget);
+    expect(await realpath(copiedLink)).toBe(await realpath(destinationSkill));
+    expect(await readFile(join(copiedLink, "SKILL.md"), "utf8")).toBe("linked\n");
+  });
+
+  describe("pending Errand recovery proof", () => {
+    function recoveryRuntime(scenario: {
+      branch?: string; head?: string; status?: string; ancestryExit?: number;
+    } = {}) {
+      const { exec } = scriptGitExec([
+        { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: scenario.branch ?? "chore/sample" }] },
+        { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: scenario.head ?? HEAD }] },
+        { match: ["status", "--porcelain=v1", "-z", "--untracked-files=all"], responses: [{ stdout: scenario.status ?? "" }] },
+        { match: ["merge-base", "--is-ancestor", HEAD, "main"], responses: [scenario.ancestryExit === undefined
+          ? { stdout: "" } : { failure: { exitCode: scenario.ancestryExit, stderr: "ancestry probe failed" } }] },
+      ]);
+      return spawnedRuntime(exec);
+    }
+
+    it("admits a clean matching checkout whose head is contained by base", async () => {
+      await expect(recoveryRuntime().canResumePendingErrandCheckout!("/work/sample", HEAD)).resolves.toBe(true);
+    });
+
+    it.each([
+      ["another branch", { branch: "chore/other" }],
+      ["a moved head", { head: "b".repeat(40) }],
+      ["tracked work", { status: " M tracked\0" }],
+      ["untracked work", { status: "?? authored\0" }],
+      ["an unpreserved head", { ancestryExit: 1 }],
+    ])("refuses %s", async (_label, scenario) => {
+      await expect(recoveryRuntime(scenario).canResumePendingErrandCheckout!("/work/sample", HEAD)).resolves.toBe(false);
+    });
+
+    it("keeps an operational ancestry failure distinct from a negative proof", async () => {
+      await expect(recoveryRuntime({ ancestryExit: 128 }).canResumePendingErrandCheckout!("/work/sample", HEAD))
+        .rejects.toThrow("ancestry probe failed");
+    });
+  });
+
+  describe("spawned rollback", () => {
+    const receipt = {
+      worktreePath: "/work/sample",
+      branch: "chore/sample",
+      worktreeCreated: true as const,
+      branchCreated: true,
+      base: "main",
+    };
+
+    it("pins topology and destructive Git operations to the resolved primary", async () => {
+      const { exec, calls } = scriptGitExec([
+        { match: ["worktree", "list", "--porcelain", "-z"], responses: [{
+          stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
+            + `worktree ${receipt.worktreePath}\0HEAD ${HEAD}\0branch refs/heads/${receipt.branch}\0\0`,
+        }] },
+        { match: ["worktree", "remove", receipt.worktreePath], responses: [{ stdout: "" }] },
+        { match: ["branch", "-D", receipt.branch], responses: [{ stdout: "" }] },
+      ]);
+
+      await expect(spawnedRuntime(exec).rollbackSpawned(receipt, HEAD, "/repo"))
+        .resolves.toEqual({ kind: "rolled-back" });
+      expect(calls.map((call) => call.args)).toEqual([
+        ["worktree", "list", "--porcelain", "-z"],
+        ["worktree", "remove", receipt.worktreePath],
+        ["branch", "-D", receipt.branch],
+      ]);
+      expect(calls.every((call) => call.options?.cwd === "/repo")).toBe(true);
+    });
+
+    it("refuses rollback when the registered checkout generation changed", async () => {
+      const calls: Array<{ args: string[]; cwd: string | undefined }> = [];
+      const changedHead = "b".repeat(40);
+      const exec: GitExec = async (_command, args, options) => {
+        calls.push({ args: [...args], cwd: options?.cwd });
+        return {
+          stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
+            + `worktree ${receipt.worktreePath}\0HEAD ${changedHead}\0branch refs/heads/${receipt.branch}\0\0`,
+        };
+      };
+
+      await expect(spawnedRuntime(exec).rollbackSpawned(receipt, HEAD, "/repo"))
+        .resolves.toEqual({ kind: "generation-mismatch" });
+      expect(calls).toEqual([{
+        args: ["worktree", "list", "--porcelain", "-z"],
+        cwd: "/repo",
+      }]);
+    });
+  });
+
+  /**
+   * A primary checkout whose git calls can be failed after the mutating checkout lands.
+   *
+   * `probe` fails the head read that follows the mutation; `restore` fails the compensating
+   * checkout back to the previous branch. Both only fire post-mutation, so the pre-mutation reads
+   * that establish the receipt's coordinates behave normally.
+   */
+  function primaryRuntime(
+    state: { branch: string; head: string },
+    calls: string[][],
+    failures: { probe?: boolean; restore?: boolean } = {},
+    synchronizeBase?: () => Promise<BaseSyncResult>,
+  ) {
+    let mutated = false;
+    const exec: GitExec = async (command, args) => {
+      calls.push([...args]);
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: `${state.branch}\n` };
+      if (args[0] === "rev-parse") {
+        if (mutated && failures.probe === true) {
+          throw makeGitProcessError({
+            command, args, exitCode: 128, stderr: "fatal: ambiguous argument 'HEAD'",
+          });
+        }
+        return { stdout: `${state.head}\n` };
+      }
+      if (args[0] === "checkout" && args[1] === "-b") {
+        state.branch = args[2] ?? "";
+        mutated = true;
+        return { stdout: "" };
+      }
+      if (args[0] === "checkout") {
+        if (mutated && failures.restore === true) {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: cannot switch branches" });
+        }
+        state.branch = args[1] ?? "";
+        mutated = true;
+        return { stdout: "" };
+      }
+      if (args[0] === "branch") return { stdout: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    };
+    return createNodeProvisioningDependencies({
+      exec,
+      base: "main",
+      branch: "chore/sample",
+      ...(synchronizeBase === undefined ? {} : { synchronizeBase }),
+      postCreateScript: "",
+      registeredHarnessDirs: "",
+    });
+  }
+
+  describe("primary checkout rollback", () => {
+    it("cuts a new branch from a local-ahead base when there is nothing to pull", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, {}, async () => ({
+        status: "refused",
+        reason: "local-ahead",
+        base: "main",
+      }));
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .resolves.toMatchObject({ branchCreated: true, head: HEAD });
+      expect(state.branch).toBe("chore/sample");
+    });
+
+    it("still refuses a new branch when base synchronization fails", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, {}, async () => ({
+        status: "refused",
+        reason: "fetch-failed",
+        base: "main",
+      }));
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .rejects.toThrow("Primary base synchronization refused (fetch-failed)");
+      expect(state.branch).toBe("main");
+    });
+
+    it("refuses a null-branch checkout when the pinned base head changed", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      await expect(runtime.checkoutPrimary("/repo", null, "b".repeat(40)))
+        .rejects.toThrow("Primary checkout does not match the expected pinned base head");
+      expect(state.branch).toBe("main");
+      expect(calls).toEqual([
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        ["rev-parse", "HEAD"],
+      ]);
+    });
+
+    it("restores the previous branch and deletes the branch it created", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      const receipt = await runtime.checkoutPrimary("/repo", "chore/sample", null);
+      await expect(runtime.rollbackPrimary("/repo", receipt)).resolves.toEqual({ kind: "rolled-back" });
+
+      expect(calls).toContainEqual(["branch", "-D", "chore/sample"]);
+      expect(state.branch).toBe("main");
+    });
+
+    it("refuses to delete a branch it did not create when another checkout shares the head", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls);
+
+      const receipt = await runtime.checkoutPrimary("/repo", "chore/sample", null);
+      // A concurrent session moves the primary onto an unrelated branch at the same commit.
+      state.branch = "feat/someone-else";
+      const rolledBack = await runtime.rollbackPrimary("/repo", receipt);
+
+      expect(rolledBack).toEqual({ kind: "generation-mismatch" });
+      expect(calls.filter((call) => call[0] === "branch")).toEqual([]);
+      expect(state.branch).toBe("feat/someone-else");
+    });
+  });
+
+  describe("post-mutation probe failure", () => {
+    it("undoes the branch it created when the head probe fails", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, { probe: true });
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .rejects.toThrow("fatal: ambiguous argument 'HEAD'");
+
+      expect(state.branch).toBe("main");
+      expect(calls).toContainEqual(["branch", "-D", "chore/sample"]);
+    });
+
+    it("restores the previous branch without deleting a retained branch it reused", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, { probe: true });
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", HEAD))
+        .rejects.toThrow("fatal: ambiguous argument 'HEAD'");
+
+      expect(state.branch).toBe("main");
+      expect(calls.filter((call) => call[0] === "branch")).toEqual([]);
+    });
+
+    it("reports the residue when the compensating checkout also fails", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, { probe: true, restore: true });
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .rejects.toThrow(PrimaryCheckoutResidueError);
+
+      // The mutation stands: the primary is still on the created branch, which is exactly what the
+      // caller must learn, since it holds no receipt to roll back with.
+      expect(state.branch).toBe("chore/sample");
+    });
+  });
+});

@@ -6,7 +6,7 @@
  * branch (locally, and the live remote head once the landed-in-base proof
  * holds), remove the worktree (worktree-kind dispatched, presence-guarded), and
  * prune the stale remote-tracking ref. It composes the shared legs — a
- * `reconcile-branch` delete, the remote-head delete, the `reconcile-worktree`
+ * `reconcile-branch` delete, the remote-head delete, the `reconcile-work-unit-worktree`
  * teardown, and the `fetch-prune` leg — never re-implementing their mechanics.
  *
  * Teardown is **not** a lifecycle transition: the branch and worktree are
@@ -45,14 +45,23 @@
  * @module
  */
 
-import { isLandedInBase } from "../../git/branch-containment.js";
-import type { GitExec } from "../../git/exec.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { GitExec, GitExecInput } from "../../git/exec.js";
+import type { LocusPorts } from "../locus-ports.js";
+import { runStoreTeardown } from "./teardown-store.js";
+import type { Remedy, StoreRefusal } from "../../store/refusal.js";
+import type { Store } from "../../store/contract.js";
+import { teardownSubjectOperand, type TeardownSubject } from "../store-retirement-evidence.js";
+
+import { checkWorktreeRemoval, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots } from "../../git/worktree-removal.js";
+import { isContainedIn, isLandedInBase } from "../../git/branch-containment.js";
 import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
 import type { ProtectionMode } from "../../git/write-context.js";
 import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   readWorktreeMarker,
+  removeWorktreeMarker,
   decodeWorktreeHuskStamp,
   stampWorktreeHusk,
   type WorktreeHuskStampResult,
@@ -65,7 +74,11 @@ import {
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
 import { localPathsEqual } from "../../local-path-identity.js";
-import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
+import {
+  readCompletedEvidenceFromRef,
+  readShippedWorkUnitsFromRef,
+} from "../completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit-slug.js";
 import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,
@@ -77,30 +90,50 @@ import { isShipped } from "../lifecycle-resolver.js";
 import { fetchPrune } from "../mutators/fetch-prune.js";
 import { deleteRemoteBranch, reconcileBranch } from "../mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
   isSelfTeardown,
-  type ReconcileWorktreeFs,
-} from "../mutators/reconcile-worktree.js";
-import { isSlugSafe } from "../slug.js";
-import { isAbsolute, join } from "node:path";
-import { parseMetaRecord } from "../../active/meta-reader.js";
+  type ReconcileWorkUnitWorktreeFs,
+} from "../mutators/reconcile-work-unit-worktree.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { isAbsolute } from "node:path";
+import { hasCompetingLifecycleProjection } from "../teardown-lifecycle-projection.js";
+import { readRemoteBranchOid } from "../rename-identity.js";
+import { isDecomposeCandidateBranch } from "../decompose-candidate.js";
+import { cleanupGitOwnedDecomposeCandidate } from "../git-owned-decompose-candidate-cleanup.js";
 import {
   createTeardownRetirementAuthority,
   revalidateHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../teardown-retirement-driver.js";
+import { resolveParkProofTarget, type ParkProofTarget } from "../park-retirement-proof.js";
+import type {
+  TeardownSelection,
+  TeardownSelectionDecision,
+  TeardownSelectionReader,
+} from "../teardown-selection.js";
+import { teardownSelectionsEqual } from "../teardown-selection.js";
+import type { TeardownWorktreeTransactionDriver } from "../teardown-worktree-transaction.js";
 
 /** The seams `runTeardown` drives — the git executor (pinned to cwd), the index scan, and the locus-hop. */
 export interface TeardownContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  execInput?: GitExecInput;
+  projectId?: () => Promise<string>;
+  locusPorts?: LocusPorts;
+  withWorkItemLock?: <T>(operation: () => Promise<T>) => Promise<T>;
   /** Repository root containing `.arc/`. */
   cwd: string;
+  projectionRemovalSlots?: ProjectionRemovalSlots;
   /** Git executor, pinned to the repository root. */
   exec: GitExec;
   /** Lifecycle-index scan seam — backs the arc-state authority gate. */
   indexFs: LifecycleIndexFs;
   /** Relocate the process locus on a self-teardown (production binds `process.chdir`). */
   chdir: (dir: string) => void;
+  /** Read the live process locus during final locked revalidation. */
+  readCurrentLocus?: () => string;
   /** Registered-worktree inventory seam. */
   scanWorktrees?: (exec: GitExec) => Promise<RegisteredWorktreeScanResult>;
   /** Marker read seam for detached-husk discovery. */
@@ -108,13 +141,19 @@ export interface TeardownContext {
   /** Non-minting marker extension seam. */
   stampHusk?: (worktreePath: string, stamp: Parameters<typeof stampWorktreeHusk>[1]) => Promise<WorktreeHuskStampResult>;
   /** Worktree/user-surface filesystem seam. */
-  worktreeFs?: ReconcileWorktreeFs;
+  worktreeFs?: ReconcileWorkUnitWorktreeFs;
   /** Wall-clock seam for terminal stamps. */
   now?: () => number;
   /** Retirement evidence authority used before any directional self-teardown. */
   authority?: Pick<RetirementAuthorityPort, "authorize" | "revalidate">;
   /** Exact committed-blob reader for authorization and replay artifact revalidation. */
   readBlob: TeardownBlobReader;
+  /** Network-free exact checkout and marker selection. */
+  readTeardownSelection?: TeardownSelectionReader;
+  /** Shared-mutex transaction for the final local retirement mutation. */
+  teardownWorktree?: TeardownWorktreeTransactionDriver;
+  /** Test/embedding seam for repository-wide physical-operation serialization. */
+  serializeWorktreeOperation?: <T>(checkoutPath: string, operation: () => Promise<T>) => Promise<T>;
 }
 
 /**
@@ -139,8 +178,8 @@ export type TeardownMode = "shipped" | "abandoned";
 
 /** The operational inputs a `teardown` supplies. */
 export interface TeardownParams {
-  /** Target WU name (the CLI defaults this to the current worktree's WU). */
-  name: string;
+  /** A user slug or an already selected operational owner. */
+  subject: TeardownSubject;
   /** Base branch — the merged-into target the reap oracle checks, and the relocation target for an in-place branch. */
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
@@ -163,6 +202,8 @@ export interface BranchTeardownParams {
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
+  /** Configured result-projection model used to select the candidate's base authority. */
+  protection?: ProtectionMode;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -172,6 +213,8 @@ export type TeardownResult =
   | {
       status: "rejected";
       reason: string;
+      refusal?: StoreRefusal;
+      remedy?: Remedy;
       huskRefusal?: "dirty" | "authorization-refused" | "preservation-unproven" | "user-surfaces";
     }
   | {
@@ -280,41 +323,6 @@ async function hasCompetingWorktreeProjection(
   return false;
 }
 
-async function hasCompetingLifecycleProjection(
-  ctx: TeardownContext,
-  branch: string,
-  proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
-  retiringPath: string,
-): Promise<boolean> {
-  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
-  const slug = branchToWorkUnitSlug(branch);
-  if (slug === null) return false;
-  const entry = index.get(slug);
-  if (entry === undefined) return false;
-  try {
-    const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
-    const declaredBranch = parseMetaRecord(content).branch;
-    if (
-      (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
-      || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
-    ) {
-      return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
-    }
-    if (
-      proof.evidence.kind === "receipt"
-      && proof.evidence.transition === "decompose"
-      && proof.evidence.expectedLifecycle === "nonexistent"
-      && declaredBranch === branch
-      && await isSelfTeardown(retiringPath, ctx.cwd)
-    ) {
-      return false;
-    }
-    return declaredBranch === branch;
-  } catch {
-    return true;
-  }
-}
-
 interface TeardownBranchProjectionParams {
   branch: string | null;
   subject: WorktreeSubject;
@@ -322,6 +330,7 @@ interface TeardownBranchProjectionParams {
   remote?: string;
   mode: TeardownMode;
   protection?: ProtectionMode;
+  proofTarget?: ParkProofTarget;
   suggestion?: string;
   huskPath?: string;
 }
@@ -357,12 +366,41 @@ async function teardownBranchProjection(
   const { cwd, exec, chdir } = ctx;
   const { branch, subject, base, remote, mode, suggestion, huskPath } = params;
   const notices: string[] = [];
-  const fs = ctx.worktreeFs ?? nodeReconcileWorktreeFs;
+  const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
   const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(exec);
   if (!scan.ok) {
     return { status: "rejected", reason: `Could not read registered worktrees (${scan.message}).` };
   }
   const primaryPath = scan.worktrees.find((worktree) => worktree.primary)?.path;
+  const teardownSelections = new Map<string, TeardownSelection>();
+  const revalidateSelection = async (checkoutPath: string): Promise<TeardownResult | null> => {
+    if (ctx.readTeardownSelection === undefined) return null;
+    let decision: TeardownSelectionDecision;
+    try {
+      decision = await ctx.readTeardownSelection({ checkoutPath, subject, ...(branch === null ? {} : { expectedBranch: branch }) });
+    } catch (error) {
+      return {
+        status: "rejected",
+        reason: `Could not read teardown selection (${error instanceof Error ? error.message : String(error)}).`,
+      };
+    }
+    if (decision.kind !== "clear") return { status: "rejected", reason: decision.message };
+    const expected = teardownSelections.get(checkoutPath);
+    if (expected !== undefined && !teardownSelectionsEqual(expected, decision)) {
+      return { status: "rejected", reason: "The teardown target selection changed during revalidation." };
+    }
+    teardownSelections.set(checkoutPath, decision);
+    return null;
+  };
+  const revalidateLocalPredicates = async (checkoutPath: string): Promise<void> => {
+    if (teardownSelections.get(checkoutPath) === undefined) throw new Error("teardown selection is unavailable");
+    if (subject.kind === "work-unit" && mode === "shipped") {
+      const shippedSubjects = await readShippedWorkUnitsFromRef(exec, evidenceBaseRef);
+      if (!shippedSubjects.has(subject.name)) {
+        throw new Error("teardown lifecycle authority changed under lock");
+      }
+    }
+  };
 
   // Refresh the base before the reap-safety check and any in-place relocation. The
   // landed-in-base leg checks patch-equivalence against `base`, but right after a
@@ -376,13 +414,15 @@ async function teardownBranchProjection(
   const baseRef = mode === "shipped" || protection === "full"
     ? await refreshBase(exec, base, remote)
     : base;
-  const evidenceBaseRef = mode === "abandoned" && protection === "partial" ? base : baseRef;
+  const evidenceBaseRef = params.proofTarget?.head
+    ?? (mode === "abandoned" && protection === "partial" ? base : baseRef);
 
   // Worktree arm: shipped non-self cleanup retains the legacy physical-removal
   // choreography. Non-shipped linked projections instead become stamped detached
   // husks before any ref mutation; outside callers remove that husk only after its
   // persisted remote and local obligations resolve.
   let worktreeRemoved: string | null = null;
+  let retainedAnchoredCheckout = false;
   let pendingHuskRemoval: DetachedCandidate | null = null;
   let husk: Extract<TeardownResult, { status: "torn-down" }>["husk"] = null;
   let directionalAuthorization: Extract<TeardownAuthorizationDecision, { status: "authorized" }> | null = null;
@@ -405,10 +445,19 @@ async function teardownBranchProjection(
     try {
       marker = await (ctx.readMarker ?? readWorktreeMarker)(worktree.path);
     } catch (err) {
-      return {
-        status: "rejected",
-        reason: `Could not read detached worktree marker (${err instanceof Error ? err.message : String(err)}).`,
-      };
+      const detail = err instanceof Error ? err.message : String(err);
+      if (huskPath !== undefined && await localPathsEqual(worktree.path, huskPath)) {
+        return { status: "rejected", reason: `Could not read requested detached worktree marker (${detail}).` };
+      }
+      notices.push(`Skipped unreadable detached worktree marker at \`${worktree.path}\` (${detail}).`);
+      continue;
+    }
+    if (marker.kind === "malformed") {
+      if (huskPath !== undefined && await localPathsEqual(worktree.path, huskPath)) {
+        return { status: "rejected", reason: `Requested detached worktree marker is malformed (${marker.message}).` };
+      }
+      notices.push(`Skipped malformed detached worktree marker at \`${worktree.path}\` (${marker.message}).`);
+      continue;
     }
     if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
     if (!worktreeSubjectsEqual(marker.marker.husk.subject, subject)) continue;
@@ -457,34 +506,25 @@ async function teardownBranchProjection(
     if (decoded.kind === "manual-only") {
       return { status: "rejected", reason: `refusing detached husk removal: ${decoded.reason}` };
     }
-    if (decoded.kind === "current") {
-      directionalAuthorization = {
-        status: "authorized",
-        authorization: decoded.authorization,
-        authorityVersion: "persisted-husk",
-        evidence: decoded.evidence,
-        refs: { localOid: stamp.sha, remote: decoded.remoteRef },
-      };
-      const evidenceValid = await revalidateHuskRetirementEvidence(
-        exec,
-        stamp,
-        directionalAuthorization,
-        evidenceBaseRef,
-        ctx.readBlob,
-      );
-      if (!evidenceValid) {
-        return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
-      }
-    } else {
-      try {
-        const { stdout } = await exec("git", ["ls-remote", "--heads", remote ?? "origin", `refs/heads/${stamp.branch}`]);
-        if (stdout.trim() !== "") {
-          return { status: "rejected", reason: "legacy husk has no remote-delete authority" };
-        }
-      } catch {
-        return { status: "rejected", reason: "legacy husk remote state is unavailable" };
-      }
+    directionalAuthorization = {
+      status: "authorized",
+      authorization: decoded.authorization,
+      authorityVersion: "persisted-husk",
+      evidence: decoded.evidence,
+      refs: { localOid: stamp.sha, remote: decoded.remoteRef },
+    };
+    const evidenceValid = await revalidateHuskRetirementEvidence(
+      exec,
+      stamp,
+      directionalAuthorization,
+      evidenceBaseRef,
+      ctx.readBlob,
+    );
+    if (!evidenceValid) {
+      return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
     }
+    const selectionRefusal = await revalidateSelection(detachedCandidate.path);
+    if (selectionRefusal !== null) return selectionRefusal;
     pendingHuskRemoval = detachedCandidate;
     husk = {
       worktreePath: detachedCandidate.path,
@@ -519,7 +559,11 @@ async function teardownBranchProjection(
         remote: remote ?? "origin",
         requestedMode: mode,
       };
-      authority = ctx.authority ?? createTeardownRetirementAuthority(exec, evidenceBaseRef, ctx.readBlob);
+      authority = ctx.authority ?? createTeardownRetirementAuthority(
+        exec,
+        params.proofTarget ?? evidenceBaseRef,
+        ctx.readBlob,
+      );
       const authorization = await authority.authorize(authorizationRequest);
       if (authorization.status === "refused") {
         return {
@@ -531,7 +575,38 @@ async function teardownBranchProjection(
       directionalAuthorization = authorization;
       retiringProjectionPath = registered?.path ?? primaryPath ?? cwd;
     }
-    if (registered !== undefined && registered.path !== primary && (selfTeardown || mode === "abandoned")) {
+    const holdingMarker = registered === undefined ? null : await (ctx.readMarker ?? readWorktreeMarker)(registered.path);
+    const anchored = holdingMarker?.kind === "present" && !holdingMarker.marker.spawnedByArc;
+    const removal = registered === undefined ? null : await checkWorktreeRemoval({ exec, checkoutPath: registered.path,
+      disposition: anchored || registered.path === primaryPath ? "release" : "remove", folderExists: (path) => fs.directoryExists(path), check: ctx.projectionRemovalSlots?.check });
+    if (removal?.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal),
+      ...(removal.reason === "dirty" && selfTeardown ? { huskRefusal: "dirty" as const } : {}) };
+    const folderPresent = removal?.kind !== "missing";
+    if (registered !== undefined && anchored) {
+      const selectionRefusal = await revalidateSelection(registered.path);
+      if (selectionRefusal !== null) return selectionRefusal;
+      const release = async (): Promise<void> => {
+        const outcome = await releaseWorktreeCheckout({ exec, checkoutPath: registered.path,
+          primaryWorktreePath: primary ?? cwd, slots: ctx.projectionRemovalSlots });
+        if (outcome.kind === "refused") throw new Error(describeRemovalRefusal(outcome.check));
+        if (fs.removeFile === undefined) throw new Error("marker release filesystem boundary is not wired");
+        await removeWorktreeMarker(registered.path, fs.removeFile.bind(fs));
+      };
+      const expectedSelection = teardownSelections.get(registered.path);
+      try {
+        if (ctx.teardownWorktree !== undefined && expectedSelection !== undefined) {
+          await ctx.teardownWorktree.retire({ expectedSelection, revalidateLocal: async () => {
+            await revalidateLocalPredicates(registered.path);
+            if (authority !== null && authorizationRequest !== null && directionalAuthorization !== null) {
+              const current = await authority.revalidate(authorizationRequest, directionalAuthorization);
+              if (current.status === "refused") throw new Error(describeTeardownAuthorizationRefusal(current.reason));
+            }
+          }, retireProjection: release });
+        } else await release();
+      } catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
+      retainedAnchoredCheckout = true;
+      notices.push(`Released anchored checkout ${registered.path}; its checkout and branch remain.`);
+    } else if (registered !== undefined && folderPresent && registered.path !== primary && (selfTeardown || mode === "abandoned")) {
       if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
         return {
           status: "rejected",
@@ -552,6 +627,22 @@ async function teardownBranchProjection(
       if (dryRun.status === "blocked") {
         return { status: "rejected", reason: dryRun.reason, huskRefusal: "user-surfaces" };
       }
+      if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
+        return { status: "rejected", reason: "retirement authority is unavailable" };
+      }
+      const lockedAuthority = authority;
+      const lockedAuthorizationRequest = authorizationRequest;
+      const lockedDirectionalAuthorization = directionalAuthorization;
+      const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
+      if (revalidation.status === "refused") {
+        return {
+          status: "rejected",
+          reason: describeTeardownAuthorizationRefusal(revalidation.reason),
+          huskRefusal: "authorization-refused",
+        };
+      }
+      const selectionRefusal = await revalidateSelection(registered.path);
+      if (selectionRefusal !== null) return selectionRefusal;
       const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
         worktreePath: registered.path,
         primaryWorktreePath: primary,
@@ -561,48 +652,84 @@ async function teardownBranchProjection(
       if (reconciliation.status === "blocked") {
         return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
       }
-      if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
-        return { status: "rejected", reason: "retirement authority is unavailable" };
-      }
-      const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
-      if (revalidation.status === "refused") {
-        return {
-          status: "rejected",
-          reason: describeTeardownAuthorizationRefusal(revalidation.reason),
-          huskRefusal: "authorization-refused",
-        };
-      }
+      const terminalStamp = {
+        sha: registered.head,
+        at: new Date((ctx.now ?? Date.now)()).toISOString(),
+        subject,
+        branch,
+        authorization: lockedDirectionalAuthorization.authorization,
+        remoteRef: lockedDirectionalAuthorization.refs.remote,
+        evidence: lockedDirectionalAuthorization.evidence,
+      };
       let stamped = false;
-      try {
-        const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, {
-          sha: registered.head,
-          at: new Date((ctx.now ?? Date.now)()).toISOString(),
-          subject,
-          branch,
-          authorization: directionalAuthorization.authorization,
-          remoteRef: directionalAuthorization.refs.remote,
-          evidence: directionalAuthorization.evidence,
-        });
-        stamped = stampResult.kind === "stamped";
-        if (!stamped && mode !== "shipped") {
+      const expectedSelection = teardownSelections.get(registered.path);
+      if (ctx.teardownWorktree?.husk !== undefined && expectedSelection !== undefined) {
+        try {
+          await ctx.teardownWorktree.husk({
+            expectedSelection,
+            revalidateLocal: async () => {
+              if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
+                throw new Error(`cannot husk a dirty worktree: ${registered.path}`);
+              }
+              const authorization = await lockedAuthority.revalidate(
+                lockedAuthorizationRequest,
+                lockedDirectionalAuthorization,
+              );
+              if (authorization.status === "refused") {
+                throw new Error(describeTeardownAuthorizationRefusal(authorization.reason));
+              }
+              await revalidateLocalPredicates(registered.path);
+            },
+            stamp: terminalStamp,
+            detachProjection: () => exec(
+              "git",
+              ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid],
+              { cwd: registered.path },
+            ).then(() => undefined),
+          });
+          stamped = true;
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+            reason: `cannot prepare terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-      } catch (err) {
-        if (mode !== "shipped") {
+      } else {
+        try {
+          const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, terminalStamp);
+          stamped = stampResult.kind === "stamped";
+          if (!stamped && mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+        } catch (err) {
+          if (mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+          notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
+        }
+        try {
+          await exec("git", ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid], {
+            cwd: registered.path,
+          });
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+            reason: `cannot detach terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-        notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
       }
-      await exec("git", ["switch", "--detach", directionalAuthorization.refs.localOid], { cwd: registered.path });
       husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
+      teardownSelections.delete(registered.path);
       if (!selfTeardown) pendingCreatedHuskRemoval = registered.path;
     } else if (registered !== undefined && registered.path !== primary) {
       if (authorizationRequired) {
@@ -619,9 +746,34 @@ async function teardownBranchProjection(
         }
       }
       try {
-        await reconcileWorktree(
-          { exec, chdir, fs },
-          { mutation: "teardown", worktreePath: registered.path, currentLocus: cwd },
+        const selectionRefusal = await revalidateSelection(registered.path);
+        if (selectionRefusal !== null) return selectionRefusal;
+        const expectedSelection = teardownSelections.get(registered.path);
+        await reconcileWorkUnitWorktree(
+          {
+            exec,
+            chdir,
+            fs,
+            projectionRemovalSlots: ctx.projectionRemovalSlots,
+            ...(ctx.teardownWorktree === undefined ? {} : { teardownWorktree: ctx.teardownWorktree }),
+            ...(ctx.serializeWorktreeOperation === undefined
+              ? {}
+              : { serializeWorktreeOperation: ctx.serializeWorktreeOperation }),
+            ...(ctx.readCurrentLocus === undefined ? {} : { readCurrentLocus: ctx.readCurrentLocus }),
+          },
+          {
+            mutation: "teardown",
+            worktreePath: registered.path,
+            currentLocus: cwd,
+            ...(expectedSelection === undefined
+              ? {}
+              : {
+                  authorization: {
+                    expectedSelection,
+                    revalidateLocal: () => revalidateLocalPredicates(registered.path),
+                  },
+                }),
+          },
         );
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
@@ -647,24 +799,51 @@ async function teardownBranchProjection(
         }
       }
       if (directionalAuthorization !== null) {
+        const selectionRefusal = await revalidateSelection(primary);
+        if (selectionRefusal !== null) return selectionRefusal;
         pendingAuthorizedPrimaryRelocation = primary;
       } else {
-        const relocationFailure = await relocatePrimaryToBase(exec, primary, base, baseRef);
-        if (relocationFailure !== null) return { status: "rejected", reason: relocationFailure };
+        const relocate = async (): Promise<void> => {
+          const released = await releaseWorktreeCheckout({ exec, checkoutPath: primary, primaryWorktreePath: primary, slots: ctx.projectionRemovalSlots });
+          if (released.kind === "refused") throw new Error(describeRemovalRefusal(released.check));
+          const relocationFailure = await relocatePrimaryToBase(exec, primary, base, baseRef);
+          if (relocationFailure !== null) throw new Error(relocationFailure);
+        };
+        try {
+          const selectionRefusal = await revalidateSelection(primary);
+          if (selectionRefusal !== null) return selectionRefusal;
+          const expectedSelection = teardownSelections.get(primary);
+          if (ctx.teardownWorktree !== undefined && expectedSelection !== undefined) {
+            await ctx.teardownWorktree.retire({
+              expectedSelection,
+              revalidateLocal: async () => {
+                if (!(await isWorktreeClean({ exec, cwd: primary }))) {
+                  throw new Error(`refusing to relocate a dirty worktree: ${primary}`);
+                }
+                await revalidateLocalPredicates(primary);
+              },
+              retireProjection: relocate,
+            });
+          } else {
+            await relocate();
+          }
+        } catch (error) {
+          return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+        }
         notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
       }
     }
   }
 
   // Branch delete — mode-keyed. `shipped` without a stamped authorization keeps
-  // the merged-safe containment path. Stamped/receipt-backed cleanup resolves the
+  // the merged-safe containment path. Stamped cleanup resolves the
   // persisted remote disposition first, then compare-deletes the exact local OID;
   // unresolved obligations retain the path-addressable husk for replay.
   let branchDeleted = false;
   let remoteBranchDeleted = false;
   let localBranchDeleteFailed = false;
   const branchForCleanup = branch ?? husk?.branch ?? null;
-  if (branchForCleanup !== null) {
+  if (branchForCleanup !== null && !retainedAnchoredCheckout) {
     if (directionalAuthorization !== null) {
       const terminalPath = pendingHuskRemoval?.path ?? husk?.worktreePath ?? retiringProjectionPath;
       if (terminalPath === undefined) {
@@ -721,20 +900,43 @@ async function teardownBranchProjection(
         ) {
           let localMutationReady = true;
           if (pendingAuthorizedPrimaryRelocation !== null) {
-            const relocationFailure = await relocatePrimaryToBase(
-              exec,
-              pendingAuthorizedPrimaryRelocation,
-              base,
-              baseRef,
-            );
-            if (relocationFailure === null) {
+            const relocationPath = pendingAuthorizedPrimaryRelocation;
+            const relocation = async (): Promise<void> => {
+              const released = await releaseWorktreeCheckout({ exec, checkoutPath: relocationPath,
+                primaryWorktreePath: primaryPath ?? relocationPath, slots: ctx.projectionRemovalSlots });
+              if (released.kind === "refused") throw new Error(describeRemovalRefusal(released.check));
+              const relocationFailure = await relocatePrimaryToBase(
+                exec,
+                relocationPath,
+                base,
+                baseRef,
+              );
+              if (relocationFailure !== null) throw new Error(relocationFailure);
+            };
+            const expectedSelection = teardownSelections.get(relocationPath);
+            try {
+              if (ctx.teardownWorktree !== undefined && expectedSelection !== undefined && branchedRegistration !== undefined) {
+                await ctx.teardownWorktree.retire({
+                  expectedSelection,
+                  revalidateLocal: async () => {
+                    if (!(await isWorktreeClean({ exec, cwd: relocationPath }))) {
+                      throw new Error(`refusing to relocate a dirty worktree: ${relocationPath}`);
+                    }
+                    await revalidateLocalPredicates(relocationPath);
+                  },
+                  retireProjection: relocation,
+                });
+              } else {
+                await relocation();
+              }
               primaryRelocatedForLocalDelete = true;
               notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branchForCleanup}\`.`);
-            } else {
+            } catch (error) {
               localMutationReady = false;
               notices.push(
                 `Could not relocate the primary worktree to \`${base}\` after resolving the remote obligation `
-                  + `(${relocationFailure}); local branch \`${branchForCleanup}\` remains checked out for retry.`,
+                  + `(${error instanceof Error ? error.message : String(error)}); local branch `
+                  + `\`${branchForCleanup}\` remains checked out for retry.`,
               );
             }
           }
@@ -882,14 +1084,36 @@ async function teardownBranchProjection(
           return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
         }
       }
+      const selectionRefusal = await revalidateSelection(physicalRemovalPath);
+      if (selectionRefusal !== null) return selectionRefusal;
+      const expectedPhysicalSelection = teardownSelections.get(physicalRemovalPath);
+      const expectedPhysicalHead = pendingHuskRemoval?.head ?? directionalAuthorization?.refs.localOid;
       try {
-        await reconcileWorktree(
-          { exec, chdir, fs },
+        await reconcileWorkUnitWorktree(
+          {
+            exec,
+            chdir,
+            fs,
+            projectionRemovalSlots: ctx.projectionRemovalSlots,
+            ...(ctx.teardownWorktree === undefined ? {} : { teardownWorktree: ctx.teardownWorktree }),
+            ...(ctx.serializeWorktreeOperation === undefined
+              ? {}
+              : { serializeWorktreeOperation: ctx.serializeWorktreeOperation }),
+            ...(ctx.readCurrentLocus === undefined ? {} : { readCurrentLocus: ctx.readCurrentLocus }),
+          },
           {
             mutation: "teardown",
             worktreePath: physicalRemovalPath,
             currentLocus: cwd,
             huskApproved: true,
+            ...(expectedPhysicalSelection === undefined || expectedPhysicalHead === undefined
+              ? {}
+              : {
+                  authorization: {
+                    expectedSelection: expectedPhysicalSelection,
+                    revalidateLocal: () => revalidateLocalPredicates(physicalRemovalPath),
+                  },
+                }),
           },
         );
         worktreeRemoved = physicalRemovalPath;
@@ -941,6 +1165,10 @@ export async function runBranchTeardown(
   if (!presence.ok) {
     return { status: "rejected", reason: `Could not resolve local branch \`${branch}\` (${presence.message}).` };
   }
+  if (presence.present && isDecomposeCandidateBranch(branch)) {
+    const candidate = await tryCleanupDecomposeCandidate(ctx, { ...params, branch });
+    if (candidate !== null) return candidate;
+  }
   return teardownBranchProjection(ctx, {
     branch: presence.present ? branch : null,
     subject: { kind: "branch", ref: branch },
@@ -951,12 +1179,100 @@ export async function runBranchTeardown(
   });
 }
 
+async function tryCleanupDecomposeCandidate(
+  ctx: TeardownContext,
+  params: BranchTeardownParams & { branch: string },
+): Promise<TeardownResult | null> {
+  const prefix = "chore/decompose-";
+  const origin = params.branch.slice(prefix.length);
+  if (!isSlugSafe(origin)) return null;
+  const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
+  if (!scan.ok) return null;
+  const registrations = scan.worktrees.filter((entry) => entry.branch === params.branch);
+  const registration = registrations[0];
+  const primary = scan.worktrees.find((entry) => entry.primary);
+  if (registrations.length !== 1 || registration === undefined || primary === undefined) return null;
+  const branchHead = await readRefTip(ctx.exec, `refs/heads/${params.branch}`);
+  if (branchHead === null || registration.head !== branchHead) return null;
+
+  let baseHead: string;
+  let remoteHead: string | null;
+  try {
+    const proofTarget = await resolveParkProofTarget({
+      refreshRemoteBase: async (remoteName, baseBranch) => {
+        await ctx.exec("git", ["fetch", remoteName, baseBranch]);
+        const head = await readRefTip(ctx.exec, `${remoteName}/${baseBranch}`);
+        if (head === null) throw new Error("remote base is unavailable");
+        return head;
+      },
+      readLocalBase: async (baseBranch) => {
+        const head = await readRefTip(ctx.exec, baseBranch);
+        if (head === null) throw new Error("local base is unavailable");
+        return head;
+      },
+    }, {
+      protection: params.protection ?? "partial",
+      remote: params.remote ?? "origin",
+      baseBranch: params.base,
+    });
+    baseHead = proofTarget.head;
+    remoteHead = await readRemoteBranchOid(ctx.exec, params.remote ?? "origin", params.branch);
+  } catch {
+    return null;
+  }
+  if (remoteHead !== null || !await isContainedIn(ctx.exec, branchHead, baseHead)) return null;
+
+  const cleanup = await cleanupGitOwnedDecomposeCandidate({
+    origin,
+    expectedHead: branchHead,
+    expectedPath: registration.path,
+  }, {
+    cwd: primary.path,
+    exec: ctx.exec,
+    scanWorktrees: () => Promise.resolve(scan),
+    removeWorktree: async (path) => {
+      const remove = async (): Promise<void> => {
+        if (await isSelfTeardown(path, ctx.cwd)) ctx.chdir(primary.path);
+        const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: primary.path,
+          slots: ctx.projectionRemovalSlots, folderExists: (target) => (ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs).directoryExists(target) });
+        if (removed.kind === "refused") throw new Error(describeRemovalRefusal(removed.check));
+        if (removed.kind === "failed") throw new Error(`worktree removal failed at ${removed.step}: ${removed.detail}`);
+      };
+      if (ctx.serializeWorktreeOperation === undefined) await remove();
+      else await ctx.serializeWorktreeOperation(path, remove);
+    },
+  });
+  if (cleanup.status === "refused") {
+    return { status: "rejected", reason: `Owned decomposition candidate cleanup refused: ${cleanup.reason}.` };
+  }
+  let pruned = true;
+  const notices: string[] = [];
+  try {
+    await fetchPrune({ exec: ctx.exec }, { remote: params.remote });
+  } catch (error) {
+    pruned = false;
+    notices.push(`Could not prune remote-tracking refs (${error instanceof Error ? error.message : String(error)}).`);
+  }
+  return {
+    status: "torn-down",
+    mode: "shipped",
+    branch: params.branch,
+    branchDeleted: cleanup.branchOutcome !== "already-absent",
+    remoteBranchDeleted: false,
+    worktreeRemoved: cleanup.worktreeOutcome === "removed" ? registration.path : null,
+    husk: null,
+    pruned,
+    notices,
+    suggestion: params.suggestion ?? null,
+  };
+}
+
 /**
  * Run `teardown`: read authoritative arc-state, infer its mode,
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
  * order — projection preparation, remote disposition, exact local ref mutation,
  * deferred physical removal, and prune. Shipped cleanup keeps its merged-safe,
- * push-state-gated compatibility path; abandoned cleanup requires receipt-backed
+ * push-state-gated compatibility path; abandoned cleanup requires Git-proven
  * retirement authority. Rejects on a
  * gate mismatch (a not-yet-shipped WU in `shipped`, a `completed/` WU in
  * `abandoned`), an ambiguous branch match, or a dirty linked worktree.
@@ -966,8 +1282,9 @@ export async function runBranchTeardown(
  * @returns A rejection or the completed cleanup report.
  */
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
+  if (usesOffBranchState(ctx.store)) return runStoreTeardown(ctx, params);
   const { cwd, exec, indexFs } = ctx;
-  const { name, base, remote, suggestion } = params;
+  const { base, remote, suggestion } = params, name = teardownSubjectOperand(params.subject);
   if (params.huskPath !== undefined && !isAbsolute(params.huskPath)) {
     return { status: "rejected", reason: "`--husk` requires an absolute worktree path." };
   }
@@ -983,27 +1300,45 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
   let shipped: boolean;
+  let proofTarget: ParkProofTarget | undefined;
   if (params.protection === undefined) {
     shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
   } else {
     const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
-    if (params.protection === "full") {
-      try {
-        await exec("git", ["fetch", remote ?? "origin", base]);
-      } catch {
-        return {
-          status: "rejected",
-          reason: `Could not refresh lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
-        };
-      }
-    }
-    if (await readRefTip(exec, authorityRef) === null) {
+    try {
+      proofTarget = await resolveParkProofTarget({
+        refreshRemoteBase: async (remoteName, baseBranch) => {
+          await exec("git", ["fetch", remoteName, baseBranch]);
+          const head = await readRefTip(exec, `${remoteName}/${baseBranch}`);
+          if (head === null) throw new Error("remote base is unavailable");
+          return head;
+        },
+        readLocalBase: async (baseBranch) => {
+          const head = await readRefTip(exec, baseBranch);
+          if (head === null) throw new Error("local base is unavailable");
+          return head;
+        },
+      }, {
+        protection: params.protection,
+        remote: remote ?? "origin",
+        baseBranch: base,
+      });
+    } catch {
       return {
         status: "rejected",
-        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown. `
+          + "Restore access to that ref, then retry the same teardown command.",
       };
     }
-    shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
+    const completedEvidence = await readCompletedEvidenceFromRef(exec, proofTarget.head);
+    if (completedEvidence.status === "unavailable") {
+      return {
+        status: "rejected",
+        reason: `Could not read completed lifecycle evidence from \`${authorityRef}\`; refusing teardown. `
+          + "Restore access to that ref's completed index, then retry the same teardown command.",
+      };
+    }
+    shipped = completedEvidence.records.has(name);
   }
   const mode: TeardownMode = params.mode ?? (shipped ? "shipped" : "abandoned");
   if (params.mode === "shipped" && !shipped) {
@@ -1027,7 +1362,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   if (!shipped && branch === null && params.huskPath === undefined) {
     return {
       status: "rejected",
-      reason: `No branch or detached husk remains for receipt-backed teardown of \`${name}\`.`,
+      reason: `No branch or detached husk remains for evidence-backed teardown of \`${name}\`.`,
     };
   }
 
@@ -1038,6 +1373,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     remote,
     mode,
     protection: params.protection,
+    proofTarget,
     huskPath: params.huskPath,
     suggestion,
   });

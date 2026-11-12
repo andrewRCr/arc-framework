@@ -36,7 +36,7 @@
  */
 
 import type { ResolvedSettingsResult } from "../config/resolved-settings.js";
-import type { ConfigSettings } from "../../commands/config/types.js";
+import type { ConfigSettings } from "../config/schema.js";
 import type { AuthorizationDecision, FormatRefusal } from "./types.js";
 
 /** Release-wrapper operation kind. */
@@ -172,10 +172,7 @@ function composeBody(
       ];
     }
     case 12:
-      return [
-        `Argv contained \`${decision.flag}\`, which \`arc release\` refuses.`,
-        "Use raw `git` for this operation.",
-      ];
+      return composeDestructiveFlagBody(decision);
     case 13:
       return [
         `Operation targets \`${decision.branch}\`, which is the protected base under \`branch.protection: full\`.`,
@@ -201,12 +198,37 @@ function composeBody(
         "Use raw `git` for this operation.",
       ];
     }
+    case 17:
+      return [`Task close precheck failed (${decision.check}): ${decision.reason}`, decision.remedy];
     case 16:
       return [
         `Commit-message preflight failed (${decision.reason}).`,
         "Correct the commit-message input and retry.",
       ];
   }
+}
+
+function composeDestructiveFlagBody(
+  decision: Extract<AuthorizationDecision, { code: 12 }>,
+): [string, string] {
+  if (decision.head?.kind === "pushed") {
+    const refs = decision.head.refs.map((ref) => `\`${ref}\``).join(", ");
+    return [
+      `\`${decision.flag}\` would rewrite \`HEAD\`, which is already on ${refs}.`,
+      "Commit the change as a new commit; amend a pushed commit only on explicit request, through raw `git`.",
+    ];
+  }
+  if (decision.head?.kind === "unreadable") {
+    return [
+      `\`${decision.flag}\` needs an unpushed \`HEAD\`, and its remote-tracking refs could not be read: `
+        + decision.head.detail,
+      "Resolve the Git error and retry, or commit the change as a new commit.",
+    ];
+  }
+  return [
+    `Argv contained \`${decision.flag}\`, which \`arc release\` refuses.`,
+    "Use raw `git` for this operation.",
+  ];
 }
 
 function composeInterlockRemediation(

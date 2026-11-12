@@ -114,13 +114,13 @@ created unnecessary directory proliferation without meaningful benefit, since th
 
 The revised model uses two tiers:
 
-| Tier       | Directory          | Tools served                                                           |
-|------------|--------------------|------------------------------------------------------------------------|
-| Universal  | `.agents/skills/`  | Amp, Cline, Codex, Cursor, Gemini CLI, Copilot, Kimi, OpenCode, Warp,  |
-|            |                    | Windsurf                                                               |
-| Standalone | `.claude/skills/`  | Claude Code                                                            |
-| Standalone | `.augment/skills/` | Augment                                                                |
-| Standalone | `.agent/skills/`   | Antigravity (singular — no 's')                                        |
+| Tier       | Directory          | Tools served                                                          |
+| ---------- | ------------------ | --------------------------------------------------------------------- |
+| Universal  | `.agents/skills/`  | Amp, Cline, Codex, Cursor, Gemini CLI, Copilot, Kimi, OpenCode, Warp, |
+|            |                    | Windsurf                                                              |
+| Standalone | `.claude/skills/`  | Claude Code                                                           |
+| Standalone | `.augment/skills/` | Augment                                                               |
+| Standalone | `.agent/skills/`   | Antigravity (singular — no 's')                                       |
 
 **Existing directory detection:** For universal-tier tools, the generator checks for pre-existing tool-specific
 skill directories before defaulting to `.agents/skills/`. If a user already has `.gemini/skills/` with their own

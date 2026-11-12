@@ -32,26 +32,23 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 
 ### Verify Session State
 
-No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are
-created in `.arc/active/` at first work unit activation, not at init.
+No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are created
+in `.arc/active/` at first work unit activation, not at init.
 
-Initial session state lives in the bootstrap Persistent Context entry in
-`.arc/user/{identity}/SESSION-NOTES.md`, pre-populated by `arc init`:
+Initial session state lives in the bootstrap entry `arc init` seeds into `.arc/user/{identity}/WORKING-MEMORY.md`:
 
 ```markdown
-## Persistent Context
+## Memories
 
 **Post-install setup:**
 _Remove when: initial-setup sequence complete._
 
-- First session after `arc init`. Work through the initial-setup sequence,
-  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
-  The workflow guides onward steps.
+- First session after `arc init`. Work through the initial-setup sequence, starting at
+  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`. The workflow guides onward steps.
 ```
 
-Confirm the entry is present. Session-init treats Persistent Context as active
-constraints, so the next `arc-session` invocation surfaces the pointer to this
-workflow in its orientation output.
+Confirm the entry is present. Session-init loads WORKING-MEMORY in every session, so the next `arc-session` invocation
+surfaces the pointer to this workflow in its orientation output.
 
 ### Verify Agent Configuration
 
@@ -61,9 +58,9 @@ settings for that agent platform.
 
 ### User Workspace
 
-`arc init` created `user/{identity}/` as a personal workspace directory (gitignored).
-This is where session-specific files live — SESSION-NOTES.md (written at session handoff),
-and with arc-in-git PM mode, ATOMIC-INBOX.md (deferred tasks).
+`arc init` created `user/{identity}/` as a personal workspace directory (gitignored), seeded with WORKING-MEMORY.md
+(context that spans work units) and USER-INBOX.md (concerns captured for later). Each work unit's SESSION-NOTES.md
+lives in `user/{identity}/{work-unit}/`, created when the work unit starts and written at session handoff.
 
 Confirm identity is set:
 
@@ -95,24 +92,18 @@ the file's inline comments) are a better fit.
 
 ### Customization Beyond Config
 
-ARC has two additional customization surfaces worth knowing about:
+Method overrides customize how ARC performs an operation:
 
 - **`system/methods/`** — one file per method, each replacing _how_ ARC does something.
-  Example: a team using Jira populates the `.override` section in
-  `commit-footer.md` to reference tickets instead of task lists.
-- **`system/extensions/`** — one file per extension point, each adding _extra steps_ at
-  workflow points. Example: populate `.actions` in `post-task-quality.md` to run a security
-  scan after every task, or `post-task-completion.md` to sync task completion to an external
-  tracker.
+  Example: a team using Jira populates the `.override` section in `commit-footer.md`
+  to reference tickets instead of task lists. Methods ship with working defaults.
+Overrides are configured on demand as specific workflows reference them — not
+during initial setup.
 
-Both ship with placeholders that work out of the box. They're configured on-demand as
-specific workflows reference them — not during initial setup.
-
-Teams also extend ARC through project-owned content: project strategies
-(`strategies/project/`), project workflows (`workflows/project/`), and
-DEV-RULES.PROJECT (defined in the next workflow). These grow organically as project
-patterns emerge. See [Configurability Architecture Strategy][config-arch] for the
-full model.
+Teams also extend ARC through project-owned content: project strategies (`strategies/project/`),
+project workflows (`workflows/project/`), and DEV-RULES.PROJECT (defined in
+the next workflow). These grow organically as project patterns emerge. See [Configurability
+Architecture Strategy][config-arch] for the full model.
 
 ### Optional: Set Up Interlock Release Wrappers
 
@@ -173,10 +164,10 @@ On accept, write only the selected harness recipe:
   `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
   `.claude/settings.json`. Merge the top-level `hooks` object; preserve all unrelated settings and
   existing non-ARC hook entries.
-- **Codex CLI** — merge into the project-root harness config:
-  `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into `.codex/hooks.json`, then ensure
-  `.codex/config.toml` has `[features] hooks = true` unless an existing policy or user choice keeps
-  hooks disabled. Codex project-local hooks load only after the project `.codex/` layer and the
+- **Codex CLI** — merge into the project-root harness config: `.arc/system/.internal/harness-hooks/codex-cli/hooks.json`
+  into `.codex/hooks.json`, then ensure `.codex/config.toml` has `[features]
+  hooks = true` unless an existing policy or user choice keeps hooks disabled.
+  Codex project-local hooks load only after the project `.codex/` layer and the
   exact hook definitions are trusted.
 
 Install discipline:
@@ -193,12 +184,12 @@ Install discipline:
   recovery context mid-turn (`PostToolUse`), and `UserPromptSubmit` is the turn-boundary backstop
   when no tool call follows. The two channels share an atomic per-marker claim, so recovery injects
   exactly once and later boundaries stay silent until recovery clears the marker. Recovery restores
-  ARC session context; repository instruction
-  files such as `AGENTS.md` and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set.
-  Do not add Codex `SessionStart(compact)` or a catch-all `SessionStart` matcher, and do not make
+  ARC session context; repository instruction files such as `AGENTS.md` and
+  `CLAUDE.md` remain harness-managed and outside ARC's recovery load set. Do
+  not add Codex `SessionStart(compact)` or a catch-all `SessionStart` matcher, and do not make
   `SessionStart(clear)` inject recovery.
-- After writing, re-read the target files and report one line:
-  `ARC post-compaction session-recovery hooks installed for <harness>.`
+- After writing, re-read the target files and report one line: `ARC post-compaction
+  session-recovery hooks installed for <harness>.`
 - Ask the user to review/trust the new hook definitions in the harness UI when the harness requires
   it (Codex uses `/hooks`; Claude Code exposes hook review through its hook settings flow). Codex
   silently skips untrusted or modified hook definitions — including in non-interactive runs — so any
@@ -213,16 +204,17 @@ These choices are independently selectable and default off. Configure only the l
 - **Frontline sources** — set the ordered `review.frontline_sources` list for optional pre-publication review.
   Each developer may add local sources with `git config --add arc.frontlineSources <source-id>`.
 - **Standard-review sources** — set the ordered `review.standard_sources` list for ordinary review. Hosted
-  sources require their provider and repository integration to be available.
-- **Planning auto-merge lane** — under `branch.protection: full`, run the
-  [Set Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
+  sources require their provider and repository integration to be available. Include `delegated-agent` for fix
+  checks; without it the lane stops after a pass approves material fixes. Hosted sources run complete passes first
+  or after a converged look.
+- **Planning auto-merge lane** — under `branch.protection: full`, run the [Set
+  Up the Auto-Merge Gate workflow][setup-merge-gate] to add `ci-ok`, planning-path CODEOWNERS, and native
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
-  arming a PR; the independently selectable merge guard adds structural host enforcement. Skip under partial
-  protection. See [Auto-Merge Lane][work-org-auto-merge].
-- **ARC merge guard** — on GitHub with full branch protection and repository admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
-  additive `arc-cleared` required context. The workflow must land on the default branch before the context is
-  required.
+  arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+- **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want
+  `arc merge lock` / draft-PR structural hold semantics. Opens work-unit PRs locked (draft) and releases only at
+  the lifecycle-ready exact-head interlock; the classifier and integration interlock remain arming and merge
+  authorities. See [Auto-Merge Lane][work-org-auto-merge]. Config opt-in only — no install ceremony.
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -257,8 +249,8 @@ Confirm that `arc init` set up the local environment:
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).
 - **User workspace** — `user/{identity}/` exists. Check `user.notes_push` in
-  `arc-config.yml` for the team's sync behavior; override locally with
-  `git config arc.notesPush` if needed.
+  `arc-config.yml` for the team's sync behavior; override locally with `git
+  config arc.notesPush` if needed.
 
 ### Configuration Review
 
@@ -299,25 +291,24 @@ compaction and require `session-recover` after `compact`; `clear` does not injec
 This is a project-scoped harness-config write and requires explicit user trust. If the user accepts,
 write only the selected harness recipe into the current project:
 
-- **Claude Code** — merge
-  `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
-  `.claude/settings.json`.
+- **Claude Code** — merge `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json`
+  into `.claude/settings.json`.
 - **Codex CLI** — merge `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into
   `.codex/hooks.json`, then ensure `.codex/config.toml` has `[features] hooks = true` unless an
   existing policy or user choice keeps hooks disabled.
 
 Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
 and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
-`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
+`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostToolUse`,
 `UserPromptSubmit`, and cleanup-only `SessionStart(clear)` as the documented workaround for Codex's
 missing immediate post-compaction context injection. Codex's pending marker is scoped to the current
 thread, and recovery restores ARC session context; repository instruction files such as `AGENTS.md`
 and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set. After writing, re-read
-the target files and report one line:
-`ARC post-compaction session-recovery hooks installed for <harness>.`
-Then ask the user to review/trust the hook definitions in the harness UI. Roll back by restoring
-the backup, or by removing only the ARC recipe entries. For Codex, remove `[features].hooks` only
-if this install created that key.
+the target files and report one line: `ARC post-compaction session-recovery
+hooks installed for <harness>.` Then ask the user to review/trust the hook definitions
+in the harness UI. Roll back by restoring the backup, or by removing only the
+ARC recipe entries. For Codex, remove `[features].hooks` only if this install
+created that key.
 
 ### Optional: Choose Review Sources and Merge Guards
 
@@ -326,12 +317,10 @@ These repository choices remain independently selectable and default off:
 - **Frontline sources** — review the ordered `review.frontline_sources` list and any developer-local
   `arc.frontlineSources` additions.
 - **Standard-review sources** — review the ordered `review.standard_sources` list and confirm each provider is
-  available.
+  available. Include `delegated-agent` for fix checks so the lane can continue after material fixes.
 - **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
-- **ARC merge guard** — on GitHub with full protection and admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
-  `arc-cleared` becomes required.
-
+- **Draft-state merge lock** — set `merge.lock: draft` (or leave `none`) for draft-PR structural hold; use
+  existing `arc merge lock` verbs. See [Auto-Merge Lane][work-org-auto-merge] for the draft-lock model.
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation
@@ -353,4 +342,3 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 [setup-workflow]: ../supplemental/setup-release-wrapper.md
 [work-org-auto-merge]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-merge-gate]: ../supplemental/setup-merge-gate.md
-[setup-arc-clearance]: ../supplemental/setup-arc-clearance.md

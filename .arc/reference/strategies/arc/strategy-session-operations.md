@@ -17,7 +17,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Context Loading Model](#context-loading-model) — three-tier classification
 - [Classification Criteria](#classification-criteria) — which tier for new content
 - [Loading Mechanisms](#loading-mechanisms) — how each tier enters agent context
-- [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
+- [Method Loading](#method-loading) — on-demand procedural content
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Meta-File Timing](#meta-file-timing) — when status updates land in commit history
@@ -35,11 +35,11 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
-| Tier | Name           | When Loaded                          | Content Type                                              |
-| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
-| T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
-| T2   | State          | Session initialization               | Work status, session notes, task overview                 |
-| T3   | Procedural     | On-demand at workflow trigger points | Method defaults/overrides, strategies, detailed workflows |
+| Tier | Name           | When Loaded                       | Content Type                                              |
+| ---- | -------------- | --------------------------------- | --------------------------------------------------------- |
+| T1   | Constitutional | Session initialization            | Principles, identity, constraints, navigation             |
+| T2   | State          | Session initialization            | Work status, session notes, task overview                 |
+| T3   | Procedural     | On-demand at declared fire-points | Method defaults/overrides, strategies, detailed workflows |
 
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
@@ -57,63 +57,106 @@ what comes next. Always loaded at session start.
 - meta-{name}.md (per-WU tracked project pointer in active/; holds State, Branch,
   Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
-- Task list overview and current task section (strategic partial read)
+- Task list overview and current task section during resolved open-task `execution` (strategic partial read)
 
 **T3 — Procedural.** Step-by-step guidance for specific activities that may or may not happen in
 a given session. Loaded on-demand when the agent enters the relevant workflow phase.
 
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
-- Workflow documents (prepare-commits, integrate-work-unit)
-- arc-extensions steps (post-task-quality, pre-merge, etc.)
+- Workflow documents (prepare-commits, prepare-work-unit, integrate-work-unit)
 
 ### State-Conditional Promotion
 
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content           | State Signal                                      | Promotes When             |
-| ----------------- | ------------------------------------------------- | ------------------------- |
-| process-task-loop | Meta file resolved; `**Task List:**` not `[none]` | Active task work expected |
+| Content             | State Signal                                      | Promotes When                           |
+| ------------------- | ------------------------------------------------- | --------------------------------------- |
+| process-task-loop   | `sessionType: execution` with a found task cursor | Executable task work is active          |
+| verify-work-unit    | `sessionType: execution` with `no-open-task`      | Candidate attestation remains           |
+| prepare-work-unit   | Resolved `sessionType: prepublication`            | Private Candidate preparation is active |
+| integrate-work-unit | Resolved `sessionType: integration`               | Public integration is active            |
 
-Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
-dense procedural content. The state signal loads it precisely when relevant.
+Planning and prepublication may retain a task-list pointer without loading execution context. The resolved session
+type plus canonical task cursor selects one lifecycle workflow. Task detail loads only for open-task execution;
+execution closeout loads `verify-work-unit` without a strategic task-list slice.
 
 ### Probe pattern
 
-Session-init consumes ARC state through a **composite probe** rather than orchestrating individual file reads
-and subprocess calls:
+The CLI acquires ARC state through a **composite probe** shared by inspection and compiled session entry:
+`arc status --session-init --json` exposes the envelope, while `arc agenda session-init --json` compiles its results
+into executable steps.
 
 - **Non-destructive** — read-only, no mutations, no user prompts
 - **Harness-first** — agent-consumed via `--json`, not CLI-interactive
-- **Composite-first** — `arc status --session-init --json` returns identity, user-sync, extensions, config,
+- **Composite-first** — `arc status --session-init --json` returns identity, user-sync, config,
   and active-meta-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
   wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
 
-Standalone probe commands (`arc user status`, `arc config status`, `arc extensions status`, `arc active
-status`) share the same implementations and are available for debugging and CI. Session-init uses only the
-composite.
+Standalone probe commands (`arc user status`, `arc config status`, `arc active status`) share the same
+implementations and remain available for debugging and CI. The agenda compiler reads the shared composition;
+the executing session follows the agenda rather than interpreting probe slots.
+
+#### Remote access boundary
+
+The session-init probe has a passive code-repository contract. One request reads the advertised `refs/heads/*`
+generation, inspects every distinct advertised commit in one local-only object batch, and shares that immutable
+evidence plus one history-completeness reading across remote-aware slots. It does not fetch code objects, create or
+update code refs, prune, run maintenance, or fall back to remote-tracking refs. In a linked worktree, those writes
+would target the common Git directory shared by every worktree; passive orientation needs no permission to make
+them.
+
+The public evidence arms have exact operational meanings:
+
+- `exact` — the advertised OID is locally present and every required local object or graph prerequisite is
+  complete. Only exact facts may authorize a graph relation or cleanup; every surfaced materialization candidate
+  is likewise proven from an exact present object even when the enclosing candidate set remains pending.
+- `pending-fetch` — the remote advertised an OID that is not locally present. The result carries only candidates
+  already proven from present objects plus its structured explicit-refresh remedy; it never substitutes a stale
+  tracking-ref relation.
+- `unreachable` — the advertised-head read failed with a bounded failure class. Local orientation and slots that
+  need no remote evidence continue; dependent actions remain unavailable.
+- `not-applicable` — remote sync is disabled, no remote exists, or that result does not require remote evidence.
+- Shallow history — even when both compared tips exist locally, a graph-dependent slot cannot claim an exact
+  relation until full ancestry is available. Independent snapshot-only facts remain valid.
+- Partial-clone descendants — a locally present advertised commit does not prove its tree or blobs are present.
+  Status-side reads disable lazy object fetching; a missing descendant becomes that slot's local probe error and
+  causes no pack, object, ref, or maintenance write.
+
+Acquisition belongs to an explicit operation. `arc active in-flight --json` may fetch missing advertised candidate
+objects into Git's operational fetch state before recomputing the set; `arc base sync --json`, materialization,
+pull, and sync verbs similarly own the writes their names imply. A denied explicit operation exits non-zero or
+returns typed incomplete evidence; after a successful retry, a fresh passive probe may report exact evidence for
+the objects now present.
+
+The passive code-head guarantee is deliberately narrower than every remote channel in the composite. User-notes
+transport under `refs/notes/arc/user/*` and transient Errand-record transport retain their own documented reads and
+operational temporary-ref behavior. Their calls are recorded separately and never establish code-branch evidence.
+Likewise, a harness permission prompt is one possible symptom of the Git metadata boundary, not part of ARC's
+contract: any filesystem policy that denies common-directory or object-database writes should allow the passive
+probe and gate only explicit acquisition.
 
 The same machinery underlies the session-handoff probe (`arc status --session-handoff --json`); see
 § Handoff-Interior Toggle Pattern for the handoff envelope's role in workflow consumption.
 
 #### Handoff envelope fields
 
-The `arc status --session-handoff --json` envelope carries seven probe slots plus identity. Each slot
-wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
-branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
+The `arc status --session-handoff --json` envelope carries identity and typed probe slots. Each slot wraps in the
+same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error branch rather than
+rejecting the composite. Shared session-entry slot shapes are served by `arc schema get session-init-envelope`.
 
-| Field            | Contents                                                                                                                                                       |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `identity`       | `{identity, role}` — either may be `null`                                                                                                                      |
-| `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                           |
-| `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                               |
-| `user`           | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                              |
-| `syncInterlock`  | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`) |
-| `active`         | Active meta file resolution — same shape as session-init's `active` slot                                                                                       |
-| `head`           | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                               |
-| `pushability`    | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                 |
-| `releaseRouting` | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot             |
+| Field            | Contents                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identity`       | `{identity, role}` — either may be `null`                                                                                                                                |
+| `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                     |
+| `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                         |
+| `user`           | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when neither `arc.identity` nor Git `user.name` resolves an identity |
+| `syncInterlock`  | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)           |
+| `active`         | Active meta file resolution — same shape as session-init's `active` slot                                                                                                 |
+| `head`           | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                         |
+| `pushability`    | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                           |
+| `releaseRouting` | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                       |
 
 Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
 their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
@@ -127,25 +170,24 @@ Consumer plans extending the probe envelope add a field by registering a slot. T
 
 - **Each slot is a typed `Probe<T>` union.** `ok: true` carries `value: T`; `ok: false` carries an error
   payload. One slot's failure surfaces in that slot only; sibling slots resolve independently.
-- **Slot resolvers are non-destructive.** Read-only, no mutations, no user prompts. Side effects (e.g.,
-  pulling notes) belong in the consuming workflow after the agent reads the probe — not inside the
-  resolver.
+- **Slot resolvers are non-destructive.** Read-only, no mutations, no user prompts. Side effects such as pulling
+  notes belong in explicit agenda actions or the consuming workflow after state acquisition, not in the resolver.
 - **Slots fan out via `Promise.all`.** The composite waits for all slots before returning the envelope;
   individual slot failures don't block the others.
 - **Mode-aware field selection.** A slot may participate in `--session-init`, `--session-handoff`, both,
   or neither. The mode flag (passed to the composite) selects which slots fire; resolvers themselves
   remain mode-agnostic.
 
-The same field-resolver machinery serves both modes. Adding a probe is structural extension — register
-the slot and declare the mode(s) it serves — not session-init workflow prose changes. Workflows consume
-the envelope uniformly.
+The same field-resolver machinery serves both modes. The agenda compiler is another reader of session-init
+composition, not another slot resolver. An extension registers its slot and modes, then adds the compiler handling
+that carries any new session-entry behavior into steps. The spine continues executing the same step vocabulary;
+other workflows consume their envelopes directly.
 
 ---
 
 ## Classification Criteria
 
-When adding new content to ARC — strategy docs, method overrides, extensions, workflow
-guidance — classify it by asking:
+When adding new content to ARC — strategy docs, method overrides, workflow guidance — classify it by asking:
 
 **T1 — Constitutional?**
 
@@ -175,24 +217,20 @@ Each tier has established mechanisms for how content enters agent context:
 
 ### Session initialization (T1 + T2)
 
-The [session-init workflow][session-init] prescribes upfront loading of constitutional and state
-documents in a defined order. This is a bulk load — deterministic, ordered, and complete before
-work begins. The load order (general → specific) ensures each document is understood in the
-context of what came before.
+The [session-init workflow][session-init] executes a compiled agenda. Its `read` steps carry each path, read mode,
+group, and any task cursor; `read-load-set` executes them in manifest order, grouping independent reads together.
+The compiler selects universal and state-specific context for the entering row, so each session loads only its
+required context before reaching the emitted question or gate.
 
 ### Workflow-embedded directives (T3)
 
-Workflow documents contain explicit loading instructions for the methods and references they
-depend on. When the agent reaches a workflow step that references a method or strategy, the
-workflow tells it to load the relevant section.
+Workflow and method bodies mark the exact step where the executing session needs a declared method.
+The consumer's frontmatter declaration makes that fire-point resolvable; it does not preload the content.
 
-Directives appear as a method dependencies block near the top of workflow documents:
-
-> **Method dependencies (load on first reference):** [method-a], [method-b]. For each, check
-> `.override` first; use `.default` if no override is configured.
-
-This mechanism is deterministic (the workflow prescribes it), automatic (the agent follows the
-workflow step by step), and scoped (only the relevant methods load, only when needed).
+A fire-point may be a callout, a signature block, or an invocation-marking in-step method
+link. A link used only to navigate to related material is not a fire-point. This mechanism is deterministic (the
+consumer marks the invocation), automatic (the agent follows the body step by step), and scoped (only the content
+needed at the reached fire-point loads).
 
 ### Strategy-index triggers (T3)
 
@@ -209,21 +247,20 @@ initiates the activity.
 
 ---
 
-## Method and Extension Loading
+## Method Loading
 
-**Declaration mechanism.** Workflow frontmatter declares method and extension dependencies — see
-[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` /
-`arc.extensions` arrays are the load contract; in-step markdown links remain as reader navigation but do not
-constitute the trigger.
+**Declaration mechanism.** Each workflow or method declares only the methods its own body may fire. Workflow
+declarations root a deduplicated transitive method graph, so a workflow never repeats its methods' dependencies. See
+[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` array is the
+declaration contract; the direct body fire-point triggers the load. An in-step Markdown link is a trigger only when that
+step uses it to invoke the named method; purely navigational links are not fire-points.
 
 ### Per-file Frontmatter Schema
 
-Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
-fixed YAML frontmatter block. The schema has two consumers: session-init reads the `active` field on each
-`system/extensions/*.md` file via a single `grep` to produce the **active-extensions list** (see
-§ Session-Init Consumption); the framework-repo CI audit reads the directories and workflow frontmatter to
-enforce corpus-wide coverage. Method frontmatter is not consumed at init — method bodies always load at
-workflow trigger.
+Methods live as per-file entries under `system/methods/`, each with a fixed YAML frontmatter block. The framework-repo
+CI audit reads the directory plus workflow and method frontmatter to enforce corpus-wide reachability and
+dependency-graph integrity. Method frontmatter is not consumed at init; method bodies load at their direct
+consumer's fire-point.
 
 **Method schema** (`system/methods/<name>.md`):
 
@@ -231,6 +268,9 @@ workflow trigger.
 ---
 name: <method-name>
 description: <one-line operational purpose>
+arc:                              # optional; omit when the method fires no methods
+  methods:
+    - <method-name>
 related:
   - <related-method-name>
 override-active: false
@@ -238,50 +278,35 @@ override-mode: extend  # optional; replace | extend, absent ⇒ replace
 ---
 ```
 
-**Extension schema** (`system/extensions/<name>.md`):
-
-```yaml
----
-name: <extension-name>
-description: <one-line operational purpose>
-related:
-  - <related-extension-name>
-active: false
----
-```
-
 **Field semantics:**
 
-- `name` — method or extension name; must match the file basename (e.g., `issue-triage.md` registers
+- `name` — method name; must match the file basename (e.g., `issue-triage.md` registers
   `issue-triage`)
 - `description` — one-line operational purpose. What it does, not where it fires
-- `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
+- `arc.methods` — methods this method's default or override body may fire. Declare the union across both bodies;
+  the actual dependency loads only when execution reaches its fire-point. Callers do not redeclare these entries
+- `related` — array of coupled method names within the same kind. Overriding one should prompt
   review of the others. Omit when empty
-- `override-active` (methods only) — `true` when the file's override body is populated; `false` when the
+- `override-active` — `true` when the file's override body is populated; `false` when the
   default is in effect. Consumed by the framework-repo CI audit, docs generation, and authoring tooling —
-  not by session-init. Method bodies (both `.override` and `.default`) always load at workflow trigger, so
-  init-time override-presence surfacing serves no agent decision
-- `override-mode` (methods only, optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
+  not by session-init. Method bodies load only when their direct workflow or method consumer reaches the
+  corresponding fire-point, so init-time override-presence surfacing serves no agent decision
+- `override-mode` (optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
   (the override supersedes the default); `extend` applies the default first, then the override on top. Carry it
   only on a method whose override is additive — absent-means-replace leaves every other method unchanged
-- `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
-  extension is an empty placeholder. Session-init enumerates files where `active: true` via `grep -l` to
-  produce the active-extensions list (see § Session-Init Consumption). Fire-point directives consult the
-  list by name and skip invocation for extensions not on it
 
-**Why no `workflow` field:** The workflow→method/extension trigger contract lives in workflow frontmatter
-(`arc.methods` / `arc.extensions`) — that's the mechanical coverage guarantee enforced by the framework-repo
-CI audit. The reverse index (method→workflows) is centralized in this strategy's "Method classification by
-trigger" table, which stays readable when methods fire from multiple workflows. A per-file `workflow` field
-would duplicate that info, would be lossy when methods fan out (e.g., `session-state` fires at both
-session-init and session-handoff), and has no mechanical consumer — so it's omitted.
+**Why no `workflow` field:** Workflow frontmatter roots the method graph; method
+frontmatter adds only its direct method dependencies. The reverse index (method→workflows) is centralized in this
+strategy's "Method classification by trigger" table, which stays readable when methods fire from multiple
+workflows. A per-file `workflow` field would duplicate that info, would be lossy when methods fan out (e.g.,
+`session-state` fires at both session-init and session-handoff), and has no mechanical consumer — so it's omitted.
 
 ### Per-file Body Conventions
 
-Beyond the frontmatter schema, per-file method and extension documents follow a fixed body shape so reader
+Beyond the frontmatter schema, per-file method documents follow a fixed body shape so reader
 orientation stays consistent across files.
 
-**H1:** `# Method: <name>` or `# Extension: <name>` — makes the kind visible at the top of the file.
+**H1:** `# Method: <name>` — makes the kind visible at the top of the file.
 
 **Preamble — blockquoted bullet list** immediately under the H1. Each field is a distinct bullet so prettier
 and similar reflow tools don't merge them into one paragraph (the adjacent-bold-metadata gotcha codified in
@@ -289,83 +314,61 @@ commit `0870274`):
 
 ```markdown
 > - **Workflow:** <primary caller link(s)>
-> - **When:** <trigger condition — methods only>      OR
-> - **Fires:** <precise fire moment — extensions only>
+> - **When:** <trigger condition>
 >
 > - **Contract:** <invariant; load-bearing>
 > - **Related:** <sibling link> — <one-clause rationale; when applicable>
 ```
 
-Methods use `**When:**` (they're activity contracts that kick in during a workflow step); extensions use
-`**Fires:**` (they're event handlers at a precise fire point). The distinct wording preserves the semantic
-distinction between the two kinds.
-
 The blockquote signals "this is preamble / framing" — subordinate to the structural content sections that
-follow. A blank `>` line separates the trigger context (Workflow + When / Fires) from the contract content
+follow. A blank `>` line separates the trigger context (Workflow + When) from the contract content
 (Contract + optional Related), for readability when Contract runs long. Multi-line field values use 2-space
 continuation indent after the `>` so the wrapped text aligns with the character after the bullet marker.
 
 **Structural sections — the content the system reads:**
 
-- Methods: `## <name>.override` + `## <name>.default` (the override content and the default spec)
-- Extensions: `## <name>.actions` (the steps to execute when `active: true`; placeholder `[No extension
-  configured]` when `active: false`)
+- `## <name>.override` + `## <name>.default` (the override content and the default spec)
 
 **Ref-defs:** Collected after a trailing `---` separator per [DEV-RULES.PROJECT][dev-rules-project]. Link
-targets resolve via paths relative to the file's directory (`system/methods/` or `system/extensions/`).
+targets resolve via paths relative to the file's directory (`system/methods/`).
 
 ### Session-Init Consumption
 
-Methods and extensions have asymmetric init-time treatment.
-
-**Methods — no init read.** Method bodies (`.override` + `.default`) always load at the workflow trigger
-point declared in the calling workflow's `arc.methods` frontmatter. Session-init does not inspect
-`override-active` — the agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension
-loading) plus reliable workflow-declared triggers make init-time override-presence surfacing unnecessary.
-
-**Extensions — minimal init enumeration.** Session-init consumes the **active-extensions list** from the
-composite `arc status --session-init --json` probe (see § Probe pattern). Internally, the probe enumerates
-`system/extensions/*.md` files where frontmatter declares `active: true`:
-
-```bash
-grep -l "^active: true" .arc/system/extensions/*.md
-```
-
-The filenames returned (basenames, `.md` stripped) form the list — a named session-context artifact available
-to downstream workflow steps. An empty list means no extensions are configured. Fire-point directives in the
-calling workflows consult the list by name instead of re-reading the extension file at fire time. In default
-installs most extensions are empty placeholders, so the single init-time enumeration avoids repeated
-placeholder reads across a session.
-
-**Related pattern — agent-file active-gate.** A similar `active` frontmatter flag applies to agent-specific
-files that session-init loads unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading
-the body, and the body is read only when `active: true`. That pattern gates whether a single known file's
-body is consumed; the active-extensions list pattern enumerates which files from a directory are active.
-Both avoid unnecessary body reads at init, but they serve different decisions and are not interchangeable.
+**Methods — at their reached fire-points.** Method bodies (`.override` + `.default`) load when the workflow or method
+body reaches their invocation. Workflow declarations root the transitive graph; methods carry their own dependencies.
+Session-init fires methods through its read rule and `fragment` steps. It does not scan `override-active`; the
+agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method loading) and direct fire-points govern consumption.
 
 ### Method Classification by Trigger
 
-| Method                | Trigger Workflow    | Session Applicability                      |
-| --------------------- | ------------------- | ------------------------------------------ |
-| issue-triage          | process-task-loop   | Universal — every task execution session   |
-| quality-gate-commands | process-task-loop   | Universal — every task execution session   |
-| test-first            | process-task-loop   | Conditional — tasks with test-first marker |
-| commit-format         | prepare-commits     | User-triggered commit events               |
-| commit-footer         | prepare-commits     | User-triggered commit events               |
-| self-review           | integrate-work-unit | Integration phase only                     |
-| frontline-review      | integrate-work-unit | Optional advisory pre-publication review   |
-| standard-review       | integrate-work-unit | Satisfying exact-change-set standard       |
-| implementation-audit  | integrate-work-unit | Integration review rubric                  |
-| review-triage         | integrate-work-unit | Integration phase only                     |
-| session-state         | session-handoff     | Session end only                           |
+| Method                        | Trigger Workflow                                                   | Session Applicability                                         |
+| ----------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| issue-triage                  | process-task-loop                                                  | Universal — every task execution session                      |
+| test-first                    | process-task-loop                                                  | Conditional — tasks with test-first marker                    |
+| commit-format                 | prepare-commits                                                    | User-triggered commit events                                  |
+| commit-footer                 | prepare-commits                                                    | User-triggered commit events                                  |
+| code-review-author            | code-review                                                        | Aggregate author check before verification or pre-publication |
+| code-review-frontline         | code-review                                                        | Optional advisory pre-publication review                      |
+| code-review-standard          | code-review                                                        | Local or hosted exact-change-set standard                     |
+| implementation-audit          | prepare / integrate                                                | Prepublication and hosted review rubric                       |
+| review-triage                 | prepare / integrate                                                | Prepublication and integration findings                       |
+| assess-evidence-applicability | integrate / deliver / errand                                       | Conditional — bounded review / verification residual          |
+| classify-review-risk          | prepare / errand                                                   | Every review routing-fact composition                         |
+| discover-next-work            | session-init                                                       | Conditional — Orient discovery                                |
+| assess-parallel-fit           | in-flight-scope-check / activate / run-errand / discover-next-work | Conditional — candidate overlap and multi-candidate selection |
+| assess-start-readiness        | session-init                                                       | Conditional — resolved Start readiness and launch             |
+| read-load-set                 | session-init / session-recover                                     | Context-read steps and verified recovery load sets            |
+| session-state                 | session-handoff                                                    | Session end only                                              |
 
 ### Review enforcement boundary
 
-Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
+Agent-side review methods are best-effort ergonomics. Method activation and workflow declarations
 can require an agent to run an activity, and standard review can produce evidence eligible for a review
-obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
-host-side check structurally enforces merge safety. Projects without that host control must describe review as
-procedural discipline, not a merge guarantee.
+obligation, but none of those agent-layer controls prevents a direct host-UI merge. Host-side merge controls are
+distinct from agent-layer discipline: a required status check is fail-closed repo configuration; draft-state lock
+(`merge.lock: draft`) is a per-PR structural hold whose installation is procedural. Never infer merge safety from
+agent-layer discipline alone. Projects that rely only on agent workflows must describe review as procedural
+discipline, not a merge guarantee.
 
 ---
 
@@ -448,8 +451,8 @@ state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is speci
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
 For ARC, integration means merge-to-base; downstream production deployment is outside ARC's scope.
 
-**Quality-gate failures hold regardless of mode.** Approval releases the work, not the gate. A failed
-quality gate engages the interlock until the failure is resolved.
+**Enforcement failures hold regardless of mode.** Approval releases the work, not the quality gate. Failed
+enforcement engages the interlock until the failure is resolved; feedback failures remain part of the report.
 
 ### Orthogonal Ceremony
 
@@ -553,6 +556,17 @@ When safe-accumulated work returns for review, report the completed range as a c
 surface the accumulated diff for approval. The user then chooses the commit boundary: one batch
 commit, multiple atomic commits, or iteration before committing.
 
+### Disposition-Approval Release
+
+A review-fix round has one structured gate: the complete-set approval of its finding dispositions. Under
+`arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval releases the commit-interlock for the approved
+fixes, and under `arc.pushInterlock: on-workflow` it also releases their push and the approved hosted settlement. A
+`manual` setting keeps its own stop. The approval prompt names what it releases and never the next pass — for example
+`Approve: 3 fixes → focused verification → commit → push → settle 2 threads?` — and the round reports its result as
+information rather than as a new gate. The round returns to the approver when the performed fix exceeds the approved
+scope, a verification or gate failure is not a deterministic same-concern correction, host state is ambiguous, or a new
+finding arrives. Merge stays behind the integration-interlock.
+
 ### Push-Timing Reasoning
 
 Push-on-sync fires when an `arc sync` event releases the push interlock; per-commit push release
@@ -585,7 +599,7 @@ the boundary. Classify failures by the state they leave behind before choosing a
 | Mode | Category  | Trigger                                                        | Recovery path                                                              |
 | ---- | --------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
-| 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
+| 2    | Bad state | Push or merge quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
 | 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |
 | 4    | Transit   | Partial multi-commit or multi-push cascade                     | Preserve landed work, surface exact partial state, retry remaining transit |
 | 5    | Process   | Agent/session crash mid-cascade                                | Run crash-recovery scan; prompt continue or rollback                       |
@@ -611,7 +625,7 @@ is non-obvious, staged content spans multiple concerns, or the hook failure impl
 choice, stop and report that commit-on-task-approval fell back to manual-with-prompt. Ask whether
 to investigate, revise staging, or defer the commit.
 
-**Mode 2 — quality gate fails after an auto-released commit.** Detection: Tier 1/Tier 2 gates fail
+**Mode 2 — quality gate fails after an auto-released commit.** Detection: the push or merge quality gate fails
 after a commit produced by commit-on-task-approval. Do not continue to the next task. If the fix is
 obvious and local, apply a follow-up fix commit under the same task context. If reverting the
 auto-released commit is the proposed remedy, present a cascade-undo plan first: identify commits to
@@ -661,7 +675,7 @@ guards so re-entry is safe.
 - **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
   branch starts, with `**State:** Planning` and the draft-doc filename in `**Design:**`.
   Idempotent: existing file → skip.
-- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
+- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 3 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
   direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
   path (Planning → Active, populate execution fields).
@@ -671,9 +685,8 @@ phase — there is no planning-variant. The `**State:**` field carries the phase
 CLI scaffold from a single field definition, so the rendered and parsed views cannot drift apart.
 
 **Always-present fields with `[none]` markers.** Every managed field is always present; empty optional fields
-use the `[none]` literal. Consumers (the probe, session-init,
-handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
-branching.
+use the `[none]` literal. Consumers (the probe, session-init, handoff workflow) get a uniform parse surface — no
+field-omission ambiguity, no per-state shape branching.
 
 **Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Design:**`) carry bare
 filenames. Path resolution derives from `dirname(meta-file)` — co-location of status, task list, and
@@ -811,9 +824,9 @@ Triggers are concrete observable events (a downstream WU integrates, a tool land
 workaround becomes obsolete). Vague triggers (`once we figure out X`) defeat the
 eviction-on-trigger discipline and let entries accumulate indefinitely.
 
-**Lifecycle.** Written at session handoff alongside SESSION-NOTES; read at session-init as part
-of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed.
-Surviving entries travel with the developer's workspace across WU boundaries.
+**Lifecycle.** Additions are proposed when they arise, at the latest at the next report boundary, and land on
+approval; read at session-init as part of T2 state load. Reviewed at each handoff — entries whose triggers have fired
+are removed. Surviving entries travel with the developer's workspace across WU boundaries.
 
 **Distinguishing the three personal surfaces:**
 
@@ -843,8 +856,10 @@ workspace root, cross-WU scope.
   No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
   retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
 - **`## Work Unit`** — spec-worthy entries that need draft-doc / PRD treatment before scheduling. Each
-  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
-  destination stub — existence at drain decides route-vs-create.
+  carries a top-level ``- _WU_Target:_ `<value>` `` bullet (`<slug>`, `<slug> (planned|provisional)`, or `TBD`)
+  naming a candidate for the drain's routing gate to check; an unindented target line that is not a list item names
+  nothing. Existence alone does not establish a home; the concern must shape a decision in that work unit's actual
+  design.
 
 **Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
@@ -855,17 +870,17 @@ span — the backticks signalling data the sweep reads, not prose. It is boolean
 renders only when `true`; the parser reads its absence as `false` — the same render rule `WU_Target`
 follows, where a managed field appears only at its non-default value. Flagged entries carry a
 tool-stamped `_Created:_` date descriptor (value backtick-delimited) as the aging anchor;
-`inbox.remind_after_days` (default 1) sets the delay before the first
-nudge (never the same day), and the nudge is rate-limited to once per calendar day until a housekeep
-drain clears the entry. The reminder is personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits
-the same field grammar but is never nudged (it has no singular owner). How `arc-inbox` constructs the
-field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
+`inbox.remind_after_days` (default 1) sets the delay before the first nudge (never the same day), and the nudge is
+rate-limited to once per calendar day until a housekeep drain clears the entry. The reminder is
+personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits the same field grammar but is never nudged (it has no
+singular owner). How `arc-inbox` constructs the field and stamps the date lives with that skill; this surface documents
+the grammar and the behavior.
 
 **Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
 **retain** a `## Errand` capture in place rather than route or flush it — to hold it privately until
 vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
-agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
-`_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
+agent-suggested** · `[invariant]`: it is an explicit per-entry choice at the drain's confirmation gate, set by a
+managed `_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
 same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
 entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
 session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still
@@ -877,9 +892,10 @@ the retention. The drain therefore closes on **no un-triaged entries**, not nece
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — _not_ at the integration ceremony; destinations vary by PM mode:
 
-- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Errand` items to their
-  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Work Unit` items to an
-  existing stub or a new _provisional_ stub (there is no shared Work-Unit inbox). See
+- **`pm.mode: arc-in-git`** — housekeep routes every capture through the drain's routing gate. Every
+  Errand-shaped item takes the homeless-atomic route — execution, shared `backlog/ATOMIC-INBOX.md` deferral, or
+  explicit Owner retention — since none has a work-unit home. Work-unit-shaped concerns take the gate's existing
+  or new stub outcome; `WU_Target` remains a candidate, and there is no shared Work-Unit inbox. See
   `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
   details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration
@@ -972,6 +988,14 @@ natural boundary, hand off, clear the harness conversation if needed, and re-ent
 session-init for a clean episodic baseline. Between natural boundaries, recover when available;
 otherwise hand off and re-init.
 
+**What counts as a natural boundary.** Two kinds recur, and both read off work state rather than a
+context estimate:
+
+- **Mode transitions** — design to implementation, investigation to fix, planning to execution.
+  Analysis context carried forward crowds the window without serving the new work.
+- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh session
+  starts with focused context even when the current session has headroom.
+
 **The agent is the secondary safety net.** Harness-level files (e.g., `CLAUDE.md`, `AGENTS.md`)
 may define threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches
 cases where the user isn't monitoring, but it's imprecise: agents assess their own token usage
@@ -1010,9 +1034,8 @@ tool-or-prompt boundary after compaction on Codex, where a session-scoped pendin
 requirement until recovery clears it. On Codex the tool and user-prompt channels share an atomic
 per-marker claim, so each pending marker's requirement is injected exactly once — no duplicate fires
 across parallel tool calls or the two channels — and the injection brackets the recovery window with
-`PENDING`/`COMPLETE` banners.
-`clear` remains deliberately unhooked for recovery; Codex may run a cleanup-only clear hook to remove
-a stale pending marker. If hooks are not installed, run the manual fallback when compaction erases ARC
+`PENDING`/`COMPLETE` banners. `clear` remains deliberately unhooked for recovery; Codex may run a cleanup-only clear
+hook to remove a stale pending marker. If hooks are not installed, run the manual fallback when compaction erases ARC
 operating context.
 
 Recovery restores ARC's operating context. It does not reload on-demand context that was pulled

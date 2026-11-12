@@ -11,8 +11,8 @@
   - **Origin** — default `[internal]`; external tracker URL when applicable. Matches the corresponding
     `meta-*.md` `Origin:` value at WU creation. May be replaced with narrative prose describing where the work
     originated.
-  - **Purpose** — substantive opening carrying the plan's own thesis (pre-PRD synthesis statement). May
-    reference Origin from within prose.
+  - **Purpose** — substantive opening carrying the plan's own thesis (pre-PRD synthesis statement). Opens
+    with a one-sentence thesis; may reference Origin from within prose.
 -->
 
 - **Origin:** [internal]
@@ -37,8 +37,9 @@ same ground later.
 What don't we know yet? What are we assuming? Flag assumptions that are risky or unvalidated — these may need
 investigation before committing to a PRD.
 
-## Scope Estimate
+## Scope boundary (Won't Do)
 
-Rough size: Small (hours-days) | Medium (days-week) | Large (week+)
+What will this deliberately not do? Name the adjacent work being left out, so the spec inherits the boundary
+instead of rediscovering it.
 
 Dependencies on other work, if any.

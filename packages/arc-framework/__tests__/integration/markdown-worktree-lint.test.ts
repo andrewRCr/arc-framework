@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
+import { createRawGitExec, gitExec } from "../../src/lib/io-context.js";
+import { selectMarkdownlintPaths } from "../../src/lib/markdown/lint-selection.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 import { runWorktreeMarkdownlint } from "../../src/lib/markdown/worktree-lint.js";
 import {
@@ -39,10 +41,20 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
 
 describe("worktree Markdown lint", () => {
+  it("uses Git exclusion semantics across dot directories and letter case", async () => {
+    const included = [".arc/active/current/.venv-probe.md", ".arc/Completed/page.md",
+      ".arc/user/andrew/nested/working-memory.md", ".arc/active/current/NODE_MODULES/page.md"];
+    const excluded = [".arc/.hidden/temp-probe.md", ".arc/user/andrew/.hidden/WORKING-MEMORY.md",
+      ".arc/active/.venv-test/page.md"];
+    const paths = await selectMarkdownlintPaths(root, [...included, ...excluded], createRawGitExec(root));
+    expect([...paths].sort()).toEqual(included.sort());
+  });
+
   it("validates configs and passes shared-selector paths explicitly", async () => {
     const executeLinter = vi.fn(async () => 0);
     const result = await runWorktreeMarkdownlint({
@@ -59,6 +71,26 @@ describe("worktree Markdown lint", () => {
       "README.md",
       "docs/guide.md",
     ]);
+  });
+
+  it("includes untracked non-ignored Markdown in the worktree selection", async () => {
+    await write("docs/new-page.md", "# New page\n");
+    const executeLinter = vi.fn<(root: string, args: readonly string[]) => Promise<number>>()
+      .mockResolvedValue(1);
+    const result = await runWorktreeMarkdownlint({
+      root,
+      exec: makeGitExec(root),
+      readText: (path) => readFile(path, "utf8"),
+      executeLinter,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect([...result.paths].sort()).toEqual(["README.md", "docs/guide.md", "docs/new-page.md"].sort());
+    expect(executeLinter).toHaveBeenCalledTimes(1);
+    const linterArgs = executeLinter.mock.calls[0]?.[1] ?? [];
+    expect(linterArgs[0]).toBe("--no-globs");
+    expect(linterArgs[1]).toBe("--");
+    expect([...linterArgs.slice(2)].sort()).toEqual(["README.md", "docs/guide.md", "docs/new-page.md"].sort());
   });
 
   it("fails before linting when root or nested selection options drift", async () => {
@@ -105,6 +137,27 @@ describe("Markdown lint composition", () => {
 });
 
 describe("staged Markdown worktree alignment", () => {
+  it.each([true, false])("compares the worktree with the inherited index (drift=%s)", async drift => {
+    await gitExec("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
+    const indexFile = join(root, ".git", "checked-index");
+    const options = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], options);
+    const worktree = "# Guide\n\nWorktree content.\n";
+    const other = "# Guide\n\nDifferent indexed content.\n";
+    await write("docs/guide.md", drift ? worktree : other);
+    await gitExec("git", ["add", "docs/guide.md"], { cwd: root });
+    await write("docs/guide.md", drift ? other : worktree);
+    await gitExec("git", ["add", "docs/guide.md"], options);
+    await write("docs/guide.md", worktree);
+    vi.stubEnv("GIT_INDEX_FILE", indexFile);
+    const messages: string[] = [];
+
+    const result = await enforceStagedMarkdownWorktreeAlignment(root, message => { messages.push(message); });
+    expect(result).toBe(drift ? 1 : 0);
+    if (drift) expect(messages.join("\n")).toContain("docs/guide.md");
+    else expect(messages).toEqual([]);
+  });
+
   it("fails closed when a staged Markdown path still differs in the worktree", async () => {
     await execFileAsync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "init"], {
       cwd: root,

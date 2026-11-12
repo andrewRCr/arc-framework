@@ -8,6 +8,83 @@ import type {
   FrontlineOutcomeRecord,
 } from "./advisory-records.js";
 import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
+import type { ReviewResult } from "./review-result.js";
+import type { RecordReference, RecordVersion } from "../../../lib/store/identity.js";
+import type { Mutation } from "../../../lib/store/write.js";
+import type { StoreRefusal } from "../../../lib/store/refusal.js";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
+import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
+import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
+
+/** One portable review fact with its backend mutation basis. */
+export interface StoredReviewFact<T> {
+  reference: RecordReference;
+  version: RecordVersion;
+  value: T;
+}
+
+/** A complete fact selection or an explicit failure to establish completeness. */
+export type ReviewFactListing<T> =
+  | { status: "complete"; records: readonly StoredReviewFact<T>[] }
+  /** Off the branch, `refusal` is the store's own refusal or a recoverable one naming the listing's unread or conflicted state. */
+  | { status: "incomplete" | "unavailable"; reason: string; refusal?: StoreRefusal };
+
+/** One durable put, ready to join an invocation's atomic batch. */
+export type ReviewFactPut = Extract<Mutation, { action: "put" }>;
+
+/** Create-only access to a work item's immutable review facts. */
+interface ReviewFactPort<T> {
+  read(key: string): Promise<StoredReviewFact<T> | null>;
+  list(): Promise<ReviewFactListing<T>>;
+  create(value: T): Promise<StoredReviewFact<T>>;
+  prepareCreate(value: T): ReviewFactPut;
+}
+
+/** Ended producer results. */
+export type ReviewOutcomePort = ReviewFactPort<ReviewOutcome>;
+
+/** Approved responses with version-bound monotonic advances and legacy composed reads. */
+export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {
+  advance(value: ReviewEvidence, expectedVersion: RecordVersion): Promise<StoredReviewFact<ReviewEvidence>>;
+  prepareAdvance(value: ReviewEvidence, expectedVersion: RecordVersion): ReviewFactPut;
+  readDispositionRecord(producerId: string): Promise<ApprovedDispositionRecord | null>;
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
+}
+
+/** Immutable decisions keyed by their canonical content. */
+export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
+
+/** Selected approval facts from the same snapshot as their immutable producer. */
+export type ReviewResponseAuthority = { status: "found"; outcome: StoredReviewFact<ReviewOutcome>;
+  authority: "loaded"; evidence: readonly StoredReviewFact<ReviewEvidence>[] };
+/** An absent producer is distinct from a producer with no approved response. */
+export type ReviewResponseMissing = { status: "missing-producer" };
+/** Immutable-only projections explicitly do not request approval authority. */
+export type ReviewResponseRead = ReviewResponseMissing | ReviewResponseAuthority
+  | { status: "found"; outcome: StoredReviewFact<ReviewOutcome>; authority: "not-requested" };
+/** Owner-bound response authority with snapshot tokens retained inside its adapter. */
+export interface ReviewResponsePort {
+  read(producerId: string, purpose: "authority"): Promise<ReviewResponseMissing | ReviewResponseAuthority>;
+  read(producerId: string, purpose: "producer-result"): Promise<ReviewResponseRead>;
+  list(): Promise<{ outcomes: readonly StoredReviewFact<ReviewOutcome>[]; evidence: readonly StoredReviewFact<ReviewEvidence>[] }>;
+}
+
+/** Portable review facts selected together by one native invocation. */
+export interface NativeReviewFactPorts {
+  outcomes: ReviewOutcomePort;
+  evidence: ReviewEvidencePort;
+  decisions: ReviewDecisionPort;
+  responses: ReviewResponsePort;
+  readProjectId(): Promise<string>;
+}
+
+/** Numeric working-state CAS and completeness-preserving operation observations. */
+export type ReviewInFlightPort = ReviewOperationStateStore & ReviewOperationStateSnapshotIndex;
+
+/** Working-state access plus the selected immutable result writer for lane transitions. */
+export interface ReviewLaneTransitionStore extends ReviewOperationStateStore {
+  readonly outcomeWriter?: ReviewOutcomePort;
+}
 
 /** Versioned forward receipt snapshot, optionally filtered to one target. */
 export interface ForwardReceiptLedger {
@@ -24,8 +101,23 @@ export interface ForwardReviewReceiptStore {
   ): Promise<{ ledgerVersion: number; durableEvidenceRef: string }>;
 }
 
+/** Read-only exact-reference and target-index access to the native local receipt ledger. */
+export interface ForwardReviewReceiptIndex {
+  readReceiptEntries(targetId: string): Promise<Array<{
+    receipt: ReviewReceiptV2;
+    durableEvidenceRef: string;
+  }>>;
+  readReceiptReference(reference: string): Promise<ReviewReceiptV2 | null>;
+}
+
 /** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
 export interface ReviewOperationStateStore {
+  /** Immutable authority available only on the selected native adapter. */
+  readonly nativeFacts?: NativeReviewFactPorts;
+  /** Fact placement carried from the invocation's selected backend for recovery guidance. */
+  readonly stateOffBranch?: boolean;
+  /** Actual clone-local source locator, when retained after the execution ends. */
+  readLocalSourceReference?(operationId: string): Promise<string | null>;
   readOperation(operationId: string): Promise<{
     version: number;
     state: ReviewOperationState | null;
@@ -34,6 +126,23 @@ export interface ReviewOperationStateStore {
     state: ReviewOperationState,
     expectedVersion: number,
   ): Promise<{ version: number }>;
+}
+
+/** One strictly parsed record from an atomic operation-namespace snapshot. */
+export interface ReviewOperationStateSnapshotRecord {
+  readonly version: number;
+  readonly state: ReviewOperationState;
+}
+
+/** Complete-or-typed-unavailable read of every operation record at one instant. */
+export type ReviewOperationStateSnapshot =
+  | { readonly status: "complete"; readonly records: readonly ReviewOperationStateSnapshotRecord[] }
+  | { readonly status: "incomplete"; readonly reason: string }
+  | { readonly status: "unavailable"; readonly reason: string };
+
+/** Read-only enumeration boundary, separate from keyed operation mutation. */
+export interface ReviewOperationStateSnapshotIndex {
+  readOperationSnapshot(): Promise<ReviewOperationStateSnapshot>;
 }
 
 /** Path-agnostic immutable source storage for local review materializations. */
@@ -48,6 +157,21 @@ export interface ApprovedDispositionRecordStore {
   appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
 }
 
+/** Keyed approved-response access without mutation authority. */
+export type ApprovedDispositionRecordReader = Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
+
+/**
+ * Enumeration boundary for consumers holding a disposition-set identity rather than an operation.
+ *
+ * Separate from the keyed store because lineage settlement and cursorless delivery correction begin
+ * from durable response authority rather than an operation identity. Enumeration returns only readable
+ * records; each consumer must fail when required identity or uniqueness cannot be established. Keyed
+ * reads remain strict for exact-record callers.
+ */
+export interface ApprovedDispositionRecordIndex {
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
+}
+
 /** Version-checked durable frontline outcome storage. */
 export interface FrontlineOutcomeStore {
   readOutcome(operationId: string): Promise<{
@@ -59,6 +183,11 @@ export interface FrontlineOutcomeStore {
     record: FrontlineOutcomeRecord,
     expectedVersion: number,
   ): Promise<{ version: number; outcomeRef: string }>;
+}
+
+/** Source-neutral read boundary for one immutable terminal producer result. */
+export interface ReviewResultReader {
+  readResult(producerId: string): Promise<ReviewResult>;
 }
 
 /** Read-only reduction boundary over durable advisory review records. */

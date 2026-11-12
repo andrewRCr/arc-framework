@@ -14,12 +14,14 @@ interface SurfaceRule {
 
 const PACKAGE_ROOT_CONFIG = new Set([
   "packages/arc-framework/.gitignore",
+  "packages/arc-framework/build-compiler.config.ts",
   "packages/arc-framework/eslint.config.js",
   "packages/arc-framework/init-recipe.json",
   "packages/arc-framework/package.json",
   "packages/arc-framework/tsconfig.json",
   "packages/arc-framework/tsconfig.test.json",
   "packages/arc-framework/tsup.config.ts",
+  "packages/arc-framework/tsup.fast.config.ts",
   "packages/arc-framework/vitest.config.ts",
 ]);
 
@@ -75,6 +77,9 @@ const SURFACE_RULES: readonly SurfaceRule[] = [
     matches: (path) =>
       !path.endsWith(".md") &&
       (path.startsWith("packages/arc-framework/src/") ||
+        path.startsWith("packages/arc-framework/bin/") ||
+        path.startsWith("packages/arc-framework/examples/") ||
+        path.startsWith("packages/arc-framework/eslint/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/githooks/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/harness-hooks/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/scripts/") ||

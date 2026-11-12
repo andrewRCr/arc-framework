@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 
 import {
   resolveBacklogStub,
-  listBacklogStubs,
 } from "../../../src/lib/work-unit/backlog-stub.js";
 
 describe("resolveBacklogStub", () => {
@@ -82,20 +81,6 @@ describe("resolveBacklogStub", () => {
     await seedStub(["planned"], "alpha");
 
     expect(await resolveBacklogStub(root, "nope")).toBeNull();
-  });
-
-  it("lists every stub across both state-dirs for disambiguation", async () => {
-    await seedStub(["planned"], "alpha", { draft: true });
-    await seedStub(["planned", "my-cohort"], "gamma");
-    await seedStub(["provisional"], "beta");
-
-    const stubs = await listBacklogStubs(root);
-
-    expect(stubs.map((s) => `${s.stateDir}:${s.slug}`).sort()).toEqual([
-      "planned:alpha",
-      "planned:gamma",
-      "provisional:beta",
-    ]);
   });
 
   it("throws when a slug matches more than one stub within a state-dir", async () => {

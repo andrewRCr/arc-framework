@@ -11,22 +11,33 @@
 import { dirname, join } from "node:path";
 
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import type { RetirementRecordEnumerationResult } from "./retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 
 /** One storage-independent retirement transition relevant to tracked references. */
 export interface ReachableReferenceTransition {
   subject: string;
   outcome:
     | { kind: "rename"; targetSlug: string }
-    | { kind: "decompose" }
+    | { kind: "decompose"; successors?: readonly string[] }
     | { kind: "removed" };
 }
+
+/** Lean transition projection before current tracked-reference planning. */
+export type TransitionReferenceProjectionResult =
+  | { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
+  | { status: "conflict"; reason: "ambiguous-history"; subject: string }
+  | { status: "conflict"; reason: "namespace-corrupt" };
 
 /** One exact artifact snapshot supplied to the pure planner. */
 export interface ReferenceArtifactSnapshot {
   path: string;
   content: string;
+  /** Dependency slots already retained by the store's identity-based reconcile. */
+  heldDependencyEdges?: readonly string[];
 }
+
+/** One evidenced interpretation of an artifact filename's owner and preserved suffix. */
+export interface ArtifactReferenceOwner { subject: string; suffix: string }
 
 /** One mechanical reference replacement within an artifact. */
 export interface TrackedReferenceReplacement {
@@ -54,7 +65,7 @@ export interface ReferenceAdvisory {
 /** A subject whose reachable history cannot grant mechanical rewrite authority. */
 export interface ReferenceTransitionConflict {
   subject: string;
-  reason: "ambiguous-history" | "rename-cycle" | "version-conflict" | "namespace-corrupt";
+  reason: "ambiguous-history" | "rename-cycle" | "namespace-corrupt";
 }
 
 /** Closed pure reference plan. */
@@ -68,12 +79,13 @@ export interface ReferenceReconcilePlan {
 /** One subject's composed result over reachable retirement transitions. */
 export type ReferenceTransitionResolution =
   | { kind: "rename"; targetSlug: string }
-  | { kind: "decompose" }
+  | { kind: "decompose"; successors?: readonly string[] }
   | { kind: "removed" }
   | { kind: "absent" }
   | { kind: "conflict"; reason: ReferenceTransitionConflict["reason"] };
 
 const ARTIFACT_CODE_SPAN = /`([a-z]+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md`/gu;
+const COHORT_FIELD_PREFIX = /^[ \t]*-[ \t]+\*\*Cohort:\*\*[ \t]*/gmu;
 const SLUG_CHAR = /[a-z0-9-]/u;
 
 /**
@@ -96,40 +108,35 @@ export async function listCurrentWuArtifactPaths(
     .map((basename) => join(directory, basename));
 }
 
-/**
- * Project authenticated reachable receipts into reference transitions.
- *
- * @param enumeration - Complete authenticated namespace reachable from the current WU history
- * @returns Valid work-unit transitions or a namespace-level refusal
- */
-export function enumerateReferenceTransitions(
-  enumeration: RetirementRecordEnumerationResult,
-): { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
-  | { status: "conflict"; reason: "version-conflict" | "namespace-corrupt" } {
-  if (enumeration.status !== "valid") return { status: "conflict", reason: enumeration.status };
+/** Project authenticated lean transition groups into reference transitions. */
+export function enumerateTransitionReferenceTransitions(
+  enumeration: TransitionRecordEnumerationResult,
+): TransitionReferenceProjectionResult {
+  if (enumeration.status !== "valid") return { status: "conflict", reason: "namespace-corrupt" };
   const transitions: ReachableReferenceTransition[] = [];
-  for (const entry of enumeration.records) {
-    if (entry.record.kind !== "receipt") continue;
-    const receipt = entry.record.value;
-    if (receipt.subject.kind !== "work-unit") continue;
-    switch (receipt.result.kind) {
-      case "rename":
-        transitions.push({
-          subject: receipt.subject.name,
-          outcome: { kind: "rename", targetSlug: receipt.result.targetSlug },
-        });
-        break;
-      case "decompose":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "decompose" } });
-        break;
-      case "discard":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "removed" } });
-        break;
-      case "relocate":
-        break;
+  for (const group of enumeration.groups) {
+    if (group.records.length > 1) {
+      return { status: "conflict", reason: "ambiguous-history", subject: group.origin };
+    }
+    const record = group.records[0];
+    if (record === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+    if (record.kind === "rename") {
+      const target = record.successors[0];
+      if (target === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+      transitions.push({ subject: record.origin.name, outcome: { kind: "rename", targetSlug: target.name } });
+    } else if (record.kind === "abandon") {
+      transitions.push({ subject: record.origin.name, outcome: { kind: "removed" } });
+    } else {
+      transitions.push({ subject: record.origin.name, outcome: { kind: "decompose" } });
     }
   }
   return { status: "valid", transitions };
+}
+
+interface ReferenceReconcileInput {
+  transitions: readonly ReachableReferenceTransition[];
+  artifacts: readonly ReferenceArtifactSnapshot[];
+  artifactOwners?: ReadonlyMap<string, readonly ArtifactReferenceOwner[]>;
 }
 
 /**
@@ -138,23 +145,23 @@ export function enumerateReferenceTransitions(
  * @param input - Reachable transitions and current-WU artifact snapshots
  * @returns Mechanical edits, advisory findings, and any history conflicts
  */
-export function planReferenceReconcile(input: {
-  transitions: readonly ReachableReferenceTransition[];
-  artifacts: readonly ReferenceArtifactSnapshot[];
-}): ReferenceReconcilePlan {
+export function planReferenceReconcile(input: ReferenceReconcileInput): ReferenceReconcilePlan {
   const outcomes = groupOutcomes(input.transitions);
   const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
-    .filter((subject) => input.artifacts.some((artifact) =>
-      slugOffsets(artifact.content, subject).length > 0
-      || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
-        .some((match) => match[1] !== "cohort" && match[2] === subject)))
+    .filter((subject) => input.artifacts.some((artifact) => {
+      const ignoredRanges = nonNarrativeFieldRanges(artifact, subject);
+      return slugOffsets(artifact.content, subject)
+        .some((offset) => !insideAnyRange(offset, ignoredRanges))
+        || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
+          .some((match) => match[1] !== "cohort" && artifactOwner(input.artifactOwners, match[1] ?? "", match[2] ?? "").subject === subject);
+    }))
     .sort(byteSort);
   for (const subject of referencedSubjects) {
     resolutions.set(subject, resolveReferenceTransition(input.transitions, subject));
   }
 
-  const conflicts: ReferenceTransitionConflict[] = [];
+  const conflicts = ambiguousArtifactOwners(input, outcomes);
   for (const [subject, resolution] of resolutions) {
     if (resolution.kind === "conflict") conflicts.push({ subject, reason: resolution.reason });
   }
@@ -172,10 +179,12 @@ export function planReferenceReconcile(input: {
       (span: string, prefix: string, subject: string, offset: number) => {
         codeRanges.push({ start: offset, end: offset + span.length });
         if (prefix === "cohort") return span;
+        const owner = artifactOwner(input.artifactOwners, prefix, subject);
+        subject = owner.subject;
         const resolution = resolutions.get(subject);
         if (resolution?.kind === "rename") {
           replacements.push({ subject, targetSlug: resolution.targetSlug });
-          return `\`${prefix}-${resolution.targetSlug}.md\``;
+          return `\`${prefix}-${resolution.targetSlug}${owner.suffix}.md\``;
         }
         if (resolution?.kind === "decompose" || resolution?.kind === "removed") {
           advisories.push(advisoryAt(
@@ -198,9 +207,14 @@ export function planReferenceReconcile(input: {
     }
 
     for (const [subject, resolution] of resolutions) {
-      if (resolution.kind === "conflict" || resolution.kind === "absent") continue;
+      if (
+        resolution.kind === "conflict"
+        || resolution.kind === "absent"
+        || resolution.kind === "decompose"
+      ) continue;
+      const ignoredRanges = nonNarrativeFieldRanges(artifact, subject);
       for (const offset of slugOffsets(artifact.content, subject)) {
-        if (codeRanges.some((range) => offset >= range.start && offset < range.end)) continue;
+        if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, ignoredRanges)) continue;
         advisories.push(advisoryAt(
           artifact,
           offset,
@@ -217,6 +231,59 @@ export function planReferenceReconcile(input: {
     advisories: advisories.sort(compareAdvisories),
     conflicts: [],
   };
+}
+
+function artifactOwner(owners: ReferenceReconcileInput["artifactOwners"], prefix: string, subject: string): ArtifactReferenceOwner {
+  return owners?.get(`${prefix}-${subject}.md`)?.[0] ?? { subject, suffix: "" };
+}
+function ambiguousArtifactOwners(input: ReferenceReconcileInput,
+  outcomes: ReadonlyMap<string, readonly ReachableReferenceTransition["outcome"][]>): ReferenceTransitionConflict[] {
+  return input.artifacts.flatMap((artifact) => [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)].flatMap((match) => {
+    const owners = input.artifactOwners?.get(`${match[1]}-${match[2]}.md`) ?? [];
+    return owners.length > 1 && owners.some((owner) => outcomes.has(owner.subject))
+      ? [{ subject: match[2] ?? "", reason: "ambiguous-history" as const }] : [];
+  }));
+}
+
+function nonNarrativeFieldRanges(artifact: ReferenceArtifactSnapshot, subject: string): Array<{ start: number; end: number }> {
+  const ranges = cohortFieldValueRanges(artifact.content);
+  if (!artifact.heldDependencyEdges?.includes(subject)) return ranges;
+  const preamble = metadataPreamble(artifact.content);
+  if (preamble === null) return ranges;
+  const marker = /^[ \t>*+-]*\*\*Depends On:\*\*/mu.exec(preamble.content);
+  if (marker === null) return ranges;
+  let first = true, offset = preamble.offset + marker.index;
+  for (const line of preamble.content.slice(marker.index).split(/(?<=\n)/u)) {
+    if (!first && (line.trim() === "" || /^[ \t>*+-]*\*\*[^*]+:\*\*/u.test(line)
+      || /^#{1,6} /u.test(line) || !/^\s/u.test(line))) break;
+    ranges.push({ start: offset + (first ? marker[0].length : 0), end: offset + line.length });
+    first = false;
+    offset += line.length;
+  }
+  return ranges;
+}
+
+function metadataPreamble(content: string): { content: string; offset: number } | null {
+  const heading = /^# .*$/mu.exec(content);
+  if (heading === null) return null;
+  const offset = heading.index + heading[0].length;
+  const body = content.slice(offset);
+  const boundary = /^## |^[ \t]*---[ \t]*\r?$/mu.exec(body);
+  return { content: body.slice(0, boundary?.index), offset };
+}
+
+function cohortFieldValueRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of content.matchAll(COHORT_FIELD_PREFIX)) {
+    const start = match.index + match[0].length;
+    const lineEnd = content.indexOf("\n", start);
+    ranges.push({ start, end: lineEnd === -1 ? content.length : lineEnd });
+  }
+  return ranges;
+}
+
+function insideAnyRange(offset: number, ranges: readonly { start: number; end: number }[]): boolean {
+  return ranges.some((range) => offset >= range.start && offset < range.end);
 }
 
 /**

@@ -10,6 +10,64 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Revalidate landed dependency contracts when a deferred consumer first resumes**
+
+- _Routed from:_ the general half of a held `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03);
+  captured during `decompose-base-mobility`'s first session.
+- _Concern:_ dependency liveness can pass while the landed contract differs from the assumptions in a spec authored
+  earlier. The failure applies to ordinary backlog latency and parked-WU resumption; post-spec decomposition merely
+  amplifies it across sibling specs.
+- _Fold-in:_ extend the explicit-relatedness arm from liveness to conformance at first start or resume after a
+  dependency lands. Reuse readiness baselines or pinned dependency heads as look signals, but require a grounded
+  contract comparison rather than treating base drift as proof. Coordinate the decomposition-specific amplifier
+  with `decomposition-doctrine`, whose owner-adoption capture remains held.
+
+### `[ ]` **Key coordination commitment by record field, not directory**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cross-wu-coordination`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan keys commitment by directory and moves artifacts with `git mv`. Under `storage-contract`,
+  placement is a record field and directory layout a projection of it (C2), and moves between lifecycle states
+  become store operations.
+- _Approach:_ Re-plan against lifecycle as a record field once `storage-seam` lands.
+
+### `[ ]` **Take a plan's named actors as the dependency-conformance re-check list**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `cross-wu-coordination`
+
+- _Observation:_ the fold-in extends relatedness from liveness to conformance at first start or resume. Under
+  `grounded-planning-review` D2, planning claims about shipped code name that code as backticked symbols, so a resumed
+  plan's named symbols are a ready list to re-check against the landed base. That work unit does not re-validate
+  claims after the base moves; it leaves that here, with `decomposition-doctrine`'s held entry for decomposed members.
+
+- _Approach:_ when designing the conformance check, seed it from the plan's named symbols.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+### `[ ]` **State the cascade rule as the coupling test: route only what names the decision it shapes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § The shared concern — "push refinements back at iteration" and the shared planning-coordination
+  hook.
+
+- _Observation:_ `inbound-routing-method` D6 reconciles "always route, never re-open" with its coupling test. A
+  cascade item is the consequence of a settled decision for another work unit's assumptions, so it can name the
+  decision it shapes there, and naming it is what makes that work unit affected. The rule: route a cascade item when
+  it names that decision; never re-open the affected work unit's body mid-pass; never route on shared domain alone.
+  Direction-level cascades stay outside the shipped method.
+
+- _Approach:_ adopt the statement for the push-back discipline, or say where it differs.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ## Structural decision (settle first at planning)
 
 This stub deliberately holds the thinking as a **single WU** for now. The proposed end-state is a **cohort**, and

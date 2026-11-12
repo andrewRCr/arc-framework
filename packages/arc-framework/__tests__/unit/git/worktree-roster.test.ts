@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 import {
   filterRosterByIdentity,
@@ -7,6 +9,7 @@ import {
   resolveWorktreePathsByBranchResult,
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
+  WorktreeRosterResultSchema,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
   WorktreeRosterEntry,
@@ -20,43 +23,24 @@ import type {
 } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
+import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
   options?: GitExecOptions,
 ) => ExecResult | Promise<ExecResult>;
 
-/** Mirrors the keyed-arg buildExec helper from worktree-sync.test.ts. */
+/** Script wildcard-keyed Git responses with the shared invocation recorder. */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
-    const key = matchKey(args, responses);
-    if (key === null) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`matched key '${key}' has no response`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
-}
-
-function matchKey(
-  args: string[],
-  responses: Record<string, unknown>,
-): string | null {
-  for (const key of Object.keys(responses)) {
-    const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-      return key;
-    }
-  }
-  return null;
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([key, entry]) => ({
+    match: { predicate: (args: readonly string[]) => key.split(" ").every((token, index) =>
+      token === "*" || args[index] === token) },
+    responses: [typeof entry === "function"
+      ? ({ args, options }: GitExecCall) => entry(args, options)
+      : entry],
+  })));
 }
 
 /**
@@ -99,7 +83,7 @@ function hasAnyKeyUnder(tree: Record<string, string>, prefix: string): boolean {
   return Object.keys(tree).some((k) => k.startsWith(prefix));
 }
 
-const WORKTREE_LIST = "worktree list --porcelain";
+const WORKTREE_LIST = "worktree list --porcelain -z";
 
 describe("runIdentityScopedWorktreeRoster", () => {
   it("does not read private worktree metadata when team identity is unresolved", async () => {
@@ -134,7 +118,7 @@ describe("runIdentityScopedWorktreeRoster", () => {
 describe("runWorktreeRoster", () => {
   it("propagates malformed successful porcelain as a domain validation error", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     await expect(runWorktreeRoster({ exec, fs: buildFs({}) })).rejects.toMatchObject({
@@ -146,7 +130,7 @@ describe("runWorktreeRoster", () => {
     const processError = new GitProcessError({
       kind: "nonzero-exit",
       command: "git",
-      args: ["worktree", "list", "--porcelain"],
+      args: ["worktree", "list", "--porcelain", "-z"],
       exitCode: 1,
       stderr: "fatal",
     });
@@ -159,7 +143,7 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/main\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/main\0\0",
         stderr: "",
       },
     });
@@ -169,26 +153,26 @@ describe("runWorktreeRoster", () => {
 
     expect(result.entries).toEqual([]);
     expect(result.warnings).toEqual([]);
+    assertSchemaAccepts(WorktreeRosterResultSchema, result);
+    const undeclared = { ...result, extraEvidence: true };
+    const rejected = WorktreeRosterResultSchema.safeParse(undeclared);
+    expect(rejected.success).toBe(false);
+    if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
   });
 
   it("returns a single tuple with state and cohort populated when one worktree has a meta file", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-feature-x.md":
-        "# Metadata: feature-x\n\n" +
-        "- **State:** Active\n" +
-        "- **Owner:** alice\n" +
-        "- **Branch:** feature/x\n" +
-        "- **Class:** Novel\n" +
-        "- **Priority:** P1\n" +
-        "- **Depends On:** alpha, bravo\n" +
-        "- **Cohort:** parallelism-trio\n",
+      "/home/dev/repo/.arc/active/meta-feature-x.md": makeMetaFixture("feature-x", {
+        owner: "alice", branch: "feature/x", workClass: "Novel", priority: "P1",
+        dependsOn: ["alpha", "bravo"], cohort: "parallelism-trio",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -205,22 +189,21 @@ describe("runWorktreeRoster", () => {
       dependsOn: ["alpha", "bravo"],
     });
     expect(result.warnings).toEqual([]);
+    assertSchemaAccepts(WorktreeRosterResultSchema, result);
   });
 
   it("carries a path-valued (nested) cohort through without regression", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc123\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-feature-x.md":
-        "# Metadata: feature-x\n\n" +
-        "- **State:** Active\n" +
-        "- **Branch:** feature/x\n" +
-        "- **Cohort:** core/sub\n",
+      "/home/dev/repo/.arc/active/meta-feature-x.md": makeMetaFixture("feature-x", {
+        branch: "feature/x", cohort: "core/sub",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -233,16 +216,16 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-b\nHEAD ccc\nbranch refs/heads/feature/b\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-b\0HEAD ccc\0branch refs/heads/feature/b\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo-a/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n- **Cohort:** [none]\n",
-      "/home/dev/repo-b/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Integrating\n- **Branch:** feature/b\n- **Cohort:** [none]\n",
+      "/home/dev/repo-a/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/a" }),
+      "/home/dev/repo-b/.arc/active/meta-b.md": makeMetaFixture("b", {
+        state: "Integrating", branch: "feature/b",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -252,6 +235,7 @@ describe("runWorktreeRoster", () => {
     const aEntry = result.entries.find((e) => e.branch === "feature/a");
     const bEntry = result.entries.find((e) => e.branch === "feature/b");
     expect(aEntry?.state).toBe("Active");
+    assertSchemaAccepts(WorktreeRosterResultSchema, result);
     expect(bEntry?.state).toBe("Integrating");
     expect(result.warnings).toEqual([]);
   });
@@ -260,13 +244,14 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Active\n- **Owner:** Mixed.Case_Identity\n- **Branch:** feature/x\n",
+      "/home/dev/repo/.arc/active/meta-x.md": makeMetaFixture("x", {
+        owner: "Mixed.Case_Identity", branch: "feature/x",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -278,13 +263,23 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
       "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Bogus\n- **Branch:** feature/x\n",
+        [
+          "# Metadata: x",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Bogus | — | feature/x | — | — |",
+          "",
+          "",
+          "---",
+          "",
+        ].join("\n"),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -296,13 +291,12 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Active\n- **Branch:** feature/x\n- **Cohort:** [none]\n",
+      "/home/dev/repo/.arc/active/meta-x.md": makeMetaFixture("x", { branch: "feature/x" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -315,14 +309,13 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n" +
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0" +
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo-a/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n",
+      "/home/dev/repo-a/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/a" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -342,8 +335,8 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-b\nHEAD ccc\nbranch refs/heads/feature/b\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-b\0HEAD ccc\0branch refs/heads/feature/b\0\0",
         stderr: "",
       },
     });
@@ -358,7 +351,7 @@ describe("runWorktreeRoster", () => {
       },
       readFile: async (path) => {
         if (path === "/home/dev/repo-a/.arc/active/meta-a.md") {
-          return "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n";
+          return makeMetaFixture("a", { branch: "feature/a" });
         }
         throw new Error("EACCES: permission denied");
       },
@@ -374,14 +367,15 @@ describe("runWorktreeRoster", () => {
     });
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toMatch(/meta-b\.md/);
+    assertSchemaAccepts(WorktreeRosterResultSchema, result);
   });
 
   it("skips detached-HEAD worktrees and does not attempt meta-file resolution for them", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo-a\nHEAD bbb\nbranch refs/heads/feature/a\n\n" +
-          "worktree /home/dev/repo-detached\nHEAD zzz\ndetached\n\n",
+          "worktree /home/dev/repo-a\0HEAD bbb\0branch refs/heads/feature/a\0\0" +
+          "worktree /home/dev/repo-detached\0HEAD zzz\0detached\0\0",
         stderr: "",
       },
     });
@@ -394,8 +388,7 @@ describe("runWorktreeRoster", () => {
         err.code = "ENOENT";
         throw err;
       },
-      readFile: async () =>
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n",
+      readFile: async () => makeMetaFixture("a", { branch: "feature/a" }),
     };
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -409,17 +402,17 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     // meta-a sorts alphabetically before meta-b but Branch field points elsewhere;
     // branch matching must pick meta-b (the one whose Branch matches the worktree).
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Shipped\n- **Branch:** feature/y\n",
-      "/home/dev/repo/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Active\n- **Branch:** feature/x\n- **Cohort:** [none]\n",
+      "/home/dev/repo/.arc/active/meta-a.md": makeMetaFixture("a", {
+        state: "Shipped", branch: "feature/y",
+      }),
+      "/home/dev/repo/.arc/active/meta-b.md": makeMetaFixture("b", { branch: "feature/x" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -434,15 +427,13 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-y.md":
-        "# Metadata: y\n\n- **State:** Active\n- **Branch:** feature/y\n",
-      "/home/dev/repo/.arc/active/meta-z.md":
-        "# Metadata: z\n\n- **State:** Active\n- **Branch:** feature/z\n",
+      "/home/dev/repo/.arc/active/meta-y.md": makeMetaFixture("y", { branch: "feature/y" }),
+      "/home/dev/repo/.arc/active/meta-z.md": makeMetaFixture("z", { branch: "feature/z" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -460,15 +451,15 @@ describe("runWorktreeRoster", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feature/x\n\n",
+          "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feature/x\0\0",
         stderr: "",
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/x\n",
-      "/home/dev/repo/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Integrating\n- **Branch:** feature/x\n",
+      "/home/dev/repo/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/x" }),
+      "/home/dev/repo/.arc/active/meta-b.md": makeMetaFixture("b", {
+        state: "Integrating", branch: "feature/x",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -547,8 +538,8 @@ describe("resolvePrimaryWorktreePath", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.wu-a\0HEAD bbb\0branch refs/heads/feat/wu-a\0\0",
       },
     });
 
@@ -563,7 +554,7 @@ describe("resolvePrimaryWorktreePath", () => {
 
   it("degrades malformed successful output to null", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0" },
     });
 
     expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
@@ -575,8 +566,8 @@ describe("resolveWorktreePathsByBranchResult", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.wu-a\0HEAD bbb\0branch refs/heads/feat/wu-a\0\0",
         stderr: "",
       },
     });
@@ -592,8 +583,8 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
   it("returns ok=false with an empty map when worktree listing fails", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: cannot list worktrees");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: cannot list worktrees" });
       },
     });
 
@@ -605,12 +596,42 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
   it("degrades malformed successful output to an unsuccessful empty map", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     const result = await resolveWorktreePathsByBranchResult(exec);
     expect(result.ok).toBe(false);
     expect([...result.paths]).toEqual([]);
+  });
+
+  it("reads from the named repository root when one is supplied", async () => {
+    // The production executor is not bound to a root: without this the roster would
+    // describe whatever repository the process directory happens to name.
+    let observed: unknown;
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: (_args, options) => {
+        observed = options;
+        return { stdout: "", stderr: "" };
+      },
+    });
+
+    await resolveWorktreePathsByBranchResult(exec, "/repo/root");
+
+    expect(observed).toEqual({ cwd: "/repo/root" });
+  });
+
+  it("passes no directory option when no root is supplied", async () => {
+    let observed: unknown;
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: (_args, options) => {
+        observed = options;
+        return { stdout: "", stderr: "" };
+      },
+    });
+
+    await resolveWorktreePathsByBranchResult(exec);
+
+    expect(observed).toEqual({});
   });
 });
 
@@ -619,17 +640,17 @@ describe("scanRegisteredWorktrees", () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
         stdout:
-          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
-          + "worktree /home/dev/repo.husk\nHEAD bbb\ndetached\n\n",
+          "worktree /home/dev/repo\0HEAD aaa\0branch refs/heads/main\0\0"
+          + "worktree /home/dev/repo.husk\0HEAD bbb\0detached\0\0",
         stderr: "",
       },
     });
 
-    expect(await scanRegisteredWorktrees(exec)).toEqual({
+    expect(await scanRegisteredWorktrees(exec, () => Promise.resolve({}))).toEqual({
       ok: true,
       worktrees: [
-        { path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
-        { path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
+        { folderPresent: true, path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
+        { folderPresent: true, path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
       ],
     });
 
@@ -637,36 +658,46 @@ describe("scanRegisteredWorktrees", () => {
     expect([...branchMap.paths.entries()]).toEqual([["main", "/home/dev/repo"]]);
   });
 
+  it("retains the registration's lock and reason", async () => {
+    const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "worktree /repo\0HEAD abc\0branch refs/heads/main\0locked owner\0\0", stderr: "" } });
+    expect(await scanRegisteredWorktrees(exec, () => Promise.resolve({}))).toEqual({
+      ok: true,
+      worktrees: [{
+        path: "/repo", head: "abc", branch: "main", detached: false, primary: true, folderPresent: true, locked: "owner",
+      }],
+    });
+  });
+
   it("returns an explicit failure instead of fabricating an empty candidate set", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: cannot list worktrees");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: cannot list worktrees" });
       },
     });
 
     expect(await scanRegisteredWorktrees(exec)).toEqual({
       ok: false,
-      message: "fatal: cannot list worktrees",
+      message: "git worktree: nonzero-exit (exit 128): fatal: cannot list worktrees",
     });
   });
 
   it("fails closed when a topology stanza omits HEAD", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo.husk\ndetached\n",
+        stdout: "worktree /home/dev/repo.husk\0detached\0\0",
         stderr: "",
       },
     });
 
     expect(await scanRegisteredWorktrees(exec)).toEqual({
       ok: false,
-      message: "worktree listing omitted HEAD for /home/dev/repo.husk",
+      message: "invalid git worktree porcelain: stanzas.0.head: required for a non-bare worktree",
     });
   });
 
   it("surfaces malformed successful output as an explicit topology failure", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: { stdout: "HEAD abc\nbranch refs/heads/main\n", stderr: "" },
+      [WORKTREE_LIST]: { stdout: "HEAD abc\0branch refs/heads/main\0\0", stderr: "" },
     });
 
     const result = await scanRegisteredWorktrees(exec);
@@ -680,7 +711,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("recovers backticked, table-rendered fields via the shared meta reader", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/x\0\0",
         stderr: "",
       },
     });
@@ -707,7 +738,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("matches by Branch in a multi-meta worktree when the field is table-rendered (backticked)", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/b\0\0",
         stderr: "",
       },
     });
@@ -737,7 +768,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("keeps the matched entry and surfaces malformed-peer warnings in multi-meta mode", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/b\0\0",
         stderr: "",
       },
     });
@@ -765,7 +796,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
   it("degrades to a bare entry with a warning when the core table is malformed", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
-        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stdout: "worktree /home/dev/repo\0HEAD abc\0branch refs/heads/feat/x\0\0",
         stderr: "",
       },
     });

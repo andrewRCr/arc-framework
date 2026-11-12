@@ -8,7 +8,6 @@ const BASE_INPUT = {
   activeWorkUnit: "loadset-projection",
   metaPath: ".arc/active/meta-loadset-projection.md",
   taskListPath: ".arc/active/tasks-loadset-projection.md",
-  activeExtensions: [],
   cohortDocPath: null,
 } as const;
 
@@ -106,6 +105,26 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
+  it("resolves execution closeout with verify-work-unit and no task-list slice", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "execution",
+      planningStage: null,
+      workUnitStage: "verification-closeout",
+    });
+
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/process-task-loop.md"),
+    );
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"),
+    );
+  });
+
   it("resolves integration sessions with the integration lifecycle workflow", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,
@@ -122,12 +141,70 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
-  it("keeps active extension bodies out of the session load set while including the cohort doc", () => {
+  it("resolves integration task work without loading the ordinary integration workflow", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "integration",
+      planningStage: null,
+      workUnitStage: "task-work",
+    });
+
+    expect(manifest.entries).toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/process-task-loop.md"),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
+  it("resolves integration verification without loading the ordinary integration workflow", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "integration",
+      planningStage: null,
+      workUnitStage: "verification-closeout",
+    });
+
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"),
+    );
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
+  it("resolves prepublication sessions with preparation and no task-list slice", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "prepublication",
+      planningStage: null,
+    });
+
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
+  it("includes the cohort document alongside the selected workflow", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      activeExtensions: ["post-context-load", "post-pr-open"],
       cohortDocPath: ".arc/backlog/planned/loadset/cohort-loadset.md",
     });
 
@@ -197,4 +274,28 @@ describe("resolveLoadSetManifest", () => {
       planningStage: "create-spec",
     })).toThrow("Load-set path segment must be safe: CON");
   });
+});
+
+it.each([
+  { placement: { kind: "active", scope: { kind: "project" } } as const, path: ".arc/active/meta-demo.md" },
+  { placement: { kind: "completed", quarter: "2026-q4", sequence: "03" } as const, path: ".arc/completed/2026-q4/03_demo/meta-demo.md" },
+])("projects the logical meta coordinates instead of the supplied stale path: $path", async ({ placement, path }) => {
+  const { WorkUnitPlacementSchema } = await import("../../../src/lib/layout/index.js");
+  const result = resolveLoadSetManifest({ ...BASE_INPUT, sessionType: "execution", planningStage: null,
+    metaPath: ".arc/active/stale-meta.md", stateOffBranch: true,
+    workUnit: { slug: "demo", placement: WorkUnitPlacementSchema.parse(placement) } });
+  expect(result.entries).toContainEqual(fullEntry(path));
+  expect(result.entries.some(entry => entry.path.includes("stale-meta") || entry.path.includes("SESSION-NOTES"))).toBe(false);
+});
+
+it.each([
+  { placement: { kind: "active", scope: { kind: "project", location: { kind: "own", claim: "demo", layoutActive: "nested" } } }, path: ".arc/active/current/meta-demo.md" },
+  { placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } }, path: ".arc/active/in-flight/demo/meta-demo.md" },
+])("projects caller-resolved physical coordinates without trusting the stale path: $path", async ({ placement, path }) => {
+  const { WorkUnitPlacementSchema } = await import("../../../src/lib/layout/index.js");
+  const result = resolveLoadSetManifest({ ...BASE_INPUT, sessionType: "execution", planningStage: null,
+    metaPath: ".arc/active/stale-meta.md", stateOffBranch: true,
+    workUnit: { slug: "demo", placement: WorkUnitPlacementSchema.parse(placement) } });
+  expect(result.entries).toContainEqual(fullEntry(path));
+  expect(result.entries.some(entry => entry.path.includes("stale-meta") || entry.path.includes("SESSION-NOTES"))).toBe(false);
 });

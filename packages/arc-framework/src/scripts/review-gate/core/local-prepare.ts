@@ -1,5 +1,7 @@
 /** Publish-first choreography for one immutable local review preparation. */
 
+import { canonicalize } from "../../../lib/kernel/index.js";
+
 import {
   LocalReviewSourceSchema,
   type LocalReviewSource,
@@ -17,6 +19,8 @@ import {
   LocalReviewSourcePayloadSchema,
   type LocalReviewSourcePayload,
 } from "./local-review-payload.js";
+import type { LocalReviewGuidance } from "../policy/local-review-guidance.js";
+import type { FixedFindingPointer } from "./fixed-finding-pointers.js";
 
 export interface LocalReviewPreparation {
   persistedVersion: number;
@@ -37,7 +41,49 @@ export function createLocalReviewSourcePayload(
     headSha: admission.target.headSha,
     sourceRef: preparation.sourceRef,
     sourceDigest: preparation.sourceDigest,
+    ...(preparation.state.coverageAdmission.correctionScope === undefined
+      ? {}
+      : { correctionScope: preparation.state.coverageAdmission.correctionScope }),
   });
+}
+
+function localReviewerInstructions(
+  guidance: LocalReviewGuidance,
+  source: LocalReviewSource,
+  incrementalBasis?: "fix-check" | "delta-check",
+  fixedFindingPointers: readonly FixedFindingPointer[] = [],
+): string {
+  const instructions = `${guidance.reviewerInstructions}\n\n`
+    + "For each finding in your report, include a Fails: line naming the supplied rubric item it fails, in the rubric's "
+    + "own terms, or none with its reason. Keep that line in the report referenced by the finding's evidence URL or ID.";
+  const scope = source.correctionScope;
+  if (scope === undefined) return fixedFindingPointers.length === 0 ? instructions
+    : [instructions,
+      "Previously reported and fixed; the fix and the code around it stay in scope. These pointers do not bound the search. "
+        + "Search independently across the complete change set and sweep for siblings of the listed defect classes.",
+      ...fixedFindingPointers.map(pointer => `- ${pointer.locus}${pointer.title === undefined ? "" : ` — ${pointer.title}`}`),
+    ].join("\n\n");
+  const findings = scope.requiredFindings.length === 0
+    ? "No earlier material finding requires re-examination."
+    : "Re-examine the earlier material findings "
+      + scope.requiredFindings
+        .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
+        .join(", ")
+      + " at their original loci, including loci outside the changed lines. For propagation and completeness, check whether the defect each"
+      + " describes recurs elsewhere in the complete change set, beyond this pass's range.";
+  return `${instructions}\n\n`
+    + `Incremental correction pass. The requested change set for this pass is `
+    + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
+    + `clean rules to it. The changes from ${source.diffBaseSha} to ${scope.predecessorHeadSha} were covered by the `
+    + `earlier passes in this review's recorded coverage chain; do not re-review them. `
+    + (scope.basisHeadSha === scope.predecessorHeadSha ? ""
+      : `Earlier incremental passes covered the changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha}. `)
+    + `${findings} `
+    + (incrementalBasis === "delta-check" ? "Apply three inspection axes to the reviewed range. "
+      : "Apply four fix-check axes to every repair. Closure: establish that the reported defect is resolved. ")
+    + "Behavioral grounding: verify the repaired behavior with source and executable evidence, rather than edit shape alone. "
+    + "Propagation and completeness: perform a sibling sweep for the same defect across the complete change set "
+    + "and check every affected path. New failure: inspect the repair for introduced regressions and failure paths.";
 }
 
 /**
@@ -57,16 +103,21 @@ export async function publishLocalReviewPreparation(
     materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
     now(): string;
     cleanupTtlMs: number;
-    guidanceDigest: string;
+    guidance: LocalReviewGuidance;
+    incrementalBasis?: "fix-check" | "delta-check";
+    fixedFindingPointers?: readonly FixedFindingPointer[];
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
+  const admittedCorrectionScope = admission.coverageAdmission.correctionScope;
   if (source.repositoryId !== admission.target.repositoryId
     || source.targetId !== admission.target.targetId
     || source.diffBaseSha !== admission.target.diffBaseSha
     || source.diffBaseTree !== admission.target.diffBaseTree
     || source.headSha !== admission.target.headSha
-    || source.headTree !== admission.target.headTree) {
+    || source.headTree !== admission.target.headTree
+    || canonicalize(source.correctionScope ?? null)
+      !== canonicalize(admittedCorrectionScope ?? null)) {
     throw new Error("local review source does not match its admission target");
   }
   const { sourceRef } = await dependencies.sourceStore.appendSource(source);
@@ -80,12 +131,23 @@ export async function publishLocalReviewPreparation(
     repositoryId: admission.target.repositoryId,
     targetId: admission.target.targetId,
     requestId: admission.carrier.request.requestId,
+    laneSourceId: admission.laneSourceId,
+    scopeMode: admission.scopeMode,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
+    coverageAdmission: admission.coverageAdmission,
+    ...(admission.deliveryAdmission === undefined
+      ? {}
+      : { deliveryAdmission: admission.deliveryAdmission }),
     policyVersion: admission.requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef,
     sourceDigest: source.sourceDigest,
-    guidanceDigest: dependencies.guidanceDigest,
+    guidance: dependencies.guidance.projection,
+    guidanceDigest: dependencies.guidance.guidanceDigest,
+    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source, dependencies.incrementalBasis, dependencies.fixedFindingPointers),
     target: admission.target,
     requirement: admission.requirement,
     request: admission.carrier.request,

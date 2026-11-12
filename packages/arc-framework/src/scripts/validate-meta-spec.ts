@@ -1,17 +1,19 @@
 /**
- * Meta-file field validator — pre-commit hook entry point.
+ * Meta-file field validator — pre-commit hook entry point over staged bytes.
  *
  * Given a list of staged file paths, identifies lifecycle meta-files
  * (`meta-*.md`) under active, backlog, and completed tiers. Validates the
  * managed field-block shape, the `**Design:**` field value against the allowed
  * shapes (empty, `[none]`, bare-basename `.md` filename, or `https?://` URL),
- * the codified four-value `**State:**` enum, and the optional `**Cohort:**`
- * two-segment path cap. Surrounding whitespace and a single pair of wrapping
- * backticks are stripped before matching.
+ * the codified four-value `**State:**` enum, the optional `**Cohort:**`
+ * two-segment path cap, and active-meta `**Current Workflow:**` agreement with
+ * lifecycle state and the staged task cursor. Surrounding whitespace and a
+ * single pair of wrapping backticks are stripped before matching.
  *
  * @module
  */
 
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -21,6 +23,10 @@ import {
   validateMetaFieldBlockShape,
 } from "../lib/active/meta-reader.js";
 import { validateCohortPath } from "../lib/active/cohort-path.js";
+import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
+import { resolveTaskListPath } from "../commands/active/status.js";
+import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -37,6 +43,7 @@ const META_PATH = new RegExp(
     + String.raw`(?:active(?:/[^/]+)?|backlog/(?:planned|provisional)(?:/.*)?|completed(?:/.*)?)/`
     + String.raw`meta-[^/]+\.md$`,
 );
+const ACTIVE_META_PATH = /(?:^|\/)\.arc\/active(?:\/[^/]+)?\/meta-[^/]+\.md$/u;
 const MD_FILENAME = /^[a-zA-Z0-9._-]+\.md$/;
 const URL_SHAPE = /^https?:\/\/\S+$/;
 const META_FIELD_LINE = /^\s*-\s+\*\*([^:]+):\*\*\s*(.*?)\s*$/;
@@ -126,10 +133,12 @@ export function validateSpec(content: string, path: string): string[] {
  * codified four values (`Planning, Active, Integrating, Shipped`).
  *
  * The canonical value comes from the shared meta reader, so State is recovered
- * from the hoisted core-block table as well as the legacy flat-bullet form
- * (with inline backticks stripped). The legacy duplicate-`- **State:**`-line
- * diagnostic still scans bullets directly — a malformation possible only in the
- * flat form, which the table layout cannot express.
+ * from the required core-block table after its H1, with inline backticks
+ * stripped. Duplicate State bullets are diagnosed separately, including
+ * stray bullets beside a valid table.
+ * @param content - Complete metadata Markdown.
+ * @param path - User-facing metadata path included in diagnostics.
+ * @returns Missing-table, malformed-table, or invalid-State diagnostics.
  */
 export function validateLifecycleFields(content: string, path: string): string[] {
   const diagnostics: string[] = [];
@@ -184,6 +193,66 @@ export function validateCohort(content: string, path: string): string[] {
 }
 
 /**
+ * Validate an active meta's workflow pointer against its lifecycle tuple and staged task cursor.
+ *
+ * Non-active paths are outside this interim guard. Parse failures are already
+ * reported by {@link validateLifecycleFields}, so this check avoids duplicating
+ * the same structural diagnostic.
+ */
+export function validateCurrentWorkflow(
+  content: string,
+  path: string,
+  readFile?: (path: string) => string,
+): string[] {
+  if (!ACTIVE_META_PATH.test(path)) return [];
+
+  let record: ReturnType<typeof parseMetaRecord>;
+  try {
+    record = parseMetaRecord(content);
+  } catch {
+    return [];
+  }
+
+  const diagnostics = checkCurrentWorkflowConsistency(record)
+    .map((diagnostic) => `${path}: ${diagnostic}`);
+  if (diagnostics.length > 0 || record.currentWorkflow !== "prepare-work-unit" || readFile === undefined) {
+    return diagnostics;
+  }
+
+  const taskListPath = resolveTaskListPath(path, record.taskList);
+  if (taskListPath === null) {
+    diagnostics.push(
+      `${path}: Current Workflow "prepare-work-unit" requires a resolvable Task List`,
+    );
+    return diagnostics;
+  }
+  let taskListContent: string;
+  try {
+    taskListContent = readFile(taskListPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    diagnostics.push(
+      `${path}: Current Workflow cannot be checked because staged task list ${taskListPath} `
+        + `is unavailable (${message})`,
+    );
+    return diagnostics;
+  }
+  const cursor = resolveTaskListCursor(taskListContent);
+  if (cursor.status === "found") {
+    diagnostics.push(
+      `${path}: Current Workflow "prepare-work-unit" contradicts open task ${cursor.cursor.leaf.id} `
+        + `in ${taskListPath}`,
+    );
+  } else if (cursor.status === "malformed") {
+    diagnostics.push(
+      `${path}: Current Workflow cannot be checked against malformed task cursor in ${taskListPath} `
+        + `(line ${cursor.error.line}: ${cursor.error.message})`,
+    );
+  }
+  return diagnostics;
+}
+
+/**
  * Validate a set of staged paths. Paths classified as `other` are skipped
  * silently — the hook may invoke this with a broader set than the scope.
  */
@@ -199,12 +268,21 @@ export function validateFiles(
     diagnostics.push(...validateSpec(content, path));
     diagnostics.push(...validateLifecycleFields(content, path));
     diagnostics.push(...validateCohort(content, path));
+    diagnostics.push(...validateCurrentWorkflow(content, path, readFile));
   }
   return { pass: diagnostics.length === 0, diagnostics };
 }
 
 // --- CLI entry ---
 
+function readStagedFile(path: string): string {
+  return execFileSync("git", ["show", `:${path}`], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+  });
+}
+
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  runPathListScript(validateFiles);
+  runPathListScript(validateFiles, { readFile: readStagedFile });
 }

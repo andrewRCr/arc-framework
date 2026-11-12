@@ -19,7 +19,7 @@ import type {
   ForwardReceiptLedger,
   ForwardReviewReceiptStore,
 } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
 const RECEIPT_RECORD = "receipts-v2.json";
 const RECEIPT_REFERENCE_PREFIX = `git-common:review-gate/evidence/${RECEIPT_RECORD}#`;
@@ -68,7 +68,10 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
   ) {}
 
   async readReceipts(targetId: string): Promise<ForwardReceiptLedger> {
-    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    const ledger = parseLedger(await this.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      RECEIPT_RECORD,
+    ), this.repositoryId);
     return {
       ledgerVersion: ledger.ledgerVersion,
       receipts: ledger.receipts.filter((receipt) => receipt.targetId === targetId),
@@ -80,7 +83,10 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
     receipt: ReviewReceiptV2;
     durableEvidenceRef: string;
   }>> {
-    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    const ledger = parseLedger(await this.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      RECEIPT_RECORD,
+    ), this.repositoryId);
     return ledger.receipts.flatMap((receipt, index) => receipt.targetId === targetId
       ? [{
           receipt,
@@ -98,7 +104,10 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
     if (!Number.isSafeInteger(position) || position <= 0) {
       throw new LocalReceiptStoreError("invalid-receipt-reference");
     }
-    const ledger = parseLedger(await this.publisher.read("evidence", RECEIPT_RECORD), this.repositoryId);
+    const ledger = parseLedger(await this.publisher.read(
+      { root: "review-gate", namespace: "evidence" },
+      RECEIPT_RECORD,
+    ), this.repositoryId);
     return ledger.receipts[position - 1] ?? null;
   }
 
@@ -107,7 +116,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
     expectedLedgerVersion: number,
   ): Promise<{ ledgerVersion: number; durableEvidenceRef: string }> {
     const canonicalReceipt = ReviewReceiptV2Schema.parse(receipt);
-    return this.publisher.update("evidence", RECEIPT_RECORD, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "evidence" }, RECEIPT_RECORD, (raw) => {
       const ledger = parseLedger(raw, this.repositoryId);
       const identity = receiptIdentity(canonicalReceipt);
       const replay = ledger.receipts.find((candidate) => receiptIdentity(candidate) === identity);
@@ -117,7 +126,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
         }
         const replayVersion = ledger.receipts.indexOf(replay) + 1;
         return {
-          content: null,
+          kind: "keep",
           result: {
             ledgerVersion: ledger.ledgerVersion,
             durableEvidenceRef: `${RECEIPT_REFERENCE_PREFIX}${replayVersion}`,
@@ -133,6 +142,7 @@ export class LocalForwardReviewReceiptStore implements ForwardReviewReceiptStore
         receipts: [...ledger.receipts, canonicalReceipt],
       });
       return {
+        kind: "write",
         content: `${JSON.stringify(next)}\n`,
         result: {
           ledgerVersion: next.ledgerVersion,

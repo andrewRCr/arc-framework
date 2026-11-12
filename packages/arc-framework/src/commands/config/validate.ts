@@ -48,11 +48,17 @@ const VALIDATION_DOMAIN_ORDER = [
   "hooks.body_max_lines",
   "hooks.body_max_line_length",
   "merge.strategy",
+  "merge.lock",
   "platform.type",
   "review.frontline_max_passes",
   "review.standard_max_passes",
-  "review.chunking_threshold_lines",
-  "review.chunking_threshold_files",
+  "review.hosted_await_timeout_seconds",
+  "review.hosted_await_initial_poll_interval_seconds",
+  "review.hosted_await_attention_after_minutes",
+  "review.checks_await_timeout_seconds",
+  "review.checks_await_initial_poll_interval_seconds",
+  "changeset.advisory_threshold_lines",
+  "changeset.advisory_threshold_files",
   "pm.mode",
   "team.mode",
   "session.remote_sync",
@@ -63,10 +69,15 @@ const VALIDATION_DOMAIN_ORDER = [
   "user.notes_push",
   "sync.auto_pull",
   "archive.cadence",
+  "storage.track_design_docs",
+  "layout.active",
 ] as const satisfies readonly ArcConfigKey[];
 
 const OPTIONAL_INTEGER_KEYS = [
   "inbox.remind_after_days",
+  "inbound.retriage_after_entries",
+  "inbound.retriage_after_days",
+  "pause.review_after_days",
   "integration.stale_after_days",
 ] as const;
 
@@ -147,9 +158,13 @@ function renderDomain(
     const selected = configured ?? field.defaultValue;
     if (invalidKeys.has(key)) {
       const minimum = field.policy.kind === "unsigned-safe-integer" ? 0 : field.policy.minimum;
+      const maximum = field.policy.kind === "positive-safe-integer"
+        ? field.policy.maximum
+        : undefined;
       error(
         output,
-        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${minimum}`,
+        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${minimum}`
+          + (maximum === undefined ? "" : ` and <= ${maximum}`),
       );
     } else {
       pass(output, `${key}: ${selected}`);
@@ -233,6 +248,12 @@ function selectedValue(values: Readonly<Record<string, string>>, key: ArcConfigK
     : value;
 }
 
+/** Each bounded wait's initial polling interval must fit inside its call bound. */
+const AWAIT_TIMING_PAIRS = [
+  ["review.hosted_await_initial_poll_interval_seconds", "review.hosted_await_timeout_seconds"],
+  ["review.checks_await_initial_poll_interval_seconds", "review.checks_await_timeout_seconds"],
+] as const;
+
 function renderCrossFieldChecks(
   output: ValidationOutput,
   values: Readonly<Record<string, string>>,
@@ -263,6 +284,12 @@ function renderCrossFieldChecks(
       output,
       `commit.context_pattern is set but commit.context_footer is '${footer}' (pattern is ignored)`,
     );
+  }
+
+  for (const [interval, timeout] of AWAIT_TIMING_PAIRS) {
+    if (Number(selectedValue(values, interval)) > Number(selectedValue(values, timeout))) {
+      error(output, `${interval} must not exceed ${timeout}`);
+    }
   }
 }
 
@@ -328,6 +355,10 @@ export async function validateConfigFile(
   const locationTemplate = values["worktree.location_template"];
   if (locationTemplate !== undefined && invalidKeys.has("worktree.location_template")) {
     error(output, "worktree.location_template: '' is not valid (expected: non-empty value)");
+  }
+
+  if (invalidKeys.has("storage.backing_repository")) {
+    error(output, "storage.backing_repository must be empty (unset) or contain a non-whitespace repository pointer");
   }
 
   renderCrossFieldChecks(output, values);

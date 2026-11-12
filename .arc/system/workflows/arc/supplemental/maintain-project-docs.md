@@ -89,7 +89,7 @@ framework version — use any versioning scheme that works for your team.
 1. Identify which location should be authoritative (usually the most detailed/specific doc)
 2. Update that location to be clear and complete
 3. Remove or replace conflicting content in other locations with cross-reference
-4. Test: Have AI read both sections and confirm no ambiguity
+4. **Test: Have AI read both sections and confirm no ambiguity** · `[invariant]`
 
 ### Pruning Redundancy
 

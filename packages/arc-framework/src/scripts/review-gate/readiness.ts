@@ -1,109 +1,77 @@
 /**
- * Exact-head, vehicle-aware lifecycle readiness over a caller-supplied tree.
+ * Exact-head, vehicle-aware lifecycle readiness over the selected operational state.
  *
- * The checker reads only lifecycle products beneath the supplied root. It does
- * not infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ * Repository-backed work units read lifecycle products beneath the supplied root.
+ * Native work units read current records through the supplied store. Neither arm
+ * infers lifecycle readiness from the caller's checkout or fail-soft indexes.
+ *
+ * A `delivery-member` vehicle adds two further authority sources, both outside
+ * that root and both supplied by the caller's composition root: the delivery
+ * lookup, which reads the Git-common delivery state of the repository that root
+ * resolved, and ancestry reads over the heads that state records. Delivery state
+ * is repository-common rather than a tree product and ancestry is a property of
+ * the object graph, so neither can come from the request.
+ *
+ * The member a request names is selected from the identity the request asserts,
+ * so ancestry is what ties that member to the head under review — and one read
+ * cannot do it alone. Members stack, which makes every later member's head a
+ * descendant of this one's, so a read placing the head under review above this
+ * member's recorded head admits every member above it too. The advance is
+ * therefore bounded from both sides: above this member's recorded head, and
+ * below the next bound member's. A head that has reached the successor belongs
+ * to the successor, and reviews under its vehicle.
+ *
+ * The supplied checkout belongs to the attended operator. This reader checks
+ * lifecycle completeness; it does not impose symlink, containment, or
+ * duplicate-entry forensics on that checkout.
+ *
+ * That read is not side-effect-free. The underlying snapshot creates its
+ * namespace directory and takes an advisory lock, so evaluating a member writes
+ * inside the Git common directory. A sandbox denying those writes degrades the
+ * member arm to `delivery-state-unavailable`, which is the fail-closed outcome
+ * rather than a new failure mode — but the module's inspection-only posture
+ * would misdescribe it if left unsaid.
  *
  * @module
  */
 
-import {
-  lstat,
-  readFile,
-  readdir,
-  realpath,
-} from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import { z } from "zod";
+import { escapeRegExp, lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
+import { evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
+import type { Store } from "../../lib/store/contract.js";
+import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
-import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../../lib/work-unit/work-unit-slug.js";
+import {
+  classifyPredecessorRelation,
+  type AncestryAnswer,
+} from "../../lib/delivery/predecessor-relation.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
+import type {
+  DeliveryMemberBinding,
+  DeliveryMemberIdentityLookup,
+} from "./core/delivery-member-lookup.js";
 
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
-const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
+import {
+  ReviewReadinessEnvelopeSchema, ReviewReadinessRequestSchema, type ReviewReadinessRequest,
+  type ReviewReadinessInput, type ReviewReadinessFact, type ReviewReadinessEnvelope,
+} from "./readiness-contract.js";
 
-export const ReviewTargetSchema = z.strictObject({
-  repository: RepositorySchema,
-  pullRequest: z.number().int().positive(),
-  headSha: ShaSchema,
-});
-
-export const LivePullRequestSchema = z.strictObject({
-  repository: RepositorySchema,
-  number: z.number().int().positive(),
-  state: z.enum(["open", "closed"]),
-  headBranch: z.string().min(1),
-  headSha: ShaSchema,
-});
-
-export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");
-
-export const ReviewVehicleSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("work-unit"),
-    slug: SlugSchema,
-    archiveCadence: z.enum(["with-integration", "manual"]),
-  }),
-  z.strictObject({
-    kind: z.literal("errand"),
-    slug: SlugSchema,
-  }),
-]);
-
-export const ReviewReadinessRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  treeRoot: ReviewTreeRootSchema,
-  target: ReviewTargetSchema,
-  pullRequest: LivePullRequestSchema,
-  vehicle: ReviewVehicleSchema,
-}).readonly();
-export type ReviewReadinessRequest = z.infer<typeof ReviewReadinessRequestSchema>;
-
-export const ReviewReadinessFactSchema = z.strictObject({
-  code: z.string().min(1),
-  path: z.string().min(1),
-  message: z.string().min(1),
-}).readonly();
-export type ReviewReadinessFact = z.infer<typeof ReviewReadinessFactSchema>;
-
-const ReviewReadinessHeaderShape = {
-  schemaVersion: z.literal(1),
-  mode: z.literal("review-readiness"),
-  diagnostics: z.array(ReviewReadinessFactSchema).readonly(),
-};
-
-export const ReviewReadinessEnvelopeSchema = z.discriminatedUnion("state", [
-  z.strictObject({
-    ...ReviewReadinessHeaderShape,
-    state: z.literal("ready"),
-    nextAction: z.literal("none"),
-    payload: z.strictObject({
-      target: ReviewTargetSchema,
-      vehicle: ReviewVehicleSchema,
-    }).readonly(),
-  }),
-  z.strictObject({
-    ...ReviewReadinessHeaderShape,
-    state: z.literal("invalid"),
-    nextAction: z.literal("stop"),
-    payload: z.strictObject({
-      target: ReviewTargetSchema,
-      vehicle: ReviewVehicleSchema,
-      facts: z.array(ReviewReadinessFactSchema).min(1).readonly(),
-    }).readonly(),
-  }),
-]);
-export type ReviewReadinessEnvelope = z.infer<typeof ReviewReadinessEnvelopeSchema>;
+export { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
+export {
+  ReviewTargetSchema, LivePullRequestSchema, ReviewTreeRootSchema, ReviewVehicleSchema,
+  ReviewReadinessRequestSchema, ReviewReadinessFactSchema, ReviewReadinessEnvelopeSchema,
+} from "./readiness-contract.js";
+export type { ReviewReadinessRequest, ReviewReadinessFact, ReviewReadinessEnvelope } from "./readiness-contract.js";
 
 /** Minimal stat shape used by the readiness filesystem boundary. */
 export interface ReviewReadinessStat {
   isFile(): boolean;
   isDirectory(): boolean;
-  isSymbolicLink(): boolean;
 }
 
 /** Minimal directory-entry shape used by the readiness filesystem boundary. */
@@ -112,22 +80,42 @@ export interface ReviewReadinessDirEntry {
   isDirectory(): boolean;
 }
 
-/** Filesystem boundary for inspecting an untrusted worktree as data. */
+/** Filesystem boundary for reading lifecycle products from an operator checkout. */
 export interface ReviewReadinessFs {
-  lstat(path: string): Promise<ReviewReadinessStat>;
-  realpath(path: string): Promise<string>;
+  stat(path: string): Promise<ReviewReadinessStat>;
   readFile(path: string): Promise<string>;
   readdir(path: string): Promise<ReviewReadinessDirEntry[]>;
 }
 
 /** Injectable boundaries for the readiness checker. */
 export interface ReviewReadinessDependencies {
+  /** Selected operational backend for native work-unit lifecycle records. */
+  store?: Store;
   fs: ReviewReadinessFs;
+  /**
+   * Delivery read backing `delivery-member` authentication.
+   *
+   * No repository root reaches this module through its request, so the port has
+   * no sound default and is supplied by each composition root from its own
+   * resolved root. It is consequently optional here, and the member arm fails
+   * closed as `delivery-state-unavailable` when it is absent. The `work-unit`
+   * and `errand` arms never consult it.
+   */
+  deliveryMemberLookup?: DeliveryMemberIdentityLookup;
+  /**
+   * Ancestry between the head a member records and the head under review.
+   *
+   * Supplied by the same composition root as the lookup, for the same reason: no
+   * repository reaches this module through its request. Its absence is not fatal,
+   * because a member recording the head under review needs no read to be admitted
+   * and one whose head moved cannot be admitted without one — so an absent reader
+   * answers `unresolvable` and the movement simply stays unadmitted.
+   */
+  readDeliveryAncestry?(ancestor: string, descendant: string): Promise<AncestryAnswer>;
 }
 
 const DEFAULT_FS: ReviewReadinessFs = {
-  lstat,
-  realpath,
+  stat,
   readFile: (path) => readFile(path, "utf8"),
   readdir: (path) => readdir(path, { withFileTypes: true }),
 };
@@ -186,26 +174,17 @@ function ready(request: ReviewReadinessRequest): ReviewReadinessEnvelope {
   });
 }
 
-function isInside(root: string, candidate: string): boolean {
-  const rel = relative(root, candidate);
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-}
-
 async function resolveRoot(
   requestedRoot: string,
   fs: ReviewReadinessFs,
 ): Promise<{ root?: string; fact?: ReviewReadinessFact }> {
   try {
     const requested = resolve(requestedRoot);
-    const stat = await fs.lstat(requested);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-root", requestedRoot, "The supplied tree root must not be a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const rootStat = await fs.stat(requested);
+    if (!rootStat.isDirectory()) {
       return { fact: fact("non-directory-root", requestedRoot, "The supplied tree root is not a directory.") };
     }
-    const root = await fs.realpath(requested);
-    return { root };
+    return { root: requested };
   } catch {
     return { fact: fact("missing-root", requestedRoot, "The supplied tree root is missing or unreadable.") };
   }
@@ -217,25 +196,13 @@ async function readRegularFile(
   fs: ReviewReadinessFs,
 ): Promise<ReadResult> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return {
-      path: relativePath,
-      fact: fact("escaping-artifact", relativePath, "The required artifact path escapes the supplied tree."),
-    };
-  }
   let stat: ReviewReadinessStat;
   try {
-    stat = await fs.lstat(candidate);
+    stat = await fs.stat(candidate);
   } catch {
     return {
       path: relativePath,
       fact: fact("missing-artifact", relativePath, "The required artifact is missing."),
-    };
-  }
-  if (stat.isSymbolicLink()) {
-    return {
-      path: relativePath,
-      fact: fact("symlinked-artifact", relativePath, "The required artifact is a symbolic link."),
     };
   }
   if (!stat.isFile()) {
@@ -245,13 +212,6 @@ async function readRegularFile(
     };
   }
   try {
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        path: relativePath,
-        fact: fact("escaping-artifact", relativePath, "The required artifact resolves outside the supplied tree."),
-      };
-    }
     return { path: relativePath, content: await fs.readFile(candidate) };
   } catch {
     return {
@@ -267,22 +227,10 @@ async function readDirectory(
   fs: ReviewReadinessFs,
 ): Promise<{ entries?: ReviewReadinessDirEntry[]; fact?: ReviewReadinessFact }> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return { fact: fact("escaping-artifact", relativePath, "The required directory escapes the supplied tree.") };
-  }
   try {
-    const stat = await fs.lstat(candidate);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-artifact", relativePath, "The required directory is a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const directoryStat = await fs.stat(candidate);
+    if (!directoryStat.isDirectory()) {
       return { fact: fact("non-regular-artifact", relativePath, "The required path is not a directory.") };
-    }
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        fact: fact("escaping-artifact", relativePath, "The required directory resolves outside the supplied tree."),
-      };
     }
     return { entries: await fs.readdir(candidate) };
   } catch (error) {
@@ -292,7 +240,7 @@ async function readDirectory(
   }
 }
 
-function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
+function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false): ReviewReadinessFact[] {
   const facts: ReviewReadinessFact[] = [];
   if (
     request.target.repository.toLowerCase() !== request.pullRequest.repository.toLowerCase()
@@ -310,7 +258,11 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   if (request.target.headSha !== request.pullRequest.headSha) {
     facts.push(fact("stale-head", "target.headSha", "The requested SHA is not the pull request's exact live head."));
   }
-  if (branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug) {
+  if (
+    request.vehicle.kind !== "delivery-member"
+    && !storedWorkUnit
+    && branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug
+  ) {
     facts.push(fact(
       "vehicle-branch-mismatch",
       "pullRequest.headBranch",
@@ -335,131 +287,165 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   return facts;
 }
 
-function sectionBodies(content: string, heading: string): string[] {
-  const lines = content.split(/\r?\n/u);
-  const bodies: string[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index] !== `## ${heading}`) continue;
-    const body: string[] = [];
-    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-      const line = lines[cursor];
-      if (line === undefined || /^## /u.test(line)) break;
-      body.push(line);
-    }
-    bodies.push(body.join("\n").trim());
-  }
-  return bodies;
+/**
+ * Bound one admitted advance from above, against every member head bound over this one.
+ *
+ * Only an advance is asked: a head under review that is the member's recorded head is that member's by
+ * identity, and needs nothing further. A head placed above it, though, could be any head bound above it, so
+ * without this read a later member's head would be admitted under an earlier member's vehicle.
+ *
+ * Every bound head above is read, not just the nearest, because their order is not guaranteed: an approved
+ * review fix republishes one member's coordinates alone, so a member two positions up can record a head that
+ * no longer descends from the one immediately above. A read of the nearest alone would clear exactly that
+ * head. Containment is reflexive, so a head under review that *is* one of these is caught wherever it sits.
+ *
+ * A member with nothing bound above it is admitted unread: there is no recorded sibling head for the head
+ * under review to be, so this bound has nothing to compare it against.
+ *
+ * @param member - The resolved binding, carrying the heads bound above it that the same read established.
+ * @param observedHead - The head under review.
+ * @param readAncestry - The ancestry reader, absent when the composition root supplied none.
+ * @returns One fact when the advance is unbounded or could not be bounded; empty when the bound holds.
+ */
+async function successorBoundFacts(
+  member: DeliveryMemberBinding,
+  observedHead: string,
+  readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
+): Promise<readonly ReviewReadinessFact[]> {
+  if (member.successorHeads.length === 0) return [];
+  const answers = readAncestry === undefined
+    ? member.successorHeads.map(() => "unresolvable" as const)
+    : await Promise.all(member.successorHeads.map((head) => readAncestry(head, observedHead)));
+  if (answers.every((answer) => answer === "not-ancestor")) return [];
+  // The same split the read below this member's head keeps, and in the same order of specificity: one head
+  // demonstrably carried settles it whatever the others said, and only a set with nothing carried and
+  // something unread falls to the weaker reason. Naming the first for the second would send an operator to a
+  // vehicle that may not be theirs; naming the second for the first would hide a refusal that was established.
+  return [answers.includes("ancestor")
+    ? fact(
+      "delivery-member-successor-reached",
+      "vehicle.deliverableId",
+      "The head under review carries the recorded head of a delivery member bound above this one, so it is "
+      + "not this member's head. Review it under the member that records it.",
+    )
+    : fact(
+      "delivery-member-successor-unavailable",
+      "pullRequest.headSha",
+      "The head under review is ahead of this member's recorded head, and whether it carries the recorded "
+      + "head of a member bound above it could not be read. Fetch those members' recorded heads and rerun.",
+    )];
 }
 
-function completionFacts(content: string, path: string): ReviewReadinessFact[] {
-  const sections = sectionBodies(content, "Completion Notes");
-  if (sections.length === 0) {
-    return [fact("missing-completion-notes", path, "Completion Notes are required.")];
-  }
-  const body = sections[0]?.trim() ?? "";
-  if (
-    sections.length !== 1
-    || body.length === 0
-    || /^\[(?:none|tbd)\]$/iu.test(body)
-    || containsOnlyHtmlComments(body)
-  ) {
-    return [fact("malformed-completion-notes", path, "Completion Notes must be unique and non-empty.")];
-  }
-  return [];
-}
-
-function containsOnlyHtmlComments(value: string): boolean {
-  let cursor = 0;
-  let comments = 0;
-  while (cursor < value.length) {
-    while (cursor < value.length && /\s/u.test(value[cursor] ?? "")) cursor += 1;
-    if (cursor === value.length) return comments > 0;
-    if (!value.startsWith("<!--", cursor)) return false;
-    const end = value.indexOf("-->", cursor + 4);
-    if (end === -1) return false;
-    comments += 1;
-    cursor = end + 3;
-  }
-  return comments > 0;
-}
-
-const RELEASE_NOTE_CATEGORIES = [
-  "Added",
-  "Changed",
-  "Removed",
-  "Fixed",
-  "Infrastructure",
-  "Deprecated",
-  "Security",
-] as const;
-
-function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[] {
-  const sections = sectionBodies(content, "Release Notes Entry");
-  if (sections.length === 0) return [];
-  if (sections.length !== 1) {
-    return [fact("malformed-release-notes", path, "Release Notes Entry must appear at most once.")];
-  }
-  const section = sections[0] ?? "";
-  const lines = section.split(/\r?\n/u);
-  const firstCategory = lines.findIndex((line) => /^### /u.test(line));
-  if (firstCategory <= 0 || lines.slice(0, firstCategory).join("\n").trim().length === 0) {
+async function evaluateDeliveryMember(
+  request: ReviewReadinessRequest & {
+    vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+  },
+  lookup: DeliveryMemberIdentityLookup | undefined,
+  readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
+): Promise<ReviewReadinessFact[]> {
+  if (lookup === undefined) {
     return [fact(
-      "malformed-release-notes",
-      path,
-      "Release Notes Entry requires a summary followed by categorized changes.",
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
     )];
   }
-  const seen = new Set<string>();
-  let previousIndex = -1;
-  let categorized = 0;
-  for (let index = firstCategory; index < lines.length;) {
-    const heading = /^### (.+)$/u.exec(lines[index] ?? "")?.[1];
-    if (heading === undefined) {
-      return [fact("malformed-release-notes", path, "Release Notes content must stay inside named categories.")];
-    }
-    const next = lines.findIndex((line, cursor) => cursor > index && /^### /u.test(line));
-    const end = next === -1 ? lines.length : next;
-    const body = lines.slice(index + 1, end).filter((line) => line.trim().length > 0);
-    if (body.length === 0) {
-      return [fact("malformed-release-notes", path, `Release Notes category '${heading}' is empty.`)];
-    }
-    if (heading === "Breaking Changes") {
-      if (end !== lines.length || seen.has(heading)) {
-        return [fact(
-          "malformed-release-notes",
-          path,
-          "Breaking Changes may appear once, after the categorized changes.",
-        )];
-      }
-      seen.add(heading);
-      index = end;
-      continue;
-    }
-    const categoryIndex = RELEASE_NOTE_CATEGORIES.indexOf(
-      heading as (typeof RELEASE_NOTE_CATEGORIES)[number],
-    );
-    if (
-      categoryIndex === -1
-      || categoryIndex <= previousIndex
-      || seen.has(heading)
-      || !/^- \S/u.test(body[0] ?? "")
-      || !body.every((line) => /^- \S/u.test(line) || /^\s{2,}\S/u.test(line))
-    ) {
-      return [fact(
-        "malformed-release-notes",
-        path,
-        "Release Notes categories must be unique, ordered, supported, and contain non-empty list items.",
-      )];
-    }
-    seen.add(heading);
-    previousIndex = categoryIndex;
-    categorized += 1;
-    index = end;
+  const resolution = await lookup.resolveMemberByIdentity({
+    planId: request.vehicle.planId,
+    deliverableId: request.vehicle.deliverableId,
+    // One identity under two spellings: the vehicle names the work unit by slug and
+    // the delivery record names it by id, so the hand-off renames rather than converts.
+    workUnitId: request.vehicle.workUnitSlug,
+  });
+  if (resolution.status === "unavailable") {
+    return [fact(
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
+    )];
   }
-  if (categorized === 0) {
-    return [fact("malformed-release-notes", path, "Release Notes Entry requires at least one change category.")];
+  // Each miss is cleared by a different act, so each names its own: one shared code could only carry a
+  // remedy directing two of the three at inputs that never reach what failed.
+  if (resolution.status === "no-plan") {
+    return [fact(
+      "delivery-plan-absent",
+      "vehicle.workUnitSlug",
+      "No delivery plan carries the asserted work unit. Reserve one for it, or review this change under "
+      + "the work unit's own vehicle.",
+    )];
   }
-  return [];
+  if (resolution.status === "plan-mismatch") {
+    return [fact(
+      "delivery-plan-mismatch",
+      "vehicle.planId",
+      "The work unit's delivery plan is not the asserted plan. Re-read the plan id from the current "
+      + "delivery plan and resubmit.",
+    )];
+  }
+  if (resolution.status === "not-in-plan") {
+    return [fact(
+      "delivery-member-not-in-plan",
+      "vehicle.deliverableId",
+      "The resolved delivery plan does not carry the asserted deliverable. Re-read the deliverable id "
+      + "from the plan's members and resubmit.",
+    )];
+  }
+  if (resolution.status === "in-plan-unbound") {
+    return [fact(
+      "delivery-member-unbound",
+      "pullRequest.headSha",
+      "The delivery plan carries this member, and no binding records a head for it.",
+    )];
+  }
+  const member = resolution.member;
+  const facts: ReviewReadinessFact[] = [];
+  // Held rather than passed straight through, because it is the answer the refusal below reports. With the
+  // reverse direction never read, `unknown` is the only non-admitting variant this call can produce, so the
+  // classifier hands back one token for a direction that was read and said no and a direction nobody could
+  // read. Only the first is a statement about the member's head.
+  const boundIsAncestorOfObserved = readAncestry === undefined
+    ? "unresolvable"
+    : await readAncestry(member.head, request.pullRequest.headSha);
+  const relation = classifyPredecessorRelation({
+    boundHead: member.head,
+    observedHead: request.pullRequest.headSha,
+    boundIsAncestorOfObserved,
+    // Only the append-only advance is admissible here, and it is bounded from above below, so the reverse
+    // direction is never read. Leaving it unestablished also keeps `diverged` unreachable, which is the one
+    // variant carrying the cardinality below, so no count is ever read.
+    observedIsAncestorOfBound: "unresolvable",
+    mergeBaseCount: 1,
+  });
+  if (relation.kind !== "unchanged" && relation.kind !== "advanced") {
+    // Both refusals leave the member unadmitted; they differ in what they assert and therefore in what clears
+    // them. A binding the read placed behind the head under review is answered by rebinding it. A binding the
+    // read could not place is answered by making the read succeed — the objects are commonly just not fetched
+    // here — and saying it moved would name a repair for a movement nobody observed.
+    facts.push(boundIsAncestorOfObserved === "not-ancestor"
+      ? fact(
+        "delivery-member-stale",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and the head under review does not "
+        + "descend from it.",
+      )
+      : fact(
+        "delivery-member-relation-unavailable",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and whether the head under review "
+        + "descends from it could not be read. Fetch the member's recorded head and rerun.",
+      ));
+  }
+  if (relation.kind === "advanced") {
+    facts.push(...await successorBoundFacts(member, request.pullRequest.headSha, readAncestry));
+  }
+  if (member.isFinalMember) {
+    facts.push(fact(
+      "delivery-member-terminal",
+      "vehicle.deliverableId",
+      "The plan's final member reviews under its work unit's own vehicle.",
+    ));
+  }
+  return facts;
 }
 
 async function evaluateManualWorkUnit(
@@ -493,8 +479,7 @@ async function evaluateManualWorkUnit(
       "The active work-unit meta branch does not match the pull-request head branch.",
     ));
   }
-  facts.push(...completionFacts(content, path));
-  facts.push(...releaseNotesFacts(content, path));
+  facts.push(...lifecycleArtifactFacts(content, path));
   return facts;
 }
 
@@ -541,10 +526,6 @@ async function findArchiveCandidates(
   return { candidates, facts };
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
 function archivedPrUrlMatches(value: string | null, repository: string, pullRequest: number): boolean {
   if (value === null) return false;
   try {
@@ -586,20 +567,14 @@ async function collectMetaPaths(
     const absolute = resolve(root, child);
     const isMetaCandidate = /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name);
     try {
-      const stat = await fs.lstat(absolute);
-      if (stat.isSymbolicLink()) {
-        if (isMetaCandidate || recursive) {
-          facts.push(fact("symlinked-artifact", child, "The lifecycle candidate is a symbolic link."));
-        }
-        continue;
-      }
-      if (stat.isDirectory()) {
+      const candidateStat = await fs.stat(absolute);
+      if (candidateStat.isDirectory()) {
         if (recursive) {
           const nested = await collectMetaPaths(root, child, fs, true);
           paths.push(...nested.paths);
           facts.push(...nested.facts);
         }
-      } else if (isMetaCandidate && stat.isFile()) {
+      } else if (isMetaCandidate && candidateStat.isFile()) {
         paths.push(child);
       } else if (isMetaCandidate) {
         facts.push(fact("non-regular-artifact", child, "The lifecycle candidate is not a regular file."));
@@ -686,17 +661,6 @@ async function hasOpenCohortMember(
   return { open: false, facts: [] };
 }
 
-function validCohortCloseout(content: string, slug: string): boolean {
-  const sections = sectionBodies(content, "Closeout");
-  if (sections.length !== 1) return false;
-  const body = sections[0] ?? "";
-  return /^- \*\*Closed:\*\* \d{4}-\d{2}-\d{2}$/mu.test(body)
-    && new RegExp(`^- \\*\\*Final member:\\*\\* \`${escapeRegExp(slug)}\`$`, "mu").test(body)
-    && /^- \*\*Member archives:\*\* \S.+$/mu.test(body)
-    && /^- \*\*Outcome:\*\* \S.+$/mu.test(body)
-    && /^- \*\*Follow-up:\*\* \S.+$/mu.test(body);
-}
-
 async function cohortCoordinateFacts(
   root: string,
   fs: ReviewReadinessFs,
@@ -724,7 +688,7 @@ async function cohortCoordinateFacts(
       : [active.fact];
   }
   try {
-    await fs.lstat(resolve(root, coordinator));
+    await fs.stat(resolve(root, coordinator));
     return [fact(
       "incomplete-cohort-closeout",
       coordinator,
@@ -785,14 +749,11 @@ async function evaluateArchivedWorkUnit(
       "The completed work-unit archive is missing.",
     )];
   }
-  if (archive.candidates.length > 1) {
-    return [fact(
-      "duplicate-artifact",
-      `.arc/completed/**/meta-${request.vehicle.slug}.md`,
-      "The completed work-unit archive is ambiguous.",
-    )];
-  }
-  const candidate = archive.candidates[0];
+  const candidate = [...archive.candidates].sort((left, right) => (
+    left.quarter === right.quarter
+      ? Number(left.sequence) - Number(right.sequence)
+      : left.quarter.localeCompare(right.quarter)
+  )).at(-1);
   if (candidate === undefined) return [];
   const result = await readRegularFile(root, candidate.metaPath, fs);
   if (result.fact !== undefined) return [result.fact];
@@ -829,8 +790,7 @@ async function evaluateArchivedWorkUnit(
       "The archived PR URL does not name the guarded repository and pull request.",
     ));
   }
-  facts.push(...completionFacts(content, candidate.metaPath));
-  facts.push(...releaseNotesFacts(content, candidate.metaPath));
+  facts.push(...lifecycleArtifactFacts(content, candidate.metaPath));
   facts.push(...await lifecycleCandidateFacts(root, fs));
   if (facts.length === 0) {
     facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.cohort, request.vehicle.slug));
@@ -842,16 +802,19 @@ async function evaluateArchivedWorkUnit(
  * Evaluate lifecycle readiness for one exact guarded head.
  *
  * @param input - Strict request naming the supplied tree, live PR, and vehicle.
- * @param overrides - Test-only filesystem boundary override.
+ * @param overrides - Injected boundaries. The filesystem boundary is test-only;
+ *   the delivery lookup is the production injection path for member
+ *   authentication and is supplied by each composition root.
  * @returns A ready or structured-invalid review envelope.
  */
 export async function evaluateReviewReadiness(
-  input: ReviewReadinessRequest,
+  input: ReviewReadinessInput,
   overrides: Partial<ReviewReadinessDependencies> = {},
 ): Promise<ReviewReadinessEnvelope> {
   const request = ReviewReadinessRequestSchema.parse(input);
   const fs = overrides.fs ?? DEFAULT_FS;
-  const facts = identityFacts(request);
+  const storedWorkUnit = request.vehicle.kind === "work-unit" && usesOffBranchState(overrides.store);
+  const facts = identityFacts(request, storedWorkUnit);
   if (facts.length > 0) return invalid(request, facts);
 
   const resolved = await resolveRoot(request.treeRoot, fs);
@@ -861,6 +824,24 @@ export async function evaluateReviewReadiness(
 
   if (request.vehicle.kind === "errand") {
     return ready(request);
+  }
+  // A member pull request carries no lifecycle artifacts, so nothing beneath the
+  // root is read on this path. The resolution above is still load bearing: it is
+  // itself the check that an unusable supplied root refuses consistently across
+  // every vehicle kind, so this arm must stay below it.
+  if (request.vehicle.kind === "delivery-member") {
+    const memberFacts = await evaluateDeliveryMember(
+      request as ReviewReadinessRequest & {
+        vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+      },
+      overrides.deliveryMemberLookup,
+      overrides.readDeliveryAncestry,
+    );
+    return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
+  }
+  if (storedWorkUnit && overrides.store !== undefined) {
+    const productFacts = await evaluateStoredWorkUnitReadiness({ ...request, vehicle: request.vehicle }, overrides.store);
+    return productFacts.length === 0 ? ready(request) : invalid(request, productFacts);
   }
   if (request.vehicle.archiveCadence === "with-integration") {
     const productFacts = await evaluateArchivedWorkUnit(

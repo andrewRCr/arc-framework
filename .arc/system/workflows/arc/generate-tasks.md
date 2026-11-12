@@ -5,13 +5,27 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - resolve-plan-segmentation
+    - assess-boundary-fit
     - assess-design-proportionality
     - test-first
     - task-audit
-    - adversarial-review
+    - spec-review
+    - planning-review
+    - source-grounding
+    - verification-review
 ---
 
 # Workflow: Generate Task List
+
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
+
+The specification-write reviews below apply to every substantive specification edit, regardless of when the
+specification was authored. Review the changed footprint, including removals and affected surrounding obligations
+and definitions, without expanding to unrelated content. Both common reader checks apply at every depth; retain
+the existing depth selection for remaining review work and the existing iteration, approval, and restart boundaries.
+Task-only or notes-only edits and unchanged specification reads do not trigger these reviews.
 
 The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](create-spec.md). It
 transforms a reviewed spec into an executable task list, scaled by planning depth — the plan that implementation
@@ -25,10 +39,12 @@ branch (`plan/<name>`) — verify you're still on it (created via [init-work-uni
 protection (the default), it may run directly on the base branch.
 
 Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
-`**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
-confirm with the user before proceeding — generating tasks against unresolved dependencies produces a plan that
-can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
-leave the fields in place during task generation.
+`**Related Work:**` fields), check whether dependencies are resolved. Those fields record state at authoring
+time, so resolve each named blocker against live work-unit state (`arc status <slug>`) rather than reading the
+recorded value — a shipped dependency still listed as blocking is the common case. Stop and confirm with the
+user only on a blocker that is genuinely still open — generating tasks against unresolved dependencies produces
+a plan that can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md`
+Step 4), not here — leave the fields in place during task generation.
 
 **Stage pointer** — no entry write: reaching generate-tasks always passes through `create-spec`, whose finalization
 already advanced `Current Workflow` here.
@@ -38,10 +54,11 @@ already advanced `Current Workflow` here.
 ## Resolve depth & Class
 
 Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
-needs — then run [`resolve-planning-depth`][arc-methods-rpd] and [`classify-work-unit`][arc-methods-cwu] off it:
-one read drives both, yielding this run's **level** (`low` / `medium` / `high`) and confirming, ratcheting, or
-correcting **`Class`** against that same read. The methods own how the read maps to a level, and the mid-stage
-re-entry valve.
+needs — then run [`resolve-planning-depth`][arc-methods-rpd], [`classify-work-unit`][arc-methods-cwu], and
+[`resolve-plan-segmentation`][arc-methods-rps] from that read. One read drives all three, yielding this run's **level**
+(`low` / `medium` / `high`), confirming, ratcheting, or correcting **`Class`**, and producing an ordered sequence of
+segments with modes. Segmentation also reads the spec's lifecycle statements. The methods own how the read maps to
+a level and the mid-stage re-entry valve.
 
 The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the
 work surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but
@@ -50,17 +67,25 @@ its write defers to the Finalize ceremony commit.
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel
 overlay (it reaches novelty only indirectly, through scale).
 
+## Resolve plan segmentation
+
+**Signature:** `resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes;
+ordering doctrine`
+
+Run [`resolve-plan-segmentation`][arc-methods-rps] from the scale-axis read above, together with the spec's
+lifecycle statements, when authoring the phase structure and its exit criteria.
+
 ## Generate in the resolved level
 
 The resolved level selects one of the three paths below. **The path is the execution driver:** it names which
-procedures run and where you stop. The procedure sections that follow — **Structural decomposition**, **Content
+procedures run and where a stop can fall. The procedure sections that follow — **Structural decomposition**, **Content
 fill**, **Grounding audit & coherent revision** — are shared reference detail your path invokes; do **not**
 execute them as a standalone linear sequence. Follow your path top to bottom, expanding each procedure as the
 path calls for it.
 
 Every path runs the **same** procedures, artifacts, checks, and review discipline — a lower depth separates
 _less for review_, it does not do _less work_. Depth changes only how the work is sliced into passes and where
-the review stops fall.
+a review stop can fall.
 
 **Surfacing discipline (every stop).** Surface the deliverable with reflection woven in: trace the relevant
 procedure's internal lenses as your own checks and weave observations into the deliverable presentation, rather
@@ -68,6 +93,10 @@ than presenting a separate review section. Clean lenses get a one-line confirmat
 get a brief lean + rationale + explicit ask ("keeping X as one parent because Y — thoughts?"). Surface
 non-obvious judgments where reasonable people might differ. A stop may iterate on user feedback before the path
 proceeds.
+
+**Pass summaries.** A pass or phase that leaves nothing to decide does not stop; it posts a short summary and
+continues. Keep every summary high in signal — lead with anything that needs a look, collapse clean results to a
+line — so it is read, not scanned.
 
 **The task list file lives on disk from the first pass onward.** The **Structural decomposition** procedure
 creates `tasks-{name}.md` at the destination path resolved per Finalize's `Destination path` rule; the later
@@ -79,8 +108,8 @@ then.
 
 One pass, straight through: run **Structural decomposition**, **Content fill**, and **Grounding audit & coherent
 revision** over the single substantive phase (plus the always-present verification phase). There is **no
-inter-pass stop** — the procedures flow into each other. The one review stop is the grounding audit's per-phase
-confirm gate, which fires once for the single substantive phase; resolve it, finish the revision, then
+inter-pass stop** — the procedures flow into each other. The grounding audit's confirm gate stops for the single
+substantive phase only when its audit leaves something to decide; resolve any stop, finish the revision, then
 **Finalize the task list**. Audit depth is `grounding-only`.
 
 ### `medium` — merged draft pass, then grounding pass
@@ -91,33 +120,40 @@ Two passes:
   phases (plus the verification phase) as one draft.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the merged draft is written. Surface it with reflection woven in (lenses
-  > from both procedures); await direction before the grounding pass.
+  > `workflow-interlock`: Stop after the merged draft is written only when it leaves a decision the spec does not
+  > settle — a real choice of phase breakdown, task decomposition, or sequencing, or a masked design decision.
+  > Surface the draft with reflection woven in (lenses from both procedures), leading with that decision; await
+  > direction before the grounding pass. Otherwise post the pass summary and continue to the grounding pass.
 
-- **Pass 2 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate fires
-  once per substantive phase. Audit depth is `full`.
+- **Pass 2 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
+  for a phase whose audit leaves something to decide. Audit depth is `full`.
 
 Then **Finalize the task list**.
 
 ### `high` — full three passes
 
-Three passes, each producing a deliverable the user reviews before the next begins:
+Three passes, each producing a deliverable before the next begins; a pass stops for review only when it leaves
+something to decide:
 
 - **Pass 1 — Structural decomposition.** Run **Structural decomposition** over 3-7 substantive phases (plus the
   dedicated verification phase) — phases and parent-task skeletons only, no content fill.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the skeleton is drafted. Surface the phase decomposition with reflection
-  > woven in (lenses per the procedure); await direction before Pass 2.
+  > `workflow-interlock`: Stop after the skeleton is drafted only when it leaves a decision the spec does not
+  > settle — a real choice of phase breakdown or sequencing, or a masked design decision. Surface the phase
+  > decomposition with reflection woven in (lenses per the procedure), leading with that decision; await direction
+  > before Pass 2. Otherwise post the pass summary and continue to Pass 2.
 
-- **Pass 2 — Content fill.** Run **Content fill** against the reviewed skeleton.
+- **Pass 2 — Content fill.** Run **Content fill** against the skeleton.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the Pass 2 draft is written. Surface with reflection woven in; await
-  > direction before Pass 3.
+  > `workflow-interlock`: Stop after the Pass 2 draft is written only when it leaves a decision the spec does not
+  > settle — a real choice of task decomposition, or a masked design decision. Surface the draft with reflection
+  > woven in, leading with that decision; await direction before Pass 3. Otherwise post the pass summary and
+  > continue to Pass 3.
 
-- **Pass 3 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate fires
-  once per substantive phase. Audit depth is `full`.
+- **Pass 3 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
+  for a phase whose audit leaves something to decide. Audit depth is `full`.
 
 Then **Finalize the task list**.
 
@@ -153,11 +189,17 @@ For each phase, draft parent-task skeletons — titles only, with anchors citing
 units** each parent satisfies — the form's traceable elements: numbered Requirements (PRD), structured Proposed
 Design elements (RFC), settled Decisions (`outline`), or the single falsifiable signal (`brief`).
 
+On an RFC-form spec, author that citation into the title itself: a trailing `— Dn` inside the bold, ahead of any
+role suffix. It keeps the parents realizing a given design element greppable when that element is later amended.
+Recommended, not required — see [task-list-formatting strategy][task-list-formatting] § Parent Tasks.
+
 **Principles:**
 
 - Each phase should produce testable, verifiable progress
-- Order phases to minimize dependencies and enable incremental delivery
-- When test-first applies, group test and implementation together by module or concern
+- Order phases from the resolved segments: preserve the sequence that retires the dominant residual risk earliest,
+  then minimize dependencies within each segment
+- When test-first applies, group test and implementation by the segment's mode: by behavior path for `slice`, by
+  module or concern for `layer`, and by repeatable transformation batch for `replication`
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
@@ -169,8 +211,13 @@ below. It stays on disk through the remaining procedures and Finalize.
 - Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**` chain-of-authority
   pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on `tasks-*`: Purpose lives on the spec,
   branch on `meta-*`. See [strategy-task-list-formatting § Task List Headers][task-list-formatting]
-- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_` block stating
-  key calls
+- Phase shapes: `## **Phase X:**` headings followed by a preamble in this order: any `**Delivery member:**`
+  pointers, the required `_Purpose:_`, `_Mode:_` on a segment's opening phase, `_Exit criterion:_` on its closing
+  phase, then any `_Design decisions:_` block. A single-phase segment carries both structural lines, `_Mode:_`
+  first. Separate every preamble entry with a blank line.
+    - `_Mode:_` takes a backticked `slice`, `layer`, or `replication` token, an optional `through Phase N` span,
+      then an em dash and a non-empty prose gloss naming what the segment closes on.
+    - `_Exit criterion:_` takes the segment's specific, non-empty criterion as prose.
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
   [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable units
   (which units does this parent satisfy?)
@@ -184,7 +231,8 @@ below. It stays on disk through the remaining procedures and Finalize.
 - **Coverage** — every enumerable unit covered by some task (the task list is validated against the form's
   enumerable substrate; implementation is validated separately against Success Criteria)
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
-- **Ordering** — phase sequence minimizes dependencies
+- **Ordering** — phase sequence preserves the resolved risk-retirement segment order, then minimizes dependencies
+  within each segment
 
 ### Assess design proportionality before content fill
 
@@ -199,13 +247,42 @@ line. On `revise`, surface every finding and the proposed spec correction before
 > `workflow-interlock`: Stop after a disproportionate provisional skeleton is identified. Surface the findings
 > and proposed spec correction; await approval before amending the spec and rebuilding the task list.
 
-On approval, amend `spec-{name}.md`, discard the superseded provisional skeleton, and restart at **Resolve depth
-& Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved level and path;
-the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return control without
-treating the result as `proportionate`.
+On approval, amend `spec-{name}.md`. After the bounded batch of substantive specification corrections, run
+[spec-review][spec-review] over the changed contract, folding corrections through the existing iteration flow and
+surfacing decisions at the existing stop. Then discard the superseded provisional skeleton and restart at
+**Resolve depth & Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved
+level and path; the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return
+control without treating the result as `proportionate`.
 
-→ **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
-discipline above) before continuing.
+### Assess boundary fit from concrete task-scale evidence
+
+Run [`assess-boundary-fit`][arc-methods-abf] against the provisional skeleton: this is the first concrete
+task-scale evidence and is independent of the scale/derivation depth valve. A derivation gap returns to design;
+orthogonal concerns route a complete cut-map to `decompose-work-unit`; a cohesive concern with separable delivery
+surfaces selects `stays one WU + delivery-plan candidate`. Record the selected outcome and evidence basis in
+existing draft or spec decision prose. After a bounded batch of substantive specification decision writes,
+run [spec-review][spec-review] over the changed contract before proceeding past this procedure's existing boundary.
+Feed corrections or decisions into the existing iteration and approval flow; draft-only writes do not trigger it.
+
+For the delivery candidate, add exactly one unmarked provisional `## Delivery Plan` locus before Phase 1. It
+records the current member/seam intent for review but does not create canonical delivery state, publish or bind a
+plan, or mutate an external projection. Rebuild or remove the locus if the skeleton changes; do not put canonical
+sentinels around provisional prose. A recorded unchanged outcome remains silent under the method's sticky posture.
+
+Use the provisional coverage to emit the delivery-aware task shape:
+
+- Open each affected phase preamble with one `**Delivery member:**` pointer carrying the ordinal and backticked chunk
+  key per member represented there, before `_Purpose:_`. The pointer orients the reader; coverage remains assignment
+  authority.
+- End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
+  `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
+  [verification-review][verification-review]; it stays distinct from the sole terminal work-unit verification task and
+  adds no phase.
+- Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
+  to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
+
+→ **Pass boundary:** if your path places a stop after this procedure, apply it now: stop and surface (per the
+surfacing discipline above) when the pass leaves something to decide; otherwise post the pass summary and continue.
 
 ## Content fill
 
@@ -232,8 +309,8 @@ See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for
 For each parent task, fill in the body:
 
 - Small enough to complete in a single work session (typically < 3 files modified)
-- Include quality checkpoints at appropriate stages (see [Quality Gates Strategy][quality-gates] for tier
-  guidance)
+- Include segment verifiers where the plan calls for broader verification; each closing verifier requests
+  `arc check segment`
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
 - **Add task-local context pointers sparingly.** When a task needs external context the executor should read
@@ -246,9 +323,10 @@ For each parent task, fill in the body:
   through the planning/execution methods.
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
-business logic, complex algorithms), group test and implementation together in each task — named by module or
-concern, not by activity. Use the ``Build `test-first` (one behavior at a time):`` marker line to introduce the
-behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
+business logic, complex algorithms), group test and implementation together using the segment's mode: name tasks by
+behavior path for `slice`, module or concern for `layer`, and repeatable transformation batch for `replication`,
+never by testing-versus-implementation activity. Use the ``Build `test-first` (one behavior at a time):`` marker line
+to introduce the behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
 [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
 [strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
 
@@ -266,19 +344,21 @@ behavior list; the executing agent treats this as the signal to apply the red-gr
 - **Meaningful intent** — does each task carry intent the title alone doesn't, or is it just step-shape?
 - **Peer descriptor framing** — where present, do peer descriptors carry framing the Goal can't?
 
-→ **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
-discipline above) before continuing.
+→ **Pass boundary:** if your path places a stop after this procedure, apply it now: stop and surface (per the
+surfacing discipline above) when the pass leaves something to decide; otherwise post the pass summary and continue.
 
 ## Grounding audit & coherent revision
 
 A per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
-findings and any design decisions, confirm before editing, then revise the phase coherently. The **verification
-phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
+findings and any design decisions, confirm before editing when the audit leaves something to decide, then revise
+the phase coherently. The **verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has
+nothing to ground.
 
-Run **Audit the phase** → **Surface findings + decisions, then confirm** → **Revise the phase coherently** for
-each non-verification phase in order; run **Final suite-coherence pass** once, after the last phase. The
-per-phase confirm gate below is intrinsic — it fires once per substantive phase at **every** depth, the number
-of gates following the substantive phase count rather than the resolved level.
+Run **Audit the phase** → **Surface findings + decisions, confirm what needs deciding** → **Revise the phase
+coherently** for each non-verification phase in order; run **Final suite-coherence pass** once, after the last
+phase. The phase-at-a-time loop is intrinsic at **every** depth: it keeps each audit and revision bounded to one phase.
+The confirm gate is not a per-phase sign-off — it stops only for a phase whose audit leaves something to decide,
+so the number of stops follows what the audits find, not the phase count or the resolved level.
 
 ### Audit the phase
 
@@ -290,7 +370,7 @@ task-audit:
   depth:  # grounding-only at low; full at medium / high
 ```
 
-The method defines each depth — `grounding-only` is the named-files-and-symbols-exist floor, never dropped.
+The method defines each depth — `grounding-only` is `source-grounding` run alone, never dropped.
 
 The level only sets a generation-time default, not a ceiling — the full audit stays available on demand
 mid-implementation, regardless of the resolved level or `Class`.
@@ -298,24 +378,32 @@ mid-implementation, regardless of the resolved level or `Class`.
 Generation-time framing differs from the audit's typical pre-impl use:
 
 - **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path / symbol assumptions
-  are common. Focus on grounding (verifying named files and symbols exist).
+  are common. Focus on grounding claims in source behavior and sweeping their propagation.
 - **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved. "Carry as
   context" findings can ride.
 
-### Surface findings + decisions, then confirm
+### Surface findings + decisions, confirm what needs deciding
 
 > [!IMPORTANT]
-> `workflow-interlock`: Surface the phase's findings — per-finding (category → severity → finding →
-> recommendation), with reflection woven in — **plus any masked design decisions, each stated with a lean**.
-> Stop and await direction **before editing**. Resolving the decisions first means corrections land coherently
-> in one pass instead of as "(pending)" caveats re-edited later.
+> `workflow-interlock`: When the phase's audit returns a fix-before-starting finding, a masked design decision, or a
+> floor-raising signal for the re-entry valve below, surface the phase's findings — per-finding (category → severity
+> → finding → recommendation), with reflection woven in — **plus any masked design decisions, each stated with a
+> lean**. Stop and await direction **before editing**. Resolving the decisions first means corrections land
+> coherently in one pass instead of as "(pending)" caveats re-edited later.
+
+A phase with nothing to decide does not stop. Report it in passing — the one-line confirmation the surfacing
+discipline gives a clean lens, naming any "carry as context" findings and the home revision gives each — then revise
+the phase and continue to the next.
 
 Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
 
 **Re-entry valve (the loop's floor-raising back-edge):** when a finding is a floor-raising signal rather than a
 local fix, fire it per [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise
-(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation**
-surprise (a masked design decision needing fresh design) routes to the spec. A merely-wrong mechanism is the
+(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher below `high`. At
+`high`, offer a return to grounding the named surface, the `Novel` ratchet when invention is required, or boundary
+assessment for separable concerns. An accepted return ends the loop as `re-entered`; re-run the stage's grounding
+and readiness before offering a fresh loop with a fresh cap and the ended loop's findings as context. A **derivation**
+surprise (a masked design decision needing fresh design) still routes to the spec. A merely-wrong mechanism is the
 in-place case below (Revise the phase coherently → spec-propagation), not a re-entry.
 
 ### Revise the phase coherently
@@ -328,9 +416,13 @@ directly; a corrected mechanism _becomes_ the design statement, not an annotatio
 **Spec-propagation.** When a finding corrects a _spec-level_ assumption — a named mechanism, shape, or interface
 was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
 suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the
-**in-place** sibling of the re-entry valve (Surface findings + decisions, then confirm): an existing decision
-was wrong and is corrected in place — distinct from re-entering the spec to _author_ design that does not yet
-exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
+**in-place** sibling of the re-entry valve (Surface findings + decisions, confirm what needs deciding): an
+existing decision was wrong and is corrected in place — distinct from re-entering the spec to _author_ design
+that does not yet exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
+
+After each bounded batch of substantive Spec-propagation corrections, run [spec-review][spec-review] over the changed
+specification contract. Fold corrections into the coherent revision; surface decisions at the existing phase
+confirm gate before proceeding.
 
 **Generation-time durable-capture discipline.** "Carry as context" findings need a durable home before save — at
 generation time, no implementing-session context exists to absorb them later. Routing convention:
@@ -349,8 +441,13 @@ ordering language), suite-level alignment (the spec's Goals / Success Criteria /
 amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads
 as one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase
 revision was clean, heavier when phases interlock tightly. If this pass surfaces a _new design issue_ (not mere
-inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the
-coherence pass is not a second decision venue.
+inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, confirm what needs
+deciding) — the coherence pass is not a second decision venue.
+
+When this pass makes a bounded batch of substantive specification edits, run [spec-review][spec-review]
+over the changed contract before finalizing the corrected plan. Feed findings into this same iteration flow,
+returning decisions to the existing phase confirm gate. Unchanged reads and task/notes-only corrections skip it;
+the post-settle re-fire of this procedure follows the same rule.
 
 **Internal lenses:**
 
@@ -373,10 +470,15 @@ pre-save checklist and bundles the commit.
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
-- [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
-      links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
-- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
-      [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
+- [ ] Phase preambles carry, in order, any delivery-member pointers, the required `_Purpose:_`, `_Mode:_` on a
+      segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
+      `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
+      entry has a blank line after it; soft cap ~12 lines per preamble.
+- [ ] Segmentation is valid across the saved task-list corpus, including tracked and untracked files. Before the
+      interlock, run the project's task-list validator when configured; otherwise verify the segment structure
+      against [strategy-task-list-formatting § Segments and Verification Boundaries][task-list-formatting].
+- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see [strategy-task-list-formatting § Parent
+      Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
       style — keeps preview rendering consistent across parent and subtask). Bold when detail bullets follow.
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
@@ -390,24 +492,36 @@ pre-save checklist and bundles the commit.
 - [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
+- [ ] Every stub a `slice` creates carries a `_Retired in:_ Phase N` detail bullet naming the phase whose exit
+      criterion replaces or removes it. Identify scaffolding tasks, add the bullet, and confirm every named phase
+      exists.
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
       `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
-- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks group test + implementation together by segment mode — behavior path for `slice`, module or
+      concern for `layer`, repeatable transformation batch for `replication` — never by activity
 - [ ] Test-first tasks use ``Build `test-first` (one behavior at a time):`` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] Delivery member ranges, when present, end in member-scope verification parents assigned through coverage and
+      carrying the exact `— validate criteria at member scope` suffix; they add no phase and stay distinct from the
+      sole terminal work-unit verification task
 - [ ] All "carry as context" findings from the grounding audit are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
       provenance (grounding-audit corrections folded into the design, per [DEV-RULES.ARC][dev-rules-arc] § Write
-      for the reader)
+      for the reader). A post-completion `_Amended in:_` bullet is the one exception — it records a correction
+      made after the task closed and is preserved verbatim, per [strategy-task-list-formatting][task-list-formatting]
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
       Audience][task-list-formatting]
-- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+- [ ] On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria
+      and assigned to a `slice` segment or parent task that wires its production callsite and proves it with an
+      executable scenario. Inventory and assign the rows before any boundary report is recorded.
+- [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
+      cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 
 **Destination path** (referenced by **Structural decomposition**'s file creation) — co-locate with the
 work unit's existing artifacts (lifecycle position first; `pm.mode` only when nothing is on disk yet):
@@ -424,42 +538,57 @@ work unit's existing artifacts (lifecycle position first; `pm.mode` only when no
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
-**Update planning-state meta file** — only when `.arc/active/meta-{name}.md` exists with `**State:**
-Planning` (planning-branch sessions); skip otherwise (no meta exists pre-init under non-planning-branch
-flows). When it applies, persist the deterministic finalize facts — `arc finalize generate-tasks
---class <Class>` writes the resolved `**Class:**` (live from the entry read), the derived `**Task List:**`
-(`tasks-{name}.md`), and the terminal `**Next Action:**` (`Task list finalized — ready to activate`) through the
-field model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel;
-`activate` clears `Current Workflow`. The write rides this ceremony commit.
-
-The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
-context over the finished suite (the per-phase gates above audited each phase as authored; this pass attacks
-the whole):
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
-> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-adversarial-review:
-  rubric:          # task-audit (grounding + executability), full depth
-  artifacts:       # spec-{name}.md + tasks-{name}.md + non-exhaustive key-file pointers
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
+planning-review:
+  artifact: task-list
+  artifacts:       # spec-{name}.md + tasks-{name}.md + neutral key-file pointers
+  class:           # resolved Class
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
+
+### Canonicalize active delivery authoring
+
+Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,
+adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
+section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
+
+For active authoring, obtain the generated strict contract with `arc delivery plan inventory schema --json`, then supply
+one caller-authored inventory containing the exact form-owned design elements and revision digests. Do not infer
+author-judgment elements or copy schema/hashing mechanics into this workflow. Create the transient map with
+`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`, fill only
+the author slots, and run `arc delivery compose --json`.
+
+Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
+`independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
+keep it within one delivery member and route its review scale through ordinary review chunking.
+
+Composition publishes the canonical plan record first, then delegates the exact sentinel-owned projection bytes
+to the delivery renderer and removes transient authoring state. Review the rendered identity, coverage, seam, and
+acceptance shape as source; schema and author slots do not prescribe table layout. The canonical plan remains
+replaceable prebinding intent: it authorizes no ref, change request, state binding, or external projection mutation.
+Later candidate eligibility still owns materialization.
+
+If the task or design inventory drifted, run `arc delivery plan abandon --json` and recreate from current inputs.
+Never patch the machine-owned snapshot or publish stale authoring state.
+
+Run [planning-review's post-settle reread][planning-reread] over the settled task list, then run `arc check increment`
+and report its result at the pre-save approval.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
 
-Bundle the task list with the planning-state meta update (above).
+**Update planning-state meta file** — only after approval, and only when `.arc/active/meta-{name}.md` exists with
+`**State:** Planning` (planning-branch sessions); skip otherwise. Run `arc finalize generate-tasks --class <Class>`
+to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
+model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
+sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
 
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the Final suite-coherence
-pass — adversarial-pass findings, review amendments — re-fire that pass over the settled task list as the last
-step before the commit below. The final pass's folds are otherwise never re-attacked.
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If authored text
+changed after the first request, including this reread, run `arc check increment` again before the commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -495,14 +624,23 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 ---
 
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
-[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
+[arc-methods-rps]: ../../methods/resolve-plan-segmentation.md
+[arc-methods-abf]: ../../methods/assess-boundary-fit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [task-audit]: ../../methods/task-audit.md
+[spec-review]: ../../methods/spec-review.md
 [template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
+[source-grounding]: ../../methods/source-grounding.md
+[verification-review]: ../../methods/verification-review.md#author-criteria-walk
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread

@@ -68,25 +68,56 @@ friction points.
 - What does the agent need to know every session to make good decisions?
 - What are the gotchas that waste agent time — things not obvious from the code?
 - What's the one-paragraph summary of what this project is?
+- Which stack categories fit? Web apps: language, framework, frontend, database, infrastructure. CLI tools: language,
+  package manager, distribution. Libraries: language, build system, test framework, documentation tool.
+- Which top-level directories must the agent find quickly?
+- Friction examples include tests that need a database, unexpected configuration locations, two coexisting build
+  systems, and commands that require a particular working directory.
 
 Keep it concise — this is loaded every session, not a comprehensive reference.
 PROJECT-PRD and TECHNICAL-OVERVIEW carry the detail.
 
-### Step 4: Define QUICK-REFERENCE
+### Step 4: Define QUICK-REFERENCE and the check declaration
 
-Command patterns and environment context for your project — loaded every session. This is
-where the agent finds correct commands for linting, testing, building, and quality gates.
+QUICK-REFERENCE records command patterns and environment context: platform tools, runtime requirements, and paths.
 
 **Template**: [QUICK-REFERENCE.md][quick-ref] → goes in `reference/`
 
 **Think through**:
 
-- What commands does the agent run most often? (lint, test, build, type-check)
+- What command patterns does the agent need for everyday operations?
 - What runtime environment is required? (containers, services, tool versions)
-- What are the quality gate commands at each tier?
+- What does a fresh checkout need before its checks can run? (dependencies, gitignored files such as `.env`)
 
-QUICK-REFERENCE and DEV-RULES.PROJECT (next step) are coupled — quality gate _standards_
-are defined in DEV-RULES.PROJECT, quality gate _commands_ are defined here.
+Author `.arc/system/arc-checks.yml` with the person from the project's existing checks. Define each command and its real
+inputs, and assign the earliest event it must pass before: `commit`, `push`, or `merge`. Leave a check's gate unset when
+it should run only by id. Keep executable checks in this declaration and their standards in DEV-RULES.PROJECT.
+
+Start the declaration with its editor reference:
+
+```yaml
+# yaml-language-server: $schema=./.internal/schemas/check-declaration.schema.json
+checks: {}
+```
+
+Validate the authored declaration and inspect its selected checks before continuing:
+
+```bash
+arc check gate merge --dry-run
+```
+
+A dry run executes nothing, and a commit that changes the declaration runs every commit-gate check over all its inputs,
+not only the files that commit touches; a check with `widen: false` keeps to its changed inputs. Install every tool
+those checks call before committing the declaration, or the pre-commit hook cannot run them.
+
+Each work unit runs in its own worktree, which starts with only what Git tracks, so prepare one for these checks:
+
+- Set `worktree.post_create` in `.arc/system/arc-config.yml` to the command that installs what the checks call, such as
+  `npm ci`, then check it with `arc config validate`.
+- List in a `.worktreeinclude` file at the repository root, in gitignore syntax, the gitignored files a check or service
+  reads, such as `.env`; a file Git does not ignore is not copied.
+- Go through the rest of [Concurrent Work][concurrent-work] § What each checkout needs its own of with the person:
+  services, ports, databases, and toolchain versions stay the project's to arrange.
 
 ### Step 5: Define DEV-RULES.PROJECT
 
@@ -104,7 +135,7 @@ rules, and any project-specific protocols.
 
 **Think through**:
 
-- What quality checks must pass before every commit?
+- Which checks must pass before each gate's event — commit, push, and merge?
 - What testing strategies will provide confidence?
 - What architecture rules are specific to this project?
 - Where do deferred issues go? (Capture Routing section)
@@ -117,7 +148,7 @@ Your execution strategy — what gets built in what order, and why. Backlog sour
 decisions and dependency chains so you can plan work deliberately rather than reactively. ROADMAP renders a
 project status cache from those sources.
 
-**Generated view**: [ROADMAP.md][roadmap] → goes in `backlog/`
+**Generated view**: `backlog/ROADMAP.md`
 
 **Think through**:
 
@@ -139,11 +170,18 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 - **AGENT-BRIEF.PROJECT** — when the project's scope, stack, or friction points change. Stale
   content here directly degrades every session's starting context.
-- **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
-  commands here mean the agent fails quality gates or uses outdated tooling.
+- **QUICK-REFERENCE** — when command patterns, paths, or environment requirements change. Keep operational
+  instructions aligned with the tools the project uses.
 - **DEV-RULES.PROJECT** — when quality gates change (new tooling, retired checks, adjusted
   thresholds) or when team process evolves. Stale gates produce false confidence or false
   failures.
+
+**Check declaration — keep executable checks current:**
+
+Update `.arc/system/arc-checks.yml` when check commands, inputs, or deadlines change, and validate it with
+`arc check gate merge --dry-run`. Committing it runs the commit gate over all inputs, as in Step 4, so install a new
+check's tool first. Update `worktree.post_create` and `.worktreeinclude` with it when a check needs a new dependency or
+local file.
 
 **Reference documents — keep honest:**
 
@@ -161,9 +199,8 @@ decisions are made, not on a schedule.
 
 ## Next Step
 
-Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT,
-QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
-session.
+Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT, QUICK-REFERENCE,
+and DEV-RULES.PROJECT — are loaded by the agent at the start of every session.
 <!-- arc:if pm.mode == arc-in-git -->
 The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during planning and
 architecture decisions. Use `arc status --project` plus backlog source artifacts for live project status.
@@ -185,9 +222,8 @@ artifacts, and helps you create a PRD and task list for your first work unit. Fr
 Clear your context and start a fresh session by invoking the `arc-session` skill (invocation
 syntax is agent-specific). With no active work unit yet, session initialization reports the
 empty state and awaits your direction. When ready to begin your first work unit, follow
-[create-spec.md][create-spec] to define it from your project docs, then
-[generate-tasks.md][generate-tasks] for the task list. From there, the normal session
-rhythm — `arc-session`, task execution, `arc-commit`, `arc-handoff` — takes over.
+[create-spec.md][create-spec] to define it from your project docs, then [generate-tasks.md][generate-tasks] for the task
+list. From there, the normal session rhythm — `arc-session`, task execution, `arc-commit`, `arc-handoff` — takes over.
 <!-- arc:endif -->
 
 <!-- arc:if pm.mode == external -->
@@ -207,8 +243,8 @@ workflows to your tracker.
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[concurrent-work]: ../../../../reference/strategies/arc/strategy-concurrent-work.md
 <!-- arc:if pm.mode == arc-in-git -->
-[roadmap]: ../../../../backlog/ROADMAP.md
 <!-- arc:endif -->
 <!-- arc:if pm.mode == none -->
 [create-spec]: ../create-spec.md

@@ -308,7 +308,7 @@ principles above. Teams may configure or replace them while remaining within the
 principles are honored.
 
 | Convention                                                  | Underlying Principle      | Default                                  | Configurable Aspect                            |
-|-------------------------------------------------------------|---------------------------|------------------------------------------|------------------------------------------------|
+| ----------------------------------------------------------- | ------------------------- | ---------------------------------------- | ---------------------------------------------- |
 | Document hierarchy (META-PRD → PRD → tasks)                 | P1 (spec-directed)        | Full hierarchy                           | Number of docs, naming, structure              |
 | Template-first documents                                    | P1 (spec-directed)        | Copy-ready templates                     | Template format and content                    |
 | Markdown task list checkboxes                               | P7 (task tracking)        | Markdown in git                          | Tracking tool (Jira, Linear, etc.)             |

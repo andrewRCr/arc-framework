@@ -11,12 +11,12 @@ import {
   createTempRepo,
   DEFAULT_PROMPTS,
   execFileAsync,
-  initInTempRepo,
   makeCommit,
   makeGitExec,
   makeNotesTreeCommit,
   makeUserIO,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import {
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,

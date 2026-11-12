@@ -1,91 +1,375 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
-import { runBaseDrift, runBaseDistanceStatus } from "../../../src/lib/git/base-distance.js";
+import {
+  analyzeBaseDistanceSnapshot,
+  BaseDistanceSnapshotResultSchema,
+  buildBaseDistanceNotApplicable,
+  runBaseDrift,
+} from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
+import { BaseDriftResultSchema } from "../../../src/lib/git/base-drift-types.js";
+import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../../../src/lib/git/worktree-sync.js";
 
 const BASE_OID = "b".repeat(40);
+const HEAD_OID = "f".repeat(40);
 const MERGE_OID = "c".repeat(40);
 const PARENT_A = "d".repeat(40);
 const PARENT_B = "e".repeat(40);
 
 interface MockOptions {
   distance?: string;
-  cleanupFails?: boolean;
   fetchFails?: boolean;
+  /** The fetch answers after this many milliseconds, unless its own bound aborts it first. */
+  fetchMs?: number;
+  /** Raw `merge-base --all` output, or "none" for the exit-1 no-common-ancestor rejection. */
+  mergeBases?: string;
+  historyScanFails?: boolean;
 }
 
-function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] } {
-  const calls: string[][] = [];
-  const exec: GitExec = async (_cmd, args) => {
-    calls.push(args);
-    if (args[0] === "check-ref-format") return { stdout: "" };
-    if (args.join(" ") === "rev-parse --abbrev-ref HEAD") return { stdout: "feat/example\n" };
-    if (args.join(" ") === "remote get-url origin") return { stdout: "git@example/repo\n" };
-    if (args[0] === "fetch") {
+function gitMock(options: MockOptions = {}) {
+  return scriptGitExec([
+    { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example\n" }] },
+    { match: ["remote", "get-url", "origin"], responses: [{ stdout: "git@example/repo\n" }] },
+    { match: { prefix: ["fetch"] }, responses: [({ options: callOptions }: GitExecCall) => {
       if (options.fetchFails) throw new Error("fetch failed");
-      return { stdout: "" };
-    }
-    if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${BASE_OID}\n` };
-    if (args[0] === "rev-list") return { stdout: options.distance ?? "0\t0\n" };
-    if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
-    if (args[0] === "diff") return { stdout: "shared.ts\0" };
-    if (args[0] === "log") {
-      return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
-    }
-    if (args[0] === "update-ref") {
-      if (options.cleanupFails) throw new Error("cleanup failed");
-      return { stdout: "" };
-    }
-    throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
-  };
-  return { exec, calls };
+      const { fetchMs } = options;
+      if (fetchMs === undefined) return { stdout: "" };
+      return new Promise<{ stdout: string } | { failure: { isCanceled: true } }>((resolve) => {
+        const timer = setTimeout(() => { resolve({ stdout: "" }); }, fetchMs);
+        callOptions?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          resolve({ failure: { isCanceled: true } });
+        }, { once: true });
+      });
+    }] },
+    { match: ["rev-parse", "--is-shallow-repository"], responses: [{ stdout: "false" }] },
+    { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: `${HEAD_OID}\n` }] },
+    { match: { prefix: ["rev-parse", "--verify"] }, responses: [{ stdout: `${BASE_OID}\n` }] },
+    { match: { prefix: ["rev-list"] }, responses: [{ stdout: options.distance ?? "0\t0\n" }] },
+    { match: { prefix: ["merge-base"] }, responses: [options.mergeBases === "none"
+      ? { failure: { exitCode: 1 } }
+      : { stdout: options.mergeBases ?? `${PARENT_A}\n` }] },
+    { match: { prefix: ["diff"] }, responses: [{ stdout: "shared.ts\0" }] },
+    { match: { prefix: ["log"] }, responses: [options.historyScanFails
+      ? { failure: { exitCode: 128, stderr: "history unavailable" } }
+      : { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` }] },
+  ]);
 }
 
-describe("base drift raw-distance boundary", () => {
-  it("skips advisory analysis before any Git invocation", async () => {
-    const { exec, calls } = gitMock();
-    const result = await runBaseDistanceStatus({
+function localOnly(stdout: string) {
+  return ({ args, options }: GitExecCall) => {
+    if (options?.objectAccess !== "local-only") {
+      throw new Error(`lazy object access allowed: ${args.join(" ")}`);
+    }
+    return { stdout };
+  };
+}
+
+describe("snapshot-driven base distance", () => {
+  it("parses producer snapshot verdicts and remote-evidence arms", async () => {
+    for (const [distance, snapshot, objectAvailability] of [
+      ["0\t0\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: true } }],
+      ["0\t1\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: true } }],
+      ["0\t0\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: false } }],
+      ["0\t0\n", { kind: "available", scope: "exact", tips: {} }, { kind: "complete", commits: {} }],
+      ["0\t0\n", { kind: "unreachable", failureReason: "network" }, { kind: "complete", commits: {} }],
+    ] as const) {
+      const result = await analyzeBaseDistanceSnapshot({
+        exec: gitMock({ distance }).exec,
+        baseBranch: "main",
+        snapshot,
+        objectAvailability,
+        history: { kind: "complete" },
+      });
+      assertSchemaAccepts(BaseDistanceSnapshotResultSchema, result);
+      const rejected = BaseDistanceSnapshotResultSchema.safeParse({ ...result, extraEvidence: true });
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
+    }
+  });
+
+  it.each(["skipped", "no-remote", "detached-head"] as const)(
+    "parses the %s not-applicable producer arm and refuses a crossed state",
+    (state) => {
+      const result = buildBaseDistanceNotApplicable(state, "main");
+      assertSchemaAccepts(BaseDistanceSnapshotResultSchema, result);
+      assertSchemaRefuses(BaseDistanceSnapshotResultSchema, {
+        ...result, state: "remote-unavailable",
+      });
+    },
+  );
+
+  it("preserves exact distance values against a locally available advertised base", async () => {
+    const { exec } = scriptGitExec([
+      { match: { predicate: (args) => ["fetch", "update-ref"].includes(args[0] ?? "") },
+        responses: [({ args }) => { throw new Error(`mutation attempted: ${args.join(" ")}`); }] },
+      { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [localOnly(`${HEAD_OID}\n`)] },
+      { match: { prefix: ["rev-list"] }, responses: [localOnly("2\t0\n")] },
+    ]);
+
+    await expect(analyzeBaseDistanceSnapshot({
       exec,
       baseBranch: "main",
-      remoteSyncEnabled: false,
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      verdict: "clean",
+      movement: "disjoint",
+      state: "local-ahead",
+      ahead: 2,
+      behind: 0,
+      base: "main",
+      baseOid: BASE_OID,
+      headOid: HEAD_OID,
+      remoteEvidence: "exact",
     });
-    expect(result.verdict).toBe("skipped");
-    expect(result.register).toBeNull();
+  });
+
+  it("preserves reconciliation evidence against the advertised base OID", async () => {
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [localOnly(`${HEAD_OID}\n`)] },
+      { match: { prefix: ["rev-list"] }, responses: [localOnly("0\t1\n")] },
+      { match: { prefix: ["log"] }, responses: [localOnly(`${MERGE_OID}\0${PARENT_A}\0ordinary base commit\0`)] },
+      { match: { prefix: ["merge-base"] }, responses: [localOnly(`${PARENT_A}\n`)] },
+      { match: { prefix: ["diff"] }, responses: [localOnly("shared.ts\0")] },
+    ]);
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      verdict: "reconcile",
+      state: "remote-ahead",
+      ahead: 0,
+      behind: 1,
+      baseOid: BASE_OID,
+      headOid: HEAD_OID,
+      movement: "disjoint",
+      integrationEvidence: { coverage: "partial", scannedCommitCount: 1 },
+      overlap: { status: "available", substantivePaths: [] },
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("rejects graph distance when local history is shallow", async () => {
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-list") return { stdout: "0\t0\n" };
+      throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "shallow" },
+    })).rejects.toThrow(/Complete local history/u);
+  });
+
+  it("returns pending evidence with neutral counts when the advertised base is not local", async () => {
+    const exec: GitExec = async (_command, args) => {
+      throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: false } },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toMatchObject({
+      verdict: "unavailable",
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      baseOid: BASE_OID,
+      unavailableReason: "base-object-pending-fetch",
+      detail: expect.stringContaining("not available in the local object store"),
+      coordinates: { base: "main", baseOid: BASE_OID, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: expect.stringContaining("Acquire the advertised main commit"),
+      },
+      remoteEvidence: "pending-fetch",
+    });
+  });
+
+  it.each([
+    ["execution", /inspection failed/u],
+    ["malformed", /malformed output/u],
+  ] as const)("propagates %s base object-availability prerequisite failure", async (reason, message) => {
+    const exec: GitExec = async (_command, args) => {
+      throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "unavailable", reason },
+      history: { kind: "complete" },
+    })).rejects.toThrow(message);
+  });
+
+  it("returns exact remote-base absence without running local object or graph reads", async () => {
+    const exec: GitExec = async (_command, args) => {
+      throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toMatchObject({
+      verdict: "unavailable",
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      baseOid: null,
+      unavailableReason: "remote-base-absent",
+      detail: expect.stringContaining("does not identify an advertised commit"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+      remoteEvidence: "exact",
+    });
+  });
+
+  it("preserves typed unreachable evidence without running local Git", async () => {
+    const { exec, calls } = gitMock();
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "unreachable", failureReason: "auth" },
+      objectAvailability: { kind: "complete", commits: {} },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      verdict: "unavailable",
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      baseOid: null,
+      unavailableReason: "remote-evidence-unreachable",
+      detail: expect.stringContaining("unreachable"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+      remoteEvidence: "unreachable",
+      failureReason: "auth",
+    });
     expect(calls).toEqual([]);
   });
 
-  it("authoritative mode ignores the advisory remote-sync setting", async () => {
+  it.each([
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "distance failed" });
+    }, /distance failed/u],
+    ["malformed output", { stdout: "not counts" }, /Malformed git rev-list/u],
+  ] as const)("propagates local distance %s", async (_label, distanceResponse, expected) => {
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: `${HEAD_OID}\n` }] },
+      { match: { prefix: ["rev-list"] }, responses: [({ args }) =>
+        typeof distanceResponse === "function" ? distanceResponse(args) : distanceResponse] },
+    ]);
+
+    await expect(analyzeBaseDistanceSnapshot({
+      exec,
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).rejects.toThrow(expected);
+  });
+});
+
+describe("base drift raw-distance boundary", () => {
+  it("parses producer verdicts and evidence arms and refuses an undeclared key", async () => {
+    for (const options of [
+      {},
+      { distance: "0\t1\n" },
+      { distance: "1\t1\n" },
+      { distance: "1\t1\n", mergeBases: `${PARENT_A}\n${PARENT_B}\n` },
+      { distance: "1\t1\n", mergeBases: "none" },
+      { distance: "0\t1\n", historyScanFails: true },
+      { fetchFails: true },
+    ]) {
+      const { exec } = gitMock(options);
+      const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+      assertSchemaAccepts(BaseDriftResultSchema, result);
+      const rejected = BaseDriftResultSchema.safeParse({ ...result, extraEvidence: true });
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
+    }
+  });
+
+  it("authoritative mode materializes regardless of automatic session policy", async () => {
     const { exec, calls } = gitMock();
     const result = await runBaseDrift({
       exec,
       baseBranch: "main",
       mode: "authoritative",
-      remoteSyncEnabled: false,
-      token: () => "test-token",
     });
     expect(result.verdict).toBe("clean");
     expect(result.baseOid).toBe(BASE_OID);
-    expect(calls.some((args) => args[0] === "fetch")).toBe(true);
+    expect(result.headOid).toBe(HEAD_OID);
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "rev-list", "--left-right", "--count", `${HEAD_OID}...${BASE_OID}`,
+    ]);
+    expect(calls.some(({ args }) => args[0] === "fetch")).toBe(true);
   });
 
-  it("fetches a validated full ref into an owned ref and cleans it up", async () => {
+  it("authoritative mode materializes the standard remote base without an ARC temporary ref", async () => {
     const { exec, calls } = gitMock();
     await runBaseDrift({
       exec,
       baseBranch: "main",
       mode: "authoritative",
-      token: () => "test-token",
     });
-    expect(calls).toContainEqual(["check-ref-format", "refs/heads/main"]);
-    expect(calls).toContainEqual([
+    expect(calls.map((call) => call.args)).toContainEqual(["check-ref-format", "refs/heads/main"]);
+    expect(calls.map((call) => call.args)).toContainEqual([
       "fetch",
-      "--no-write-fetch-head",
-      "--refmap=",
       "origin",
-      "refs/heads/main:refs/arc/base-drift/test-token",
+      "+refs/heads/main:refs/remotes/origin/main",
     ]);
-    expect(calls).toContainEqual(["update-ref", "-d", "refs/arc/base-drift/test-token"]);
-    expect(calls.some((args) => args.includes("FETCH_HEAD"))).toBe(false);
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "rev-parse",
+      "--verify",
+      "refs/remotes/origin/main^{commit}",
+    ]);
+    expect(calls.some(({ args }) => args[0] === "update-ref")).toBe(false);
+    expect(calls.some(({ args }) => args.join(" ").includes("refs/arc/base-drift"))).toBe(false);
+  });
+
+  it("preserves an absent authoritative remote base without resolving a stale tracking ref", async () => {
+    const { exec, calls } = scriptGitExec([
+      { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "" }] },
+      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example" }] },
+      { match: ["remote", "get-url", "origin"], responses: [{ stdout: "remote" }] },
+      { match: { prefix: [] }, responses: [{ failure: {
+        exitCode: 128, stderr: "fatal: couldn't find remote ref refs/heads/main",
+      } }] },
+    ]);
+
+    await expect(runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" }))
+      .resolves.toMatchObject({
+        verdict: "unavailable",
+        unavailableReason: "remote-base-absent",
+        detail: expect.stringContaining("does not identify an advertised commit"),
+        coordinates: { base: "main", baseOid: null, headOid: null },
+        continuation: { kind: "terminal-explanation" },
+      });
+    expect(calls.some(({ args }) => args.includes("--verify"))).toBe(false);
   });
 
   it("keeps raw distance authoritative for reconcile", async () => {
@@ -94,12 +378,39 @@ describe("base drift raw-distance boundary", () => {
       exec,
       baseBranch: "main",
       mode: "authoritative",
-      token: () => "test-token",
     });
     expect(result.verdict).toBe("reconcile");
     expect(result.behind).toBe(1);
     expect(result.integrationEvidence).toMatchObject({ coverage: "complete", scannedCommitCount: 1 });
     expect(result.register?.kind).toBe("calm");
+  });
+
+  it("classifies any substantive overlap as overlapping movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n" });
+    const result = await runBaseDrift({
+      exec,
+      baseBranch: "main",
+      mode: "authoritative",
+    });
+    expect(result).toMatchObject({
+      verdict: "reconcile",
+      movement: "overlapping",
+      overlap: { status: "available", substantivePaths: ["shared.ts"] },
+    });
+  });
+
+  it("classifies a history leaving more than one base as unknown movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n", mergeBases: `${PARENT_A}\n${PARENT_B}\n` });
+    const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+
+    expect(result).toMatchObject({ movement: "unknown", overlap: { status: "ambiguous" } });
+  });
+
+  it("classifies a history sharing no ancestor as unknown movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n", mergeBases: "none" });
+    const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+
+    expect(result).toMatchObject({ movement: "unknown", overlap: { status: "unrelated" } });
   });
 
   it("keeps a healthy reconcile verdict when the resolver factory fails", async () => {
@@ -111,7 +422,6 @@ describe("base drift raw-distance boundary", () => {
       resolverFactory: () => {
         throw new Error("resolver unavailable");
       },
-      token: () => "test-token",
     });
     expect(result).toMatchObject({ verdict: "reconcile", ahead: 0, behind: 1, baseOid: BASE_OID });
   });
@@ -125,10 +435,10 @@ describe("base drift raw-distance boundary", () => {
       classifyReconciliation: () => {
         throw new Error("classifier unavailable");
       },
-      token: () => "test-token",
     });
     expect(result).toMatchObject({
       verdict: "reconcile",
+      movement: "unknown",
       ahead: 1,
       behind: 1,
       baseOid: BASE_OID,
@@ -137,26 +447,46 @@ describe("base drift raw-distance boundary", () => {
     });
   });
 
-  it("cleanup failure overrides an otherwise healthy reading", async () => {
-    const { exec } = gitMock({ cleanupFails: true });
-    const result = await runBaseDrift({
+  it("refuses advisory acquisition before any Git invocation", async () => {
+    const { exec, calls } = gitMock();
+    // `mode` now admits only `authoritative`, so this models the untyped caller the
+    // runtime guard is retained for. The refusal must still land before any fetch.
+    await expect(runBaseDrift({
       exec,
       baseBranch: "main",
-      mode: "authoritative",
-      token: () => "test-token",
-    });
-    expect(result).toMatchObject({
-      verdict: "unavailable",
-      unavailableReason: "temporary-ref-cleanup-failed",
-      baseOid: null,
-    });
+      mode: "advisory" as unknown as "authoritative",
+    })).rejects.toThrow(/supplied snapshot evidence/u);
+    expect(calls).toEqual([]);
   });
 
   it("rejects option-shaped base configuration before fetch", async () => {
     const { exec, calls } = gitMock();
     const result = await runBaseDrift({ exec, baseBranch: "--upload-pack=x", mode: "authoritative" });
     expect(result.unavailableReason).toBe("invalid-base");
-    expect(calls.some((args) => args[0] === "fetch")).toBe(false);
+    expect(result).toMatchObject({
+      detail: expect.stringMatching(/safe Git branch name.*Unsafe base ref/u),
+      coordinates: { base: "--upload-pack=x", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+    });
+    expect(calls.some(({ args }) => args[0] === "fetch")).toBe(false);
+  });
+
+  it.each([
+    ["waits out a fetch slower than a status probe's 3 s bound", 10_000, { verdict: "clean", baseOid: BASE_OID }],
+    ["names the bound a fetch outlasts", MATERIALIZING_FETCH_TIMEOUT_MS + 10_000, {
+      verdict: "unavailable",
+      unavailableReason: "fetch-timeout",
+      detail: expect.stringContaining(`bounded at ${MATERIALIZING_FETCH_TIMEOUT_MS / 1000} s`),
+    }],
+  ] as const)("%s by default, since a requested operation acts on the read", async (_label, fetchMs, expected) => {
+    vi.useFakeTimers();
+    try {
+      const read = runBaseDrift({ exec: gitMock({ fetchMs }).exec, baseBranch: "main", mode: "authoritative" });
+      await vi.advanceTimersByTimeAsync(fetchMs);
+      await expect(read).resolves.toMatchObject(expected);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("maps a fetch failure without claiming zero-distance parity", async () => {
@@ -165,5 +495,10 @@ describe("base drift raw-distance boundary", () => {
     expect(result.verdict).toBe("unavailable");
     expect(result.unavailableReason).toBe("fetch-failed");
     expect(result.baseOid).toBeNull();
+    expect(result).toMatchObject({
+      detail: expect.stringMatching(/Fetching origin\/main failed.*git fetch: unexpected/u),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+    });
   });
 });
