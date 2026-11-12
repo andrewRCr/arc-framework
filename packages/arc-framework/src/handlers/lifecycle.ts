@@ -18,6 +18,7 @@
  *
  * @module
  */
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import { runTeardownForOperand } from "./teardown-operand.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
@@ -139,6 +140,7 @@ import {
   buildExecutor,
   lifecycleFs,
   materializeActiveMetaPath,
+  openDefaultStore,
   parseLifecycleCommand,
   refuse,
   refuseWithRemedy,
@@ -1062,7 +1064,9 @@ export async function handlePark(
       executor,
       fs: parkResumeFsSeam(base),
       planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     {
       name: target,
@@ -1620,7 +1624,9 @@ export async function handleAbandon(
       retirement,
       transitionWriter: terminalTransitionWriter(base),
       composed,
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     { name: target, confirmed: true },
   );
@@ -1817,13 +1823,15 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  const store = base.store ?? openDefaultStore(base.cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: base.identity });
   const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
   const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity, cwd: base.cwd });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
         cwd: base.cwd,
-        exec,
+        exec, store, projectionRemovalSlots,
         indexFs: lifecycleFs,
         chdir: (dir) => { process.chdir(dir); locus = dir; },
         readCurrentLocus: () => locus,
@@ -1860,7 +1868,7 @@ export async function handleTeardown(
   const operational = usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
   const result = await runTeardownForOperand(
     {
-      store: operational?.executor.store, execInput: base.io.execInput,
+      store: operational?.executor.store ?? store, projectionRemovalSlots, execInput: base.io.execInput,
       projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
       cwd: base.cwd,
       exec,

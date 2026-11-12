@@ -745,6 +745,7 @@ describe("store retirement real Git", () => {
     const raw = makeGitExec(ambient), path = join(h.root, "checkout");
     await h.exec("git", ["switch", "main"]); await h.exec("git", ["worktree", "add", path, "feat/demo"]);
     h.marker.spawnedByArc = true; h.setHolder(path); await writeWorktreeMarker(path, h.marker);
+    await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
     await h.exec("git", ["worktree", "lock", "--reason", "owner holds checkout", path]);
     const before = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
     const input = AbandonCommandInputSchema.parse({ slug: "demo" });
@@ -778,6 +779,7 @@ describe("store retirement real Git", () => {
   it("removes a clean ARC-spawned linked checkout before reaping its branch", async () => {
     const h = await fixture(); await h.exec("git", ["switch", "main"]); const path = join(h.root, "checkout");
     await h.exec("git", ["worktree", "add", path, "feat/demo"]); h.marker.spawnedByArc = true; h.setHolder(path); await writeWorktreeMarker(path, h.marker);
+    await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
     expect(await h.teardown()).toMatchObject({ status: "torn-down", worktreeRemoved: path, branchDeleted: true });
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
   });
@@ -966,10 +968,11 @@ async function huskFixture(options: { end?: "archive" | "decompose"; projected?:
   return { ...h, terminal, paths, huskMarker };
 }
 
-it.each([false, true])("preserves ignored user files and refuses divergent copies before removing a linked checkout, husk=%s", async (husk) => {
+it.each([false, true])("preserves divergent ignored user files and removes after recovery, husk=%s", async (husk) => {
   const h = await huskFixture(); const path = h.paths[0];
   if (!husk) {
     const marker = { ...h.huskMarker }; delete marker.husk; await writeWorktreeMarker(path, marker);
+    await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
     h.setHolder(path);
   }
   const local = join(path, ".arc", "user", "test-user"); const canonical = join(h.root, ".arc", "user", "test-user");
@@ -980,7 +983,10 @@ it.each([false, true])("preserves ignored user files and refuses divergent copie
   expect(await readFile(join(local, "personal.md"), "utf8")).toBe("unique local work\n");
   expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("different primary work\n");
   await rm(join(canonical, "personal.md"));
-  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "torn-down", worktreeRemoved: path });
+  // Unowned flat prose must be recovered explicitly before a projected checkout retires.
+  if (!husk) await rename(join(local, "personal.md"), join(canonical, "personal.md"));
+  const removed = await runTeardown(h.ctx, params);
+  expect(removed, removed.status === "rejected" ? removed.reason : undefined).toMatchObject({ status: "torn-down", worktreeRemoved: path });
   expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("unique local work\n");
 });
 
@@ -1017,6 +1023,7 @@ async function reusedNativeFixture() {
     await h.exec("git", ["worktree", "add", path, branch]);
     await ensureWorktreeMarkerIgnored(path, h.exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeMarker(path, { ...h.marker, spawnedByArc: true, createdFor: boundWorkUnitSubject(record) });
+    await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
   }
   const ctx = nativeRetirementContext(h);
   const teardownUid = () => {

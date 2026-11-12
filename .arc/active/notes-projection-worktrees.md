@@ -1428,3 +1428,74 @@ contract retains every binding and destructive-path obligation; the replacement 
 planning history, and the revision task follows the bindings it checks. No product behavior, lifecycle boundary,
 performance criterion, or segment boundary changes. The affected-element grounding and task audit found no further
 change required. The independent offer is omitted at low depth; the final reread keeps this footprint bounded.
+
+## Task 2.4.b: lifecycle removal authority
+
+`createProjectionRemovalSlots` binds check, persistence, and release over one resolved Store. Capability-off returns
+passing slots before identity parsing or target I/O. Enabled contexts normalize an unavailable or invalid command
+identity to absent authority; the target still decides projection eligibility and configuration remedies first. A target
+identity never substitutes for command authority. The removal root retains its validated target identity.
+
+`createStoreTeardownContext` and `buildExecutorContext` bind the factory, the latter closing it over its reconcile
+operation. Lifecycle branch/operand teardown binds the Store and slots; legacy park/abandon takes the factory check.
+Direct start and both rename adapters carry slots, including inverse moves. Optional Store injections resolve their
+existing default at the composition boundary. Store abandon and decomposition inherit the production teardown context
+and its check fallback.
+
+`ProjectionCommandBinding` retains the handler-supplied minter before start can skip projection. The factory captures an
+explicit minter ahead of that command port. A new command replaces the binding, so it inherits no previous minter. The
+projection engine imports no handler; actual mint requests keep the retiring root's wrapped Store. Native tests mint
+into the retiring Store while a distinct command Store stays unchanged.
+
+Factory fail-first evidence: capability-off control `d0e8d6180b5442daafa6081c21233b64` fails both cases;
+`8c3d12eedd6f48dd85b1db6b218e60bf` passes them. The missing enabled binding fails five identity/eligibility cases in
+`db07f3b623354ca39622f5fae5455f47`; real delegation passes those and the capability cases in
+`aabb43afba2047f49637e082949a532c`.
+
+Mint retention fails without its command binding in `57de8bbbe0a347859e958ff3a52abf67` and passes in
+`bd5e4355dd764cb4b3b9404e52a4b662`. Reversing explicit-minter priority fails its actual-mint case in
+`1cf1a176806d4c868fc90aad820b093f`; retaining a previous command's minter fails its absence/refusal case in
+`1da27d92c467406db5fea922324d308a`. Restored behavior passes all ten factory cases in
+`31b6d028f78c4c6b846112e9ab06b510`. Both controls were removed.
+
+The production Store teardown test removes the refused edit without binding in `f54de5dc60674730a0e5bb0314dc9cc0`; the
+bound context preserves it and completes after Store repair in `9fca340122fc4d078bf05fbd4d3740cf`. Executor removal
+exposes the same omission in `b3504c756c024564a7ae10207f657c0f` and passes after binding in
+`473080e20e254516a0dde9e8c2534e06`.
+
+Registered operand and cheap-branch teardown both remove the held previous-identity edit without their bindings in
+`7545033b5cc0489cab1faea93ba68a9d`; both preserve it and remove after explicit repair in
+`b996ed10a6d149ac98942a57cb1fa5cd`. A narrow control omitting the shared teardown slots lets Store abandon end its
+primary and decomposition issue its terminal preview despite the held edit in `7f1e425175174421b9f39c316d0ba6e3`.
+Restoring the shared binding passes both refusal/retention cases and repaired completion in
+`57cbb49d82a64a4f89fcdb952d55fd5a`; no control remains.
+
+The existing native retirement fixtures predated production binding and left projection-eligible primary and marked
+linked checkouts without indexes. They now seed real empty indexes and configure their identity. The divergent
+legacy-file fixture explicitly recovers its unowned flat prose into the primary before retrying; it does not bypass
+projection checks or invent an adoption target. Existing lease, copy, history, marker-generation, and ref-cleanup cases
+retain their assertions.
+
+Focused run `520ea120f9be4ab8ac34b8de45508f67` passes 239 cases across twelve files: retirement, release, factory
+authority, registered command compositions, rename, locus release, start/executor unit tests, and the save,
+retirement-removal-check, and teardown CLI E2E files. Source type checking passes in `e92f46bed3e8415cabed46b568f9abcd`,
+and all five test type-check shards pass in `1ff307128c1540fca31cb0bc5a900058`. Focused TypeScript lint passes on all
+seventeen changed TypeScript files without suppression.
+
+Author inspection confirms the inert compositions receive the factory output with their original command Store and
+identity. Start uses its resolved Store and parameter identity; legacy park/abandon uses the executor Store and base
+identity. In-repo rename closes both directions over one Store/slot pair; Store rename retains that pair through the
+checkout adapter and inverse move closure. A5's static enforcement remains the separate 2.4.R task. The segment
+acceptance and A5 revalidation remain open at 2.8.
+
+The first related-unit request, `b4b353fcb15244afb9725cf06bb4a3a5`, ran 1,002 files and failed one held-checkout case in
+`decompose-store.test.ts`. Its scripted Git boundary could not support the newly bound native projection reader. The
+no-checkout case remains in the unit suite; the held primary case now runs through registered decomposition with real
+Git, preserving untracked personal content and its projection while clearing the claim. A fresh shared-slot omission
+control, `9c9cffac3f3b4eb3916e274b15d93d68`, fails Store abandon and both linked/primary decomposition cases; the control
+is restored before final checks. Direct start also carries its resolved Store into the remaining scaffold/cleanup
+continuation, so optional injection cannot select different Stores for creation and removal authority.
+
+After restoring the binding, `6b0da08abc0143cd808f17bd5b7ad9b7` passes the five registered compositions, eight
+no-checkout decomposition unit cases, and 31 start unit cases. Both decomposition variants also require completed
+physical cleanup with no pending continuation. Focused lint passes for these final edits.

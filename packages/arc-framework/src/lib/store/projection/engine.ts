@@ -40,7 +40,7 @@ export type ProjectionStart =
 /** Take in pending edits before the command runs, preserving its ordinary execution when projection is unavailable. */
 export async function startProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = beginProjectionCommand();
-  state.command = { store: input.store, checkout: input.checkout };
+  state.command = { store: input.store, checkout: input.checkout, ...(input.mint === undefined ? {} : { mint: input.mint }) };
   recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (input.skipProjection === true) {
     state.skip = { reason: "switch", mark: { reason: "Projection skipped by --skip-projection.",

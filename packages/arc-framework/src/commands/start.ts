@@ -26,6 +26,9 @@
  * @module
  */
 
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import { materializeSpawnedProjection } from "../lib/store/projection/spawn-materialization.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
@@ -804,7 +807,8 @@ export async function runCreateNew(
     };
   }
   const repo = basename(primaryWorktreePath);
-  const offBranch = usesOffBranchState(ctx.store);
+  const store = ctx.store ?? createStore(createDefaultStorePorts({ checkoutRoot: params.worktreePath, exec: ctx.io.exec }));
+  const offBranch = usesOffBranchState(store);
   const branch = offBranch ? null : `plan/${wuName}`;
 
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
@@ -816,7 +820,8 @@ export async function runCreateNew(
     const spawnResult = await reconcileWorkUnitWorktree(
       {
         exec: ctx.io.exec,
-        store: ctx.store,
+        store,
+        projectionRemovalSlots: createProjectionRemovalSlots({ store, identity: params.identity }),
         locusPorts: ctx.locusPorts,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
@@ -849,7 +854,7 @@ export async function runCreateNew(
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
-  return completeCreatedWorktree(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
+  return completeCreatedWorktree({ ...ctx, store }, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
     params.identity, postCreateNotice);
 }
 

@@ -1,6 +1,11 @@
 /** Production checkout adapter for record-based rename. */
+import type { RenameCommandContext } from "./rename.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
+import type { ProjectionRemovalSlots } from "../lib/git/worktree-removal.js";
+import type { ReconcileWorkUnitWorktreeContext } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { basename, resolve } from "node:path";
-import type { UserIOContext } from "./user.js";
 import { createNodeRenameWorktreeTransactionDriver, type RenameWorktreeMove } from "../lib/work-unit/rename-worktree-transaction.js";
 import { readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration } from "../lib/git/worktree-marker.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
@@ -11,17 +16,22 @@ import { digestBytes } from "../lib/kernel/index.js";
 import type { GitExec } from "../lib/git/exec.js";
 import type { StoreRenameCheckoutReceipt, StoreRenameCheckoutRequest, StoreRenameContext } from "../lib/work-unit/verbs/rename-store.js";
 
+type RenameCheckoutCommand = Pick<RenameCommandContext, "cwd" | "io" | "store" | "identity">;
+
 /** Bind the physical legs while the verb retains the record and transaction authority.
  * @param command - Resolved repository, identity, and production I/O.
  * @returns Before-batch checkout adapter.
  */
-export function storeRenameAdapters(command: { cwd: string; io: UserIOContext }): Pick<StoreRenameContext, "renameCheckout"> {
+export function storeRenameAdapters(command: RenameCheckoutCommand): Pick<StoreRenameContext, "renameCheckout"> {
+  const store = command.store ?? createStore(createDefaultStorePorts({ checkoutRoot: command.cwd, exec: command.io.exec }));
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: command.identity });
   return {
-    renameCheckout: (request, onPrepared) => renameCheckout(command.io.exec, command.cwd, request, onPrepared),
+    renameCheckout: (request, onPrepared) => renameCheckout({ ...command, store }, projectionRemovalSlots, request, onPrepared),
   };
 }
-async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCheckoutRequest,
+async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalSlots: ProjectionRemovalSlots, request: StoreRenameCheckoutRequest,
   onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void): Promise<StoreRenameCheckoutReceipt> {
+  const { cwd } = command, exec = command.io.exec;
   let currentCwd = cwd;
   const git: GitExec = (command, args, options) => exec(command, args, { cwd: currentCwd, ...options });
   const original = await readWorktreeMarkerGeneration(request.checkoutPath);
@@ -38,7 +48,7 @@ async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCh
     mutation: "move", from: pending.from, to: pending.to, locusHopped: false,
     followUpNotice: `Move the worktree from outside the worktree: git worktree move -f -f ${pending.from} ${pending.to}`,
   };
-  const move = targetPath === request.checkoutPath ? undefined : checkoutMove(git, cwd, request.checkoutPath, targetPath, (result) => {
+  const move = targetPath === request.checkoutPath ? undefined : checkoutMove({ exec: git, store: command.store, projectionRemovalSlots }, cwd, request.checkoutPath, targetPath, (result) => {
     worktree = result;
     if (result.mutation === "move" && result.locusHopped) currentCwd = result.to;
   });
@@ -77,9 +87,9 @@ async function deferredMove(exec: GitExec, request: StoreRenameCheckoutRequest, 
   catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; branch = null; }
   return { oldSlug: request.sourceSlug, newSlug: request.targetSlug, branch, head, from: request.checkoutPath, to };
 }
-function checkoutMove(exec: GitExec, cwd: string, from: string, to: string, remember: (result: ReconcileWorkUnitWorktreeResult) => void): RenameWorktreeMove {
+function checkoutMove(context: Pick<ReconcileWorkUnitWorktreeContext, "exec" | "store" | "projectionRemovalSlots">, cwd: string, from: string, to: string, remember: (result: ReconcileWorkUnitWorktreeResult) => void): RenameWorktreeMove {
   const move = async (source: string, target: string, locus: string): Promise<void> => {
-    const result = await reconcileWorkUnitWorktree({ exec, fs: nodeReconcileWorkUnitWorktreeFs, chdir: (path) => { process.chdir(path); } },
+    const result = await reconcileWorkUnitWorktree({ ...context, fs: nodeReconcileWorkUnitWorktreeFs, chdir: (path) => { process.chdir(path); } },
       { mutation: "move", from: source, to: target, currentLocus: locus });
     if (result.mutation === "move" && result.followUpNotice !== undefined) throw new Error(result.followUpNotice);
     remember(result);

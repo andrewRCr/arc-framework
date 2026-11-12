@@ -18,7 +18,7 @@ import { checkProjectionRemovalAsides } from "./removal-asides.js";
 /** The command's store authority and independently target-bound host operations. */
 export interface ProjectionRemovalContext {
   readonly store: Store;
-  readonly identity: Slug;
+  readonly identity: Slug | null;
   readonly ports?: (checkout: string) => ProjectionEnginePorts;
 }
 
@@ -33,13 +33,14 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     if (disk.kind === "no-projection") return { kind: "passes" };
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "would-refuse", remedy: configuration.identity.remedy };
-    if (configuration.identity.identity !== context.identity) return { kind: "unobservable", detail:
-      `The target ${checkout} uses identity ${configuration.identity.identity}, while this command uses ${context.identity}. Run removal or release from that checkout under its identity.` };
+    const targetIdentity = configuration.identity.identity;
+    if (targetIdentity !== context.identity) return { kind: "unobservable", detail:
+      `The target ${checkout} uses identity ${targetIdentity}, while this command ${context.identity === null ? "has no resolved identity" : `uses ${context.identity}`}. Run removal or release from that checkout under its identity.` };
     const observed = observeProjectionReads(context.store);
     const root = await bindReadOnlyProjectionRoot({ checkout, store: observed.store, ports, location, configuration,
       history: createHistoryMemo(observed.store) });
     const index = await readRemovalHandoffs({ root, index: disk.index, ports, configuration });
-    const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(context.identity), ports, configuration });
+    const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(targetIdentity), ports, configuration });
     const result = files.verdict.kind === "passes"
       ? await checkProjectionRemovalAsides({ root, index: files.index, ports, configuration }) : files.verdict;
     const unreadable = observed.nativeFailure();

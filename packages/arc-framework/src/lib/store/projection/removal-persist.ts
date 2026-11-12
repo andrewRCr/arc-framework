@@ -77,12 +77,13 @@ export async function withPersistedProjection(checkout: string, context: Project
     if (disk.kind === "unusable") return refuse(`Run arc save from ${checkout} to rebuild its ${disk.cause} projection index, then retry removal.`);
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "refused", remedy: configuration.identity.remedy };
-    if (configuration.identity.identity !== context.identity) return refuse(`The target ${checkout} uses identity ${configuration.identity.identity}. Run removal or release from that checkout under its identity.`);
+    const targetIdentity = configuration.identity.identity;
+    if (targetIdentity !== context.identity) return refuse(`The target ${checkout} uses identity ${targetIdentity}. Run removal or release from that checkout under its identity.`);
     const result = await withProjectionFanOutLock(location, async session => {
       const source = retryEndedItemHistory(context.store), history = createHistoryMemo(source);
       const store = invalidateRemovalHistory(source, history);
       return persistUnderLease({ checkout, store, ports, location, configuration, session, register: false, mode: "write-back",
-        history, actor: await resolveProjectionActor(ports, location, context.identity), mint: context.mint }, context, complete);
+        history, actor: await resolveProjectionActor(ports, location, targetIdentity), mint: context.mint }, context, complete);
     }, { ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
     if (result.status === "done") return result.value;
     return refuse(`Projection lease ${result.status} at ${checkout}${result.status === "held" ? `; holder ${JSON.stringify(result.holder)}` : ""}. Retry removal after the lease is available.`);

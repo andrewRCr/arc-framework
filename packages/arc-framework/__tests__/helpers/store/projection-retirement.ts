@@ -44,7 +44,7 @@ import type { TakeInPort } from "../../../src/lib/store/projection/take-in-port.
 import type { ProjectionIndex, RecordEntry } from "../../../src/lib/store/projection/index-schema.js";
 export const retirementFixtureRoots: string[] = [];
 const roots = retirementFixtureRoots;
-export async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean } = {}) {
+export async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean; repository?: string } = {}) {
   const root = await createTempRepo(); roots.push(root);
   const exec = makeGitExec(root), execInput = makeGitExecInput(root);
   await exec("git", ["branch", "-M", "main"]); await writeFile(join(root, "base"), "base\n");
@@ -63,12 +63,14 @@ export async function fixture(options: { adopted?: boolean; ended?: boolean; sec
   await exec("git", ["add", "work"]); await exec("git", ["commit", "-m", "work"]); await exec("git", ["push", "-u", "origin", "feat/demo"]);
   const workOid = (await exec("git", ["rev-parse", "HEAD"])).stdout;
   if (options.secondary) { await exec("git", ["branch", "chore/demo", workOid]); await exec("git", ["push", "origin", "chore/demo"]); }
-  const h = await createRetirementHarness({ ended: options.ended, end: options.end, branches: [...(options.secondary ? [retirementLink("chore/demo")] : []), retirementLink("feat/demo", options.adopted ? "adopted" : "created")] });
+  const h = await createRetirementHarness({ ended: options.ended, end: options.end, branches: [...(options.secondary ? [retirementLink("chore/demo")] : []), retirementLink("feat/demo", options.adopted ? "adopted" : "created")].map(link => ({ ...link, repository: options.repository ?? link.repository })) });
+  await exec("git", ["config", "arc.identity", "test-user"]);
+  await seedProjection({ checkout: root, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
   let holder: string | null = root;
   const marker: WorktreeMarker = { spawnedByArc: false, wuName: "demo", createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" };
   const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => holder) };
   const io = { ...createUserIOContext(), exec, execInput };
-  const executor = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+  const executor = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, projectId: async () => options.repository ?? "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
   const ctx = createStoreTeardownContext({ cwd: root, identity: "test-user", io }, executor);
   // The locus provider's admitted anchored claim is supplied through its marker seam; Git and filesystem operations stay real.
   ctx.readTeardownSelection = undefined; ctx.teardownWorktree = undefined;
@@ -83,9 +85,10 @@ export async function fixture(options: { adopted?: boolean; ended?: boolean; sec
     local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
 }
 
-export async function projectedRetirement(content = "Original prose.\n", extension: "md" | "txt" = "md") {
+export async function projectedRetirement(content = "Original prose.\n", extension: "md" | "txt" = "md",
+  options: { ended?: boolean; repository?: string } = {}) {
   beginProjectionCommand();
-  const h = await fixture({ projected: true });
+  const h = await fixture({ ...options, projected: true });
   await h.exec("git", ["switch", "main"]);
   const checkout = join(h.root, "checkout"), path = `.arc/user/test-user/scratch/persist.${extension}`;
   await h.exec("git", ["worktree", "add", checkout, "feat/demo"]);

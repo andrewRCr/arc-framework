@@ -350,23 +350,12 @@ No production composition sets the slots today, so every caller runs `passingPro
           `handlers/teardown-operand.ts`. The notes pin the current inventory and identify nullable executor identity
           and the store-rename adapter's dropped Store/identity authority for the bindings.
 
-    - `[ ]` **2.4.b Lifecycle's contexts**
+    - `[x]` **2.4.b Lifecycle's contexts**
 
-        - One factory in `lib/store/projection/` returns the slots for a checkout's store; it is bound where each
-          context is composed: the store-backed teardown and abandon context (`createStoreTeardownContext`), which the
-          abandon handler (`handleStoreAbandon`, `handlers/abandon-store.ts`) and the store decomposition
-          (`runStoreDecomposeCommand`, `handlers/decompose-store.ts`) compose; the teardown contexts the lifecycle
-          handlers build (`runBranchTeardown` and `runTeardownForOperand` in `handlers/lifecycle.ts`), on
-          `TeardownContext.projectionRemovalSlots`; the park and abandon contexts there (`runPark`, `runAbandon`), their
-          `removal` option taking the slots' `check`; and the reconcile context wherever one is composed — the executor
-          context (`buildExecutorContext`, `lib/work-unit/executor-context.ts`), which `arc start`'s graduation
-          (`commands/start-store.ts`) and the other `ctx.reconcileWorkUnitWorktree` callers inherit, `arc start`
-          (`runCreateNew`, `commands/start.ts`), and `arc rename` (`runInRepoRenameCommand`, `commands/rename.ts`;
-          `checkoutMove`, `commands/rename-store.ts`).
-        - Over the in-repo implementation the slots pass, so binding them changes nothing before the flip.
-        - Build `test-first` (one behavior at a time):
-            - each executable production retirement context refuses a held edit and succeeds after repair
-            - over the reference backend, teardown through the store-backed context refuses over a refused edit
+        - Bound one capability-gated factory into Store teardown, executor reconcile, lifecycle teardown and legacy
+          removal checks, direct start, and both rename directions. Slots retain the resolved Store, command identity,
+          and command-scoped mint port; unavailable identity keeps target eligibility and remedy ordering.
+          `notes-projection-worktrees.md` records native refusal/repair coverage and the authority checks.
 
     - `[ ]` **2.4.c The sweeps, the Errand exits, and the releases**
 

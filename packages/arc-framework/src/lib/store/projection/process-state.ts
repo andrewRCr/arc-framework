@@ -29,6 +29,7 @@ export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark |
 export interface ProjectionCommandBinding {
   readonly store: Store;
   readonly checkout: string;
+  readonly mint?: ProjectionStubMintPort;
 }
 
 /** Per-worktree bindings and copy bookkeeping owned by this command. */

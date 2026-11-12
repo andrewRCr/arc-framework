@@ -1,5 +1,4 @@
 /** Actual handler composition over checked operational records and scripted physical boundaries. */
-import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,7 +12,6 @@ import { CutMapMachineSchema } from "../../../src/lib/decompose/cut-map-machine.
 import { readWorkUnit } from "../../../src/lib/store/lifecycle-write.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
-import { writeWorktreeMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import type { LocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
@@ -62,23 +60,11 @@ async function invoke(store: Store, options: DecomposeOptions, locusPorts: Locus
   return result;
 }
 
-it.each([false, true])("runs a retirement through handler-built store and cleanup contexts, held=%s", async held => {
-  const h = await createDecomposeOriginFixture(held);
+it("runs a retirement through handler-built store contexts without a holding checkout", async () => {
+  const h = await createDecomposeOriginFixture(false);
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example" })), "{}");
-  const marker = resolveWorktreeMarkerPath(state.root);
   await writeFile(join(state.root, "personal.txt"), "Retained personal content.");
-  if (held) await writeWorktreeMarker(state.root, { spawnedByArc: false, wuName: "origin",
-    createdFor: boundWorkUnitSubject(h.primary), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
-  const base = "a".repeat(40);
-  const git = scriptGitExec([
-    { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "test-user\0", stderr: "" }] },
-    { match: ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"], responses: [{ stdout: "", stderr: "" }] },
-    { match: ["rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"], responses: [{ stdout: base, stderr: "" }] },
-    { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout: `worktree ${state.root}\0HEAD ${base}\0detached\0\0`, stderr: "" }] },
-    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: join(state.root, ".git"), stderr: "" }] },
-  ]);
-  state.exec = git.exec;
-  const locus: LocusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async request => held && request.kind === "owner" && request.uid === boundWorkUnitSubject(h.primary).uid && request.checkoutPath !== state.root && await readFile(marker).then(() => true, () => false) ? { kind: "held" as const, path: state.root } : { kind: "none" as const } };
+  const locus: LocusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" }) };
   const starter = await invoke(h.store, { preflight: true }, locus);
   expect(starter).toHaveProperty("machine");
   const map = completeCutMapFixture(CutMapMachineSchema.parse(starter.machine));
@@ -95,10 +81,6 @@ it.each([false, true])("runs a retirement through handler-built store and cleanu
   expect(await readWorkUnit(h.store, "origin")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.primary.reference.owner) })).fields)
     .toMatchObject({ kind: "decompose", retiredBranches: [] });
-  if (held) {
-    expect(await readFile(marker).then(() => true, () => false)).toBe(false);
-    expect(applied.notices).toContain(`Released checkout ${state.root}; its files were retained.`);
-  }
   expect(await readFile(join(state.root, "personal.txt"), "utf8")).toBe("Retained personal content.");
 });
 

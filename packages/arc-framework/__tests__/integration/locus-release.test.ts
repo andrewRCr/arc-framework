@@ -122,7 +122,7 @@ it("serializes registered release behind rename and releases the same paused own
     return h.exec(command, args, options);
   };
   const io = createUserIOContext(); io.exec = exec;
-  const renaming = runStoreRename({ ...ctx, exec, ...storeRenameAdapters({ cwd: h.cwd, io }) }, { operand: "missing", targetSlug: "renamed" });
+  const renaming = runStoreRename({ ...ctx, exec, ...storeRenameAdapters({ cwd: h.cwd, io, store: h.store, identity: h.context.identity }) }, { operand: "missing", targetSlug: "renamed" });
   await acquired;
   let settled = false;
   const releasing = invoke(h.context).finally(() => { settled = true; });
