@@ -742,6 +742,13 @@ capability is on, the retiring verbs' `checkRetiringCheckout` among them, so non
 `git status`, decides only whether the primary may host a transient claim — a branch switch that leaves the gitignored
 projection in place and removes no checkout — and stays as today.
 
+Verification distinguishes executable retirement from compositions whose current operations cannot invoke the slots
+(A5). Verify teardown, Store abandonment and decomposition, and executor removal through behavioral refusal-and-repair
+tests of their production contexts. Enforce slot presence statically at the direct start spawn, both rename move
+directions, and legacy park/abandon compositions; inspect their resolved Store and command identity forwarding
+separately. Test the factory's capability gating, identity authority, and mint-port lifetime through slot behavior.
+Every production composition still binds the slots.
+
 **`check(checkout)`** — the removal check's projection part. It reads only, writes nothing, and takes no lock, and
 answers:
 
@@ -1692,6 +1699,12 @@ _These considerations cover the design the three members build together; § 1.1 
     and end. Runtime tripwires use the declared platform bounds and raw nine-sample medians. Sequential sibling visits
     and the durable intent/final publication boundaries remain.
 
+12. **Removal compositions carry projection authority (A5).** Executable retirement contexts refuse a held projected
+    edit, retain the checkout and claim, and succeed after repair. Static lint rejects missing slots at the direct
+    start spawn, rename apply/rollback, and legacy park/abandon compositions. Their Store and identity forwarding is
+    inspected, and factory tests distinguish enabled/disabled capability, unavailable command identity, and mint-port
+    precedence and command lifetime.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1707,6 +1720,9 @@ this design open.
 
 - **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; criterion 4.
   _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
+
+- **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ Task 2.4.b tests.
+  _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.8.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

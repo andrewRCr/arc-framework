@@ -365,7 +365,7 @@ No production composition sets the slots today, so every caller runs `passingPro
           `checkoutMove`, `commands/rename-store.ts`).
         - Over the in-repo implementation the slots pass, so binding them changes nothing before the flip.
         - Build `test-first` (one behavior at a time):
-            - a test over each production context asserts it carries the projection's slots, not the passing defaults
+            - each executable production retirement context refuses a held edit and succeeds after repair
             - over the reference backend, teardown through the store-backed context refuses over a refused edit
 
     - `[ ]` **2.4.c The sweeps, the Errand exits, and the releases**
@@ -396,6 +396,15 @@ No production composition sets the slots today, so every caller runs `passingPro
               edit's remedy, and closes once it is resolved, the primary's projection kept
             - an Errand on the primary whose release slot throws, through a fault double, ends its close as an error,
               the claim kept
+
+    - `[ ]` **2.4.R Enforce the inert compositions' slot bindings — A5**
+
+        - _Goal:_ Implement A5's static enforcement for the direct start spawn, rename apply/rollback, and legacy
+          park/abandon compositions while preserving their resolved Store and command identity authority.
+        - Add focused lint enforcement of slot presence at these compositions. Exercise each rule against a missing
+          binding and the corrected form, then run it on the production sources. Inspect Store/identity forwarding in
+          both rename directions and the start and legacy contexts; factory behavior and executable retirement tests
+          remain in 2.4.b. Close the amended acceptance at 2.8.
 
 ### `[ ]` **2.5 The user surfaces in every worktree — § 12.8**
 
@@ -537,5 +546,10 @@ No production composition sets the slots today, so every caller runs `passingPro
         receives credit. Interleaved standard/expanded starts show no systematic cost from settled archive entry
         growth, whose partitions remain unread; runtime notices retain raw nine-sample medians. This supersedes the
         earlier performance criterion (A4; specification criterion 11).
+
+- `[ ]` Executable retirement contexts refuse held projected edits, retain checkout and claim, and succeed after
+        repair; lint rejects missing slots at direct start, rename apply/rollback, and legacy park/abandon compositions.
+        Store/identity forwarding is inspected, and factory tests cover capability, identity, and mint-port authority
+        (A5; spec criterion 12).
 
 - `[ ]` Ready for integration

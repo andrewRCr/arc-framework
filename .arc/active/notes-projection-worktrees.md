@@ -1401,3 +1401,30 @@ The six direct entry points retain the same consumer ledger as the baseline:
 Teardown's internal reconcile contexts, the stale/residue and branch-gone forwarding, and the Errand leave/close/
 abandon/partial settlement plumbing already carry optional slots. Binding belongs at the constructors above, with
 terminal primary settlement adding its missing release call. The inventory itself changes no production behavior.
+
+## A5 — verify executable and inert removal compositions
+
+The superseded Task 2.4.b commitment was: “a test over each production context asserts it carries the projection's
+slots, not the passing defaults”. The implementation obligation in § 12.2 is unchanged: all production compositions
+receive the slots under the capability. Owner direction on 2026-11-12 approves behavioral coverage where the slots
+execute and lint enforcement at the enumerated inert compositions, with separate inspection of Store/identity
+forwarding. This is a low-depth verification substitution, captured with author checks.
+
+`runCreateNew` supplies only `mutation: "spawn"`; the missing-folder path in `clearMissingWorktreeRegistrations` skips
+projection work on an absent folder. Both rename adapters supply `mutation: "move"`, which
+`reconcileWorkUnitWorktreeUnlocked` returns from before removal checking. `handlePark` refuses `stateOffBranch`
+before composing its removal context, and `handleAbandon` routes that capability to `handleStoreAbandon` before the
+legacy construction. A refusal test cannot distinguish missing bindings on these paths without inspecting wiring or
+changing the operation. A syntax-only assertion belongs in lint rather than a behavioral test.
+
+Required behavioral coverage exercises the production Store teardown context, executor removal, branch and operand teardown,
+Store abandon, and Store decomposition. The factory's capability, identity, and mint-port cases exercise actual
+slot behavior; disabled capability returns passing slots before target I/O. Task 2.4.R enforces presence on the
+remaining direct start, rename forward/rollback, and legacy park/abandon constructions and records their command
+Store/identity flow. Neither mechanism alone attests semantic authority on every call site.
+
+Author checks cover § 12.2, criterion 12, tasks 2.4.b/2.4.R, their neighbors, and the source paths above. The affected
+contract retains every binding and destructive-path obligation; the replacement states checkable evidence without
+planning history, and the revision task follows the bindings it checks. No product behavior, lifecycle boundary,
+performance criterion, or segment boundary changes. The affected-element grounding and task audit found no further
+change required. The independent offer is omitted at low depth; the final reread keeps this footprint bounded.
