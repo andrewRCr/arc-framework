@@ -3,7 +3,7 @@
   "slug": "project-rules-condense",
   "claimId": "a0ddb9d842f81d04ba28e7ecec3c2ee7",
   "createdAt": "2026-11-12T22:41:14.915Z",
-  "updatedAt": "2026-11-12T22:41:14.915Z",
+  "updatedAt": "2026-11-12T22:59:00.006Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "project-rules-condense",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Condense `DEV-RULES.PROJECT`'s recent text and make its surface taxonomy follow what ships",
   "originEntrySourceDigest": "sha256:4b914fa7c28bc5bcdd0f7fd4d8725137fdc6d996e0fcc0c4d9ffd85deb680642",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/project-rules-condense",
+    "headSha": "67fa89ff3a231df32050793fc2410381cd2a4f2c"
+  }
 }
