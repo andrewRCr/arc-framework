@@ -758,6 +758,23 @@ The initial interrupted attempt, `e395d1c372fe46bca2f59a9991edc84c`, retained no
 The complete corrected twenty-process suite passed all twenty-two cases in run
 `52fb7151e6fd435b9bfadf0443449634` on M4, covering both layouts and every required rendezvous.
 
+#### Filesystem aliases at fan-out
+
+Hosted diagnostic `43124035152` at `73174e0ab5` exposed the Windows failure precisely: Node's temporary directory
+used the `RUNNER~1` short spelling while Git's roster returned `runneradmin`. Lexical normalization cannot identify
+those as the same checkout. The native Windows repeat `ee04be2cb9e2474fbaf11cbe4886708c` passed because its isolated
+temporary root had no such alias; that repeat alone did not explain the hosted failure.
+
+The mismatch also exposed a duplicate writer visit: fan-out visited its entering path, then visited the same Git
+directory again under the roster's spelling. Native directory-alias regression `064852eea5784c1db9efca88107c337a`
+reproduced three visits for two checkouts. Fan-out now compares physical Git-directory identities, resolving the
+writer's identity once per round. The burst oracle matches physical roots and rejects repeated root identities, so
+an alias cannot count as a distinct destination. No lease or scheduling policy changes.
+
+Corrected native run `d430ed45dcf24269a593351a5e3564f3` passed the alias, write, remote-merge, publication, and separate-Git
+cases; Windows run `afa33e0a2a31407dbb68739d2b232e1d` passed all three native ref cases. Full fan-out regression
+`614e8f1fee5e48dfa052f74b17cc418e` passed all 51 cases across fourteen files.
+
 ### Physical Git-start assertions after reader reuse
 
 Dispatched run `43116874002` exposed stale exact-process assertions in Store Suites 1 and 6 after recursive tree

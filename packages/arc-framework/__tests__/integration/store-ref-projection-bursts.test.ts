@@ -1,6 +1,6 @@
 /** Saves across process boundaries while native refresh, fan-out, removal, and rebuild replace projected files. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ProjectionHook } from "../fixtures/store/projection-process-protocol.js";
 import { projectionBurstFixture, projectionSaveEvidence, preservedProjectionSave, burstEntry, burstContent,
@@ -15,6 +15,7 @@ import { commitProjectionIndex } from "../../src/lib/store/projection/index-file
 import { withProjectionEntry } from "../../src/lib/store/projection/index-memory.js";
 import { observeAsideCopy } from "../../src/lib/store/projection/aside-copies.js";
 import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { canonicalLocalPath } from "../../src/lib/local-path-identity.js";
 
 type Fixture = Awaited<ReturnType<typeof projectionBurstFixture>>;
 
@@ -69,13 +70,15 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     const update = burstEntry(2, "The accepted fan-out update.");
     const operation = writer.send({ action: "run", operation: "fan-out", hook: "beforeTarget", content: burstContent(update) });
     const entries = f.roots.map((_, i) => burstEntry(100 + i, `Complete fan-out save for root ${i}.`));
-    const visited = new Set<string>();
+    const roots = await Promise.all(f.roots.map(root => canonicalLocalPath(root)));
+    expect(new Set(roots).size).toBe(f.roots.length);
+    const visited = new Set<number>();
     for (let i = 0; i < f.roots.length; i++) {
       const arrival = await writer.hook(operation);
       expect(arrival).toMatchObject({ hook: "beforeTarget", path: BURST_PATH });
-      const target = f.roots.findIndex(root => resolve(root) === resolve(arrival.root));
+      const target = roots.indexOf(await canonicalLocalPath(arrival.root));
       expect(target, JSON.stringify({ arrival: arrival.root, roots: f.roots })).toBeGreaterThanOrEqual(0);
-      expect(visited.has(arrival.root)).toBe(false); visited.add(arrival.root);
+      expect(visited.has(target), `Repeated visit to ${arrival.root}`).toBe(false); visited.add(target);
       const editor = f.writers[(target + f.writers.length - 1) % f.writers.length]!;
       await editor.send({ action: "save", content: f.saved(entries[target]!), mode: "rename" });
       await writer.send({ action: "release", sequence: arrival.sequence });

@@ -54,11 +54,14 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
   const round: FanOutRound = { input, ports, configuration, source, version: version.result, ownWrites, evidence };
   await visitTarget(round, input.checkout, input.location);
   if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return; }
+  let ownGitDir: Promise<string> | undefined;
   for (const checkout of roster.worktrees) {
     if (!checkout.folderPresent || checkout.path === input.checkout) continue;
     try {
       const directories = await readGitDirectories(checkout.path, ports.fs);
-      if (directories.gitDir === input.location.gitDir || await readReference(checkout.path) === null) continue;
+      if (directories.gitDir === input.location.gitDir
+        || await ports.fs.realpath(directories.gitDir) === await (ownGitDir ??= ports.fs.realpath(input.location.gitDir))
+        || await readReference(checkout.path) === null) continue;
       const location = { ...directories, primary: directories.gitDir === directories.commonDir,
         stateDir: join(directories.gitDir, PROJECTION_STATE_FOLDER) };
       await visitTarget(round, checkout.path, location);

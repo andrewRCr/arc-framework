@@ -1,5 +1,5 @@
 /** The dark ref backend's actual writes and remote merges notify real linked projections. */
-import { readFile } from "node:fs/promises";
+import { readFile, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { refSyncFixture } from "../../../helpers/store/ref-sync.js";
@@ -13,10 +13,12 @@ import { startProjection, endProjection } from "../../../../src/lib/store/projec
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { canonicalLocalPath } from "../../../../src/lib/local-path-identity.js";
+import { locateProjection } from "../../../../src/lib/store/projection/location.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
-async function fixture() {
+async function fixture(aliasWriter = false) {
   beginProjectionCommand();
   const h = await refSyncFixture();
   const reference = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "scratch/native.md" });
@@ -32,12 +34,31 @@ async function fixture() {
   const siblingInput = { store: h.a.store, checkout, location: sibling.location, ports: () => createProjectionEnginePorts(checkout) };
   expect(await startProjection(siblingInput)).toMatchObject({ kind: "ready" });
   await endProjection(siblingInput);
-  const store = withFanOut(h.a.store, createProjectionFanOutDependencies(h.cloneA));
-  expect(await startProjection({ store, checkout: h.cloneA, location: own.location })).toMatchObject({ kind: "ready" });
-  return { h, store, reference, own, sibling, path,
+  const writer = aliasWriter ? join(h.cloneA, "..", "writer-alias") : h.cloneA;
+  if (aliasWriter) await symlink(h.cloneA, writer, "junction");
+  const visits: string[] = [];
+  const ports = { ...createProjectionEnginePorts(writer), beforeFanOutTarget: async (root: string) => {
+    visits.push(await canonicalLocalPath(root));
+  } };
+  const store = withFanOut(h.a.store, createProjectionFanOutDependencies(writer));
+  const location = await locateProjection(writer, ports);
+  expect(await startProjection({ store, checkout: writer, location, ports: () => ports })).toMatchObject({ kind: "ready" });
+  return { h, store, reference, own, sibling, path, visits, checkout,
     ownFile: () => readFile(join(h.cloneA, path), "utf8"),
     siblingFile: () => readFile(join(checkout, path), "utf8") };
 }
+
+it("visits each native checkout once when the writer uses a filesystem alias", async () => {
+  const f = await fixture(true), current = success(await f.h.a.store.read({ reference: f.reference }));
+  f.visits.splice(0);
+  success(await f.store.write({ action: "put", reference: current.reference, expected: current.version,
+    content: "Written through a checkout alias.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(await f.ownFile()).toContain("Written through a checkout alias.");
+  expect(await f.siblingFile()).toContain("Written through a checkout alias.");
+  expect(f.visits).toEqual(await Promise.all([f.h.cloneA, f.checkout].map(root => canonicalLocalPath(root))));
+  expect(await readProjectionIndex(f.own.location, true, { groups: "all" }))
+    .toMatchObject({ kind: "index", index: { entries: { [f.path]: { changed: true } } } });
+}, 30_000);
 
 it("refreshes both native worktree files after a createRefStore write", async () => {
   const { h, store, reference, ownFile, siblingFile } = await fixture();
