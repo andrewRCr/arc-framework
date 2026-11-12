@@ -317,8 +317,9 @@ and not with it; until then, report the cause as suspected.
 success criterion, or an exit-criterion scenario reported it; a gate failure with a known cause and an in-scope fix
 takes the in-scope path above instead. First take any step that tells noise from a real miss at no added cost, such
 as a rerun at the same head locally or on CI capacity that needs no spending approval. Keep every raw result and leave
-the bound unchanged. A passing rerun is not the verdict unless a rule the user already gave decides it; otherwise the
-stop carries every result.
+the bound unchanged. A passing rerun is not the verdict unless a rule the user already gave decides it; that rule is
+the gate holder's decision, and the report still names the failed run beside the pass, so no red result is reported
+green. Otherwise the stop carries every result.
 
 **A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
 reported — including that it produced no result — is not that judgment.
