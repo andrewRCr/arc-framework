@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "own-review-in-scope-fixes",
+  "claimId": "a52b3f8fe1f12916071a85edc4e31e93",
+  "createdAt": "2026-11-12T13:18:18.821Z",
+  "updatedAt": "2026-11-12T13:18:18.821Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Treat a confirmed finding from the agent's own in-progress review as an in-scope fix",
+  "branch": "chore/own-review-in-scope-fixes",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
