@@ -2,8 +2,7 @@
  * Recursive `.md` file walker.
  *
  * Returns all `.md` paths under `dir` in arbitrary order — callers sort if a
- * deterministic order is needed. Used by the extensions probe to collect
- * workflow inputs and by the audit script to enumerate corpus files.
+ * deterministic order is needed. Used by the audit script to enumerate corpus files.
  *
  * @module
  */

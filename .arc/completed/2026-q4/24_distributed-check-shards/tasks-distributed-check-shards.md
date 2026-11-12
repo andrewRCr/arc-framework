@@ -1,0 +1,620 @@
+# Task List: Distributed Check Shards
+
+- **Design:** `spec-distributed-check-shards.md`
+
+---
+
+## **Phase 1:** Canonical shard plans and prepared identity
+
+_Purpose:_ Give the existing selected-check path a complete shard matrix, scoped prepared identity and native parent
+evidence before connecting them to runner execution.
+
+_Mode:_ `slice` through Phase 2 — closes on trustworthy routed shard execution through the public runner facade.
+
+_Design decisions:_ Consumer implementation starts after the runner foundation lands and its qualified exports are
+re-grounded. This plan consumes that source, binding, protocol and lifetime implementation; it creates no substitute.
+
+### `[x]` **1.1 Expand complete, portably bounded batch/shard plans — D3**
+
+- _Goal:_ Every selected routed check has one deterministic, complete plan whose final commands fit every compatible
+  placement before preparation or reuse can begin.
+
+    - `[x]` **1.1.a Compose canonical batch/shard coordinates and invocation records**
+        - Captured planning emits batch/shard order, immutable local coordinates and fresh wire IDs, preserving
+          captured path spelling, cwd, probes and native command-content policy.
+
+    - `[x]` **1.1.b Budget the complete final command before partitioning paths**
+        - Shared shard batching reserves the largest final argument against both portable models before partitioning;
+          shell invocations retain one command string. Fixed and single-path overflow carry shortening remedies.
+
+    - `[x]` **1.1.c Keep native forecasts and routed plans consistent**
+        - Native forecasts share final-argument expansion and retain native platform budgets. Coverage exercises
+          ordered Unicode/quoted paths, multi-digit shards, invalid cwd/argv and repaired overflow.
+
+    - `[x]` **1.1.d Expand routed shards only for checks that opt in**
+        - Strict declarations admit `shards.routed`, default false; only opted-in routed plans expand. CI expansion
+          ignores the opt-in, and ordinary declarations retain the foundation's unsharded batches.
+
+- _Outcome:_ One expansion/budget boundary supplies native forecasts and captured routed plans without transporting
+  local reporting coordinates through the runner protocol.
+
+### `[x]` **1.2 Bind complete prepared runtime coverage to a scoped parent key — D4, D5**
+
+- _Goal:_ A parent is reusable only for its full canonical matrix and applicable prepared inputs/runtimes, without
+  making unrelated repository state or attempt identities dependencies.
+
+    - `[x]` **1.2.a Verify the prepared runtime projection over the shard matrix**
+        - Matrix tests bind reordered known observations in plan order, reject missing/duplicate/unknown coverage
+          and withhold reuse for unknown qualification without caller-local probing.
+
+    - `[x]` **1.2.b Confirm or extend the scoped key's matrix coverage**
+        - Disposable key version 6 binds canonical prepared argv, cwd, shell and batch/shard coordinates: custom
+          captured plans can differ despite identical declarations/paths/runtime. Wire IDs and raw content IDs stay
+          excluded; real sharded preparation preserves unrelated-source and identical-file-location invariance.
+
+    - `[x]` **1.2.c Preserve capture and execution requirements when reuse is unavailable**
+        - Real basic-adapter siblings retain captured source and unset/empty/file bindings with caching disabled
+          and unknown runtime. A changed known placement refuses both siblings before work; explicit retry qualifies
+          the new placement and executes successfully.
+
+- _Outcome:_ Prepared matrix identity supplements scoped content rather than hashing the whole captured container;
+  runtime coverage and fixed-input lifetime remain owned by the shared foundation.
+
+### `[x]` **1.3 Project shard coordinates through the shared native outcome reducer — D6**
+
+- _Goal:_ The parent preserves native verdict meaning and useful completed failures while identifying exactly which
+  expected pairs lack acceptable evidence.
+
+    - `[x]` **1.3.a Associate validated terminal evidence with expected coordinates**
+        - `reduceCheckPlanOutcomes` accounts for every planned pair using facade-validated observations. Missing
+          pairs are explicit; correlation faults and lost final closure prevent success without discarding valid
+          failures. Preparation owns frozen local coordinates alongside the validated wire plan; selected-check
+          results can carry the complete coordinate/evidence projection.
+
+    - `[x]` **1.3.b Preserve native no-evidence, kill and full exit-status semantics**
+        - Parent projection composes the shared normalizer/reducer, preserving declared no-evidence precedence,
+          mixed/all-no-evidence outcomes, notices, killed work and exact 256/high-bit/maximum unsigned statuses.
+
+## **Phase 2:** Routed execution, diagnostics and lifetime closure
+
+_Purpose:_ Connect the canonical plan to the foundation's prepared execution facade and prove serial/group execution,
+reuse, failure and interruption through real protocol conversations.
+
+_Exit criterion:_ A routed declared check runs every expected pair through group or basic serial playback, publishes
+only a complete applicable parent pass, preserves completed failures beside missing work, and closes or retains its
+context/capture under the specified lifecycle. The unconfigured command remains native and unsharded.
+
+### `[x]` **2.1 Execute the fixed plan through serial or optional group dispatch — D1, D2, D6**
+
+- _Goal:_ An eligible routed check executes its complete declared matrix through one prepared context, while the
+  native path retains its existing single command and configured failures remain visible.
+    - _Amended in:_ 2.R (A10)
+
+    - `[x]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
+        - The selected-check handler supplies captured planning through `buildPlan`. Native and opted-out routed
+          checks retain their ordinary path; opted-in dry runs cannot capture, prepare or probe execution.
+
+    - `[x]` **2.1.b Play back mandatory singles or submit the whole optional group**
+        - `executePreparedCheckPlan` submits an opted-in matrix once when grouping is advertised, otherwise runs
+          ordered singles. Ordinary failures collect the remaining work; complete-plan reduction retains missing pairs.
+
+    - `[x]` **2.1.c Prove the production entry with a real adapter conversation**
+        - Built-CLI scenarios execute three siblings through independent group/basic peers, retaining ordinary
+          failures, exactly-once identities and closed captures. The standalone basic example executes real pairs.
+
+    - `[x]` **2.1.d Preserve native command-content and repository environment boundaries**
+        - Standalone selected-check scenarios preserve identical-argv files/project/probe policy, explicit empty
+          values and symlink-file bytes despite caller/worker selectors targeting another repository. Opted-in
+          declarations refuse all reserved names/case variants; a real refused declaration succeeds after repair.
+
+### `[x]` **2.2 Retain attributable native failures and incomplete-work diagnostics — D6**
+
+- _Goal:_ Human and JSON results retain their parent outcome conventions while showing each pair's valid native
+  outcome, exit/notice and incomplete-work detail without treating progress or log persistence as authority.
+
+    - `[x]` **2.2.a Keep independently observed outcomes through final-reply failures**
+        - Production group-loss/malformed-closure scenarios retain the completed native result and identify every
+          missing sibling, with failure taking precedence over incomplete work. Logs, clean process exit and partial
+          success cannot close the missing matrix; captures retain actionable settlement guidance.
+
+    - `[x]` **2.2.b Render attributable invocation details without changing parent conventions**
+        - Human/JSON results retain canonical coordinates, native statuses/notices and incomplete reasons. Display
+          collection decodes each invocation/stream independently; full reports label each pair and preserve adapter
+          diagnostics. Optional report failure preserves complete evidence without printing captured bindings.
+
+### `[x]` **2.3 Close reuse and completed execution before parent publication — D5, D8**
+
+- _Goal:_ Parent reuse/publication and capture disposal occur only after their required context/output closure,
+  while settled disposal/cache-storage warnings retain their advisory meaning.
+
+    - `[x]` **2.3.a Complete the prepared cache-hit and successful-run paths**
+        - Real grouped requests prove no publication or capture disposal before provider exit, one complete parent
+          record, context release without execution on a hit, and explicit forced execution. Failed, incomplete and
+          unknown-runtime matrices publish no pass; fresh attempts preserve equivalent parent identity.
+
+    - `[x]` **2.3.b Preserve advisory persistence/disposal behavior after settlement**
+        - Corrupt/unavailable records miss; occupied invalid records and unavailable pass/report directories preserve
+          native success and recover after repair. Settled disposal warnings remain advisory during execution and
+          reuse, while lost required output and abnormal provider exit prevent publication.
+
+### `[x]` **2.4 Preserve settlement and recovery through refusal and interruption — D8**
+
+- _Goal:_ Every cancellation/refusal/transport-loss path either proves settlement and safe disposal or retains the
+  shared capture and actionable provider guidance without duplicate execution.
+
+    - `[x]` **2.4.a Consume settled preparation refusal without inventing a context**
+        - Complete shard plans consume settled refusal without release, including refusal before a late cancel
+          acknowledgment. Missing settlement and abnormal exit retain captures and plan diagnostics; repaired
+          declarations execute through fresh attempts without an engine fallback.
+
+    - `[x]` **2.4.b Retain group recovery across interruption and conversation loss**
+        - Actual grouped resistant children retain source through cancel acknowledgment and drain before release.
+          Sharded pre-context loss, repeated interrupts and standalone descendant inspection/settlement preserve
+          recovery ownership without duplicate execution. Refused recovery delivery launches no preparation probe.
+
+### `[x]` **2.R Report routed planning refusals with their own remedy — D3**
+
+- _Goal:_ A routed check whose final command or selected path exceeds the portable argument budget refuses before
+  preparation with the planner's own reason and shortening remedy, and runs once shortened.
+
+    - `[x]` **2.R.a Plan routed checks through capture's own planner**
+        - The selected-check handler no longer supplies a consumer plan builder, whose failures are reported without
+          their text; capture plans the same check, paths and runtime inputs and reports planning refusals unchanged.
+
+    - `[x]` **2.R.b Prove the refusal and repaired retry through the production entry**
+        - An opted-in routed declaration with an oversized fixed command reports the shortening remedy without
+          launching its adapter, and the shortened declaration passes every shard.
+
+### `[x]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
+
+- _Goal:_ Executable production-entry scenarios prove the segment's complete public-consumer lifecycle and preserve
+  the unconfigured native default before native/provider breadth is added.
+
+- _Outcome:_ Production-entry scenarios exercised group/basic playback, fixed source and inputs, whole-parent reuse,
+  native failure beside missing siblings, refusal/retry and interruption. Publication waited for provider closure;
+  uncertain captures survived for explicit recovery, while settled groups and cache hits released their resources.
+  Unconfigured checks remained native and unsharded.
+
+## **Phase 3:** Private native writers and unchanged CI playback
+
+_Purpose:_ Remove shared native cache/report writers and preserve existing forecast, late input delivery and
+cross-platform qualification routes before native group qualification.
+
+_Mode:_ `slice` through Phase 4 — closes on native tier coverage and completion with isolated writers.
+
+### `[x]` **3.1 Isolate native cache and report writers while retaining controller ownership — D7**
+
+- _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
+  artifact ownership remains effective through controller closing.
+
+    - `[x]` **3.1.a Keep native cache writers at their default locations in each prepared copy**
+        - Retained native defaults: project-root `node_modules/.vite/vitest/<project hash>/results.json` and
+          package-relative CI JSON reports. The adapter materializes a private execution root, installs/builds,
+          then freezes generated roots before dispatch; package dependency roots are present in preparation.
+          Real-tier sibling acceptance remains the external adapter proof in 5.1.a.
+
+    - `[x]` **3.1.b Keep CI duration collection aligned with the native cache path**
+        - CI clear/upload paths already match native caches. Retained tier-labelled shard artifacts and recursive
+          `mergeDurationArtifacts` discovery of hashed native result documents, with no format or placement change.
+
+    - `[x]` **3.1.c Prove writers remain private through native completion and closing**
+        - Real integration controllers wait behind the checkout lease through asynchronous native closing.
+          Separate copies finish independently with physically private default caches and package-relative JSON
+          reports; serial and separate-copy native duration outputs merge with complete membership.
+
+- _Outcome:_ Native writer qualification composes existing controller/build ownership through closing. Fixtures
+  retain shared immutable dependencies while giving Vite mutable roots private ancestors; existing teardown and
+  worker-cleanup failures still fail after passing cases.
+
+### `[x]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
+
+- _Goal:_ Forecasts and native CI playback preserve declared shard placement and bind actual delivered inputs at
+  dispatch, without accidentally routing through a second capture path or freezing setup-time absence.
+
+    - `[x]` **3.2.a Consume shared expansion and dispatch-time binding in CI playback**
+        - Native CI playback consumes shared forecast batches and captures delivered inputs once per selected
+          check, including shard-expanded jobs. Process cases preserve final shard/report arguments and cwd;
+          declaration mismatches refuse with regeneration guidance and execute after repair.
+
+    - `[x]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
+        - Opted-in selected-check previews retain native shard forecasts without routing, then report unknown
+          routed reuse without capture, adapter startup or probes. Sharded environment metadata preserves only
+          names/kinds, including empty file selections, while native CI expansion remains independent of opt-in.
+
+- _Outcome:_ Forecasts preserve the native CI matrix and defer explicit-input capture until actual dispatch.
+  Configured routed previews omit native argv and require preparation for reuse rather than borrowing a local hit.
+
+### `[x]` **3.3 Exercise consumer portability and exact native Windows statuses — D3, D6, D7**
+
+- _Goal:_ Supported-platform feedback actually executes consumer budgeting/result/writer cases, and Windows status
+  preservation is demonstrated through the parent rather than inferred from Linux-injected numbers alone.
+
+    - `[x]` **3.3.a Select and classify the consumer's portability surface**
+        - Portability execution includes consumer batching/forecast/key/output, shard process cases and native
+          sequencer/writer/completion cases. Library/script classification covers their source, fixtures and tests;
+          the actual expanded tier exercises those boundaries without changing ordinary tiers or CI placement.
+
+    - `[x]` **3.3.R Correct Windows qualification fixture paths**
+        - Budget fixtures retain costly literal Unicode, whitespace and shell metacharacters in Windows-valid
+          filenames. Native cache assertions compare canonical private package roots, preserving isolation across
+          Windows short/expanded temp-path spellings.
+
+    - `[x]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
+
+        - `[x]` **3.3.b.1 Exercise actual native statuses in complete and interrupted shard parents**
+            - Existing process cases execute complete/interrupted three-shard groups and repaired serial playback,
+              asserting each native status and missing sibling. Actual status 137 retains declared no-evidence
+              precedence; platform-native results are exercised through the public parent and transport.
+
+        - `[x]` **3.3.b.2 Record the Windows/macOS portability qualification**
+            - Hosted run `40781020166` at `a84c27919f9d07a20d74a140bda1e4ebff855c8a` exercised the complete
+              Windows/macOS portability pair. Actual Windows 256/high-bit/maximum unsigned statuses survived
+              complete and interrupted shard parents; native status 137 retained declared no-evidence precedence.
+
+## **Phase 4:** Native membership and completion qualification
+
+_Purpose:_ Observe native discovery and actual partition assignments, then qualify each tier's selection, evidence
+and closing contract without introducing a second partitioner.
+
+_Exit criterion:_ Qualified unit, integration and store profiles show complete/disjoint native membership under
+fixed inputs, preserve their distinct empty/no-evidence/failure outcomes, and keep native writers and leases isolated
+through controller closing. Store qualification uses the native reach command landed by `storage-ref-backend`.
+
+### `[x]` **4.1 Observe native selection and actual shard assignments in a qualification harness — D7**
+
+- _Goal:_ Qualification can compare native unsharded selection with the actual executed shard assignments without
+  changing native membership or partitioning the same selection twice.
+    - _Amended in:_ 4.R (A13)
+
+    - `[x]` **4.1.a Collect native membership identities and actual assignments**
+        - A qualification-only configuration observes full native discovery, one native shard/sort cycle and worker
+          queue/end events with project/package-relative identities. Real pre-parsed controllers preserve equal
+          filenames across projects and distinguish unassigned module presence from actual execution.
+
+    - `[x]` **4.1.b Compare complete union and pairwise disjointness over fixed inputs**
+        - The qualification helper rejects incomplete/duplicate membership, incompatible profiles, divergent input
+          bases and incomplete worker observations. Native controllers retain exact assignments from the consumer's
+          captured source and duration file after caller branch, test-file and duration edits.
+
+### `[x]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
+
+- _Goal:_ Unit and integration retain their native selection and nonempty-completion requirements under the
+  declared matrix and applicable execution profiles.
+
+    - `[x]` **4.2.a Qualify unit and unit-mocks membership together**
+        - The configured runner qualifies full and filtered native unit projects from one consumer capture, with
+          recorded/fallback durations and unset, empty-value and zero-byte-file inputs. Native fixtures verify
+          deletion/widening, exact membership and recorded ordering; profile evidence is in the notes.
+
+    - `[x]` **4.2.R Isolate the native project-selection fixture from machine runners**
+        - The native forecast fixture uses an empty machine home while a controlled ambient home declares a runner.
+          Declaration-only E2E selection retains native argv evidence independently of developer machine settings.
+
+    - `[x]` **4.2.b Qualify integration through its native controller**
+        - Integration opts into four routed shards with an explicit handed-duration file while retaining CI-only
+          selection. Full and filtered native runs prove exact membership and successful closing; ordinary unmatched,
+          all-skipped and over-sharded selections stay nonpassing. Native profile evidence is recorded in the notes.
+
+    - `[x]` **4.2.c Prove controller failure and output-isolation boundaries**
+        - Native writers share immutable dependencies while keeping handed duration files, caches and reports private.
+          Gated closing retains artifact ownership through success and teardown failure; separate copies finish
+          independently and merge their native durations without altering handed inputs.
+
+### `[x]` **4.3 Qualify landed store reach no-ops and empty shares — D7**
+
+- _Goal:_ The landed store command uses the public runner with fixed selection inputs and retains its proved no-op
+  and empty-share successes without granting success to incomplete, unmatched or all-skipped native work.
+
+    - `[x]` **4.3.a Complete native store declaration and catalogue adoption**
+        - The landed native entry opts into four routed shards and captures its handed duration file alongside the
+          existing store selectors. Public preparation and CI forecasts retain native argv; replay preserves unset,
+          empty and file states after caller edits. The actual reach catalogue has no retired-wrapper dependency.
+
+    - `[x]` **4.3.R Establish native timing output during preparation**
+        - Repository setup establishes the existing `.test-cost-runs` output root before the runner freezes generated
+          additions. Later timing and `duration-input/` writes retain their paths; new and changed source still refuse.
+
+    - `[x]` **4.3.S Preserve native qualification stderr**
+        - Qualification retains per-invocation stdout and stderr through failed qualification and closure, while
+          native observations continue to parse stdout alone.
+
+    - `[x]` **4.3.b Qualify full and selected native store membership**
+        - The real declaration and catalogue qualify default, full/burst, every and selected/deleted membership on
+          Linux arm64, Node 26.3.0 and Vitest 4.1.11. Native unsharded/sharded unions retain captured duration states
+          despite original source, catalogue and selector edits; preflight and execution assignments agree.
+
+    - `[x]` **4.3.c Preserve successful reach no-ops and empty native shares**
+        - Captured native reach derivation qualifies a no-affected selection without controller observations. Two
+          actual suites qualify across four shares on Linux x64, including two empty controllers observed only after
+          awaited close. Existing observations reject ordinary empty runs and native close failures.
+
+### `[x]` **4.R Keep native shard fixtures on one path spelling under Windows temporary aliases — D7**
+
+- _Goal:_ The native shard qualification suites hold on Windows hosts whose temporary directory carries an 8.3
+  alias, comparing fixture paths and native module ids in one spelling (A13).
+
+    - `[x]` **4.R.a Work from the long form of the fixture and captured playback roots**
+        - `makeNativeShardFixture` and `captureNativeShardFixture` take their roots through the native `realpath`.
+          Vite keeps the alias until its asynchronous `net use` probe settles and then expands it, so a short root
+          met module ids in either spelling depending on timing.
+
+    - `[x]` **4.R.b Reproduce and clear the failure under a hosted-shaped temporary path**
+        - On the local Windows runner, with the temporary path shortened as hosted `windows-latest` presents it, the
+          five shard suites failed varying cases in both runs at `c33194fad` and passed in both runs with the change.
+
+### `[x]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
+
+- _Goal:_ Recorded native runs demonstrate the segment's unit, integration and store membership/completion contract
+  and isolation through actual native controllers on the profiles claimed as qualified.
+
+- _Outcome:_ Recorded unit, integration and store captures qualify native membership on the observed Linux x64/arm64
+  profiles, including fixed selector/duration states, reach no-ops, closed empty shares, writer isolation and closing
+  failures. The Windows/macOS status case retains hosted run `40781020166`; capture coordinates, native profiles and
+  unsuccessful attempts are preserved in `notes-distributed-check-shards.md`.
+
+## **Phase 5:** Public adapter groups and external integration
+
+_Purpose:_ Extend the foundation-qualified external adapter through the same optional group contract and demonstrate
+generic local/remote execution under its existing placement and admission policy.
+
+_Mode:_ `slice` through Phase 6 — closes on independently qualified integration and measured end-to-end benefit.
+
+_Design decisions:_ External changes belong on their own branch in arc-offload. ARC consumes the public contract;
+the external adapter retains generic use outside ARC and native test tools.
+
+### `[x]` **5.1 Extend the foundation-qualified external adapter with complete-plan grouping — D1, D8, D10**
+
+- _Goal:_ The existing external adapter accelerates the complete prepared plan while preserving each invocation's
+  evidence, resource accounting and settlement through the public protocol.
+
+    - `[x]` **5.1.a Schedule complete groups through the qualified adapter**
+        - The external branch materializes one common capture and prepares private placement copies, ordering
+          siblings by their own history and reusing each placement serially. Real native playback verifies a later
+          sibling in the same prepared copy while preserving unknown runtime without reuse.
+
+    - `[x]` **5.1.b Present one context across placements and recover every placement**
+        - Public groups rewrite backend frames to one context and journal every backend before launch. Recovery
+          covers local controllers, remote workers and upload helpers; the real loss case settles all three actors.
+
+    - `[x]` **5.1.c Fall back before launch when a placement refuses admission**
+        - Only authoritative settled admission refusal before backend start permits another placement. Guarded
+          racing groups execute each ID once; post-start refusal or uncertainty remains incomplete without retry.
+
+    - `[x]` **5.1.d Record sibling timings and report each sibling's placement**
+        - Existing PlanRecord stores per-placement phases and per-invocation timings, sampling settled successful
+          siblings under their own argv keys. Output reports actual placement/admission; telemetry stays advisory.
+
+    - `[x]` **5.1.e Retain group evidence and resource ownership through failures**
+        - Shared framing preserves partial binary output and completed failures through loss. Uncertain work retains
+          its capture and recovery coordinates; permits follow collection/settlement, and real settled input refusal
+          succeeds only on a separate fresh repair attempt.
+
+- _Outcome:_ The isolated provider branch preserves generic singles, memory/stall policy and normal remote
+  maintenance while adding groups. Native store, generic loss/recovery and refusal/repair evidence are recorded in
+  `notes-distributed-check-shards.md`; the live adapter checkout remains unchanged.
+
+### `[x]` **5.2 Qualify common-input local and remote groups under existing policy — D4, D6, D8, D10**
+
+- _Goal:_ Real local and remote placements satisfy the same public consumer contract and native compatibility
+  requirements while the existing pool remains the sole placement and resource-admission authority.
+
+    - `[x]` **5.2.a Exercise the public contract on real local and remote placements**
+        - Public baseline/four-shard store playback retains captured selection and handed bytes after original
+          deletion/corruption. Actual x64/arm64 profiles have complete same-capture native witnesses; local runs three
+          members serially while two remote placements execute siblings. Loss/refusal cases retain exact outcomes.
+
+    - `[x]` **5.2.b Preserve provider policy and generic use**
+        - Real generic Node cases use the unchanged live registry and speed mode without pins; fixtures retain
+          required-remote refusal, shared admission, heaviest-member memory charging and capacity-loss behavior.
+          ARC declarations and protocol carry no provider inventory or transport settings.
+
+### `[x]` **5.3 Document declaration-driven shards through the public runner seam — D2, D9, D10**
+
+- _Goal:_ A team can declare native shards and use any conforming runner with clear defaults, failure/recovery
+  behavior and qualification limits, without adopting the personal provider's deployment settings.
+
+- _Outcome:_ Public guides cover native defaults, optional groups and basic serial playback, fixed value/file inputs,
+  whole-parent reuse, incomplete/recovery behavior and measured-profile limits. The standalone example carries a
+  provider-neutral declaration and its preparation/output limits; installed guidance is rendered from package source.
+
+## **Phase 6:** End-to-end latency and concurrent throughput
+
+_Purpose:_ Measure fresh complete gates with fixed inputs, including capture and queueing, so coverage and aggregate
+completion determine whether the distributed path improves the intended workload.
+
+_Exit criterion:_ Interleaved repeated routed-unsharded and distributed runs report idle-pool and named-workload
+median/range, coverage, aggregate completion and admission. Any claimed idle-pool improvement exceeds observed
+variation, and a named-workload slowdown above 10% keeps qualification open.
+
+### `[x]` **6.1 Build a reproducible whole-gate comparison harness — D10**
+
+- _Goal:_ Comparisons measure fresh complete gates over equivalent inputs and retain enough observations to detect
+  coverage loss, preparation cost and aggregate regression rather than merely faster job submission.
+
+    - `[x]` **6.1.a Fix equivalent native and distributed comparison requests**
+        - Frozen control and independent trial clones bind source `acf51cc07`, actual base, complete merge/push sets
+          and every/bursts-zero/unset-duration inputs. The production controller forces fresh work; only in-memory
+          routed shard expansion differs. Preflight and the fixed interleaved schedule retain raw failures and gaps.
+
+    - `[x]` **6.1.b Record complete timing, coverage and admission observations**
+        - Gate children retain source/input identity, actual native output/outcomes, preparation, closure and
+          provider phase/admission records through final collection. Raw failures and interrupted preparing handles
+          remain inspectable; only equivalent complete native coverage enters median/range and aggregate makespan.
+
+### `[x]` **6.2 Qualify fresh idle-pool gate latency with equivalent coverage — D10**
+
+- _Goal:_ An idle-pool improvement claim rests on repeated complete capture-through-collection runs with equivalent
+  native coverage and a gain greater than observed run-to-run variation.
+
+- _Outcome:_ Three interleaved pairs per gate retain complete native coverage and normal closure at frozen source
+  `acf51cc07` with provider `cf08920`. Merge median falls from 1,368.558 to 667.786 seconds, beyond observed variation;
+  push timings overlap within variation. Actual inputs, ranges, phase costs and limits are retained in
+  `notes-distributed-check-shards.md`.
+
+### `[x]` **6.3 Qualify named-workload aggregate completion and admission — D10**
+
+- _Goal:_ The intended concurrent workload completes equivalent useful gates without hiding an aggregate throughput
+  regression behind a single faster gate or bypassing shared resource admission.
+
+- _Outcome:_ Three interleaved rounds complete all eighteen gates and nine equivalent native pairs under ordinary
+  speed-mode admission. Complete-set median falls from 2,938.562 to 1,406.527 seconds; every round improves, with
+  paired elapsed reduction of 49.596–53.835%. Full per-gate ranges, preparation/admission costs, preserved evidence
+  and the thirty-of-thirty-two operator pause are recorded in `notes-distributed-check-shards.md`.
+
+### `[x]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
+
+- _Goal:_ The external integration and measured workloads demonstrate the stated public contract and useful gate
+  behavior, with explicit limits for profiles or deployments not actually exercised.
+
+- _Outcome:_ The exit criterion holds. External cases and native witnesses qualify the public contract on real
+  local and remote placements; six idle and nine named-workload pairs keep equivalent native coverage. The idle merge
+  gain of about 701 seconds exceeds 26.645 seconds of variation, and every named-workload round improves by
+  49.596–53.835% under ordinary admission. Native local context runs are not part of the comparison (A9). The
+  provider's placement, shard-balance and upload limits and the unclaimed push gain are in
+  `notes-distributed-check-shards.md`.
+
+## **Phase 7:** Verification
+
+_Purpose:_ Verify the complete implementation against its success criteria and required project checks.
+
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ Every success criterion is backed by evidence at the final implementation head, with required checks and
+  integration readiness established through the work-unit verification workflow.
+- _Quality gates:_ the merge gate (`arc check gate merge --force`) at `900e5d988` passes 19 checks, with 4 CI-only
+  checks not selected; the store suites ran as one routed group of six shards in three placements on arc-offload
+  `3a74613`. Hosted dispatch `41106204008` at that head passes every job, the Windows/macOS pair included. Dispatch
+  `41087259940` at `c33194fad` failed only the Windows pair job, on shard fixtures named through an 8.3 temporary
+  alias; 4.R (A13) corrected them, red then green on a local Windows runner. The provider behavior criteria 23, 27 and
+  28 rest on landed on arc-offload `main` as `082f270`.
+- _Success criteria:_ 30 criteria: 25 met, two of them with a Deviation note (16, 21), and 5 superseded (13 by A3, 17
+  by A4, 19 by A8, 25 by A12, 26 by A11). Two independent review passes closed with the A1/C1 fixes and the A11/A12
+  amendments; A13 followed the pass cap.
+
+## Success Criteria
+
+- `[x]` Native/unconfigured checks retain their single command without source preparation; routed dry-run performs
+  no capture, adapter launch or runtime probe. Configured-runner failure never triggers an ARC bypass.
+
+- `[x]` Complete canonical batch/shard plans precede prepare/reuse, retain command/cwd/selection semantics and fit
+  compatible POSIX/Windows final-argument limits. Oversize/escaping-cwd refusals succeed after explicit repair.
+
+- `[x]` Group dispatch submits the complete plan once; mandatory serial playback executes the identical plan in order
+  and continues ordinary failures. Every expected pair executes at most once with distinct correlation identity.
+
+- `[x]` Source bytes/coordinates, selection and explicit absent/empty/value/file bindings stay fixed across siblings,
+  probes and disabled-cache runs after original edits; relative/symlink file behavior follows the native boundary.
+
+- `[x]` Identical-argv project/files commands and probes retain their distinct engine-owned content bindings. Poisoned
+  caller/worker Git selectors cannot redirect execution; every reserved name/case variant refuses explicit replay,
+  and removing the conflict restores successful captured-source execution with ordinary explicit inputs.
+
+- `[x]` Parent reuse covers the complete scoped input/matrix/runtime vector. Relevant changes miss while unrelated
+  source/state, host paths, provider labels and attempt IDs do not. Unknown runtime executes without reuse;
+  malformed claimed coverage refuses, and changed known placement requires fresh qualification before work.
+
+- `[x]` A complete hit launches no invocation and closes/releases its context. A successful miss publishes one parent
+  only after complete acceptable evidence, required output, settlement and normal closure; failed/incomplete/unknown
+  parents publish none. Disposable pass read/write failures retain their miss/advisory semantics.
+
+- `[x]` Missing/duplicate/conflicting/unknown IDs, wrong source, cancellation, transport loss, killed work or required
+  output loss never pass. Valid native failures survive beside incomplete work, including exact unsigned 32-bit
+  statuses; no-evidence/137/notice precedence stays native and all-no-evidence work never gains a pass.
+
+- `[x]` Human/JSON output retains parent conventions and attributable batch/shard outcomes, exact native statuses and
+  incomplete reasons. Progress, adapter exit and optional log persistence never substitute for terminal evidence.
+
+- `[x]` Settled no-context preparation refusal drains and exits normally without release, including a cancellation
+  race and successful explicit retry after repair. Abnormal closure or absent settlement retains uncertainty.
+
+- `[x]` Interruption waits for actual settlement; acknowledgement or second interruption is insufficient. Lost
+  preparation/execution conversations retain capture and usable pre-work recovery guidance by plan ID; failed
+  guidance writes launch no work. ARC performs no automatic recovery, replacement or retry.
+
+- `[x]` Settled leftover-directory/log disposal is advisory, while missing required output, unsettled children and
+  native controller-close errors remain substantive. Capture and build/test ownership survive required closing.
+
+- `[~]` Actual unit, integration, landed reach-store and E2E shard assignments have complete/disjoint native union
+  across qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. The landed
+  store declaration uses ordinary eligible argv and captured selector gates; its catalogue works without the retired
+  wrapper, including when native store adoption occurs after the foundation closes.
+    - **Superseded:** A3 removed E2E from routed qualification; criterion 21 replaces this one, with E2E native
+      and CI-only.
+
+- `[x]` Actual reach no-affected-suite and empty-share successes retain native meaning, while ordinary unmatched,
+  all-skipped and empty-execution cases remain nonpassing through native controllers and closing.
+
+- `[x]` Concurrent views sharing dependencies do not alias mutable native cache/report writers; private native
+  `results.json` artifacts merge correctly and existing artifact leases remain held through closing.
+
+- `[x]` Forecasts describe binding names/kinds without payloads or setup-time capture. Native CI binds after artifact
+  delivery, mismatch/regeneration repairs successfully, and native placement/shards/artifact names remain intact
+  with the private clear/upload paths. Consumer portability selectors/classifiers cover the changed surface.
+    - **Deviation:** A6 kept the native cache locations, so CI's unchanged clear/upload paths serve in place of
+      private ones.
+
+- `[~]` A completed native Windows run proves exact 256/high-bit parent failure handling; other supported-platform
+  budget/path/result cases execute through their selected portability routes rather than classification alone.
+    - **Superseded:** A4 moved Windows status evidence to the consumer's fixture-backed cases on the portability
+      pair; criterion 22 replaces this one.
+
+- `[x]` Independent public fixtures and real local/remote personal placements meet the same contract and qualified
+  native profiles. Generic external use, current registry/routing/admission, memory ceilings and caller CPU policy
+  remain effective without provider deployment settings or test grammar entering ARC.
+
+- `[~]` Repeated fresh complete-gate comparisons report idle and five-or-six-gate median/range, raw samples, aggregate
+  completion, native coverage and admission including capture through collection. Claimed improvement exceeds
+  observed variation; any concurrent regression or missing required evidence remains unresolved qualification.
+    - **Superseded:** A8 replaced the five-or-six-gate comparison with a named workload and bounded slowdown
+      (criterion 25), which A12 in turn bound to the four-shard store plan (criterion 28).
+
+- `[x]` Public guidance/examples explain generic runner use, native defaults, evidence/recovery and qualification
+  limits, and match executable scenarios without depending on the personal provider.
+
+- `[x]` Actual unit, integration and landed reach-store shard assignments have complete/disjoint native union across
+  qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. E2E stays native
+  and CI-only with its existing membership validation. The store declaration uses ordinary eligible argv and captured
+  selector gates and works without the retired wrapper.
+    - **Deviation:** The store matrix ran at the four-shard declaration. After the merge moved the store to six
+      shards, one full-selection qualification with a zero-byte duration file covered the merged declaration on both
+      profiles and corroborated a run split across them (`notes-distributed-check-shards.md` § Six-shard store
+      qualification after the merge). The filtered, deleted and widened selections, the absent and available duration
+      states, and empty shares were not rerun at six.
+
+- `[x]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
+  reduction cases; other supported-platform budget/path/result cases execute through their selected portability
+  routes rather than classification alone.
+
+- `[x]` The external adapter runs a complete group from one local materialization uploaded to each placement that
+  takes a sibling. Each placement prepares a private copy, existing admission keeps at most one heavy sibling per
+  machine, and a placement's further siblings run serially in its prepared copy.
+
+- `[x]` Only checks whose declaration sets `shards.routed: true` expand on the routed path. An opted-out check with
+  shards routes one unsharded command, and CI's declared matrix and forecast are unchanged.
+
+- `[~]` Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond
+  observed variation. Under two concurrent store-selecting merge gates plus one push gate, aggregate completion is at
+  most 10% slower than that baseline and is reported with its measured size.
+    - **Superseded:** A12 bound the measured benefit to the four-shard store plan; criterion 28 replaces this one.
+
+- `[~]` Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or
+  another placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it
+  used.
+    - **Superseded:** A11 limits waiting or moving at a group's first placement to a busy refusal; criterion 27
+      replaces this one.
+
+- `[x]` Two groups racing for one placement both complete. A refusal before a backend starts leads to waiting or
+  another placement, never an unavailable sibling, except that a non-busy refusal at the group's first placement
+  settles the check unavailable and retryable, as a single plan's refusal does. Recovery guidance from a group
+  reaches every remote placement it used.
+
+- `[x]` Repeated forced comparisons of the four-shard store plan against the same gates routed unsharded show an
+  idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting merge gates plus one push
+  gate, aggregate completion is at most 10% slower than that baseline and is reported with its measured size. Another
+  declared shard count claims no benefit until it is compared the same way.
+
+- `[x]` All quality gates pass.
+
+- `[x]` Ready for integration.
+
+---

@@ -15,6 +15,153 @@ WU activation.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Consider an edge on storage-cutover for docs-content-sweep**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history, though the cutover
+  rewrites the state doctrine the public documentation describes, and its documentation pass lands after the flip.
+- _Approach:_ Decide at next planning whether the sweep follows the cutover's documentation pass.
+
+### `[ ]` **Add check-declaration examples for common stacks, and harness edit-hook examples, to the docs site**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its draft's § Items to Sweep > Content Contributions — a new numbered item.
+
+- _Observation:_ `quality-gate-hooks` ships no stack defaults: a project declares its own checks, and initial setup
+  proposes declarations from what the project already has. Worked declarations for common stacks (JS/TS, Rust, Go,
+  Python) belong on the docs site, not in shipped content. So do examples of an agent harness's edit hook calling the
+  gate verb, which that work unit leaves out of scope.
+
+- _Approach:_ author the examples against the shipped declaration schema once `quality-gate-hooks` lands. Its draft
+  routed them to `notes-docs-content-sweep.md`, but that file stages verbatim extractions from existing sources; these
+  are new content, so a Content Contributions item fits better.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07.
+
+### `[ ]` **Move the docs site's quality-gate prose and task-execution demos from tiers to gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its draft's § Items to Sweep > Drift Items — a new numbered item.
+
+- _Observation:_ `quality-gate-hooks` replaces the Tier 1/2/3 model with gates named by event (commit, push, merge),
+  one `arc check` verb, and a check declaration. It retires `quality-gate-commands`, `post-task-quality`,
+  `post-unit-quality`, and `QUICK-REFERENCE.md` § Quality Gate Commands. That work unit leaves `docs/` out of scope,
+  so the site keeps teaching per-task tiers until this sweep.
+
+- _Files:_ found by sense at `6521bcb4c`; re-run the search before editing, since the site may have moved:
+    - `docs/reference/quality-gates.md`; the glossary's quality-gate entries (`docs/reference/glossary.md`);
+    - the `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` rows and the `post-task-quality` worked
+      example in `docs/customization/methods.md`;
+    - the tier overview, the per-task gate step, and the deferred-review gate sentence in `docs/the-framework.md`;
+    - the quality-gates row in `docs/reference/index.md`; the zero-tolerance sentence and check table in
+      `docs/contributing.md`;
+    - the tier-definitions convention in `docs/methodology/principles.md`; the per-increment verification paragraph in
+      `docs/methodology/index.md`; the feedback-controls paragraph in `docs/methodology/rationale.md`; the methods
+      sentence offering to swap in quality gate commands in `docs/index.md`;
+    - the task-execution demos (`docs/demos/task-execution.sh`, `docs/demos/task-execution-readme.sh`), which narrate
+      the per-task tier and its extension firing. Their GIFs appear in `docs/the-framework.md` and the repository
+      `README.md`; re-render them as `docs/demos/README.md` describes.
+
+  The site's principle, convention, and escape-hatch tiers are an unrelated sense and stay.
+
+- _Approach:_ write against the shipped gate model once `quality-gate-hooks` lands: its `AGENT-BRIEF.ARC.md`
+  vocabulary entry, the reduced `strategy-quality-gates.md`, and `arc check --help`.
+
+- _Captured during:_ `quality-gate-hooks` task generation, Pass 3 grounding audit, 2026-10-08.
+
+### `[ ]` **Stage the complete public-docs extension retirement sweep**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep — item 2, session portability and probe vocabulary (it still lists `arc extensions status`
+  as a shipped surface), and item 6, adopter-facing customization paths; the inbound quality-gate and task-execution
+  demos entry.
+
+- _Observation:_ Retirement removes arc extensions status, system/extensions/, active/.actions hooks, and extension
+  fire-point prose. Public docs and mkdocs.yml are deliberately excluded from the retirement implementation and must
+  be updated in the holistic docs sweep.
+
+- _Approach:_ Sweep docs/ and mkdocs.yml by mechanism sense: customization model/decision trees, examples, command
+  reference, glossary, navigation, external-PM notifications, and demos/GIF narration. Retain file-extension settings
+  and unrelated principle/convention/escape-hatch tiers. Coordinate with the already-staged quality-gate rewrite; do
+  not teach a replacement until it exists.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Teach explicit dependency-tool setup in contributor onboarding**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep — a new drift item for contributor onboarding: `docs/contributing.md` still teaches only
+  `npm install`.
+
+- _Observation:_ Repository installs disable dependency lifecycle scripts through `.npmrc`. The contributor
+  bootstrap command is `npm install && npm run setup`: setup checks for an unexpected `lefthook.yml`, rebuilds
+  esbuild explicitly, and runs Husky's prepare script. Installation alone does not initialize the hooks.
+
+- _Approach:_ carry that explicit setup step into the contributor guide during the planned holistic docs rewrite.
+  Use root `CONTRIBUTING.md`, `package.json`, and `.npmrc` as the current sources; keep site edits in this work unit.
+
+- _Captured during:_ `enforce-install-script-policy`, hosted Codex pass 1, 2026-10-14 (approved review disposition).
+
+### `[ ]` **Correct the docs' squash-traceability claim and teach the pull-request format**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep > Drift Items — a new numbered item.
+
+- _Observation:_ `docs/customization/configuration.md` (~169-172), `docs/methodology/rationale.md` (~208), and
+  `docs/methodology/principles.md` (~163) say that under squash merge traceability shifts to pull-request
+  descriptions. Once `pull-request-surface-policy` lands, the title becomes the commit subject under squash and a
+  pull-request description carries no ARC traceability, so those lines go stale.
+
+- _Approach:_ replace the claim with "the pull-request title becomes the commit subject", and teach the
+  `pull-request-format` method where the site covers pull requests: one content-gated body (Summary, Changes, Notes
+  for Reviewers, Test Plan, Out of Scope), no `Design` or `Local review` field, and the target repository's own
+  template and policies governing. Source it from the shipped method, not this capture.
+
+- _Captured during:_ `pull-request-surface-policy` create-spec, adversarial pass 1 finding F6 (deferred: `docs/` stays
+  stale until the sweep), 2026-10-14.
+
+### `[ ]` **Rename the code-review methods in the docs site**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Docs-site methods map at the holistic sweep; no immediate docs/ edit
+
+- _Observation:_ `review-coverage-cadence` D7 renames the methods `frontline-review`, `standard-review`, and
+  `self-review` to `code-review-frontline`, `code-review-standard`, and `code-review-author`, and D10 adds the
+  review-type methods `planning-review`, `code-review`, and `verification-review`. `docs/customization/methods.md` names
+  the old methods, and `docs/` is left stale until the sweep. The stored rubric identity `standard-review/v1` and the
+  lane configuration keys (`review.standard_*`, `review.frontline_*`) keep their names.
+
+- _Captured during:_ `review-coverage-cadence` draft-design source grounding, 2026-10-16.
+
+### `[ ]` **State the contributor guide's ADR lock at the accepting change's merge**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Drift Items.
+
+- _Observation:_ `docs/contributing.md` (the published "Contributing" page) says "Once accepted, an ADR's decision
+  changes only through supersession". Once `adr-accept-timing` lands, `strategy-adr-methodology.md` states that an ADR
+  is freely editable until the change that accepts it merges and that the amendment tiers bind from that merge; the
+  guide's wording then states the older lock-at-acceptance timing.
+
+- _Approach:_ reword the sentence to lock the decision once the change that accepts the ADR merges, matching the
+  strategy's "Stable" characteristic and Amending opening.
+
+- _Captured during:_ `adr-accept-timing`'s generate-tasks, independent review pass 1, 2026-11-04 (Owner-approved
+  capture).
+
+---
+
 ## Why a Dedicated Plan
 
 The two adjacent docs-touching WUs don't absorb this work cleanly:
@@ -478,10 +625,8 @@ coarser vocabulary replaces ARC's precise internal terms. Frame as kinship + ind
 
 ## Adding Items
 
-**Drift items** — when a methodology change lands in `.arc/` or
-`packages/arc-framework/arc/` that affects user-facing conceptual content (not
-branding, not file names, not formatting — actual model/behavior descriptions
-adopters rely on):
+**Drift items** — when a methodology change lands in `.arc/` or `packages/arc-framework/arc/` that affects user-facing
+conceptual content (not branding, not file names, not formatting — actual model/behavior descriptions adopters rely on):
 
 1. Confirm the change doesn't fit `plan-arcd-rebrand.md` scope (branding only) or
    `plan-docs-site-refresh.md` scope (format migration only)
@@ -529,7 +674,7 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 - **Feeds this plan:** `prd-session-init-optimization.md` (produces content
   contributions via `notes-docs-content-sweep.md` staging file)
 - **Does not block:** `plan-arcd-rebrand.md`, `plan-arc-plan-conductor.md`,
-  `draft-local-mode.md`
+  `research-local-mode.md`
 
 ## References
 

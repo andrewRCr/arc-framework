@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
 
 import type { ActiveSessionInitInternalResult, ActiveSessionInitResult } from "../../../src/commands/active.js";
-import { adaptActiveViewTarget, resolveExplicitViewTarget } from "../../../src/handlers/view.js";
+import { adaptActiveViewTarget, resolveExplicitViewTarget, ViewCommandInputSchema } from "../../../src/handlers/view.js";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { buildLifecycleIndexFromRecords } from "../../../src/lib/work-unit/lifecycle-index.js";
+
+describe("view editor command input", () => {
+  const input = { project: false, current: false, path: false, editor: true };
+
+  it("preserves an omitted kind for editor selection", () => {
+    expect(assertSchemaAccepts(ViewCommandInputSchema, input)).toEqual(input);
+  });
+
+  it.each(["path", "current"] as const)("refuses editor with %s", (destination) => {
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, [destination]: true }, ["editor"]);
+  });
+
+  it("keeps existing kind, project, current, and explicit-target restrictions", () => {
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, kind: "unknown" }, ["kind"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, project: true }, ["project"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, editor: false, current: true, kind: "spec" }, ["current"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, forSlug: "../invalid" }, ["forSlug"]);
+    for (const kind of ["inbox", "working-memory"] as const) {
+      assertSchemaRefuses(ViewCommandInputSchema, { ...input, kind, forSlug: "feature" }, ["forSlug"]);
+    }
+  });
+});
 
 function active(overrides: Partial<ActiveSessionInitResult> = {}): ActiveSessionInitResult {
   return {
@@ -16,6 +39,7 @@ function active(overrides: Partial<ActiveSessionInitResult> = {}): ActiveSession
     sessionType: "execution",
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings: [],
     ...overrides,
   };
@@ -94,7 +118,18 @@ describe("resolveExplicitViewTarget", () => {
       cwd: "/repo",
       slug,
       index,
-      readFile: async () => `# Metadata: ${slug}\n\n- **Task List:** tasks-${slug}.md\n`,
+      readFile: async () => [
+        `# Metadata: ${slug}`,
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| ${state} | — | — | — | — |`,
+        "",
+        `- **Task List:** tasks-${slug}.md`,
+        "",
+        "---",
+        "",
+      ].join("\n"),
     })).resolves.toEqual({
       status: "resolved",
       slug,
@@ -163,7 +198,18 @@ describe("resolveExplicitViewTarget", () => {
       cwd: "/repo",
       slug: "nested",
       index,
-      readFile: async () => "# Metadata: nested\n\n- **Task List:** custom/checklist.md\n",
+      readFile: async () => [
+        "# Metadata: nested",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Planning | — | — | — | — |",
+        "",
+        "- **Task List:** custom/checklist.md",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     })).resolves.toEqual({
       status: "resolved",
       slug: "nested",
@@ -190,4 +236,30 @@ describe("resolveExplicitViewTarget", () => {
       readFile: async () => "# Metadata: invalid\n",
     })).resolves.toEqual({ status: "unavailable", slug: "invalid" });
   });
+});
+
+it("opens selected-store session context at its projected meta file", async () => {
+  const { createLifecycleHarness } = await import("../../helpers/store/lifecycle-harness.js");
+  const { createViewDependencies } = await import("../../../src/handlers/view.js");
+  const { resolveViewArtifact } = await import("../../../src/lib/view-artifact.js");
+  const { runView } = await import("../../../src/commands/view.js");
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join, dirname } = await import("node:path");
+  const cwd = await mkdtemp(join(tmpdir(), "arc-view-session-"));
+  try {
+    const h = createLifecycleHarness();
+    const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+    const path = join(cwd, ".arc/active/meta-demo.md");
+    await mkdir(dirname(path), { recursive: true }); await writeFile(path, record.content);
+    const deps = createViewDependencies(cwd, path => readFile(path, "utf8"),
+      async () => { throw new Error("No Git metadata discovery"); }, "andrew", h.store);
+    const input = { cwd, kind: "session-notes", identity: "andrew", project: false, forSlug: "demo", nonInteractive: true };
+    const bindings = { resolveArtifact: (options: Parameters<typeof resolveViewArtifact>[0]) => resolveViewArtifact(options, deps), readFile: deps.readFile };
+    const result = await runView(input, bindings);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Planning");
+    expect(await deps.readFile(path)).toBe(record.content);
+    expect(await runView({ ...input, path: true }, bindings)).toEqual({ stdout: `${path}\n`, stderr: "", exitCode: 0 });
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });

@@ -1,5 +1,65 @@
 # Draft: review-durability-hardening
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Bind readiness attestation to the head it attests**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
+- _Concern:_ `arc merge lock release` verifies Completion Notes and Release Notes from the working tree while the
+  merge target is the pushed head. A readiness refusal naturally prompts an uncommitted correction and retry, so
+  the happy recovery path can attest different bytes from those that merge.
+- _Approach:_ bind readiness-relevant reads to the exact head, or refuse when HEAD/dirty relevant paths differ;
+  preserve the pre-open path where no head exists and state the commit/push/recheck sequence after artifact fixes.
+
+### `[ ]` **Separate exact-target invalidation from review-applicability invalidation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-durability-hardening`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ after complete CodeRabbit review and a clean incremental follow-up, a later head changed only one
+  strict unit-test mock (14 added lines; no production code). The agent requested another hosted incremental
+  review solely because the exact review target had moved, despite the errand workflow already permitting prior
+  complete coverage to carry across a narrow non-interacting delta with targeted verification.
+- _Fold-in:_ make the operational distinction explicit wherever new-head review is selected — target movement
+  invalidates an attestation bound to the old SHA, but does not by itself require another evaluator pass. Apply
+  review-applicability judgment first; carry prior complete coverage across demonstrably non-interacting test,
+  record-only, or lifecycle deltas with targeted verification; retrigger only for behavioral, authority,
+  contract, interacting, or uncertain changes. Treat the incident as evidence for the provisional WU's
+  re-review-cost trigger, not as a mandate for the larger durable-ledger design.
+
+### `[ ]` **Bind Completion and Release Notes reads to the store version, not the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-durability-hardening`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan binds its Completion Notes and Release Notes Entry reads to the head commit. After the
+  cutover the meta lives in the store, and the readiness facts and integration checkpoint read both from the stored
+  meta (`storage-contract` C10), so a head binding no longer names what was read.
+- _Approach:_ Bind those reads to the store's version of the record (C1's state version) when this work unit plans.
+
+### `[ ]` **Re-triage the held entry on new-head invalidation against review-coverage-cadence's delta check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Separate exact-target invalidation from applicability: re-triage against landed delta check without
+  automatic dismissal
+
+- _Observation:_ that entry, routed 2026-07-27 from a 14-line test-mock change after a clean incremental follow-up,
+  proposes carrying prior complete coverage across "demonstrably non-interacting test, record-only, or lifecycle deltas
+  with targeted verification". `review-coverage-cadence`'s spec settles the same incident class the other way: after a
+  converged look, a plain commit (one that answers no finding) takes a delta check — an incremental local look on
+  `delegated-agent` over the range the commit adds, admitted by a range proof from Git — and carrying an earlier review
+  by the kind of path a commit touches is rejected there, since a test edit can hide a regression. PR #1034's two-line
+  E2E expectation change is that spec's motivating case.
+
+- _Approach:_ at this unit's next planning iteration, re-check the entry against the landed delta check: likely
+  dismissed as resolved by it, or narrowed to whatever residual the delta check leaves (for example, a path the delta
+  check does not reach).
+
+- _Captured during:_ `review-coverage-cadence` create-spec, draft retirement audit (2026-10-17).
+
+---
+
 ## Provenance
 
 Deferred from `review-surface-binding` (RSB) at its create-spec planning close (2026-07-23). RSB shipped an

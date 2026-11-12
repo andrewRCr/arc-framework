@@ -1,22 +1,19 @@
-/** Focused Result error and Probe-adapter coverage for status composition. */
+/** Focused slot failures and Probe-adapter coverage for status composition. */
 
 import { describe, expect, it, vi } from "vitest";
 
-import { err, ok } from "../../../src/lib/kernel/index.js";
 import {
   SessionCompositionError,
   SessionIdentityMissingError,
   SessionProbeError,
-  buildSessionSharedSlots,
+  buildSessionRemoteContextSlot,
   gatedSlot,
   safeProbe,
   toProbe,
   userSlot,
-  type SessionStatusError,
 } from "../../../src/commands/status/result-composition.js";
-import type { SessionSharedProbes } from "../../../src/commands/status/types.js";
 
-describe("status Result error taxonomy", () => {
+describe("status slot error taxonomy", () => {
   it("retains identity, probe, and composition context", () => {
     const cause = new Error("probe failed");
     const identity = new SessionIdentityMissingError("user");
@@ -24,6 +21,8 @@ describe("status Result error taxonomy", () => {
     const composition = new SessionCompositionError("resolve-load-set", "loadSet", cause);
 
     expect(identity).toMatchObject({ code: "session.identity-missing", slot: "user" });
+    expect(identity.message).toContain("no identity resolved from `arc.identity` or Git `user.name`");
+    expect(identity.message).toContain("git config arc.identity <name>");
     expect(probe).toMatchObject({
       code: "session.probe-failed",
       slot: "worktree",
@@ -52,7 +51,7 @@ describe("status Result error taxonomy", () => {
 describe("toProbe", () => {
   it("adapts success without changing value identity", () => {
     const value = { retained: true };
-    expect(toProbe(ok<typeof value, SessionStatusError>(value))).toEqual({ ok: true, value });
+    expect(toProbe({ ok: true, value })).toEqual({ ok: true, value });
   });
 
   it.each([
@@ -60,7 +59,7 @@ describe("toProbe", () => {
     [new SessionProbeError("worktree", new Error("probe failed")), "runtime"],
     [new SessionCompositionError("resolve-load-set", "loadSet", "composition failed"), "runtime"],
   ] as const)("maps $code through the stable wire error channel", (error, kind) => {
-    expect(toProbe(err<never, SessionStatusError>(error))).toEqual({
+    expect(toProbe({ ok: false, error })).toEqual({
       ok: false,
       error: { kind, message: error.message },
     });
@@ -73,64 +72,117 @@ describe("safeProbe and gatedSlot", () => {
     ["asynchronous", async (): Promise<number> => { throw new Error("async boom"); }],
   ])("maps a %s failure with slot and cause context", async (_kind, probe) => {
     const result = await safeProbe("fixture", probe);
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
+    expect(!result.ok).toBe(true);
+    if (!result.ok) {
       expect(result.error).toMatchObject({ slot: "fixture", originalCause: expect.any(Error) });
     }
   });
 
   it("preserves successful values and non-Error rejection causes", async () => {
     const value = { retained: true };
-    expect(await safeProbe("fixture", async () => value)).toEqual(ok(value));
+    expect(await safeProbe("fixture", async () => value)).toEqual({ ok: true, value });
     const rejected = await safeProbe("fixture", () => Promise.reject("nope"));
-    expect(rejected.isErr() && rejected.error).toMatchObject({
+    expect(!rejected.ok && rejected.error).toMatchObject({
       message: "nope",
       originalCause: "nope",
     });
   });
 
-  it("keeps skipped optional slots outside the Result algebra", async () => {
+  it("keeps skipped optional slots outside the slot union", async () => {
     const probe = vi.fn(async () => 42);
     expect(gatedSlot(false, "fixture", probe)).toBeUndefined();
     expect(probe).not.toHaveBeenCalled();
-    expect((await gatedSlot(true, "fixture", probe)!).isOk()).toBe(true);
+    expect((await gatedSlot(true, "fixture", probe)!).ok).toBe(true);
   });
 });
 
-describe("identity and shared Result slots", () => {
+describe("session remote-context staging", () => {
+  it("passes one unreachable context identity to every dependent probe", async () => {
+    const context = {
+      kind: "unreachable" as const,
+      snapshot: { kind: "unreachable" as const, failureReason: "network" as const },
+    };
+    let acquisitions = 0;
+    const slot = buildSessionRemoteContextSlot(async () => {
+      acquisitions += 1;
+      return context;
+    });
+    const observed: unknown[] = [];
+
+    const [worktree, baseDistance] = await Promise.all([
+      slot.run("worktree", async (value) => {
+        observed.push(value);
+        return "worktree-degraded";
+      }),
+      slot.run("baseDistance", async (value) => {
+        observed.push(value);
+        return "base-degraded";
+      }),
+    ]);
+
+    expect(acquisitions).toBe(1);
+    expect(observed).toEqual([context, context]);
+    expect(worktree.ok && worktree.value).toBe("worktree-degraded");
+    expect(baseDistance.ok && baseDistance.value).toBe("base-degraded");
+  });
+
+  it("isolates one unavailable prerequisite as a runtime error on each dependent slot", async () => {
+    const slot = buildSessionRemoteContextSlot(async () => ({
+      kind: "unavailable",
+      prerequisite: "remote-configuration",
+    }));
+    const independent = safeProbe("dirty", async () => "local-clean");
+    const dependent = vi.fn(async () => "must-not-resolve");
+
+    const [worktree, baseDistance, dirty] = await Promise.all([
+      slot.run("worktree", dependent),
+      slot.run("baseDistance", dependent),
+      independent,
+    ]);
+
+    // The prerequisite short-circuits: a dependent probe that still ran would have
+    // spent its remote work before the typed failure reached the caller.
+    expect(dependent).not.toHaveBeenCalled();
+    expect(!worktree.ok && worktree.error).toMatchObject({
+      slot: "worktree",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(!baseDistance.ok && baseDistance.error).toMatchObject({
+      slot: "baseDistance",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(dirty.ok && dirty.value).toBe("local-clean");
+  });
+
+  it("isolates a throwing context read as a runtime error on each dependent slot", async () => {
+    const slot = buildSessionRemoteContextSlot(async () => {
+      throw new Error("ls-remote exploded");
+    });
+    const independent = safeProbe("dirty", async () => "local-clean");
+
+    const [worktree, baseDistance, dirty] = await Promise.all([
+      slot.run("worktree", async () => "must-not-resolve"),
+      slot.run("baseDistance", async () => "must-not-resolve"),
+      independent,
+    ]);
+
+    expect(!worktree.ok && worktree.error).toMatchObject({
+      slot: "worktree",
+      message: "ls-remote exploded",
+    });
+    expect(!baseDistance.ok && baseDistance.error).toMatchObject({
+      slot: "baseDistance",
+      message: "ls-remote exploded",
+    });
+    expect(dirty.ok && dirty.value).toBe("local-clean");
+  });
+});
+
+describe("identity-scoped status slots", () => {
   it("short-circuits a missing user identity without invoking the probe", async () => {
     const probe = vi.fn(async (identity: string) => identity);
     const result = await userSlot(null, probe);
     expect(probe).not.toHaveBeenCalled();
-    expect(result.isErr() && result.error).toBeInstanceOf(SessionIdentityMissingError);
-  });
-
-  it("starts shared probes independently and isolates a sibling failure", async () => {
-    const probes = {
-      user: vi.fn(async (identity: string) => ({ identity })),
-      worktree: vi.fn(async () => { throw new Error("worktree boom"); }),
-      dirty: vi.fn(async () => ({ state: "clean", fileCount: 0 })),
-      active: vi.fn(async () => ({ resolution: "none" })),
-      releaseRouting: vi.fn(async () => ({ taskCommit: "raw" })),
-    } as unknown as SessionSharedProbes;
-
-    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
-    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
-      shared.user,
-      shared.worktree,
-      shared.dirty,
-      shared.active,
-      shared.releaseRouting,
-    ]);
-
-    expect(probes.user).toHaveBeenCalledWith("andrew");
-    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
-    expect(worktree.isErr() && worktree.error.message).toBe("worktree boom");
-    expect([user.isOk(), dirty.isOk(), active.isOk(), releaseRouting.isOk()]).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(!result.ok && result.error).toBeInstanceOf(SessionIdentityMissingError);
   });
 });

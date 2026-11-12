@@ -42,7 +42,7 @@ interface MetaSpec {
   state: string;
   /** The meta's recorded `Class`; defaults to `Novel` (a realized value). */
   cls?: string;
-  /** Model a legacy flat-field meta whose Class field is absent. */
+  /** Model an unset Class cell in the metadata core table. */
   omitClass?: boolean;
   /** The meta's declared cohort; destination projection never infers this from `subdir`. */
   cohort?: string;
@@ -64,7 +64,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -77,12 +77,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       parent = `${parent}/${seg}`;
     }
     const filename = `meta-${meta.slug}.md`;
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     const coreFields = meta.omitClass === true
-      ? `- **State:** \`${meta.state}\`\n` +
-        `- **Owner:** \`andrew\`\n` +
-        `- **Branch:** \`[none]\`\n` +
-        `- **Priority:** \`P1\``
+      ? `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+        `| --------- | --------- | ---------- | --------- | ------------ |\n` +
+        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | — | \`P1\` |`
       : `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |`;
@@ -138,7 +137,7 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async () => {},
-    reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    reconcileWorkUnitWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeClassField: async (path, value) => {
       calls.push(`class:${path}:${value}`);

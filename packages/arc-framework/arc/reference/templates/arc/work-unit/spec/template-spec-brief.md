@@ -10,8 +10,28 @@ now), the **scope boundary** (what is deliberately _not_ in scope), and **one fa
 where the design is settled coming in. Revise the paragraph in place as understanding sharpens — it is a
 living record, not a one-time pitch.}
 
+{Make the intent, boundary, and signal understandable without planning history, retaining every binding obligation
+and required definition when replacing a planning reference. Preserve technical precision and permitted references;
+describe unshipped prerequisites as expected contracts with availability conditions. Apply
+[spec-review][spec-review]'s common reader checks; metadata and amendment anchors supply tracking, not missing design.}
+
+_Editable in place until activation, then frozen; changes after that append:
+`Amended YYYY-MM-DD — <delta> — <prompt>`. The freeze governs the **scope boundary** clause alone — intent and the
+success signal keep revising in place, and amendment lines append below this paragraph._
+
 {If the change needs a recorded decision or a scope you'll defend later, it has outgrown the floor — author
 an `outline` instead.}
 
 **Success Criteria:** {The single falsifiable success signal, stated as a concrete check — the anchor the
 implementation is validated against at completion. One line; not a metrics matrix.}
+
+**Amendments:** {The amendment log — one row per amendment, added by the first one. The row grammar and its token
+sets are defined once, in [`amend-design`][amend-design]. Replace the example row with the first real one.}
+
+- **A1** — {YYYY-MM-DD} — task: {one-sentence summary of what the amendment settles}. _Supersedes:_ none.
+  _Trigger:_ 2.3 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.5.
+
+---
+
+[amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md

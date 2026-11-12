@@ -8,8 +8,9 @@
 #
 # These patterns mirror the classifier's supported directories and depths.
 # CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
-# canonical classifier remains authoritative when ARC arms auto-merge. When the
-# optional arc-cleared context is required, it enforces that decision host-side.
+# canonical classifier remains authoritative when ARC arms auto-merge.
+# Authoritative transition history remains owned by the catch-all, as does the
+# rest of /.arc/system/.internal/.
 #
 # Replace @your-org/reviewers with your reviewers (a user or team).
 
@@ -24,7 +25,7 @@
 
 # --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
 # No owner on these lines clears the catch-all above, so these paths merge once
-# `merge-ok` is green, with no required review. Keep this block LAST.
+# `ci-ok` is green, with no required review. Keep this block LAST.
 #
 # Scoped by artifact PREFIX, NOT all of backlog/ — so shared inboxes keep the
 # catch-all owner and stay reviewed. The exact generated ROADMAP is planning;
@@ -53,6 +54,14 @@
 /.arc/backlog/planned/*/*/research-*.md
 /.arc/backlog/planned/*/*/analysis-*.md
 /.arc/backlog/planned/*/*/spec-*.md
+/.arc/backlog/planned/*/*/*/draft-*.md
+/.arc/backlog/planned/*/*/*/tasks-*.md
+/.arc/backlog/planned/*/*/*/meta-*.md
+/.arc/backlog/planned/*/*/*/notes-*.md
+/.arc/backlog/planned/*/*/*/cohort-*.md
+/.arc/backlog/planned/*/*/*/research-*.md
+/.arc/backlog/planned/*/*/*/analysis-*.md
+/.arc/backlog/planned/*/*/*/spec-*.md
 /.arc/backlog/provisional/*/draft-*.md
 /.arc/backlog/provisional/*/tasks-*.md
 /.arc/backlog/provisional/*/meta-*.md

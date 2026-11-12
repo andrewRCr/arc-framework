@@ -27,7 +27,8 @@ import {
   type RefTreeWriteIO,
 } from "../../src/lib/git/ref-tree.js";
 import { writeTreeWithCasRetry } from "../../src/lib/user-sync/cas-retry.js";
-import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
+import type { GitExecInput } from "../../src/lib/git/exec.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const REF = "refs/arc/test/cas-retry";
 
@@ -79,24 +80,29 @@ describe("writeTreeWithCasRetry", () => {
   });
 
   it("surfaces a non-CAS git error immediately without retrying", async () => {
-    let updateRefCalls = 0;
-    const fakeExec: GitExec = async (_cmd, args) => {
-      const sub = args[0];
-      if (sub === "update-ref") {
-        updateRefCalls++;
-        throw new Error("fatal: update_ref failed for ref: some unrelated git error");
-      }
-      if (sub === "commit-tree") return { stdout: "c".repeat(40) };
+    const { exec: fakeExec, calls } = scriptGitExec([
+      {
+        match: ["update-ref", REF, "c".repeat(40), ""],
+        responses: [{ failure: {
+          exitCode: 128,
+          stderr: "fatal: update_ref failed for ref: some unrelated git error",
+        } }],
+      },
+      {
+        match: ["commit-tree", "t".repeat(40), "-m", "msg"],
+        responses: [{ stdout: "c".repeat(40) }],
+      },
       // rev-parse (tip) / ls-tree (tree) both read as absent/empty.
-      return { stdout: "" };
-    };
+      { match: ["rev-parse", "--verify", REF], responses: [{ stdout: "" }] },
+      { match: ["ls-tree", "--full-tree", REF], responses: [{ stdout: "" }] },
+    ]);
     const fakeExecInput: GitExecInput = async () => "t".repeat(40);
     const fakeIo: RefTreeWriteIO = { exec: fakeExec, execInput: fakeExecInput };
 
     const outcome = await writeTreeWithCasRetry(fakeIo, REF, "msg", (entries) => entries);
 
     expect(outcome.kind).toBe("failed");
-    expect(updateRefCalls).toBe(1);
+    expect(calls.filter((call) => call.args[0] === "update-ref")).toHaveLength(1);
     // The original non-CAS error is preserved, not collapsed into the generic
     // exhaustion failure — the frame surfaces a typed, distinguishable outcome.
     if (outcome.kind === "failed") {

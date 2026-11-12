@@ -1,0 +1,26 @@
+{
+  "system/methods/quality-gate-commands.md": {
+    "entry": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "9bb2f54ff4e75465ac983577108bb180d59439b54c81c1b3776bb66b46174f4c"
+    },
+    "content": "---\nname: quality-gate-commands\ndescription: Project-defined quality gate commands \u2014 Tier 1, 2, 3\noverride-active: false\n---\n\n# Method: quality-gate-commands\n\n> - **Workflow:** [process-task-loop.md][process-task-loop]\n> - **When:** Agent runs quality gates (Tier 1, Tier 2, or Tier 3)\n>\n> - **Contract:** Project-defined quality gate commands. Must return zero exit code on pass, non-zero on\n>   failure.\n\n## quality-gate-commands.override\n\n[No override configured]\n\n## quality-gate-commands.default\n\nCommands specified in [QUICK-REFERENCE][quick-ref] \u00a7 Quality Gate Commands. This is a passthrough by design \u2014\nno universal default command set exists across projects. The method exists so the process-task-loop references\nquality gates uniformly through the method layer, and teams with non-standard setups (environment-specific\ncommands, conditional logic) have a clean override path.\n\n**`Class`-invariant.** The gate command set does not scale with a work unit's `Class` \u2014 the same gates run\nfrom a `light` work unit to a `novel` one. `Class` scales design-authoring ceremony (how much spec and\nplanning the work warrants), never the engineering bar. See [DEV-RULES.ARC][dev-rules-arc] \u00a7 Scaled Process,\nInvariant Discipline.\n\n---\n\n[process-task-loop]: ../workflows/arc/process-task-loop.md\n[quick-ref]: ../../reference/QUICK-REFERENCE.md\n[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md\n"
+  },
+  "system/extensions/post-task-quality.md": {
+    "entry": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "d110027409af01f5673b19138347a964b9666b0e1de78d66e2d13634598d24fe"
+    },
+    "content": "---\nname: post-task-quality\ndescription: Additional checks after each task \u2014 supplements Tier 1\nactive: false\n---\n\n# Extension: post-task-quality\n\n> - **Workflow:** [process-task-loop.md][process-task-loop]\n> - **Fires:** After Tier 1 checks pass, before marking task complete\n>\n> - **Contract:** Add quality checks that run after every task completion. Actions here run in addition to\n>   ARC's default Tier 1 checks, not instead of them. Must return a clear pass/fail signal \u2014 the agent does\n>   not mark the task complete if any check fails.\n\n## post-task-quality.actions\n\n[No extension configured]\n\n---\n\n[process-task-loop]: ../workflows/arc/process-task-loop.md\n"
+  },
+  "system/extensions/post-unit-quality.md": {
+    "entry": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "91e7ef3cc60a7a8fe3bc84837c9fea47851c2312ee2685e5c2a9f950ccf24f50"
+    },
+    "content": "---\nname: post-unit-quality\ndescription: Additional checks at coherent unit boundaries \u2014 supplements Tier 2\nactive: false\n---\n\n# Extension: post-unit-quality\n\n> - **Workflow:** [process-task-loop.md][process-task-loop]\n> - **Fires:** After Tier 2 checks at coherent unit completion\n>\n> - **Contract:** Add integration-level checks for coherent unit boundaries (last subtask under a parent, or\n>   standalone tasks touching integration-tested code). Supplements ARC's default Tier 2 checks. Must return\n>   a clear pass/fail signal.\n\n## post-unit-quality.actions\n\n[No extension configured]\n\n---\n\n[process-task-loop]: ../workflows/arc/process-task-loop.md\n"
+  }
+}

@@ -8,6 +8,7 @@
 import type { Classification, Layer, Manifest } from "../types.js";
 import { MANIFEST_SCHEMA_VERSION } from "../constants.js";
 import { UserFacingError } from "../errors.js";
+import { atomicWriteJson } from "../fs.js";
 
 /** Read function signature for dependency injection. */
 type ReadFileFn = (path: string) => Promise<string>;
@@ -164,6 +165,20 @@ export async function readManifest(
   }
 
   return obj as unknown as Manifest;
+}
+
+/**
+ * Write a manifest atomically, with its files in one order however they were collected, so a write that changes no
+ * entry leaves the tracked file byte-identical.
+ *
+ * @param path - Path to the manifest JSON file
+ * @param manifest - The manifest to write
+ */
+export async function writeManifest(path: string, manifest: Manifest): Promise<void> {
+  const files = Object.fromEntries(
+    Object.entries(manifest.files).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+  );
+  await atomicWriteJson(path, { ...manifest, files });
 }
 
 // --- Schema Migration ---

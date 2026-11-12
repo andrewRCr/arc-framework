@@ -1,11 +1,16 @@
-/** Version-pinned fail-closed parser for CodeRabbit agent-mode frontline output. */
+/** Structurally qualified, fail-closed parser for CodeRabbit agent-mode frontline output. */
 
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
 
-import type { NormalizedReviewFinding } from "../../core/finding-records.js";
+import {
+  NormalizedReviewFindingsSchema,
+  captureReviewFindingSourceLabel,
+  type NormalizedReviewFinding,
+} from "../../core/finding-records.js";
+import { codeRabbitExitDiagnostic } from "./process.js";
 
-export const CODERABBIT_AGENT_CLI_VERSION = "0.6.5";
 export const CODERABBIT_AGENT_MODE = "agent";
+export const CODERABBIT_AGENT_CONTRACT = "coderabbit-agent-ndjson/v1";
 
 export type CodeRabbitAgentProviderResult =
   | { kind: "clean" }
@@ -18,12 +23,32 @@ export type CodeRabbitAgentProviderResult =
   | { kind: "malformed" }
   | { kind: "failed"; reason: string };
 
-interface AgentFindingEvent {
+interface AgentFindingFields {
   type: "finding";
-  severity: "blocker" | "major" | "minor";
+  severity: "blocker" | "critical" | "major" | "minor";
   fileName: string;
-  codegenInstructions: string;
   suggestions: unknown[];
+}
+
+/** A finding carrying agent fix instructions; its identity digests exactly these fields. */
+interface InstructedAgentFinding extends AgentFindingFields {
+  codegenInstructions: string;
+}
+
+/** A finding emitted without fix instructions, identified by the review comment the provider sends instead. */
+interface CommentedAgentFinding extends AgentFindingFields {
+  comment: string;
+}
+
+type AgentFindingEvent = InstructedAgentFinding | CommentedAgentFinding;
+
+/**
+ * A validated finding event plus its review comment. The comment is display-only for an instructed finding and
+ * never enters that finding's identity.
+ */
+interface ParsedAgentFinding {
+  contract: AgentFindingEvent;
+  comment: string | null;
 }
 
 interface AgentCompleteEvent {
@@ -31,6 +56,16 @@ interface AgentCompleteEvent {
   status: "review_completed";
   findings: number;
   reviewedFiles: string[];
+  /** Changed files the provider names as binary and did not review; empty when it names none. */
+  excludedBinaryFiles: string[];
+  outcome?: string;
+  unreviewedFileCount?: number;
+}
+
+/** One path the reviewed target adds or modifies, with Git's judgment of whether its content is binary. */
+export interface CodeRabbitChangedFile {
+  path: string;
+  binary: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -70,63 +105,137 @@ function isStructuredFileCapRefusal(input: {
       event.type === "review_context" || event.type === "status" || event.type === "heartbeat");
 }
 
-function parseFindingEvent(event: Record<string, unknown>): AgentFindingEvent | null {
+/**
+ * Select the text that identifies a finding: its fix instructions, or its review comment when the instructions are
+ * absent or empty. Anything else is not a finding this contract can identify.
+ */
+function findingText(
+  event: Record<string, unknown>,
+): { codegenInstructions: string } | { comment: string } | null {
+  const instructions = event.codegenInstructions;
+  if (typeof instructions === "string" && instructions.trim().length > 0) {
+    return { codegenInstructions: instructions.trim() };
+  }
+  if (instructions !== undefined && typeof instructions !== "string") return null;
+  const comment = typeof event.comment === "string" ? event.comment.trim() : "";
+  return comment.length > 0 ? { comment } : null;
+}
+
+function parseFindingEvent(event: Record<string, unknown>): ParsedAgentFinding | null {
   const severity = event.severity;
+  const text = findingText(event);
   if (event.type !== "finding"
-    || (severity !== "blocker" && severity !== "major" && severity !== "minor")
+    || (severity !== "blocker" && severity !== "critical" && severity !== "major" && severity !== "minor")
     || typeof event.fileName !== "string"
     || event.fileName.trim().length === 0
-    || typeof event.codegenInstructions !== "string"
-    || event.codegenInstructions.trim().length === 0
+    || text === null
     || !Array.isArray(event.suggestions)) {
     return null;
   }
   return {
-    type: "finding",
-    severity,
-    fileName: event.fileName.trim(),
-    codegenInstructions: event.codegenInstructions.trim(),
-    suggestions: event.suggestions,
+    contract: {
+      type: "finding",
+      severity,
+      fileName: event.fileName.trim(),
+      ...text,
+      suggestions: event.suggestions,
+    },
+    comment: typeof event.comment === "string" ? event.comment : null,
   };
 }
 
+/**
+ * Read a list of provider-reported paths exactly as reported, so each compares with Git's own name for the file;
+ * anything but non-blank strings is refused.
+ */
+function pathList(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.some((file) => typeof file !== "string" || file.trim().length === 0)) {
+    return null;
+  }
+  return value.map(String);
+}
+
 function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent | null {
+  const reviewedFiles = pathList(event.reviewedFiles);
+  const excludedBinaryFiles = event.excludedBinaryFiles === undefined ? [] : pathList(event.excludedBinaryFiles);
   if (event.type !== "complete"
     || event.status !== "review_completed"
     || !Number.isSafeInteger(event.findings)
     || Number(event.findings) < 0
-    || !Array.isArray(event.reviewedFiles)
-    || event.reviewedFiles.length === 0
-    || event.reviewedFiles.some((file) => typeof file !== "string" || file.trim().length === 0)) {
+    || reviewedFiles === null
+    || reviewedFiles.length === 0
+    || excludedBinaryFiles === null
+    || (event.outcome !== undefined && typeof event.outcome !== "string")
+    || (event.unreviewedFileCount !== undefined
+      && (!Number.isSafeInteger(event.unreviewedFileCount) || Number(event.unreviewedFileCount) < 0))) {
     return null;
   }
   return {
     type: "complete",
     status: "review_completed",
     findings: Number(event.findings),
-    reviewedFiles: event.reviewedFiles.map((file) => String(file).trim()),
+    reviewedFiles,
+    excludedBinaryFiles,
+    ...(typeof event.outcome === "string" ? { outcome: event.outcome } : {}),
+    ...(typeof event.unreviewedFileCount === "number"
+      ? { unreviewedFileCount: event.unreviewedFileCount } : {}),
   };
 }
 
-function normalizeFinding(event: AgentFindingEvent): NormalizedReviewFinding {
+/**
+ * Drop generic provider guidance ahead of a finding's own instruction.
+ *
+ * The provider has reworded that guidance and the instruction header across releases, so the boundary is the first
+ * paragraph naming the finding's file rather than any provider wording; without one, the text is kept whole.
+ */
+function findingInstruction(instructions: string, fileName: string): string {
+  const paragraphStarts = [
+    0,
+    ...Array.from(instructions.matchAll(/\r?\n[\t ]*\r?\n\s*/gu), (match) => match.index + match[0].length),
+  ];
+  const namingStart = paragraphStarts.find((start, index) =>
+    instructions.slice(start, paragraphStarts[index + 1] ?? instructions.length).includes(fileName));
+  return namingStart === undefined ? instructions : instructions.slice(namingStart);
+}
+
+function normalizeFinding(event: ParsedAgentFinding, sourceOrdinal: number): NormalizedReviewFinding {
+  const { contract } = event;
   return {
     findingId: canonicalDigest({
       schemaVersion: 1,
       provider: "coderabbit-cli",
-      cliVersion: CODERABBIT_AGENT_CLI_VERSION,
+      contract: CODERABBIT_AGENT_CONTRACT,
       mode: CODERABBIT_AGENT_MODE,
-      finding: event,
+      finding: contract,
     }),
-    severity: event.severity,
-    locus: event.fileName,
-    evidenceUrlOrId: event.codegenInstructions,
+    severity: contract.severity === "blocker" ? "critical" : contract.severity,
+    locus: contract.fileName,
+    evidenceUrlOrId: "codegenInstructions" in contract
+      ? findingInstruction(contract.codegenInstructions, contract.fileName)
+      : contract.comment,
+    sourceOrdinal,
+    ...captureReviewFindingSourceLabel({ body: event.comment }),
   };
+}
+
+/**
+ * Whether the review accounts for every changed file: each one reviewed, or a binary file the provider names as
+ * excluded. A review that reports unreviewed files does not cover the change, whatever else it lists.
+ */
+function coversChangedFiles(complete: AgentCompleteEvent, changedFiles: readonly CodeRabbitChangedFile[]): boolean {
+  if ((complete.unreviewedFileCount ?? 0) > 0) return false;
+  const reviewed = new Set(complete.reviewedFiles);
+  const excludedBinary = new Set(complete.excludedBinaryFiles);
+  return changedFiles.every((file) => reviewed.has(file.path) || (file.binary && excludedBinary.has(file.path)));
 }
 
 /**
  * Parse the qualified CodeRabbit agent-mode NDJSON contract without inferring success.
  *
- * @param input - Captured direct-process result plus exact target head binding.
+ * A completed review that does not cover the target's changed files reports unsupported capability, so neither a
+ * clean result nor findings can stand for a review of the whole change.
+ *
+ * @param input - Captured direct-process result, exact target head binding, and the target's changed files.
  * @returns A provider result accepted by frontline outcome normalization.
  */
 export function parseCodeRabbitAgentResult(input: {
@@ -137,6 +246,7 @@ export function parseCodeRabbitAgentResult(input: {
   stderr: string;
   expectedHead: string;
   observedHead: string;
+  changedFiles: readonly CodeRabbitChangedFile[];
 }): CodeRabbitAgentProviderResult {
   if (input.observedHead !== input.expectedHead) {
     return {
@@ -146,12 +256,13 @@ export function parseCodeRabbitAgentResult(input: {
     };
   }
   if (isStructuredFileCapRefusal(input)) return { kind: "capability-unsupported" };
-  if (input.cliVersion !== CODERABBIT_AGENT_CLI_VERSION) return { kind: "malformed" };
   if (/rate limit(?:ed| exceeded)?/iu.test(`${input.stdout}\n${input.stderr}`)) {
     return { kind: "rate-limited" };
   }
   if (input.signal !== null) return { kind: "failed", reason: `process-signal:${input.signal}` };
-  if (input.exitCode !== 0) return { kind: "failed", reason: "process-exit" };
+  if (input.exitCode !== 0) {
+    return { kind: "failed", reason: codeRabbitExitDiagnostic(input.exitCode, input.stderr, input.stdout) };
+  }
 
   const lines = input.stdout.split(/\r?\n/u).filter((line) => line.trim().length > 0);
   if (lines.length === 0) return { kind: "malformed" };
@@ -172,7 +283,7 @@ export function parseCodeRabbitAgentResult(input: {
     if (parsed.type === "finding") {
       const finding = parseFindingEvent(parsed);
       if (finding === null) return { kind: "malformed" };
-      findings.push(normalizeFinding(finding));
+      findings.push(normalizeFinding(finding, findings.length + 1));
       continue;
     }
     if (parsed.type === "complete") {
@@ -189,9 +300,15 @@ export function parseCodeRabbitAgentResult(input: {
 
   if (complete === null) return { kind: "partial" };
   if (completeIndex !== lines.length - 1) return { kind: "ambiguous" };
+  if (complete.outcome !== undefined
+    && complete.outcome !== "completed"
+    && complete.outcome !== "completed_with_warnings") return { kind: "partial" };
   if (complete.findings !== findings.length) return { kind: "partial" };
   if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
     return { kind: "ambiguous" };
   }
-  return findings.length === 0 ? { kind: "clean" } : { kind: "findings", findings };
+  if (!coversChangedFiles(complete, input.changedFiles)) return { kind: "capability-unsupported" };
+  return findings.length === 0
+    ? { kind: "clean" }
+    : { kind: "findings", findings: NormalizedReviewFindingsSchema.parse(findings) };
 }

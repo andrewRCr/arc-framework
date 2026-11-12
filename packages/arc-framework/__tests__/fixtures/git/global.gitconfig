@@ -1,0 +1,8 @@
+# The global Git configuration every test process runs with, in place of the developer's.
+#
+# Commands such as fetch otherwise start automatic maintenance, which recent Git runs as a geometric repack, detached
+# into the background where the platform allows. It can pack an object a fixture is about to inspect or damage, and
+# race the removal of a temporary repository; setting gc.auto to 0 does not stop it. Tests that exercise maintenance
+# invoke it directly, which this setting leaves alone.
+[maintenance]
+	auto = false

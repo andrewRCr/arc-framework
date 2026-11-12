@@ -5,10 +5,12 @@
  * with an injectable executor for testability.
  */
 
-import { normalizeGitRejection } from "./process-error.js";
+import type { GitBatchReadScope } from "./batch-reader.js";
+import { isCompletedGitFailure, normalizeGitRejection } from "./process-error.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { retryTransientFileSystemRefusal } from "../fs.js";
 
 /** Result from executing a git command. */
 export interface ExecResult {
@@ -23,6 +25,8 @@ export interface GitExecOptions {
    * with a `GitProcessError` whose kind is `canceled`.
    */
   signal?: AbortSignal;
+  /** Let deadline wrappers refuse admission without canceling a call already admitted. */
+  uninterruptible?: true;
   /**
    * Working directory for the process, allowing callers to pin the invocation
    * against a resolved repo root regardless of `process.cwd()`.
@@ -34,9 +38,29 @@ export interface GitExecOptions {
    * repository-local Git variables.
    */
   indexFile?: string;
+  /** Remove ambient Git pathspec variables when the caller supplies explicit magic. */
+  clearPathspecEnvironment?: boolean;
   /** Per-invocation terminal, presenter, and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
+  /** Pin process diagnostics to the stable C locale for bounded classification. */
+  diagnosticLocale?: "stable";
+  /** Forbid Git from lazily fetching missing objects during passive inspection. */
+  objectAccess?: "local-only";
+  /** Invocation-owned stdin, independent of the ambient-stdin interaction policy. */
+  input?: string;
+  /** Check the final native Windows push argv before launching its process. */
+  checkNativeWindowsArgv?: boolean;
+  /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
+  preserveOutput?: boolean;
+  /**
+   * Identify this push to its `pre-push` hook. The production executor passes it as
+   * {@link PUSH_GATE_ID_VARIABLE}, under which the push gate records a refusal.
+   */
+  pushGateId?: string;
 }
+
+/** Environment variable through which a push tells its push gate where to record a refusal. */
+export const PUSH_GATE_ID_VARIABLE = "ARC_PUSH_GATE_ID";
 
 /** Plain-Promise, argument-array Git execution seam. */
 export type GitExec = (
@@ -45,14 +69,68 @@ export type GitExec = (
   options?: GitExecOptions,
 ) => Promise<ExecResult>;
 
+/** Resolve Git's common directory as an absolute path for the current worktree. */
+export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
+  const commonDir = stdout.trim();
+  if (commonDir.length === 0) {
+    throw new Error("git rev-parse --git-common-dir returned an empty path");
+  }
+  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
+}
+
+/** Resolve the checkout's own Git directory, keeping linked working trees independent.
+ * @param exec - Injectable Git executor.
+ * @param cwd - Checkout root whose private Git directory is required.
+ * @returns The absolute path Git reports for that checkout.
+ * @throws Git execution failures or an empty Git directory response.
+ */
+export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+  const gitDir = stdout.trim();
+  if (gitDir.length === 0) throw new Error("git rev-parse --absolute-git-dir returned an empty path");
+  return isAbsolute(gitDir) ? gitDir : resolve(cwd, gitDir);
+}
+
 /**
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
- * captured-output {@link GitExec} cannot provide. Production wires an
- * execa stdin adapter without shell interpolation.
+ * captured-output {@link GitExec} also supports through its owned-input option. Production wires an
+ * execa stdin adapter without shell interpolation. Callers may pin the
+ * repository when the ambient process directory is unavailable or unsafe.
  */
-export type GitExecInput = (args: string[], input: string) => Promise<string>;
+export type GitExecInput = (
+  args: string[],
+  input: string,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal" | "diagnosticLocale" | "uninterruptible">,
+) => Promise<string>;
+
+/** Result from a byte-preserving Git invocation. */
+export interface RawGitResult {
+  stdout: Uint8Array;
+  stderr?: Uint8Array;
+}
+
+/** Byte-preserving Git boundary. Optional files use caller-owned input and exclusive
+ * output streams; outputFile returns empty stdout instead of buffering artifact bytes.
+ * input and inputFile are mutually exclusive; the executor closes its opened handles.
+ */
+export type RawGitExec = (
+  args: string[],
+  options?: {
+    signal?: AbortSignal;
+    cwd?: string;
+    input?: Uint8Array;
+    inputFile?: string;
+    outputFile?: string;
+    objectAccess?: "local-only";
+    indexFile?: string;
+    removeEnvironment?: readonly string[];
+    /** Operation-owned native cat-file reuse; injected executors may retain one-shot behavior. */
+    batchReader?: GitBatchReadScope;
+  },
+) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */
 export interface GitIndexTransaction {
@@ -102,11 +180,13 @@ export async function captureGitIndexState(
     indexFile: lockPath,
     commit: async () => {
       if (!active) throw new Error("Git index transaction is no longer active");
-      const current = await readOptionalFile(indexPath);
-      if (!sameBytes(current, snapshot)) {
-        throw new Error("Git index changed during transaction; refusing to overwrite it");
-      }
-      await rename(lockPath, indexPath);
+      await retryTransientFileSystemRefusal(async () => {
+        const current = await readOptionalFile(indexPath);
+        if (!sameBytes(current, snapshot)) {
+          throw new Error("Git index changed during transaction; refusing to overwrite it");
+        }
+        await rename(lockPath, indexPath);
+      });
       active = false;
     },
     rollback: async () => {
@@ -221,7 +301,10 @@ export async function boundedFetch(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
+    await exec("git", ["fetch", "origin", ref], {
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args: ["fetch", "origin", ref] });
@@ -241,13 +324,18 @@ export async function boundedGitInvocation(
   exec: GitExec,
   args: string[],
   timeoutMs: number,
+  options?: Pick<GitExecOptions, "cwd">,
 ): Promise<BoundedFetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", args, { signal: controller.signal });
+    await exec("git", args, {
+      ...options,
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });
@@ -274,7 +362,8 @@ export async function checkOriginExists(exec: GitExec): Promise<boolean> {
 }
 
 /**
- * Retrieves a git config value by key.
+ * Retrieves a git config value by key. Only a completed missing-value result with
+ * captured empty streams is absence; failed or incomplete reads propagate.
  *
  * @param exec - Injectable command executor
  * @param key - Git config key (e.g., "user.name", "arc.identity")
@@ -287,9 +376,19 @@ export async function gitConfigGet(
   try {
     const { stdout } = await exec("git", ["config", "--get", key]);
     return stdout.trim();
-  } catch {
-    return undefined;
+  } catch (rejection) {
+    const error = normalizeGitRejection(rejection, { command: "git", args: ["config", "--get", key] });
+    // Normalization fills omitted streams; only captured empty output can prove a missing value.
+    if (hasConfigFailureStreams(rejection) && isCompletedGitFailure(error) && error.exitCode === 1
+      && error.stdout === "" && error.stderr === "") return undefined;
+    throw error;
   }
+}
+
+function hasConfigFailureStreams(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || !("stdout" in value) || !("stderr" in value)) return false;
+  return (typeof value.stdout === "string" || value.stdout instanceof Uint8Array)
+    && (typeof value.stderr === "string" || value.stderr instanceof Uint8Array);
 }
 
 /** Git config scope (`--local` / `--global` / `--system`). */
@@ -356,19 +455,22 @@ export async function gitMergeFile(
   other: string,
 ): Promise<MergeResult> {
   try {
+    // The merged text becomes the file, so its trailing newlines and whitespace must survive
     const { stdout } = await exec("git", [
       "merge-file",
       "-p",
       current,
       base,
       other,
-    ]);
+    ], { preserveOutput: true });
     return { content: stdout, hasConflicts: false };
   } catch (err: unknown) {
     const error = normalizeGitRejection(err, {
       command: "git", args: ["merge-file", "-p", current, base, other],
     });
-    if (error.exitCode === 1) return { content: error.stdout, hasConflicts: true };
+    if (isCompletedGitFailure(error) && error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
+      return { content: error.stdout, hasConflicts: true };
+    }
     throw error;
   }
 }

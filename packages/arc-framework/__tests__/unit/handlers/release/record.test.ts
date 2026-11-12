@@ -8,7 +8,7 @@
  * rendering of the resolved opt-in + interlock surface.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import {
   runReleaseOptIn,
@@ -17,7 +17,22 @@ import {
 } from "../../../../src/handlers/release/record.js";
 import type { ResolvedSettingsResult } from "../../../../src/lib/config/resolved-settings.js";
 import type { HarnessEntry, MarkerReadResult } from "../../../../src/lib/release/setup-marker.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
+import { scriptGitExec, type GitExecScriptEntry } from "../../../helpers/git-exec-fake.js";
+
+function releaseConfigExec(read: "true" | "false" | null, write?: "true" | "false", denyWrite = false) {
+  const entries: GitExecScriptEntry[] = [{
+    match: ["config", "--get", "arc.releaseOptedIn"],
+    responses: [read === null ? { failure: { exitCode: 1 } } : { stdout: `${read}\n` }],
+  }];
+  if (write !== undefined) entries.push({
+    match: ["config", "--local", "arc.releaseOptedIn", write],
+    responses: [denyWrite
+      ? { failure: { exitCode: 128, stderr: "permission denied" } }
+      : { stdout: "" }],
+  });
+  return scriptGitExec(entries);
+}
 
 function buildSettings(overrides: {
   releaseOptedIn?: { value: "true" | "false"; source: "git-config" | "yaml" | "default" };
@@ -51,59 +66,41 @@ function marker(harnesses: HarnessEntry[]): MarkerReadResult {
 
 describe("runReleaseOptIn", () => {
   it("writes arc.releaseOptedIn = true to local config on first invocation", async () => {
-    const exec = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
-      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
+    const { exec, calls } = releaseConfigExec(null, "true");
 
     const result = await runReleaseOptIn({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "true",
-    ]);
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "true"],
+    }));
   });
 
   it("returns no-op success when key is already set to 'true' (skips --local set)", async () => {
-    const exec = vi.fn().mockResolvedValueOnce({ stdout: "true\n" });
+    const { exec, calls } = releaseConfigExec("true");
 
     const result = await runReleaseOptIn({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledTimes(1);
-    expect(exec).not.toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "true",
-    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls).not.toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "true"],
+    }));
   });
 
   it("overwrites a stale 'false' to 'true' on opt-in", async () => {
-    const exec = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: "false\n" }) // --get returns "false"
-      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
+    const { exec, calls } = releaseConfigExec("false", "true");
 
     const result = await runReleaseOptIn({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "true",
-    ]);
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "true"],
+    }));
   });
 
   it("surfaces git-config write failure with key name and underlying error", async () => {
-    const exec = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get (absent)
-      .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
+    const { exec } = releaseConfigExec(null, "true", true);
 
     const stderr: string[] = [];
     const result = await runReleaseOptIn({
@@ -121,59 +118,41 @@ describe("runReleaseOptIn", () => {
 
 describe("runReleaseOptOut", () => {
   it("writes arc.releaseOptedIn = false to local config when key is absent", async () => {
-    const exec = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
-      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
+    const { exec, calls } = releaseConfigExec(null, "false");
 
     const result = await runReleaseOptOut({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "false",
-    ]);
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "false"],
+    }));
   });
 
   it("overwrites 'true' with 'false' to override yaml-set opt-in locally", async () => {
-    const exec = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
-      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
+    const { exec, calls } = releaseConfigExec("true", "false");
 
     const result = await runReleaseOptOut({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "false",
-    ]);
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "false"],
+    }));
   });
 
   it("returns no-op success when key is already set to 'false' (skips --local set)", async () => {
-    const exec = vi.fn().mockResolvedValueOnce({ stdout: "false\n" });
+    const { exec, calls } = releaseConfigExec("false");
 
     const result = await runReleaseOptOut({ exec });
 
     expect(result.exitCode).toBe(0);
-    expect(exec).toHaveBeenCalledTimes(1);
-    expect(exec).not.toHaveBeenCalledWith("git", [
-      "config",
-      "--local",
-      "arc.releaseOptedIn",
-      "false",
-    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls).not.toContainEqual(expect.objectContaining({
+      command: "git", args: ["config", "--local", "arc.releaseOptedIn", "false"],
+    }));
   });
 
   it("surfaces git-config write failure with key name and underlying error", async () => {
-    const exec = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
-      .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
+    const { exec } = releaseConfigExec("true", "false", true);
 
     const stderr: string[] = [];
     const result = await runReleaseOptOut({

@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ActiveSessionInitResultSchema } from "../../src/commands/active/schema.js";
 
 import {
   buildActiveSessionInitSummary,
@@ -54,6 +55,7 @@ function sessionInitResult(
     sessionType: "planning",
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings: [],
     ...overrides,
   };
@@ -81,13 +83,6 @@ describe("buildActiveStatusSummary — counts + layout", () => {
       }),
     );
     expect(summary.split("\n")[0]).toBe("2 active work units (layout: full):");
-  });
-
-  it("surfaces the lite layout in the headline", () => {
-    const summary = buildActiveStatusSummary(
-      fullResult({ layout: "lite", candidates: [candidate({ filename: "status.md" })] }),
-    );
-    expect(summary.split("\n")[0]).toBe("1 active work unit (layout: lite):");
   });
 });
 
@@ -257,7 +252,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
       resolution: "single",
       path: ".arc/active/technical/meta-foo.md",
     });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
+    const roundTripped = ActiveSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.resolution).toBe("single");
     expect(roundTripped.path).toBe(".arc/active/technical/meta-foo.md");
@@ -269,7 +264,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
       resolution: "multiple",
       candidates: [candidate({ filename: "meta-a.md" }), candidate({ filename: "meta-b.md" })],
     });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
+    const roundTripped = ActiveSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.resolution).toBe("multiple");
     expect(roundTripped.path).toBeNull();
     expect(roundTripped.candidates).toHaveLength(2);

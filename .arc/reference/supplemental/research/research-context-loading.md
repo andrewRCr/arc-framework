@@ -522,14 +522,12 @@ Five principles emerge from the research with sufficient evidence to guide desig
    Instructions Following][manyifeval] — Harada et al., 2025 (ManyIFEval benchmark)
 4. [WildIFEval: Instruction Following in the Wild][wildifeval] — 2025
 5. [LLMs can be easily Confused by Instructional Distractions][distractions] — 2025
-6. [ConInstruct: Evaluating LLMs on Conflict Detection and Resolution in
-   Instructions][coninstruct] — 2025
-7. [The Instruction Hierarchy: Training LLMs to Prioritize Privileged
-   Instructions][instruction-hierarchy] — OpenAI, ICLR 2025
+6. [ConInstruct: Evaluating LLMs on Conflict Detection and Resolution in Instructions][coninstruct] — 2025
+7. [The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions][instruction-hierarchy] — OpenAI,
+   ICLR 2025
 8. [Position is Power: System Prompts as a Mechanism of Bias in Large Language
    Models][position-power] — FAccT 2025
-9. [Instructional Segment Embedding: Improving LLM Safety with Instruction
-   Hierarchy][ise] — 2024
+9. [Instructional Segment Embedding: Improving LLM Safety with Instruction Hierarchy][ise] — 2024
 10. [A Multi-Dimensional Constraint Framework for Evaluating and Improving Instruction
     Following in LLMs][constraint-framework] — 2025
 11. [Why Does the Effective Context Length of LLMs Fall Short?][effective-length] — 2024
@@ -538,8 +536,7 @@ Five principles emerge from the research with sufficient evidence to guide desig
 
 12. [Progressive Disclosure: the technique that helps control context and tokens in AI
     agents][progressive-disclosure] — Feb 2026
-13. [Building an internal agent: Progressive disclosure and handling large
-    files][larson] — Will Larson
+13. [Building an internal agent: Progressive disclosure and handling large files][larson] — Will Larson
 14. [Agent Skills — Claude API Documentation][claude-skills]
 15. [Agentic Retrieval Guide: Beyond Naive RAG][llamaindex] — LlamaIndex
 16. [What is Agentic RAG?][weaviate] — Weaviate

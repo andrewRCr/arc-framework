@@ -8,6 +8,91 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Decide whether ARC needs a durable work-unit identifier distinct from its slug**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ the slug is ARC's current work-unit subject key, but the shipped rename transition rewrites it. That
+  works for mutable references and fails for append-only evidence or digests computed over the old slug. Locus,
+  worktree markers, Errand records, storage records, delivery, and external tracker bindings already consume the
+  identity from different angles.
+- _Fold-in:_ make the authority map's WU-identity decision cover rename-surviving consumers: either define a durable
+  ARC identifier and its mapping/rebind semantics, or require each irreversible consumer to decouple locally
+  through recorded rename transitions. Treat any implementation as a downstream cut after this WU settles the
+  identity boundary.
+
+### `[ ]` **Build the external-PM model on the storage contract's work-item base**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `external-pm-composition`
+
+- _Observation:_ `spec-storage-contract.md` gives work units and Errands one base — identity as a slug plus a UID,
+  owner, type, lifecycle location, origin, and links (branch, change request, landing commit, task captures) — that
+  everything spanning types reads exclusively, and leaves how an external tracker's items compose with work items to
+  this design.
+
+- _Approach:_ decide the model on top: further types, how an external tracker's item maps (perhaps a type carrying
+  only the base plus its binding), and the base's field vocabulary and the type field's name before public release.
+  This also answers the inbound item asking for a durable work-unit identifier: a random UID beside the slug.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
+### `[ ]` **Put direction goals in the external-PM authority map**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: external-pm-composition`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Evaluation Design, 1. ARC fact-and-operation authority map.
+
+- _Observation:_ `goal-aware-direction` (regroomed 2026-10-11) reads goals through one source boundary — a goal is a
+  label plus the work units and cohorts that realize it. Standalone, the goals are `VECTOR.PROJECT`'s targets; a
+  project whose tracker already holds its goals (initiatives, milestones) reads them from there, with no second
+  mutable copy; with neither, the recommender gives graph-only reasons. That work unit keeps the seam and leaves the
+  mapping here (its draft's § The recommender, The goal source).
+
+- _Approach:_ add direction goals — outcome, horizon, accountable owner, realizing work — to the authority map
+  beside milestones, and decide how a tracker's goal items map onto the goal source.
+
+- _Captured during:_ `goal-aware-direction` grooming, 2026-10-11.
+
+### `[ ]` **Re-evaluate the association-only PM option after extension retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: external-pm-composition`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Keep association-only integration; the "Notified" capability level.
+
+- _Observation:_ The option “retain Origin plus project-authored extension prose” loses its extension substrate. The
+  retirement also removes external setup’s notify step and all three PM-facing hooks.
+
+- _Approach:_ Evaluate association-only support using Origin alone until typed notification is implemented. Consume
+  the amended provisional PM strategy: retain provider-neutral lifecycle intent without claiming a currently supported
+  notification or synchronization mechanism.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Count inbox triage and unassigned work among the facts whose authority composition settles**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Evaluation Design › 1. ARC fact-and-operation authority map.
+
+- _Observation:_ the evaluation's map of facts and authorities should include ARC's inboxes: who owns unassigned work,
+  and its triage, assignment, de-duplication and notification. GitHub Issues with Projects, Linear and Jira already do
+  these at scale; rebuilding them in ARC's project inbox would make the second PM authority the strategy warns against.
+  What trackers do not do stays agent-native core: capture discipline, routing to a design unit's draft, Errand
+  execution, per-session context.
+
+- _Approach:_ a split to test: the personal inbox stays ARC's, as the agents' capture buffer; the project inbox is the
+  standalone home for unassigned work; in a composed project, unassigned work goes to the tracker. Settle the seam with
+  `shared-inbox-model`, whose promote-by-default destination it is (the companion capture).
+
+- _Captured during:_ `project-manager.ARC` with the Owner, 2026-11-10, after the inbox-size review (Owner-approved).
+
 ## Planning Continuity
 
 - **Readiness:** rough

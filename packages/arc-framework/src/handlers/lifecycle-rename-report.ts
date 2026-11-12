@@ -1,0 +1,154 @@
+/** Human rename reports preserve store refusals and physical continuation instructions. */
+import * as p from "../lib/terminal.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
+import { refuse, refuseWithRemedy, refuseUnboundTarget } from "./lifecycle-shared.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import type { RunRenameResult, RenameResultEnvelope } from "../lib/work-unit/verbs/rename.js";
+import type { RenameReport, RenameReferenceEdit, RenameHeadingEdit, RenameKeptBranch } from "../lib/work-unit/rename-report.js";
+/** Report the logical rename and every retained branch or pending physical action.
+ * @param renameSource - Requested old work-unit name.
+ * @param renameTarget - Requested new work-unit name.
+ * @param result - Authoritative verb outcome.
+ * @param json - Emit one machine-readable result or lifecycle refusal.
+ */
+export function reportRenameResult(renameSource: string, renameTarget: string, result: RunRenameResult, json = false): void {
+  if (result.status === "rejected") { reportRenameRejection(result, json); return; }
+  if (json) { reportRenameJson(result); return; }
+  const repairs = renameReportLines(result.report);
+  if (result.status === "partial") {
+    if (repairs.length > 0) p.note(repairs.join("\n"), "Rename follow-up");
+    refuse(result.reason, undefined, result.remedy);
+    return;
+  }
+  for (const advisory of result.advisories) p.log.warn(advisory);
+  const lines = [
+    result.shape === "cohort" ? `Cohort: ${result.sourceSlug} → ${result.targetSlug}` : `Work unit: ${renameSource} → ${renameTarget}`,
+    `Shape:     ${result.shape}`,
+  ];
+  if (result.pendingIntegration) {
+    lines.push("Visibility: pending integration of the rename branch");
+  }
+  if (result.remote?.status === "retained" && result.recordBatch === undefined) {
+    lines.push(`Remote:    retained personal branch ${result.remote.oldBranch}`);
+    lines.push("Owner decision: delete it only if no longer needed.");
+    lines.push(`Command:   git push origin --delete ${quoteShellArgument(result.remote.oldBranch)}`);
+  }
+  lines.push(...repairs);
+  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
+  if (result.shape === "in-place" && result.recordBatch === undefined) {
+    lines.push("Checkout:  unmanaged; no ownership marker was minted");
+    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
+  }
+  if (result.recordBatch !== undefined && result.worktree === undefined && (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent")) {
+    lines.push(`Checkout:  ${result.checkout.checkoutPath} (ownership renamed; path unchanged)`);
+  }
+  lines.push(...worktreeLines(result));
+  p.note(lines.join("\n"), "Renamed");
+  p.outro("Done.");
+}
+
+function reportRenameRejection(result: Extract<RunRenameResult, { status: "rejected" }>, json: boolean): void {
+  if (result.unbound !== undefined) { refuseUnboundTarget(result.unbound, json); return; }
+  if (!json) { refuse(result.reason, result.refusal, result.remedy); return; }
+  refuseWithRemedy(result.reason, result.remedy ?? result.refusal?.remedy
+    ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]), true, result.refusal);
+}
+
+function reportRenameJson(result: Exclude<RunRenameResult, { status: "rejected" }>): void {
+  const envelope: RenameResultEnvelope = result.status === "partial"
+    ? { ...result, reference: result.reference ?? null, remedy: result.remedy
+      ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]) }
+    : { ...result, reference: result.reference ?? null };
+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  if (result.status === "partial") process.exitCode = 1;
+}
+
+function renameReportLines(report: RenameReport): string[] {
+  const lines: string[] = [];
+  for (const item of report.references) {
+    lines.push(`Reference: ${item.record.type} ${item.record.name} (${item.record.uid})`);
+    for (const edit of item.edits) lines.push(...editLines(edit));
+  }
+  for (const heading of report.memberHeadings) lines.push(...headingLines(heading));
+  for (const tie of report.formerSlugTies) {
+    lines.push(`Former slug: ${tie.slug}; ${tie.condition}`, `Repair: ${tie.remedy.text}`);
+    if (tie.remedy.argv !== undefined) lines.push(`Command: ${commandLine(tie.remedy.argv)}`);
+  }
+  for (const branch of report.keptBranches) lines.push(...keptBranchLines(branch));
+  return lines;
+}
+
+function editLines(edit: RenameReferenceEdit): string[] {
+  if (edit.kind === "command") return [`Command: ${commandLine(edit.argv)}`];
+  if (edit.kind === "text") return headingLines(edit);
+  const labels = { cohort: "Cohort", parent: "Parent", dependsOn: "Depends On", waitsOn: "waits-on" };
+  return [`${labels[edit.field]}: ${edit.from === null ? "[none]" : JSON.stringify(edit.from)} → ${edit.to === null ? "[none]" : JSON.stringify(edit.to)}`];
+}
+
+function headingLines(edit: RenameHeadingEdit): string[] {
+  const owner = edit.document.owner;
+  const key = edit.document.key === undefined ? "" : ` [${JSON.stringify(edit.document.key)}]`;
+  return [`Document: ${edit.document.kind}${key} ${owner.name}${owner.type !== "person" && owner.uid !== undefined ? ` (${owner.uid})` : ""}`,
+    `line ${edit.line}: ${edit.replacement}`];
+}
+
+function keptBranchLines(branch: RenameKeptBranch): string[] {
+  const reasons = { adopted: "adopted branch", "another-holder": "another holder links it", continuation: "rename continuation",
+    "other-link": "recorded link outside this rename's branch operation" };
+  const lines = [`Branch:    kept ${branch.branch}; ${reasons[branch.reason]}`];
+  if (branch.reason === "adopted") lines.push(`Remote:    retained personal branch ${branch.branch}`);
+  if (branch.manualDelete !== undefined) {
+    lines.push(branch.manualDelete.text);
+    if (branch.manualDelete.argv !== undefined) lines.push(`Command: ${commandLine(branch.manualDelete.argv)}`);
+  }
+  if (branch.catchUp !== undefined) {
+    lines.push(`Catch-up: ${branch.catchUp.text}`);
+    if (branch.catchUp.argv !== undefined) lines.push(`Command: ${commandLine(branch.catchUp.argv)}`);
+  }
+  return lines;
+}
+
+function commandLine(argv: readonly string[]): string {
+  return argv.map(value => /^[A-Za-z0-9_./:@+-]+$/u.test(value) ? value : quoteShellArgument(value)).join(" ");
+}
+
+function worktreeLines(result: Extract<RunRenameResult, { status: "renamed" }>): string[] {
+  const worktree = result.worktree;
+  if (worktree === undefined) return [];
+  if ("mutation" in worktree) return mutationLines(worktree);
+  const lines: string[] = [];
+  if (worktree.status === "already-moved") {
+      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${worktree.worktreePath}`);
+    } else if (worktree.status === "anchored") {
+      lines.push(`Worktree:  unchanged; anchored checkout: ${worktree.worktreePath}`);
+    } else if (worktree.status === "unmatched") {
+      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${worktree.worktreePath}`);
+    } else if (worktree.status === "deferred-self-move") {
+      lines.push(`Worktree:  move deferred; current session remains at ${worktree.from}`);
+      if (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent") {
+        lines.push(`Follow-up:  from outside it, \`git worktree move -f -f ${worktree.from} ${worktree.to}\``);
+      } else {
+        lines.push(`Checkout:  ${result.checkout?.kind ?? "unavailable"}; no move action projected`);
+      }
+    } else {
+      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
+    }
+  return lines;
+}
+function mutationLines(worktree: import("../lib/work-unit/mutators/reconcile-work-unit-worktree.js").ReconcileWorkUnitWorktreeResult): string[] {
+  const lines: string[] = [];
+      if (worktree.mutation !== "move") {
+        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
+      } else {
+        const notice = worktree.followUpNotice;
+        if (notice !== undefined) {
+          lines.push(`Follow-up:  ${notice}`);
+        } else {
+          lines.push(
+            `Worktree:  ${worktree.to}`
+            + (worktree.locusHopped ? " (process relocated)" : ""),
+          );
+        }
+      }
+  return lines;
+}

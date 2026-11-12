@@ -1,0 +1,122 @@
+/** Acquire every held identity's pinned transient records for re-homing. */
+import { randomUUID } from "node:crypto";
+import type { RefBackendContext } from "../context.js";
+import type { ImportRecord } from "./source.js";
+import type { MigrateReport } from "../../commands.js";
+import { readTransientIdentitySnapshotAtRef } from "../../../errand/identity-snapshot.js";
+import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../errand/identity-record.js";
+import { transientIO, transientKind, transientReference } from "../../in-repo/transient-common.js";
+import { RecordReferenceSchema, type RecordReference } from "../../identity.js";
+import { errandsRef, type ErrandRecordIO } from "../../../errand/ref-tree.js";
+import { rejoinEntryList, splitEntryList } from "../../concurrency/entries.js";
+import { matchInboxEntryTitle } from "../../kinds/entry-fields.js";
+import { inboxEntrySourceDigest } from "../../../user-sync/inbox-writer.js";
+import { SlugSchema } from "../../../kernel/schema/slug.js";
+
+/** Source retirement leases and informational observations that do not block admission. */
+export interface ImportTransientState { tips: Map<string, string>; notices: MigrateReport["notices"] }
+
+/** Read each held identity ref's immutable tree and retain its exact retirement lease; each record keeps the identity
+ * whose ref held it.
+ */
+export async function appendImportTransients(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], state: ImportTransientState): Promise<void> {
+  const source = context.importSource;
+  if (!source) throw new Error("No import source bound");
+  const configured = await source.ports.identity();
+  for (const { identity, tip } of await heldIdentities(context, configured)) {
+    const person = SlugSchema.safeParse(identity);
+    if (!person.success) {
+      report.notices.push({ condition: `${errandsRef(identity)} names no valid identity, so its records cannot be re-homed.`,
+        remedy: { text: `Rename or remove ${errandsRef(identity)}, then retry arc store migrate --import.` } });
+      continue;
+    }
+    const io = await transientIO({ ports: { ...source.ports, identity: () => Promise.resolve(person.data) }, registry: context.registry });
+    if (io) await appendIdentityTransients(context, report, records, state, io, tip);
+  }
+}
+
+/** The identities whose transient ref the code repository holds, the configured one first. */
+async function heldIdentities(context: RefBackendContext, configured: string | null): Promise<{ identity: string; tip: string }[]> {
+  const source = context.importSource;
+  if (!source) return [];
+  const { stdout } = await source.ports.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/user/"],
+    { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
+  const held = stdout.split("\n").flatMap((row) => {
+    const [ref = "", tip = ""] = row.trim().split(" ");
+    const identity = /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref)?.[1];
+    if (!identity) return [];
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error(`Cannot capture ${ref}'s immutable source tip`);
+    return [{ identity, tip }];
+  });
+  return held.sort((left, right) => Number(right.identity === configured) - Number(left.identity === configured)
+    || left.identity.localeCompare(right.identity));
+}
+
+async function appendIdentityTransients(context: RefBackendContext, report: MigrateReport, records: ImportRecord[],
+  state: ImportTransientState, io: ErrandRecordIO, tip: string): Promise<void> {
+  const snapshot = await readTransientIdentitySnapshotAtRef(io, tip);
+  const remedy = { text: `Repair ${errandsRef(io.identity)}, then retry arc store migrate --import.` };
+  if (snapshot.kind === "absent") {
+    report.notices.push({ condition: `Cannot read captured ${errandsRef(io.identity)} at ${tip}.`, remedy });
+    return;
+  }
+  if (snapshot.kind === "error") { report.notices.push({ condition: snapshot.message, remedy }); return; }
+  if (snapshot.diagnostics.length) {
+    report.notices.push(...snapshot.diagnostics.map((item) => ({ condition: `${item.key}: ${item.kind}`, remedy })));
+    return;
+  }
+  state.tips.set(errandsRef(io.identity), tip);
+  for (const [key, record] of snapshot.records) appendTransientRecord(context, report, records, state, io.identity, key, record);
+}
+
+function appendTransientRecord(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], state: ImportTransientState,
+  identity: string, key: string, record: TransientIdentityRecord): void {
+  const kind = transientKind(record);
+  const original = transientReference(kind, key, identity);
+  const reference = kind === "work-item/record" ? RecordReferenceSchema.parse({ ...original,
+    owner: { ...original.owner, uid: randomUUID() } }) : original;
+  records.push({ reference, content: serializeTransientIdentityRecord(record.kind === "errand" && record.purpose === "errand"
+    ? { ...record, owner: SlugSchema.parse(identity) } : record), ...(kind === "work-item/record" ? { placement: { kind: "active" as const } } : {}) });
+  if (record.kind === "errand" && record.purpose === "errand") {
+    const bytes = record.origin === "inbox" ? takeOrigin(context, report, records, identity, record.originEntry, record.originEntrySourceDigest, state) : undefined;
+    appendDescription(context, report, records, reference, bytes, record.intent);
+  }
+}
+
+function appendDescription(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], reference: RecordReference,
+  bytes: string | undefined, intent: string): void {
+  const entry = context.registry["work-item/description"].entry;
+  if (!entry?.sections[0]) { report.notices.push({ condition: "work-item/description has no declared entry grammar." }); return; }
+  const title = reference.owner.name;
+  const body = bytes ?? `${entry.shape === "heading" ? `### **${title}**` : `**${title}:**`}\n\n${intent}`;
+  records.push({ reference: RecordReferenceSchema.parse({ ...reference, kind: "work-item/description" }),
+    content: `# ${title}\n\n## ${entry.sections[0]}\n\n${body}\n` });
+}
+
+function takeOrigin(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], person: string, title: string, digest: string | null,
+  state: ImportTransientState): string | undefined {
+  const inbox = records.find(({ reference }) => reference.kind === "personal/inbox" && reference.owner.name === person);
+  const grammar = context.registry["personal/inbox"].entry;
+  if (!inbox || !grammar) return;
+  const split = splitEntryList(inbox.content, grammar);
+  const matches = split.parts.filter((part) => part.kind === "entry" && matchInboxEntryTitle(part.bytes.split("\n")[0] ?? "") === title);
+  if (matches.length === 0) return;
+  const remedy = { text: `Give the entry in ${person}'s inbox one distinct title, then retry arc store migrate --import.` };
+  if (matches.length !== 1) {
+    report.notices.push({ condition: `Errand origin entry '${title}' appears ${matches.length} times in ${person}'s inbox, so no one entry becomes its description.`, remedy });
+    return;
+  }
+  const selected = matches[0];
+  if (!selected) return;
+  let current: string | undefined;
+  try { current = digest === null ? undefined : inboxEntrySourceDigest(inbox.content, title); }
+  catch (error) {
+    report.notices.push({ condition: `Errand origin entry '${title}' cannot be read as one entry of ${person}'s inbox: ${error instanceof Error ? error.message : String(error)}`,
+      remedy: { text: `Repair the entry heading the condition names in ${person}'s inbox, writing each entry heading as ### **Title** under a title no other entry shares, then retry arc store migrate --import.` } });
+    return;
+  }
+  if (current !== undefined && current !== digest) state.notices.push({
+    condition: `Errand origin entry '${title}' changed since adoption; its current content was moved into the description.` });
+  inbox.content = rejoinEntryList({ parts: split.parts.filter((part) => part !== selected) });
+  return selected.bytes;
+}

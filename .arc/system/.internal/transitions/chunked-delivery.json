@@ -1,0 +1,1 @@
+{"incoming":[],"kind":"decompose","origin":{"name":"chunked-delivery"},"outgoing":[{"members":[],"prerequisite":{"name":"review-chunking"}}],"schemaVersion":2,"successors":[{"name":"delivery-integration-target"},{"name":"delivery-plan-record"},{"name":"delivery-review-cardinality"},{"name":"delivery-stack-topology"}]}

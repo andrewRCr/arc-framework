@@ -63,7 +63,7 @@ describe("retired review architecture sweep", () => {
 
   it("preserves the public rubric identity while excluding superseded disposition labels", async () => {
     const [independent, triage] = await Promise.all([
-      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/standard-review.md"), "utf8"),
+      readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/code-review-standard.md"), "utf8"),
       readFile(resolve(repositoryRoot, "packages/arc-framework/arc/system/methods/review-triage.md"), "utf8"),
     ]);
     expect(independent).toContain("standard-review/v1");

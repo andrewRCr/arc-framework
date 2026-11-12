@@ -1,6 +1,10 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
+  CurrentHuskAdvisorySchema,
   deriveCurrentHuskAdvisory,
   resolveCurrentHuskAdvisory,
 } from "../../../src/lib/session-init/current-husk-advisory.js";
@@ -13,12 +17,12 @@ const stampedMarker: WorktreeMarkerReadResult = {
     wuName: "shipped-widget",
     spawningIdentity: "andrew",
     createdAt: "2026-07-14T00:00:00.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: "abc123",
       at: "2026-07-14T01:00:00.000Z",
       subject: { kind: "work-unit", name: "shipped-widget" },
       branch: "feat/shipped-widget",
-    },
+    }),
   },
 };
 
@@ -36,12 +40,68 @@ function derive(overrides: {
 }
 
 describe("deriveCurrentHuskAdvisory", () => {
+  it("parses a current Git-transition advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!, authorization: "discard-confirmed", remoteRef: null,
+          evidence: { kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"a".repeat(64)}` },
+        },
+      },
+    } });
+    expect(result?.stamp.kind).toBe("current");
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
+    if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
+    assertSchemaRefuses(CurrentHuskAdvisorySchema, {
+      ...result,
+      stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
+    });
+  });
+
+  it("parses a current shipped advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!, authorization: "merged-preserved", remoteRef: null,
+          evidence: {
+            kind: "shipped", expectedLifecycle: "completed", resultDigest: `sha256:${"b".repeat(64)}`,
+            baseProofOid: "abc123",
+          },
+        },
+      },
+    } });
+    expect(result?.stamp.kind).toBe("current");
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
+    if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
+    assertSchemaRefuses(CurrentHuskAdvisorySchema, {
+      ...result,
+      stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
+    });
+  });
+
+  it("parses a manual-only advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: { ...stampedMarker.marker, husk: { ...stampedMarker.marker.husk!, authorization: "future-policy" } },
+    } });
+    expect(result?.stamp.kind).toBe("manual-only");
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
+  });
+
+  it("names an undeclared current-husk field", () => {
+    expect(() => CurrentHuskAdvisorySchema.parse({ ...derive(), unexpected: true })).toThrow(/unexpected/);
+  });
+
   it("identifies a matching stamped completed work unit", () => {
     expect(derive()).toEqual({
       worktreePath: "/wt/shipped-widget",
       subject: { kind: "work-unit", name: "shipped-widget" },
       branch: "feat/shipped-widget",
-      stamp: { kind: "legacy", authorization: "merged-preserved" },
+      stamp: fixtureHuskProof,
     });
   });
 
@@ -57,10 +117,8 @@ describe("deriveCurrentHuskAdvisory", () => {
             authorization: "discard-confirmed",
             remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
             evidence: {
-              kind: "receipt",
-              receiptId: digest,
+              kind: "git-transition",
               transition: "abandon",
-              expectedLifecycle: "nonexistent",
               resultDigest: digest,
             },
           },
@@ -73,10 +131,8 @@ describe("deriveCurrentHuskAdvisory", () => {
       authorization: "discard-confirmed",
       remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
+        kind: "git-transition",
         transition: "abandon",
-        expectedLifecycle: "nonexistent",
         resultDigest: digest,
       },
     });
@@ -93,10 +149,8 @@ describe("deriveCurrentHuskAdvisory", () => {
           authorization: "discard-confirmed",
           remoteRef: null,
           evidence: {
-            kind: "receipt",
-            receiptId: digest,
+            kind: "git-transition",
             transition: "abandon",
-            expectedLifecycle: "nonexistent",
             resultDigest: digest,
           },
         },
@@ -177,14 +231,25 @@ describe("deriveCurrentHuskAdvisory", () => {
           createdFor: { kind: "branch", ref: "review/orphan" },
           spawningIdentity: "andrew",
           createdAt: "2026-07-14T00:00:00.000Z",
-          husk: {
+          husk: makeHuskStamp({
             sha: "abc123",
             at: "2026-07-14T01:00:00.000Z",
             subject: { kind: "branch", ref: "review/orphan" },
             branch: "review/orphan",
-          },
+          }),
         },
       },
     })).toBeNull();
   });
+});
+
+it("preserves manual orientation for a pre-store husk whose Git evidence cannot revalidate", async () => {
+  const marker: WorktreeMarkerReadResult = { kind: "present", marker: { ...stampedMarker.marker,
+    husk: { ...stampedMarker.marker.husk!, authorization: "discard-confirmed", remoteRef: null,
+      evidence: { kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"a".repeat(64)}` } } } };
+  const result = await resolveCurrentHuskAdvisory({ worktreePath: "/wt/shipped-widget", branch: null, head: "abc123",
+    marker, stateOffBranch: true }, async () => false);
+  expect(result).toEqual({ worktreePath: "/wt/shipped-widget", subject: { kind: "work-unit", name: "shipped-widget" },
+    branch: "feat/shipped-widget", stamp: { kind: "manual-only", reason: "pre-store-husk" } });
+  assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
 });

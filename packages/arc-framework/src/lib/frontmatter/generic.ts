@@ -2,7 +2,7 @@
  * Generic triple-dash YAML frontmatter extractor and shared shape validator.
  *
  * Schema-neutral: returns the raw parsed YAML for schema-specific parsers
- * (method, extension, dev-rules) to validate. Files without a triple-dash
+ * (method, dev-rules) to validate. Files without a triple-dash
  * block return `data: null` with no error; malformed YAML surfaces via
  * `parseError`.
  *

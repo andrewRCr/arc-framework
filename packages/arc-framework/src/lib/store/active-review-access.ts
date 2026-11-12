@@ -1,0 +1,47 @@
+/** Deferred active-status access to one invocation's native review records and work-branch links. */
+import type { MetaFileCandidate } from "../../commands/active/types.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "../../scripts/review-gate/runtime/invocation.js";
+import { readCandidateRecord } from "./kinds/review/candidate/access.js";
+import type { CandidateManagedRecordV1 } from "./kinds/review/candidate/schema.js";
+import { unwrapReviewRecordResult } from "./kinds/review/access-shared.js";
+import { ReviewOwnerSelectionError } from "./kinds/review/errors.js";
+import { readWorkUnit } from "./lifecycle-write.js";
+import type { OwnerIdentity } from "./identity.js";
+import { selectWorkBranchLink, workBranchName } from "./lifecycle-branch.js";
+import { identifyWorkUnitArtifactPath } from "../layout/index.js";
+
+/** Native content and exact generation retained beside the public candidate fields. */
+interface ActiveReviewSubject {
+  candidate: MetaFileCandidate;
+  record?: CandidateManagedRecordV1 | null;
+  owner?: OwnerIdentity;
+}
+/** Shared invocation and its capability-selected Candidate reader. */
+interface ActiveReviewAccess extends ReviewInvocationContext {
+  readSubject(candidate: MetaFileCandidate, owner?: OwnerIdentity): Promise<ActiveReviewSubject>;
+}
+/** Open or retain one Store for the active reader and all of its review projections. */
+export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveReviewAccess {
+  const invocation = resolveReviewInvocation(input);
+  return { ...invocation, readSubject: async (candidate: MetaFileCandidate, owner?: OwnerIdentity): Promise<ActiveReviewSubject> => {
+    if (!invocation.store.capabilities.stateOffBranch) return { candidate };
+    const slug = identifyWorkUnitArtifactPath(candidate.path)?.slug;
+    if (slug === undefined) throw new Error(`Cannot identify ${candidate.filename}`);
+    const primary = unwrapReviewRecordResult(invocation.store, await readWorkUnit(invocation.store, slug, owner));
+    const selected = primary.reference.owner;
+    const candidateAuthorityRequired = candidate.state === "Integrating"
+      || (candidate.state === "Active" && candidate.currentWorkflow === "prepare-work-unit");
+    const record = candidateAuthorityRequired
+      ? await readCandidateRecord(input.cwd, selected.name, { store: invocation.store, owner: selected }) : null;
+    let branch = candidate.branch;
+    if (candidate.state === "Integrating") {
+      const linked = selectWorkBranchLink(primary, { repository: await invocation.projectId() });
+      if (linked.kind !== "linked") {
+        throw new ReviewOwnerSelectionError("corrupt-state", linked.kind === "ambiguous" ? linked.reason
+          : "The work unit has no work-branch link.", { text: "Repair the work unit's branch links, then retry." });
+      }
+      branch = workBranchName(linked.link.ref);
+    }
+    return { candidate: { ...candidate, branch, candidateId: record?.attestation.candidateId ?? null }, record, owner: selected };
+  } };
+}

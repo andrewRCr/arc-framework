@@ -14,8 +14,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
+import { lint } from "markdownlint/promise";
 
-import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
+import {
+  buildStartSessionNotesSeed,
+  deriveColdStartWuName,
+  runColdStart,
+  runCreateNew,
+} from "../../../src/commands/start.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
@@ -24,6 +30,7 @@ import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 /** A recording mock exec that resolves every call (success). */
 function recordingExec(): { exec: GitExec; calls: string[][] } {
@@ -45,7 +52,9 @@ function recordingExecWithPrimary(primaryPath: string): { exec: GitExec; calls: 
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     if (args[0] === "worktree" && args[1] === "list") {
-      return { stdout: `worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n` };
+      return {
+        stdout: worktreePorcelainZ(`worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n`),
+      };
     }
     if (args[0] === "rev-parse" && args[1] === "--git-path") {
       return { stdout: join(primaryPath, ".git", "info", "exclude") };
@@ -65,7 +74,7 @@ async function pathExists(p: string): Promise<boolean> {
 }
 
 function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath() };
+  return { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true as const, documents: [] }) };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */
@@ -96,6 +105,27 @@ describe("deriveColdStartWuName", () => {
     expect(deriveColdStartWuName("  ", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("Not-A-Slug", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("has space", "feat/widget")).toBeNull();
+  });
+});
+
+describe("buildStartSessionNotesSeed", () => {
+  it("keeps the seeded Markdown lint-clean for a long accepted slug", async () => {
+    const longName = "a".repeat(100);
+    const seed = buildStartSessionNotesSeed({
+      wuName: longName,
+      branch: `plan/${longName}`,
+      kind: "create-new",
+      commit: "[start ceremony pending]",
+    });
+    const results = await lint({
+      strings: { "SESSION-NOTES.md": seed },
+      config: {
+        default: false,
+        MD013: { line_length: 120, code_blocks: false, tables: false },
+      },
+    });
+
+    expect(results["SESSION-NOTES.md"]).toEqual([]);
   });
 });
 
@@ -184,6 +214,7 @@ describe("runColdStart — use-existing scaffolding", () => {
     expect(outcome.reason).toMatch(/could not scaffold the work unit/i);
     expect(outcome.reason).toMatch(/permission denied/);
   });
+
 });
 
 describe("runColdStart — protected-base auto-cut (candidate J)", () => {
@@ -327,7 +358,6 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.value.origin).toBe("#42");
-    expect(outcome.value.design).toBeUndefined();
 
     const record = parseMetaRecord(
       await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")),
@@ -335,19 +365,24 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(record.origin).toBe("#42");
   });
 
-  it("routes an ARC spec artifact to Design", async () => {
-    const outcome = await runColdStart(ctx(io), {
-      worktreePath: worktree,
-      branch: "feat/widget",
-      identity: "andrew",
-      from: "spec-widget.md",
-    });
-
-    expect(outcome.ok).toBe(true);
-    if (!outcome.ok) return;
-    expect(outcome.value.design).toBe("spec-widget.md");
-    expect(outcome.value.origin).toBeUndefined();
-  });
+  it.each(["./draft-widget.md", "./spec-widget.md", "https://example.com/spec-widget.md"])(
+    "passes %s through as a document while entering draft-design",
+    async (from) => {
+      const outcome = await runColdStart(ctx(io), {
+        worktreePath: worktree,
+        branch: "feat/widget",
+        identity: "andrew",
+        from,
+      });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.value.passthrough).toEqual({ kind: "document", value: from });
+      const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
+      expect(record.design).toEqual([]);
+      expect(record.currentWorkflow).toBe("draft-design");
+      expect(record.origin).toBe("internal");
+    },
+  );
 
   it("passes a plain document through without setting Origin or Design", async () => {
     const outcome = await runColdStart(ctx(io), {
@@ -360,7 +395,6 @@ describe("runColdStart — spec-input classification (--from)", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.value.origin).toBeUndefined();
-    expect(outcome.value.design).toBeUndefined();
     expect(outcome.value.passthrough).toEqual({ kind: "document", value: "./design-notes.md" });
   });
 
@@ -484,7 +518,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     return join(primaryRoot, "..", "{repo}.{name}");
   }
 
-  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
+  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-work-unit-worktree spawn leg", async () => {
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
@@ -667,7 +701,9 @@ describe("runCreateNew — create-new worktree spawn", () => {
     // convert it to a refusal rather than throw, honoring the no-throw contract.
     const exec: GitExec = async (cmd, args) => {
       if (args[0] === "worktree" && args[1] === "list") {
-        return { stdout: `worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n` };
+        return {
+          stdout: worktreePorcelainZ(`worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n`),
+        };
       }
       if (args[0] === "worktree" && args[1] === "add") {
         throw new Error("fatal: a branch named 'plan/widget' already exists");

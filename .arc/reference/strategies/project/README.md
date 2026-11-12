@@ -36,14 +36,12 @@ This directory is also the natural home for externally-sourced strategies — co
 patterns, strategies adapted from other projects, or content found in ARC community resources.
 Drop them here alongside your self-authored strategies; they follow the same conventions.
 
-If external content needs deeper integration (replacing an ARC method default, adding to an
-extension hook), use the [integrate-external-content][integrate-external] workflow for the full
-classification decision tree and wiring steps.
+If external content needs deeper integration (replacing an ARC method default or adding a project workflow), use the
+[integrate-external-content][integrate-external] workflow for the full classification
+decision tree and wiring steps.
 
 - **Replaces an ARC default** → Method override (populate `.override` in the method's file
   under `system/methods/`)
-- **Adds ceremony at an existing hook** → Extension (populate `.actions` in the extension's
-  file under `system/extensions/`)
 - **Standalone domain guidance** → Strategy (place here, add to STRATEGY-INDEX)
 
 ## See Also

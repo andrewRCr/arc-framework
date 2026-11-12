@@ -45,15 +45,15 @@ and the `Integrating` state. This strategy layers concurrency conventions on tha
 ## Worktrees by default
 
 Running more than one work unit at a time means keeping more than one branch checked out at a time. ARC's default
-mechanism for that is the **git worktree**: each in-flight work unit gets its own working directory, its own
-checked-out branch, and its own `meta-{name}.md` and SESSION-NOTES. This departs from the long-standing
+mechanism for that is the **git worktree**: each concurrently in-flight work unit gets its own working directory,
+its own checked-out branch, and its own `meta-{name}.md` and SESSION-NOTES. This departs from the long-standing
 solo-developer norm of one clone and one branch with `git checkout` to switch between them — deliberately, and
 primarily for the sake of agent isolation rather than developer convenience.
 
 - **Isolation is the primary justification.** When a coding agent drives the work, a single shared working
   directory is a correctness hazard: an agent mid-task on one branch cannot safely switch to another without
   disturbing uncommitted state, build artifacts, and its own orientation. A worktree gives each work unit a
-  stable, private directory that no concurrent session mutates underneath it. The per-work-unit `meta-{name}.md`
+  stable, WU-owned directory that no concurrent session mutates underneath it. The per-work-unit `meta-{name}.md`
   and the worktree-local, gitignored SESSION-NOTES ride that isolation — each worktree carries exactly the
   context its work unit needs, and nothing from a sibling's.
 
@@ -62,25 +62,44 @@ primarily for the sake of agent isolation rather than developer convenience.
   rather than between branch states. For a person steering several work units this is convenience; for the
   isolation guarantee above it is structural.
 
-- **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: a
-  configured post-create step (`worktree.post_create`) installs project dependencies, and registered harness
-  integration directories (agent skills, hooks, allowlists — gitignored, so git alone won't carry them) are
-  provisioned from the primary. A spawned worktree runs its quality gates and boots an agent session without
-  hand setup — "cheap to create" includes coming up working, not just existing.
+- **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: the
+  gitignored files a `.worktreeinclude` file lists are copied from the primary, a configured post-create step
+  (`worktree.post_create`) installs project dependencies, and registered harness integration directories (agent
+  skills, hooks, allowlists — gitignored, so git alone won't carry them) are provisioned from the primary. Once a
+  project configures what its worktrees need (the next section), a spawned worktree runs its quality gates and boots
+  an agent session without hand setup — "cheap to create" includes coming up working, not just existing.
+
+### What each checkout needs its own of
+
+A worktree starts with only what Git tracks, and work units running side by side each run their checks from their
+own. Anything a check or service reads or writes outside Git is either the checkout's own or shared on purpose. ARC
+provisions the first two; the rest are the project's to arrange:
+
+- **Dependencies** — installed by `worktree.post_create`, for example `npm ci` or creating a virtual environment.
+- **Gitignored configuration and secrets** — `.env` files, local certificates, and other gitignored files a run reads,
+  copied from the primary by gitignore-syntax patterns in `.worktreeinclude` at the repository root. A matched file is
+  copied only when the new worktree's own ignore rules ignore it, so a copy never leaves that worktree dirty, and the
+  copies land before `worktree.post_create` runs, so the script can read them.
+- **Services and ports** — a service started from one checkout can answer another checkout's commands, and services on
+  fixed ports collide. Give each checkout its own service names and ports, or share one stack deliberately.
+- **Databases** — tests from two checkouts that use the same database name overwrite each other's data. Name test
+  databases per checkout.
+- **Toolchain versions** — a worktree runs whatever runtime the machine resolves. Record the versions checks depend on
+  in files a version manager reads in every checkout, such as `.nvmrc`, `.python-version`, or `.tool-versions`.
 
 ### Discovery and cleanup discipline
 
 Worktrees are cheap to create and therefore easy to accumulate. Two habits keep them from becoming clutter:
 
 - **Sweep as you go.** A worktree exists to host an in-flight work unit. Once that work unit ships — merged and
-  archived — its worktree has no further purpose; remove it (use `git worktree remove`, never `rm -rf`). Session
+  archived — its worktree has no further purpose; remove it with `arc teardown <name>`, never `rm -rf`. Session
   initialization surfaces worktrees whose work units have already shipped as a between-sessions nudge; act on
   that surface rather than letting stale directories pile up.
 
-- **Know which worktree you are in.** With several worktrees live, "which worktree am I in, and which work unit
-  does it host?" becomes a genuine question. Session initialization names the occupied worktree and its work
-  unit in its orientation, and the per-work-unit `meta-{name}.md` is the authoritative answer. Confirm the
-  directory matches the work unit you intend to touch before acting in it — especially after switching context.
+- **Know which locus you are in.** With several worktrees live, "which worktree am I in, and which role owns it?"
+  becomes a genuine question. `arc locus` and session initialization render the derived checkout role; the WU meta
+  supplies its project state. Confirm both match the work unit you intend to touch before acting — especially after
+  switching context.
 
 ### Risks to manage
 
@@ -209,7 +228,15 @@ holding the old history. Append-only keeps a pushed branch a safe, shared base. 
   diverge and reconcile at integration.
 - **If you genuinely need the base's changes mid-flight, _merge_ it in — never rebase onto it.** Merging `main`
   into the branch is ancestry-preserving and fast-forward-safe for everyone who holds it; rebasing onto `main`
-  rewrites the pushed commits and breaks the invariant.
+  rewrites the pushed commits and breaks the invariant. First refresh the base with an explicit refspec:
+  `git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main`, then run
+  `git -c merge.directoryRenames=false merge refs/remotes/origin/main`, as `arc base merge` does. Substitute the
+  configured base branch for `main` in both commands. Disabling directory-rename inference for that invocation keeps
+  a branch's new active artifacts in place when base archives the last active work unit, while preserving individual
+  file renames. The repository's Git configuration stays unchanged. A merge that applies cleanly can still break the
+  branch, where base code assumes the old shape of something the branch changed. Before building on the merge, run
+  `arc check new-head --from <pre-merge head>`, the check integration runs after its own base merge, and fix what it
+  finds.
 - **Integration is the single sanctioned rewrite point.** Any history cleanup — squash, reorder, final rebase —
   happens at integration, after review, when the branch stops being a shared working base and becomes a merge
   candidate.
@@ -224,39 +251,41 @@ framing is what makes append-only obviously correct rather than an arbitrary res
 
 ## Merge ordering between concurrent work units
 
-When two work units are ready to integrate around the same time, the order they merge in is itself a small
-coordination decision:
+Concurrent sessions do not coordinate around one another's landing windows. Each terminal boundary freshly observes
+the protected base and applies the shared integration policy:
 
-- **First-in-wins (the default).** Whichever work unit is ready first merges first; the second reconciles against
-  the now-updated base before it merges. Simple, and right for genuinely disjoint work where order doesn't matter.
+- **First-ready proceeds (the default).** Whichever work unit is ready first may merge first. A later disjoint landing
+  invalidates nothing and proceeds without a reconcile commit or repeated review; overlapping or unknown movement
+  reconciles or stops at that later work unit's terminal boundary.
 - **Explicit serialization (when order matters).** When one work unit should land before another — a shared-surface
   dependency, or a change the other builds on — say so rather than racing. A **"merge after #X"** note or label on
   the PR records the constraint where reviewers and merge tooling can see it.
-- **Merge queues.** A merge queue (GitHub merge queue, Mergify, and the like) automates first-in-wins safely: it
-  serializes merges and re-tests each against the updated base, so two green PRs can't combine into a broken
-  `main`. Where available, it's the mechanical answer to ordering between concurrent PRs.
+- **Merge queues are host-side options.** A team may enable a host queue for ordering and test-merge behavior. ARC
+  builds no queue mechanism and adds no review pass merely because a request reaches the queue head.
 
-**Errand branches ride the same discipline.** A `chore/<slug>` errand branch is a mini-PR — small, but it
-integrates through the same ordering: it waits its turn, reconciles against the base if something landed ahead of
-it, and respects any "merge after #X" constraint just as a full work unit does.
+**Errand branches use the same content rule.** A `chore/<slug>` Errand does not wait for another landing window.
+Disjoint movement invalidates nothing; overlapping or unknown movement reconciles or stops only at its own terminal
+boundary, while any explicit "merge after #X" constraint still governs order.
 
 ---
 
 ## Worktree operations
 
-Concurrency means several worktrees live at once; a few operational habits keep them coherent:
+Concurrency means several worktrees live at once. Typed locus and terminal operations keep their authority separate;
+one worktree does not become a global merge coordinator and a base landing does not trigger a refresh sweep of other
+live branches:
 
-- **Merge from one designated worktree.** Run integrations from the primary worktree (or a dedicated merge
-  worktree), not from whichever work-unit worktree you happen to be in. A single merge locus keeps updating the
-  base predictable and keeps work-unit worktrees focused on their own branch.
-- **Refresh the others after a merge.** When a work unit integrates and the base advances, the other live
-  worktrees are now behind. Reconcile them (merge the base in, per append-only) at a clean point so they don't
-  drift far. A **sync-all-worktrees** pass — fetch once, reconcile each live branch — is a good between-sessions
-  habit.
-- **Remove worktrees with `git worktree remove`, never `rm -rf`.** `git worktree remove` also cleans up git's
-  internal bookkeeping (the administrative link under `.git/worktrees`); `rm -rf` deletes the directory but
-  strands that record, which then needs a `git worktree prune` to clear. If a directory has already been deleted
-  out from under git, `git worktree prune` recovers the stale reference.
+- **Remove a work item's worktree through its exit verb, never `rm -rf`.** Each worktree ARC spawns for a work unit
+  or an Errand carries a `git worktree lock` whose reason names its exits — `arc teardown <name>` for a work unit,
+  `arc errand close`, `abandon`, or `leave` for an Errand — and Git refuses a plain `git worktree remove` of it,
+  printing that reason. The exit first persists what ARC holds in the checkout, then unlocks its own lock and removes
+  it; forcing past the lock (`git worktree remove -f -f`) skips that persist. A move keeps the lock and needs the
+  same double force (`git worktree move -f -f`). A worktree no ARC verb spawned is removed with `git worktree remove`,
+  which also clears git's record under `.git/worktrees`; `rm -rf` strands that record.
+- **Clear a deleted folder's registration by its path.** When a folder was deleted out from under git, its
+  registration stays, and `git worktree prune` passes over it while it is locked. Session initialization reports it
+  with its remedy: `arc teardown <name>` where the work unit's teardown removes it, otherwise
+  `git worktree unlock <path>` where it is locked, then `git worktree remove <path>`.
 - **Mind cross-worktree state after a history rewrite.** A branch is checked out in only one worktree at a time,
   but a rebase or other rewrite in one worktree changes what another sees if it tracks the same branch line. After
   any rewrite (integration cleanup, a private-window rebase), re-fetch in the other worktrees before trusting
@@ -298,26 +327,25 @@ makes this routine: you advance other work while one waits. Soft conventions for
 
 ## The primary worktree rests on the base
 
-The **primary worktree** — the checkout the repository was cloned into — is not a work unit's workspace. Its
-resting state is the base branch, and it serves as the **launchpad** ([Work Organization Strategy][work-org]
-§ Main-on-Main Pattern): the stable reference every work-unit worktree spawns from, and the always-current
-surface for work that has no branch of its own — base ceremonies, backlog grooming, inbox drains, and errand
-launches.
+The **physical primary** — the checkout the repository was cloned into — is the launchpad only while its marker is
+absent, it is clean, and it rests on the configured base ([Work Organization Strategy][work-org] § Main-on-Main
+Pattern). In that free state it supplies the stable reference for spawned worktrees and the first allocation for
+base ceremonies, grooming, inbox drains, and Errands.
 
-- **Work-unit work never occupies the primary.** An in-flight work unit always gets its own worktree. Checking a
-  work-unit branch out in the primary parks the launchpad on that branch for the unit's whole life and couples
-  every out-of-work-unit need to its state; spawn instead — worktree creation provisions itself (§ Worktrees by
-  default), so the cost is one command.
-- **Out-of-work-unit work runs in the primary as a bounded excursion.** An errand or grooming pass may switch
-  the primary onto its short-lived branch, do its work, and **return the primary to the base at close** — the
-  primary is never parked on a branch between excursions.
-- **One out-of-work-unit session at a time.** The primary is a single checkout: two sessions sharing it share
-  HEAD, index, and per-checkout state. Serialize out-of-work-unit work through it — one errand, drain, or
-  grooming session occupying it at a time. When it is occupied — or you want isolation — spawn a worktree for
-  the errand instead of queueing on or sharing the checkout.
-- **So "go to the primary" means "you're on the base."** Cutting a branch, freshening the base, or running a
-  base-context ceremony starts from a clean, current base without a preliminary checkout dance — that resting
-  state is what keeps every spawn cut from the right point.
+- **Spawn WUs by default under full protection.** Each WU normally owns a dedicated worktree from start through
+  teardown. `--here` is the explicit single-checkout escape hatch: it converts the physical primary into that WU's
+  occupied locus. While the WU role exists, the checkout is not also a launchpad and cannot host transient work or
+  another WU. Only exact WU teardown removes the marker and restores the configured base.
+- **Transient work allocates; it never displaces.** An Errand, grooming pass, or housekeep drain uses the free
+  primary when the allocation verb proves it safe. Under full protection, occupied-primary or requested-isolation
+  cases spawn a transient worktree; under partial protection, an unavailable primary refuses. No operation switches
+  a WU-owned checkout onto a transient branch.
+- **One transient session per checkout.** Derived roles and exact marker generations serialize occupancy; two
+  sessions never share HEAD, index, or per-checkout state. A full-mode close returns the primary to base or tears
+  down the spawned transient checkout before retiring the identity.
+- **"Go to the free primary" includes the state proof.** Record absence alone is insufficient: dirty, off-base,
+  malformed, duplicate, or live/unknown lock evidence makes the primary unavailable or unsafe. Re-probe and consume
+  the CLI guidance rather than inferring availability from the branch name.
 
 Under partial protection the same shape holds with less apparatus: the base is a legitimate working surface, so
 an excursion often collapses to a direct base commit. The launchpad specialization is sharpest under full
@@ -439,8 +467,9 @@ different answers:
   edited — or removed — concurrently from two checkouts**: resolution takes the most recent write, so one edit
   can silently lose, and a removal pushed from a stale copy can resurrect the entry it removed. The exposure is
   narrow and the state recoverable (personal notes keep a pre-load backup); the operative discipline prevents it
-  structurally: **pull before writing, and serialize entry-level edits through one drain locus** — the primary
-  (§ The primary worktree rests on the base) — rather than editing the same entry from parallel worktrees.
+  structurally: **pull before writing, and serialize entry-level edits through one allocated drain locus** — the
+  free primary when available, otherwise the full-mode spawned fallback (§ The primary worktree rests on the base)
+  — rather than editing the same entry from parallel worktrees.
 
 **Cohort files ride a partition.** A `cohort-{name}.md` shared by sibling work units stays conflict-free through
 **per-member partition** — each member writes its own section — backed by the behind-base check as the net.
@@ -485,8 +514,8 @@ conventions above (append-only, primary-on-base, one session per checkout).
 
 - **A commit is blocked because the readiness view "wants" a row for a work unit you never touched.** In-flight
   rows derive from remote refs, so a branch appearing (or vanishing) on the remote changes every worktree's
-  expected render. Re-render against the staged tree —
-  `arc status --project --staged > .arc/backlog/ROADMAP.md` — stage the result, and commit. (Known limitation.)
+  expected render. Re-render against the staged tree — `arc status --project --staged --write` — stage the result, and
+  commit. (Known limitation.)
 
 - **A personal-notes push is refused: the same file diverged at the same commit.** Two machines saved divergent
   notes onto the same base commit; there is no automatic union. Choose one machine, manually combine the
@@ -496,19 +525,20 @@ conventions above (append-only, primary-on-base, one session per checkout).
 - **A personal-notes entry lost your edit, or a removed entry reappeared.** Concurrent same-entry edits resolve
   by recency: the newer write wins silently, and a removal pushed from a stale copy can resurrect the entry.
   Restore what was lost from the pre-load backups kept beside the user files; going forward, pull before writing
-  and serialize entry edits through one drain locus (the primary).
+  and serialize entry edits through one allocated drain locus.
 
-- **An errand-record push reports a same-slug conflict.** The same errand slug was opened on two machines; the
-  per-identity record ref wedges behind the collision (later record pushes queue behind it). Keep one record and
-  run `arc errand close --force <slug>` on the discarded side; the next push reconciles and releases the queue.
+- **An Errand identity push reports a same-slug conflict.** The same slug was claimed on two machines, so the shared
+  identity basis is incomplete and later identity mutations fail closed. Preserve the discarded work, choose the
+  surviving generation, and resolve the conflict before retrying; no terminal confirmation option bypasses it.
 
 - **Session start shows a "notes lag" line for a sibling machine.** A sibling's paired push didn't finish its
   notes leg — lag, not loss: the work is safe on its own machine. Proceed with context; let the owning machine
   re-push. Never force-push notes to clear the line.
 
-- **Worktree removal is refused (uncommitted changes, or unmerged work).** Git is protecting state that would be
-  lost. Inspect the worktree; commit, stash, or hand the work off, then remove with `git worktree remove`. Don't
-  `rm -rf` — it strands git's bookkeeping (recoverable afterward with `git worktree prune`, but avoidable).
+- **Worktree removal is refused (uncommitted changes, unmerged work, or a lock).** Git is protecting state that
+  would be lost. Inspect the worktree; commit, stash, or hand the work off, then remove it with the exit verb the lock
+  reason names. Don't `rm -rf` — it strands git's registration, which then needs `git worktree unlock <path>` and
+  `git worktree remove <path>` to clear.
 
 - **Teardown leaves the session in a detached worktree husk.** A worktree cannot safely remove the directory the
   current session is standing in. Self-teardown therefore verifies preservation and user-surface reconciliation,

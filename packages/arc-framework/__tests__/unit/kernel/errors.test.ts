@@ -4,12 +4,12 @@ import { z } from "zod";
 import {
   ArcError,
   SchemaError,
+  assertNever,
   createRegistry,
   toArcError,
   type ArcErrorCode,
   type SchemaErrorCode,
 } from "../../../src/lib/kernel/index.js";
-import { ArcError as OldArcError, UserFacingError } from "../../../src/lib/errors.js";
 
 const legacyCodes = [
   "GIT_MISSING",
@@ -28,10 +28,6 @@ const legacyCodes = [
   "MANIFEST_VERSION_UNSUPPORTED",
   "ROLE_FORBIDDEN",
 ] as const;
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected schema code: ${String(value)}`);
-}
 
 function handleSchemaCode(code: SchemaErrorCode): string {
   switch (code) {
@@ -63,17 +59,6 @@ describe("kernel error contracts", () => {
     expect(caused.cause).toBe(cause);
   });
 
-  it("preserves constructor identity through the presentation module", () => {
-    expect(OldArcError).toBe(ArcError);
-    const userFacing = new UserFacingError({
-      code: "MANIFEST_MISSING",
-      whatHappened: "missing",
-      why: "absent",
-      whatToDo: "restore it",
-    });
-    expect(userFacing).toBeInstanceOf(ArcError);
-  });
-
   it("keeps schema-domain codes exhaustive and locally narrowed", () => {
     const cause = new Error("registry detail");
     const error = new SchemaError("duplicate", "schema.registry.duplicate-identity", { cause });
@@ -103,6 +88,20 @@ describe("kernel error contracts", () => {
     expect(() => registry.register(schema, {
       id: "other", version: 1, migrationPosture: "strict-current",
     })).toThrowError(expect.objectContaining({ code: "schema.registry.duplicate-schema" }));
+  });
+
+  it("fails loudly when a value reaches a branch its type rules out", () => {
+    expect(() => assertNever("surprise" as never)).toThrowError("Unhandled variant: \"surprise\"");
+    expect(() => assertNever({ kind: "late-addition" } as never))
+      .toThrowError('Unhandled variant: {"kind":"late-addition"}');
+
+    const cyclic: { self?: unknown } = {};
+    cyclic.self = cyclic;
+    expect(() => assertNever(cyclic as never)).toThrowError("Unhandled variant: [object Object]");
+    expect(() => assertNever(undefined as never)).toThrowError("Unhandled variant: undefined");
+
+    // @ts-expect-error -- a subject the cases have not narrowed to `never` is rejected where it is passed
+    expect(() => assertNever("not narrowed")).toThrowError("Unhandled variant");
   });
 
   it("adapts unknown failures without leaking non-Error values", () => {

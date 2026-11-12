@@ -5,7 +5,9 @@ Per-file method defaults and overrides. Each method defines a contract (what mus
 
 **How overrides work:** To replace a default, populate the method's `.override` section with your team's
 implementation. For each method, the agent checks `.override` first — if populated, follow the override and skip
-`.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
+`.default`. An override replaces _how_ the method is accomplished, never _what_ it must accomplish: the contract
+is the invariant both the default and any override satisfy. Nothing mechanically enforces that, which leaves it
+unchecked rather than optional.
 
 An optional `override-mode` frontmatter field selects the disposition when `.override` is populated. `replace`
 (the default; absent ⇒ this) stands alone — follow the override and skip `.default`. `extend` applies `.default`
@@ -16,43 +18,75 @@ it is independent of `override-active` (whether an override is populated) and `o
 Unregistered methods must omit `active`. Missing or malformed project activation emits a diagnostic and falls back
 to the registered package default.
 
-| Activatable method | Package default | Activity                                            |
-| ------------------ | --------------- | --------------------------------------------------- |
-| self-review        | `true`          | Author-side aggregate diff preflight                |
-| frontline-review   | `false`         | Advisory distinct-context review before PR creation |
+| Activatable method    | Package default | Activity                                            |
+| --------------------- | --------------- | --------------------------------------------------- |
+| code-review-author    | `true`          | Author-side aggregate diff preflight                |
+| code-review-frontline | `false`         | Advisory distinct-context review before PR creation |
 
-**Loading model:** Method defaults and overrides always load on-demand at workflow trigger points. Session-init
-does not read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs
-generation, and authoring tooling, not by session-init. Workflow documents declare their method dependencies in
-frontmatter (`arc.methods`) — see [Workflow Authoring Strategy][workflow-authoring] and
-[Session Operations Strategy § Method and Extension Loading][session-ops-methods].
+**Loading model:** Method defaults and overrides load on-demand at their fire-points, including session-init's read
+rule and `fragment` steps. The `override-active` field serves the framework-repo CI audit, docs generation, and
+authoring tooling; it does not trigger an init-time scan. Workflows and methods declare only what their own bodies fire
+in `arc.methods`; workflow declarations are roots, and method-owned declarations form a deduplicated transitive
+graph. A caller never redeclares its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring]
+and [Session Operations Strategy § Method Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
 
-## Method Dependencies
+## Review family
+
+[review-model](review-model.md#review-family) defines the layers and their authority boundaries.
+
+- **Review types:** [planning-review](planning-review.md), [code-review](code-review.md), and
+  [verification-review](verification-review.md).
+- **Checks:** [assess-draft-readiness](assess-draft-readiness.md),
+  [assess-design-proportionality](assess-design-proportionality.md), [source-grounding](source-grounding.md),
+  [spec-review](spec-review.md), [task-audit](task-audit.md), [design-audit](design-audit.md),
+  [implementation-audit](implementation-audit.md), [validate-criteria](validate-criteria.md), and
+  [code-review-author](code-review-author.md), code review's author check.
+- **Vehicles:** [adversarial-review](adversarial-review.md), [code-review-frontline](code-review-frontline.md), and
+  [code-review-standard](code-review-standard.md).
+- **Findings:** [review-triage](review-triage.md), [review-response](review-response.md), and
+  [disposition-report](disposition-report.md).
+- **Routing:** [classify-review-risk](classify-review-risk.md), [review-chunking](review-chunking.md), and
+  [assess-evidence-applicability](assess-evidence-applicability.md) at a moved target.
+
+## Related Methods
 
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section. Methods not listed here are independent.
 
-| Method                        | Related Methods                                                          | Coupling                                   |
-| ----------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| commit-format                 | commit-footer                                                            | Both govern the commit message             |
-| commit-footer                 | commit-format                                                            | Both govern the commit message             |
-| frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage | Advisory review mechanism, scope, and lens |
-| standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage | Satisfying standard, mechanism, and lens   |
-| review-chunking               | frontline-review, standard-review                                        | Bounded review-scope consumers             |
-| self-review                   | review-triage                                                            | Uses review-triage for findings            |
-| review-response               | review-triage                                                            | Consumes approved finding dispositions     |
-| assess-cohort-fit             | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
-| classify-work-unit            | assess-cohort-fit                                                        | Upper/lower WU-boundary tests              |
-| assess-design-proportionality | design-audit                                                             | Material proportionality and broader fit   |
-| design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
-| testing-standards             | test-first                                                               | Planning/execution seam split              |
-| test-first                    | testing-standards                                                        | Planning/execution seam split              |
+| Method                        | Related Methods                                                                        | Coupling                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| adversarial-review            | validate-criteria, source-grounding, assess-design-proportionality, disposition-report | Criteria walk, fresh-context companion, report shape |
+| source-grounding              | spec-review, task-audit, adversarial-review                                            | Shared behavior and propagation check                |
+| spec-review                   | source-grounding                                                                       | Spec coherence and claim grounding                   |
+| task-audit                    | source-grounding                                                                       | Task grounding floor and category analysis           |
+| commit-format                 | commit-footer, pull-request-format                                                     | Both govern the commit message                       |
+| pull-request-format           | commit-format                                                                          | Title grammar and decision content                   |
+| commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
+| code-review-frontline         | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
+| code-review-standard          | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
+| review-chunking               | code-review-frontline, code-review-standard                                            | Bounded review-scope consumers                       |
+| code-review-author            | code-review                                                                            | Pure author check; shared caller owns findings       |
+| code-review                   | code-review-author, code-review-frontline, code-review-standard, review-model          | Code review dispatch procedures                      |
+| planning-review               | adversarial-review, review-model                                                       | Planning stage checks, independent offer, and reread |
+| verification-review           | validate-criteria, adversarial-review, review-model                                    | Criteria walk and independent companion              |
+| review-model                  | adversarial-review, review-triage, review-response                                     | Shared passes, rounds, convergence, and cadence      |
+| review-response               | review-triage                                                                          | Consumes approved finding dispositions               |
+| review-triage                 | disposition-report                                                                     | Renders code-review findings in its shape            |
+| disposition-report            | review-triage, adversarial-review                                                      | Shared finding-set presentation                      |
+| assess-boundary-fit           | classify-work-unit                                                                     | Upper/lower WU-boundary tests                        |
+| classify-work-unit            | route-discovered-work, assess-boundary-fit                                             | Wrapper floor and upper boundary                     |
+| route-discovered-work         | classify-work-unit                                                                     | Disposition applies the wrapper floor                |
+| assess-design-proportionality | design-audit, adversarial-review                                                       | Material proportionality and broader fit             |
+| design-audit                  | assess-design-proportionality                                                          | Broader fit and material proportionality             |
+| testing-standards             | test-first                                                                             | Planning/execution seam split                        |
+| test-first                    | testing-standards                                                                      | Planning/execution seam split                        |
+| validate-criteria             | verification-review                                                                    | Pure criteria check and scoped review caller         |
 
 ---
 
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
-[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-and-extension-loading
+[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-loading
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md

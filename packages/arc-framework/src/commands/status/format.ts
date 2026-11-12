@@ -4,28 +4,29 @@
  * JSON emission is not formatter-side — the handler calls `JSON.stringify`
  * on the typed result directly. These builders produce the human-readable
  * Clack note body that pairs with the default (no-`--json`) invocation,
- * rendering four stably-ordered sections (one per probe) plus the identity
+ * rendering independently available sections (one per probe) plus the identity
  * pointer block.
  *
  * Each probe result delegates to its own probe-specific formatter; failed
  * slots render a single-line "unavailable" marker so one probe's failure
- * does not obscure the other three's output.
+ * does not obscure the healthy sections.
  */
 
 import { buildActiveSessionInitSummary, buildActiveStatusSummary } from "../active/format.js";
+import { buildProjectionStatusSummary } from "../../lib/store/projection/status.js";
 import { buildConfigSessionInitSummary, buildConfigStatusSummary } from "../config/format.js";
 import { buildDomainRulesSessionInitSummary } from "../constitution/format.js";
-import {
-  buildExtensionsSessionInitSummary,
-  buildExtensionsStatusSummary,
-} from "../extensions/format.js";
 import {
   buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
 } from "../user/format.js";
 
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 
 import type {
   Probe,
@@ -40,7 +41,7 @@ function renderIdentity(identity: StatusIdentity): string {
   const value = (v: string | null): string => (v === null ? "(unset)" : v);
   return [
     "Identity:",
-    `  arc.identity: ${value(identity.identity)}`,
+    `  identity: ${value(identity.identity)}`,
     `  arc.role:     ${value(identity.role)}`,
   ].join("\n");
 }
@@ -60,14 +61,17 @@ export function buildStatusSummary(result: StatusResult): string {
   const sections: string[] = [
     renderIdentity(result.identity),
     renderSlot("User", result.user, buildUserStatusSummary),
-    renderSlot("Extensions", result.extensions, buildExtensionsStatusSummary),
     renderSlot("Config", result.config, buildConfigStatusSummary),
     renderSlot("Active", result.active, buildActiveStatusSummary),
   ];
+  if (!result.projection.ok || result.projection.value.kind !== "disabled")
+    sections.push(renderSlot("Projection", result.projection, buildProjectionStatusSummary));
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }
 
-function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): string {
+function buildWorktreeSessionInitSummary(
+  value: WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult,
+): string {
   switch (value.state) {
     case "clean":
       return "clean (in sync with origin)";
@@ -88,7 +92,11 @@ function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): strin
     case "branch-gone":
       return "branch gone (upstream deleted on origin)";
     case "remote-unavailable": {
-      const reason = value.failureReason ? ` (${value.failureReason})` : "";
+      if ("remoteEvidence" in value && value.remoteEvidence === "pending-fetch") {
+        return "remote object pending explicit refresh";
+      }
+      const failureReason = "failureReason" in value ? value.failureReason : undefined;
+      const reason = failureReason ? ` (${failureReason})` : "";
       return `remote unavailable${reason}`;
     }
   }
@@ -106,16 +114,40 @@ function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
   ].join("\n");
 }
 
+function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
+  if (value.kind === "unavailable") return value.message;
+  const lines = [
+    value.currentFrame,
+    value.pause,
+    value.primaryAvailability,
+    value.recovery,
+    value.reconciliation,
+    ...value.identities,
+    ...value.cleanup,
+    ...value.diagnostics,
+  ].filter((line): line is string => line !== undefined);
+  return lines.length === 0 ? null : lines.join("\n");
+}
+
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
+  const locusGuidance = buildLocusGuidanceSummary(result.locusGuidance);
+  const deliveryPosition = result.deliveryPosition === undefined
+    || (result.deliveryPosition.ok && result.deliveryPosition.value === null)
+    ? []
+    : [renderSlot("Delivery", result.deliveryPosition, (value) => value?.line ?? "")];
   const sections: string[] = [
     renderIdentity(result.identity),
-    renderSlot("User", result.user, buildUserSessionInitStatusSummary),
+    ...(locusGuidance === null
+      ? []
+      : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
+    ...(result.user.ok && result.user.value === null ? [] : [renderSlot("User", result.user, value =>
+      value === null ? "" : "status" in value ? value.summary : buildUserSessionInitStatusSummary(value))]),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
-    renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Release Routing", result.releaseRouting, buildReleaseRoutingSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),
+    ...deliveryPosition,
     renderSlot("Domain Rules", result.domainRules, buildDomainRulesSessionInitSummary),
   ];
   return sections.join(`\n${SECTION_SEPARATOR}\n`);

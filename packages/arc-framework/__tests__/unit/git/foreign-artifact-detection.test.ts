@@ -1,12 +1,14 @@
 /**
  * Unit tests for detectForeignArtifactOverlap — the deterministic foreign-artifact
  * detection behind the `arc-errand` advisory gate. Given an errand's target path(s)
- * and the originating WU, it reports which *other* in-flight WUs touch the target,
+ * and the originating checkout, it reports which *other* in-flight WUs and Errands touch the target,
  * over the identity-filtered roster + per-worktree git state. Advisory only: it
  * returns facts and never blocks.
  */
 
 import { describe, it, expect } from "vitest";
+
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 import {
   detectForeignArtifactOverlap,
@@ -53,7 +55,7 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): {
     const direct = lookup(args);
     if (direct !== undefined) {
       const result = typeof direct === "function" ? await direct(args, options) : direct;
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] !== "--quiet") {
         const ref = args[2] ?? "";
         const sha = result.stdout.trim().split(/\s+/u)[0] ?? "";
         if (ref !== "" && sha !== "") {
@@ -62,6 +64,9 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): {
         }
       }
       return result;
+    }
+    if (args.join(" ") === "rev-parse --verify --quiet MERGE_HEAD") {
+      throw makeGitProcessError({ command: cmd, args, exitCode: 1 });
     }
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
@@ -181,6 +186,112 @@ describe("detectForeignArtifactOverlap", () => {
       },
     ]);
     expect(calls.filter((c) => c.args[0] === "status")).toHaveLength(2);
+  });
+
+  it.each(["already active", "started during status reads"])(
+    "marks a merge %s indeterminate while retaining committed matches", async (timing) => {
+      const roster = rosterOf({
+        worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+        metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+      });
+      let mergeReads = 0;
+      const { exec } = buildExec({
+        "diff main...feat/wu-a --name-only -- docs/x.md docs/own.md": { stdout: "docs/own.md\n" },
+        "status --porcelain -- docs/x.md docs/own.md": { stdout: "M  docs/x.md\n" },
+        "rev-parse --verify --quiet MERGE_HEAD": (args) => {
+          mergeReads += 1;
+          if (timing === "started during status reads" && mergeReads === 1) {
+            throw makeGitProcessError({ command: "git", args, exitCode: 1 });
+          }
+          return { stdout: `${"a".repeat(40)}\n` };
+        },
+      });
+
+      const result = await detectForeignArtifactOverlap({
+        exec, roster, targetPaths: ["docs/x.md", "docs/own.md"], baseBranch: "main",
+        originatingWorktreePath: "/repo.wu-self",
+      });
+
+      expect(result.overlaps).toEqual([]);
+      expect(result.indeterminate).toEqual([{
+        branch: "feat/wu-a", worktreePath: "/repo.wu-a",
+        matchedPaths: ["docs/own.md"], reason: "merge-in-progress",
+      }]);
+    },
+  );
+
+  it("keeps a merge completed between merge-state reads indeterminate", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+    });
+    let headReads = 0;
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md docs/own.md": { stdout: "docs/own.md\n" },
+      "status --porcelain -- docs/x.md docs/own.md": { stdout: "M  docs/x.md\n" },
+      "rev-parse --verify HEAD": () => ({ stdout: `${(++headReads === 1 ? "3" : "b").repeat(40)}\n` }),
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec, roster, targetPaths: ["docs/x.md", "docs/own.md"], baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([{
+      branch: "feat/wu-a", worktreePath: "/repo.wu-a",
+      matchedPaths: ["docs/own.md"], reason: "uncommitted-probe-disagreement",
+    }]);
+  });
+
+  it("keeps a merge aborted after both status reads indeterminate", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+    });
+    let statusReads = 0;
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md docs/own.md": { stdout: "docs/own.md\n" },
+      "status --porcelain -- docs/x.md docs/own.md": () => {
+        statusReads += 1;
+        return { stdout: "M  docs/x.md\n" };
+      },
+      "rev-parse --verify --quiet MERGE_HEAD": (args) => {
+        if (statusReads === 1) return { stdout: `${"a".repeat(40)}\n` };
+        throw makeGitProcessError({ command: "git", args, exitCode: 1 });
+      },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec, roster, targetPaths: ["docs/x.md", "docs/own.md"], baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([{
+      branch: "feat/wu-a", worktreePath: "/repo.wu-a",
+      matchedPaths: ["docs/own.md"], reason: "merge-in-progress",
+    }]);
+  });
+
+  it("does not interpret a failed merge-state probe as an absent merge", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+    });
+    const failure = makeGitProcessError({
+      command: "git", args: ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], exitCode: 128,
+    });
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": { stdout: "" },
+      "rev-parse --verify --quiet MERGE_HEAD": () => { throw failure; },
+    });
+
+    await expect(detectForeignArtifactOverlap({
+      exec, roster, targetPaths: ["docs/x.md"], baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    })).rejects.toBe(failure);
   });
 
   it("detects a target renamed into place in another WU's worktree (porcelain `old -> new`)", async () => {
@@ -623,13 +734,62 @@ describe("projectInFlightToOverlapRoster", () => {
     });
   });
 
-  it("drops errands — they carry no meta and aren't WU-overlap candidates", async () => {
+  it("projects an in-flight Errand by its slug, wherever its branch is", async () => {
     const roster = projectInFlightToOverlapRoster([
-      oracleWu("feat/x", "x", "/repo.x"),
-      { kind: "errand", branch: "chore/fix", slug: "fix", remoteOnly: true },
+      { kind: "errand", branch: "chore/local", slug: "local", remoteOnly: false, worktreePath: "/repo.local" },
+      { kind: "errand", branch: "chore/unoccupied", slug: "unoccupied", remoteOnly: false },
+      { kind: "errand", branch: "chore/remote", slug: "remote", remoteOnly: true, marks: ["degraded"] },
     ]);
 
-    expect(roster.entries.map((e) => e.branch)).toEqual(["feat/x"]);
+    expect(roster.entries).toEqual([
+      { branch: "chore/local", errand: "local", worktreePath: "/repo.local" },
+      { branch: "chore/unoccupied", errand: "unoccupied", remoteOnly: false },
+      { branch: "origin/chore/remote", errand: "remote", marks: ["degraded"] },
+    ]);
+  });
+
+  it("reports an in-flight Errand that touches the target, committed or uncommitted", async () => {
+    const roster = projectInFlightToOverlapRoster([
+      { kind: "errand", branch: "chore/remote", slug: "remote", remoteOnly: true },
+      { kind: "errand", branch: "chore/local", slug: "local", remoteOnly: false, worktreePath: "/repo.local" },
+    ]);
+    const { exec } = buildExec({
+      "diff main...origin/chore/remote --name-only -- docs/x.md": { stdout: "docs/x.md\n" },
+      "diff main...chore/local --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": { stdout: " M docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "origin/chore/remote", matchedPaths: ["docs/x.md"] },
+      { branch: "chore/local", worktreePath: "/repo.local", matchedPaths: ["docs/x.md"] },
+    ]);
+  });
+
+  it("never reports the Errand whose checkout runs the check", async () => {
+    const roster = projectInFlightToOverlapRoster([
+      { kind: "errand", branch: "chore/self", slug: "self", remoteOnly: false, worktreePath: "/repo.errand-self" },
+    ]);
+    // Any git call would throw on an unmatched key: the originating Errand is skipped before probing.
+    const { exec, calls } = buildExec({});
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.errand-self",
+    });
+
+    expect(result).toEqual({ overlaps: [] });
+    expect(calls).toHaveLength(0);
   });
 
   it("surfaces an overlap from oracle data (refs-only) for a remote-only WU touching the target", async () => {

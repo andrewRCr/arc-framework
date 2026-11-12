@@ -10,7 +10,7 @@ top-to-bottom flow is required.
 
 ## When to Use
 
-- **From [`integrate-work-unit.md`][integrate] Step 5.** Invoked as a delegated subroutine when integrate's
+- **From [`integrate-work-unit.md`][integrate] Step 3.** Invoked as a delegated subroutine when integration's
   disposition decision is "keep + clean" for an existing notes file (`§ Notes File Consolidation`), or when
   integrate's survey finds temporal markers / accumulated scratchpad content in the task list
   (`§ Task List Temporal-Noise Pass`).
@@ -18,7 +18,7 @@ top-to-bottom flow is required.
 - **Standalone, as needed.** For mid-work tidying when a task list or notes file has accumulated drift that
   hampers session loading or scanning. Genuine need; not part of the strict lifecycle pipeline.
 
-State transitions (`Active → Integrating`) are owned by [`integrate-work-unit.md`][integrate]; this workflow
+The publication transition (`Active → Integrating`) is owned by [`prepare-work-unit.md`][prepare]; this workflow
 does not touch the meta file's `**State:**` field.
 
 ## Notes File Consolidation
@@ -72,7 +72,8 @@ Standard task list structure to preserve:
 - Header metadata (`**Design:**` — single pointer to PRD or draft-doc per chain-model header)
 - Overview / Scope (Will Do / Won't Do)
 - Tasks (phases with subtasks)
-- Success Criteria
+- Success Criteria; when the task list carries a Delivery Plan, preserve its delivery-member and cross-member seam
+  subgroups
 
 Non-standard sections — evaluate each:
 
@@ -110,9 +111,8 @@ For each match: read context, verify it's temporal noise (not substantive), remo
 
 ## Quality Checks
 
-After invoking any section, run the project's markdown lint command on the affected files (see
-[QUICK-REFERENCE][quick-ref] § Quality Gate Commands). Review the diff to ensure no accidental task-checkbox
-edits.
+After invoking any section, request `arc check increment` once over the final cleanup edits. Review the diff to
+ensure no accidental task-checkbox edits.
 
 **Verify temporal noise removed (after § Task List Temporal-Noise Pass):**
 
@@ -127,4 +127,4 @@ grep -in "next step\|resume at\|blocked on" tasks-*.md
 ---
 
 [integrate]: ../work-unit-lifecycle/integrate-work-unit.md
-[quick-ref]: ../../../../reference/QUICK-REFERENCE.md
+[prepare]: ../work-unit-lifecycle/prepare-work-unit.md

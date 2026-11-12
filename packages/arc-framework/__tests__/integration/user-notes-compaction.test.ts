@@ -72,8 +72,10 @@ async function writeCompletedMeta(cwd: string, sequence: string, slug: string, c
   await writeFile(
     join(dir, `meta-${slug}.md`),
     "# Metadata: test\n\n"
-    + "- **State:** Shipped\n"
-    + `- **Completed:** ${completedAt}\n`,
+    + "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n"
+    + "| --------- | --------- | ---------- | --------- | ------------ |\n"
+    + "| Shipped | — | — | — | — |\n\n"
+    + `- **Completed:** ${completedAt}\n\n---\n`,
     "utf-8",
   );
 }

@@ -1,0 +1,414 @@
+/** Strict, storage-neutral Candidate applicability classification over D4 structural facts. */
+
+import { z } from "zod";
+
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import {
+  BoundedEvidenceResidualSchema,
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../evidence-applicability/schema.js";
+import {
+  boundApplicabilityResidual,
+  type ApplicabilityResidual,
+} from "../evidence-applicability/applicability-residual.js";
+import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../evidence-applicability/index.js";
+import {
+  DeliveryContributionEndpointsSchema,
+  DeliveryContributionProofResultSchema,
+} from "../delivery/contribution-proof.js";
+import { CandidateLineageTargetSchema } from "./candidate-attestation.js";
+
+const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+const DigestSchema = CanonicalDigestSchema;
+
+export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
+export const CANDIDATE_APPLICABILITY_CHOICES = ["covered", "targeted-check", "changed"] as const;
+export const CandidateApplicabilityChoicesSchema = z.tuple([
+  z.literal("covered"),
+  z.literal("targeted-check"),
+  z.literal("changed"),
+]);
+
+export const CandidateApplicabilityRequestSchema = z.strictObject({
+  candidateId: DigestSchema,
+  baselineTarget: CandidateLineageTargetSchema,
+  currentTarget: CandidateLineageTargetSchema,
+  currentBase: ObjectIdSchema,
+});
+export type CandidateApplicabilityRequest = z.infer<typeof CandidateApplicabilityRequestSchema>;
+
+export const CandidateApplicabilityTargetSchema = z.strictObject({
+  revision: ObjectIdSchema,
+  subjectDigest: DigestSchema,
+});
+export type CandidateApplicabilityTarget = z.infer<typeof CandidateApplicabilityTargetSchema>;
+
+export const CandidateApplicabilityStructuralFactsSchema = z.strictObject({
+  endpoints: DeliveryContributionEndpointsSchema,
+  proof: DeliveryContributionProofResultSchema,
+});
+export type CandidateApplicabilityStructuralFacts = z.infer<
+  typeof CandidateApplicabilityStructuralFactsSchema
+>;
+
+/**
+ * The one route out of an ambiguous pinned pair: re-pin the baseline.
+ *
+ * It carries no command to run because merging is the remedy this pair cannot take. Both elements are fixed —
+ * the baseline is reduced from a durable record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared revisions, and their two best ancestors, exactly where they were. Clearing it
+ * takes a fresh authority transition that pins a new baseline, which is a ceremony rather than a command this
+ * reader can name.
+ */
+export const CandidateRebaselineRemedySchema = z.strictObject({
+  kind: z.literal("candidate-rebaseline-required"),
+  /** The clearing act in the operator's own terms, for a reader that renders this rather than branching on it. */
+  text: z.string().min(1),
+});
+export type CandidateRebaselineRemedy = z.infer<typeof CandidateRebaselineRemedySchema>;
+
+const ResultCommon = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("candidate-applicability"),
+  candidateId: DigestSchema,
+  baselineTarget: CandidateApplicabilityTargetSchema,
+  currentTarget: CandidateApplicabilityTargetSchema,
+  currentBase: ObjectIdSchema,
+};
+
+const ObservedEndpointsSchema = z.strictObject({
+  candidateHead: ObjectIdSchema,
+  baseHead: ObjectIdSchema,
+});
+
+export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
+  ...ResultCommon,
+  state: z.literal("decision-required"),
+  nextAction: z.literal("request-authority"),
+  verdict: z.enum(["clean-divergence", "interaction"]),
+  applicability: EvidenceApplicabilityResultSchema,
+  projection: DeliveryContributionEndpointsSchema,
+  paths: BoundedEvidenceResidualSchema,
+  choices: CandidateApplicabilityChoicesSchema,
+  selectionOfferText: z.string().min(1),
+  recommendedActionText: z.string().min(1),
+  selectionPromptText: z.string().min(1),
+  projectionDigest: DigestSchema,
+  residualDigest: DigestSchema,
+});
+export type CandidateApplicabilityDecisionResult = z.infer<
+  typeof CandidateApplicabilityDecisionResultSchema
+>;
+
+export const CandidateApplicabilityResultSchema = z.union([
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("applicable"),
+    nextAction: z.literal("recognize-current"),
+    proof: z.enum(["subject-equality", "tree-equality", "mechanical-reapply"]),
+    projection: DeliveryContributionEndpointsSchema.nullable(),
+    projectionDigest: DigestSchema,
+    residualDigest: DigestSchema,
+  }),
+  CandidateApplicabilityDecisionResultSchema,
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("rerun-checkpoint"),
+    nextAction: z.literal("rerun-checkpoint"),
+    reason: z.enum(["candidate-moved", "base-moved", "candidate-and-base-moved"]),
+    observed: ObservedEndpointsSchema,
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("rerun-checkpoint"),
+    nextAction: z.literal("rerun-checkpoint"),
+    reason: z.literal("snapshot-invalidated"),
+    observed: z.null(),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-failed"),
+    nextAction: z.literal("stop"),
+    reason: z.enum(["git-failure", "malformed-evidence"]),
+    detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unsupported"),
+    nextAction: z.literal("upgrade"),
+    reason: z.literal("merge-tree-write-tree-unsupported"),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unavailable"),
+    nextAction: z.literal("stop"),
+    reason: z.enum([
+      "merge-base-missing",
+      "residual-empty",
+      "residual-unbounded",
+    ]),
+    detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unavailable"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("merge-base-ambiguous"),
+    detail: z.string().min(1),
+    /** How many best common ancestors the pair has. Its own arm, so a refusal cannot ship without it. */
+    mergeBaseCount: z.number().int().min(2),
+    remedy: CandidateRebaselineRemedySchema,
+  }),
+]);
+export type CandidateApplicabilityResult = z.infer<typeof CandidateApplicabilityResultSchema>;
+
+function target(revision: string, subjectDigest: string): CandidateApplicabilityTarget {
+  return CandidateApplicabilityTargetSchema.parse({ revision, subjectDigest });
+}
+
+function decisionPresentation(input: {
+  request: CandidateApplicabilityRequest;
+  verdict: "clean-divergence" | "interaction";
+  paths: readonly string[];
+  projectionDigest: string;
+  residualDigest: string;
+}): { selectionOfferText: string; recommendedActionText: string; selectionPromptText: string } {
+  return {
+    selectionOfferText: [
+      `Candidate applicability is not mechanically decidable for ${input.request.candidateId}.`,
+      `Prior target: ${input.request.baselineTarget.revision} `
+        + `(${input.request.baselineTarget.subject.subjectDigest})`,
+      `Current target: ${input.request.currentTarget.revision} `
+        + `(${input.request.currentTarget.subject.subjectDigest})`,
+      `Current base: ${input.request.currentBase}`,
+      `Structural verdict: ${input.verdict}`,
+      `Bounded residual (${String(input.paths.length)} paths): ${input.paths.join(", ")}`,
+      `Projection digest: ${input.projectionDigest}`,
+      `Residual digest: ${input.residualDigest}`,
+      "Select one explicit authority outcome: covered | targeted-check | changed.",
+    ].join("\n"),
+    recommendedActionText:
+      "Recommend `covered` only when existing settled review and verification already cover the bounded residual; "
+      + "recommend `targeted-check` when a completed bounded check can settle it; otherwise recommend `changed`. "
+      + "Record only the operator's explicit selection.",
+    selectionPromptText: "Select Candidate applicability: covered, targeted-check, or changed?",
+  };
+}
+
+/** Compose the exact request context shared by every Candidate applicability result. */
+export function candidateApplicabilityResultBase(request: CandidateApplicabilityRequest) {
+  return {
+    schemaVersion: 1 as const,
+    mode: "candidate-applicability" as const,
+    candidateId: request.candidateId,
+    baselineTarget: target(request.baselineTarget.revision, request.baselineTarget.subject.subjectDigest),
+    currentTarget: target(request.currentTarget.revision, request.currentTarget.subject.subjectDigest),
+    currentBase: request.currentBase,
+  };
+}
+
+/** State a residual the applicability bounds refused, in the Candidate's own terms. */
+function residualRefusal(residual: Exclude<ApplicabilityResidual, { status: "bounded" }>) {
+  switch (residual.status) {
+    case "empty":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-empty",
+        detail: "D4 returned a non-mechanical result without path evidence.",
+      } as const;
+    case "unbounded":
+      return {
+        state: "classification-unavailable",
+        nextAction: "stop",
+        reason: "residual-unbounded",
+        detail: "D4 path evidence exceeds the Candidate applicability bound.",
+      } as const;
+    case "malformed":
+      return {
+        state: "classification-failed",
+        nextAction: "stop",
+        reason: "malformed-evidence",
+        detail: residual.issues,
+      } as const;
+  }
+}
+
+/** Classify one exact Candidate projection from already-derived structural facts. */
+export function classifyCandidateApplicability(
+  input: CandidateApplicabilityRequest,
+  facts: CandidateApplicabilityStructuralFacts | null,
+): CandidateApplicabilityResult {
+  const request = CandidateApplicabilityRequestSchema.parse(input);
+  if (request.baselineTarget.subject.subjectDigest === request.currentTarget.subject.subjectDigest) {
+    const digests = candidateApplicabilityDigests({
+      request,
+      projection: null,
+      verdict: "subject-equality",
+      paths: [],
+    });
+    return CandidateApplicabilityResultSchema.parse({
+      ...candidateApplicabilityResultBase(request),
+      state: "applicable",
+      nextAction: "recognize-current",
+      proof: "subject-equality",
+      projection: null,
+      ...digests,
+    });
+  }
+  if (facts !== null) {
+    const structural = CandidateApplicabilityStructuralFactsSchema.parse(facts);
+    if (structural.proof.status === "accepted") {
+      const digests = candidateApplicabilityDigests({
+        request,
+        projection: structural.endpoints,
+        verdict: structural.proof.proof,
+        paths: [],
+      });
+      return CandidateApplicabilityResultSchema.parse({
+        ...candidateApplicabilityResultBase(request),
+        state: "applicable",
+        nextAction: "recognize-current",
+        proof: structural.proof.proof,
+        projection: structural.endpoints,
+        ...digests,
+      });
+    }
+    let reviewableDivergence: string[] | null = null;
+    if (structural.proof.reason === "contribution-diverged") {
+      const treatments = new Map(
+        request.currentTarget.subject.entries.map((entry) => [entry.path, entry.treatment]),
+      );
+      const reviewableResidual = structural.proof.paths.filter((path) =>
+        treatments.get(path) === "reviewable" || !treatments.has(path));
+      // Candidate-owned projections and other evidence-neutral entries deliberately do not participate
+      // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
+      // can contain those post-attestation writes even when the reapplied reviewable contribution is
+      // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.
+      if (structural.proof.paths.length > 0 && reviewableResidual.length === 0) {
+        const digests = candidateApplicabilityDigests({
+          request,
+          projection: structural.endpoints,
+          verdict: "mechanical-reapply",
+          paths: [],
+        });
+        return CandidateApplicabilityResultSchema.parse({
+          ...candidateApplicabilityResultBase(request),
+          state: "applicable",
+          nextAction: "recognize-current",
+          proof: "mechanical-reapply",
+          projection: structural.endpoints,
+          ...digests,
+        });
+      }
+      reviewableDivergence = reviewableResidual;
+    }
+    if (structural.proof.reason === "contribution-diverged"
+      || structural.proof.reason === "contribution-conflicted") {
+      const verdict = structural.proof.reason === "contribution-diverged"
+        ? "clean-divergence" as const
+        : "interaction" as const;
+      const residual = boundApplicabilityResidual(reviewableDivergence ?? structural.proof.paths);
+      if (residual.status !== "bounded") {
+        return CandidateApplicabilityResultSchema.parse({
+          ...candidateApplicabilityResultBase(request),
+          ...residualRefusal(residual),
+        });
+      }
+      const digests = candidateApplicabilityDigests({
+        request,
+        projection: structural.endpoints,
+        verdict,
+        paths: residual.paths,
+      });
+      const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+        cause: "member-rewrite",
+        endpoints: structural.endpoints,
+        proof: { ...structural.proof, paths: residual.paths },
+      }), "review-clearance");
+      const presentation = decisionPresentation({ request, verdict, paths: residual.paths, ...digests });
+      return CandidateApplicabilityResultSchema.parse({
+        ...candidateApplicabilityResultBase(request),
+        state: "decision-required",
+        nextAction: "request-authority",
+        verdict,
+        applicability,
+        projection: structural.endpoints,
+        paths: residual.paths,
+        choices: CANDIDATE_APPLICABILITY_CHOICES,
+        ...digests,
+        ...presentation,
+      });
+    }
+    if (structural.proof.reason === "merge-tree-write-tree-unsupported") {
+      return CandidateApplicabilityResultSchema.parse({
+        ...candidateApplicabilityResultBase(request),
+        state: "classification-unsupported",
+        nextAction: "upgrade",
+        reason: structural.proof.reason,
+      });
+    }
+    if (structural.proof.reason === "git-failure") {
+      return CandidateApplicabilityResultSchema.parse({
+        ...candidateApplicabilityResultBase(request),
+        state: "classification-failed",
+        nextAction: "stop",
+        reason: "git-failure",
+        detail: "D4 could not derive a valid structural contribution result.",
+      });
+    }
+    return CandidateApplicabilityResultSchema.parse({
+      ...candidateApplicabilityResultBase(request),
+      state: "rerun-checkpoint",
+      nextAction: "rerun-checkpoint",
+      reason: "snapshot-invalidated",
+      observed: null,
+    });
+  }
+  return CandidateApplicabilityResultSchema.parse({
+    ...candidateApplicabilityResultBase(request),
+    state: "classification-failed",
+    nextAction: "stop",
+    reason: "malformed-evidence",
+    detail: "Candidate applicability classification is not yet available.",
+  });
+}
+
+/** Compute canonical exact-projection and bounded-residual digests for one classification. */
+export function candidateApplicabilityDigests(input: {
+  request: CandidateApplicabilityRequest;
+  projection: z.infer<typeof DeliveryContributionEndpointsSchema> | null;
+  verdict: string;
+  paths: readonly string[];
+}): { projectionDigest: CanonicalDigest; residualDigest: CanonicalDigest } {
+  const projectionDigest = canonicalDigest({
+    domain: "arc.candidate.applicability.projection/v1",
+    candidateId: input.request.candidateId,
+    baselineTarget: target(
+      input.request.baselineTarget.revision,
+      input.request.baselineTarget.subject.subjectDigest,
+    ),
+    currentTarget: target(
+      input.request.currentTarget.revision,
+      input.request.currentTarget.subject.subjectDigest,
+    ),
+    currentBase: input.request.currentBase,
+    projection: input.projection,
+  });
+  return {
+    projectionDigest,
+    residualDigest: canonicalDigest({
+      domain: "arc.candidate.applicability.residual/v1",
+      projectionDigest,
+      verdict: input.verdict,
+      paths: [...input.paths],
+    }),
+  };
+}

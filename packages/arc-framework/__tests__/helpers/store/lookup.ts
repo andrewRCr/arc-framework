@@ -1,0 +1,132 @@
+/** Source-grounded reverse lookup over references, parsed claims and stored links. */
+
+import { branchLinkRepair, clashRepair, type ClashTie } from "../../../src/lib/store/clash-repair.js";
+import type { LookupInput, LookupResult, StoreResult } from "../../../src/lib/store/index.js";
+import type { CheckoutClaim } from "../../../src/lib/store/lookup.js";
+import type { ReferenceContext } from "./context.js";
+import type { MemoryRecord } from "./model.js";
+import { z } from "zod";
+import { missingLookup, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
+import { compareCompletedPlacements } from "../../../src/lib/store/placement.js";
+
+function primary(record: MemoryRecord): boolean {
+  return record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
+}
+
+function workUnitClaimMatches(record: MemoryRecord, claim: Extract<CheckoutClaim, { kind: "work-unit" }>): boolean {
+  if (record.reference.kind !== "work-item/meta") return false;
+  const owner = record.reference.owner;
+  return claim.uid !== undefined && owner.type === "work-item" && owner.uid === claim.uid;
+}
+
+function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryRecord[] {
+  const matches = records.filter((record) => (primary(record) || record.reference.kind === "cohort/document")
+    && (record.reference.owner.name === slug || record.formerSlugs.includes(slug)));
+  const priority = (record: MemoryRecord) => (record.placement?.kind === "completed" ? 0 : 2) + (record.reference.owner.name === slug ? 1 : 0);
+  const highest = Math.max(...matches.map(priority));
+  return completedWinner(matches.filter((record) => priority(record) === highest));
+}
+
+function completedWinner(records: MemoryRecord[]): MemoryRecord[] {
+  if (records.length < 2 || records.some(record => record.placement?.kind !== "completed" || record.reference.kind === "cohort/document")) return records;
+  const workUnits = records.filter(record => record.reference.kind === "work-item/meta");
+  if (workUnits.length === 0) return records;
+  return workUnits.sort((left, right) => left.placement?.kind === "completed" && right.placement?.kind === "completed"
+    ? compareCompletedPlacements(left.placement, right.placement) : 0).slice(-1);
+}
+
+function preferredRefRecords(records: MemoryRecord[], input: Extract<LookupInput, { kind: "ref" }>): MemoryRecord[] {
+  const matches = records.filter(record => primary(record)
+    && record.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
+  const live = matches.filter(record => record.placement?.kind !== "completed");
+  return live.length > 0 ? live : completedWinner(matches);
+}
+
+function lineageRecords(records: MemoryRecord[], origin: string): MemoryRecord[] {
+  const terminal = records.filter(record => record.reference.kind === "lineage/transition");
+  const exact = terminal.filter(record => record.reference.owner.type !== "person" && record.reference.owner.uid === origin);
+  if (z.uuid().safeParse(origin).success) return exact;
+  const current = terminal.filter(record => record.reference.owner.name === origin);
+  return current.length > 0 ? current : terminal.filter(record => record.terminalFormerSlugs?.includes(origin));
+}
+
+function fields(context: ReferenceContext, record: MemoryRecord): Record<string, unknown> | undefined {
+  const parser = context.registry[record.reference.kind].parser;
+  if (parser === null && ["work-item/record", "claims/groom", "claims/housekeep"].includes(record.reference.kind)) {
+    try {
+      const decoded: unknown = JSON.parse(record.content);
+      return typeof decoded === "object" && decoded !== null && !Array.isArray(decoded) ? decoded as Record<string, unknown> : undefined;
+    } catch { return undefined; }
+  }
+  const parsed = parser?.(record.content);
+  if (!parsed?.success || typeof parsed.data !== "object" || parsed.data === null || Array.isArray(parsed.data)) return undefined;
+  return parsed.data as Record<string, unknown>;
+}
+
+function commitMatch(record: MemoryRecord, input: Extract<LookupInput, { kind: "commit" }>, match: "sha" | "copyKey"): LookupResult | undefined {
+  if (!primary(record)) return undefined;
+  const value = input[match];
+  if (value === undefined) return undefined;
+  const taskIds = Object.entries(record.links?.taskCaptures ?? {}).filter(([, captures]) => captures
+    .some((capture) => capture.repository === input.repository && capture[match] === value)).map(([taskId]) => taskId);
+  const landing = record.links?.landingCommit;
+  return taskIds.length > 0 || (landing?.repository === input.repository && landing[match] === value)
+    ? { reference: record.reference, taskIds } : undefined;
+}
+
+/** Resolve logical handles and code links without reading a projected path or Git repository.
+ * @param context - Local records, identity and pure field parsers.
+ * @param input - Exact reverse-lookup request.
+ * @returns The sole matching record, a nameable absence, or every ambiguous candidate.
+ */
+export function lookupReference(context: ReferenceContext, input: LookupInput): StoreResult<LookupResult> {
+  const admission = namespaceAdmission(context.state);
+  if (admission) return refused(admission);
+  if (input.kind === "claim" && ["groom", "housekeep"].includes(input.claim.kind) && context.environment.identity === undefined) {
+    return refused({ ...missingLookup(input), condition: "No arc.identity is configured for this identity-scoped claim.",
+      remedy: { text: "Set arc.identity to the claim owner's identity, then repeat the lookup." } });
+  }
+  const records = [...context.state.records.values()];
+  let candidates: LookupResult[];
+  let ranked: MemoryRecord[] | undefined;
+  if (input.kind === "commit") {
+    const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
+    candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "copyKey") ?? []);
+  } else if (input.kind === "slug" || input.kind === "ref") {
+    ranked = input.kind === "slug" ? preferredSlugRecords(records, input.slug) : preferredRefRecords(records, input);
+    candidates = ranked.map(record => ({ reference: record.reference }));
+  }
+  else if (input.kind === "lineage") candidates = lineageRecords(records, input.origin).map(record => ({ reference: record.reference }));
+  else candidates = records.filter((record) => {
+    switch (input.kind) {
+      case "claim": {
+        const claim = input.claim;
+        if (claim.kind === "partial-errand") return false;
+        if (claim.kind === "work-unit") return workUnitClaimMatches(record, claim);
+        const kind = claim.kind === "errand" ? "work-item/record" : `claims/${claim.kind}`;
+        const slug = claim.kind === "errand" ? record.reference.owner.name : record.reference.key;
+        return record.reference.kind === kind && slug === claim.slug && fields(context, record)?.claimId === claim.claimId;
+      }
+    }
+  }).map((record) => ({ reference: record.reference }));
+  if (candidates.length === 0) return refused(missingLookup(input));
+  for (const candidate of candidates) {
+    const fault = recordAdmission(context.state, candidate.reference, context.environment.identity);
+    if (fault) return refused(fault);
+  }
+  if (candidates.length > 1) {
+    const references = candidates.map(candidate => candidate.reference);
+    const tie: ClashTie | undefined = ranked === undefined ? undefined : {
+      liveness: ranked[0]!.placement?.kind === "completed" ? "completed" : "live",
+      ...(input.kind === "slug" ? { name: ranked[0]!.reference.owner.name === input.slug ? "current" as const : "former" as const } : {}),
+    };
+    return refused({ code: "ambiguous-match", class: "recoverable", candidates: references,
+      ...(tie === undefined ? {} : { tie }), condition: "The lookup matches more than one record generation.",
+      remedy: input.kind === "slug" && tie ? clashRepair(references, tie)
+        : input.kind === "ref" && tie ? branchLinkRepair((ranked ?? []).map(record => ({ reference: record.reference, aliases: record.formerSlugs,
+          ...(record.placement === undefined ? {} : { placement: record.placement }), ...(record.links === undefined ? {} : { links: record.links }) })), tie, input)
+        : { text: "Name the intended owner by UID, then repeat the lookup." },
+    });
+  }
+  return ok(structuredClone(candidates[0]!));
+}

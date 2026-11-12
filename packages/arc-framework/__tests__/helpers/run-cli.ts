@@ -1,7 +1,7 @@
 /**
  * Subprocess CLI invocation helper for end-to-end purity tests.
  *
- * Spawns `node dist/cli.js <args>` via `child_process.spawn` with `stdio: "pipe"`,
+ * Spawns `node bin/arc.js <args>` via `child_process.spawn` with `stdio: "pipe"`,
  * collects stdout and stderr buffers separately, and returns
  * `{ stdout, stderr, exitCode }`. Pipe stdio (not a PTY) is the point —
  * subprocess tests assert the CLI's stdout contract under the same non-TTY
@@ -16,6 +16,7 @@
 import { spawn } from "node:child_process";
 
 import { CLI_PATH, assertCliBuilt } from "./cli-spawn.js";
+import { recordCliInvocationForCurrentTest } from "./test-cost-timeout.js";
 
 /** Default subprocess timeout in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -25,7 +26,7 @@ export interface RunCliOptions {
   /** Working directory for the spawned subprocess. Defaults to the parent's cwd. */
   cwd?: string;
   /**
-   * Environment variables for the subprocess. Merged on top of `process.env`,
+   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared; overrides are merged on top,
    * so callers only need to supply the keys they want to override.
    */
   env?: NodeJS.ProcessEnv;
@@ -56,7 +57,8 @@ export function runCli(
   options: RunCliOptions = {},
 ): Promise<RunCliResult> {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-  const env = { ...process.env, ...(options.env ?? {}) };
+  recordCliInvocationForCurrentTest(timeout);
+  const env = { ...process.env, FORCE_COLOR: undefined, ...(options.env ?? {}) };
 
   return new Promise<RunCliResult>((resolveResult, rejectResult) => {
     try {

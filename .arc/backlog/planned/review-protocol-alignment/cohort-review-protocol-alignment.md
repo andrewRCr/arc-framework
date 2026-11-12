@@ -46,12 +46,12 @@ A distinct shape recurs often enough to name separately, because it changes what
 the governing rule is present, correct, and well designed; what fails is that it cannot be reached from where the
 decision is made.
 
-| Rule                 | Its state                                   | Why it does not bite                                |
-| -------------------- | ------------------------------------------- | --------------------------------------------------- |
-| Review pass ceilings | implemented, wired to an approval interlock | the request that reaches them cannot be composed    |
-| Triage severity      | contracted to be verified against source    | the verdict lands where the driver cannot read it   |
-| Review obligation    | typed and routed                            | no verb exposes the router's output                 |
-| Stop discipline      | stated precisely, with worked principles    | stated only in a shipped work unit's archived spec  |
+| Rule                 | Its state                                   | Why it does not bite                               |
+| -------------------- | ------------------------------------------- | -------------------------------------------------- |
+| Review pass ceilings | implemented, wired to an approval interlock | the request that reaches them cannot be composed   |
+| Triage severity      | contracted to be verified against source    | the verdict lands where the driver cannot read it  |
+| Review obligation    | typed and routed                            | no verb exposes the router's output                |
+| Stop discipline      | stated precisely, with worked principles    | stated only in a shipped work unit's archived spec |
 
 None of these is a missing rule, so none is fixed by writing a better one. Each is fixed by making an existing rule
 reachable — a producing verb, a field in the typed record, a statement carried into the workflow the agent loads. That
@@ -241,7 +241,8 @@ and on no design unit's critical path.
 **Sequencing and rollout.** `D6.1` rewrites the unpublished baseline and clears or regenerates development-only old
 records. It sequences first so no later diff carries the rename. `D8` precedes `D2` so the capability table is edited
 once, in its relocated home, and `D7.3` follows `D8` because it queries those declarations. `D2.1` and `D2.2` land
-together — the removal without the skip arm turns a chunked frontline request into a halt. `D4.1`, `D4.2`, and `D4.4`
+together — the removal without the skip arm turns a chunked frontline request into a halt. (Both are now on `main`
+ahead of the unit; `draft-review-source-authority.md` § Capability Re-cut records how.) `D4.1`, `D4.2`, and `D4.4`
 ship together, and **`D4` sequences last**: it is the unit most exposed if the review gate's request contracts are later
 reduced, nothing else depends on it, so ordering it last costs nothing and preserves the option. `D4.5` may follow
 separately. `D3` and `D5` are independent and may land at any point, and `D5` retains an independent-ship escape hatch
@@ -251,9 +252,8 @@ as an errand if the provider-protocol work runs long.
 dispatch and the hosted findings arm, and `D7.1`'s statement at the review-applicability step — while
 `integration-boundary-accuracy` rewrites the final merge step. Different regions, so neither blocks the other; if both
 run concurrently, sequence the edits rather than merging blind. `chunk-scope-binding` receives `D2.3`'s handoff, now
-including the frontline-obligation question.
-`judgment-authority-model`, `execution-delegation-doctrine`, `review-checkout-lifecycle`, and
-`review-adapter-extensibility` are coordination-only, with no dependency edge recorded.
+including the frontline-obligation question. `judgment-authority-model`, `execution-delegation-doctrine`,
+`review-checkout-lifecycle`, and `review-adapter-extensibility` are coordination-only, with no dependency edge recorded.
 
 ## Closeout Criteria
 

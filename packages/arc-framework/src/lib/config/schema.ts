@@ -9,7 +9,11 @@ export type QuotedEmptyPosture = "default" | "unset" | "invalid";
 export type ArcConfigFieldPolicy =
   | { readonly kind: "enum"; readonly values: readonly string[] }
   | { readonly kind: "boolean-token" }
-  | { readonly kind: "positive-safe-integer"; readonly minimum: number }
+  | {
+    readonly kind: "positive-safe-integer";
+    readonly minimum: number;
+    readonly maximum?: number;
+  }
   | { readonly kind: "unsigned-safe-integer" }
   | { readonly kind: "registry-id-list" }
   | {
@@ -18,7 +22,8 @@ export type ArcConfigFieldPolicy =
       | "branch"
       | "worktree-template"
       | "harness-directories"
-      | "shell-command";
+      | "shell-command"
+      | "repository-url";
   };
 
 /** One catalog entry for a project-level `arc-config.yml` field. */
@@ -51,7 +56,7 @@ export const HarnessDirectorySchema = z.string()
   .regex(/^(?!(?:\.{1,2}|\.git|\.arc)$)[^/\\]+$/iu);
 
 const HarnessDirectoryListSourceSchema = z.string();
-const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|"
+const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\\b|"
   + String.fromCodePoint(0xa7) + " ";
 
 function enumField<const Key extends string, const Values extends readonly [string, ...string[]]>(
@@ -138,15 +143,19 @@ function positiveSafeIntegerField<const Key extends string>(
   key: Key,
   defaultValue: string,
   minimum: 1 | 10,
+  maximum?: number,
 ) {
+  const baseSchema = z.string().regex(
+    minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
+  );
   return {
     key,
-    schema: z.string().regex(
-      minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
-    ),
+    schema: maximum === undefined
+      ? baseSchema
+      : baseSchema.refine((value) => Number(value) <= maximum),
     defaultValue,
     quotedEmpty: "invalid",
-    policy: { kind: "positive-safe-integer", minimum },
+    policy: { kind: "positive-safe-integer", minimum, ...(maximum === undefined ? {} : { maximum }) },
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
@@ -210,6 +219,14 @@ export const ARC_CONFIG_FIELDS = [
     "unset",
     "harness-directories",
   ),
+  // Catalog validation is lossless so its output agrees with the string-record intersection; pointer I/O trims.
+  stringField(
+    "storage.backing_repository",
+    z.union([z.literal(""), z.string().regex(/\S/u)]),
+    "",
+    "unset",
+    "repository-url",
+  ),
   enumField("commit.format", ["conventional", "custom", "any"], "conventional"),
   enumField(
     "commit.context_footer",
@@ -219,6 +236,7 @@ export const ARC_CONFIG_FIELDS = [
   stringField("commit.custom_pattern", PatternSourceSchema, "", "unset", "pattern"),
   stringField("commit.context_pattern", PatternSourceSchema, "", "unset", "pattern"),
   enumField("merge.strategy", ["merge", "rebase", "squash"], "merge"),
+  enumField("merge.lock", ["draft", "none"], "none"),
   enumField("hooks.pre_commit", ["enabled", "disabled"], "enabled"),
   enumField("hooks.commit_msg", ["enabled", "disabled"], "enabled"),
   enumField("hooks.pre_push", ["enabled", "disabled"], "enabled"),
@@ -248,7 +266,7 @@ export const ARC_CONFIG_FIELDS = [
     "hooks.meta_ref_patterns",
     PatternSourceSchema,
     "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"
-      + "(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
+      + "(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
     "unset",
     "pattern",
   ),
@@ -271,8 +289,13 @@ export const ARC_CONFIG_FIELDS = [
   registryIdListField("review.standard_sources", StandardSourceListSchema, "[]", "invalid"),
   positiveSafeIntegerField("review.frontline_max_passes", "2", 1),
   positiveSafeIntegerField("review.standard_max_passes", "2", 1),
-  unsignedSafeIntegerField("review.chunking_threshold_lines", "0"),
-  unsignedSafeIntegerField("review.chunking_threshold_files", "0"),
+  positiveSafeIntegerField("review.hosted_await_timeout_seconds", "120", 1, 30 * 60),
+  positiveSafeIntegerField("review.hosted_await_initial_poll_interval_seconds", "15", 1, 60),
+  positiveSafeIntegerField("review.hosted_await_attention_after_minutes", "15", 1),
+  positiveSafeIntegerField("review.checks_await_timeout_seconds", "300", 1, 30 * 60),
+  positiveSafeIntegerField("review.checks_await_initial_poll_interval_seconds", "5", 1, 60),
+  unsignedSafeIntegerField("changeset.advisory_threshold_lines", "0"),
+  unsignedSafeIntegerField("changeset.advisory_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),
   booleanField("team.mode", "false"),
   enumField("session.remote_sync", ["enabled", "disabled"], "enabled"),
@@ -283,7 +306,12 @@ export const ARC_CONFIG_FIELDS = [
   enumField("user.notes_push", ["manual", "prompt", "on-sync"], "on-sync"),
   booleanField("sync.auto_pull", "false"),
   enumField("archive.cadence", ["with-integration", "manual"], "with-integration"),
+  enumField("storage.track_design_docs", ["none", "specs"], "specs"),
+  enumField("layout.active", ["nested", "flat"], "nested"),
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
+  positiveSafeIntegerField("inbound.retriage_after_entries", "10", 1),
+  positiveSafeIntegerField("inbound.retriage_after_days", "30", 1),
+  positiveSafeIntegerField("pause.review_after_days", "14", 1),
   positiveSafeIntegerField("integration.stale_after_days", "2", 1),
 ] as const satisfies readonly ArcConfigFieldDescriptor[];
 

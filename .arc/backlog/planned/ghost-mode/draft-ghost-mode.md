@@ -1,0 +1,236 @@
+# Draft: Ghost Mode
+
+- **Origin:** [internal] — minted at `storage-contract`'s draft close (2026-09-30) from its ghost-mode decisions
+  (C8 in `draft-storage-contract.md`), as a core storage program follow-on.
+- **Purpose:** Let a person run ARC in a repository they do not own or cannot commit ARC files to — someone else's
+  project, a policy-constrained work repository, a trial — leaving no trace in the repository or on the surfaces
+  people read without ARC.
+- **Planning posture:** `P2`, tagged core by `storage-contract`; `Class` settles at planning. Its only edge is
+  `storage-cutover`, so it runs in the first post-cutover slot.
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Declare ghost mode's two families in the ref conformance fixture when it places them**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Settled inputs, "The split" and "The profiles".
+
+- _Observation:_ the ref backend's conformance fixture runs with no exclusions beyond the reference backend's, but for
+  `project-machinery` and `constitution`, which stay tracked in the standard profile and get a ref only when ghost mode
+  stores them (`profiles` in `FAMILY_REGISTRY`) (`draft-storage-ref-backend.md` § Decisions, Verification).
+
+- _Approach:_ when ghost mode places the two families on refs, it adds them to the ref fixture's declared families.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Wire the state-remote designation's ghost cases, so a ghost install never designates the code remote**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Coordination, "`storage-ref-backend` — the state remote's per-clone designation and the local-only
+  backend (C7)", and § Settled inputs, "The install profile".
+
+- _Observation:_ in `storage-ref-backend`'s designation rule, a tracked pointer to a backing repository makes the
+  store's own remote the only candidate, so nothing sets `push` on the code remote or asks about it. Ghost mode's
+  local-only pointer, read from `config-storage-architecture`'s per-machine tier, and a ghost install without one take
+  the same rule, since ghost storage is always the separate directory (D19) (`draft-storage-ref-backend.md` § Decisions,
+  Layouts and remotes).
+
+- _Approach:_ wire both cases with the install profile and the per-machine pointer, and add their tests beside the
+  ref backend's "who designates, case by case" integration tests.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Take pull-request titles and bodies off ghost mode's inventory, and split the surface-language rewrite**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Open, "The footprint inventory" (pull-request titles and bodies), and § Settled inputs, "Making it true"
+  (the `DEV-RULES.ARC` rewrite).
+
+- _Observation:_ `pull-request-surface-policy` makes pull-request titles and bodies meet D19 by default, before ghost
+  mode lands, so it is the inventory row's answer. It rewrites the pull-request half of `DEV-RULES.ARC` § Commit and PR
+  surface language; the commit half and the boundary ADR stay with ghost mode.
+
+- _Approach:_ record the row as answered by `pull-request-surface-policy`, and scope the rule rewrite to commits.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Carry or contest the commit-pinned design link as content under D19 in the boundary ADR**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" (the boundary ADR).
+
+- _Observation:_ `pull-request-surface-policy` replaces the `Design:` field with one line in `Notes for Reviewers`
+  linking the design document in the pull request's diff (the tracked spec before the cutover, the D18 export after) by
+  a commit-pinned permalink. It reads that link as content rather than an ARC artifact reference, for the one artifact
+  that exists to be reviewed, and adds the matching exception to `DEV-RULES.ARC` § `.arc/` artifact references. That is
+  its own reading of D19, not the contract's.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Correct the claim that the Release Notes Entry is the pull-request body's input**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" ("the Release Notes Entry ... is the ready input for the pull-request
+  body").
+
+- _Observation:_ D19 (`spec-storage-contract.md`) and ghost mode's draft both call the Release Notes Entry the body's
+  input, but `integrate-work-unit.md` opens the pull request at step 1 and composes that entry at step 5. Both are
+  composed from the same facts and neither derives from the other. D19 is shipped text, so the correction belongs here.
+
+- _Approach:_ correct the draft's line, and state the sibling relationship in the boundary ADR.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Update the delivery filename example now that D19 corrected it**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" (the inventory's first example).
+
+- _Observation:_ The draft says delivery's pull-request body names the design by its `draft-*` filename
+  (`lib/delivery/materialization.ts`). D19 corrected that: `describeDeliveryMemberPresentation` renders a
+  caller-supplied `designReference` and constructs no filename. The leak is the supplied reference, and
+  `pull-request-surface-policy` changes `deliver-stack.md`'s guidance to omit it until delivery adopts the pinned link.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Validate commit messages across a pull request's range in CI, under the footer policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Settled inputs, "The footer policy".
+
+- _Observation:_ commit messages are validated only client-side, in `commit-msg`, so a commit made without hooks
+  reaches the pull request unchecked. The TypeScript validator now ships in the installed CLI (`arc check
+  commit-msg`), so CI can run the same module over the range rather than duplicate the grammar. The footer grammar
+  changes under ghost mode (register row "The `Context:` footer grammar…", owner `ghost-mode`), so a range check built
+  before it would be rebuilt.
+
+- _Approach:_ build it with the footer policy; settle whether each commit or the pull request title is authoritative
+  under the repository's merge method, and how a CI checkout degrades.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `commit-message-submission`
+  design review).
+
+---
+
+## Problem / Motivation
+
+ADR-035 moves state off the tracked tree on every backend, which leaves the rest of ARC's footprint: its machinery
+and constitutional documents are tracked, harness files and Git hooks are installed into the repository, and ARC
+writes its own vocabulary into commit messages, pull requests, review comments, and check text. Ghost mode is a core
+requirement (Owner, 2026-09-29) — a configuration of the same machinery, not a redesign. `storage-contract` keeps it
+reachable and its siblings build the storage half; this work unit builds the rest.
+
+## Settled inputs (from `storage-contract`)
+
+- **The split.** The contract assigns tracked-versus-stored per family, with standard and ghost profiles. The storage
+  half — local-only or a designated state remote, each in a separate Git directory, and an exclude-only ignore variant
+  with an untracked `.ignore`, which ripgrep reads whether or not it is tracked — is built by `storage-ref-backend` and
+  `storage-projection`. This work unit builds the install profile, the footer policy, harness bootstrap without
+  tracked files, and the surface boundary.
+- **The profiles** (C2). State families are the same under both; ghost differs only where standard tracks, since ghost
+  tracks nothing. Project machinery and the constitutional documents become two project-scope families, projected at
+  their familiar paths behind the exclude-only ignore; readers load them by `.arc/` path under both profiles. ARC core
+  projects read-only from the installed package (C11). The export knob is pinned to `none` (C10), and no task trailer
+  is carried.
+- **The install profile** (C8). A fact of the install, not a setting: standard when ARC's configuration is tracked in
+  the repository, ghost when it lives in the store behind the per-machine pointer. ARC reads which by looking, so no
+  `storage.profile` key can disagree with the repository, and only the contract, the projection, init, and the commit
+  policy consult it. It passes `strategy-storage-evolution.md` Principle 9 as one axis with two values: it is not a
+  backend's property — ghost runs local-only or with a designated state remote, standard on any backend — and ghost
+  pins the settings it touches rather than multiplying combinations.
+- **Switching** re-runs init with the other profile; no verb of its own, and state does not move. Ghost to standard is
+  the trial becoming adoption: one reviewed change commits ARC's machinery and configuration, the per-machine pointer
+  retires, and the export default becomes `specs`. Standard to ghost is one change removing the tracked files.
+- **Tracked configuration wins** when a ghost install meets it — the upstream adopts ARC, or the person clones an ARC
+  project where they ran ghost. Git treats excluded files as expendable, so the pull replaces the projected files on
+  disk. ARC says so, the person's work-unit records stay in the store, and they continue as a contributor or a team
+  member; their stored configuration retires after ARC reports where it differs from the upstream's.
+- **The init wording** says plainly that under ghost, ARC's settings for the repository are the person's alone and
+  the same on every branch. Named cost: configuration that describes the code's tooling — chiefly the quality-gate
+  commands — cannot vary by branch, and nothing reviews a change to it. No per-branch override is built unless that
+  is hit.
+- **The footer policy.** ARC leaves nothing in code commit messages by default. A project may opt in to one trailer
+  that renders the task attribution the store already holds, on task commits only; the ghost profile never carries it.
+  Every other `Context:` kind leaves code commits: the lifecycle and planning kinds go with state, an Errand's identity
+  is a store link, and `standalone` has nothing left to say. The default flips once the store's task capture exists;
+  until then footers stay as they are. This work unit owns the trailer's form, `commit.context_footer`'s values and
+  default, the commit hook, and `arc log`; the register's footer-grammar row folds into it.
+- **The surface boundary**, ARC-wide by default. Anything ARC writes, or has an agent write, to a surface people read
+  without ARC — commit messages, pushed branch names, pull-request titles and bodies, review comments, replies, and
+  dismissals, check and status text, release notes, and issues — reads as the change or event it describes. It carries
+  no ARC vocabulary (work unit, Errand, Candidate, terminus, cohort, Owner acceptance, task IDs, lifecycle actions), no
+  reference to an ARC artifact, and no ARC process concern. A project opts in to ARC vocabulary on its own surfaces.
+  Subject matter is not a leak: a project names its own domain, so this repository, where ARC is both subject and
+  process, needs a self-hosting distinction.
+- **Making it true.** This work unit records the boundary as an ADR, since it outlives the storage program, and:
+    - inventories every path where ARC's code writes to such a surface and fixes each at the source, with tests over
+      what it composes — delivery's pull-request body naming the design by its `draft-*` filename
+      (`lib/delivery/materialization.ts`) is one, and the Release Notes Entry, which integration already writes free of
+      ARC vocabulary, is the ready input for the pull-request body;
+    - rewrites `DEV-RULES.ARC` § Commit and PR surface language as the boundary — today it still admits backticked ARC
+      artifact references and routes traceability to the footer;
+    - checks agent-composed text where ARC mediates it — the commit hook, and the verbs that post to a host — knowing
+      a check over prose catches the common terms, never all of them.
+- **Traceability inversion** makes the zero-footprint arm viable: rather than a code commit advertising its task, the
+  task record captures the increment commit, and `arc` resolves the link in both directions for anyone with store
+  access. The footer validator resolves artifacts through the injected resolver seam and degrades gracefully when
+  state is absent.
+- **Named cost:** with the user directory excluded rather than gitignored, packaging tools that read only
+  `.gitignore` could pack it; a contributor rarely publishes, but the cost stays named.
+
+## Open
+
+- **The footprint inventory** — every trace ARC leaves in a repository or on a host, each with its ghost-mode answer
+  or an owner: ARC core and project machinery under `.arc/system/`; the constitutional documents; harness files
+  (`CLAUDE.md`, `AGENTS.md`, `.claude/`); the tracked root `.ignore`; the `.gitignore` entry; `Context:` footers, the
+  `Arc-Maintenance:` trailer, and the `Review disposition set` body; pull-request titles and bodies; review comments,
+  replies, and dismissals; check and status text; editor settings; commit and branch conventions; Git hook
+  installation; the state remote.
+- **Harness bootstrap without tracked files** — how an agent harness reaches ARC's entry point when `CLAUDE.md`,
+  `AGENTS.md`, and `.claude/` cannot be committed.
+- **The user-facing name.** "Ghost mode" is the working name, chosen for "no footprint". The nearest established term
+  is beads' `bd init --stealth`, with the same use case and mechanism (`.git/info/exclude`, no Git hooks); "stealth"
+  was set aside for now because it connotes concealment, which misreads the policy-constrained case. Settle it with
+  the init wording.
+
+## Scope boundary (Won't Do)
+
+- The storage half — the backends, the separate Git directory, and the exclude-only ignore variant.
+- The `Review disposition set` body on review fix commits: the same principle reaches it once review facts are
+  stored, and `review-protocol-alignment` owns it.
+- Contributing to a project that uses ARC: that is the contributor role, which reads upstream state and takes the
+  upstream's tracked configuration (C7).
+
+## Coordination
+
+- **`framework-core-from-package`** — its read-only package projection is how the ghost profile projects ARC core. It
+  lands first, or this work unit builds that projection itself (C11).
+- **`config-storage-architecture`** — the per-machine configuration pointer needs its `.local/` tier (C14); record the
+  dependency when this work unit plans.
+- **`storage-ref-backend`** — the state remote's per-clone designation and the local-only backend (C7).
+
+## Reading inputs
+
+- `draft-storage-contract.md` — C2 (the profiles), C7 (the state remote), C8 (ghost mode), C10 (the export), C11,
+  and C14.
+- `research-local-mode.md` — `local-mode`'s draft, absorbed by `storage-contract`; ADR-035 governs where they
+  disagree.
+- `adr-035-keep-operational-state-in-repository-refs.md`.
+
+---

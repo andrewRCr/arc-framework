@@ -1,9 +1,6 @@
 ---
 purpose: Park a started work unit off the active set — shelve it for resumable later pickup, preserving an Active branch as the durable shelf.
 audience: agent
-arc:
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Park Work Unit
@@ -75,13 +72,12 @@ and emits a ROADMAP regen advisory. For **park@Active** it also preserves the br
 worktree in-verb (refusing on uncommitted work). For **park@Planning** the `plan/<name>` branch + worktree teardown
 is **out-of-band** — a post-action `arc teardown --force` (Step 4 below), not an in-verb leg, since firing it on the
 verb's own staged relocate would trip the clean guard and, in-place, target the un-removable primary worktree. The
-relocate choreography is shared with [`decompose-work-unit`][decompose] § [The park-exit
-block](decompose-work-unit.md#the-park-exit-block); `park` drives it through the verb rather than re-spelling it.
+park verb owns this relocate choreography.
 
 ### 4) Ship per protection mode
 
-`arc park` left its result staged on the base tree. Commit and ship per
-[Work Organization Strategy § Branch Protection Modes][work-org-protection]:
+`arc park` left its result staged on the base tree. Commit and ship per [Work
+Organization Strategy § Branch Protection Modes][work-org-protection]:
 
 - **Partial** — a direct base commit.
 - **Full** — ship the staged `meta-*` / `draft-*` grooming change on a short-lived `chore/park-{name}` branch + PR
@@ -108,11 +104,11 @@ commit, riding the park commit only when the delta is trivial.
 
 Under full protection, push the grooming branch and open the PR:
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` is in the active-extensions list, load and execute its
-  `.actions` before the push. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/park-{name}`.
+
+The park PR intentionally opens plain even when `merge.lock: draft`: it lands the lifecycle transition and is not
+the work-unit integration PR the lock governs.
 
 ```bash
 gh pr create --base {base-branch} --head chore/park-{name}
@@ -123,7 +119,7 @@ gh pr create --base {base-branch} --head chore/park-{name}
 > explicit 'merge' direction before merging.
 
 ```bash
-gh pr merge {pr-number} --squash   # or per merge.strategy
+gh pr merge {pr-number} --merge   # or per merge.strategy
 ```
 
 **park@Active** tore down its worktree in-verb (Step 3) and preserved the branch as the shelf — no separate
@@ -138,7 +134,8 @@ arc teardown {name} --force   # un-shipped / force mode: reaps the retired plan 
 
 `--force` selects the un-shipped teardown mode: the WU is parked (not in `completed/`) and its `plan/<name>` branch
 is unmerged, so the conservation safety is the durable relocate above, not git-containment. The in-place arm
-switches the primary worktree to the base branch; a linked arm removes the worktree and locus-hops.
+switches the primary worktree to the base branch; a linked arm removes the worktree and moves the process to the base
+checkout.
 
 ---
 
@@ -153,7 +150,8 @@ on a parked unit routes to `resume`.
 - [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
 - [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
   reverses it.
-- [`decompose-work-unit`][decompose] — shares the single-source park-exit relocate + teardown choreography.
+- [`decompose-work-unit`][decompose] — planning-source transform sibling; unlike park, it retires the supported
+  origin into authored destinations.
 - [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); park is the resumable alternative.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit; contrast with this resumable pause.
 

@@ -7,7 +7,22 @@
 
 export { runUserAdd } from "./user/add.js";
 export { runUserClose } from "./user/close.js";
+export {
+  runUserInboxList,
+  type UserInboxListOptions,
+  type UserInboxListResult,
+} from "./user/inbox-list.js";
 export { runUserInboxRemove } from "./user/inbox-remove.js";
+export {
+  markCurrentInboxEntriesExecuteBound,
+  removeCurrentInboxEntry,
+  unmarkCurrentInboxEntry,
+  runUserInboxMutation,
+  withLockedUserInbox,
+  type RunUserInboxMutationOptions,
+  type RunUserInboxMutationResult,
+  type UserInboxMutationDependencies,
+} from "./user/inbox-mutation.js";
 export {
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
@@ -86,6 +101,7 @@ export {
   type UserFetchOptions,
   type UserFetchResult,
   type UserIOContext,
+  type UserInboxPostImage,
   type UserLoadOutcome,
   type UserLoadOptions,
   type UserLoadResult,

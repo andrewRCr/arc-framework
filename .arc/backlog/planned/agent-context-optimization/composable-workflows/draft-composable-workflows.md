@@ -19,6 +19,75 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Absorb the Errand lane's post-approval merge span into a typed procedure**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
+- _Concern:_ the Errand lane still narrates a stopless derive/re-read/lock-release/auto-merge/re-lock span in prose,
+  including the failure-prone try/finally invariant that integration composition was intended to absorb.
+- _Fold-in:_ parameterize the existing merge procedure by vehicle or expose an Errand merge verb over the shared
+  facts; if the asymmetry is retained, record its substantive rationale rather than treating absence as design.
+
+### `[ ]` **Type the integration resume point**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
+- _Concern:_ integration resume remains a six-row prose join over lifecycle state, change-request state, worktree
+  and branch reads, and lifecycle artifact facts already available to CLI composition.
+- _Fold-in:_ compile those facts into one typed resume slot and next action so the workflow dispatches a result
+  instead of reimplementing the join.
+
+- _Folded in:_ "Own the durable integration-resume directive", routed from `USER-INBOX § Work Unit`, housekeep drain
+  (2026-10-09); it restates this item from the directive side.
+
+    - _Observation:_ integration resume rides transient caller prose, such as "open the PR", rather than a code-owned
+      directive, so a resumed session reconstructs where integration stopped.
+
+    - _Approach:_ make the directive code-owned and storage-agnostic rather than arbitrary caller prose, derive precise
+      continuation from live PR and worktree state, and keep `PR URL` and `Completed` as archive-time durable facts.
+      Coordinate agenda-derived precision with the session-init agenda; do not mint a second PR-open lifecycle verb by
+      default.
+
+    - _Interim:_ a standalone workflow Errand was proposed to replace the transient prose with a stable "resume from the
+      first incomplete observable integration step" pointer; no such pointer is in the shipped workflows (checked
+      2026-10-05).
+
+    - _Captured during:_ PR #217 review, 2026-07-10; routed to `operational-state-docs`, then to `storage-seam`
+      (2026-09-30); re-routed out of `storage-seam` at its draft consolidation, 2026-10-05, as procedure composition
+      rather than storage.
+
+### `[ ]` **Dispatch published remedy actions instead of reducing them to prompt text**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ session-init publishes structured remedies such as `argv: ["arc", "base", "sync", "--json"]`, but
+  `ChannelRecommendation` drops the executable half and workflow prose hardcodes a different command. Carry an
+  optional typed action through the recommendation/envelope contract and dispatch it as a compiled step instance.
+- _Boundary:_ the unsafe base-sync substitution was already removed; this entry owns the general typed-dispatch
+  precedent and should compose with the session-agenda design rather than mint a one-channel exception.
+
+### `[ ]` **Make focused start recon consume the concrete start preflight**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ `arc-session --start <slug>` can report ready while `arc start <slug>` refuses, because recon does not
+  consume the mutation path's source, artifact-tuple, destination, branch, and worktree preflight.
+- _Approach:_ compile `start=<slug>` from the same pinned, presentation-free preflight used by the concrete command;
+  consume `stub-mint-to-launch`'s shared start core if it lands first and keep judgmental capacity advice in prose.
+
+### `[ ]` **Bound session-init read groups by aggregate tool-output budget**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-27); captured during `review-checkout-lifecycle` planning while running `arc-session`.
+- _Concern:_ session-init's prescriptive parallel context load issued nine required reads in one tool message;
+  the combined result (~21,400 tokens) exceeded the harness result cap, so required rule content was silently
+  truncated even though every individual read succeeded. A second cap surface beside the draft's existing
+  observation that `session-init.md` itself exceeds common single-read limits.
+- _Fold-in:_ make bounded aggregate output part of D3's `read` / `parallel-group` contract. The compiler should
+  partition required reads into ordered parallel groups whose estimated or declared aggregate size stays below
+  the execution surface's result budget, and define a deterministic continuation when a result reports
+  truncation. Keep membership and document depth orthogonal (`analysis-load-set-scoping`,
+  `strategy-knowledge-evolution` Principle 8, `strategy-procedure-evolution` Principle 1). Fold into existing
+  session-init growth evidence and the worked agenda's planned `parallel-group` data rather than opening another
+  mechanism. `instruction-optimization` consumes the D3 mechanism; `loadset-composition` owns membership, not
+  batching.
+
 ### `[ ]` **Replace residual activation cleanup mechanics with an owning lifecycle verb**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during the
@@ -206,6 +275,228 @@
   That concern deliberately stays inside the extract-determinism boundary and does not restructure the workflow,
   so it does not trip this WU's "before any at-scale touch of the inline-gated lifecycle workflows" graduation
   trigger.
+
+### `[ ]` **Load release-wrapper mechanics from a conditional fragment**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 3.6.e.
+- _Concern:_ always-loaded commit-control rules carry the wrapper gate/release model and class-tag routing even
+  when `arc.releaseOptedIn` is false, the project default. The release-wrapper strategy cannot own the runtime
+  mechanics because its trigger fires on the adoption decision rather than at workflow fire sites.
+- _Fold-in:_ use a fragment selected by the enabling config so wrapper mechanics are present when enabled and
+  absent otherwise. Treat this as a binding-time example for the conditional-fragment substrate, not a strategy
+  demotion.
+
+### `[ ]` **Re-run rule classification when the agenda compiler mechanizes a guarantee**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.6.d.
+- _Concern:_ typed `offer` and `render` steps can mechanically guarantee behavior currently protected by
+  `[invariant]` prose. Carrying the marker forward after compilation would be wrong: the mechanism supplies the
+  discharging fact and changes the rule to a default.
+- _Fold-in:_ when a step guarantee replaces procedural enforcement, re-run classification rather than migrating
+  the marker. Use `session-init/probe-envelope.md`'s force sentences as the concrete D3 case, then decide whether
+  the compiler needs a standing reclassification obligation for any prose-to-mechanism transition.
+
+### `[ ]` **Lift the envelope-schema reference onto `arc schema get`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its "Envelope schema generation" lean (pilot the shape here, lift to `schema-introspection-layer`).
+
+- _Observation:_ `schema-introspection-layer` ships `arc schema get <id>`: JSON Schema projected from the registered
+  Zod schema, one self-contained document per contract, with its registry version and posture. A schema registered in
+  `createProductionSchemaRegistry()` publishes with no further mechanism, so the generated-from-types reference this
+  draft wants needs only the registration and a pointer to `arc schema get`.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+### `[ ]` **Co-design D3's `render` and `offer` step arguments with `cli-output-contract`'s result types**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D3, the session-agenda compiler — § Open questions, "Agenda schema residuals": the remaining per-step
+  argument schemas (`render` / `note` surfaces, `offer`).
+
+- _Observation:_ `cli-output-contract` (draft at `maturing`, commit `87ed54c11`) settled that every command's
+  machine-mode result carries an Owner-facing part: a precomposed `report` and an optional `offer` — text plus a choice
+  set marked enforced or anticipated — designed to lift into D3's `render` and `offer` steps without translation, with
+  the recommendation left to the agent. The schemas are D3's own open residual, so neither work unit settles them alone.
+
+- _Approach:_ co-design the `report` and `offer` schemas and D3's `render` and `offer` arguments as one type set in the
+  shared schema kernel after the storage cutover, with `loadset-composition` for where the relay rule lives.
+  `cli-output-contract` is held in place for it (`RELEASE-GATES` § Holds). A shared seam, not types to adopt.
+
+- _Captured during:_ `cli-output-contract` draft-design, 2026-10-20.
+
+### `[ ]` **Keep install class in the claims table when methods gain an override policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D2's `override-policy: overridable | fixed` method property.
+
+- _Observation:_ `adopter-install-authority` makes one claims table in `init-recipe.json` the authority for each shipped
+  file's install class (`draft-adopter-install-authority.md` D1). An overridable method installs Configurable, so a
+  project's override survives `arc update`; a Framework file is overwritten wholesale. Its coverage check refuses a file
+  that declares an override contract (`override-active`) under a claim other than Configurable, and checks nothing in
+  the other direction.
+
+- _Approach:_ a fixed method lands with its own Framework claim and without its override contract; `override-policy`
+  must not become a second class authority. On `arc update`, that unit's reclassification guard (D8) holds the method as
+  Configurable in any project that edited its override, and taking it over needs an install migration. If class should
+  derive from `override-policy` instead, move that derivation into the claims resolver, so one place still answers.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
+---
+
+### `[ ]` **Fire the execution-entry delivery inspection on the state it reads, not once per leaf task**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: composable-workflows`
+
+- _Observation:_ `process-task-loop.md` § Task Implementation opens with an unconditional
+  `arc delivery entry inspect`, worded "Before implementing the current task", so it fires once per leaf task for
+  the whole life of a work unit. Its answer is a function of the delivery records bound to that work unit, and
+  those move only at delivery-lifecycle boundaries — between two adjacent leaf tasks no operation can move them,
+  so the re-read cannot return a different arm. The cost is not wall time (~0.54s per call) but a tool round-trip
+  and an identical `not-applicable` payload per task in the transcript, plus the dense seven-arm dispatch
+  paragraph an executing session re-reads at each task entry for a branch that never fires outside a delivery
+  work unit.
+
+- _Counter-weight to preserve:_ the check is fail-closed by design. Correction routing is exactly what an agent
+  must not be the judge of skipping, so the answer is not to gate it on whether a plan looks present — a derived
+  precondition goes stale precisely when correction matters. The open question is whether a firing condition
+  exists that is both sound and not per-task: loop entry plus re-entry after any operation that could bind or
+  advance delivery state, or a probe-carried fact resolved once per session with an explicit invalidation
+  trigger.
+
+- _Approach:_ treat it as a firing-condition question rather than frequency tuning — what state can change
+  between two fires, and is that change observable more cheaply and more soundly than the check itself. If it is
+  not, record that and keep the per-task cadence with its rationale stated, so the next reader does not reopen it.
+
+- _Files:_ `.arc/system/workflows/arc/process-task-loop.md` § Task Implementation, and its package-source mirror.
+
+- _Observation:_ load-bearing infra and a design fork, so it wants the reviewed lane rather than a sweep — which
+  is also why it files as a work unit rather than an errand.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Phase 7, where every task's inspection returns
+  `not-applicable` because the work unit carries no Delivery Plan, 2026-09-18.
+
+### `[ ]` **Re-plan composable-workflows' fixtures against the storage contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan's fixtures assume the notes channel — `arc user pull` and notes-only pull offers — and a
+  grooming relocate for `--plan`. Under ADR-035 and `storage-contract`, notes retire at the cutover and user sync moves
+  onto the store with explicit fetching (C5), and grooming writes the store rather than a committable grooming branch,
+  since the planning-grooming lane is removed at the cutover.
+- _Approach:_ At next planning, re-derive the fixtures from the post-cutover session-init envelope (the slots
+  `storage-seam` rebuilds) rather than today's notes and relocate shapes.
+
+### `[ ]` **Consider a uniform method interface for who runs a check and where it runs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `composable-workflows`
+
+- _Observation:_ ARC methods already split in two without saying so. **Procedures** are run by the primary:
+  `adversarial-review` delegates to a fresh evaluator and holds primary-side inputs, such as `pass-cap`, that are
+  never serialized to it. **Checks** are rubric content that runs either in the primary's own context or handed to
+  a fresh evaluator as a procedure's rubric: `spec-review`, `task-audit`, `design-audit`,
+  `assess-design-proportionality`, and `grounded-planning-review`'s new `source-grounding`. The method is never
+  passed to the evaluator; the rubric is. So independence is a property of where a check runs, not of the check.
+  `source-grounding`'s report carries a `runner` label (`author` / `independent`) in its verdict, set by the running
+  agent — `independent` only when it was started without the author's context — rather than taken as an input.
+
+- _Approach:_ not pre-decided. Consider whether the generalized method interface should name the
+  procedure/check distinction and the primary-side versus serialized inputs, and whether every findings report
+  should carry one standard execution-context label. Today only `source-grounding` needs the label, since it is the
+  one report where an author run could be read as independent evidence.
+
+- _Captured during:_ `grounded-planning-review` create-spec, 2026-10-02 (Owner question on the `runner` design).
+
+### `[ ]` **Drop extension declarations and choose independent fire-point validation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-10-15).
+
+- _Shapes:_ D1 declaration family; D2 private visibility and stable anchors; inbound method fire-site validation.
+
+- _Observation:_ Retirement removes arc.extensions, point-scanner, orphan detection, and extension-point validation.
+  The #name marker becomes unreserved. D1’s declared-and-validated extension entries and D2’s point-scanner-enforced
+  visibility lose their substrate.
+
+- _Approach:_ Choose the method/fragment/anchor grammar and validator independently. Recover the old scanner from the
+  retirement ADR’s pre-removal revision only if useful; remove any assumption that extending it or preserving
+  extension-reserved markers is required.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Take review's operations as worked instances of the procedure library and the procedure/check split**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ D2 procedure library and stable anchors: consume review methods as worked procedure/check instances
+
+- _Observation:_ `review-coverage-cadence` D10 lands three review-type methods — `planning-review`, `code-review`,
+  `verification-review` — that lifecycle workflows call in one line each, written in `adversarial-review`'s contract
+  shape. It separates sites (lifecycle workflows), review-type methods (procedures the primary runs), and checks (rubric
+  content that runs in the author's context or goes to an independent evaluator), and narrows `validate-criteria` to a
+  check. It avoids "operation" for the layer, since the code sites already use it for stored CLI operations.
+  `code-review` is shared procedures with a thin dispatch per site, because each site's CLI command owns the sequence.
+  Sites cite its sections by a reference link carrying the heading's fragment, which `lint:arc:links` checks at commit,
+  and each section opens with a one-line signature and reads on its own, so a section read as a span is complete.
+
+- _Approach:_ when grooming D2 and the uniform-interface entry, consume these as the first worked instances rather than
+  re-deriving review's split; check whether the procedure/check distinction they use generalizes as stated.
+
+- _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
+
+### `[ ]` **Record in `composable-workflows`' draft that the agenda compiler's session-init application moved to `session-init-agenda`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ D3 (its first consumer, the `session-init` Step 3 rewire), § Worked example, § Scope Estimate, and
+  `cohort-agent-context-optimization.md` § Sequencing.
+
+- _Observation:_ the Owner moved the session-init overhaul into Gate B (`RELEASE-GATES.md`, 2026-10-30) and carved it
+  as its own work unit, `session-init-agenda`, started 2026-10-31 with `arc start --new` and now in draft-design. It
+  applies D3 to session-init with `loadset-composition`'s always-loaded trims, plus whatever minimum of D2's fragment
+  resolver session-init's arms need; the general substrate (D1 and D2) stays here and follows the deadline. This draft
+  still claims D3's first consumer and the session-init rewire as its own deliverable, and the cohort document names
+  D3 as what the siblings consume, so two drafts hold one design.
+
+- _Approach:_ record that D3's session-init application, its first consumer and the worked example's fixtures belong
+  to `session-init-agenda`; keep D3's general compiler contract here, or move it too, by what that unit's spec
+  settles; amend § Scope Estimate and the cohort's § Sequencing to match. Of the inbound items on session-init (the
+  read-group budget, the growth evidence, `analysis-load-set-scoping`, the envelope-schema reference, the
+  release-wrapper fragment, the `render` and `offer` co-design, fixtures against the storage contract), move those the
+  new unit takes. Read `session-init-agenda`'s specification for what it took.
+
+- _Captured during:_ PM sequencing of the session-init start, 2026-10-31.
+
+---
+
+### `[ ]` **Give the landing ceremony its steps as resolved invocations, not prose to rediscover**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § D3 "The session-agenda compiler".
+
+- _Observation:_ from the Owner's accepted stop to an open pull request, `seam-delivery-review`'s landing (2026-11-02,
+  Codex, 45 minutes) ran 12 distinct ARC verbs and about 40 tool calls whose commands took under a minute in total;
+  the rest was reasoning between steps. It made six `--help` calls and read about 700 lines of
+  `integrate-work-unit.md` and `pull-request-format` in chunks, rediscovering invocations after its 18th compaction.
+
+- _Approach:_ have each step's typed result name the next step as an exact invocation with its input, so the agent
+  supplies only judgment content and approvals; fold deterministic chains into one verb where nothing between them
+  needs a judgment. Measure a landing's calls and wall time before and after.
+
+- _Evidence:_ the timeline of `seam-delivery-review`'s 2026-11-02 landing, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, a process review of `seam-delivery-review`'s landing, 2026-11-02.
+
+---
 
 ## Problem / Motivation
 
@@ -477,7 +768,7 @@ below are the schema's first fixtures.
 **Vocabulary v1 (confirmed — nothing in the file needed an eighth type):**
 
 | Step       | Args (sketch)                                 | Session-init instances                               |
-|------------|-----------------------------------------------|------------------------------------------------------|
+| ---------- | --------------------------------------------- | ---------------------------------------------------- |
 | `read`     | path/id, read-mode, parallel-group, on-fail   | the 11 Step-3 items (already shipped as `loadSet`)   |
 | `exec`     | command, rationale                            | channel pulls, `arc user load`, relocate, base fetch |
 | `offer`    | precomposed text, choices, per-choice payload | sync prompts, combined prompt, displacement guard    |
@@ -568,7 +859,7 @@ Every former inbound-buffer item, integrated or consciously rejected — content
 this map records that nothing dropped silently:
 
 | Former buffer item (origin)                              | Disposition                                          |
-|----------------------------------------------------------|------------------------------------------------------|
+| -------------------------------------------------------- | ---------------------------------------------------- |
 | Recovery load-set emitter (`compaction-recovery`, 06-28) | Integrated — D3 seed + first-consumer rewire         |
 | Stable-anchor convention (housekeep 06-01)               | Integrated — D2 § Stable anchors                     |
 | External/harness skill references (housekeep 06-01)      | Integrated — D1 landing surface (authoring strategy) |

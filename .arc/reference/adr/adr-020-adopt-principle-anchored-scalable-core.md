@@ -50,11 +50,11 @@ We will scale ARC around a principle-anchored core. Specifically:
    identity; everything the modes / Lite / Full encode is convention-level scaling. ARC scales by
    **depth and footprint, not by swapping shapes.**
 
-2. **Invariant floor (quick tier and above), regardless of any toggle:** every work unit always carries a
-   `meta-*` file; a **spec as a separate document** (scaling from a full PRD down to a single paragraph via
-   a template family — never folded into a task-list `## Scope` header); a parseable task list; and the
-   tier-invariant execution disciplines (review increments, task/commit/workflow interlocks, quality
-   gates). Intent-verification against the spec is always present.
+2. **Invariant floor (quick tier and above), regardless of any toggle** · `[invariant]` — every work unit
+   always carries a `meta-*` file; a **spec as a separate document** (scaling from a full PRD down to a
+   single paragraph via a template family — never folded into a task-list `## Scope` header); a parseable
+   task list; and the tier-invariant execution disciplines (review increments, task/commit/workflow
+   interlocks, quality gates). Intent-verification against the spec is always present.
 
 3. **Atomic tier is the one deliberate floor exception:** no task list; the spec is materialized as the
    commit message (per P1), not a separate document; intent-verification collapses into commit/PR

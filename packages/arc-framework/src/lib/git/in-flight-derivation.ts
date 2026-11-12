@@ -1,9 +1,11 @@
 /**
  * In-flight derivation — the oracle's branch→entry classifier.
  *
- * Given the pruned remote-ref set (live-backed local remote-tracking branches,
- * from the remote-ref reader), this resolves the identity's in-flight work
- * units and errands with no checkout. Errand-ness is a **record** property: a
+ * The supplied-evidence entry analyzes one immutable all-heads snapshot plus
+ * caller-supplied local-ref and worktree facts. The compatibility entry retains
+ * acquisition for callers not yet migrated to request-scoped evidence. Both
+ * resolve the identity's in-flight work units and errands with no checkout.
+ * Errand-ness is a **record** property: a
  * branch carrying an errand record (supplied as a branch→slug index) is an
  * errand whatever its prefix, decoupling errand-ness from the `chore/` name. A
  * record-less branch is then classified by enumerating the active metas carried
@@ -21,25 +23,46 @@
  * @module
  */
 
-import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
-import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../kernel/schema/vocabulary.js";
+import { emptyParsedMetaRecord, parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
+import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
+import { isLandedInBase } from "./branch-containment.js";
 import type { GitExec } from "./exec.js";
+import type { HistoryCompletenessResult } from "./history-completeness.js";
+import type { ObjectAvailabilityResult } from "./object-availability.js";
+import { normalizeGitRejection } from "./process-error.js";
 import {
-  fetchRefBounded,
   listMetaPathsAtRef,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
   resolveInFlightBranchSetFromLocalRefs,
   type InFlightBranchSet,
   type LocalInFlightRefSnapshot,
+  type LocalInFlightRefSnapshotResult,
+  type RemoteHeadSnapshotResult,
   type RefTipMap,
 } from "./remote-ref-reader.js";
-import { resolveWorktreePathsByBranchResult } from "./worktree-roster.js";
+import {
+  accountForFetchedTracking,
+  expandLiveOnlyCandidates,
+  isExcludedInFlightBranch as isExcludedBranch,
+} from "./in-flight-expansion.js";
+import {
+  resolveWorktreePathsByBranchResult,
+  type WorktreePathsByBranchResult,
+} from "./worktree-roster.js";
+import {
+  classifyTransientWorktreeProvenance,
+  readWorktreeMarker,
+  type TransientWorktreeProvenance,
+  type TransientWorktreeSubject,
+  type WorktreeMarkerReadResult,
+} from "./worktree-marker.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
 const DEFAULT_REMOTE = "origin";
@@ -71,6 +94,8 @@ export interface InFlightBranchProvenance {
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
   | "branch-residue"
+  | "ref-enumeration-failed"
+  | "branch-fetch-failed"
   | "errand-record-branch-missing"
   | "errand-record-read-failed"
   | "meta-enumeration-failed"
@@ -131,6 +156,8 @@ interface InFlightLocation {
   pr?: OpenPrSignal;
   /** Degradation/indeterminacy marks; absent on healthy entries. */
   marks?: readonly InFlightEntryMark[];
+  /** Diagnostic-only ownership-marker state for a locally materialized transient checkout. */
+  transientProvenance?: TransientWorktreeProvenance;
 }
 
 /** A work unit in flight — a branch/ref candidate backed by an active meta. */
@@ -241,25 +268,132 @@ export interface DeriveInFlightOptions {
    * meta presence alone.
    */
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /** Exact current transient identity generation keyed by branch. */
+  expectedTransientByBranch?: ReadonlyMap<string, TransientWorktreeSubject>;
+  /** Ownership-marker read seam for local transient provenance projection. */
+  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   /** Whether the record index was read completely; false degrades record-dependent classification. */
   errandRecordsComplete?: boolean;
+  /** Complete derived checkout roster; null means cleanup classification is unavailable. */
+  derivedRoster?: readonly DerivedCheckoutRow[] | null;
   /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
   prSource?: PrSource;
 }
 
+async function deriveOwnedDecompositionCandidateBranches(
+  worktreePaths: ReadonlyMap<string, string>,
+  readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>,
+): Promise<Set<string>> {
+  const candidates = [...worktreePaths.entries()]
+    .filter(([branch]) => isDecomposeCandidateBranch(branch));
+  const owned = await Promise.all(candidates.map(async ([branch, path]) => {
+    try {
+      const marker = await readMarker(path);
+      return marker.kind === "present"
+        && marker.marker.spawnedByArc
+        && marker.marker.createdFor?.kind === "branch"
+        && marker.marker.createdFor.ref === branch
+        ? branch
+        : null;
+    } catch {
+      return null;
+    }
+  }));
+  return new Set(owned.filter((branch): branch is string => branch !== null));
+}
+
+/** Default base branch excluded from the in-flight discovery universe. */
+const DEFAULT_BASE_BRANCH = "main";
+
 /**
- * Derive the identity's in-flight work units and errands from a pruned ref set.
+ * Decide whether an advertised head belongs to the in-flight discovery universe.
  *
- * @param options - Executor, the pruned branch set, and the identity filter.
+ * The explicit coordinator uses this to choose fetch targets and the supplied-evidence
+ * analyzer uses it to choose which heads count toward the pending population. They must
+ * agree: a branch fetched but not counted, or counted but never fetched, misreports the
+ * expansion status callers gate on.
+ *
+ * @param branch - Advertised remote branch name.
+ * @param options - Configured base branch and the branches transient records claim.
+ * @returns Whether the branch is an eligible discovery candidate.
+ */
+export function isEligibleInFlightBranch(
+  branch: string,
+  options: { baseBranch?: string | undefined; errandBranches: ReadonlySet<string> },
+): boolean {
+  return !isExcludedBranch(branch)
+    && branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH)
+    && !options.errandBranches.has(branch);
+}
+
+/** Caller-supplied immutable remote and local facts for in-flight analysis. */
+export interface AnalyzeInFlightSnapshotOptions extends Omit<
+  DeriveInFlightOptions,
+  "branches" | "reachable" | "localOnly" | "timeoutMs" | "expandLiveOnly" | "remote"
+> {
+  /** Complete all-heads snapshot captured for this request. */
+  snapshot: RemoteHeadSnapshotResult;
+  /** Local availability facts for every advertised snapshot OID. */
+  objectAvailability: ObjectAvailabilityResult;
+  /** Complete local history required by candidate ordering and graph classification. */
+  history: HistoryCompletenessResult;
+  /** Caller-supplied local branch and tracking-ref snapshot. */
+  localRefs: LocalInFlightRefSnapshotResult;
+  /** Caller-supplied branched-worktree locations. */
+  worktrees: WorktreePathsByBranchResult;
+  /** Remote whose branch namespace the snapshot describes. */
+  remote?: string;
+}
+
+/** In-flight analysis plus the number of eligible advertised objects not present locally. */
+export interface AnalyzeInFlightSnapshotResult extends DeriveInFlightResult {
+  pendingBranchCount: number;
+}
+
+// Constrained to the warning-code union so a newly added classification failure must be
+// classified here rather than silently passing through as an evidence result.
+const CLASSIFICATION_FAILURE_CODES = [
+  "meta-enumeration-failed",
+  "meta-read-failed",
+  "meta-malformed",
+  "state-unrecognized",
+  "branch-field-missing",
+] as const satisfies readonly InFlightWarning["code"][];
+
+/** Analyze in-flight work from caller-supplied immutable evidence. */
+export async function analyzeInFlightSnapshot(
+  options: AnalyzeInFlightSnapshotOptions,
+): Promise<AnalyzeInFlightSnapshotResult> {
+  const remote = options.remote ?? DEFAULT_REMOTE;
+  const supplied = resolveSuppliedSnapshotInputs(options, remote);
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const result = await deriveFromResolvedInputs({ ...options, exec: localOnlyExec }, supplied.input, false, true);
+  const classificationFailure = result.warnings.find((warning) =>
+    (CLASSIFICATION_FAILURE_CODES as readonly string[]).includes(warning.code));
+  if (classificationFailure !== undefined) {
+    throw new Error(`Advertised in-flight metadata could not be classified: ${classificationFailure.rendered}`);
+  }
+  return {
+    ...result,
+    liveRefs: supplied.liveRefs,
+    pendingBranchCount: supplied.pendingBranchCount,
+  };
+}
+
+/**
+ * Compatibility acquisition wrapper for in-flight derivation.
+ *
+ * @param options - Executor, compatibility acquisition controls, and identity filter.
  * @returns In-flight entries in input-branch order, identity-filtered.
  */
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<DeriveInFlightResult> {
-  const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource, baseBranch = "main" } = options;
+  const { exec, branches, remote = DEFAULT_REMOTE } = options;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
-  const errandRecordsComplete = options.errandRecordsComplete ?? true;
-  const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const input = branches === undefined
     ? await resolveAgreedInputs({
         exec,
@@ -270,6 +404,20 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         errandBranches: new Set(errandSlugByBranch.keys()),
       })
     : await resolveSuppliedBranchInputs({ exec, branches, reachable: options.reachable ?? true, remote });
+  return deriveFromResolvedInputs(options, input, branches === undefined, false);
+}
+
+async function deriveFromResolvedInputs(
+  options: AnalyzeInFlightSnapshotOptions | DeriveInFlightOptions,
+  input: InputResolution,
+  internallyAcquired: boolean,
+  strictLocalFailures: boolean,
+): Promise<DeriveInFlightResult> {
+  const { exec, identity, teamMode, prSource, baseBranch = "main" } = options;
+  const remote = options.remote ?? DEFAULT_REMOTE;
+  const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
+  const errandRecordsComplete = options.errandRecordsComplete ?? true;
+  const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const { worktreeResult, worktreePaths, branchSet, localBranches, localBranchesComplete } = input;
   const inputs = buildInputCandidates(
     branchSet.branches,
@@ -278,7 +426,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     remote,
     branchSet.reachable,
     input.classificationRefs,
-    branches === undefined,
+    internallyAcquired,
   );
   const markedInputs = inputs
     .map((candidate) => markInputCandidate(candidate, input.indeterminate))
@@ -295,6 +443,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         localBranchesComplete,
         errandSlugByBranch,
         errandRecordsComplete,
+        options.derivedRoster,
       ),
     ),
   );
@@ -321,7 +470,17 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     candidates: workUnitCandidates,
     parkedSlugs,
     reachable: branchSet.reachable,
+    strictLocalFailures,
+    cleanup: {
+      baseRef: `${remote}/${baseBranch}`,
+      worktreeListComplete: worktreeResult.ok,
+      derivedRoster: options.derivedRoster,
+    },
   });
+  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
+    worktreePaths,
+    options.readMarker ?? readWorktreeMarker,
+  );
   const candidateEntries = [
     ...dedupeErrandCandidates(
       classified
@@ -331,18 +490,21 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     ...deduped.entries,
   ]
     .sort((a, b) => a.index - b.index)
-    .map(({ entry }) => entry);
-  const remoteReadDegraded = branches === undefined
-    && !(options.localOnly ?? false)
+    .map(({ entry }) => entry)
+    .filter((entry) => !decompositionCandidateBranches.has(entry.branch));
+  const remoteReadDegraded = internallyAcquired
+    && !("localOnly" in options && (options.localOnly ?? false))
     && !branchSet.reachable;
   const classifiedResidue = dedupeResidue(
     classified
       .map((classification) => classification.residue)
       .filter((item): item is IndexedResidue => item !== null),
-  ).filter(({ residue: item }) => !candidateEntries.some((entry) => entry.branch === item.branch));
+  ).filter(({ residue: item }) =>
+    !candidateEntries.some((entry) => entry.branch === item.branch)
+    && !(item.reason === "no-record-or-meta" && decompositionCandidateBranches.has(item.branch)));
   const observedBranches = new Set(markedInputs.map((input) => input.branch));
   for (const ref of Object.keys(branchSet.liveRefs)) observedBranches.add(branchFromInputRef(ref, remote));
-  const recordResidue = branches === undefined
+  const recordResidue = internallyAcquired
     ? [...errandSlugByBranch.entries()]
         .filter(([branch]) => branch !== baseBranch && !observedBranches.has(branch))
         .map(([branch, slug], offset): IndexedResidue => ({
@@ -376,20 +538,133 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   }
   warnings.unshift(...input.warnings);
   if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());
+  const visibleWarnings = warnings.filter((warning) =>
+    warning.branch === undefined || !decompositionCandidateBranches.has(warning.branch));
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
-
-  const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
+  const entriesWithProvenance = await enrichWithTransientProvenance(
+    entriesForIdentity,
+    options.expectedTransientByBranch ?? new Map(),
+    options.readMarker ?? readWorktreeMarker,
+  );
+  const entries = prSource === undefined
+    ? entriesWithProvenance
+    : await enrichWithPrState(entriesWithProvenance, prSource);
   return {
     entries,
     residue,
-    warnings,
+    warnings: visibleWarnings,
     ...(resultMarks.length > 0 ? { marks: resultMarks } : {}),
     snapshot: input.snapshot,
     liveRefs: branchSet.liveRefs,
     reachable: branchSet.reachable,
   };
+}
+
+function resolveSuppliedSnapshotInputs(
+  options: AnalyzeInFlightSnapshotOptions,
+  remote: string,
+): { input: InputResolution; liveRefs: RefTipMap; pendingBranchCount: number } {
+  // An unreachable snapshot is the coordinator's `failed` arm, never this entry's input:
+  // analyzing it would yield an empty candidate set that reads as a proven absence.
+  if (options.snapshot.kind !== "available") {
+    throw new Error("In-flight snapshot analysis requires a reachable remote snapshot.");
+  }
+  if (options.snapshot.scope !== "all-heads") {
+    throw new Error("In-flight snapshot analysis requires all-heads evidence.");
+  }
+  if (!options.localRefs.ok) throw new Error("Local in-flight refs could not be inspected.");
+  if (!options.worktrees.ok) throw new Error("Local worktrees could not be inspected.");
+  if (options.errandRecordsComplete === false) {
+    throw new Error("Transient identity records could not be inspected completely.");
+  }
+
+  const errandBranches = new Set(options.errandSlugByBranch?.keys() ?? []);
+  const eligibleTips = Object.fromEntries(
+    Object.entries(options.snapshot.tips).filter(([branch]) =>
+      isEligibleInFlightBranch(branch, { baseBranch: options.baseBranch, errandBranches })),
+  );
+  const eligibleTipEntries = Object.entries(eligibleTips);
+  let availableTips: RefTipMap = {};
+  if (eligibleTipEntries.length > 0) {
+    if (options.objectAvailability.kind !== "complete") {
+      throw new Error("Advertised in-flight object availability could not be inspected.");
+    }
+    const commits = options.objectAvailability.commits;
+    availableTips = Object.fromEntries(eligibleTipEntries.filter(([branch, oid]) => {
+      if (commits[oid] === undefined) {
+        throw new Error(`Advertised branch ${branch} has no local availability fact.`);
+      }
+      return commits[oid];
+    }));
+    if (Object.keys(availableTips).length > 0 && options.history.kind !== "complete") {
+      throw new Error("In-flight graph classification requires complete local history.");
+    }
+  }
+  const pendingBranchCount = Object.keys(eligibleTips).length - Object.keys(availableTips).length;
+  const eligibleBranches = new Set(Object.keys(availableTips));
+  const localRefs: LocalInFlightRefSnapshot = {
+    remoteTracking: Object.fromEntries(
+      Object.entries(options.localRefs.refs.remoteTracking).filter(([branch]) => eligibleBranches.has(branch)),
+    ),
+    localHeads: Object.fromEntries(
+      Object.entries(options.localRefs.refs.localHeads).filter(([branch]) => eligibleBranches.has(branch)),
+    ),
+  };
+  const worktreePaths = new Map(
+    [...options.worktrees.paths].filter(([branch]) => eligibleBranches.has(branch)),
+  );
+  const classificationRefs = Object.fromEntries(
+    Object.entries(availableTips).map(([branch, oid]) => [`${remote}/${branch}`, oid]),
+  );
+  const liveRefs = Object.fromEntries(
+    Object.entries(eligibleTips).map(([branch, oid]) => [`${remote}/${branch}`, oid]),
+  );
+  const branchSet: InFlightBranchSet = {
+    branches: [...eligibleBranches],
+    refs: classificationRefs,
+    liveRefs,
+    reachable: true,
+  };
+  return {
+    input: {
+      branchSet,
+      worktreeResult: { ok: options.worktrees.ok, paths: worktreePaths },
+      worktreePaths,
+      localBranches: new Set(Object.keys(localRefs.localHeads)),
+      localBranchesComplete: options.localRefs.ok,
+      snapshot: snapshotFor(branchSet, worktreePaths, localRefs, remote),
+      indeterminate: { refs: new Set(), worktrees: new Set() },
+      resultMarks: [],
+      warnings: [],
+      classificationRefs,
+    },
+    liveRefs,
+    pendingBranchCount,
+  };
+}
+
+async function enrichWithTransientProvenance(
+  entries: InFlightEntry[],
+  expectedByBranch: ReadonlyMap<string, TransientWorktreeSubject>,
+  readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>,
+): Promise<InFlightEntry[]> {
+  return Promise.all(entries.map(async (entry) => {
+    if (entry.worktreePath === undefined) return entry;
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await readMarker(entry.worktreePath);
+    } catch (error) {
+      marker = {
+        kind: "malformed",
+        path: entry.worktreePath,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+    const provenance = classifyTransientWorktreeProvenance(marker, expectedByBranch.get(entry.branch));
+    return provenance === null ? entry : { ...entry, transientProvenance: provenance };
+  }));
 }
 
 interface InputResolution {
@@ -418,10 +693,12 @@ async function resolveSuppliedBranchInputs(input: {
     resolveWorktreePathsByBranchResult(input.exec),
     readLocalInFlightRefSnapshot(input.exec, input.remote),
   ]);
-  const worktreePaths = worktreeResult.paths;
+  const worktreePaths = filterExcludedWorktrees(worktreeResult.paths);
+  const eligibleRefs = filterExcludedRefs(refs.refs);
+  const branches = input.branches.filter((branch) => !isExcludedBranch(branch));
   const branchSet: InFlightBranchSet = {
-    branches: [...input.branches],
-    refs: Object.fromEntries(input.branches.map((branch) => [`${input.remote}/${branch}`, ""])),
+    branches,
+    refs: Object.fromEntries(branches.map((branch) => [`${input.remote}/${branch}`, ""])),
     liveRefs: {},
     reachable: input.reachable,
   };
@@ -429,9 +706,9 @@ async function resolveSuppliedBranchInputs(input: {
     branchSet,
     worktreeResult,
     worktreePaths,
-    localBranches: new Set(Object.keys(refs.refs.localHeads)),
+    localBranches: new Set(Object.keys(eligibleRefs.localHeads)),
     localBranchesComplete: refs.ok,
-    snapshot: snapshotFor(branchSet, worktreePaths, refs.refs, input.remote),
+    snapshot: snapshotFor(branchSet, worktreePaths, eligibleRefs, input.remote),
     indeterminate: { refs: new Set(), worktrees: new Set() },
     resultMarks: [],
     warnings: [],
@@ -449,9 +726,11 @@ async function resolveAgreedInputs(input: {
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
+  const firstEligibleRefs = filterExcludedRefs(firstRefs.refs);
+  const firstEligibleWorktrees = filterExcludedWorktrees(firstWorktree.paths);
   const localFirstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
-    refs: firstRefs.refs,
+    refs: firstEligibleRefs,
     remote: input.remote,
     localOnly: input.localOnly,
     timeoutMs: input.timeoutMs,
@@ -459,7 +738,7 @@ async function resolveAgreedInputs(input: {
   const expansion = await expandLiveOnlyCandidates({
     exec: input.exec,
     branchSet: localFirstBranchSet,
-    localRefs: firstRefs.refs,
+    localRefs: firstEligibleRefs,
     remote: input.remote,
     timeoutMs: input.timeoutMs,
     enabled: input.expandLiveOnly,
@@ -469,9 +748,11 @@ async function resolveAgreedInputs(input: {
 
   const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
+  const secondEligibleRefs = filterExcludedRefs(secondRefs.refs);
+  const secondEligibleWorktrees = filterExcludedWorktrees(secondWorktree.paths);
   const secondBranchSet = withExpandedBranches(
     branchSetFromMembership({
-      refs: secondRefs.refs,
+      refs: secondEligibleRefs,
       firstBranchSet,
       localOnly: input.localOnly,
       remote: input.remote,
@@ -480,63 +761,34 @@ async function resolveAgreedInputs(input: {
     input.remote,
   );
 
-  const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs.refs, input.remote);
-  const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs.refs, input.remote);
+  const expectedRefs = accountForFetchedTracking(firstEligibleRefs, secondEligibleRefs, expansion.refs, input.remote);
+  const firstSnapshot = snapshotFor(firstBranchSet, firstEligibleWorktrees, expectedRefs, input.remote);
+  const secondSnapshot = snapshotFor(secondBranchSet, secondEligibleWorktrees, secondEligibleRefs, input.remote);
   const comparison = mergeSnapshotComparisons(
     compareSnapshots(firstSnapshot, secondSnapshot),
-    compareLocalRefSnapshots(firstRefs.refs, secondRefs.refs, input.remote),
+    compareLocalRefSnapshots(expectedRefs, secondEligibleRefs, input.remote),
     compareRefReadResults(firstRefs.ok, secondRefs.ok),
   );
   const warnings = snapshotWarnings(comparison, input.remote);
+  warnings.push(...expansion.failedBranches.map((branch) => warning({
+    code: "branch-fetch-failed", branch,
+    rendered: `Unable to fetch in-flight branch \`${branch}\` within the network budget; overlap discovery may be incomplete.`,
+  })));
 
   return {
     branchSet: firstBranchSet,
     worktreeResult: firstWorktree,
-    worktreePaths: firstWorktree.paths,
-    localBranches: new Set(Object.keys(firstRefs.refs.localHeads)),
+    worktreePaths: firstEligibleWorktrees,
+    localBranches: new Set(Object.keys(firstEligibleRefs.localHeads)),
     localBranchesComplete: firstRefs.ok,
     snapshot: firstSnapshot,
     indeterminate: comparison.wholeResult
       ? { refs: new Set(), worktrees: new Set() }
       : { refs: comparison.changedRefs, worktrees: comparison.changedWorktrees },
-    resultMarks: comparison.wholeResult || expansion.failed ? ["indeterminate"] : [],
+    resultMarks: comparison.wholeResult || expansion.failedBranches.length > 0 ? ["indeterminate"] : [],
     warnings,
     classificationRefs: expansion.refs,
   };
-}
-
-interface LiveOnlyExpansionResult {
-  refs: RefTipMap;
-  failed: boolean;
-}
-
-async function expandLiveOnlyCandidates(input: {
-  exec: GitExec;
-  branchSet: InFlightBranchSet;
-  localRefs: LocalInFlightRefSnapshot;
-  remote: string;
-  timeoutMs?: number;
-  enabled: boolean;
-  excludedBranches: ReadonlySet<string>;
-}): Promise<LiveOnlyExpansionResult> {
-  if (!input.enabled || !input.branchSet.reachable) return { refs: {}, failed: false };
-  const refs: RefTipMap = {};
-  let failed = false;
-  for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
-    const prefix = `${input.remote}/`;
-    const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
-    if (input.excludedBranches.has(branch)) continue;
-    if (input.localRefs.remoteTracking[branch] === sha) continue;
-    const ok = await fetchRefBounded({
-      exec: input.exec,
-      remote: input.remote,
-      branch,
-      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
-    });
-    if (ok) refs[`${input.remote}/${branch}`] = sha;
-    else failed = true;
-  }
-  return { refs, failed };
 }
 
 function withExpandedBranches(
@@ -585,6 +837,18 @@ function branchSetFromMembership(input: {
     liveRefs: input.firstBranchSet.liveRefs,
     reachable: true,
   };
+}
+
+function filterExcludedRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
+  const eligible = ([branch]: readonly [string, string]): boolean => !isExcludedBranch(branch);
+  return {
+    remoteTracking: Object.fromEntries(Object.entries(refs.remoteTracking).filter(eligible)),
+    localHeads: Object.fromEntries(Object.entries(refs.localHeads).filter(eligible)),
+  };
+}
+
+function filterExcludedWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
+  return new Map([...paths].filter(([branch]) => !isExcludedBranch(branch)));
 }
 
 function snapshotFor(
@@ -858,6 +1122,7 @@ async function classifyInput(
   localBranchesComplete: boolean,
   errandSlugByBranch: ReadonlyMap<string, string>,
   errandRecordsComplete: boolean,
+  derivedRoster: readonly DerivedCheckoutRow[] | null | undefined,
 ): Promise<InputClassification> {
   const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths, localBranches, localBranchesComplete);
@@ -910,13 +1175,29 @@ async function classifyInput(
     };
   }
   if (listed.paths.length === 0) {
+    const locusOwned = derivedRoster !== undefined && derivedRoster !== null
+      && locusOwnsBranch(derivedRoster, branch);
+    if (locusOwned) {
+      // Locus ownership answers whether this branch is residue; it does not answer
+      // whether this checkout is authoritative for its branch location. A worktree
+      // carrying no active meta still tombstones its stale upstream twin, or an
+      // archived work unit's old remote meta resurrects it as in flight.
+      return {
+        input,
+        errand: null,
+        residue: null,
+        workUnits: [],
+        warnings: [],
+        shadowsSameBranchRemote: input.source === "worktree",
+      };
+    }
     return {
       input,
       errand: null,
       residue: {
         residue: branchResidue(
           input,
-          errandRecordsComplete ? "no-record-or-meta" : "classification-unavailable",
+          errandRecordsComplete && derivedRoster !== null ? "no-record-or-meta" : "classification-unavailable",
         ),
         index: input.index,
         source: input.source,
@@ -955,6 +1236,12 @@ interface DedupeWorkUnitCandidatesOptions {
   candidates: WorkUnitCandidate[];
   parkedSlugs: ReadonlySet<string>;
   reachable: boolean;
+  strictLocalFailures: boolean;
+  cleanup: {
+    baseRef: string;
+    worktreeListComplete: boolean;
+    derivedRoster: readonly DerivedCheckoutRow[] | null | undefined;
+  };
 }
 
 interface DedupeWorkUnitCandidatesResult {
@@ -976,7 +1263,12 @@ async function dedupeWorkUnitCandidates(
   const entries: IndexedEntry[] = [];
   const warnings: InFlightWarning[] = [];
   for (const group of groups.values()) {
-    const winner = await chooseWorkUnitCandidate(options.exec, group, commitTimeCache);
+    const winner = await chooseWorkUnitCandidate(
+      options.exec,
+      group,
+      commitTimeCache,
+      options.strictLocalFailures,
+    );
     if (winner === null) {
       warnings.push(
         ...group.map((candidate) =>
@@ -991,14 +1283,28 @@ async function dedupeWorkUnitCandidates(
     }
 
     const shadowed = group.filter((candidate) => candidate !== winner);
-    warnings.push(
-      ...shadowed.flatMap((candidate) => {
-        if (candidate.meta.relation === "stale") {
-          return [staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")];
-        }
-        return isLocalRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
-      }),
-    );
+    const shadowWarnings = await Promise.all(shadowed.map(async (candidate) => {
+      if (candidate.meta.relation !== "stale") {
+        return isLocalRemoteMirror(candidate, winner) ? null : candidateShadowedWarning(candidate, winner);
+      }
+      const baseWarning = staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow");
+      const { cleanup } = options;
+      if (candidate.input.source !== "local-branch" || !cleanup.worktreeListComplete
+        || cleanup.derivedRoster === null || cleanup.derivedRoster === undefined
+        || locusOwnsBranch(cleanup.derivedRoster, candidate.input.branch)) {
+        return baseWarning;
+      }
+      const merged = await isLandedInBase(options.exec, candidate.input.branch, cleanup.baseRef);
+      return {
+        ...baseWarning,
+        rendered: `${baseWarning.rendered} ${merged
+          ? `No patch-unique commits against base. After interlock approval, try ` +
+            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\`; ` +
+            "Git may refuse unless its upstream or HEAD contains the branch. Retain it if refused."
+          : "Not proven merged; surfaced, not removable."}`,
+      };
+    }));
+    warnings.push(...shadowWarnings.filter((item): item is InFlightWarning => item !== null));
 
     const built = buildWorkUnit(
       winner.meta,
@@ -1046,6 +1352,7 @@ async function chooseWorkUnitCandidate(
   exec: GitExec,
   group: readonly WorkUnitCandidate[],
   commitTimeCache: Map<string, number>,
+  strictLocalFailures: boolean,
 ): Promise<WorkUnitCandidate | null> {
   const eligible = group.filter((candidate) => candidate.meta.relation !== "stale");
   if (eligible.length === 0) return null;
@@ -1054,18 +1361,19 @@ async function chooseWorkUnitCandidate(
   const sourceTier = eligible.filter((candidate) => candidateSourceRank(candidate) === bestSourceRank);
   const bestRelationRank = Math.max(...sourceTier.map(candidateRelationRank));
   const relationTier = sourceTier.filter((candidate) => candidateRelationRank(candidate) === bestRelationRank);
-  return pickByContentOrder(exec, relationTier, commitTimeCache);
+  return pickByContentOrder(exec, relationTier, commitTimeCache, strictLocalFailures);
 }
 
 async function pickByContentOrder(
   exec: GitExec,
   candidates: readonly WorkUnitCandidate[],
   commitTimeCache: Map<string, number>,
+  strictLocalFailures: boolean,
 ): Promise<WorkUnitCandidate> {
   let best = candidates[0];
   if (best === undefined) throw new Error("candidate ordering requires at least one candidate");
   for (const candidate of candidates.slice(1)) {
-    if ((await compareContentOrder(exec, candidate, best, commitTimeCache)) > 0) {
+    if ((await compareContentOrder(exec, candidate, best, commitTimeCache, strictLocalFailures)) > 0) {
       best = candidate;
     }
   }
@@ -1077,28 +1385,38 @@ async function compareContentOrder(
   left: WorkUnitCandidate,
   right: WorkUnitCandidate,
   commitTimeCache: Map<string, number>,
+  strictLocalFailures: boolean,
 ): Promise<number> {
-  const leftAncestor = await isAncestor(exec, left.input.ref, right.input.ref);
-  const rightAncestor = await isAncestor(exec, right.input.ref, left.input.ref);
+  const leftAncestor = await isAncestor(exec, left.input.ref, right.input.ref, strictLocalFailures);
+  const rightAncestor = await isAncestor(exec, right.input.ref, left.input.ref, strictLocalFailures);
   if (leftAncestor && !rightAncestor) return -1;
   if (rightAncestor && !leftAncestor) return 1;
 
   const stateDiff = stateOrder(left) - stateOrder(right);
   if (stateDiff !== 0) return stateDiff;
 
-  const timeDiff = (await commitTime(exec, left.input.ref, commitTimeCache)) -
-    (await commitTime(exec, right.input.ref, commitTimeCache));
+  const timeDiff = (await commitTime(exec, left.input.ref, commitTimeCache, strictLocalFailures)) -
+    (await commitTime(exec, right.input.ref, commitTimeCache, strictLocalFailures));
   if (timeDiff !== 0) return timeDiff;
 
   return right.input.branch.localeCompare(left.input.branch);
 }
 
-async function isAncestor(exec: GitExec, ancestor: string, descendant: string): Promise<boolean> {
+async function isAncestor(
+  exec: GitExec,
+  ancestor: string,
+  descendant: string,
+  strictLocalFailures: boolean,
+): Promise<boolean> {
   if (ancestor === descendant) return true;
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
   try {
-    await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
+    await exec("git", args);
     return true;
-  } catch {
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args });
+    if (normalized.kind === "nonzero-exit" && normalized.exitCode === 1) return false;
+    if (strictLocalFailures) throw normalized;
     return false;
   }
 }
@@ -1112,6 +1430,7 @@ async function commitTime(
   exec: GitExec,
   ref: string,
   cache: Map<string, number>,
+  strictLocalFailures: boolean,
 ): Promise<number> {
   const cached = cache.get(ref);
   if (cached !== undefined) return cached;
@@ -1119,8 +1438,12 @@ async function commitTime(
   try {
     const { stdout } = await exec("git", ["show", "-s", "--format=%ct", ref]);
     value = Number.parseInt(stdout.trim(), 10);
-    if (!Number.isFinite(value)) value = 0;
-  } catch {
+    if (!Number.isFinite(value)) {
+      if (strictLocalFailures) throw new Error(`Invalid commit timestamp at ${ref}.`);
+      value = 0;
+    }
+  } catch (error) {
+    if (strictLocalFailures) throw error;
     value = 0;
   }
   cache.set(ref, value);
@@ -1161,7 +1484,7 @@ function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate):
 }
 
 function degradedMetaRecord(): ParsedMetaRecord {
-  return parseMetaRecord("");
+  return emptyParsedMetaRecord();
 }
 
 function degradedMetaCandidate(input: {
@@ -1264,6 +1587,10 @@ function staleLocationWarning(
     workUnit: candidate.name,
     rendered,
   });
+}
+
+function quoteBranchForShell(branch: string): string {
+  return `'${branch.replaceAll("'", `'"'"'`)}'`;
 }
 
 function candidateShadowedWarning(candidate: WorkUnitCandidate, winner: WorkUnitCandidate): InFlightWarning {

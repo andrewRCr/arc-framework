@@ -159,8 +159,8 @@ the architectural framing. Edge case (broad pattern catches wrapper, e.g., wildc
 ### Step 4: Verify
 
 **Default-prompt — mandatory behavioral test.** Invoke `arc release commit --help` directly through
-the harness. The invocation must NOT be a nested CLI subprocess — nested invocations don't observe the
-outer harness's permission boundary. `--help` is Commander's built-in flag and exits before the wrapper
+the harness. **The invocation must NOT be a nested CLI subprocess** · `[invariant]` — nested invocations
+don't observe the outer harness's permission boundary. `--help` is Commander's built-in flag and exits before the wrapper
 cascade runs, so the test stays side-effect-free regardless of repo state. Observe the prompt presence:
 
 - **Pass** — no harness prompt observed. Allowlist match working. Confirm to the install command's
@@ -192,11 +192,12 @@ writes:
 - `arc.releaseOptedIn = true` (per-developer git-config local flag) on the first successful install.
   Subsequent installs are flag-idempotent — the flag is not re-written if already set. This workflow
   writes only this key; for the full per-developer git-config key catalog (commit / push / sync
-  interlocks, notes-push policy) and how to set those values, see
-  `strategy-configurability-architecture.md` § Personal Configuration via Git Config.
+  interlocks, notes-push policy) and how to set those values, see `strategy-configurability-architecture.md` § Personal
+  Configuration via Git Config.
 
-The agent's role ends with the verification confirmation in Step 4. Recording mechanics, idempotency
-choices, and multi-harness partial-success handling live under § State-Recording Protocol.
+**The agent's role ends with the verification confirmation in Step 4** · `[invariant]`. Recording
+mechanics, idempotency choices, and multi-harness partial-success handling live under
+§ State-Recording Protocol.
 
 ---
 
@@ -235,8 +236,7 @@ For paste-ready output, run `arc release setup print-patterns --harness claude-c
 ### Codex CLI
 
 **Mode detection.** Inspect `approval_policy` in `~/.codex/config.toml` (user-scoped) or
-`.codex/config.toml` (project-scoped, in effect when the project is marked
-`trust_level = "trusted"` in user config):
+`.codex/config.toml` (project-scoped, in effect when the project is marked `trust_level = "trusted"` in user config):
 
 - `"never"` — bypass-mode equivalent. No per-invocation prompt.
 - `"on-request"` — default-prompt mode. Approval requested per command.
@@ -290,9 +290,8 @@ For paste-ready output, run `arc release setup print-patterns --harness codex`.
 ## Agent-Adaptive Path
 
 For any harness outside the reference-implementation set (Claude Code, Codex CLI), the agent translates
-the six-element contract against the harness's own conventions. See
-`strategy-interlock-release-wrappers.md` § Agent-Adaptive Path for the architectural framing
-(workflow-as-contract, universal-route positioning).
+the six-element contract against the harness's own conventions. See `strategy-interlock-release-wrappers.md` §
+Agent-Adaptive Path for the architectural framing (workflow-as-contract, universal-route positioning).
 
 **Procedure:**
 
@@ -360,8 +359,8 @@ prompt.
 
 ## State-Recording Protocol
 
-The install command writes state on workflow verify-pass plus user-confirm. Agents do not write the
-marker file directly; orchestration is centralized in the CLI.
+The install command writes state on workflow verify-pass plus user-confirm. **Agents do not write the
+marker file directly** · `[invariant]`; orchestration is centralized in the CLI.
 
 **Marker file** — `.arc/user/{identity}/.internal/release-setup.json`. Schema v1:
 

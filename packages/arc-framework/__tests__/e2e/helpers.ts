@@ -3,8 +3,8 @@
  *
  * Provides CLI invocation and temp repo setup for end-to-end tests. These
  * helpers are intentionally standalone — they import only from node builtins,
- * not from the CLI source. E2E tests exercise the built artifact (`dist/cli.js`),
- * not source modules.
+ * not from the CLI source. E2E tests exercise the built artifact through the
+ * package's published entry point (`bin/arc.js`), not source modules.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -12,8 +12,88 @@ import { promisify } from "node:util";
 
 import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { emitsMachineReadablePayload, usesPseudoTty } from "../helpers/cli-transport.js";
+import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
+
+export { commitAll } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
+
+/** Compose the deterministic environment shared by built-CLI tests. */
+function builtCliEnvironment(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ARC_DISABLE_UPDATE_CHECKS: "1",
+    NO_COLOR: "1",
+    ...overrides,
+  };
+}
+
+interface PseudoTerminalOptions {
+  cwd: string;
+  timeout: number;
+  env: NodeJS.ProcessEnv;
+}
+
+/** Run one argv-safe command under the host's native `script` utility. */
+async function runInPseudoTerminal(
+  command: readonly string[],
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  if (process.platform === "darwin") return runBsdPseudoTerminal(command, options);
+  const args = ["-qec", command.map(shellEscape).join(" "), "/dev/null"];
+  return execFileAsync("script", args, { ...options, encoding: "utf8" });
+}
+
+/** BSD `script` requires non-socket stdin, which `execFile` cannot provide. */
+function runBsdPseudoTerminal(
+  command: readonly string[],
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolveResult, rejectResult) => {
+    const child = spawn("script", ["-q", "/dev/null", ...command], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let timedOut = false;
+    let settled = false;
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, options.timeout);
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectResult(error);
+    });
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const result = {
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      };
+      if (code === 0) {
+        resolveResult(result);
+        return;
+      }
+      rejectResult(Object.assign(new Error(`script exited with ${code ?? signal ?? "unknown status"}`), {
+        code: timedOut ? "ETIMEDOUT" : (code ?? 1),
+        killed: timedOut,
+        signal,
+        ...result,
+      }));
+    });
+  });
+}
 
 /** Result of a CLI invocation. */
 export interface RunResult {
@@ -22,6 +102,22 @@ export interface RunResult {
   exitCode: number;
   timedOut?: true;
 }
+
+/** Result from several built-CLI invocations sharing one interactive process anchor. */
+export interface AnchoredSequenceResult extends RunResult {
+  results: unknown[];
+}
+
+type AnchoredSequenceLocation =
+  | { cwd: string }
+  | { cwdFromPreviousJson: string }
+  | { reuseResolvedCwd: true };
+
+type AnchoredSequenceEntry =
+  | readonly string[]
+  | { command: readonly string[] }
+  | ({ args: readonly string[] } & AnchoredSequenceLocation)
+  | ({ command: readonly string[] } & AnchoredSequenceLocation);
 
 /**
  * Run Git in an E2E fixture repository with project hooks disabled.
@@ -42,9 +138,9 @@ export async function git(cwd: string, args: string[]): Promise<string> {
 /**
  * Invoke the built CLI as a subprocess.
  *
- * Spawns `node dist/cli.js ...args` in the given working directory. Captures
- * stdout, stderr, and exit code. Sets `NO_COLOR=1` to strip ANSI escapes
- * from clack output.
+ * Spawns `node bin/arc.js ...args` in the given working directory. Captures
+ * stdout, stderr, and exit code. Disables optional update checks and sets
+ * `NO_COLOR=1` so the test contract is offline and free of ANSI escapes.
  *
  * @param args - CLI arguments (e.g., `["init", "--yes", "--name", "test"]`)
  * @param cwd - Working directory for the CLI process
@@ -54,21 +150,22 @@ export async function git(cwd: string, args: string[]): Promise<string> {
 export async function runArc(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
-  // pseudo-TTY whose transcript merges stderr into the captured stdout, so a
-  // self-hosting stale-build warn would prefix `--json` payloads and break
-  // `JSON.parse`. Route JSON invocations through the non-TTY helper; keep the
-  // TTY path for interactive clack/TUI coverage.
-  if (args.includes("--json")) {
+  // pseudo-TTY whose transcript merges stderr into the captured stdout, so an
+  // advisory or warn would prefix a JSON payload and break `JSON.parse`. Route
+  // machine-readable invocations through the non-TTY helper; keep the TTY path
+  // for interactive clack/TUI coverage.
+  if (args.includes("--json") || emitsMachineReadablePayload(args)) {
     return runArcNoTty(args, cwd, options);
   }
-  const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  recordCliInvocationForCurrentTest(timeout);
+  const env = builtCliEnvironment(options?.env);
   try {
-    const { stdout, stderr } = process.platform === "linux"
+    const { stdout, stderr } = usesPseudoTty(args)
       ? await execFileAsync(
         "script",
         ["-qec", buildScriptCommand(args), "/dev/null"],
@@ -99,6 +196,94 @@ export async function runArc(
   }
 }
 
+/** Invoke ARC beneath one real interactive-shell anchor for locus-aware commands. */
+export async function runArcAnchored(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  recordCliInvocationForCurrentTest(timeout);
+  const env = builtCliEnvironment({ PS1: "", ...options?.env });
+  const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
+  const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await runInPseudoTerminal(
+      ["bash", "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${interactiveCommand}`],
+      { cwd, timeout, env },
+    );
+    return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: normalizeAnchoredOutput(failure.stdout ?? ""),
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+    };
+  }
+}
+
+/** Invoke several ARC commands beneath one persistent interactive-shell anchor. */
+export async function runArcAnchoredSequence(
+  argsList: readonly AnchoredSequenceEntry[],
+  cwd: string,
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv; anchorShellPath?: string },
+): Promise<AnchoredSequenceResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  for (const entry of argsList) {
+    if (!("command" in entry)) recordCliInvocationForCurrentTest(timeout);
+  }
+  const env = builtCliEnvironment({ PS1: "", ...options?.env });
+  const anchorShell = options?.anchorShellPath ?? "bash";
+  const commands = argsList.map((entry) => {
+    const commandArgs = "command" in entry
+      ? entry.command
+      : [process.execPath, CLI_PATH, ...("args" in entry ? entry.args : entry)];
+    const command = commandArgs.map(shellEscape).join(" ");
+    let prefix = "";
+    let located = command;
+    if ("cwd" in entry) {
+      located = `cd ${shellEscape(entry.cwd)} && ${command}`;
+    } else if ("cwdFromPreviousJson" in entry) {
+      const readField = [
+        process.execPath,
+        "-e",
+        "const fs=require('node:fs');const value=JSON.parse(fs.readFileSync(0,'utf8'));"
+          + "const field=process.argv[1].split('.').reduce((current,key)=>current?.[key],value);"
+          + "if(typeof field!=='string')throw new Error(`Expected string JSON field ${process.argv[1]}`);"
+          + "process.stdout.write(field);",
+        entry.cwdFromPreviousJson,
+      ].map(shellEscape).join(" ");
+      prefix = `arc_sequence_cwd=$(printf '%s' "$arc_sequence_result" | ${readField}); `;
+      located = `cd "$arc_sequence_cwd" && ${command}`;
+    } else if ("reuseResolvedCwd" in entry) {
+      located = `cd "$arc_sequence_cwd" && ${command}`;
+    }
+    return `${prefix}arc_sequence_result=$(${located}); arc_sequence_status=$?; `
+      + `printf '%s\n' "$arc_sequence_result"; (exit $arc_sequence_status)`;
+  });
+  const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
+  try {
+    const { stdout, stderr } = await runInPseudoTerminal(
+      [anchorShell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${command}`],
+      { cwd, timeout, env },
+    );
+    const normalized = normalizeAnchoredOutput(stdout);
+    return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
+    return {
+      stdout: normalized,
+      stderr: failure.stderr ?? "",
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+      results: parseJsonLines(normalized),
+    };
+  }
+}
+
 /**
  * Like {@link runArc}, but always invokes the CLI directly via `node` — never
  * through `script` — so stdin and stdout are real pipes, not a pseudo-TTY. Use
@@ -113,11 +298,12 @@ export async function runArc(
 export async function runArcNoTty(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  recordCliInvocationForCurrentTest(timeout);
+  const env = builtCliEnvironment(options?.env);
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
     return { stdout, stderr, exitCode: 0 };
@@ -144,16 +330,16 @@ export async function runArcNoTty(
 export async function runArcWithStdoutPipe(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  recordCliInvocationForCurrentTest(timeout);
+  const env = builtCliEnvironment(options?.env);
   try {
     const pipeline = `${buildScriptCommand(args, false)} | cat`;
-    const { stdout, stderr } = await execFileAsync(
-      "script",
-      ["-qec", `bash -o pipefail -c ${shellEscape(pipeline)}`, "/dev/null"],
+    const { stdout, stderr } = await runInPseudoTerminal(
+      ["bash", "-o", "pipefail", "-c", `stty cols 500 rows 40; ${pipeline}`],
       { cwd, timeout, env },
     );
     return { stdout, stderr, exitCode: 0 };
@@ -182,11 +368,12 @@ export function runArcWithStdin(
   args: string[],
   cwd: string,
   stdin: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const timeout = options?.timeout ?? CALL_LIMIT;
+  recordCliInvocationForCurrentTest(timeout);
+  const env = builtCliEnvironment(options?.env);
 
   return new Promise<RunResult>((resolveResult, rejectResult) => {
     const child = spawn(process.execPath, [CLI_PATH, ...args], { cwd, env, stdio: "pipe" });
@@ -226,6 +413,35 @@ function buildScriptCommand(args: string[], useExec = true): string {
 
 function shellEscape(value: string): string {
   return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function normalizeAnchoredOutput(value: string): string {
+  const lines = value
+    .replaceAll("\r", "")
+    .replaceAll("^D\b\b", "")
+    .replaceAll("\u0004\b\b", "")
+    .split("\n");
+  const lastContent = lines.at(-1) === "" ? lines.length - 2 : lines.length - 1;
+  if (lines[lastContent] === "exit") lines.splice(lastContent, 1);
+  return lines.join("\n");
+}
+
+/** Join clack box continuations so assertions inspect logical values independent of terminal width. */
+export function unwrapPresentationOutput(value: string): string {
+  return value.replace(/\s*([│|])\r?\n\1\s*/gu, "");
+}
+
+function parseJsonLines(value: string): unknown[] {
+  const parsed: unknown[] = [];
+  for (const line of value.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    try {
+      parsed.push(JSON.parse(line));
+    } catch {
+      // Transcript noise that resembles JSON must not discard earlier command results.
+    }
+  }
+  return parsed;
 }
 
 /**

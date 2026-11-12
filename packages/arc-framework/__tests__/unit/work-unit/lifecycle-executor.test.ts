@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   executeTransition,
+  resumeTransitionFinalization,
   type EncodingLeg,
   type ExecuteTransitionContext,
   type FinalizeWrite,
@@ -20,11 +21,11 @@ import {
   type SideEffectHandler,
   type TransitionInputs,
 } from "../../../src/lib/work-unit/lifecycle-executor.js";
-import type { MetaFieldName } from "../../../src/lib/active/meta-reader.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
-import { buildFootgunGuards } from "../../../src/lib/work-unit/lifecycle-guards.js";
+import { setMetaBulletFields, type MetaFieldName } from "../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
+import type { ValidatedGraduationTransaction } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
 
 // ---------------------------------------------------------------------------
 // In-memory index fixture — one meta per slug under a chosen tier.
@@ -58,7 +59,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   const addChildDir = (parent: string, name: string): void => {
     const entries = ensureDir(parent);
     if (!entries.some((e) => e.name === name && e.isDirectory())) {
-      entries.push({ name, isDirectory: () => true });
+      entries.push({ name, isDirectory: () => true, isFile: () => false });
     }
   };
 
@@ -75,7 +76,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         parent = `${parent}/${seg}`;
       }
     }
-    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
+    ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     const relPath = dirAbs.slice(CWD.length + 1) + `/${filename}`;
     files.set(
       `${dirAbs}/${filename}`,
@@ -129,6 +130,24 @@ interface SpyOptions {
   worktreeNotice?: string;
 }
 
+const GRADUATION_TRANSACTION = {
+  kind: "validated-graduation-transaction",
+  schemaVersion: 1,
+  slug: "demo",
+  branch: "plan/demo",
+  source: { location: "planned" },
+  reconciliation: { backfilled: [], notice: null },
+  occupation: {
+    mode: "spawned",
+    operation: { kind: "spawned", worktreePath: "/wt" },
+  },
+} as unknown as ValidatedGraduationTransaction;
+
+const GRADUATION_INPUTS: TransitionInputs = {
+  class: "Novel",
+  graduationTransaction: GRADUATION_TRANSACTION,
+};
+
 /**
  * Build an {@link ExecuteTransitionContext} of spies. Side-effect handlers
  * default to recording no-ops for every id so wiring-completeness passes; pass
@@ -179,9 +198,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`leg:branch:${op.mutation}`);
       guardThrow("reconcileBranch");
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(`leg:worktree:${op.mutation}`);
-      guardThrow("reconcileWorktree");
+      guardThrow("reconcileWorkUnitWorktree");
       if (op.mutation === "spawn") {
         return {
           mutation: "spawn",
@@ -194,6 +213,15 @@ function buildSpies(opts: SpyOptions = {}): Spies {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
       }
       return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
+    },
+    atomicGraduate: async () => {
+      calls.push("leg:atomicGraduate");
+      guardThrow("atomicGraduate");
+      return {
+        status: "applied",
+        worktreePath: "/wt",
+        postCreateNotice: opts.worktreeNotice ?? null,
+      };
     },
     scaffoldOrRemove: opts.withScaffoldOrRemove
       ? async (params) => {
@@ -214,6 +242,10 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     writeCurrentWorkflowField: async (path, stage) => {
       calls.push(`current-workflow:${stage}`);
       writeThrow("currentWorkflowField");
+      currentWorkflowWrites.push({ path, stage });
+    },
+    writeCurrentWorkflowRecoveryMarker: async (path, stage) => {
+      calls.push(`recovery-current-workflow:${stage}`);
       currentWorkflowWrites.push({ path, stage });
     },
     writeDesignField: async (path, value) => {
@@ -249,11 +281,11 @@ const PROVISIONAL_META: MetaSpec = {
 
 describe("executeTransition — state resolution", () => {
   it("resolves the slug's (phase, location) and matches the legal edge", async () => {
-    // `integrate` is legal only from (Active, active); the index places `demo` there.
+    // `publish` is legal only from (Active, active); the index places `demo` there.
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -290,15 +322,15 @@ describe("executeTransition — stages the rewritten meta", () => {
 
 describe("executeTransition — illegal / unknown rejection", () => {
   it("rejects an explicitly-illegal cell with its reason, no mutation", async () => {
-    // `integrate` from (Integrating, active) is a marked-illegal cell.
+    // `publish` from (Integrating, active) is a marked-illegal cell.
     const { ctx, calls } = buildSpies({ metas: [INTEGRATING_META] });
 
-    const outcome = await executeTransition(ctx, { verb: "integrate", slug: "demo", inputs: {} });
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("lookup");
-    expect(outcome.message).toMatch(/integrate.*illegal.*Integrating/i);
+    expect(outcome.message).toMatch(/publish.*illegal.*Integrating/i);
     expect(calls).toEqual([]);
   });
 
@@ -349,74 +381,21 @@ describe("executeTransition — guard validation", () => {
   });
 
   it("rejects when a declared guard has no validator wired", async () => {
-    // park@Active declares `worktree-clean`, an IO guard with no *default* validator
-    // (production supplies it via `buildFootgunGuards`). Dropping the caller's
-    // validators leaves it unwired, so the wiring check rejects before any mutation —
-    // the executor never runs an edge whose guard is unresolvable.
+    // Start declares worktree-occupancy, supplied by the production context.
     const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
+      metas: [PLANNED_META],
       guardValidators: {},
     });
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "start",
       slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("guard");
-    expect(outcome.message).toMatch(/worktree-clean.*not wired/i);
-    expect(calls).toEqual([]);
-  });
-
-  it("resolves the real worktree-clean validator: park@Active proceeds on a clean worktree", async () => {
-    // Wire the *production* `worktree-clean` guard over a git exec whose
-    // `status --porcelain` returns empty (clean) — the executor resolves it and
-    // the park bundle proceeds.
-    const cleanExec: GitExec = async () => ({ stdout: "", stderr: "" });
-    const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
-      guardValidators: buildFootgunGuards({
-        cwd: CWD,
-        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
-        exec: cleanExec,
-      }),
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
-    });
-
-    expect(outcome.status).toBe("ok");
-    expect(calls).toContain("leg:worktree:teardown");
-  });
-
-  it("resolves the real worktree-clean validator: park@Active rejects on a dirty worktree", async () => {
-    // The git exec reports an uncommitted change — `isWorktreeClean` reads it as
-    // dirty, so the real guard rejects at the guard stage, before any mutation.
-    const dirtyExec: GitExec = async () => ({ stdout: " M file.ts\n", stderr: "" });
-    const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
-      guardValidators: buildFootgunGuards({
-        cwd: CWD,
-        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
-        exec: dirtyExec,
-      }),
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
-    });
-
-    expect(outcome.status).toBe("rejected");
-    if (outcome.status !== "rejected") return;
-    expect(outcome.stage).toBe("guard");
-    expect(outcome.message).toMatch(/dirty worktree/i);
+    expect(outcome.message).toMatch(/worktree-occupancy.*not wired/i);
     expect(calls).toEqual([]);
   });
 
@@ -431,20 +410,7 @@ describe("executeTransition — guard validation", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: {
-        class: "Novel",
-        toDir: ".arc/active",
-        branchOp: { mutation: "create" },
-        worktreeOp: {
-          mutation: "spawn",
-          branch: "plan/demo",
-          base: "main",
-          locationTemplate: "{repo}.{branch}",
-          repo: "repo",
-          wuName: "demo",
-          spawningIdentity: "andrew",
-        },
-      },
+      inputs: GRADUATION_INPUTS,
     });
     expect(outcome.status).toBe("ok");
   });
@@ -453,17 +419,6 @@ describe("executeTransition — guard validation", () => {
 // ---------------------------------------------------------------------------
 // Foot-gun guards (Task 3.2) plugged into the executor's guard phase.
 // ---------------------------------------------------------------------------
-
-/** The full spawn op a graduate / create-new edge needs. */
-const SPAWN_OP = {
-  mutation: "spawn" as const,
-  branch: "plan/demo",
-  base: "main",
-  locationTemplate: "{repo}.{branch}",
-  repo: "repo",
-  wuName: "demo",
-  spawningIdentity: "andrew",
-};
 
 describe("executeTransition — foot-gun guards", () => {
   it("rejects a start when worktree-occupancy fails, before any mutation", async () => {
@@ -476,7 +431,13 @@ describe("executeTransition — foot-gun guards", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: {
+        ...GRADUATION_INPUTS,
+        graduationTransaction: {
+          ...GRADUATION_TRANSACTION,
+          source: { ...GRADUATION_TRANSACTION.source, location: "provisional" },
+        },
+      },
     });
 
     expect(outcome.status).toBe("rejected");
@@ -498,14 +459,21 @@ describe("executeTransition — foot-gun guards", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: {
+        ...GRADUATION_INPUTS,
+        graduationTransaction: {
+          ...GRADUATION_TRANSACTION,
+          source: { ...GRADUATION_TRANSACTION.source, location: "provisional" },
+        },
+      },
     });
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.from).toEqual({ phase: "Planning", location: "provisional" });
     // It relocated the existing stub; no scaffold leg ran.
-    expect(calls.some((c) => c.startsWith("leg:artifacts:relocate:"))).toBe(true);
+    expect(calls).toContain("leg:atomicGraduate");
+    expect(calls.some((c) => c.startsWith("leg:artifacts:"))).toBe(false);
     expect(calls).not.toContain("leg:artifacts:scaffold");
   });
 });
@@ -515,9 +483,7 @@ describe("executeTransition — foot-gun guards", () => {
 // ---------------------------------------------------------------------------
 
 describe("executeTransition — encoding leg ordering & recovery", () => {
-  it("fires the worktree leg before the branch leg (the cross-leg constraint)", async () => {
-    // `start` (graduate) declares relocate + worktree spawn + branch create — the
-    // multi-leg edge that exercises the reconcileWorktree-before-reconcileBranch order.
+  it("replaces every generic start mutation with one atomic graduation leg", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
@@ -526,14 +492,11 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
-    const legTypes = calls.filter((c) => c.startsWith("leg:")).map((c) => c.split(":")[1]);
-    // artifacts (relocate) → worktree (spawn) → branch (create).
-    expect(legTypes).toEqual(["artifacts", "worktree", "branch"]);
-    expect(calls.indexOf("leg:worktree:spawn")).toBeLessThan(calls.indexOf("leg:branch:create"));
+    expect(calls.filter((c) => c.startsWith("leg:"))).toEqual(["leg:atomicGraduate"]);
   });
 
   it("surfaces a worktree post-create notice as an advisory", async () => {
@@ -546,7 +509,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
@@ -558,21 +521,20 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "atomicGraduate",
     });
 
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("encoding-failed");
     if (outcome.status !== "encoding-failed") return;
-    expect(outcome.failedLeg).toBe("reconcileWorktree");
-    expect(outcome.legsFired).toEqual(["artifacts"]); // relocate landed; worktree threw
-    expect(outcome.message).toMatch(/boom:reconcileWorktree/);
-    // No branch leg after the failed worktree leg, no side-effects, no soft write.
+    expect(outcome.failedLeg).toBe("atomicGraduate");
+    expect(outcome.legsFired).toEqual([]);
+    expect(outcome.message).toMatch(/boom:atomicGraduate/);
     expect(calls).not.toContain("leg:branch:create");
     expect(calls.some((c) => c.startsWith("side:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("soft:"))).toBe(false);
@@ -581,7 +543,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
   it("rejects before any mutation when a required leg operand is missing", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+      guardValidators: {},
     });
 
     // park@Planning declares an `artifacts: relocate` leg (needs a `toDir`) but supplies none.
@@ -601,12 +563,12 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
 
 describe("executeTransition — post-side-effect finalize failure", () => {
   it("reports `finalize-failed` (not `encoding-failed`) when a soft-field write throws", async () => {
-    // integrate fires its side-effects, then writes soft fields; force the soft
+    // submit fires its side-effects, then writes soft fields; force the soft
     // write to throw — after the side-effects already landed.
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
+    const { ctx, calls } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -616,13 +578,14 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.failedWrite).toBe("softFields");
     expect(outcome.legsFired).toContain("setPhase");
     expect(outcome.message).toMatch(/boom:softFields/);
+    expect(calls).not.toContain("current-workflow:integrate-work-unit");
   });
 
   it("payload names the side-effects that already landed (forward-only recovery context)", async () => {
     const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -660,10 +623,13 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   });
 
   it("names the failing write when the meta staging throws (last write)", async () => {
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
+    const { ctx, calls, currentWorkflowWrites } = buildSpies({
+      metas: [ACTIVE_META],
+      throwOnWrite: "stageMeta",
+    });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -671,19 +637,25 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.status).toBe("finalize-failed");
     if (outcome.status !== "finalize-failed") return;
     expect(outcome.failedWrite).toBe("stageMeta");
+    expect(currentWorkflowWrites.map(({ stage }) => stage)).toEqual([
+      "integrate-work-unit",
+      "prepare-work-unit",
+    ]);
+    expect(ctx.writeCurrentWorkflowRecoveryMarker).toBeDefined();
+    expect(calls).toContain("recovery-current-workflow:prepare-work-unit");
   });
 
   it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "atomicGraduate",
     });
 
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     // The existing arm is unchanged: a leg throw is `encoding-failed`, not the new
@@ -708,7 +680,7 @@ describe("executeTransition — side-effects after encoding", () => {
     }
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -732,11 +704,11 @@ describe("executeTransition — side-effects after encoding", () => {
 
   it("rejects before mutation when a declared side-effect has no handler", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
-    // Drop the user-workspace handler integrate declares.
+    // Drop the user-workspace handler submit declares.
     delete ctx.sideEffects?.["user-workspace"];
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "x", lastCompleted: "y" } },
     });
@@ -754,12 +726,32 @@ describe("executeTransition — side-effects after encoding", () => {
 // ---------------------------------------------------------------------------
 
 describe("executeTransition — soft-field disposition", () => {
+  it.each(["deactivate", "reopen", "archive"] as const)(
+    "%s renders its cleared directive as an em dash", async (verb) => {
+      const meta = verb === "reopen" ? INTEGRATING_META : ACTIVE_META;
+      const { ctx } = buildSpies({ metas: [meta] });
+      let content = makeMetaFixture("demo", { nextAction: "Continue." });
+      ctx.writeSoftFields = async (_path, updates) => { content = setMetaBulletFields(content, updates); };
+      const inputs: TransitionInputs = verb === "deactivate"
+        ? { branchOp: { mutation: "rename", branch: "feat/demo", toBranch: "plan/demo" } }
+        : verb === "archive"
+          ? {
+            toDir: ".arc/completed/2026-q2/01_demo",
+            worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+          }
+          : { prMerged: false, softFields: { nextTask: "[none]" } };
+      const result = await executeTransition(ctx, { verb, slug: "demo", inputs });
+      expect(result.status).toBe("ok");
+      expect(content).toContain("- **Next Action:** —\n");
+    },
+  );
+
   it("writes reset constants and supplied input values, leaves the rest", async () => {
-    // integrate: nextTask reset [none]; nextAction + lastCompleted input; blockers leave.
+    // submit: nextTask reset [none]; nextAction + lastCompleted input; blockers leave.
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7 verified." } },
     });
@@ -803,7 +795,6 @@ describe("executeTransition — soft-field disposition", () => {
       slug: "demo",
       inputs: {
         toDir,
-        branchOp: { mutation: "delete", branch: "feat/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
     });
@@ -824,8 +815,8 @@ describe("executeTransition — soft-field disposition", () => {
   it("rejects when an `input`-disposed soft field has no supplied value (never fabricated)", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
-    // integrate needs nextAction + lastCompleted as inputs; supply neither.
-    const outcome = await executeTransition(ctx, { verb: "integrate", slug: "demo", inputs: {} });
+    // submit needs nextAction + lastCompleted as inputs; supply neither.
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
@@ -862,7 +853,7 @@ describe("executeTransition — ephemeral suggestion", () => {
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: {
         suggestion: "Open the PR with `gh pr create`.",
@@ -914,16 +905,16 @@ describe("executeTransition — never fabricates judgment values", () => {
   it("rejects a branchOp whose mutation disagrees with the edge", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
-    // deactivate declares a branch `rename`; supply a `delete` instead.
+    // deactivate declares a branch `rename`; supply a `preserve` instead.
     const inputs: TransitionInputs = {
-      branchOp: { mutation: "delete", branch: "feat/demo" },
+      branchOp: { mutation: "preserve" },
     };
     const outcome = await executeTransition(ctx, { verb: "deactivate", slug: "demo", inputs });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("inputs");
-    expect(outcome.message).toMatch(/delete.*does not match.*rename/i);
+    expect(outcome.message).toMatch(/preserve.*does not match.*rename/i);
     expect(calls).toEqual([]);
   });
 });
@@ -967,7 +958,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
   });
 
-  it("activate clears `Current Workflow` to `[none]` (planning exits)", async () => {
+  it("activate writes `process-task-loop` to `Current Workflow` (planning exits)", async () => {
     const { ctx, currentWorkflowWrites } = buildSpies({ metas: [PLANNING_ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
@@ -980,7 +971,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
     });
 
     expect(outcome.status).toBe("ok");
-    expect(currentWorkflowWrites).toEqual([{ path: ".arc/active/meta-demo.md", stage: "[none]" }]);
+    expect(currentWorkflowWrites).toEqual([{ path: ".arc/active/meta-demo.md", stage: "process-task-loop" }]);
   });
 
   it("deactivate restores `plan/<slug>` (from branchOp.toBranch)", async () => {
@@ -1008,40 +999,13 @@ describe("executeTransition — Branch-field encoding projection", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: {
-        toDir: ".arc/active",
-        branchOp: { mutation: "create" },
-        worktreeOp: spawnOp("plan/demo"),
-        class: "Novel",
-      },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.branchFieldWritten).toBe("plan/demo");
-    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "plan/demo" }]);
-  });
-
-  it("park@Planning clears the field to `[none]` (from branchOp.delete)", async () => {
-    const { ctx, branchWrites } = buildSpies({
-      metas: [PLANNING_ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: {
-        toDir: ".arc/backlog/planned/demo",
-        branchOp: { mutation: "delete", branch: "plan/demo" },
-        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
-      },
-    });
-
-    expect(outcome.status).toBe("ok");
-    if (outcome.status !== "ok") return;
-    expect(outcome.branchFieldWritten).toBe("[none]");
-    expect(branchWrites).toEqual([{ path: ".arc/backlog/planned/demo/meta-demo.md", branch: "[none]" }]);
+    expect(branchWrites).toEqual([]);
   });
 
   it("resume projects the preserved branch at the parked path (no relocate; pointer removed verb-side)", async () => {
@@ -1068,7 +1032,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
   it("park@Active does NOT write the field — the pointer-record owns its Branch (preserve, no branchOp)", async () => {
     const { ctx, branchWrites, calls } = buildSpies({
       metas: [ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+      guardValidators: {},
     });
 
     const outcome = await executeTransition(ctx, {
@@ -1085,5 +1049,37 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(outcome.branchFieldWritten).toBeNull();
     expect(branchWrites).toEqual([]);
     expect(calls).not.toContain("branch-field:");
+  });
+});
+
+
+describe("workspace close after record finalization", () => {
+  it("keeps the workspace available when the final record write fails", async () => {
+    let workspacePresent = true;
+    const { ctx } = buildSpies({ metas: [INTEGRATING_META], throwOnWrite: "softFields",
+      sideEffects: { "user-workspace": () => { workspacePresent = false; } } });
+    const result = await executeTransition(ctx, { verb: "archive", slug: "demo",
+      inputs: { toDir: ".arc/completed/2026-q4/01_demo" } });
+    expect(result.status).toBe("finalize-failed");
+    expect(workspacePresent).toBe(true);
+  });
+
+  it("keeps the workspace available when replay staging fails, then closes after repair", async () => {
+    let workspacePresent = true;
+    const { ctx } = buildSpies({ metas: [INTEGRATING_META],
+      sideEffects: { "user-workspace": () => { workspacePresent = false; } } });
+    const content = makeMetaFixture("demo", { state: "Shipped", currentWorkflow: "integrate-work-unit" });
+    ctx.indexFs = { readdir: async (path) => path === "/repo/.arc/completed" ? [{ name: "2026-q4", isDirectory: () => true, isFile: () => false }]
+      : path.endsWith("2026-q4") ? [{ name: "01_demo", isDirectory: () => true, isFile: () => false }]
+      : path.endsWith("01_demo") ? [{ name: "meta-demo.md", isDirectory: () => false, isFile: () => true }] : [],
+      readFile: async () => content };
+    ctx.stageMeta = async () => { throw new Error("stage unavailable"); };
+    const params = { verb: "archive" as const, slug: "demo", inputs: { toDir: ".arc/completed/2026-q4/01_demo" },
+      replayNonRoadmapSideEffects: true };
+    expect((await resumeTransitionFinalization(ctx, params))?.status).toBe("finalize-failed");
+    expect(workspacePresent).toBe(true);
+    ctx.stageMeta = async () => {};
+    expect((await resumeTransitionFinalization(ctx, params))?.status).toBe("ok");
+    expect(workspacePresent).toBe(false);
   });
 });

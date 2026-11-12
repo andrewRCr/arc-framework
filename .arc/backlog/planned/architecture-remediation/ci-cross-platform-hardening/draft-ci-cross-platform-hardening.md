@@ -14,6 +14,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### `[ ]` **Give app-authored dependency-update pull requests a review and merge path**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-10-30), split from "Add a Dependabot config that keeps
+  the SHA-pinned GitHub Actions current".
+
+- _Shapes:_ Facet 2 — its updater half: the pins landed, and the updater's pull requests need a path.
+
+- _Observation:_ every workflow pins its actions to full commit SHAs. A Dependabot config for `github-actions`
+  opens app-authored pull requests. `main-protection` requires only a pull request and `ci-ok` (checked
+  2026-10-30), so they can merge in the host UI once CI passes, outside ARC. CineXplorer's session reports that
+  hosted Codex refuses review requests on app-authored pull requests.
+
+- _Design question:_ whether ARC gives bot pull requests a review and merge path (the planning lane, an exempt
+  class, or the host UI alone), and how its records account for them.
+
+- _Captured during:_ PM coordination with CineXplorer's session, 2026-10-30.
+
+---
+
 ## Facets
 
 1. **Cross-platform CI matrix generalization + shake-out.** `.github/workflows/ci.yml` is `ubuntu-latest` only
@@ -30,8 +51,8 @@
    surface). **Boundary with `ci-content-aware-depth`:** CI cost/efficiency — content-aware depth, the
    merge-safety gate, and `concurrency` cancel-in-progress — is owned there; dependency caching already ships via
    `setup-node`. This facet is scoped to cross-platform verifiability; the two share `.github/workflows/ci.yml`,
-   so sequence them (rebase the later WU on the earlier). _Captured during
-   `state-ref-write-safety` task generation, 2026-06-26._
+   so sequence them (rebase the later WU on the earlier). _Captured during `state-ref-write-safety` task generation,
+   2026-06-26._
 
 2. **SHA-pin GitHub Actions + add Renovate/Dependabot.** Both workflow files reference actions by floating major
    tag (`actions/checkout@v5`, `setup-node@v5`, `setup-python@v5`, `upload-pages-artifact@v3`, `deploy-pages@v4`)

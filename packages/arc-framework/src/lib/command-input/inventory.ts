@@ -7,6 +7,7 @@ import {
   defineCommandInputDeclarations,
   type AcquisitionClass,
   type CommandInputDeclaration,
+  type CommandInputSite,
 } from "./declaration.js";
 import type {
   CommandInputSourceInventory,
@@ -37,7 +38,7 @@ export interface CommandInputInventoryEntry {
   readonly identity: string;
   readonly commandPath: string;
   readonly siteId: string;
-  readonly origin: "syntax" | "declaration";
+  readonly origin: CommandInputSite["origin"];
   readonly acquisition: AcquisitionClass;
   readonly schemaOwnership: "owned" | "opaque" | "none";
   readonly schemaField?: string;
@@ -105,6 +106,36 @@ function interactionSelectorKeys(
   return selected;
 }
 
+function interactionPolicyKey(site: CommandInputDeclaration["sites"][number]): string {
+  return JSON.stringify({
+    form: site.form ?? null,
+    acquisition: site.acquisition,
+    schemaOwnership: site.schemaOwnership,
+    schemaField: site.schemaField ?? null,
+    defaultSource: site.defaultSource ?? null,
+    derivationSource: site.derivationSource ?? null,
+    cancellation: site.cancellation,
+    automation: site.automation,
+    subprocess: site.subprocess,
+  });
+}
+
+function declaredInteraction(site: CommandInputDeclaration["sites"][number],
+  byLocus: ReadonlyMap<string, DiscoveredInteractionSite>, bySelector: ReadonlyMap<string, DiscoveredInteractionSite>,
+  byPrompt: ReadonlyMap<string | undefined, DiscoveredInteractionSite>): DiscoveredInteractionSite | undefined {
+  if (site.origin === "prompt") {
+    const candidate = byPrompt.get(site.id);
+    return candidate?.declaredSource?.file === site.source.file && candidate.declaredSource.symbol === site.source.symbol
+      ? candidate : undefined;
+  }
+  const selector = site.source.interaction;
+  if (selector !== undefined) {
+    return bySelector.get(`${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`);
+  }
+  return [...byLocus.values()].find((candidate) =>
+    candidate.file === site.source.file && candidate.line === (site.source.line ?? 0));
+}
+
 /**
  * Join the scanner oracle with typed declarations and reject every mismatch.
  *
@@ -120,7 +151,9 @@ export function reconcileCommandInputInventory(input: {
   const commands = new Map(input.source.commands.map((command) => [command.path, command]));
   const interactions = new Map(input.source.interactions.map((site) => [interactionKey(site), site]));
   const interactionsBySelector = interactionSelectorKeys(input.source.interactions);
-  const claimedInteractions = new Set<string>();
+  const promptCalls = new Map(input.source.interactions.filter((site) => site.declaredId !== undefined)
+    .map((site) => [site.declaredId, site]));
+  const claimedInteractions = new Map<string, { commandPaths: Set<string>; policyKey: string }>();
   const entries: CommandInputInventoryEntry[] = [];
 
   for (const declaration of declarations) {
@@ -151,14 +184,8 @@ export function reconcileCommandInputInventory(input: {
         }
         claimedSyntax.add(site.id);
         liveSource = discovered;
-      } else if (site.source.line !== undefined || site.source.interaction !== undefined) {
-        const selector = site.source.interaction;
-        const interaction = selector === undefined
-          ? [...interactions.values()].find((candidate) =>
-              candidate.file === site.source.file && candidate.line === (site.source.line ?? 0))
-          : interactionsBySelector.get(
-            `${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`,
-          );
+      } else if (site.origin === "prompt" || site.source.line !== undefined || site.source.interaction !== undefined) {
+        const interaction = declaredInteraction(site, interactions, interactionsBySelector, promptCalls);
         if (interaction === undefined) {
           throw new CommandInputInventoryError(
             `Declared interaction selector no longer resolves: ${site.source.file}:${String(
@@ -168,13 +195,20 @@ export function reconcileCommandInputInventory(input: {
           );
         }
         const key = interactionKey(interaction);
-        if (claimedInteractions.has(key)) {
+        const claimed = claimedInteractions.get(key);
+        const policyKey = interactionPolicyKey(site);
+        if (claimed?.commandPaths.has(declaration.commandPath) === true
+          || (claimed !== undefined && claimed.policyKey !== policyKey)) {
           throw new CommandInputInventoryError(
             `Interaction site is multiply classified: ${key}`,
             "command-input.inventory.duplicate",
           );
         }
-        claimedInteractions.add(key);
+        if (claimed === undefined) {
+          claimedInteractions.set(key, { commandPaths: new Set([declaration.commandPath]), policyKey });
+        } else {
+          claimed.commandPaths.add(declaration.commandPath);
+        }
         liveSource = interaction;
       }
       entries.push({

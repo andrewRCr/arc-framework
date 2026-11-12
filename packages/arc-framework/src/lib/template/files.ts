@@ -5,7 +5,10 @@
  * for gitignore/gitattributes. Filesystem functions are injectable for unit testing.
  */
 
+import { join, posix } from "node:path";
+import { PROJECTED_PERSONAL_PATTERN, PROJECTED_PERSONAL_ROOT, projectedRootPatterns } from "../layout/index.js";
 import { renderTokens, renderConditionals } from "./render.js";
+import { prepareIgnoreFiles, type IgnoreSetupIO } from "./ignore-files.js";
 
 /** Mkdir function signature matching fs.mkdir. */
 export type MkdirFn = (
@@ -102,28 +105,28 @@ export async function writeArcManagedBlock(
     throw err;
   }
 
-  const lines = content.split("\n");
-
-  const startIdx = lines.indexOf(ARC_BLOCK_START);
-  const endIdx = lines.indexOf(ARC_BLOCK_END);
+  // Retain each line's ending so content outside the block stays byte-for-byte intact.
+  const lines = content.split(/(?<=\n)/u);
+  const marker = (line: string): string => line.replace(/\r?\n$/u, "");
+  const startIdx = lines.findIndex((line) => marker(line) === ARC_BLOCK_START);
+  const endIdx = lines.findIndex((line) => marker(line) === ARC_BLOCK_END);
 
   let result: string;
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     // Replace existing block contents
-    const before = lines.slice(0, startIdx);
-    const after = lines.slice(endIdx + 1);
-    result = [...before, ...formatBlock(sorted).split("\n"), ...after].join("\n");
+    const ending = lines[startIdx]?.endsWith("\r\n") ? "\r\n" : "\n";
+    const block = formatBlock(sorted).replaceAll("\n", ending);
+    const terminator = ending;
+    result = lines.slice(0, startIdx).join("") + block + terminator + lines.slice(endIdx + 1).join("");
   } else {
     // Append new block — ensure blank line separation
-    const base = lines.join("\n");
+    const base = content;
     const separator = base.endsWith("\n\n") || base.endsWith("\n")
       ? (base.endsWith("\n\n") ? "" : "\n")
       : "\n\n";
     result = base + separator + formatBlock(sorted) + "\n";
+    result = result.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
   }
-
-  // Normalize trailing whitespace
-  result = result.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
 
   await writeFile(filePath, result);
 }
@@ -145,4 +148,56 @@ export async function writeArcGitignoreBlock(
   writeFile: WriteFileFn,
 ): Promise<void> {
   await writeArcManagedBlock(filePath, entries, readFile, writeFile);
+}
+
+/**
+ * Write ARC-managed entries to a .gitattributes file.
+ *
+ * @param filePath - Path to .gitattributes
+ * @param entries - ARC-managed entries to write
+ * @param readFile - Injectable read function
+ * @param writeFile - Injectable write function
+ */
+export async function writeArcGitattributesBlock(
+  filePath: string,
+  entries: string[],
+  readFile: ReadFileFn,
+  writeFile: WriteFileFn,
+): Promise<void> {
+  await writeArcManagedBlock(filePath, entries, readFile, writeFile);
+}
+
+/**
+ * Write ARC's managed blocks in the root `.gitignore` and `.ignore`, keeping every other line of each.
+ *
+ * @param cwd - Repository root
+ * @param skillEntries - Generated skill directories `.gitignore` also ignores
+ * @param readFile - Injectable read function
+ * @param writeFile - Injectable write function
+ */
+export async function writeArcIgnoreBlocks(
+  cwd: string,
+  skillEntries: readonly string[],
+  readFile: ReadFileFn,
+  writeFile: WriteFileFn,
+  io: IgnoreSetupIO = {},
+): Promise<void> {
+  await prepareIgnoreFiles(cwd, readFile, io);
+  await writeArcGitignoreBlock(join(cwd, ".gitignore"), [...ARC_GITIGNORE_ENTRIES, ...skillEntries], readFile, writeFile);
+  await writeArcManagedBlock(join(cwd, ".ignore"), arcSearchIgnoreEntries(), readFile, writeFile);
+}
+
+/** Machine-local files and every identity's personal root, excluded from Git. */
+const ARC_GITIGNORE_ENTRIES = [
+  ".arc/system/.internal/pristine.json",
+  ".arc/system/.internal/worktree-marker.json",
+  PROJECTED_PERSONAL_PATTERN,
+];
+
+/** Reopen ignored containers before their projected roots so repository-root searches can descend into them. */
+function arcSearchIgnoreEntries(): string[] {
+  return [
+    `!${posix.dirname(PROJECTED_PERSONAL_ROOT)}/`, `!${PROJECTED_PERSONAL_ROOT}/`,
+    ...projectedRootPatterns().map((pattern) => `!${pattern}`),
+  ];
 }

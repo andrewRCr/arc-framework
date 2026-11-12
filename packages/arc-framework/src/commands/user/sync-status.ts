@@ -8,7 +8,8 @@ import {
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
-  runWorktreeSyncStatus,
+  runPassiveWorktreeInspection,
+  type WorktreeSnapshotAnalysisResult,
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
@@ -49,6 +50,7 @@ import type {
   InspectUserSyncOptions,
   UserDiskStatus,
   UserIOContext,
+  NearestNoteSearch,
   UserSessionLocalNoteFreshness,
   UserRemoteStatus,
   UserSessionInitStatusOptions,
@@ -78,10 +80,13 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
+  const currentWuNameTask = resolveCurrentWuName(cwd, io.exec);
   const [refInspection, diskInspection, localNoteFreshness] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
-    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
+    currentWuNameTask.then((currentWuName) =>
+      inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName)),
+    currentWuNameTask.then((currentWuName) =>
+      inspectSessionLocalNoteFreshness({ cwd, io, identity, currentWuName })),
   ]);
   const coherenceState = await resolveUserSyncCoherenceState({
     cwd,
@@ -144,7 +149,14 @@ export async function runUserStatus(
     readLocalSyncState(cwd, io, identity),
     inspectNotesCompactionAdvisory(io.exec, `refs/notes/${notesRef(identity)}`),
     shouldProbeWorktree
-      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+      ? io.execInput === undefined
+        ? Promise.reject(new Error("Passive worktree inspection requires stdin-capable Git I/O."))
+        : runPassiveWorktreeInspection({
+            exec: io.exec,
+            execInput: io.execInput,
+            remoteSyncEnabled: true,
+            cwd,
+          })
       : Promise.resolve(null),
   ]);
   const spine = computeUserSyncSpine({
@@ -295,10 +307,18 @@ export async function runUserSessionInitStatus(
     });
   }
 
+  const currentWuNameTask = resolveCurrentWuName(cwd, io.exec);
+  const noteSearchTask = currentWuNameTask.then((currentWuName) =>
+    findNearestUserNote({ cwd, io, identity, currentWuName }));
+  const localNoteFreshnessTask = Promise.all([currentWuNameTask, noteSearchTask])
+    .then(([currentWuName, search]) =>
+      inspectSessionLocalNoteFreshness({ cwd, io, identity, currentWuName, search }));
+
   const [refInspection, localNoteFreshness, diskInspection] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
-    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
+    localNoteFreshnessTask,
+    currentWuNameTask.then((currentWuName) =>
+      inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName, noteSearchTask)),
   ]);
   return buildUserSessionInitStatusResult({
     identity,
@@ -371,10 +391,11 @@ async function inspectSessionLocalNoteFreshness(input: {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  currentWuName?: string;
+  currentWuName: string | undefined;
+  search?: NearestNoteSearch;
 }): Promise<UserSessionLocalNoteFreshness> {
-  const currentWuName = input.currentWuName ?? await resolveCurrentWuName(input.cwd, input.io.exec);
-  const { note } = await findNearestUserNote({ ...input, currentWuName });
+  const { currentWuName } = input;
+  const { note } = input.search ?? await findNearestUserNote({ ...input, currentWuName });
   if (!note) {
     return {
       state: "missing",
@@ -746,7 +767,7 @@ interface BuildUserStatusInput {
    * Worktree-sync probe result. Pass `undefined` when no probe was attempted
    * (e.g. `--offline`, or `session.remote_sync: disabled`).
    */
-  worktree?: WorktreeSyncStatusResult;
+  worktree?: WorktreeSnapshotAnalysisResult;
   /**
    * Whether `session.remote_sync` is enabled. Distinguishes the offline-with-
    * remote-sync case (emit a skip note) from the disabled case (emit nothing).
@@ -944,7 +965,7 @@ export function buildUserStatusResult(
  * skipped, or `remote_sync: disabled`).
  */
 export function formatWorktreeQualifierLine(input: {
-  worktree: WorktreeSyncStatusResult | undefined;
+  worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult | undefined;
   offline: boolean;
   remoteSyncEnabled: boolean;
 }): string | null {
@@ -966,19 +987,34 @@ export function formatWorktreeQualifierLine(input: {
     case "diverged":
       return `Local worktree HEAD and its origin upstream have diverged (${worktree.ahead} local ahead, ${worktree.behind} remote ahead).`;
     case "remote-unavailable":
-      return formatRemoteUnavailableWorktreeLine(worktree.failureReason);
+      return formatRemoteUnavailableWorktreeLine(worktree);
     case "branch-gone":
       return "Local worktree's upstream branch no longer exists on origin (deleted upstream).";
-    default:
+    case "clean":
+    case "skipped":
+    case "local-ahead":
+    case "no-upstream":
+    case "detached-head":
+    case "no-remote":
       return null;
   }
 }
 
 function formatRemoteUnavailableWorktreeLine(
-  failureReason: WorktreeSyncStatusResult["failureReason"],
+  worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult,
 ): string {
+  if ("remoteEvidence" in worktree && worktree.remoteEvidence === "pending-fetch") {
+    return "The advertised worktree commit is not available locally; run an explicit sync before relying on its relation.";
+  }
+  const failureReason = "failureReason" in worktree ? worktree.failureReason : undefined;
   if (failureReason === "timeout") {
     return "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.";
+  }
+  if (failureReason === "auth") {
+    return "Worktree remote authentication failed; restore access before trusting remote worktree state.";
+  }
+  if (failureReason === "network") {
+    return "Worktree remote network access failed; retry or use `--offline` to report local worktree refs only.";
   }
   if (failureReason === "error") {
     return "Worktree local-to-origin comparison failed; investigate auth/network access before trusting remote worktree state.";
@@ -1725,9 +1761,9 @@ async function inspectDiskVsLocalSnapshot(
   cwd: string,
   io: UserIOContext,
   identity: string,
-  currentWuName?: string,
+  currentWuName: string | undefined,
+  precomputedSearch?: Promise<NearestNoteSearch>,
 ): Promise<DiskVsSnapshotInspection> {
-  const resolvedCurrentWuName = currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   let diskManifest: SyncManifest | null = null;
 
   try {
@@ -1735,7 +1771,7 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
+      currentWuName,
     });
     if (Object.keys(diskResult.manifest.files).length > 0) {
       diskManifest = diskResult.manifest;
@@ -1750,8 +1786,8 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
-    });
+      currentWuName,
+    }, precomputedSearch === undefined ? undefined : await precomputedSearch);
   } catch {
     return {
       state: diskManifest ? "different" : "same",

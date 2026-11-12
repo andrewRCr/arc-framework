@@ -1,8 +1,9 @@
 /**
  * Deterministic foreign-artifact detection for the `arc-errand` advisory gate.
  *
- * Given an errand's target path(s) and the originating WU, reports which other
- * in-flight WUs touch the target — a git-checkable fact, not a judgment call.
+ * Given an errand's target path(s) and the originating checkout, reports which
+ * other in-flight work units and Errands touch the target — a git-checkable fact,
+ * not a judgment call.
  * The check stays deterministic because an errand has a concrete target path, so
  * overlap is decidable from local git state alone (no remote fetch, no heuristics).
  *
@@ -19,7 +20,9 @@
  * @module
  */
 
+import type { StoreInFlightEntry } from "./in-flight-store.js";
 import type { GitExec } from "./exec.js";
+import { isGitProcessError } from "./process-error.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
@@ -38,21 +41,25 @@ import type { WorktreeRosterState } from "./worktree-roster.js";
  */
 export interface OverlapCandidateEntry {
   /** Diffable branch ref — a local branch, or `origin/<branch>` for a remote-only entry. */
-  branch: string;
+  branch?: string;
+  /** Stable work-item handle supplied by the store derivation. */
+  workItem?: string;
   /** Content-derived WU name from the in-flight roster; absent for legacy/local roster callers. */
   name?: string;
   /** Local worktree path; absent for remote-only and unoccupied-local entries. */
   worktreePath?: string;
   /** False distinguishes an unoccupied local branch from legacy/remote worktree-less input. */
   remoteOnly?: boolean;
-  /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout. */
+  /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout or an Errand. */
   metaFilePath?: string;
+  /** Errand slug from the in-flight roster; present marks an in-flight Errand, which carries no meta. */
+  errand?: string;
   /** Roster-entry state; a `Shipped` WU has merged and is excluded. */
   state?: WorktreeRosterState;
   /** Degradation/indeterminacy marks from the in-flight roster. */
   marks?: readonly InFlightEntryMark[];
   /** Scheduling-axis classification; parked entries are ignored by the advisory detector. */
-  scheduling?: InFlightScheduling;
+  scheduling?: InFlightScheduling | "paused";
 }
 
 /** The roster-shaped in-flight input — local roster or oracle projection. */
@@ -81,9 +88,11 @@ export interface ForeignArtifactDetectionOptions {
   snapshot?: InFlightInputSnapshot;
 }
 
-/** One foreign in-flight WU whose state overlaps the errand's target. */
+/** One foreign in-flight work unit or Errand whose state overlaps the errand's target. */
 export interface ForeignArtifactOverlap {
-  branch: string;
+  branch?: string;
+  /** Stable work-item handle supplied by the store derivation. */
+  workItem?: string;
   /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
   /** False when the worktree-less diff ran against an unoccupied local branch. */
@@ -94,7 +103,9 @@ export interface ForeignArtifactOverlap {
 
 /** One entry whose live probe changed while detection was reading it. */
 export interface ForeignArtifactIndeterminateProbe {
-  branch: string;
+  branch?: string;
+  /** Stable work-item handle supplied by the store derivation. */
+  workItem?: string;
   /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
   /** False when the worktree-less probe targeted an unoccupied local branch. */
@@ -102,7 +113,7 @@ export interface ForeignArtifactIndeterminateProbe {
   /** Determinate matched paths, when any survived before indeterminacy was detected. */
   matchedPaths: string[];
   /** Why the probe cannot be asserted as overlap or no-overlap. */
-  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement";
+  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement" | "merge-in-progress";
 }
 
 export type ForeignArtifactSkippedReason =
@@ -111,7 +122,9 @@ export type ForeignArtifactSkippedReason =
 
 /** One entry skipped because its roster state is too uncertain for advisory overlap assertions. */
 export interface ForeignArtifactSkippedEntry {
-  branch: string;
+  branch?: string;
+  /** Stable work-item handle supplied by the store derivation. */
+  workItem?: string;
   /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
   /** False when the skipped worktree-less entry is an unoccupied local branch. */
@@ -161,14 +174,20 @@ export async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Pr
 }
 
 /**
- * In-flight = a meta-bearing worktree whose WU has not shipped. A `Shipped` WU
+ * In-flight work units carry a Store identity or a legacy meta path. A `Shipped` WU
  * has already merged to base, so it can plant no future cross-branch conflict;
  * every other state (Planning / Active / Integrating, or an unparseable State)
  * still occupies a branch that will merge, so it counts. Meta-less admin/main
  * checkouts carry no WU and never count.
  */
 function isUnshippedWorkUnit(entry: OverlapCandidateEntry): boolean {
-  return entry.metaFilePath !== undefined && entry.state !== "Shipped";
+  const workUnit = entry.metaFilePath !== undefined || (entry.workItem !== undefined && entry.name !== undefined);
+  return workUnit && entry.state !== "Shipped";
+}
+
+/** An unshipped work unit, or an Errand, whose branch is still to merge. */
+function isOverlapCandidate(entry: OverlapCandidateEntry): boolean {
+  return isUnshippedWorkUnit(entry) || entry.errand !== undefined;
 }
 
 function skipReasonForMarks(marks: readonly InFlightEntryMark[] | undefined): ForeignArtifactSkippedReason | null {
@@ -178,7 +197,7 @@ function skipReasonForMarks(marks: readonly InFlightEntryMark[] | undefined): Fo
 }
 
 /**
- * Detect which other in-flight WUs touch the errand's target path(s).
+ * Detect which other in-flight work units and Errands touch the errand's target path(s).
  *
  * @param options - Roster, target paths, base branch, and the originating worktree.
  * @returns The foreign overlaps; empty when none touch the target.
@@ -221,7 +240,7 @@ export async function detectForeignArtifactOverlap(
   const candidates: OverlapCandidateEntry[] = [];
   const skipped: ForeignArtifactSkippedEntry[] = [];
   for (const { entry, isOriginatingWorktree } of entries) {
-    if (!isUnshippedWorkUnit(entry)) continue;
+    if (!isOverlapCandidate(entry)) continue;
     if (selfName !== undefined && entry.name === selfName) continue;
     if (isOriginatingWorktree) continue;
     if (originatingMetaPath !== undefined && entry.metaFilePath === originatingMetaPath) continue;
@@ -230,7 +249,7 @@ export async function detectForeignArtifactOverlap(
     const skipReason = skipReasonForMarks(entry.marks);
     if (skipReason !== null) {
       skipped.push({
-        branch: entry.branch,
+        ...candidateIdentity(entry),
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
         ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         marks: [...(entry.marks ?? [])],
@@ -240,12 +259,13 @@ export async function detectForeignArtifactOverlap(
     }
     candidates.push(entry);
   }
-  const baseSha = candidates.length > 0 ? await tryResolveRefSha(exec, baseBranch) : null;
+  const baseSha = candidates.some((entry) => entry.branch !== undefined) ? await tryResolveRefSha(exec, baseBranch) : null;
 
   const overlaps: ForeignArtifactOverlap[] = [];
   const indeterminate: ForeignArtifactIndeterminateProbe[] = [];
   for (const entry of candidates) {
-    const committed = await committedMatches(exec, baseSha ?? baseBranch, entry.branch, targetPaths, snapshot);
+    const committed = entry.branch === undefined ? { matchedPaths: [] }
+      : await committedMatches(exec, baseSha ?? baseBranch, entry.branch, targetPaths, snapshot);
     // A worktree-less entry has no checkout edits to probe, so committed is all.
     const uncommitted = entry.worktreePath === undefined
       ? { matchedPaths: [] }
@@ -255,7 +275,7 @@ export async function detectForeignArtifactOverlap(
     );
     if (committed.indeterminate === true || uncommitted.indeterminate === true) {
       indeterminate.push({
-        branch: entry.branch,
+        ...candidateIdentity(entry),
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
         ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         matchedPaths: matched,
@@ -265,7 +285,7 @@ export async function detectForeignArtifactOverlap(
     }
     if (matched.length > 0) {
       overlaps.push({
-        branch: entry.branch,
+        ...candidateIdentity(entry),
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
         ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         matchedPaths: matched,
@@ -312,8 +332,8 @@ async function committedMatches(
 }
 
 /** Resolve a ref to a commit SHA once so later probes operate on immutable inputs. */
-async function resolveRefSha(exec: GitExec, ref: string): Promise<string> {
-  const { stdout } = await exec("git", ["rev-parse", "--verify", ref]);
+async function resolveRefSha(exec: GitExec, ref: string, cwd?: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--verify", ref], cwd === undefined ? undefined : { cwd });
   const sha = stdout.trim().split(/\s+/u)[0] ?? "";
   if (sha === "") throw new Error(`Unable to resolve ref: ${ref}`);
   return sha;
@@ -333,9 +353,16 @@ async function uncommittedMatches(
   worktreePath: string,
   targetPaths: string[],
 ): Promise<PathProbeResult> {
-  const first = await readUncommittedPaths(exec, worktreePath, targetPaths);
-  const second = await readUncommittedPaths(exec, worktreePath, targetPaths);
-  if (!sameStrings(first, second)) {
+  const headBefore = await resolveRefSha(exec, "HEAD", worktreePath);
+  const mergingBefore = await hasMergeInProgress(exec, worktreePath);
+  const first = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  const mergingBetween = !mergingBefore && await hasMergeInProgress(exec, worktreePath);
+  const second = mergingBefore || mergingBetween ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  if (mergingBefore || mergingBetween || await hasMergeInProgress(exec, worktreePath)) {
+    // A merge index includes incoming changes that status cannot attribute to this work unit.
+    return { matchedPaths: [], indeterminate: true, reason: "merge-in-progress" };
+  }
+  if (!sameStrings(first, second) || headBefore !== await resolveRefSha(exec, "HEAD", worktreePath)) {
     return {
       matchedPaths: [],
       indeterminate: true,
@@ -345,6 +372,16 @@ async function uncommittedMatches(
   return {
     matchedPaths: targetPaths.filter((target) => first.some((file) => underPath(file, target))),
   };
+}
+
+async function hasMergeInProgress(exec: GitExec, worktreePath: string): Promise<boolean> {
+  try {
+    await exec("git", ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], { cwd: worktreePath });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    throw error;
+  }
 }
 
 async function readUncommittedPaths(
@@ -383,37 +420,48 @@ function underPath(file: string, target: string): boolean {
 /**
  * Project oracle in-flight entries into the overlap roster shape.
  *
- * Work units only — errands carry no meta and aren't WU-overlap candidates
- * (mirroring the meta-bearing narrowing the worktree roster applies). A
- * locally-checked-out WU keeps its branch and worktree, so the core runs its
- * full committed + uncommitted probe. A worktree-less local WU keeps its local
- * branch ref; a remote-only WU projects as `origin/<branch>`. The committed diff
- * against that selected ref is its overlap signal. The content-derived WU name stays on each
- * candidate so stale duplicate refs of the originating WU self-exclude by
- * identity instead of by path equality.
+ * A locally-checked-out entry keeps its branch and worktree, so the core runs
+ * its full committed + uncommitted probe. A worktree-less local entry keeps its
+ * local branch ref; a remote-only entry projects as `origin/<branch>`. The
+ * committed diff against that selected ref is its overlap signal. The
+ * content-derived WU name stays on each work-unit candidate so stale duplicate
+ * refs of the originating WU self-exclude by identity instead of by path
+ * equality. An Errand carries its slug instead of a meta: its record keys one
+ * entry per branch, so the originating Errand self-excludes by its checkout.
  *
  * @param entries - Oracle output (identity-filtered in-flight WUs and errands).
  * @returns The overlap roster the detection core consumes.
  */
-export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]): OverlapRoster {
+export function projectInFlightToOverlapRoster(entries: readonly (InFlightEntry | StoreInFlightEntry)[], includeWorkItem = false): OverlapRoster {
   const projected: OverlapCandidateEntry[] = [];
   for (const entry of entries) {
-    if (entry.kind !== "work-unit") continue;
-    projected.push({
-      branch: entry.remoteOnly ? `origin/${entry.branch}` : entry.branch,
-      name: entry.name,
+    const location = {
+      ...(entry.branch === undefined ? {} : { branch: entry.remoteOnly ? `origin/${entry.branch}` : entry.branch }),
+      ...(includeWorkItem ? { workItem: entry.kind === "work-unit" ? entry.name : entry.slug } : {}),
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
       ...(entry.worktreePath === undefined && !entry.remoteOnly ? { remoteOnly: false } : {}),
-      metaFilePath: resolveArcPath({
+    };
+    if (entry.kind === "errand") {
+      projected.push({ ...location, errand: entry.slug, ...(entry.marks !== undefined ? { marks: entry.marks } : {}) });
+      continue;
+    }
+    projected.push({
+      ...location,
+      name: entry.name,
+      ...(includeWorkItem ? {} : { metaFilePath: resolveArcPath({
         kind: "work-unit-artifact",
         placement: { kind: "active", scope: { kind: "project" } },
         slug: SlugSchema.parse(entry.name),
         artifact: "meta",
-      }),
+      }) }),
       state: entry.state,
       ...(entry.marks !== undefined ? { marks: entry.marks } : {}),
       ...(entry.scheduling !== undefined ? { scheduling: entry.scheduling } : {}),
     });
   }
   return { entries: projected, warnings: [] };
+}
+
+function candidateIdentity(entry: OverlapCandidateEntry): Pick<OverlapCandidateEntry, "branch" | "workItem"> {
+  return { ...(entry.branch === undefined ? {} : { branch: entry.branch }), ...(entry.workItem === undefined ? {} : { workItem: entry.workItem }) };
 }

@@ -58,7 +58,7 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
   2026-07-03 re-scope — the WU renamed to `local-mode`, Lite content cut): there is no Lite probe shape to
   design for, and the shipped multi-WU probe runs tier-agnostic on the invariant floor. The **surviving**
   composability concern is the storage axis: Local's session-init pre-check (halt on missing `.arc/`, surface
-  `arc backing status` degraded state) — see `draft-local-mode.md` § Session-init pre-check. At integration:
+  `arc backing status` degraded state) — see `research-local-mode.md` § Session-init pre-check. At integration:
   drop the Lite arms of the callback, re-point the concern at the storage axis, and update the stale
   `plan-arc-modes.md` filename refs.
 
@@ -100,6 +100,20 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
 - _Note:_ the cross-cohort seam (fragment extraction per `composable-workflows` / P4.2 vs. one-file routing card
   per P4.1) is already captured in both drafts; this is only the missing surface candidate, not the routing
   decision.
+
+### `[ ]` **Reconcile extension audit assumptions without changing probe-slot scope**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: instruction-optimization`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Pillar 1 contract application; § Not Worth Pursuing — Extensions audit returned no findings.
+
+- _Observation:_ The audit excludes extension compression because the files are uniform inactive contracts. Retirement
+  removes those files, and the applied workflow declaration family loses extensions.
+
+- _Approach:_ Refresh the corpus boundary and contract assumptions at planning. Preserve Pillar 3’s additional probe
+  slots: “probe-envelope extensions” there names envelope expansion, not lifecycle extensions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
 ---
 
@@ -424,7 +438,7 @@ here so the next iteration doesn't re-derive the exclusion.
 ### Aggregate ranking
 
 | Candidate               | Tokens saved | Tool calls saved | Status / conflicts (2026-07-02)                                              |
-|-------------------------|--------------|------------------|------------------------------------------------------------------------------|
+| ----------------------- | ------------ | ---------------- | ---------------------------------------------------------------------------- |
 | D3.1 freshness          | ~50          | 1-3              | **Open** — pairs with handoff-opt                                            |
 | D3.2 currentTask        | ~150         | 1                | **Largely shipped** (`taskCursor`); residual above                           |
 | D3.3 lifecycleWorkflow  | ~40          | 0                | **Shipped** (`loadSet`)                                                      |
@@ -684,5 +698,5 @@ half of Pillar 3 shipped externally. Roughly:
 
 Per ADR-022, the probe slots that parse `meta-*` / `SESSION-NOTES` fields derive from the managed
 operational-state document schema — not template-stabilized field names. Field retirement / addition is
-a schema change (caught by round-trip tests), not a template edit. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+a schema change (caught by round-trip tests), not a template edit. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

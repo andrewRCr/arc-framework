@@ -1,0 +1,175 @@
+/** Direct run-mode policies preserve configured membership, execution, and failure semantics. */
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { expect, it } from "vitest";
+import type { TestResult, TestSpecification } from "vitest/node";
+import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
+import { checkVitestCompletion } from "../../src/lib/vitest-completion.js";
+import {
+  hasDeletedE2eFiles, localVitestTierArguments, selectLocalE2eSpecifications,
+} from "../../src/lib/local-vitest-runner.js";
+import { requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "../../src/lib/build-runtime-setup.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
+
+it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
+  expect(normalizeVitestOptions([], { run: true, watch: true, exclude: ["ignored"], maxWorkers: 2 }))
+    .toEqual({ run: true, watch: false, cliExclude: ["ignored"], maxWorkers: 2, update: "none" });
+});
+it("writes no snapshot unless the command line asks for it", () => {
+  expect(normalizeVitestOptions([], { run: true })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: false })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: true })).toMatchObject({ update: true });
+  expect(normalizeVitestOptions([], { run: true, update: "new" })).toMatchObject({ update: "new" });
+});
+it("enables task locations for line filters while preserving an explicit override", () => {
+  expect(normalizeVitestOptions(["case.test.ts:4"], {})).toMatchObject({ includeTaskLocation: true });
+  expect(normalizeVitestOptions(["case.test.ts:4"], { includeTaskLocation: false }))
+    .toMatchObject({ includeTaskLocation: false });
+  expect(normalizeVitestOptions(["case.test.ts"], { watch: true })).toEqual({ watch: true, update: "none" });
+});
+
+const tiers = [
+  ["full", []],
+  ["unit", ["--project", "unit", "--project", "unit-mocks"]],
+  ["changed", ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
+  ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration",
+    "--project", "integration-timing", "--project", "integration-bursts"]],
+  ["integration", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
+  ["store", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
+  ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
+    "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
+    "markdown/descriptor-spacing",
+    "task-list/scanner",
+    "work-unit/boundary-fit-workflow-contract",
+    "work-unit/decompose-doctrine-contract",
+    "work-unit/decompose-workflow-contract",
+    "work-unit/decompose-v3-authority-boundary",
+    "work-unit/decompose-v3-repository-plan",
+    "work-unit/decompose-v3-topology",
+    "work-unit/generate-tasks-delivery-authoring-contract",
+    "work-unit/deliver-stack-entry-contract",
+    "work-unit/delivery-branch-namespace",
+    "scripts/integration/checkpoint-lifecycle-artifacts",
+    "scripts/review-gate/core/disposition-report",
+  ]],
+  ["e2e", ["--project", "e2e"]],
+  ["e2e-focused", ["--project", "e2e"]],
+  ["portability-macos", ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"]],
+] as const;
+it.each(tiers)("selects configured tier %s", (tier, args) => {
+  expect(localVitestTierArguments(tier)).toEqual(args);
+});
+const e2e = (name: string) => `/package/__tests__/e2e/${name}`;
+const specifications = ["a.test.ts", "b.test.ts", "c.test.ts"]
+  .map((name) => ({ moduleId: e2e(name) }) as TestSpecification);
+it("runs only the requested E2E specifications, in native order, when every requested path is one", () => {
+  const choice = selectLocalE2eSpecifications([e2e("c.test.ts"), e2e("a.test.ts"), e2e("c.test.ts")], specifications);
+  expect(choice.tier).toBe("e2e-focused");
+  expect(choice.specifications.map(({ moduleId }) => moduleId)).toEqual([e2e("a.test.ts"), e2e("c.test.ts")]);
+});
+it("runs the whole E2E suite when a requested path is a support file or nothing is requested", () => {
+  for (const requested of [[e2e("a.test.ts"), e2e("helpers.ts")], [e2e("global-setup.ts")], []]) {
+    expect(selectLocalE2eSpecifications(requested, specifications)).toEqual({ tier: "e2e", specifications });
+  }
+});
+const deletions = ["diff", "--name-only", "--no-renames", "--diff-filter=D", "-z", "--end-of-options", "base", "--",
+  "__tests__/e2e"];
+it("reports an E2E deletion since the base, and treats an unanswered read as one", async () => {
+  const { exec, calls } = scriptGitExec([{ match: deletions,
+    responses: [{ stdout: "" }, { stdout: "packages/arc-framework/__tests__/e2e/helpers.ts\0" },
+      { failure: { exitCode: 128 } }] }]);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(false);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
+});
+it("retains each native portability boundary on the portability tier", () => {
+  expect(localVitestTierArguments("portability")).toEqual(expect.arrayContaining([
+    "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
+    "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
+    "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
+    "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
+    "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts", "atomic-graduation.test.ts",
+    "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
+    "lib/checks/key.test.ts", "handlers/check/run-output", "check-runner-shard",
+    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion",
+    "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
+    "vitest-runtime-ownership.test.ts",
+    "vitest-shard-",
+    "store-ref-bursts.test.ts",
+    "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
+    "store-ref-archive-acquisition.test.ts",
+    "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
+    "git-batch-reader.test.ts", "store-ref-separate-conformance-records-",
+    "store-ref-separate-conformance-reads-", "store-ref-separate-conformance-sync-",
+    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
+  ]));
+});
+
+it("selects every test under a store/projection/ folder, and no other test file, on the portability tier", () => {
+  const tests = readdirSync(fileURLToPath(new URL("..", import.meta.url)), { recursive: true, encoding: "utf8" })
+    .map((path) => path.replaceAll("\\", "/")).filter((path) => /\.test\.ts$/u.test(path));
+  const isProjectionTest = (path: string) => /(^|\/)store\/projection\//u.test(path);
+  const projection = tests.filter(isProjectionTest);
+  expect(projection.length).toBeGreaterThan(0);
+  const selectors = localVitestTierArguments("portability").filter((selector) => projection.some((path) => path.includes(selector)));
+  expect(projection.filter((path) => !selectors.some((selector) => path.includes(selector)))).toEqual([]);
+  expect(tests.filter((path) => !isProjectionTest(path) && selectors.some((selector) => path.includes(selector)))).toEqual([]);
+});
+
+it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {
+  expect(localVitestTierArguments("portability")).toContain(path);
+});
+
+type Completion = Parameters<typeof checkVitestCompletion>[0];
+function caseResult(state: TestResult["state"]): TestResult {
+  if (state === "skipped") return { state, errors: undefined, note: undefined };
+  if (state === "failed") return { state, errors: [{ name: "Error", message: "completed failure" }] };
+  return { state, errors: undefined };
+}
+function completion(states: TestResult["state"][], fault?: string): Completion {
+  return {
+    unhandledErrors: fault === "unhandled" ? [{ name: "Error", message: "native worker error" }] : [],
+    testModules: [{
+      ok: () => fault !== "module",
+      errors: () => fault === "collection" ? [{ name: "Error", message: "collection error" }] : [],
+      children: { allTests: () => states.map((state) => ({ result: () => caseResult(state) })) },
+    }],
+  };
+}
+it.each(["module", "collection", "unhandled"])("retains a %s failure through completion", (fault) => {
+  const previous = process.exitCode;
+  try {
+    process.exitCode = 0;
+    checkVitestCompletion(completion(["passed"], fault), { error: () => {} });
+    expect(process.exitCode).toBe(1);
+  } finally { process.exitCode = previous; }
+});
+it("refuses a completed run with no executed cases and preserves an existing status", () => {
+  const previous = process.exitCode;
+  const diagnostics: string[] = [];
+  try {
+    process.exitCode = 0;
+    checkVitestCompletion(completion(["pending", "skipped"]), { error: (...values: unknown[]) => { diagnostics.push(values.map(String).join(" ")); } });
+    expect(process.exitCode).toBe(1);
+    expect(diagnostics.join("\n")).toContain("No test cases completed");
+    process.exitCode = 42;
+    checkVitestCompletion(completion([]), { error: () => { throw new Error("Existing status replaced"); } });
+    expect(process.exitCode).toBe(42);
+  } finally { process.exitCode = previous; }
+});
+it("accepts completed cases without changing a clean process status", () => {
+  const previous = process.exitCode;
+  try {
+    process.exitCode = 0;
+    checkVitestCompletion(completion(["passed"]), { error: () => { throw new Error("Unexpected refusal"); } });
+    expect(process.exitCode).toBe(0);
+  } finally { process.exitCode = previous; }
+});
+it("refuses malformed supplied evidence before examining absent output", () => {
+  expect(() => validateRuntimeBuildEvidence("absent-runtime-output", {})).toThrow("evidence is malformed");
+});
+it("refuses a missing controller key before examining absent output", () => {
+  expect(() => requirePreparedRuntimeBuild("absent-runtime-output", {})).toThrow("did not provide");
+});

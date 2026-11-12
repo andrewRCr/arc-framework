@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
+
+vi.mock("execa", () => ({ execa: execaMock }));
 
 import {
   pushWorktreeBranch,
@@ -6,8 +10,28 @@ import {
 } from "../../../src/lib/git/push-worktree.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("pushWorktreeBranch — capture mode (default)", () => {
+  it("pushes to an explicitly selected remote", async () => {
+    const exec: GitExec = vi.fn(async (_command, args) => {
+      if (args[1] !== "upstream") throw new Error("wrong remote");
+      return { stdout: "pushed upstream\n", stderr: "" };
+    });
+
+    const result = await pushWorktreeBranch({
+      exec,
+      branch: "feature/x",
+      remote: "upstream",
+    });
+
+    expect(result).toEqual({
+      status: "success",
+      stdout: "pushed upstream\n",
+      stderr: "",
+    });
+  });
+
   it("invokes `git push origin <branch>` and reports success with captured streams", async () => {
     const exec: GitExec = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
 
@@ -34,7 +58,8 @@ describe("pushWorktreeBranch — capture mode (default)", () => {
   });
 
   it("captures executor errors and reports failed with the original Error preserved", async () => {
-    const cause = new Error("error: failed to push some refs to 'origin'");
+    const cause = makeGitProcessError({ command: "git", args: ["push", "origin", "main"],
+      exitCode: 1, stderr: "error: failed to push some refs to 'origin'" });
     const exec: GitExec = vi.fn().mockRejectedValue(cause);
 
     const result = await pushWorktreeBranch({ exec, branch: "main" });
@@ -58,7 +83,8 @@ describe("pushWorktreeBranch — capture mode (default)", () => {
   });
 
   it("surfaces stdout/stderr fields off rejected exec errors when present", async () => {
-    const cause = Object.assign(new Error("git push exited 1"), {
+    const cause = makeGitProcessError({ command: "git", args: ["push", "origin", "feature/x"],
+      exitCode: 1,
       stdout: "out\n",
       stderr: " ! [rejected] feature/x -> feature/x (fetch first)\n",
     });
@@ -127,12 +153,74 @@ describe("pushWorktreeBranch — args passthrough", () => {
 
     expect(spawnPush).toHaveBeenCalledWith({
       branch: "feature/x",
+      remote: "origin",
       args: ["--force-with-lease"],
     });
   });
 });
 
+describe("pushWorktreeBranch — push gate identifier", () => {
+  const pushGateId = "0123456789abcdef0123456789abcdef";
+
+  beforeEach(() => {
+    execaMock.mockReset();
+  });
+
+  it("hands the identifier to the executor in capture mode", async () => {
+    const exec: GitExec = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
+
+    await pushWorktreeBranch({ exec, branch: "feature/x", pushGateId });
+
+    expect(exec).toHaveBeenCalledWith("git", ["push", "origin", "feature/x"], { pushGateId });
+  });
+
+  it("forwards the identifier to the spawn boundary in spawn mode", async () => {
+    const spawnPush: PushWorktreeSpawn = vi.fn().mockResolvedValue({ exitCode: 0, stderr: "" });
+
+    await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", inheritStdio: true, spawnPush, pushGateId });
+
+    expect(spawnPush).toHaveBeenCalledWith(expect.objectContaining({ branch: "feature/x", pushGateId }));
+  });
+
+  it("passes the identifier to the spawned Git with prompts still suppressed", async () => {
+    execaMock.mockResolvedValue({ failed: false, stderr: "" });
+
+    const result = await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", cwd: "/repo", inheritStdio: true,
+      interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" }, pushGateId });
+
+    expect(result.status).toBe("success");
+    expect(execaMock).toHaveBeenCalledWith("git", ["push", "origin", "feature/x"], expect.objectContaining({
+      cwd: "/repo", extendEnv: false,
+      env: expect.objectContaining({ ARC_PUSH_GATE_ID: pushGateId, GIT_TERMINAL_PROMPT: "0" }) }));
+  });
+
+  it("leaves the spawned Git's environment alone without an identifier", async () => {
+    execaMock.mockResolvedValue({ failed: false, stderr: "" });
+
+    await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", inheritStdio: true });
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ env: undefined });
+  });
+});
+
 describe("pushWorktreeBranch — inheritStdio: true (spawn mode)", () => {
+  it("forwards an explicitly selected remote to the spawn boundary", async () => {
+    const spawnPush: PushWorktreeSpawn = vi.fn(async ({ remote }) => ({
+      exitCode: remote === "upstream" ? 0 : 1,
+      stderr: "",
+    }));
+
+    const result = await pushWorktreeBranch({
+      exec: vi.fn(),
+      branch: "feature/x",
+      remote: "upstream",
+      inheritStdio: true,
+      spawnPush,
+    });
+
+    expect(result.status).toBe("success");
+  });
+
   it("delegates to spawnPush and never calls exec", async () => {
     const exec: GitExec = vi.fn();
     const spawnPush: PushWorktreeSpawn = vi.fn().mockResolvedValue({

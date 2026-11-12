@@ -1,13 +1,13 @@
 /** Production assembly for read-only advisory review reduction. */
 
-import type { GitExec } from "../../../lib/git/exec.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
   DurableReviewReductionPort,
@@ -15,24 +15,26 @@ import {
   type ReviewReductionAdapterDependencies,
 } from "./reduce-command.js";
 
-/** Bind reduction to repository-common read stores and trusted target confirmation. */
-export function createReduceDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): ReduceCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+/** Bind reduction to the selected backend's review stores and trusted target confirmation. */
+export function createReduceDependencies(options: ReviewInvocationInput): ReduceCommandDependencies {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const { publisher, family } = context;
   const prepare = createLocalPrepareDependencies(input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
+    receiptStore ??= resolveRepositoryIdentity(publisher, undefined, input)
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
   const dependencies: ReviewReductionAdapterDependencies = {
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: prepare.operationStore,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
+    dispositionStore: family.ports.dispositions,
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     confirmTarget: (target) => prepare.confirmTarget(target),
   };

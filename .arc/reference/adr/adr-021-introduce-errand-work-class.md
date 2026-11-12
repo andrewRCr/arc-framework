@@ -7,7 +7,7 @@ Accepted (2026-06-19).
 The operational conventions (the concurrency gate, the lighter merge gate, the cheap-branch mechanism, the
 tier-model reconciliation) were validated by their shipped cohort work units — Worktree Foundation, Concurrent
 Work Doctrine, Agile WU Lifecycle — satisfying the promotion condition. The errand model is subsequently refined
-by [ADR-027][adr-027] (2026-06-19 amendment below), which leaves ADR-021's work-class taxonomy intact.
+by [ADR-027][adr-027] and [ADR-037][adr-037] (amendments below), which leave ADR-021's work-class taxonomy intact.
 
 ## Context
 
@@ -77,11 +77,10 @@ principle rather than surface collision: "atomic" is a cross-scale _character_ (
 WUs), and ADR-019 deliberately separated character from wrapper, so naming the class "Atomic" would
 re-tangle them — and it does not nominalize ("an atomic" is awkward). It stays the character; an Errand
 _is_ atomic-character work that skips the wrapper. _Errand_ names the small, complete, standalone,
-untracked side-task: its
-defining trait is being a bounded task you just complete — not triviality (a consequential one-commit
-change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class
-wants. The name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless,
-so "Errand" never enters commit syntax.
+untracked side-task: its defining trait is being a bounded task you just complete — not triviality (a consequential
+one-commit change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class wants. The
+name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless, so "Errand" never enters
+commit syntax.
 
 **Open question — renaming the "Work Unit" wrapper itself (deferred).** Codifying the Errand sibling
 surfaced whether "Work Unit" / `WU` is the right name for the heavy class. Considered and **not adopted**:
@@ -126,7 +125,7 @@ work from "atomic-tier WU" to "Errand."
 
 **Operational conventions (named here, ratified at the cohort PRDs).** The plumbing that makes the
 Errand class safe and cheap is owned by the agile-parallelism cohort and detailed in
-[`cohort-agile-parallelism.md`][cohort]:
+`cohort-agile-parallelism.md`:
 
 - **Worktree Foundation** — the cheap ephemeral-branch mechanism for Errands, and the concurrency
   oracle's hook (in-flight detection from remote refs + open PRs, path/content-based, all-owner). The
@@ -224,9 +223,13 @@ Errand as one character with a `branch.protection`-scaled mechanism, and gives t
 retiring the `errandSlugOf` branch-parse). ADR-021 is **not superseded** — its work-class taxonomy stands; ADR-027
 corrects the threshold basis and identity model it left in place. Full design: `spec-errand-lattice.md`.
 
+**Amendment (2026-10-09):** [ADR-037][adr-037] refines this decision. ADR-037 retires the create rule and threshold
+criterion 3; the work classes stand.
+Neither record is superseded.
+
 ---
 
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
 [adr-027]: adr-027-refine-errand-model.md
-[cohort]: ../../completed/2026-q3/18a_cohort-agile-parallelism/cohort-agile-parallelism.md
+[adr-037]: adr-037-decide-errand-boundary-by-record-test.md

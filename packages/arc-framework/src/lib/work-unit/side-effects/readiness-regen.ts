@@ -20,6 +20,7 @@
 import { dirname, join } from "node:path";
 
 import { materializeArcPath, resolveArcPath } from "../../layout/index.js";
+import { IDENTITY_STATUS_FILENAME } from "../../user-surfaces.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
 
@@ -77,7 +78,7 @@ export async function reconcileStatusUser(
   const dir = ctx.resolveIdentityGlobalRoot !== undefined
     ? await ctx.resolveIdentityGlobalRoot(params.identity)
     : join(params.cwd, ".arc", "user", params.identity);
-  const path = join(dir, "STATUS.USER.md");
+  const path = join(dir, IDENTITY_STATUS_FILENAME);
   const view = await ctx.composeView();
   const body = view.endsWith("\n") ? view : `${view}\n`;
 

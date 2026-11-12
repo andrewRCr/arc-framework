@@ -18,6 +18,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,7 @@ import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
 import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
 import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
+import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
 import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
@@ -148,25 +150,39 @@ describe("framework sync (self-hosting drift check)", () => {
     const projectConfig = await readFile(join(ARC_DIR, path), "utf-8");
 
     expect(manifest.files[path]?.classification).toBe("Configurable");
-    expect(packageConfig).toContain("review.chunking_threshold_lines: 0");
-    expect(packageConfig).toContain("review.chunking_threshold_files: 0");
-    expect(projectConfig).toContain("review.chunking_threshold_lines: 5000");
-    expect(projectConfig).toContain("review.chunking_threshold_files: 150");
+    expect(packageConfig).toContain("changeset.advisory_threshold_lines: 0");
+    expect(packageConfig).toContain("changeset.advisory_threshold_files: 0");
+    expect(projectConfig).toContain("changeset.advisory_threshold_lines: 5000");
+    expect(projectConfig).toContain("changeset.advisory_threshold_files: 150");
+    expect(packageConfig).not.toContain("review.chunking_threshold_lines");
+    expect(packageConfig).not.toContain("review.chunking_threshold_files");
+    expect(projectConfig).not.toContain("review.chunking_threshold_lines");
+    expect(projectConfig).not.toContain("review.chunking_threshold_files");
   });
 
   it("keeps neutral review customization contracts aligned across both copies", async () => {
     const paths = [
       "system/methods/README.md",
       "system/methods/assess-design-proportionality.md",
+      "system/methods/assess-evidence-applicability.md",
+      "system/methods/adversarial-review.md",
+      "system/methods/classify-review-risk.md",
       "system/methods/design-audit.md",
-      "system/methods/self-review.md",
-      "system/methods/standard-review.md",
+      "system/methods/disposition-report.md",
+      "system/methods/source-grounding.md",
+      "system/methods/spec-review.md",
+      "system/methods/task-audit.md",
+      "system/methods/code-review-author.md",
+      "system/methods/code-review-standard.md",
       "system/methods/implementation-audit.md",
       "system/methods/review-chunking.md",
+      "system/methods/review-model.md",
+      "system/methods/planning-review.md",
+      "system/methods/code-review.md",
+      "system/methods/verification-review.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
-      "system/extensions/README.md",
-      "system/extensions/pre-pr-open.md",
+      "system/methods/validate-criteria.md",
       "system/workflows/arc/supplemental/run-errand.md",
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     ];
@@ -181,7 +197,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps frontline activation project-specific without changing its method contract", async () => {
-    const path = "system/methods/frontline-review.md";
+    const path = "system/methods/code-review-frontline.md";
     const [packaged, project] = await Promise.all([
       readFile(join(PKG_ARC_DIR, path), "utf8"),
       readFile(join(ARC_DIR, path), "utf8"),
@@ -193,7 +209,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps the frontline chunking attachment reference-only and whole-target", async () => {
-    const method = await readFile(join(PKG_ARC_DIR, "system/methods/frontline-review.md"), "utf8");
+    const method = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-frontline.md"), "utf8");
     expect(method.match(/review-chunking/gu)?.length).toBeGreaterThanOrEqual(2);
     expect(method).toContain("canonical target, partition, and coverage state");
     expect(method).toContain("one aggregate whole-target frontline result");
@@ -201,7 +217,7 @@ describe("framework sync (self-hosting drift check)", () => {
   });
 
   it("keeps standard chunking bounded to one exact-target carrier orchestration", async () => {
-    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/standard-review.md"), "utf8");
+    const standard = await readFile(join(PKG_ARC_DIR, "system/methods/code-review-standard.md"), "utf8");
     const adversarial = await readFile(join(PKG_ARC_DIR, "system/methods/adversarial-review.md"), "utf8");
     const guidance = `${standard}\n${adversarial}`;
 
@@ -209,22 +225,92 @@ describe("framework sync (self-hosting drift check)", () => {
     expect(standard).toContain("target identity, partition, and coverage state");
     expect(standard).toContain("one aggregate whole-target standard-review result");
     expect(adversarial).toContain("bounded chunk-series carrier mode");
+    expect(adversarial).toContain("authored-partition carrier mode");
+    const authoredPartition = adversarial.match(
+      /^### Authored-partition carrier mode$[\s\S]*?(?=^### |^---$)/mu,
+    )?.[0];
+    if (authoredPartition === undefined) throw new Error("missing authored-partition carrier section");
+    expect(authoredPartition).toMatch(/two or three[\s\S]*seam-and-aggregate[\s\S]*one logical pass/iu);
+    expect(adversarial).toMatch(/does not satisfy\s+`review-chunking`/u);
+    expect(adversarial).toContain("does not use `partition-map`");
     expect(guidance).not.toMatch(/per-chunk receipt|durable scope identity|review-gate runtime state/iu);
   });
 
   it("declares design proportionality at every direct planning consumer", async () => {
-    const workflowPaths = [
+    const consumerPaths = [
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
+      "system/methods/planning-review.md",
     ];
 
-    for (const path of workflowPaths) {
+    for (const path of consumerPaths) {
       const content = await readFile(join(PKG_ARC_DIR, path), "utf8");
       const declarations = parseWorkflowFrontmatter(content);
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
       expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
+  });
+
+  it("ships pull-request formatting with recipe-derived classification and pristine content", async () => {
+    const methodPath = "system/methods/pull-request-format.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({ classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex") });
+  });
+
+  it("ships discovered-work routing as a configurable core method", async () => {
+    const methodPath = "system/methods/route-discovered-work.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({
+      classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex"),
+    });
+  });
+
+  it("keeps residual evidence assessment registered across every shipment surface", async () => {
+    const methodPath = "system/methods/assess-evidence-applicability.md";
+    const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
+    const recipe = JSON.parse(recipeText) as Recipe;
+    const packagedMethod = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    const projectMethod = await readFile(join(ARC_DIR, methodPath), "utf8");
+    const pristineHash = createHash("sha256").update(packagedMethod).digest("hex");
+
+    expect(recipe.include_files).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(projectMethod).toBe(packagedMethod);
+    expect(manifest.files[methodPath]).toEqual({
+      classification: "Configurable",
+      layer: "core",
+      pristine_hash: pristineHash,
+    });
+
+    const [packagedSessionOps, projectSessionOps, inventory] = await Promise.all([
+      readFile(join(PKG_ARC_DIR, "reference/strategies/arc/strategy-session-operations.md"), "utf8"),
+      readFile(join(ARC_DIR, "reference/strategies/arc/strategy-session-operations.md"), "utf8"),
+      readFile(join(ARC_DIR, "reference/strategies/project/strategy-package-project-sync.md"), "utf8"),
+    ]);
+    const triggerRow = /\| assess-evidence-applicability\s+\| integrate \/ deliver \/ errand\s+\|[^\n]+\|/u;
+    const installedPaths = resolveFileList(recipe, conditionals);
+    const configurableCount = installedPaths.filter((path) => classifyFile(path) === "Configurable").length;
+    expect(packagedSessionOps).toMatch(triggerRow);
+    expect(projectSessionOps).toMatch(triggerRow);
+    expect(inventory).toContain(`### Configurable files (project sections expected to differ) — ${configurableCount}`);
+    expect(inventory).toContain(`- \`${methodPath}\``);
+    expect(inventory).toContain(`| Configurable   | ${configurableCount}`);
+    expect(inventory).toContain(`**Self-hosting installed files:** ${installedPaths.length}.`);
   });
 
   it("keeps the self-hosting manifest aligned with recipe-derived membership and classification", async () => {
@@ -238,5 +324,17 @@ describe("framework sync (self-hosting drift check)", () => {
       const outputPath = resolveTemplateOutputPath(templatePath);
       expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
     }
+  });
+});
+
+
+describe("project check declaration setup", () => {
+  it("starts the authored declaration with the registered editor reference", async () => {
+    const content = await readFile(join(PKG_ARC_DIR, "system/workflows/arc/initial-setup/02_define-project.template.md"), "utf8");
+    const reference = editorDocumentReference("check-declaration", ".arc/system/arc-checks.yml");
+    expect(reference.status).toBe("found");
+    if (reference.status !== "found") return;
+    const declaration = /```yaml\n([\s\S]*?)```/u.exec(content)?.[1];
+    expect(declaration?.split("\n")[0]).toBe(reference.reference);
   });
 });

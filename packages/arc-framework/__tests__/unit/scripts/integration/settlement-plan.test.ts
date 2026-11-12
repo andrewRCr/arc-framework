@@ -1,0 +1,223 @@
+/** Canonical integration settlement-plan behavior. */
+
+import { describe, expect, it } from "vitest";
+
+import { responsePolicyRequestFixture } from "../../../fixtures/review-response-policy.js";
+
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../src/scripts/review-gate/core/dispositions.js";
+import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { composeReviewResponseSettlementAction } from "../../../../src/scripts/review-gate/core/response-plan.js";
+import {
+  composeCanonicalSettlementPlan,
+  composeCandidateResponseConfirmationAction,
+  composeHostedSettlementAction,
+  describeSettlementPlan,
+} from "../../../../src/scripts/integration/settlement-plan.js";
+
+const oid = (character: string): string => character.repeat(40);
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
+
+const TARGET_INPUT = {
+  schemaVersion: 2 as const,
+  semanticsVersion: "review-gate/v2" as const,
+  kind: "change-set" as const,
+  repositoryId: "owner/repo",
+  baseRef: "main",
+  diffBaseSha: oid("a"),
+  diffBaseTree: oid("b"),
+  headSha: oid("c"),
+  headTree: oid("d"),
+};
+
+function target(headSha: string, headTree: string) {
+  return createReviewTarget({ ...TARGET_INPUT, headSha, headTree });
+}
+
+/** One approved single-finding set over `targetId`, carrying the supplied disposition. */
+function approvedSet(targetId: `sha256:${string}`, disposition: "fix" | "defer") {
+  const dispositionSet = createDispositionSet({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId,
+    producerId: "settlement-operation",
+    resultDigest: digest("3"),
+    policyVersion: digest("1"),
+    rubricVersion: "standard-review/v1",
+    rubricDigest: digest("2"),
+    proposedBy: "review-runtime",
+    proposedVerification: "full",
+    findings: [{
+      findingId: "finding-1",
+      sourceIdentity: "reviewer",
+      locus: "src/example.ts:1",
+      sourceVerification: "verified",
+      verificationRefs: ["receipt:1"],
+      reportedSeverity: "major",
+      verifiedSeverity: "major",
+      disposition,
+      rationale: "The finding is supported.",
+      recommendation: disposition === "fix"
+        ? "Apply the bounded correction."
+        : "Carry the correction to a follow-up.",
+      openQuestions: [],
+    }],
+  });
+  return {
+    dispositionSet,
+    request: {
+      schemaVersion: 1 as const,
+      source: { kind: "frontline" as const, outcomeRef: "frontline:operation:outcome" },
+      policyRequest: responsePolicyRequestFixture({
+        headSha: oid("c"),
+        sourceId: "reviewer",
+        reviewOperationId: "settlement-operation",
+      }),
+      dispositions: approveDispositionState({
+        proposed: proposeDispositionSet(dispositionSet),
+        approvedBy: "andrew",
+        approvedAt: "2026-08-13T02:00:00Z",
+      }),
+    },
+  };
+}
+
+describe("canonical integration settlement plan", () => {
+  it("represents an already-completed private Candidate response without a second fix target", () => {
+    const action = composeCandidateResponseConfirmationAction({
+      dispositionId: digest("1"),
+      operationId: "frontline-example",
+      workUnit: "example",
+      candidateId: digest("3"),
+      responseId: digest("4"),
+      memberTargetId: digest("5"),
+      candidateOriginTargetId: digest("6"),
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "573a0507-31a0-478d-b2cb-bd2a849e787b",
+        deliverableId: digest("7"),
+        workUnitId: "example",
+        head: oid("8"),
+      },
+      approvedBase: oid("a"),
+    });
+
+    expect(composeCanonicalSettlementPlan([action]).actions).toEqual([action]);
+    expect(() => composeCandidateResponseConfirmationAction({
+      ...action,
+      deliveryMember: { ...action.deliveryMember, workUnitId: "other" },
+    })).toThrow(/must match the Candidate work unit/u);
+  });
+
+  it("retains every exact hosted-settlement API input", () => {
+    const request = {
+      schemaVersion: 1 as const,
+      response: {
+        attemptRef: "hosted-attempt",
+        dispositionSetId: digest("c"),
+        findingId: "finding-7",
+      },
+      target: { repository: "owner/repo", pullRequest: 42, headSha: oid("a") },
+      fixTarget: { repository: "owner/repo", pullRequest: 42, headSha: oid("b") },
+      actorIdentity: "andrew",
+      finding: { commentId: "comment-7", threadId: "thread-9" },
+      disposition: "fix" as const,
+      reply: "Fixed in the exact candidate head.",
+    };
+    const action = composeHostedSettlementAction({ dispositionId: digest("c"), request });
+    const plan = composeCanonicalSettlementPlan([action]);
+
+    expect(plan.actions).toEqual([{
+      channel: "hosted",
+      dispositionId: digest("c"),
+      request,
+    }]);
+  });
+
+  it("binds local response targets, actors, findings, and approved dispositions", () => {
+    const originTarget = target(oid("c"), oid("d"));
+    const fixTarget = target(oid("e"), oid("f"));
+    const { dispositionSet, request } = approvedSet(originTarget.targetId, "fix");
+    const action = composeReviewResponseSettlementAction({ originTarget, fixTarget, request });
+
+    expect(action).toMatchObject({
+      channel: "review-response",
+      dispositionId: dispositionSet.dispositionSetId,
+      originTarget: { targetId: originTarget.targetId },
+      fixTarget: { targetId: fixTarget.targetId },
+      actors: { approverIdentity: "andrew", proposerIdentity: "review-runtime" },
+      findingIds: ["finding-1"],
+      request,
+    });
+  });
+
+  it("settles a set that authorized no fix at its own origin target", () => {
+    const originTarget = target(oid("c"), oid("d"));
+    const { request } = approvedSet(originTarget.targetId, "defer");
+
+    expect(composeReviewResponseSettlementAction({
+      originTarget,
+      fixTarget: originTarget,
+      request,
+    })).toMatchObject({ fixTarget: { targetId: originTarget.targetId } });
+  });
+
+  it("names each disposition set it settles with its actions per channel", () => {
+    const hosted = (findingId: string) => composeHostedSettlementAction({
+      dispositionId: digest("c"),
+      request: {
+        schemaVersion: 1,
+        response: { attemptRef: "hosted-attempt", dispositionSetId: digest("c"), findingId },
+        target: { repository: "owner/repo", pullRequest: 42, headSha: oid("a") },
+        fixTarget: null,
+        actorIdentity: "andrew",
+        finding: { commentId: `comment-${findingId}`, threadId: `thread-${findingId}` },
+        disposition: "defer",
+        reply: "Deferred to a follow-up.",
+      },
+    });
+    const confirmation = composeCandidateResponseConfirmationAction({
+      dispositionId: digest("1"),
+      operationId: "frontline-example",
+      workUnit: "example",
+      candidateId: digest("3"),
+      responseId: digest("4"),
+      memberTargetId: digest("5"),
+      candidateOriginTargetId: digest("6"),
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "573a0507-31a0-478d-b2cb-bd2a849e787b",
+        deliverableId: digest("7"),
+        workUnitId: "example",
+        head: oid("8"),
+      },
+      approvedBase: oid("a"),
+    });
+
+    expect(describeSettlementPlan(composeCanonicalSettlementPlan([]))).toBe(
+      "No approved dispositions require settlement.",
+    );
+    expect(describeSettlementPlan(composeCanonicalSettlementPlan([
+      hosted("finding-1"),
+      confirmation,
+      hosted("finding-2"),
+    ]))).toBe(
+      `2 approved disposition set(s) require settlement: ${digest("1")} (1 candidate-response-confirmation action); `
+        + `${digest("c")} (2 hosted actions).`,
+    );
+  });
+
+  it("refuses a fix-bearing set that settles at its unchanged origin target", () => {
+    const originTarget = target(oid("c"), oid("d"));
+    const { request } = approvedSet(originTarget.targetId, "fix");
+
+    expect(() => composeReviewResponseSettlementAction({
+      originTarget,
+      fixTarget: originTarget,
+      request,
+    })).toThrow(/must be a changed target when fixes exist/u);
+  });
+});

@@ -52,21 +52,30 @@ function buildMemFs(
       const entries: DirEntry[] = [...children].map(([name, isDir]) => ({
         name,
         isDirectory: () => isDir,
+        isFile: () => !isDir,
       }));
       return entries;
     },
   };
 }
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and optional `Cohort` / `Depends On`. */
+/** Minimal valid meta — core table with `State` and optional `Cohort` / `Depends On`. */
 function meta(state: string, cohort?: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (cohort !== undefined) lines.push(`- **Cohort:** ${cohort}`);
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const cwd = "/repo";
@@ -119,6 +128,71 @@ describe("buildLifecycleIndex — per-tier walk", () => {
     expect(index.get("delta")?.location).toBe("completed");
     expect(index.has("some-cohort")).toBe(false);
     expect(index.size).toBe(1);
+  });
+});
+
+describe("buildLifecycleIndex — one source per slug", () => {
+  it("keeps the active copy of a slug that the backlog and archive also hold", async () => {
+    const fs = buildMemFs({
+      [A("completed/2026-q2/01_resumed/meta-resumed.md")]: meta("Shipped"),
+      [A("backlog/planned/meta-resumed.md")]: meta("Planning"),
+      [A("active/meta-resumed.md")]: meta("Active"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("resumed")).toMatchObject({
+      phase: "Active",
+      location: "active",
+      path: ".arc/active/meta-resumed.md",
+    });
+    expect(index.size).toBe(1);
+  });
+
+  it("keeps the lexically first path when one tier holds a slug twice", async () => {
+    const fs = buildMemFs({
+      [A("backlog/planned/alpha/meta-twin.md")]: meta("Planning", "alpha"),
+      [A("backlog/planned/zeta/meta-twin.md")]: meta("Planning", "zeta"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("twin")).toMatchObject({ cohort: "alpha", path: ".arc/backlog/planned/alpha/meta-twin.md" });
+  });
+
+  it("orders same-tier copies by code unit, not by the host locale", async () => {
+    // Locale collation puts `a/` before `B/`; code-unit order puts `B/` first on every host.
+    const fs = buildMemFs({
+      [A("backlog/planned/a/meta-twin.md")]: meta("Planning", "a"),
+      [A("backlog/planned/B/meta-twin.md")]: meta("Planning", "B"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("twin")).toMatchObject({ cohort: "B", path: ".arc/backlog/planned/B/meta-twin.md" });
+  });
+
+  it("reads only regular files, so a named pipe called meta-*.md never blocks the walk", async () => {
+    const reads: string[] = [];
+    const fs: LifecycleIndexFs = {
+      readdir: async (dir) => {
+        if (dir !== A("active")) throw new Error(`ENOENT: ${dir}`);
+        return [
+          { name: "meta-pipe.md", isDirectory: () => false, isFile: () => false },
+          { name: "meta-good.md", isDirectory: () => false, isFile: () => true },
+        ];
+      },
+      readFile: async (path) => {
+        reads.push(path);
+        if (path === A("active/meta-pipe.md")) return new Promise<string>(() => {});
+        return meta("Active");
+      },
+    };
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect([...index.keys()]).toEqual(["good"]);
+    expect(reads).toEqual([A("active/meta-good.md")]);
   });
 });
 
@@ -264,6 +338,24 @@ describe("buildLifecycleIndexFromMetas — files-in (sync, fs-free)", () => {
     ]);
 
     expect([...index.keys()]).toEqual(["good"]);
+  });
+
+  it("keeps the active copy of a duplicated slug whatever order the metas arrive in", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-resumed.md", content: meta("Active") },
+      { path: ".arc/completed/2026-q2/01_resumed/meta-resumed.md", content: meta("Shipped") },
+    ]);
+
+    expect(index.get("resumed")).toMatchObject({ phase: "Active", location: "active" });
+  });
+
+  it("skips an active meta below a subdirectory of active/", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-flat.md", content: meta("Active") },
+      { path: ".arc/active/sub/meta-nested.md", content: meta("Active") },
+    ]);
+
+    expect([...index.keys()]).toEqual(["flat"]);
   });
 });
 

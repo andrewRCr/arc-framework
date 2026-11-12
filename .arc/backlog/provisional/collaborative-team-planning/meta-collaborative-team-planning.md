@@ -19,3 +19,5 @@
 - **Next Action:** Pre-commitment — confirm the gap is worth closing now (single-developer today). Settle the
   split between `strategy-team-coordination` (the "how teams plan together" framing) and the planning-workflow
   seam (the single-author-draft-plus-review mechanism) before graduating to `planned/`.
+
+---

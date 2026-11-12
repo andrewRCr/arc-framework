@@ -1,0 +1,308 @@
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
+/** Off-branch current identity comes from real ownership markers and reference fixture hooks. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { resolveCurrentWorkUnit } from "../../../../src/lib/store/current-work-unit.js";
+import { writeWorktreeOwnershipMarker, writeWorktreeMarker, readWorktreeMarker, stampWorktreeHusk, resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
+import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
+import { seed, success } from "../../../helpers/store/suite-tools.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
+import type { StoreRefusal } from "../../../../src/lib/store/refusal.js";
+import { StoreRefusalError } from "../../../../src/lib/store/refusal-error.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { createDecomposeHarness } from "../../../helpers/store/decompose-harness.js";
+
+function metaReferenceFixture() {
+  const reference = createReferenceFixture({}, { "work-item/meta": { parser: (content) => {
+    try { return { success: true as const, data: parseMetaRecord(content) }; }
+    catch (error) { return { success: false as const, error: String(error) }; }
+  } } });
+  const content = reference.content;
+  reference.content = (record, variant = "valid") => record.kind === "work-item/meta" && variant !== "invalid"
+    ? makeMetaFixture(record.owner.name, { nextAction: variant }) : content(record, variant);
+  return reference;
+}
+
+async function fixture() {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-current-claim-"));
+  onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const reference = metaReferenceFixture();
+  const record = await seed(reference, reference.reference("work-item/meta"));
+  const marker = async () => writeWorktreeOwnershipMarker(cwd, { createdByArc: true,
+    createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
+  return { cwd, reference, record, marker, resolve: () => resolveCurrentWorkUnit({ cwd, store: reference.store }) };
+}
+
+async function bindProducedMarker(cwd: string, reference: ReturnType<typeof metaReferenceFixture>) {
+  if (!(reference.store instanceof ReferenceBackend)) throw new Error("Expected the reference backend fixture");
+  const primary = [...reference.store.state.records.values()][0];
+  if (primary === undefined) throw new Error("Expected the produced primary generation");
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, spawningIdentity: "andrew", now: 0,
+    createdFor: boundWorkUnitSubject(primary) });
+}
+
+describe("current work-unit marker fallback", () => {
+  it("resolves an unbound reused name to its own state with both holders and checkout exits", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-current-unbound-"));
+    onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+    const h = createDecomposeHarness(), archived = await h.seedCompletedWorkUnit("example"), live = await h.seedMeta("example");
+    await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "example" },
+      spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
+    const result = await resolveCurrentWorkUnit({ cwd, store: h.store });
+    expect(result).toMatchObject({ status: "unbound", candidates: [], warnings: [], unbound: {
+      holders: expect.arrayContaining([archived.reference, live.reference]), exit: { kind: "bind", reference: live.reference },
+      exits: [{ argv: ["arc", "materialize", "example", "--here"], checkout: cwd },
+        { argv: ["arc", "locus", "release"], checkout: cwd }],
+    } });
+  });
+
+  it("resolves an unhusked marker claim to the reference backend's minted UID", async () => {
+    const h = await fixture();
+    await h.marker();
+    expect(await h.resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+  });
+
+  it("retains inventory repair guidance before classifying an unbound claim after repair", async () => {
+    const h = await fixture();
+    await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: h.record.reference.owner.name },
+      spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+    const list = h.reference.store.list.bind(h.reference.store), store = Object.create(h.reference.store) as Store;
+    let unavailable = true;
+    store.list = async input => unavailable && input.filter?.heldHere !== true
+      ? { status: "ok", result: { status: "unreadable", condition: "Inventory unavailable.", remedy: { text: "Repair the inventory, then retry." } } }
+      : list(input);
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("Repair the inventory, then retry.")] });
+    unavailable = false;
+    expect(await resolve()).toMatchObject({ status: "unbound", warnings: [], unbound: { holders: [h.record.reference] } });
+  });
+
+  it.each(["absent", "errand", "branch", "husk"])("finds none for an %s checkout marker", async (kind) => {
+    const h = await fixture();
+    if (kind === "errand") await writeWorktreeMarker(h.cwd, { spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "example", claimId: "a".repeat(32) }, provisioning: "ready", spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+    if (kind === "branch") await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true,
+      createdFor: { kind: "branch", ref: "main" }, spawningIdentity: "andrew", now: 0 });
+    if (kind === "husk") {
+      await h.marker();
+      await stampWorktreeHusk(h.cwd, makeHuskStamp({ sha: "a".repeat(40), at: new Date(0).toISOString(),
+        subject: { kind: "work-unit", name: h.record.reference.owner.name }, branch: `feat/${h.record.reference.owner.name}` }));
+    }
+    expect(await h.resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+  });
+
+  it.each(["errand", "groom", "housekeep"] as const)("finds none for a generation-bearing %s claim", async (kind) => {
+    const h = await fixture();
+    await h.marker();
+    const produced = await readWorktreeMarker(h.cwd);
+    expect(produced.kind).toBe("present");
+    if (produced.kind !== "present") throw new Error("The marker producer did not create its record");
+    await writeWorktreeMarker(h.cwd, { spawnedByArc: produced.marker.spawnedByArc, createdAt: produced.marker.createdAt,
+      spawningIdentity: produced.marker.spawningIdentity, createdFor: { kind, slug: h.record.reference.owner.name, claimId: "1".repeat(32) }, provisioning: "ready" });
+    expect(await h.resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+  });
+
+  it.each(["completed", "backlog", "removed"])("finds none once the marker's work unit is %s", async (kind) => {
+    const h = await fixture();
+    await h.marker();
+    if (kind === "removed") success(await h.reference.store.write({ action: "remove", reference: h.record.reference,
+      expected: h.record.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+    else success(await h.reference.store.write({ action: "put", reference: h.record.reference, content: h.record.content,
+      expected: h.record.version, placement: kind === "completed" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }
+        : { kind: "backlog", commitment: "planned" }, provenance: { verb: "move", lifecycleAction: "move" } }));
+    expect(await h.resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+  });
+
+  it("warns on a malformed marker and resolves after replacing it through the producer", async () => {
+    const h = await fixture();
+    const path = resolveWorktreeMarkerPath(h.cwd);
+    await mkdir(join(h.cwd, ".arc/system/.internal"), { recursive: true });
+    await writeFile(path, "not JSON");
+    expect(await h.resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("malformed JSON")] });
+    await h.marker();
+    expect(await h.resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("finds no current candidate until its arriving record stamps the marker with its owner UUID", async () => {
+    const h = await fixture();
+    const reference = metaReferenceFixture();
+    await reference.produce("not-found:name");
+    await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, spawningIdentity: "andrew", now: 0,
+      createdFor: { kind: "work-unit", name: reference.reference("work-item/meta", "missing").owner.name } });
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
+    expect(await resolve()).toMatchObject({ status: "unbound", candidates: [], warnings: [] });
+    await reference.repair("not-found:name");
+    expect(await resolve()).toMatchObject({ status: "unbound", candidates: [], warnings: [] });
+    await bindProducedMarker(h.cwd, reference);
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("resolves the bound generation through a genuine name clash before and after its repair", async () => {
+    const h = await fixture();
+    await h.marker();
+    const reference = metaReferenceFixture();
+    await reference.produce("ambiguous-match");
+    await bindProducedMarker(h.cwd, reference);
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+    await reference.repair("ambiguous-match");
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("warns on a primary's planted identity mismatch and resolves after its repair", async () => {
+    const h = await fixture();
+    await h.marker();
+    const reference = metaReferenceFixture();
+    await reference.produce("identity-mismatch");
+    await bindProducedMarker(h.cwd, reference);
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
+    expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("identity")] });
+    await reference.repair("identity-mismatch");
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("warns when the primary's identity fault arrives after a successful claim lookup", async () => {
+    const h = await fixture();
+    await h.marker();
+    const reference = metaReferenceFixture();
+    await reference.produce("identity-mismatch");
+    await bindProducedMarker(h.cwd, reference);
+    await reference.repair("identity-mismatch");
+    const lookup = reference.store.lookup.bind(reference.store);
+    const store = Object.create(reference.store) as Store;
+    let inject = true;
+    store.lookup = async (input) => {
+      const found = await lookup(input);
+      if (inject && found.status === "ok") await reference.plant(found.result.reference, "key-mismatch");
+      return found;
+    };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("identity")] });
+    inject = false;
+    await reference.repair("identity-mismatch");
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("finds none when the primary disappears between lookup and read, including a later namesake", async () => {
+    const h = await fixture();
+    await h.marker();
+    const lookup = h.reference.store.lookup.bind(h.reference.store);
+    const store = Object.create(h.reference.store) as Store;
+    let remove = true;
+    store.lookup = async (input) => {
+      const found = await lookup(input);
+      if (remove && found.status === "ok") {
+        const record = success(await h.reference.store.read({ reference: found.result.reference }));
+        success(await h.reference.store.write({ action: "remove", reference: record.reference,
+          expected: record.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+      }
+      return found;
+    };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+    remove = false;
+    const replacement = await seed(h.reference, h.reference.reference("work-item/meta"));
+    expect(replacement.reference.owner).not.toEqual(h.record.reference.owner);
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+  });
+
+  it("finds none when the primary changes to an Errand after lookup and resolves its restored role", async () => {
+    const h = await fixture();
+    await h.marker();
+    const lookup = h.reference.store.lookup.bind(h.reference.store);
+    const store = Object.create(h.reference.store) as Store;
+    let changeRole = true;
+    store.lookup = async (input) => {
+      const found = await lookup(input);
+      if (changeRole && found.status === "ok") {
+        const record = success(await h.reference.store.read({ reference: found.result.reference }));
+        const reference = { ...record.reference, kind: "work-item/record" as const };
+        success(await h.reference.store.write({ action: "put", reference, content: h.reference.content(reference),
+          expected: record.version, placement: { kind: "active" }, provenance: { verb: "change-role", lifecycleAction: "change-role" } }));
+      }
+      return found;
+    };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+    const actual = success(await h.reference.store.read({ reference: h.record.reference }));
+    expect(actual.reference.kind).toBe("work-item/record");
+    expect(actual.reference.owner).toEqual(h.record.reference.owner);
+    changeRole = false;
+    success(await h.reference.store.write({ action: "put", reference: h.record.reference,
+      content: h.record.content, expected: actual.version, placement: { kind: "active" }, provenance: { verb: "restore-role", lifecycleAction: "restore-role" } }));
+    expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+  });
+});
+
+describe("current work-unit store refusals", () => {
+  async function refusing(port: "list" | "lookup" | "read") {
+    const h = await fixture();
+    await h.marker();
+    const store = Object.create(h.reference.store) as Store;
+    const refusal: StoreRefusal = port === "list"
+      ? { code: "lock-held", class: "recoverable", lock: "store", condition: "The store state is being rewritten.",
+        remedy: { text: "Wait for the rewrite to finish, then retry.", argv: ["arc", "store", "pull"] } }
+      : { code: "state-unresolvable", class: "recoverable", historyRefs: [], reference: h.record.reference,
+        condition: "The claimed work unit's record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+    const state = { refusing: true };
+    if (port === "list") {
+      const list = h.reference.store.list.bind(h.reference.store);
+      store.list = async input => state.refusing ? { status: "refused", refusal } : list(input);
+    } else if (port === "lookup") {
+      const lookup = h.reference.store.lookup.bind(h.reference.store);
+      store.lookup = async input => state.refusing ? { status: "refused", refusal } : lookup(input);
+    } else {
+      const read = h.reference.store.read.bind(h.reference.store);
+      store.read = async input => state.refusing && input.reference.kind === "work-item/meta"
+        ? { status: "refused", refusal } : read(input);
+    }
+    return { h, refusal, state, resolve: () => resolveCurrentWorkUnit({ cwd: h.cwd, store }) };
+  }
+
+  it.each(["list", "lookup", "read"] as const)(
+    "carries an off-branch store's refused %s as the cause beside its warning, and resolves once it reads",
+    async (port) => {
+      const { h, refusal, state, resolve } = await refusing(port);
+      const result = await resolve();
+      expect(result).toMatchObject({ status: "none", candidates: [], warnings: [expect.stringContaining(refusal.condition)] });
+      if (result.status !== "none" || result.cause === undefined) throw new Error(JSON.stringify(result));
+      expect(result.cause).toBeInstanceOf(StoreRefusalError);
+      expect(result.cause).toMatchObject({ offBranch: true, refusal });
+      state.refusing = false;
+      expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+    });
+
+  it("carries a missing project ID thrown by the claim lookup as the cause, and resolves once the clone holds it", async () => {
+    const h = await fixture();
+    await h.marker();
+    const failure = new ProjectIdentityError({ status: "unavailable", reason: "This clone has no project ID.",
+      remedy: { text: "Seed the project record, then retry.", argv: ["arc", "store", "pull"] } });
+    const lookup = h.reference.store.lookup.bind(h.reference.store), store = Object.create(h.reference.store) as Store;
+    let missing = true;
+    store.lookup = async input => { if (missing) throw failure; return lookup(input); };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toEqual({ status: "none", candidates: [], cause: failure,
+      warnings: [`Unable to resolve the checkout's work-unit claim: ${failure.message}`] });
+    missing = false;
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("keeps a not-found claim and an unrelated thrown failure as absence without a cause", async () => {
+    const h = await fixture();
+    await h.marker();
+    const store = Object.create(h.reference.store) as Store;
+    store.lookup = async () => { throw new Error("Claim index unavailable."); };
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toEqual({ status: "none", candidates: [],
+      warnings: ["Unable to resolve the checkout's work-unit claim: Claim index unavailable."] });
+    store.lookup = async () => ({ status: "refused", refusal: { code: "not-found", class: "recoverable",
+      reference: h.record.reference, condition: "No record holds this claim.", remedy: { text: "Bind the work unit, then retry." } } });
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toEqual({ status: "none", candidates: [], warnings: [] });
+  });
+});

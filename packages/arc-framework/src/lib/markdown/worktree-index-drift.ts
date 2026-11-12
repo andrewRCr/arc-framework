@@ -20,7 +20,7 @@ export async function enumerateWorktreeIndexDriftPaths(
 ): Promise<readonly ManagedPath[]> {
   const { stdout } = await exec(
     "git",
-    ["diff", "--name-only", "--no-renames", "--diff-filter=ACMRD", "-z"],
+    ["diff", "--name-only", "--no-renames", "--diff-filter=ACMRDT", "-z"],
     { cwd: root },
   );
   return stdout.split("\0").filter(Boolean).map(validateManagedPath);

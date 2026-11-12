@@ -22,10 +22,9 @@ Other instances:
 - Commit control is stated in [DEV-RULES.ARC][dev-rules-arc] as a non-negotiable principle, but it functions as a
   sensible default. The real invariant is that the agent doesn't cross the merge-to-main boundary without the human.
 - Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
-  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
-  `plan-agile-wu-lifecycle.md`) each tackle session-operational facets, but without a shared frame they
-  risk local fixes that don't compose — and worktree mobility amplifies the pressure past what per-commit approval
-  ceremony can absorb without smoothing.
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`, `plan-agile-wu-lifecycle.md`) each tackle
+  session-operational facets, but without a shared frame they risk local fixes that don't compose — and worktree
+  mobility amplifies the pressure past what per-commit approval ceremony can absorb without smoothing.
 
 **Core insight:** Review is always human. The design axis is how many follow-on operations a single human approval
 triggers, not whether approval happens. Integration — merge to the integration branch or main — is the invariant
@@ -180,8 +179,8 @@ is _engaged_ by default until the user explicitly releases it.
 ### Positive
 
 - Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
-  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
-  `plan-agile-wu-lifecycle.md`) gain a shared frame. Each becomes smaller and internally coherent.
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`, `plan-agile-wu-lifecycle.md`) gain a shared
+  frame. Each becomes smaller and internally coherent.
 - Worktree/notes sync consistency becomes expressible — both operations pair at the same interlock with fixed
   ordering.
 - Status-file churn is eliminated for task-completion commits; commit atomicity story clarifies.
@@ -260,6 +259,19 @@ handoff-as-orthogonal-ceremony posture are unchanged; this amendment refines the
 surface so the cascade graph reads off config alone.
 
 This is a configuration-shape amendment, not a reversal of the decision.
+
+**2026-10-13 — Disposition approval releases a review-fix round.** The complete-set approval of a review's finding
+dispositions became the structured gate for the fixes it approves. Under `arc.commitInterlock: on-task-approval` or
+`on-workflow` it releases their commit, and under `arc.pushInterlock: on-workflow` their push and the approved hosted
+settlement. A fix round had stopped up to three times — the disposition approval, a gate before the fix commit, then
+a push or next-pass prompt — with nothing new to decide after the first.
+
+This is an instance of this ADR's core axis, how many follow-on operations one approval triggers: the approval itself
+is unchanged, and a `manual` setting keeps its own stop. The round still returns to the approver when the performed
+fix exceeds the approved scope, a gate failure needs judgment, host state is ambiguous, or a new finding arrives,
+and the integration-interlock remains the merge floor.
+
+This is a release-scope amendment, not a reversal of the decision.
 
 ---
 

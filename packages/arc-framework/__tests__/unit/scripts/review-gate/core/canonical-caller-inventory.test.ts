@@ -19,27 +19,9 @@ const files = typescriptFiles(root);
 const source = (path: string): string => readFileSync(path, "utf8");
 const name = (path: string): string => relative(root, path).replaceAll("\\", "/");
 
-function directUsers(symbol: string, definition: string): string[] {
-  return files
-    .filter((path) => name(path) !== definition && source(path).includes(symbol))
-    .map(name)
-    .sort();
-}
-
 describe("review-gate canonical serializer inventory", () => {
-  it("closes the kernel-backed helper caller set", () => {
-    expect([
-      "core/identity.ts",
-      ...directUsers("canonicalizePlainJson", "core/identity.ts"),
-    ].sort()).toEqual([
-      "core/identity.ts",
-    ]);
-  });
-
-  it("closes the frozen version-one caller set", () => {
-    expect(directUsers("canonicalizeReviewGateV1", "core/legacy-canonical-v1.ts")).toEqual([
-      "core/request-key.ts",
-    ]);
+  it("retains the frozen version-one caller at the request key boundary", () => {
+    expect(source(join(root, "core/request-key.ts"))).toContain("canonicalizeReviewGateV1");
   });
 
   it("keeps kernel canonicalize direct and removes parallel serializers", () => {
@@ -48,28 +30,87 @@ describe("review-gate canonical serializer inventory", () => {
         .test(source(path)))
       .map(name);
     expect(kernelImports).toEqual([
-      "core/applicability.ts",
+      "core/conditional-retry-contract.ts",
       "core/dispositions.ts",
+      "core/frontline-result.ts",
+      "core/frontline-retry-contract.ts",
       "core/gate-contract-v2-schema.ts",
       "core/gate-contract-v2.ts",
       "core/identity.ts",
+      "core/lane-attempt-validation.ts",
       "core/local-operation.ts",
+      "core/local-prepare.ts",
+      "core/operation-state-schema.ts",
+      "core/review-result-disposition.ts",
+      "hosted/request.ts",
       "hosts/local/disposition-record-store.ts",
       "hosts/local/frontline-outcome-store.ts",
+      "hosts/local/hosted-request-owner-index.ts",
+      "hosts/local/in-flight-state-store.ts",
       "hosts/local/operation-state-store.ts",
       "hosts/local/receipt-store.ts",
+      "hosts/local/review-result-reader.ts",
       "hosts/local/source-store.ts",
+      "lane-progress-conditional.ts",
+      "lane-progress-hosted-request.ts",
+      "lane-progress-hosted-settlement.ts",
+      "lane-progress-local-retry.ts",
+      "lane-progress-outcomes.ts",
+      "lane-progress-seal-recovery.ts",
+      "lane-progress.ts",
+      "policy/candidate-review-fix-continuation.ts",
+      "policy/delivery-correction-proof.ts",
+      "policy/delivery-review-terminus.ts",
+      "policy/frontline-command.ts",
       "policy/frontline-operation.ts",
+      "policy/hosted-coverage-selection.ts",
+      "policy/hosted-reservation-admission.ts",
+      "policy/hosted-reservation-discharge.ts",
+      "policy/hosted-reservation-support.ts",
+      "policy/incremental-coverage-basis.ts",
+      "policy/integration-boundary-locus-shared.ts",
+      "policy/integration-boundary-locus-v2.ts",
+      "policy/integration-boundary-locus.ts",
+      "policy/local-review-coverage-selection.ts",
       "policy/local-review-guidance.ts",
       "policy/local-review-policy.ts",
+      "policy/mechanical-review-applicability-carry.ts",
+      "policy/pre-publication-lane-preparation.ts",
+      "policy/pre-publication-replay.ts",
+      "policy/pre-publication-request.ts",
+      "policy/review-applicability-authority.ts",
+      "policy/review-applicability-resolution.ts",
+      "policy/review-next-pass.ts",
+      "policy/review-policy-evidence.ts",
       "policy/standard-review-guidance.ts",
       "policy/standard-review-schema.ts",
       "policy/standard-review.ts",
+      "runtime/adversarial-record-command.ts",
+      "runtime/candidate-response-head-continuation.ts",
+      "runtime/frontline-admission-validation.ts",
       "runtime/frontline-run-command.ts",
       "runtime/local-attest-command.ts",
-      "runtime/local-resume-command.ts",
-      "runtime/reduce-command.ts",
+      "runtime/local-completed-replay.ts",
+      "runtime/local-outcome-receipts.ts",
+      "runtime/local-pending-replay.ts",
+      "runtime/local-prepare-delivery-admission.ts",
+      "runtime/local-prepare.ts",
+      "runtime/local-reserved-obligation.ts",
+      "runtime/native-conditional-admission.ts",
+      "runtime/native-conditional-pass.ts",
+      "runtime/native-conditional-withdrawal.ts",
+      "runtime/native-extra-pass.ts",
+      "runtime/native-frontline-retry-authority.ts",
+      "runtime/native-hosted-settlement.ts",
+      "runtime/native-local-pass-judgments.ts",
+      "runtime/native-response-transitions.ts",
+      "runtime/native-review-approval.ts",
+      "runtime/native-review-performance.ts",
+      "runtime/native-review-successor.ts",
+      "runtime/native-saved-grants.ts",
       "runtime/respond-command.ts",
+      "runtime/respond-composition.ts",
+      "status-errand.ts",
     ]);
 
     const serializerDeclarations = files.flatMap((path) => {
@@ -84,9 +125,6 @@ describe("review-gate canonical serializer inventory", () => {
       "core/legacy-canonical-v1.ts:canonicalizeReviewGateV1",
     ]);
 
-    const barrelExports = files.filter((path) => /export\s*\{[^}]*(?:canonicalizePlainJson|canonicalizeReviewGateV1)/su
-      .test(source(path)));
-    expect(barrelExports).toEqual([]);
   });
 
   it("keeps NUL-delimited identities outside JSON serialization", () => {

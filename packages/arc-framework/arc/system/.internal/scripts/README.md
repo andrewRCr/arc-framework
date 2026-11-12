@@ -14,13 +14,16 @@ scripts.
 
 ## Validation Scripts
 
+- **`confirm-live-change-pair.sh`** — Confirm a pull request's live head, base branch, and that branch's current
+  tip still equal the classified pair (live-pair check used by lane attestation).
+
 - **`validate-config.sh`** — Validate `arc-config.yml` settings. Checks enum values for all keys,
   cross-field dependencies (e.g., `custom` format requires a pattern), and unknown key detection
   (typo protection). Called by `verify-integrity.sh` and usable standalone.
 
 - **`verify-integrity.sh`** — Orchestrator that runs all mechanical health checks: config
-  validation, file structure, reference integrity, hook status, method/extension frontmatter,
-  and lifecycle meta-file shape. Invoked via the `arc-verify` skill.
+  validation, file structure, reference integrity, hook status, method frontmatter,
+  lifecycle meta-file shape, and Git maintenance lock presence. Invoked via the `arc-verify` skill.
 
 ## Running
 

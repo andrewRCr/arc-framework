@@ -1,7 +1,6 @@
 /** Public commit-message validation contracts. */
 
 export {
-  COMMIT_CHECK_CONFIG_FIELDS,
   COMMIT_CHECK_DEFAULTS,
   readCommitCheckConfiguration,
   resolveCommitCheckPolicy,
@@ -10,6 +9,7 @@ export { createFilesystemArtifactResolver } from "./artifact-resolver.js";
 export { createDefaultCommitCheckRepository } from "./repository.js";
 export { createCommitCheckContext } from "./context.js";
 export { validateCommitMessage } from "./validate.js";
+export { parseTaskReference } from "./task-reference.js";
 export { formatCommitCheckOutcome, formatDiagnosticPreview } from "./diagnostics.js";
 
 export type {
@@ -46,3 +46,4 @@ export type {
   CommitMessageCheckRepository,
   DefaultCommitCheckRepositoryDeps,
 } from "./repository.js";
+export type { ParsedTaskReference, ParsedTaskReferenceItem } from "./task-reference.js";

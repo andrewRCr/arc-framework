@@ -1,8 +1,8 @@
 # Metadata: Errand Enablement
 
-- **State:** Shipped
-- **Owner:** andrew
-- **Branch:** feat/errand-enablement
+| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
+| --------- | --------- | ------------------------ | --------- | ------------ |
+| `Shipped` | `andrew`  | `feat/errand-enablement` | —         | —            |
 
 - **Origin:** [internal]
 - **Design:** `spec-errand-enablement.md`

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   MARKDOWN_SELECTION,
   createMarkdownAuthority,
@@ -154,6 +156,28 @@ describe("Markdown authority", () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["/repo/docs/target.md", "file", null],
+    ["/repo/docs", "directory", "markdown.not-file"],
+    ["/outside/target.md", "file", "markdown.outside-repository"],
+  ])("validates a lint-read file symlink target %s", async (target, kind, code) => {
+    const options = {
+      root: "/repo", paths: ["docs/link.md"], operation: "lint-read" as const,
+      exec: vi.fn().mockResolvedValue({ stdout: "docs/link.md\n" }),
+      lstat: async (path: string) => ({
+        isFile: () => path === target && kind === "file",
+        isDirectory: () => path === target ? kind === "directory" : !path.endsWith("link.md"),
+        isSymbolicLink: () => path.endsWith("link.md"),
+      }),
+      realpath: async () => target,
+    };
+    if (code === null) {
+      await expect(validateExplicitMarkdownPaths(options)).resolves.toEqual(["docs/link.md"]);
+    } else {
+      await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code });
+    }
+  });
+
   it("fails closed when current-install relationship evidence is missing", async () => {
     const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
 
@@ -164,31 +188,77 @@ describe("Markdown authority", () => {
     })).rejects.toMatchObject({ code: "markdown.manifest-missing" });
   });
 
-  it("enumerates the same NUL-safe selected scope for worktree and staged lint", async () => {
-    const stdout = [
+  it("loads Markdown authority from the original decomposed native root", async () => {
+    const root = "/repo/cafe\u0301";
+    const output = ".arc/system/rules/DEV-RULES.ARC.md";
+    const contents = new Map([
+      [join(root, ".arc", "system", ".internal", "manifest.json"), JSON.stringify(manifest)],
+      [join(root, "packages", "arc-framework", "init-recipe.json"), JSON.stringify(recipe)],
+    ]);
+    const authority = await loadMarkdownAuthority({
+      root,
+      readFile: async (path) => {
+        const content = contents.get(path);
+        if (content === undefined) throw new Error(`missing ${path}`);
+        return content;
+      },
+      lstat: async (path) => ({
+        isFile: () => path === join(root, output),
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      }),
+    });
+
+    expect(authority.classify(output)).toMatchObject({
+      kind: "rendered-framework", counterpart: "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
+    });
+  });
+
+  it("enumerates a NUL-safe selected scope for worktree and index views", async () => {
+    const sharedPaths = [
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
       ".arc/system/rules/DEV-RULES.ARC.md",
       "docs/unusual\nname.md",
       "docs/temp-guide.md",
+    ];
+    const excludedNoise = [
       ".arc/active/temp-draft.md",
       ".arc/completed/2026-q3/old.md",
       "fixtures/node_modules/ignored.md",
       ".venv-tools/ignored.md",
       "README.txt",
       "",
-    ].join("\0");
-    const exec = vi.fn().mockResolvedValue({ stdout });
-
-    const expected = [
-      "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
-      ".arc/system/rules/DEV-RULES.ARC.md",
-      "docs/unusual\nname.md",
-      "docs/temp-guide.md",
     ];
+    const worktreeStdout = [
+      ...sharedPaths,
+      "docs/new-untracked.md",
+      ...excludedNoise,
+    ].join("\0");
+    const indexStdout = [
+      ...sharedPaths,
+      ...excludedNoise,
+    ].join("\0");
+    const exec = vi.fn(scriptGitExec([
+      { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        responses: [{ stdout: worktreeStdout }] },
+      { match: ["ls-files", "--cached", "-z"], responses: [{ stdout: indexStdout }] },
+    ]).exec);
+
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
-      .resolves.toEqual(expected);
+      .resolves.toEqual([...sharedPaths, "docs/new-untracked.md"]);
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: "/repo" },
+    );
+
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "index" }))
-      .resolves.toEqual(expected);
+      .resolves.toEqual(sharedPaths);
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["ls-files", "--cached", "-z"],
+      { cwd: "/repo" },
+    );
   });
 
   it("keeps Configurable and Scaffolded copies independently editable", () => {
@@ -256,11 +326,61 @@ describe("Markdown authority", () => {
     })).toThrow(/contradicts recipe mapping/u);
   });
 
-  it("rejects invalid, untracked, and non-file explicit selections", async () => {
+  it.each([true, false])("admits ignored paths only when individually named (explicit=%s)", async explicit => {
+    const options = {
+      root: "/repo",
+      paths: ["private/table.md"],
+      operation: "mutate" as const,
+      allowIgnoredPaths: new Set([explicit ? "private/table.md" : "private/other.md"]),
+      exec: scriptGitExec([
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
+          responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
+        { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+          responses: [{ stdout: "README.md\0" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"),
+        isDirectory: () => !path.endsWith(".md"),
+        isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    };
+    if (explicit) {
+      await expect(validateExplicitMarkdownPaths(options)).resolves.toEqual(["private/table.md"]);
+    } else {
+      await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code: "markdown.ignored" });
+    }
+  });
+
+  it.each(["unavailable", "invalid-output"])("refuses unavailable invocation-checkout administration (%s)", async failure => {
+    await expect(validateExplicitMarkdownPaths({
+      root: "/repo", paths: ["private/table.md"], operation: "mutate",
+      allowIgnoredPaths: new Set(["private/table.md"]),
+      exec: scriptGitExec([
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [failure === "unavailable"
+          ? { failure: { exitCode: 128, stderr: "cannot read repository configuration" } }
+          : { stdout: "" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"), isDirectory: () => !path.endsWith(".md"), isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    })).rejects.toMatchObject({ code: "markdown.selection-failed" });
+  });
+
+  it("rejects invalid and ignored explicit selections", async () => {
     const boundaries = {
       root: "/repo",
       operation: "worktree-read" as const,
-      exec: vi.fn().mockRejectedValue(new Error("untracked")),
+      exec: scriptGitExec([
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)README.md"],
+          responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
+        { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+          responses: [{ stdout: "" }] },
+      ]).exec,
       lstat: vi.fn(),
       realpath: vi.fn(),
     };
@@ -272,7 +392,7 @@ describe("Markdown authority", () => {
     await expect(validateExplicitMarkdownPaths({ ...boundaries, paths: ["README.txt"] }))
       .rejects.toMatchObject({ code: "markdown.non-markdown" });
     await expect(validateExplicitMarkdownPaths({ ...boundaries, paths: ["README.md"] }))
-      .rejects.toMatchObject({ code: "markdown.untracked" });
+      .rejects.toMatchObject({ code: "markdown.ignored", message: expect.stringContaining("README.md") });
   });
 
   it("allows contained worktree reads but refuses physical escapes and directories", async () => {
@@ -315,9 +435,10 @@ describe("Markdown authority", () => {
   });
 
   it("classifies the same repository-relative path in primary and linked roots", async () => {
-    const exec = vi.fn()
-      .mockResolvedValueOnce({ stdout: "/primary\n" })
-      .mockResolvedValueOnce({ stdout: "/linked\n" });
+    const exec = vi.fn(scriptGitExec([{
+      match: ["rev-parse", "--show-toplevel"],
+      responses: [{ stdout: "/primary\n" }, { stdout: "/linked\n" }],
+    }]).exec);
     const realpath = vi.fn().mockImplementation(async (path: string) => path);
     const [primary, linked] = await Promise.all([
       resolveMarkdownRepositoryRoot({ cwd: "/primary", exec, realpath }),

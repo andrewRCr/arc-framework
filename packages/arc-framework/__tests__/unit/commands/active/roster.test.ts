@@ -11,29 +11,33 @@ import { describe, it, expect } from "vitest";
 import { runActiveRoster } from "../../../../src/commands/active/roster.js";
 import type { WorktreeRosterFs } from "../../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../../src/lib/git/index.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 
 /** A three-worktree layout: main (no meta) + two WU worktrees. */
 const THREE_WORKTREES = [
   "worktree /repo",
+  `HEAD ${"a".repeat(40)}`,
   "branch refs/heads/main",
   "",
   "worktree /repo.wu-a",
+  `HEAD ${"b".repeat(40)}`,
   "branch refs/heads/feat/wu-a",
   "",
   "worktree /repo.wu-b",
+  `HEAD ${"c".repeat(40)}`,
   "branch refs/heads/feat/wu-b",
   "",
 ].join("\n");
 
 const META_TREE: Record<string, string> = {
   "/repo.wu-a/.arc/active/meta-wu-a.md":
-    "# A\n\n- **State:** Active\n- **Owner:** andrew\n- **Branch:** feat/wu-a\n",
+    "# Metadata: wu-a\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n| --------- | --------- | ---------- | --------- | ------------ |\n| Active | andrew | feat/wu-a | — | — |\n\n---\n",
   "/repo.wu-b/.arc/active/meta-wu-b.md":
-    "# B\n\n- **State:** Active\n- **Owner:** dana\n- **Branch:** feat/wu-b\n",
+    "# Metadata: wu-b\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n| --------- | --------- | ---------- | --------- | ------------ |\n| Active | dana | feat/wu-b | — | — |\n\n---\n",
 };
 
 function execReturning(stdout: string): GitExec {
-  return (async () => ({ stdout })) as GitExec;
+  return (async () => ({ stdout: worktreePorcelainZ(stdout) })) as GitExec;
 }
 
 /** In-memory fs adapter from a path → content tree (mirrors worktree-roster.test.ts). */
@@ -96,7 +100,7 @@ describe("runActiveRoster", () => {
 
   it("returns empty when nothing is in flight (no metas anywhere)", async () => {
     const result = await runActiveRoster({
-      exec: execReturning("worktree /repo\nbranch refs/heads/main\n"),
+      exec: execReturning(`worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n`),
       fs: buildFs({}),
       identity: "andrew",
       teamMode: false,

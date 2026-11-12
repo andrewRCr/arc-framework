@@ -87,6 +87,24 @@
   join flows want a shared CLI install / uninstall / status surface. Split or cross-link the git-hook portion to
   `quality-gate-hooks` if the concern belongs to hook-tier setup rather than agent-platform installation.
 
+### `[ ]` **Make cross-checkout compaction recovery a supported Claude Code path**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
+  `delivery-native-stack-composition` dogfooding.
+- _Concern:_ Claude Code recovery can cross from a stale or torn-down checkout into a surviving work locus, but
+  its hook and instruction discovery assumptions have not been evaluated as a supported harness path.
+- _Fold-in:_ ground Claude Code's actual hook, working-directory, and instruction-loading behavior; define the
+  supported recovery handoff without duplicating recovery authority outside ARC's typed audit.
+
+### `[ ]` **Declare and verify agent filesystem prerequisites during setup**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
+  `delivery-native-stack-composition` dogfooding.
+- _Concern:_ ARC's harness setup assumes filesystem capabilities and writable locations that differ across agent
+  platforms, but setup does not expose or verify those prerequisites before later operations depend on them.
+- _Fold-in:_ define the minimum capability contract per supported harness and add bounded setup-time probes or
+  actionable diagnostics where capability cannot be established statically.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

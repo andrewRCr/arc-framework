@@ -69,8 +69,7 @@ plus web-based Copilot Workspace.
 **Session & Context:**
 
 - Chat interface: 64K tokens standard, 128K in VS Code Insiders
-- File context limits: evidence of 10-file effective limit in some modes,
-  ~6,000 lines/file
+- File context limits: evidence of 10-file effective limit in some modes, ~6,000 lines/file
 - Agent Mode: reportedly "no file limitation" per community reports, but practical
   limits exist
 - Dynamic context assembly; Copilot manages context on top of model's native window
@@ -661,9 +660,8 @@ heterogeneous agents across different platforms.
    use PR abstraction or require explicit commit instructions. ARC's commit control
    philosophy must account for both.
 
-5. **Do NOT assume uniform context windows.** Range is 64K (Copilot) to 1M
-   (Antigravity nominal). ARC's task sizing should target the practical floor
-   (~100K effective) to remain broadly compatible.
+5. **Do NOT assume uniform context windows.** Range is 64K (Copilot) to 1M (Antigravity nominal). ARC's task sizing
+   should target the practical floor (~100K effective) to remain broadly compatible.
 
 ---
 

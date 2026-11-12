@@ -215,7 +215,7 @@ across 4 documents — far fewer than a naive estimate would suggest. Three fact
 **Identified touchpoints:**
 
 | Document                             | Change                                                               | Type                         |
-|--------------------------------------|----------------------------------------------------------------------|------------------------------|
+| ------------------------------------ | -------------------------------------------------------------------- | ---------------------------- |
 | Session-init workflow                | Branch at Step 2: skip items 8-11, load contributor briefing         | Branch point (designed)      |
 | Session-handoff workflow             | Skip project WORK-STATUS.md update and conditional commit sections   | Note in WORK-STATUS sections |
 | commit-context-format method         | Add `Context: contribution (...)` format alongside existing patterns | Additive (new format)        |

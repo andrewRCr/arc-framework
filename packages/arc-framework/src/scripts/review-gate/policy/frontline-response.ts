@@ -5,7 +5,7 @@ import type {
   ReviewResponseInput,
   ReviewResponsePlan,
 } from "../core/response-plan-schema.js";
-import { FrontlineExecutionOutcomeSchema } from "./frontline-outcome.js";
+import { FrontlineReviewOutcomeSchema } from "./frontline-outcome.js";
 
 type FrontlineResponseFields = Omit<
   ReviewResponseInput,
@@ -21,7 +21,7 @@ type FrontlineResponseFields = Omit<
 export function projectFrontlineResponse(
   input: FrontlineResponseFields & { outcome: unknown },
 ): ReviewResponsePlan {
-  const outcome = FrontlineExecutionOutcomeSchema.parse(input.outcome);
+  const outcome = FrontlineReviewOutcomeSchema.parse(input.outcome);
   if (outcome.outcome !== "findings") {
     throw new Error("frontline response requires a findings outcome");
   }

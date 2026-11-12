@@ -1,11 +1,13 @@
 /**
  * Unit tests for cross-machine WU materialize.
  *
- * Materialize starts from a local `nonexistent` source: the authoritative meta
- * already rides the fetched remote branch, so the verb supplies only the
- * worktree placement operands to the lifecycle executor.
+ * The authoritative active work-unit artifacts already ride the fetched remote
+ * branch. Materialize therefore applies only machine-local checkout placement;
+ * the local backlog projection neither authorizes nor blocks that operation.
  */
 
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -45,7 +47,10 @@ function candidate(over: Partial<MetaFileCandidate>): MetaFileCandidate {
   };
 }
 
-function buildCtx(opts: { activeCandidates?: MetaFileCandidate[] } = {}): {
+function buildCtx(opts: {
+  activeCandidates?: MetaFileCandidate[];
+  indexFs?: LifecycleIndexFs;
+} = {}): {
   ctx: ExecuteTransitionContext;
   calls: string[];
   worktreeOps: unknown[];
@@ -62,16 +67,21 @@ function buildCtx(opts: { activeCandidates?: MetaFileCandidate[] } = {}): {
   }
 
   const ctx: ExecuteTransitionContext = {
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree ${WORKTREE}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/feat/foo\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     cwd: CWD,
-    indexFs: emptyIndexFs(),
+    indexFs: opts.indexFs ?? emptyIndexFs(),
     setPhase: async () => ({ phase: "Active" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async () => {},
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       if (op.mutation === "spawn") {
-        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch ?? null };
       }
       if (op.mutation === "teardown") {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
@@ -101,6 +111,40 @@ function buildCtx(opts: { activeCandidates?: MetaFileCandidate[] } = {}): {
 }
 
 describe("runMaterialize", () => {
+  it("materializes a remote work unit when the local base carries its planned backlog record", async () => {
+    let lifecycleReads = 0;
+    const plannedIndexFs: LifecycleIndexFs = {
+      readdir: async (path) => {
+        lifecycleReads += 1;
+        if (path.endsWith("/.arc/backlog/planned")) {
+          return [{ name: "meta-foo.md", isDirectory: () => false, isFile: () => true }];
+        }
+        throw new Error(`ENOENT: ${path}`);
+      },
+      readFile: async (path) => {
+        lifecycleReads += 1;
+        if (path.endsWith("/.arc/backlog/planned/meta-foo.md")) {
+          return "# Metadata: foo\n\n- **State:** Planning\n";
+        }
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+    const { ctx } = buildCtx({ indexFs: plannedIndexFs });
+
+    const result = await runMaterialize(ctx, {
+      name: "foo",
+      branch: "feat/foo",
+      locationTemplate: "../{repo}-{branch}",
+      repo: "arc-framework",
+      spawningIdentity: "andrew",
+    });
+
+    expect(result.status).toBe("materialized");
+    if (result.status !== "materialized") return;
+    expect(result.worktreePath).toBe(WORKTREE);
+    expect(lifecycleReads).toBe(0);
+  });
+
   it("checks out the fetched remote branch in place when requested", async () => {
     const { ctx, calls, worktreeOps } = buildCtx();
 
@@ -119,6 +163,7 @@ describe("runMaterialize", () => {
       mutation: "spawn",
       inPlace: true,
       branch: "feat/foo",
+      wuName: "foo",
       createBranch: false,
     });
   });
@@ -139,6 +184,25 @@ describe("runMaterialize", () => {
     expect(worktreeOps).toEqual([]);
   });
 
+  it("returns a rejection when the occupancy guard throws", async () => {
+    const { ctx, worktreeOps } = buildCtx();
+    const result = await runMaterialize({
+      ...ctx,
+      guardValidators: {
+        "worktree-occupancy": async () => {
+          throw new Error("occupancy probe failed");
+        },
+      },
+    }, {
+      name: "foo",
+      branch: "feat/foo",
+      inPlace: true,
+    });
+
+    expect(result).toEqual({ status: "rejected", reason: "occupancy probe failed" });
+    expect(worktreeOps).toEqual([]);
+  });
+
   it("spawns from the remote branch without enforcing current-checkout occupancy", async () => {
     const { ctx, calls, worktreeOps } = buildCtx({ activeCandidates: [candidate({})] });
 
@@ -154,6 +218,7 @@ describe("runMaterialize", () => {
     if (result.status !== "materialized") return;
     expect(result.inPlace).toBe(false);
     expect(calls).toContain("worktree:spawn");
+    expect(calls.some((call) => call.startsWith("side:"))).toBe(false);
     expect(worktreeOps[0]).toMatchObject({
       mutation: "spawn",
       branch: "feat/foo",

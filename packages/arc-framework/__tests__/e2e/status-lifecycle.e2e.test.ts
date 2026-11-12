@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,6 +43,8 @@ describe("status <slug>", () => {
         "",
         "- **Depends On:** `shipped-dep`",
         "",
+        "---",
+        "",
       ].join("\n"),
     );
     await writeFile(
@@ -48,8 +52,13 @@ describe("status <slug>", () => {
       [
         "# Metadata: shipped-dep",
         "",
-        "- **State:** Shipped",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Shipped | — | — | — | — |",
+        "",
         "- **Depends On:** [none]",
+        "",
+        "---",
         "",
       ].join("\n"),
     );
@@ -61,7 +70,7 @@ describe("status <slug>", () => {
 
     const result = await runArc(["status", "live", "--json"], tmpDir);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       slug: "live",
       position: { phase: "Integrating", location: "active" },
@@ -69,7 +78,44 @@ describe("status <slug>", () => {
       occupied: true,
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
+      integrationBoundary: null,
+      derivedPosition: null,
+      scopeWindow: { window: "closed", basis: "lifecycle", reason: "integrating" },
+      purpose: null,
+      owner: "test-user",
     });
+  });
+
+  it.each([
+    { design: ["draft-topic.md"], purpose: "Make routing readable.", owner: "test-owner" },
+    { design: ["spec-topic.md"], purpose: "Make routing readable.", owner: null },
+    { design: [], purpose: null, owner: "test-owner" },
+  ])("reports the local design and owner ($design, $owner)", async ({ design, purpose, owner }) => {
+    tmpDir = await createTempRepo("arc-status-purpose-");
+    const folder = join(tmpDir, ".arc", "backlog", "planned", "topic");
+    await mkdir(folder, { recursive: true });
+    const meta = owner === null
+      ? renderMetaProjectionFile("topic", { State: "Planning", Design: design.join(", ") })
+      : makeMetaFixture("topic", { state: "Planning", design, owner });
+    await writeFile(join(folder, "meta-topic.md"), meta);
+    if (design[0] !== undefined) {
+      await writeFile(join(folder, design[0]), "- **Purpose:** Make routing readable. Explain the rest.\n");
+    }
+    const json = await runArc(["status", "topic", "--json"], tmpDir);
+    expect(json.exitCode, json.stderr).toBe(0);
+    expect(JSON.parse(json.stdout)).toMatchObject({ purpose, owner, state: "planned", occupied: false });
+    const human = await runArc(["status", "topic"], tmpDir);
+    expect(human.exitCode, human.stderr).toBe(0);
+    if (purpose === null) expect(human.stdout).not.toContain("purpose:");
+    else expect(human.stdout).toContain(`purpose: ${purpose}`);
+  });
+
+  it("reports null purpose and owner for an unknown slug", async () => {
+    tmpDir = await createTempRepo("arc-status-purpose-unknown-");
+    await seedRepo();
+    const result = await runArc(["status", "unknown", "--json"], tmpDir);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ purpose: null, owner: null, state: "nonexistent" });
   });
 
   it("leaves bare `arc status` as the session/active view, not a slug query", async () => {
@@ -101,7 +147,17 @@ describe("status <slug>", () => {
     await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
     await writeFile(
       join(tmpDir, ".arc", "backlog", "planned", `meta-${slug}.md`),
-      [`# Metadata: ${slug}`, "", "- **State:** Planning", "- **Branch:** [none]", ""].join("\n"),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Planning | — | [none] | — | — |",
+        "",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "scaffold status query"], { cwd: tmpDir });
@@ -111,8 +167,9 @@ describe("status <slug>", () => {
     await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
     await writeFile(
       join(tmpDir, ".arc", "active", `meta-${slug}.md`),
-      [`# Metadata: ${slug}`, "", "- **State:** Active", `- **Branch:** ${branch}`, ""].join("\n"),
+      makeMetaFixture(slug, { state: "Active", branch, design: [`spec-${slug}.md`] }),
     );
+    await writeFile(join(tmpDir, ".arc", "active", `spec-${slug}.md`), "**Purpose:** Selected branch thesis. More.\n");
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "activate status query"], { cwd: tmpDir });
     const { stdout: branchTip } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tmpDir });
@@ -125,9 +182,80 @@ describe("status <slug>", () => {
     const local = await runArc(["status", slug, "--json"], tmpDir);
     const live = await runArc(["status", slug, "--fetch", "--json"], tmpDir);
 
-    expect(local.exitCode).toBe(0);
-    expect(live.exitCode).toBe(0);
-    expect(JSON.parse(local.stdout)).toMatchObject({ state: "active", occupied: true });
-    expect(JSON.parse(live.stdout)).toMatchObject({ state: "planned", occupied: false });
+    expect(local.exitCode, JSON.stringify(local)).toBe(0);
+    expect(live.exitCode, JSON.stringify(live)).toBe(0);
+    expect(JSON.parse(local.stdout)).toMatchObject({ state: "active", occupied: true, purpose: "Selected branch thesis.", owner: "test-owner" });
+    expect(JSON.parse(live.stdout)).toMatchObject({ state: "planned", occupied: false, purpose: null, owner: null });
+  });
+
+  it("distinguishes unavailable boundary evidence for a remote-only Candidate", async () => {
+    tmpDir = await createTempRepo("arc-status-remote-candidate-");
+    const origin = join(tmpDir, "origin.git");
+    const slug = "remote-candidate";
+    const branch = `feat/${slug}`;
+
+    await writeFile(join(tmpDir, ".git", "info", "exclude"), "origin.git/\n");
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "system"), { recursive: true });
+    await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+    await writeFile(join(tmpDir, "README.md"), "# Fixture\n");
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "base"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: tmpDir });
+
+    await execFileAsync("git", ["switch", "-c", branch], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(tmpDir, ".arc", "active", `meta-${slug}.md`),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| Active | — | ${branch} | — | — |`,
+        "",
+        "- **Cohort:** [none]",
+        "- **Depends On:** [none]",
+        "",
+        "- **Origin:** —",
+        "- **Design:** [none]",
+        `- **Task List:** \`tasks-${slug}.md\``,
+        "- **Review Rubric:** [none]",
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** prepare-work-unit",
+        "- **Last Completed:** [none]",
+        "- **Next Task:** [none]",
+        "- **Blockers:** [none]",
+        "- **Next Action:** prepare publication",
+        "",
+        "- **PR URL:** [none]",
+        "- **Completed:** [none]",
+        "",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(tmpDir, ".arc", "active", `tasks-${slug}.md`),
+      "# Task List: Remote Candidate\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Complete verification**\n",
+    );
+    await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "activate candidate"], { cwd: tmpDir });
+    const attested = await runArc(["attest", slug, "--json"], tmpDir);
+    expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
+    await execFileAsync("git", ["commit", "-m", "attest candidate"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: tmpDir });
+    await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+    await execFileAsync("git", ["branch", "-D", branch], { cwd: tmpDir });
+
+    const result = await runArc(["status", slug, "--fetch", "--json"], tmpDir);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: "active",
+      integrationBoundary: null,
+      warnings: [expect.stringContaining(`arc materialize ${slug}`)],
+    });
   });
 });

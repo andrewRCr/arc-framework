@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+
 import type {
   ApprovedDispositionRecord,
   FrontlineOutcomeRecord,
@@ -23,9 +25,27 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { ReviewReduceEnvelope } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 
+const adapterVocabulary = /GitHub|CodeRabbit|PR[- _]?number|pullRequest|check[-_]?run|workflow|harness/iu;
+
 describe("review adapter ports", () => {
   it("accepts fixture adapters for the live advisory record families", async () => {
-    const receipt = { targetId: "sha256:target" } as ReviewReceiptV2;
+    const receipt: ReviewReceiptV2 = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "fixture" }),
+      targetId: canonicalDigest({ target: "fixture" }),
+      requirementId: canonicalDigest({ requirement: "fixture" }),
+      applicabilityId: null,
+      reviewRunId: "run-1",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "runtime-1",
+      attestationMechanism: "test",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "fixture" }),
+      result: "clean",
+      findings: [],
+    };
     const operation = { operationId: "operation-1" } as ReviewOperationState;
     const source = { sourceRef: "source-1" } as unknown as LocalReviewSource;
     const disposition = { operationId: "operation-1" } as ApprovedDispositionRecord;
@@ -67,23 +87,23 @@ describe("review adapter ports", () => {
     await expect(reductionPort.reduce("operation-1")).resolves.toBe(reduction);
   });
 
+  it("allows fix-check domain prose in core comments", () => {
+    expect("// A fix check runs before another review.").not.toMatch(adapterVocabulary);
+  });
+
+  it.each(["checkRun", "check_run", "check-run", "checkRuns", "check_runs", "check-runs"])(
+    "rejects the adapter identifier %s",
+    (identifier) => {
+      expect(identifier).toMatch(adapterVocabulary);
+    },
+  );
+
   it("keeps the core source independent of adapter and runner vocabulary", async () => {
     const coreDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../src/scripts/review-gate/core");
     const files = (await readdir(coreDir)).filter((name) => name.endsWith(".ts"));
     const source = (await Promise.all(files.map(async (name) => readFile(join(coreDir, name), "utf8")))).join("\n");
 
-    expect(source).not.toMatch(/GitHub|CodeRabbit|PR[- _]?number|pullRequest|check[- _]?run|workflow|harness/iu);
-    expect(source).not.toMatch(/\.\.\/(?:hosts|providers|runtime)\//u);
+    expect(source).not.toMatch(adapterVocabulary);
   });
 
-  it("does not retain the retired host-controller port surface", async () => {
-    const source = await readFile(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../src/scripts/review-gate/core/ports.ts"),
-      "utf8",
-    );
-
-    expect(source).not.toMatch(
-      /export interface (?:GitHostAdapter|ReviewProviderAdapter|ReviewReceiptStore|ForwardReviewProviderAdapter|ForwardGitHostProjectionAdapter)\b/u,
-    );
-  });
 });

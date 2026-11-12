@@ -3,22 +3,22 @@ purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch 
 audience: agent
 arc:
   methods:
+    - code-review
+    - assess-evidence-applicability
+    - route-discovered-work
+    - classify-work-unit
     - assess-parallel-fit
+    - classify-review-risk
+    - commit-format
+    - pull-request-format
     - commit-footer
-    - frontline-review
-    - standard-review
-    - implementation-audit
-    - review-triage
-    - review-response
-  extensions:
-    - post-task-quality
-    - pre-pr-open
-    - post-pr-open
-    - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Run Errand
+
+**Session-init entry:** Launch receives `mode: "launch"`, an optional `seed` or `fromInbox`, and `isolate`. Use the
+seed as the concern and pass a supplied `fromInbox` selector unchanged to adoption. Resume receives `mode: "resume"`,
+`subjectKind`, `subjectKey`, and `generation` for the exact checkout session-init selected.
 
 Execution body for an **errand** — a single **atomic** concern (one indivisible unit of work, bounded to one
 session) — entered warm from an active session via the `arc-errand` skill, cold via `arc-session` (`--errand`, or
@@ -28,15 +28,44 @@ errand-vs-work-unit boundary, see [§ Errand Work Class][errand-class].
 **Typically one review increment, often one commit** — but neither bounds the character: a determinate sweep may
 land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an _extended
 errand_), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
-**re-enterable**: pausing is `commit WIP + push`; a paused errand resumes from its pushed branch and originating
-capture, with no SESSION-NOTES.
+re-enterable through the Errand's exact identity and checkout. A full-mode interruption or review tail retains that
+exact identity and checkout without a meta, task list, or SESSION-NOTES; partial mode must complete, promote, or
+explicitly abandon in the current session.
+
+Every state-touching Errand command uses `--json`. For `open` / `materialize`, consume `operation`, `subject`, the
+non-null `allocation` and its exact `checkoutPath`, optional `parentCheckoutPath`, identity/origin settlement
+evidence, `nextOffer`, and `recommendedPromptText`. For `link`, require `allocation: null`, no parent checkout, and
+consume the exact updated subject and identity/origin evidence. For terminal `close` / `abandon` / `leave` results:
+
+- On `applied` / `idempotent`, consume `operation`, `subject`, `generation`, `checkoutPath`,
+  `parentCheckoutPath`, `settlement`, `nextOffer`, and `recommendedPromptText`. Only an `idempotent` result proving
+  terminal absence may carry null `subject` and `generation`; evidence-bearing results carry both exactly.
+- On `confirmation-required`, bind the named `operation`, exact `subject`, `generation`, `checkoutPath`, and
+  `destructiveEffect`; surface the effect and the retry command from `recommendedPromptText`, then stop. On explicit
+  approval, invoke only that verb-owned retry. The verb re-derives fresh evidence and the supplied generation
+  authorizes only that named act in that request.
+- On `refused` / `error`, render `recommendedPromptText` and stop.
+
+Promotion is a two-call transition owned by [`init-work-unit`][promote-errand-to-wu]. Consume the typed result rather
+than inspecting the renamed branch, meta, identity, or marker: `settlement.state: commit-required` retains the exact
+identity while the returned `metaPath` is committed; rerun the same command and continue only from the same exact
+`subject` and `generation` with `settlement.state: settled`. Render `recommendedPromptText` and stop on
+`confirmation-required`, `refused`, or `error`.
+
+Never reconstruct allocation, terminal authority, preservation, cleanup, or continuation from Git branch shape.
+
+When an `open` / `materialize` result asks for directed-command confirmation, confirm that the current session can
+run subsequent commands at `allocation.checkoutPath`. If it cannot or the capability is uncertain, recommend a cold
+session at that checkout and stop before execution.
 
 ## Launch
 
-Confirm the work is an errand, check for in-flight overlap, and relocate off the launch branch — so the errand
-never executes from an unrelated work unit's branch.
+Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated checkout.
 
-1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
+1. **Classify — errand vs. work unit.** Apply [classify-work-unit][classify-work-unit] boundary test 1. For a
+   route-only Errand, classify the routing change — writing an entry or minting a stub — rather than the carried
+   concern. Show all four record answers for the Owner's call only when one is Yes; do not show the carried concern's
+   answers at this Launch. Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
    enough to need a durable cross-session plan — route those through [`init-work-unit`][init-work-unit]. A
    determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that _crosses a
@@ -50,32 +79,53 @@ never executes from an unrelated work unit's branch.
    arc errand check --target <path>... --json
    ```
 
-   It emits `{overlaps, reachable}` — which in-flight work units touch the same paths, across worktrees and
-   machines, fresher here than at capture. Apply the method's overlap read (the rubric and the all-owner gate:
+   It emits `{overlaps, reachable}` — which in-flight work units and Errands touch the same paths, across worktrees
+   and machines, fresher here than at capture. Apply the method's overlap read (the rubric and the all-owner gate:
    foreign-owned → coordinate); an errand has no design stage, so the design-load read does not apply. **Advisory,
    never a gate:** surface any overlap, coordinate or sequence after the other unit integrates, then proceed. If
    the remote is unreachable the check degrades to local refs and says so.
 
-3. **Open the errand locus** — relocate per protection mode ([§ Branch Protection Modes][branch-modes]):
+3. **Open or resume the Errand checkout.**
 
-   - **Full protection** — `arc errand open <slug>` cuts the errand branch and occupies it in place (`--type
-     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). When the errand adopts an
-     originating `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` — or
-     `--inbox-entry-file <path>` (`-` reads stdin) when the exact title contains Markdown or shell
-     metacharacters. The record is minted `inbox`-origin and `arc errand close` drops that capture instead of
-     orphaning it. `<slug>` is branch-safe (lowercase/digits/hyphens) and is the merge key; idempotent — re-running
-     reuses an existing branch.
-   - **Partial protection** — no branch (`open` refuses here): read `arc housekeep check --json` → `baseBranch` /
-     `primaryWorktreePath`, switch to that base checkout, and commit directly to base (a documented off-work-unit
-     maintenance exception).
+   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating capture, add
+     `--from-inbox <capture-selector>`, passing a supplied `fromInbox` unchanged; manual title-file adoption uses
+     `--inbox-title-file <path>` (`-` reads stdin). Render the result's `recommendedPromptText`, then work from its
+     exact `allocation.checkoutPath`. Full protection allocates the free primary or a provisioned transient and mints
+     the exact v3 identity; partial protection occupies only a safe free primary and creates no branch or portable
+     identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
+     free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
+     own provisioned transient and the primary stays free for another session; partial protection refuses it.
+   - **Resume mode:** consume only the exact current checkout, `subjectKind`, `subjectKey`, and `generation` selected
+     by session-init.
+     Its derived transient role is the re-entry authority; do not open or materialize another checkout here.
+
+   In Launch mode, execute subsequent commands from `allocation.checkoutPath`; in Resume mode, remain in the selected
+   checkout. Retain `parentCheckoutPath` when present as the warm-return parent; terminal results own restoration.
+
+4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
+   after open, run `arc errand link <slug> --from-inbox <capture-selector> --json` (or `--inbox-title-file`). It may add
+   only one exact origin back-pointer to an otherwise linkable v3 claim. Conflicts, legacy records, missing
+   captures, and partial mode refuse; never edit the identity or inbox by hand.
 
 ## Execute
 
 Honor the [Review-Increment Invariant][dev-rules-arc]: each review increment's change **accumulates uncommitted**,
 is **reviewed once at its gate**, and is committed only **after** approval — never commit-then-review.
 
-**Most errands are one pass.** Make the change, run the project's Tier 1 quality gates on what you touched, gate,
-and commit.
+**Route-only pre-write re-check.** Before the routing write, invoke the fast-path gate in the Errand's own checkout.
+Re-check coupling and scope, and for `new-stub` the shortlist, against the base's current copies. A changed result
+returns to the Owner before any write; an unchanged confirmed result follows the method's binding.
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern and route the Owner confirmed before this Errand opened
+  door: fast path
+```
+
+**Most errands are one pass.** Make the change, request `arc check increment`, review, and commit.
 
 **Extended errand (the exception).** A _determinate_ concern too large to review in one window may be staged into
 a **bounded few in-session passes** — but only when it crosses **neither floor** (no design to author, no durable
@@ -83,22 +133,49 @@ cross-session plan). Propose the split and get approval first ("this is ~N passe
 pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
 work-unit signal; needing a _durable plan_ is.
 
-**Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
-cross-session plan — stop and promote via the [Promote Errand path][promote-errand-to-wu] (`arc errand promote
-<slug> --floor derivation|scale`: rename → meta at the floor's stage → record retired, commits preserved), then
-continue under the work-unit lifecycle.
+**Spec-worthy → promote.** The moment any answer in [classify-work-unit][classify-work-unit] boundary test 1 flips
+Yes, stop and continue through the [Promote Errand path][promote-errand-to-wu]. Design worth recording or a durable
+cross-session plan crosses the floor; that path owns the floor judgment, generation-checked conversion, meta commit,
+and capture settlement. Do not promote inline.
+
+**A discovered concern** runs the Errand route-to-home door before placement:
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern discovered during the Errand, with any WU_Target and _Shapes_
+  door: errand route-to-home
+```
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before routing the discovered concern. Show the outcome, `_Shapes:_`, any unclear pair
+> with its four record answers, the coupled target's horizon advisory verbatim, any message to a live target, and any
+> named wait; await approval before carrying out that route through the method's binding.
+
+Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures, though a live
+target's confirmed message replaces its capture; `errand` waits as a `§ Errand` capture unless the Owner runs it as its
+own Errand; `capture` has its home undecided; `dismiss` writes nothing. Keep the method's writer line: this Errand's
+change stays its own concern.
+
+**Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
+`arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
+provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its clean primary is
+at the freshly pushed base. Both modes retain the originating capture and clear its execute-bound marking; never
+simulate abandonment by deleting a branch, marker, or identity. Consume the typed terminal result above;
+`subject.kind` distinguishes exact full and partial authority, while `settlement` reports the retained capture.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
-1. **Build** the change and run Tier 1 quality gates on what you touched.
-
-   - **Extensions** · `#post-task-quality`: If `post-task-quality` is active, run its `.actions`. Otherwise skip.
+1. **Build** the change and request `arc check increment` once over its final edits.
 
    > [!IMPORTANT]
    > `workflow-interlock`: Stop after the change is complete and its gates pass. Surface the diff and verification
    > status; await approval before committing. For the final increment, approval also releases into Integrate.
 
-2. **Commit** on approval — the change carries a `standalone (...)` context footer (no work unit owns it):
+2. **Commit** on approval — load [commit-format][commit-format] for the message and
+   [pull-request-format][pull-request-format] for its decision guide in both protection modes. The change carries a
+   `standalone (...)` context footer (no work unit owns it):
 
    > [!CAUTION]
    > `commit-interlock` release — commit as `taskCommit` (the gate above precedes the commit; a determinate
@@ -107,238 +184,497 @@ Run each review increment (one for a typical errand; a few for an extended one):
    ```text
    <type>(<scope>): <errand summary>
 
+   - <what changed, and why it matters>
+   - <a qualifying decision: the choice, the alternative it beat, and why>
+
    Context: standalone (<kind>)
    ```
+
+   Record each qualifying decision from that guide as one plain-prose body bullet: the choice, the alternative,
+   and why, without a Markdown descriptor. Omit decision bullets when none qualify. The final trailer block holds
+   only `Context:`; partial protection records decisions in the commit only.
 
    See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
 ## Integrate
 
-The errand's commits are made; now ship and clean up. Integrate branches on protection mode.
+The Errand's tracked changes, if any, are ready; now ship and clean up. Integrate branches on protection mode.
+
+For a full-protection Errand with no tracked change, skip Ship and invoke `arc errand close <slug> --json`
+directly. The verb completes only when the checkout is clean and the Errand branch, local base, and freshly fetched
+remote base all name the same exact head. Any tracked change continues through the ordinary PR path below.
 
 ### Ship — full protection
 
 1. **Compose Errand review facts.** Atomic determinacy is a routing fact alongside the canonical change facts and
    `vehicle: errand`; it can scale the obligation only through registered policy. Do not select a merge lane yet.
+   When the change is confidently routine planning-grooming and self- or ownerless-owned, retain only the exact Git
+   coordinates plus the caller-owned content kind, risk, determinacy, ownership, and surface authority judgments for
+   the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
+   state, assurance, method activity, repository identity, target trees, or standard-review projection.
+
+   **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact
+   for every change except confidently routine planning-grooming, which is `routine`.
 
 2. **Push** the errand branch upstream.
-
-   - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
-     actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
 
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
+   For the confidently recognized planning-grooming case, invoke `arc review planning-grooming resolve -` with the
+   exact committed target and the three caller-owned judgments:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "target": { "baseRef": "<base-ref>", "diffBaseSha": "<diff-base-sha>", "headSha": "<head-sha>" },
+     "routingFacts": {
+       "contentKind": "documentation",
+       "reviewRisk": "routine",
+       "changeDeterminacy": "atomic",
+       "ownership": "self",
+       "surfaceAuthority": "planning-grooming"
+     }
+   }
+   ```
+
+   The command independently derives the immutable repository target, proves the exact diff contains only plain
+   planning artifacts, and supplies the transient vehicle's assurance and live method activity. Content kind and
+   surface authority remain caller-owned semantic judgments. Follow only its typed state:
+
+   - `exempt / none` — both review lanes are complete (`frontline: skipped`, `standard: exempt`); skip the remaining
+     review composition in this step and continue to Step 3.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload, preserve its
+     diagnostics, then enter ordinary review below; do not retype those projections.
+   - `not-eligible / continue-review` — surface the typed reason, then enter ordinary review below.
+   - A command error carries no action; stop.
+
+   Never infer this exemption from `arc review planning-lane`, absence of a work unit, file count, or prose. The
+   planning-lane classifier remains the later merge-lane input only.
+
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
-   projection, and explicit review-routing facts. The future merge lane remains downstream presentation, not a
-   routing input. For each new target, invoke `arc review chunking resolve -` once; select whole-target or chunked
-   scope separately for each role and pass it to `arc review resolve -`.
+   projection, and explicit review-routing facts for every target continuing through ordinary review. The future
+   merge lane remains downstream presentation, not a routing input. Errand atomicity fixes each role's
+   `scopeSelection` to `{ mode: "whole-target", target: <immutable-policy-target> }`; chunk selection is not an
+   Errand review action. Pass that exact whole-target selection to `arc review resolve -`.
+   Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
+   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target until a look fixes a
+   material finding. Then drop a forced hosted invocation and follow the driver's local action; a forced hosted source
+   refuses. The Errand binding carries the selected source and its ordered fallbacks through hosted request and await.
+   Forward a forced `invocation.sourceId` as `--source <source-id>` on each `arc review status` call.
+
+   Apply [code-review's convergence procedure][code-convergence] to each concluded look or eligible plain commit.
+   Carry an authorized additional complete pass as `additionalPassAuthorization` on resolve/hosted admission, or its
+   targetless fields as `policyJudgment.additionalPassAuthorization` on local prepare. At the open PR, the exact
+   `arc review status --target <targetRef> --additional-pass '<authorization>'` scope reports that outstanding review.
+
+   **Converged-fix-check successor.** Before standard source dispatch, apply [code-review's successor
+   decision][code-successor-decision] with the exact Errand subject. An open PR supplies the
+   [Errand stop continuation][code-errand-stop]; before PR creation, supply this surface's explicit stop limit.
+
+   Findings rounds use `arc check increment` for this Errand and `standalone (code review)` as their commit context.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
-   - `ready / run-frontline` — invoke `arc review frontline resolve -` and `arc review frontline run -`.
-   - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
-     `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
-   - `findings / respond` — run [`review-triage`][review-triage] and [`review-response`][review-response], then
-     submit approved mutation/commitment decisions through `arc review respond -`.
-   - `approval-required / obtain-ceiling-override` — surface the exact one-pass consequence and
-     `Approve (or redirect)?`; return only exact approval to the same target/lane call.
-   - `chunk-pending / continue-chunks` — continue the local chunk series without consuming the pass.
-   - `stale-target / select-scope` — recompose and rerun chunking.
+   - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane.
+     On `offered / bind-source`, surface `payload.frontlineReview.promptText` and diagnostics; ask the Owner to
+     select an available source or skip. On selection, re-invoke the same request with
+     `invocation.sourceId` set to the selected source, preserving `invocation.mode`.
+     On `offered / obtain-authorization`, surface `payload.frontlineReview.promptText` and the exact one-pass
+     consequence, then ask `Approve (or redirect)?`. On acceptance, re-invoke the same request with
+     `invocation.mode` set to `force`, preserving any `invocation.sourceId`. For either offer, on decline, replace
+     `invocation` with `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
+     `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
+     `{ kind, baseRef, diffBaseSha, headSha }` projection.
+   - `ready / hosted-request` — follow the selected provider through Step 4's hosted dispatch, including the complete
+     pass selected by configured rank after a converged look.
+   - `coverage-required / select-coverage` — apply [code-review's coverage selection][code-coverage-selection].
+     Its declined pre-PR look continues to Step 3; at the open PR use the exact Errand stop continuation.
+   - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
+     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -` and apply
+     [code-review's coverage selection][code-coverage-selection] whenever it asks. Run
+     [the local operation][code-local-operation] only from its returned ready action.
+   - `findings / respond` — apply [code-review's findings round][code-findings-round] with the exact producer and
+     this Errand's verification/context. Complete its committed verified-fix replay before any push.
+   - `approval-required / obtain-ceiling-override` — apply [code-review's ceiling override][code-ceiling-override]
+     with this exact target/lane call and the available Errand stop continuation. The Errand carries an approved
+     consequence into its named hosted, local, or frontline admission.
+   - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
-   Resume local operations with `arc review local resume -` and reduce with `arc review reduce -`. A command error
-   envelope carries no action. Approval is required before any finding-driven fix, durable deferral, channel
-   settlement, or other mutation/commitment; a complete no-action record-only set may ride to the final combined
-   gate. Approved fixes run Tier 1 gates, commit atomically, push, and create a new target. Never carry clearance or
-   merge authority.
+   Use [code-review's local operation][code-local-operation] for resume, reduction, command remedies, and a
+   frontline operator-repair; retain the returned operation and exact whole-target bindings.
 
-3. **Resolve the Errand PR** before creation. Paginate the exact current repository + head-owner/branch query and
-   retain each candidate's state, merged time, and head SHA. A lookup error or incomplete enumeration is a stop, not
-   an empty result. Classify the complete result:
-
-   | Result                                                           | Action                                       |
-   | ---------------------------------------------------------------- | -------------------------------------------- |
-   | No match                                                         | Enter the creation arm below                 |
-   | One open match                                                   | Reuse its `hostRef`; do not create or reopen |
-   | One merged match at the current head                             | Skip review/merge and enter Complete cleanup |
-   | Closed-unmerged, stale merged head, multiple/conflicting matches | Stop and surface every candidate             |
+3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
    ```bash
-   gh api --method GET --paginate --slurp \
-     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100"
+   arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
    ```
 
-   The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary plus a one-line Test Plan only when verification is non-obvious. No Spec / Out-of-Scope /
-   Follow-Up sections.
+   Follow only its typed state and action:
 
-   Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
-   execute numbered actions in authored order immediately before creation; halt before later actions on failure.
-   Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
+   - `none / create-change-request` — enter the creation arm below.
+   - `open / reuse-change-request` — reuse `candidate` and enter Step 4.
+   - `merged-at-head / complete` — enter Complete.
+   - `closed-unmerged / reopen-change-request` — reopen `candidate`, then enter Step 4.
+   - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
+   - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
-   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
-   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
-   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
+   In the no-match creation arm, load [pull-request-format][pull-request-format] before composing the title or
+   body. Follow its title rule and shared body guidance, including target-project prescriptions and qualifying
+   decisions. Compose from the change, design, and verification.
+
+   Immediately before creation, re-invoke:
+
+   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the current head
+   and dispatch on its typed state again. Continue only from `none / create-change-request`. This pre-create validation
+   requires the remote branch itself to carry the exact creation head.
+
+   Then invoke `arc merge lock resolve -` with `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`;
+   `treeRoot` is the checkout path, not a Git tree object ID. Follow only its typed action: `locked / open-locked`
+   creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
+   The lane is still unresolved here — it settles in Step 4 — so both lanes open the same way, and no lane input reaches
+   this call.
 
    ```bash
-   gh pr create --base <base-branch> --head <branch>
+   gh pr create --base <base-branch> --head <branch>            # open-plain
+   gh pr create --base <base-branch> --head <branch> --draft    # open-locked
    ```
 
 4. **Enter the open PR.** On both newly-created and reused-open paths, compose
-   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
-   numbered actions before review. Both hooks and the review protocol share this exact-head contract. After any
-   head-changing action, recompose `openedChangeRequest` from the canonical current head before re-entry.
+   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. After any head-changing action, recompose
+   `openedChangeRequest` from the canonical current head before re-entry.
 
    Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean`
-   and regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear
-   and reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gates, push, and recompose the
-   target without a permission stop. A conflict, material interaction, or uncertain product decision stops. This
-   advisory never replaces Step 5's authoritative final drift read.
+   and regenerable-only drift silent and surface substantive or uncertain interaction as review context. This read
+   is advisory only: it authorizes no merge, commit, push, or target recomposition. Base mutation belongs
+   exclusively to Step 5's authoritative terminal planner and its typed base-merge arm.
 
-   Rerun `arc review chunking resolve -` for the opened target and invoke `arc review resolve -` for each incomplete
-   lane. Follow the Step 2 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the
-   selected provider, exact opened target, and `coverage: complete`:
+   For every confidently recognized planning-grooming entry at this checkpoint, re-invoke
+   `arc review planning-grooming resolve -` with the opened PR's exact current coordinates and freshly affirmed
+   caller-owned judgments. This opened-target result supersedes the pre-PR result and is the sole exemption
+   authority for this head. Follow its typed result:
 
-   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
-     wait again for `pending / await`; do not build an agent polling loop.
-   - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run the disposition protocol. For each approved finding with
-     `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
-     invoke `arc review hosted settle -` with the unchanged originating `target` and `fixTarget: null`. For `fix`,
-     apply and verify the approved change, commit and push it, recompose the current target, then invoke the same
-     verb with the originating `target` plus that changed `fixTarget`. A finding with
-     `settlement: not-applicable` is triage-only: never invoke `hosted settle`, post a reply or compensating summary
-     comment, or resolve anything for it, regardless of disposition.
-   - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
-     may select the next configured source without consuming the pass.
-   - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
-     an uncertain request.
+   - `exempt / none` — skip the remaining review composition in this step and continue to Step 5.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload below.
+   - `not-eligible / continue-review` — continue below through ordinary fact composition.
+   - A command error carries no action; stop.
+
+   Any head movement invalidates the exemption and returns here before the integration interlock, including after a
+   review fix or base reconciliation. Continue only when `openedChangeRequest` and the adapter target name the same
+   exact head.
+
+   A retained hosted terminal failure reporting a completed receipt without reviewed-commit binding enters the
+   Owner-directed review stop below before resolving the lane again. Retain its failed outcome and exact handle.
+   Other outcomes continue below.
+
+   Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for
+   each incomplete lane. Before either standard-lane ready source dispatch, apply the successor check above.
+   If the Owner has directed that no further standard-review pass be spent, take the exact
+   Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
+   `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
+   `payload.responseRequired` is false; stop before source dispatch. Every other driver state follows the resolve
+   dispatch above, and an unperformed response enters its disposition protocol first. On `ready / hosted-request`, read
+   `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver call
+   carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected provider,
+   pass that action unchanged to `arc review hosted request -`. A hosted source runs only the lane's first pass or the
+   complete pass after a converged look, with `coverage: complete`; fix checks and delta checks run locally. Status
+   offers no request for a head with no recorded review, so for the Errand's first pass, hand it the driver result's own
+   `action` unchanged instead. When neither result carries an `action`, stop and surface both typed results and the
+   selected source for diagnosis.
+
+   Status returns `review-required / decide-review-continuation` when the head moved past a converged review by
+   changes no approved response made; request nothing on that result alone.
+
+   > [!IMPORTANT]
+   > `workflow-interlock`: Stop at `decide-review-continuation`. Surface `decision.interactionText`, the change since
+   > `decision.reviewedHeadSha`, and a recommendation; await the Owner's choice before requesting review or stopping.
+
+   On `request-complete-pass`, pass `decision.hostedAction` unchanged to `arc review hosted request -`. On
+   `owner-directed-stop`, present the Owner-directed review stop below. Never substitute the driver result's own
+   `action` for this decision.
+
+   For `requested / await` and pending results, apply [code-review's hosted await and
+   settlement][code-hosted-await-and-settlement] to the returned exact action.
+
+   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
+   `pass` from the driver envelope that authorized it. A completed review advances that logical coordinate; pending
+   chunk series and non-pass outcomes retain the prior count. Only complete coverage counts toward the standard ceiling;
+   fix checks run outside it.
+
+   - `clean / complete` — feed the returned `attempt` unchanged to `arc review resolve -`; its
+     `reviewOperationId` identifies the producer, while `hostedResultId` identifies the result content.
+   - `findings / triage` — apply [code-review's findings round][code-findings-round] with the Errand verification
+     request and standalone context. Complete the committed verified-fix replay before push, then the remaining
+     [hosted settlement][code-hosted-settlement]. Re-enter this resolve/status route only after response completion.
+   - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call.
+   - `terminal-failure / stop` reporting a trusted completed receipt without reviewed-commit binding — preserve the
+     failed result and exact handle, surface its reason and receipt, then offer the Owner-directed review stop below.
+     On decline, retain the stop. Do not claim clean evidence, increment completed passes, or request another review.
+   - Ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops; never replay an
+     uncertain request. The completed receipt's acceptance offer above is the sole terminal-failure exception.
+
+   **Owner-directed review stop (open PR only).** Apply [code-review's Errand stop][code-errand-stop] with the
+   current claim, repository/PR, base/head, reviewed delta, and completed response. Its accepted continuation goes
+   to the reviewed merge lane below; recheck its exact authority at Step 5 and immediately before release.
 
    On interruption, retain the returned operation ID and follow the last typed `state` / `nextAction`. Resume a
    suspended local operation with `arc review local resume -`; re-invoke the owning idempotent verb for frontline,
    hosted await, response, settlement, or reduction. Never reconstruct review state from workflow prose or invent
    WU state: the Errand branch, PR, and public operation references are sufficient continuity.
 
-   After every target movement, make and disclose a **review applicability** judgment from the exact delta. Use
-   targeted verification when prior complete coverage confidently remains applicable to a narrow non-interacting
-   record-only or lifecycle delta; use a focused supplemental check for a bounded interaction; repeat complete
-   review for behavioral, authority, contract, materially interacting, or uncertain change. A confident bounded
-   choice proceeds without a permission stop. An agent-selected supplemental review is disclosed as it runs and
-   enters the same disposition loop. A hosted supplemental request uses `coverage: incremental`; if its adapter
-   reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only for new
-   authority, material cost, or genuine uncertainty.
+   After every target movement, return through the routed review action and dispatch its typed continuation. Do not
+   classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
+   complete pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. Under an
+   Owner-directed review stop, a changed target, or a base movement the [Errand stop's disjoint-drift
+   condition][code-errand-stop] does not keep, requires a new exact offer describing the changed delta and the returned
+   review-applicability result; never carry the prior acceptance forward.
 
-   Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
-   authority. After the routed review settles, run `arc review planning-lane <base-sha> <head-sha>` over the exact
-   PR delta. Only literal `planning` is eligible for the **auto-merge-lane**; `reviewed` selects the
-   **reviewed-lane**, while command failure or malformed output stops. Then apply the judgment-only threshold from
+   After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's
+   `arc review status --target <targetRef>` before resolving review. A `settled` routed obligation completes the
+   standard lane at that head, carried from the earlier reviewed head; skip its `arc review resolve -`. Any other
+   state resolves the lane as usual.
+
+   Request `arc check increment` after every review-driven change. A new target invalidates clearance and integration
+   authority. After the routed review settles or the exact Owner-directed review stop above is approved, run
+   `arc review planning-lane <base-sha> <head-sha>` over the exact PR delta. Only literal `planning` is eligible
+   for the **auto-merge-lane**; `reviewed` selects the **reviewed-lane**, while command failure or malformed output
+   stops. An Owner-directed review stop always selects the reviewed-lane. Then apply the judgment-only threshold from
    [§ Auto-Merge Lane][auto-lane]: foreign ownership or another confidently recognized review condition may move
    an eligible change to reviewed without a permission stop, but never the reverse. The merge lane is downstream
    presentation only and cannot change routing, response, or evidence authority.
 
 5. **Settle the final head.** Establish `vehicle: errand` from the strict Errand record, branch, and exact PR. That
-   vehicle is explicitly outside WU composition-product requirements. Never infer the exemption from absent or
-   malformed WU state; a missing or contradictory Errand identity stops.
+   vehicle is explicitly outside WU composition-product requirements. **Never infer the exemption from absent or
+   malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
-   Run authoritative base freshness and validate the complete typed result:
+   After any fix, request action, or append-only base reconcile changes the head, push through the configured
+   release route, rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
+   `openedChangeRequest`, require any planning-grooming adapter target to match it, and retain the exact strict Errand
+   identity and selected lane.
 
-   ```bash
-   arc base drift --json
+   Run `arc base drift --json` once immediately before approval composition. Continue only from a `clean` or `reconcile`
+   verdict, whatever its `movement` or overlap, whose `headOid` equals the exact Errand head; an `unavailable` verdict
+   stops on its `continuation.terminalExplanation`. Retain the reading's `baseOid` as pre-approval evidence, not
+   mutation authority. The terminal operation will perform its own post-approval observation. Invoke
+   `arc review merge-method resolve` once and continue only from `validated / use-method`. Retain the returned `method`
+   and `policyFingerprint`; `blocked / stop` stops. Compose one strict `errandMergeRequest` from those returned values
+   plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`, the exact `repository`,
+   `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "identity": {
+       "slug": "<errand-slug>",
+       "claimId": "<claim-id>",
+       "branch": "<errand-branch>",
+       "generation": "errand-v1/<errand-slug>/<claim-id>"
+     },
+     "approvedTarget": {
+       "repository": "<owner>/<name>",
+       "pullRequest": 123,
+       "baseRef": "<base-ref>",
+       "headRef": "<errand-branch>",
+       "headSha": "<head-sha>"
+     },
+     "lane": "reviewed",
+     "mergeMethod": {
+       "method": "<resolved-method>",
+       "policyFingerprint": "<resolved-policy-fingerprint>"
+     }
+   }
    ```
 
-   After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
-   rerun chunking, and return through Step 4's review applicability judgment. Use targeted verification only when
-   prior complete coverage confidently remains applicable; otherwise run focused or complete review. Repeat until
-   base, head, requirements, and review are settled.
+   Two fields are composed rather than read, and the request refuses when either disagrees. `generation` is
+   always `errand-v1/<slug>/<claim-id>` built from the two identity fields beside it, and `identity.branch` and
+   `approvedTarget.headRef` must name the same branch. `lane` is the value the lane classifier selected, and
+   `method` and `policyFingerprint` are the resolver's returned values, never chosen here.
 
-   Compose the final `openedChangeRequest` and fire `pre-merge`.
-   Compose and preview the content-gated `## Review` record from the settled review cycle: `Local`, `Hosted PR`,
-   `Triage`, and, when prior complete coverage carried across a narrow delta, `Coverage`. Omit the whole section
-   when no review ran; omit `Coverage` when every reported pass ran on the final head.
+   Read `arc review status --target <targetRef>` once for the final head and surface its `hostReview`, the host's
+   own review verdict. It is a merge blocker separate from ARC's review state, so neither settled review nor an
+   Owner-directed stop clears it. `changes-requested` names each blocking review's author, ID, and reviewed commit;
+   the host refuses the merge while one stands, so obtain Owner direction to dismiss it or request re-review before
+   the integration interlock. To dismiss a review service's review on that direction, pass
+   `{ "schemaVersion": 1, "target": <target>, "review": <blocking review> }` to `arc review hosted dismiss -`, with
+   the exact `{ repository, pullRequest, headSha }` target and the blocking review unchanged. It refuses a person's
+   review or one whose service still has an unresolved thread, and writes the dismissal message itself.
+   `approval-required` names a host approval still missing. `unavailable` surfaces its `detail`; inspect the PR's
+   native review on the host instead.
 
-   Then retain `openedChangeRequest.headSha` as `{approved-head-sha}`. No review-authored commit or push may occur
-   after this stable checkpoint.
+   Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
+   action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
+   integration interlock. A changed coordinate (including the Errand claim), new finding, or unfinished fix returns to
+   Step 4 for a new exact offer; a base that alone moved follows Step 4's disjoint-drift condition. Inspect the PR's
+   unresolved conversations as well; the stop clears no host blocker, so obtain separate Owner direction for any
+   dismissal or thread action before proceeding.
 
-   - **Extensions** · `#pre-merge`: If active, run its `.actions` before the merge; halt-on-fail as above.
-     Otherwise skip.
+   No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the
-> reviewed lane. Surface the exact head, review applicability calls and targeted verification, proposed final
-> dispositions and `## Review` record, PR checks, required approvals, base freshness, and the resolved lane. State
-> that approval applies final dispositions and channel settlement, ends review, invokes exact-head unlock only for
-> the reviewed lane, and authorizes the lane action only if ordinary exact-head rechecks succeed unchanged. Close
-> with `Approve (or redirect)?`.
+> `integration-interlock`: Stop after the exact Errand merge request is settled. Surface the request,
+> exact head, applicable planning-grooming adapter target, review applicability calls and targeted
+> verification, approved responses already performed, proposed final dispositions, required checks and approvals,
+> base freshness, and resolved lane. State that completed responses are not re-approved at this gate. Name
+> the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
+> supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
+> a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
+> residual review risk from provider-clean evidence, and surface each `hostReview` blocker separately with the Owner
+> direction obtained for it.
+> State that approval applies remaining dispositions and channel settlement, ends review or confirms the exact
+> Owner-directed stop, invokes exact-head release on the selected lane, and authorizes the exact-head merge represented
+> by this request. Approval authorizes that exact request and
+> the bounded exact-head wait below; it never satisfies required checks, and merge proceeds only after they report
+> green or not-required. A redirect may instead select release-only for asynchronous host review or later manual
+> merge. Close with `Approve (or redirect)?`.
 
-Immediately after approval, apply approved final dispositions and channel settlements, then recompose the exact
-current head and re-read PR status and requirements. A changed head or unsettled requirement invalidates approval
-and returns to Step 4. Replace any stale PR review summary with the previewed `## Review` record. With the approved
-head still exact, permit no review action, lifecycle mutation, commit, push, fetch, or second human stop before the
-lane action.
+After approval, apply the approved final dispositions and channel settlements. An explicit release-only redirect
+composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved PR as
+`target: { repository, pullRequest, headSha }`, and the strict Errand identity as
+`vehicle: { kind: "errand", slug }`. Pass `releaseRequest` as JSON stdin to `arc merge lock release -` and stop after
+`released / proceed` or `no-lock / none`; `blocked / stop` renders its typed reason and stops.
+This separate operation authorizes no merge. Otherwise, continue to the selected lane action.
 
-6. Land per lane:
+6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
+   Errand claim, PR, base OID, head, and known review/response state. A base that alone moved follows Step 4's
+   disjoint-drift condition, and the completion report names the new base OID; any other movement or new finding
+   returns to Step 4 for a new exact offer. Required checks and host-native review blockers remain independent stops.
+   Owner acceptance never satisfies a required check.
 
-   Immediately before either lane action, invoke `arc base drift --json` once more. Only authoritative `clean`
-   continues; `reconcile` returns to Step 5 and requires a new exact-head checkpoint and approval, while unavailable
-   or malformed output stops.
-
-   **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
-   arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
-   failure or malformed output stops. Then resolve `merge.strategy` via the config probe and arm native auto-merge
-   with the matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
+   For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
+   project's configured bounded-call defaults apply:
 
    ```bash
-   arc review planning-lane <base-sha> {approved-head-sha}
-   arc config status --json   # read settings["merge.strategy"]
-   gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
+   arc review checks await \
+     --repository <approvedTarget.repository> \
+     --pull-request <approvedTarget.pullRequest> \
+     --head-sha <approvedTarget.headSha>
    ```
 
-   **Reviewed-lane** — invoke `arc review unlock -` for the exact approved target. Follow only its typed action:
-   `dispatched / await-clearance` waits for the required `arc-cleared` status; `no-unlock / none` continues because
-   the default-branch workflow is absent; `blocked / stop` invalidates approval. Re-read the required checks on the
-   unchanged head, then leave the PR open for owner review on `{approved-head-sha}`. A head change restarts Step 4;
-   native owner approval satisfies its own requirement but never replaces the integration-interlock.
+   Dispatch only on its typed result:
 
-   The auto-merge lane invokes no unlock: when the optional guard is installed, its trusted CI poster supplies
-   `arc-cleared`; otherwise no such context is required.
+   - `green | not-required / complete` — pass `errandMergeRequest` unchanged exactly once:
+
+     ```bash
+     arc errand merge <slug> - --json
+     ```
+
+   - `pending / await` — surface current `checks` and any `diagnosticFailures`, retain the exact
+     `errandMergeRequest` and waiter coordinates, and stop at the bounded attention threshold.
+   - `unavailable / retry` — surface `cause`, `detail`, current `checks`, and any `diagnosticFailures`; retain the
+     exact request and waiter coordinates, then stop.
+   - `failed / stop`, `stale-target / stop`, `target-mismatch / stop`, and `blocked / stop` — surface the typed
+     evidence and stop. When `failureLogs` is present, inspect every `logs[].path` before diagnosis and surface any
+     retrieval `failures`.
+
+   For an invoked terminal merge, render the returned `state`, `nextAction`, `detail`, and its supplied remedy or
+   terminal explanation. Dispatch only on that typed result:
+
+   - `merged / complete` enters Complete.
+   - `awaiting-checks / retry`, `host-pending / retry`, and retryable operational or unknown-mutation results stop
+     with the exact continuation intact. A later re-entry invokes only its supplied remedy; never poll or recursively
+     invoke the terminal command.
+   - `reconcile-base / reconcile-base` and `reconcile-regenerable / reconcile-regenerable` invoke only the supplied
+     remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` requests
+     `arc check new-head --from <pre-merge head>`, using the returned `expectedHead`, then pushes through the generic
+     contract and returns through Step 4 before fresh approval. When that result's `dependencyChange` is not null,
+     reinstall the project's dependencies before requesting the checks. `skipped-clean / continue-reconcile`,
+     `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and `head-contained-by-base / rerun-checkpoint`
+     return through Step 4 without gates or push. `conflict / stop`, `regenerable-refused / stop`, and `blocked / stop`
+     render the supplied explanation and stop; any other result is a contract violation. When the reconcile result
+     carries `applicability`, review does not carry across the base movement it absorbs: surface its `verdict` and
+     `reason`, and its `residual` when present, with the remedy. The new head's review status settles it through Step 4;
+     it does not fire the method below.
+   - `invalidated / request-approval` returns through Step 4 and settles a fresh exact request before approval.
+   - `conflict / stop`, `host-refused / stop`, and non-retryable operational results stop on their supplied
+     explanation. Lock recovery and mutation-state classification remain owned by the verb.
+
+   **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only an
+   `applicability-judgment-required / assess-applicability` result with `applicability.judgmentRequired: true` loads and
+   applies the method to its bounded review residual. Follow its `supplemental | fresh` recommendation through Step 4's
+   review/applicability route, then compose a new request and obtain fresh integration approval before any terminal
+   mutation. A `judgmentRequired: false` result is final, and `merge-safety` never fires the method.
+
+7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
+   the merge tail unresolved, or work is moving machines, invoke:
+
+   `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the change request is open,
+   checks or owner review are pending, or for ordinary next-Errand queue advancement. Otherwise retain the owning
+   session and continue to Complete when the host reports the merge.
+
+   When another Errand must land before the current one can complete, first checkpoint a clean pushed head. Leave
+   the current Errand as `awaiting-merge` when its PR exists, or as `paused` before PR creation; consume the returned
+   restoration checkout, then open the blocker there. Never open a different Errand from an active transient. After
+   the blocker lands, resume only the original exact identity through its owning open or materialize driver.
+
+   If the session is ending before PR creation, commit and push the checkpoint first, then use `--state paused`.
+   Partial mode and unpushed or unproven heads refuse. Post-leave work resumes only through the identity's owning
+   open or materialize driver; never use the checkout closed by `leave` as a re-entry surface. Consume the typed
+   terminal result above; its exact `subject` / `generation`, checkout paths, and identity-tail `settlement` are the
+   sole preservation and restoration evidence.
 
 ### Ship — partial protection
 
-No branch and no PR: the errand is already a direct base-branch commit, so there is no merge step. The base push
-follows the project's normal base-push discipline.
+No branch and no PR: the Errand is a direct base-branch commit, so there is no merge step. The base push follows
+the project's normal discipline. It cannot pause, await merge, materialize, or hand off; completion must pop the
+exact partial role and remove any originating capture before the session can leave.
 
 ### Complete
 
-On merge (full) or final commit (partial), close out:
+On merge or exact no-tracked-change proof (full), or final commit (partial), invoke
+`arc errand close <slug> --json` and consume the typed terminal result above. Its exact `subject` / `generation`,
+checkout paths, and `settlement` are the sole closure evidence.
 
-- **Full protection** — `arc errand close <slug>` reaps the branch, deletes its remote head when the work
-  provably landed in base (a host's delete-on-merge having already removed it is the idempotent no-op), prunes
-  its tracking ref, removes the record, and drops the originating `USER-INBOX` capture (the entry its record
-  back-points to). The reap is containment-safe: if the branch's commits aren't provably preserved (pushed or
-  merged), it **refuses** and keeps the record — push/merge then retry, or `--force` if you've verified it
-  shipped. A remote head that is the only proven preservation (e.g. a multi-commit squash) is kept and surfaced,
-  never deleted. The remote delete is best-effort: on a push failure (auth, connectivity) the local close still
-  completes and the head is surfaced for manual cleanup.
-- **Partial protection** — nothing to close; the errand is already a direct base commit.
+- **Full protection** — the verb proves either merged-change-request preservation or an unchanged clean base
+  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and drops only its
+  origin capture. A foreign checkout requires the exact generation returned by the verb's confirmation result; no bypass
+  overrides preservation or host/base evidence.
+- **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
+  removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
-**Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed
-from base context by the [finalize pass][finalize-pass] or next session-init's errand sweep — idempotent, so it
-never double-fires.
+When the current conversation has already agreed one exact next Errand, that named target takes precedence over
+`nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`, adding `--isolate`
+under the session's isolate posture. Consume the open result as the new sibling locus. The target must resolve to one
+exact Errand entry; stop when it is missing or ambiguous.
+
+Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
+`key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
+returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
+`arc errand open <slug> --from-inbox <nextOffer.key> --json`, adding `--isolate` under the session's isolate posture.
+Consume the open result as the new sibling locus. On decline, return to the restored parent/between-WUs frame. Never
+scan for a substitute, persist an Errand sequence, or reorder inbox captures.
+
+**Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
+re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is
+idempotent and may return the next file-ordered execute-bound offer.
 
 ---
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
+[assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
+[commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
-[review-response]: ../../../methods/review-response.md
-[review-triage]: ../../../methods/review-triage.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
-[branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+[route-discovered-work]: ../../../methods/route-discovered-work.md
+[classify-work-unit]: ../../../methods/classify-work-unit.md
+[pull-request-format]: ../../../methods/pull-request-format.md
+
+[code-convergence]: ../../../methods/code-review.md#convergence
+[code-successor-decision]: ../../../methods/code-review.md#successor-decision
+[code-coverage-selection]: ../../../methods/code-review.md#coverage-selection
+[code-ceiling-override]: ../../../methods/code-review.md#ceiling-override
+[code-findings-round]: ../../../methods/code-review.md#findings-round
+[code-hosted-await-and-settlement]: ../../../methods/code-review.md#hosted-await-and-settlement
+[code-hosted-settlement]: ../../../methods/code-review.md#hosted-settlement
+[code-errand-stop]: ../../../methods/code-review.md#errand-stop
+[code-local-operation]: ../../../methods/code-review.md#local-operation

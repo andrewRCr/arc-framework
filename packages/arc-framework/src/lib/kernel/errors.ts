@@ -1,5 +1,5 @@
 /**
- * Extensible machine-readable error base and safe boundary adaptation.
+ * Extensible machine-readable error base, safe boundary adaptation, and the exhaustiveness guard.
  */
 
 type LegacyArcErrorCode =
@@ -50,4 +50,28 @@ export function toArcError(value: unknown, fallback: ArcErrorFallback): ArcError
   return value instanceof Error
     ? new ArcError(fallback.message, fallback.code, { cause: value })
     : new ArcError(fallback.message, fallback.code);
+}
+
+function describeUnhandled(value: unknown): string {
+  try {
+    // `JSON.stringify` yields undefined for undefined, functions, and symbols, which its declared type omits.
+    const json = JSON.stringify(value) as string | undefined;
+    return json ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Close a `switch` or branch chain whose cases exhaust a union.
+ *
+ * Passing the narrowed subject makes a missing case a type error at the call site; a value that still arrives at
+ * runtime — data that bypassed its type — fails loudly instead of flowing on.
+ *
+ * @param value - The subject, narrowed to `never` by the cases before this call.
+ * @returns Never; it always throws.
+ * @throws {@link Error} naming the unhandled value.
+ */
+export function assertNever(value: never): never {
+  throw new Error(`Unhandled variant: ${describeUnhandled(value)}`);
 }

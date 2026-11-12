@@ -35,6 +35,7 @@
  * @module
  */
 
+import { reportOrphanCohortMemberSections } from "../store/kinds/cohort/index.js";
 import { parseMetaRecord } from "./meta-reader.js";
 
 /** Anchors a backlog path to the `planned/` lifecycle root. */
@@ -51,6 +52,8 @@ export interface BacklogFile {
 
 /** The classified artifact set the cohort-consistency checks reason over. */
 export interface CohortConsistencyInput {
+  /** Off-branch state retires directory-match and constitutive-folder conditions. */
+  stateOffBranch?: boolean;
   /** Backlog `meta-*.md` files in scope. */
   metas: BacklogFile[];
   /** Backlog `cohort-*.md` files in scope. */
@@ -162,34 +165,16 @@ export function metaCohortField(content: string): string {
   return normalizeCohortField(content);
 }
 
-/** Whether a cohort doc carries a non-empty `**Purpose:**` floor. */
+/** Whether a cohort doc carries a finalized `**Purpose:**` floor. */
 function hasPurposeFloor(content: string): boolean {
   for (const line of content.split(/\r?\n/)) {
     const match = /^\s*\*\*Purpose:\*\*\s*(.*)$/.exec(line);
-    if (match) return (match[1] ?? "").trim().length > 0;
+    if (match) {
+      const purpose = (match[1] ?? "").trim();
+      return purpose.length > 0 && purpose !== "—";
+    }
   }
   return false;
-}
-
-/**
- * The per-member section slugs declared under a cohort doc's `## Members`
- * section — each `### \`<slug>\`` heading. Headings outside `## Members` (the
- * coordination subsections) are ignored.
- */
-function memberSlugs(content: string): string[] {
-  const slugs: string[] = [];
-  let inMembers = false;
-  for (const line of content.split(/\r?\n/)) {
-    const h2 = /^##\s+(.*)$/.exec(line);
-    if (h2) {
-      inMembers = (h2[1] ?? "").trim().toLowerCase() === "members";
-      continue;
-    }
-    if (!inMembers) continue;
-    const h3 = /^###\s+`([^`]+)`\s*$/.exec(line);
-    if (h3) slugs.push((h3[1] ?? "").trim());
-  }
-  return slugs;
 }
 
 /** Add a cohort dir and every ancestor prefix to the grouping-dir set. */
@@ -222,7 +207,7 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
     addWithPrefixes(locationCohort, groupingDirs);
 
     const fieldCohort = normalizeCohortField(meta.content);
-    if (fieldCohort !== locationCohort) {
+    if (input.stateOffBranch !== true && fieldCohort !== locationCohort) {
       diagnostics.push(
         `${meta.path}: \`**Cohort:**\` field "${fieldCohort || NONE_SENTINEL}" ` +
           `does not match its filed location "${locationCohort || NONE_SENTINEL}"`,
@@ -248,7 +233,7 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
   }
 
   // --- Condition (b): every grouping dir carries a cohort doc with a Purpose ---
-  for (const dir of [...groupingDirs].sort()) {
+  for (const dir of input.stateOffBranch === true ? [] : [...groupingDirs].sort()) {
     const doc = docsByDir.get(dir);
     if (doc === undefined) {
       // An ancestor cohort doc already on disk (unstaged) satisfies the
@@ -279,12 +264,8 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
     if (location === null) continue;
     const derived = membersByDir.get(location.cohortDir) ?? new Set<string>();
     const live = input.liveMembersByDir?.get(location.cohortDir);
-    for (const slug of memberSlugs(doc.content)) {
-      // A slug is an orphan only if it resolves to no member anywhere — not in
-      // the staged delta, and not in the live tree. A slug that resolves to a
-      // graduated member (active/completed, by `Cohort` field) is a member, not
-      // a renamed/removed WU.
-      if (derived.has(slug) || live?.has(slug)) continue;
+    const members = new Set([...derived, ...(live ?? [])]);
+    for (const slug of reportOrphanCohortMemberSections(doc.content, members)) {
       diagnostics.push(
         `${doc.path}: orphan member section \`${slug}\` ` +
           `(not a derived member of "${location.cohortDir}")`,

@@ -44,7 +44,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
-    entries.push({ name: filename, isDirectory: () => false });
+    entries.push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${activeDir}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
@@ -125,7 +125,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
     reconcileBranch: async (op) => {
       calls.push(op.mutation === "rename" ? `branch:rename:${op.branch}->${op.toBranch}` : `branch:${op.mutation}`);
     },
-    reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    reconcileWorkUnitWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async (_path, stage) => {
       currentWorkflow.push(stage);
@@ -157,9 +157,21 @@ describe("runActivate — raise a planning WU to Active", () => {
   const params: ActivateParams = {
     name: "foo",
     toBranch: "feat/foo",
+    baseBranch: "main",
     nextTask: "Task 1.1 — first task.",
     nextAction: "Begin Task 1.1.",
   };
+
+  it("refuses a base-naming meta before reconciliation or mutation", async () => {
+    const { ctx, calls } = buildCtx([{ slug: "foo", state: "Planning", branch: "main" }]);
+    const result = await runActivate(ctx, params);
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("git switch -c feat/foo");
+    expect(result.reason).toContain("Branch");
+    expect(result.reason).toContain("arc activate");
+    expect(calls).toEqual([]);
+  });
 
   it("rotates plan/ onto the working branch, sets Active, and writes the orientation inputs", async () => {
     const { ctx, calls, softFields } = buildCtx([PLANNING]);
@@ -241,12 +253,12 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(calls.some((call) => call.startsWith("setPhase:") || call.startsWith("branch:"))).toBe(false);
   });
 
-  it("clears Current Workflow to [none] as State: Active takes over", async () => {
+  it("names process-task-loop in Current Workflow as State: Active takes over", async () => {
     const { ctx, currentWorkflow } = buildCtx([PLANNING]);
 
     await runActivate(ctx, params);
 
-    expect(currentWorkflow).toEqual(["[none]"]);
+    expect(currentWorkflow).toEqual(["process-task-loop"]);
   });
 
   it("rejects activating a WU that is not a planning WU on its branch", async () => {
@@ -302,7 +314,7 @@ describe("runDeactivate — the narrow undo", () => {
     expect(softFields).toContain("Next Action");
   });
 
-  it("does not touch Current Workflow (the activate clear is one-directional)", async () => {
+  it("does not touch Current Workflow (the activate write is one-directional)", async () => {
     const { ctx, currentWorkflow } = buildCtx([ACTIVE]);
 
     await runDeactivate(ctx, BASE);

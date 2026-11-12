@@ -1,0 +1,124 @@
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { describe, expect, it } from "vitest";
+
+import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
+import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/index.js";
+import {
+  locusOwnsBranch,
+  locusWorkUnitAtPath,
+} from "../../../src/lib/session-init/locus-classification.js";
+
+const commonIdentity = {
+  claimId: "c".repeat(32),
+  protection: "full" as const,
+  state: "open" as const,
+  savedHead: null,
+  changeRequest: null,
+};
+
+describe("derived cleanup classification", () => {
+  it.each<LocusIdentityV1>([
+    {
+      ...commonIdentity, kind: "errand", key: "ordinary", branch: "chore/ordinary", purpose: "errand",
+      origin: "description", originEntry: null,
+    },
+    {
+      ...commonIdentity, kind: "errand", key: "routing", branch: "chore/routing", purpose: "housekeep-routing",
+    },
+    {
+      ...commonIdentity, kind: "groom", key: "widget", branch: "chore/groom-widget", purpose: null,
+      anchorStub: "widget", members: ["widget"], openedBaseHead: "a".repeat(40),
+    },
+  ])("protects the exact $purpose identity branch", (identity) => {
+    const roster = [transientRow(identity)];
+    expect(locusOwnsBranch(roster, identity.branch ?? "")).toBe(true);
+    expect(locusOwnsBranch(roster, `${identity.branch ?? ""}-other`)).toBe(false);
+  });
+
+  it("resolves only the exact retained work-unit path", () => {
+    const roster = [workUnitRow("archived", "/wt/archived")];
+    expect(locusWorkUnitAtPath(roster, "/wt/archived")).toEqual({ name: "archived" });
+    expect(locusWorkUnitAtPath(roster, "/wt/other")).toBeNull();
+  });
+
+  it("does not turn unresolved checkout evidence into branch ownership", () => {
+    const unresolved: DerivedCheckoutRow = {
+      ...baseRow("/wt/old", "feat/other"),
+      kind: "unresolved-checkout",
+      subject: { kind: "work-unit", key: "old" },
+      diagnostics: [{ code: "branch-mismatch", message: "branch mismatch" }],
+    };
+    expect(locusOwnsBranch([unresolved], "feat/old")).toBe(false);
+  });
+
+  it("does not derive work-unit ownership from a delivery presentation ref", () => {
+    const roster = [workUnitRow("example/first-member", "/wt/example")];
+
+    expect(locusOwnsBranch(roster, "delivery/example/first-member")).toBe(false);
+  });
+});
+
+function baseRow(path: string, branch: string | null) {
+  return {
+    checkout: { folderPresent: true, path, head: "a".repeat(40), branch, detached: branch === null, primary: false },
+    markerGeneration: `sha256:${"b".repeat(64)}`,
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context: null,
+    lifecycleLocation: "active" as const,
+    diagnostics: [],
+  };
+}
+
+function workUnitRow(name: string, path: string, uid?: string): DerivedCheckoutRow {
+  return {
+    ...baseRow(path, `feat/${name}`),
+    kind: "work-unit",
+    subject: { kind: "work-unit", key: name, ...(uid === undefined ? {} : { uid }) },
+  };
+}
+
+function transientRow(identity: LocusIdentityV1): DerivedCheckoutRow {
+  const kind = identity.kind === "errand" && identity.purpose === "housekeep-routing" ? "housekeep" : identity.kind;
+  return {
+    ...baseRow(`/wt/${identity.key}`, identity.branch),
+    kind: "transient",
+    identity,
+    subject: { kind, key: identity.key, claimId: identity.claimId },
+  } as DerivedCheckoutRow;
+}
+
+it.each(["default", "injected"] as const)("resolves an arbitrary linked work branch through the %s project identity port", async port => {
+  const h = createLifecycleHarness();
+  await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example", uid: "11111111-1111-4111-8111-111111111111" })), "{}");
+  const primary = await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
+  const roster = [workUnitRow("widget", "/wt/widget", boundWorkUnitSubject(primary).uid)];
+  expect(await locusOwnsBranch(roster, "arbitrary-name", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(true);
+  expect(await locusOwnsBranch(roster, "feat/widget", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(false);
+});
+
+it("the in-repo implementation retains branch-slug ownership", async () => {
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unused-lazy-store" }));
+  const roster = [workUnitRow("widget", "/wt/widget")];
+  expect(await locusOwnsBranch(roster, "feat/widget", { store })).toBe(true);
+  expect(await locusOwnsBranch(roster, "arbitrary-name", { store })).toBe(false);
+});
+
+it.each(["work-unit", "retired"] as const)("an archived %s row does not claim the live namesake's branch", async kind => {
+  const h = createLifecycleHarness(), branch = "topic/live";
+  const archived = await h.seedMeta("widget", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("widget", {}, { kind: "active" },
+    { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
+  const oldRow = DerivedCheckoutRowSchema.parse({ ...workUnitRow("widget", "/wt/old", boundWorkUnitSubject(archived).uid), kind });
+  const options = { store: h.store, projectId: async () => "project" };
+  expect(await locusOwnsBranch([oldRow], branch, options)).toBe(false);
+  expect(await locusOwnsBranch([oldRow, workUnitRow("widget", "/wt/live", boundWorkUnitSubject(live).uid)], branch, options)).toBe(true);
+});

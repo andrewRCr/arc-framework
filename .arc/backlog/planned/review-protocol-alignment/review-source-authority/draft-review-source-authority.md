@@ -7,6 +7,718 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Reconcile the three Owner-acceptance instances behind one primitive, or record why not**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _Observation:_ `delivery-post-landing-conflict-recovery` closed planning consuming the Candidate
+  `applicability-selection` transition as the terminal member's acceptance rather than minting a record of its
+  own. That leaves three instances of one shape in the tree — an Owner accepting a review terminus, an Owner
+  accepting a review contribution's applicability, and an Owner accepting a Candidate movement whose
+  contribution ARC cannot prove. Whether they should consume one abstracted acceptance primitive is a real
+  question and deliberately not that work unit's to answer.
+
+- _Approach:_ decide after the terminus binding defect is fixed — an abstraction authored against the current
+  shape would be authored against a shape about to change. Consuming the existing selection rather than adding
+  a sibling leaves one fewer instance to reconcile, so the seam is narrower than it was.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` planning close, 2026-09-16, per that draft's
+  § Boundaries instruction to route the seam at planning close.
+
+- WU_Target: review-source-authority
+
+### `[ ]` **Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ The terminus is built as conversational direction bound to one exact subject and one lane, not as
+  the Owner's standing decision about the work unit. Two defects, both verified in source. It is **discarded when the
+  Candidate advances** — `handlers/review.ts:3078` replays lanes through `consumeOwnerAcceptedTerminus` whenever
+  `locus === "candidate-fix-pending"`, and the function's own doc calls the acceptance "the old conversational
+  direction". And it **cannot cover frontline at all** — `pre-publication-request.ts:51` and
+  `review-policy-driver.ts:148,197` all refuse with "owner-accepted terminus can be applied only to the standard
+  lane", so there is no way to express the decision over the lane that was still demanding passes.
+
+- _Third facet, observed after the first two were written:_ the durable boundary **does** persist the terminus —
+  `candidates/<wu>.boundary.json` still carried `kind: owner-accepted, acceptedBy: andrew` — but the live
+  procedure does not read it back. A plain `arc review pre-publication <wu> --json` reported `terminus: null`
+  against that same persisted record, and only re-supplying `--lanes` restored it and reached
+  `candidate-publish-ready`. This contradicts `prepare-work-unit.md:157` directly, which says the durable boundary
+  carries `owner-accepted` through convergence and to "not restate it" — restating it is exactly what was required.
+  So the record is right and the reader is wrong; the fix may be smaller than the first two facets suggest.
+
+- _The sharp form:_ the acceptance is destroyed by the fix it authorized. The Owner approves a disposition set and
+  accepts the terminus together; applying the approved fix advances the Candidate, and that advance revokes the
+  acceptance. The one action ARC asked the Owner to authorize is the action that cancels their authorization.
+
+- _Why this is a contradiction rather than a gap:_ the design already knows re-asking is wrong.
+  `prepare-work-unit.md:68-71` says "The Owner's decision is the authorization, so do not ask for a second
+  confirmation", and :157 says the durable boundary carries `owner-accepted` through convergence, "do not restate
+  it." Both scope survival to "while the exact Candidate remains current" — a condition an authorized fix always
+  breaks. So the rule is right and its binding is wrong.
+
+- _Approach:_ treat the terminus as a work-unit-level Owner decision that binds thereafter: it survives subject
+  movement and applies to every review lane, frontline included. ARC may report that the subject moved and what
+  changed; it may not silently revoke, re-ask, or route another metered pass on the strength of the movement alone.
+  Preserve the existing distinctions — accepted risk is still not provider clean, not converged, not no-op.
+
+- _Sibling in this same draft:_ "Make Owner-accepted termini settle hosted review blockers" is the third
+  manifestation of one principle — after the Owner accepts, do not force another metered pass or a second authority
+  request. Fold all three together rather than fixing the hosted case alone.
+
+- _Related:_ § Work Unit "Name the holder at every `[invariant]` firing site, or state the owner's standing once and
+  reach it" (`WU_Target: owner-authority-boundary (planned)`) holds the principle; this is its executable instance.
+  An agent using ARC to overrule the Owner is the product failure that capture exists to guard against.
+
+- _Boundary:_ does not re-derive which rules yield to judgment or how an override is disclosed, which the cohort
+  reserves to `judgment-authority-model`. Does not extend the terminus to Errand targets — that is
+  `review-orchestration-right-sizing`'s existing capture, which independently records that the terminus is
+  "inseparable from a delivery member's Candidate boundary" and already contemplates it covering frontline.
+
+- _Evidence:_ observed live during `concurrent-integration-characterization` pre-publication review. The Owner
+  accepted the standard terminus; the approved fix advanced the Candidate; the terminus was dropped and the gate
+  composed `ready / run-frontline` at pass 2 of 2 against the new head. The pass was stopped before it persisted
+  anything, so no pass was consumed.
+
+- _Captured during:_ `concurrent-integration-characterization` pre-publication review, 2026-09-15.
+
+- _Additional routed evidence:_ a review note carried from the terminus-carry Errand (PR #657), moved from
+  `singleton-integration-continuity` at the `state-storage` re-cut (2026-09-28). A carried terminus keeps the
+  `completedPasses` measured over the pre-movement subject while it feeds `readLaneProgressAcrossLineage`. Keeping that
+  count as provenance of the judgment, not authority over the new subject, looks right; but convergence acceptance is
+  the ordinary terminus, so the durable design should state the choice rather than leave it incidental.
+
+### `[ ]` **Let the Owner discharge a pending verification convergence, as a review terminus is accepted**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-protocol-alignment`
+
+- _Observation:_ A review lane can be concluded by explicit Owner judgment — a typed `owner-accepted` mode
+  producing a durable, Candidate-bound terminus that carries live Owner identity and the progress it concluded
+  over. Verification has no analogue. Convergence after an approved fix already reduces to three verdicts —
+  evidence carries (no re-verification at all), fresh (`full`), otherwise `focused` — so narrow re-verification is
+  built and a no-op path exists. But once a convergence is pending, the only exit is an attestation of covering
+  scope: `--scope focused|full` chooses what is supplied, never whether the requirement applies. Every
+  verification ARC asks for beyond the first is therefore effectively blocking, which is a poor default for a
+  project that has looked at the change and would accept it without a further pass.
+
+- _Approach:_ extract the acceptance shape both lanes share — judgment mode, live Owner identity, and the exact
+  subject the acceptance binds — and give convergence its own terminus bound to that primitive. Permit it to
+  discharge a pending convergence only; the initial attestation stays required. That last rule needs no new
+  mechanism, because the initial attestation is already gated structurally on task-list closure while subsequent
+  convergence is a derived evidence verdict.
+
+- _Boundary — stated because the target is the review lane:_ do not reuse the review terminus record itself, and
+  do not model convergence acceptance on its shape. That schema is bound to the standard lane and carries a
+  completed-pass count; convergence has neither lanes nor passes, so reusing it would drag review vocabulary into
+  Candidate state and couple two lifetimes that expire on different events. What the two share is the primitive,
+  not the record — two bindings of one acceptance shape. Bind the acceptance to the exact subject digest: an
+  acceptance that outlives the subject it accepted is precisely the stale-binding failure class the
+  characterization work has been recording.
+
+- _Not a remedy for:_ a convergence demanded over a wrong subject. Where an ambiguous history makes the collected
+  subject name the base's own change rather than the branch's, an Owner acceptance would approve a diff that is
+  not the real one. That correctness defect is routed to `delivery-post-landing-conflict-recovery`; this entry is
+  the ergonomics gap alone, and neither is the other's fix.
+
+- _Captured during:_ `concurrent-integration-characterization` Task 7.3, 2026-09-15.
+
+### `[ ]` **Make Owner-accepted termini settle hosted review blockers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-22).
+- _Concern:_ ARC can record an exact-target Owner-accepted terminus while the hosted provider's native review state
+  still blocks the host, forcing another metered pass or a second authority request after the Owner has already
+  accepted the residual review risk.
+- _Fold-in:_ make hosted authority universally moot after a valid Owner-accepted terminus, without binding the
+  behavior to one provider. Authorize and record the host's standard override or dismissal for the exact target,
+  preserve Owner acceptance as distinct from provider clean, and avoid another authority stop before the existing
+  exact-head integration approval.
+
+### `[ ]` **Remove the pre-PR ordered-reservation item now owned by the shipped integration design**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-20).
+- _Concern:_ this draft's pending ordered-reservation item duplicated the fix owned by
+  `integration-boundary-accuracy`. Drop it or reduce it to a landed-contract revalidation pointer instead of
+  re-deriving the behavior beside this WU's one-run source-override design.
+
+### `[ ]` **Census the hosted record family against native authorities and standards**
+
+- _Routed from:_ three `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-20).
+- _Concern:_ fix tokens, applicability proofs, lifecycle-tail digests, forward receipts, and a composed PR-body
+  review ledger may duplicate Git, host review, or interlock evidence. The hosted settlement composer also exposes
+  a dead executable channel with no production caller.
+- _Precedent input:_ use SARIF/code-scanning disposition vocabulary instead of inventing another hosted finding
+  standard; treat gittuf's signed reference-state log as the long-horizon precedent for portable local-review
+  evidence; account for PR-body collisions with bots that regenerate summaries on every push.
+- _Fold-in:_ test every record and composer against the failure it uniquely witnesses, retain the local lane's only
+  evidence chain, and retire hosted records or dead capabilities that merely shadow another authority.
+
+### `[ ]` **Preserve hosted-source priority while PR coordinates are pending**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ pre-PR standard-review resolution with configured order `coderabbit-pr`, `codex-pr`,
+  `delegated-agent` marked both hosted sources ineligible for lacking PR coordinates, then selected the later
+  local source. Source order currently means "first usable now", not "first preferred source whose
+  prerequisites should be satisfied" — starting local preparation before PR creation despite hosted providers
+  configured ahead.
+- _Fold-in:_ distinguish a preferred source awaiting its carrier coordinates from an unavailable or failed
+  source. Pre-PR resolution should request the change-request prerequisite when the leading unattempted source
+  requires it; only an authoritative safe failure should advance to the next configured source. Cover the mixed
+  hosted-plus-local pre-PR case, not only hosted-only configurations.
+
+### `[ ]` **Let a hosted review source go on a cooldown that expires on its own**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Operator Selection Override and § Provider-owned Capabilities: source eligibility, which a cooldown
+  joins as one more reason a source is ineligible.
+
+- _Observation:_ to stop CodeRabbit from being used during a rate-limit hold, the Owner currently has to remember to
+  skip it or force another source on every review call. The alternative, reordering the configured source array,
+  pulls the wrong lever: order states a lasting preference, and a cooldown is a temporary loss of availability.
+  Changing preference to express availability leaves an undo to remember, and in tracked project config it also
+  costs commits. ARC only reacts at the moment a limit hits. A `rate-limited` or `transient-unavailable` outcome
+  makes the driver try the next source without using up a pass, and `3ba8ba34c` (#788) recognizes CodeRabbit's
+  rate-limit replies. Nothing remembers the limit, so every new request tries the limited source first again and
+  pays for that round trip, or for hitting the limit again.
+
+- _Approach:_ make a cooldown one more reason a source is ineligible, not a new routing concept. Design points:
+    - **A record with an absolute end time:** `{ quota, until, reason, setBy }`. Readers ignore expired records, so
+      the cooldown ends on its own and nothing has to clean it up.
+    - **Two ways to set one:**
+        - The Owner declares it, for example `arc review source cooldown <source> --for 72h`, with a configurable
+          default of about 24h.
+        - ARC sets it when it observes a rate limit. It uses the provider's reset hint when there is one (HTTP
+          `Retry-After`, or CodeRabbit's "wait N minutes"), and a short default of about 1h otherwise.
+    - **Key it on the quota, not the source:** `coderabbit-cli` and `coderabbit-pr` likely draw on one account
+      limit. Each source would declare a quota group, defaulting to its own ID.
+    - **Scope follows whose quota it is:**
+        - A personal seat gets a personal cooldown, stored beside the developer source preferences in
+          `lane-policy-config`.
+        - An organization plan gets a cooldown shared across the project. That is operational state, so it belongs
+          in the storage contract's refs, not tracked config. Only the default durations belong in config.
+    - **Always visible:** resolve and status output name the skipped source, its end time and who set it, through
+      the driver's existing `ineligibleSources`. The integration interlock surfaces any active cooldown.
+    - **Overrides and edge cases:**
+        - `invocation: { mode: "force" }` overrides a cooldown.
+        - If every source is cooling down, review is not skipped: ARC returns a typed stop that names the earliest
+          end time and offers to force a source or wait.
+        - A skipped source uses up no pass, the same as `rate-limited` today.
+        - A `clear` verb ends a cooldown early.
+    - **Open question:** whether repeated limits should lengthen the cooldown, as Envoy's outlier ejection does.
+      Leave that out of a first version.
+
+- _Precedent:_
+    - LiteLLM's router is the closest match. After `allowed_fails` it cools a deployment down for `cooldown_time`,
+      falls back to the others, and recovers on its own.
+    - Circuit breakers follow the same open-wait-reopen pattern: resilience4j (`waitDurationInOpenState`) and Envoy
+      outlier detection (`base_ejection_time`, which lengthens on repeat).
+    - HTTP 429 with `Retry-After` is the standard provider reset hint.
+    - Datadog downtimes, PagerDuty maintenance windows and Slack snooze are expiring snoozes of the
+      "set once, it falls off" kind.
+
+- _Priority:_ not near-term. The Owner wants it captured fully as a Work Unit, since scope, storage placement and
+  quota grouping all need design.
+
+- _Captured during:_ the "Carry Errand review evidence across an approved base reconciliation" Errand, after a
+  CodeRabbit pass ran during the Owner's rate-limit hold, 2026-10-05.
+
+### `[ ]` **Stop CodeRabbit's next format change from failing a whole hosted review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Provider-owned Capabilities: what a provider's unclassified result does to the pass and to fallback;
+  the capture names `review-adapter-extensibility` as the other candidate home.
+
+- _Observation:_ a CodeRabbit review body the parser cannot classify ends the whole pass as `terminal-failure / stop`
+  (`scripts/review-gate/hosted/coderabbit.ts`, the `parseCodeRabbitReviewBody` and dedup arms), so one format change
+  disables every CodeRabbit standard pass until a parser fix lands. Five such fixes have landed since 2026-09-28; the
+  bold-badge one ran as the Errand this was split from.
+
+- _Design needed:_
+    - **The recoverable outcome.** `malformed` already exists in `ReviewAttemptOutcomeSchema`, but the hosted adapter
+      returns `terminal-failure` for body-parse refusals and the workflows stop on both. Decide whether an
+      unclassified provider result is retryable, whether it consumes the pass, and what the typed stop names (the
+      unparsed item and its locus) so the Owner can choose a retry or another source.
+    - **The integrity rule for fallback.** The provider did review, and its unclassified item is still on the pull
+      request. Moving to another source must not drop it or read the review as clean, so fallback needs a rule for
+      what happens to that item.
+    - **A more structured surface.** Whether to read each finding's locus and severity from the inline review
+      comments API or the "Prompt for AI Agents" blocks rather than the decorated badge line, and what that costs for
+      body-only (nitpick and outside-diff) findings, which have no inline comment.
+
+- _Folded in (same-head retry):_ from the `USER-INBOX § Errand` capture "Give a hosted review pass that fails
+  terminally an Owner-authorized retry". Errand `hosted-terminal-failure-admission` landed only its cross-head half: a
+  terminal failure no longer holds the pass at a later head, and at its own head the refusal reads `terminal-failure`
+  and names the failed attempt. What remains belongs to the recoverable-outcome item above:
+    - **Same source, same head** (the case after upgrading ARC for a parser fix): the retry's admission identity is a
+      digest over `HostedAdmissionPreimageSchema`, which is stored as the attempt's `hosted.admission`, so identical
+      inputs replay the failure. `LaneAttempt.retryGeneration` exists but isn't in the preimage; adding it there is a
+      record shape, which the pull-forward filter excludes.
+    - **Another source, same head:** the driver stops on `terminal-failure` by design (`isSafeUnavailable`,
+      `review-policy-driver.ts`), so falling through is a policy decision.
+    - **No Owner route:** the Owner-directed review stop needs one completed pass, so a pass-1 failure with no head
+      movement still has no way forward.
+    - **Precedents:** local retry generations (`lane-progress-local-retry.ts`, automatic, same source and scope) and
+      frontline's Owner-decided `retryOfOperationId`.
+    - **Orphaned review:** after a pass at a later head, the failed provider's review at the earlier head is still on
+      the pull request; the fallback-integrity item above covers it.
+
+- _Deferred finding:_ CodeRabbit pass 2 on PR #835 (thread `PRRT_kwDOP8ODB86qWi_Z`, minor): `finding()` grades an
+  inline thread from `severity(comment.body)` over the whole comment, so a grade shown in inline code or a fence
+  ahead of the real badge would win. Live inline comments put the badge line first, so it has not occurred. Read an
+  inline finding's grade only from its leading badge line, never from code spans or fences, as part of the
+  structured-surface item above.
+
+- _Storage note:_ a persisted attempt carrying the unparsed item, or a new outcome kind, is a record shape, which the
+  `state-storage` cohort's pull-forward filter excludes before the seam.
+
+- _Observation:_ candidate homes: `review-source-authority` owns provider capabilities and source selection;
+  `review-adapter-extensibility` owns the adapter registration contract. Neither currently names parse-failure
+  recovery.
+
+- _Origin:_ split from the `USER-INBOX § Errand` capture "Parse CodeRabbit's bold finding badges, and stop its next
+  format change from failing a whole review", whose bold-badge half runs as Errand `coderabbit-bold-badges`.
+
+- _Captured during:_ that Errand, 2026-10-07.
+
+### `[ ]` **Count CodeRabbit's icon-badge migration as evidence for a recoverable provider-format failure**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the routed entry on a provider format change ending the whole pass as `terminal-failure / stop` — its
+  recoverable-outcome, fallback-integrity, and structured-surface items.
+
+- _Observation:_ a sixth parser fix since 2026-09-28. CodeRabbit moved its inline severity badge from a color emoji to
+  an SVG icon image between PR #1105 (2026-10-23T21:53Z) and PR #1112 (2026-10-24T02:35Z), and every CodeRabbit pass
+  with a thread finding ended `terminal-failure` / `provider-thread-finding-severity-unrecognized` until Errand
+  `coderabbit-icon-badges` landed. Since at least 2026-10-21, each thread finding's label had also been the provider's
+  leading `<!-- coderabbit-ai-generated:v1 -->` marker, unnoticed because labels only display.
+
+- _Observation:_ the failure was not always terminal, and a seventh fix shows it was live. Between 2026-10-08 and
+  2026-10-14 CodeRabbit changed review-body counts from `Nitpick comments (1)` to `Nitpick comments: 1`, file headers
+  likewise. The section reader skipped a header it could not recognize and still reported `parsed`, so the only two
+  nitpicks since, on PR #1046 and PR #1101, were dropped from passes that read as complete. Errand
+  `coderabbit-section-markers` reads both forms and makes a finding marker outside every recognized section a malformed
+  body, so an unknown section such as "Duplicate comments" now ends the pass `terminal-failure`. The recoverable outcome
+  should build on that closed-failure guard, and fallback must not read a skipped section as clean.
+
+- _Observation:_ through the migration, the comment's HTML comment markers stayed stable while the decorated badge
+  changed: `cr-comment:v1:<fingerprint>` and `cr-indicator-types:potential_issue`, beside a plain-text "Prompt for AI
+  Agents" block that carries the locus. None of them carries the grade, which bears on the structured-surface item.
+
+- _Observation:_ PR #1112 is a live instance of the folded-in same-head retry gap. Its await recorded `terminal-failure`
+  on the attempt, and `pendingAttemptCanAdvance` (`lane-progress.ts`) advances only a pending one, so re-awaiting the
+  already-posted review with the fixed parser conflicts (read from source, not run). The route left is moving the head
+  and paying for a fresh hosted pass.
+
+- _Observation:_ the deferred PR #835 finding came back on PR #1114's second hosted pass (thread
+  `PRRT_kwDOP8ODB86v1Osy`, minor): `finding()` reads the first badge anywhere in the comment, and the icon form widens
+  what a quoted example or fenced block can match. It was deferred again so that the leading-line read lands for both
+  marks at once rather than for icons alone.
+
+- _Observation:_ an eighth drift a day after the icon change: PR #1116's thread badges separate with ` · ` rather than
+  ` | ` (the § Errand capture "Read CodeRabbit badge lines separated by `·` as well as `|`"). The grade survived, the
+  label did not, and the review-body nitpick reader would refuse the new form.
+
+- _Captured during:_ the CodeRabbit icon-badge Errand, 2026-10-23.
+
+---
+
+### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ `arc review chunking resolve` returned `consider-chunks / select-review-scope` for a 14,936-line,
+  114-file target — 3x the configured 5,000-line advisory. The signal is advisory by design
+  (`review-chunking.md`: the thresholds "never draw boundaries, cap chunk size, or make a numeric budget a
+  validity rule"), so the policy still resolved `ready / run-frontline` at `coderabbit-cli`.
+
+- _Observation:_ both scope selections available at that point were wrong. `chunked` is an unbacked
+  advertisement — nothing under `src/scripts/review-gate/providers/` implements scoping, so the carrier would
+  review the whole target regardless. `whole-target` hands a 15k-line diff to a carrier that must consume it
+  whole, which is not a review anyone should rely on.
+
+- _Why it needs saying:_ the correct resolution — skip the frontline lane, force `delegated-agent` on the
+  standard lane at chunked scope, where the evaluator is an agent that can curate scopes and aggregate — is
+  reachable only by reading the capability table, the provider directory, and the lane recorders, then reasoning
+  it out. No typed state names it. An operator who trusts the returned policy runs the wrong review.
+
+- _Already owned, deliberately not re-captured:_ `review-source-authority` D2.1-D2.3 owns removing the unbacked
+  `chunked` advertisement and converting a chunked frontline request into a declared `source-scope-ineligible`
+  skip. That covers the chunked request. It does not cover an over-threshold **whole-target** request, which
+  still routes to a carrier that cannot review it well. `chunk-scope-binding` owns the automated per-chunk path
+  and explicitly keeps manual chunk aggregation as the working path meanwhile.
+  `review-signal-convergence` owns response-per-chunk on the live `chunk-pending` arm.
+
+- _Approach:_ decide whether the advisory-only contract should remain absolute at the **lane-routing** boundary.
+  The method's "never a cap" rule governs chunk boundaries; whether a lane may decline a target its only
+  configured source cannot review well is a different question it does not answer. One candidate shape,
+  deliberately not settled: once D2.2 exists, let a frontline lane whose configured sources are all
+  whole-target-only decline an over-threshold target through that same `skipped` arm under its own typed reason,
+  so the operator is told rather than left to infer. A lighter alternative is to leave routing untouched and
+  carry the recommendation in `recommendedActionText`. Either way the standard lane keeps its authority; this
+  removes a hand-derived step, not a decision.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` pre-publication review, 2026-09-18, after the
+  Owner rejected both offered frontline scopes.
+
+### `[ ]` **Confirm before a whole-change review of a change past the chunking thresholds**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Operator Selection Override (D1.5) — where an Owner's source selection binds, so a later call
+  cannot fall to the default — and the held entry "Give an oversized frontline target a typed route instead of
+  operator reasoning", which this extends to the standard lane as a confirmation rather than a refusal.
+
+- _Observation:_ `arc review chunking resolve` is read-only by design, and no command that admits a review consults
+  it. `frontline resolve` has no chunking check. `review resolve` takes the caller's `scopeSelection` and treats a
+  missing one as the whole change (`policy/review-policy-driver.ts:58`), and `review hosted request` does not measure
+  the change. So the threshold holds only if the agent reads one result and obeys it before a call that admits
+  regardless. Seen at least twice for frontline, most recently a resolve in `seam-record-kinds` after chunking
+  resolution had tripped. Also seen, less certainly, for a standard review: without `invocation: force` it fell to the
+  default provider over a change past the thresholds.
+
+- _Approach (Owner framing, 2026-10-11):_ chunking stays advisory — a confirmation, not a block. The human-UI analogue
+  is an "are you sure?" naming the measured size, the thresholds it trips, and that the selected source will review
+  the whole change because it cannot take a chunk or a narrower scope. Examples are a hosted pull-request review and
+  the CodeRabbit CLI's committed diff. A passive diagnostic on a successful result is exactly what agents miss, so the
+  agent-side form is a typed confirmation stop, like `approval-required / obtain-ceiling-override`. Passing it takes
+  one more call with an explicit acknowledgment, which can be given on purpose but not by accident. Record the
+  acknowledgment so the same target does not ask again.
+
+- _Open:_ who may acknowledge — the agent, the Owner, or either depending on vehicle. An Errand has no chunk path at
+  all, since its review scope is always the whole change. Also open: where an Owner's source selection binds, so that
+  a later call without `force` cannot fall to the default; and how this composes with delivery bindings and
+  `chunk-scope-binding`'s automated scopes. Candidate homes: `review-source-authority` first, whose purpose makes
+  operator selection and provider capabilities authoritative and removes unsupported scope rather than advertising
+  it; then `review-request-contracts` (caller-held request derivation) or `review-orchestration-right-sizing`.
+
+- _Captured during:_ the `cli-compile-cache` Errand's close, from a `seam-record-kinds` report, 2026-10-11.
+
+### `[ ]` **Derive what settled the standard lane for the integration interlock's review line**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30), design half of "Stop the integration interlock
+  from claiming a local review landed when none ran"; captured during the `local-ci-capacity-qualification` bridge
+  landing, recorded from the `archive-cadence-manual` session, 2026-09-24. The evidence-neutral wording fix stays in
+  `USER-INBOX § Errand` as a pull-forward candidate.
+- _Observation:_ the checkpoint's interlock evidence prints "Review landed: Local carrier `local-attestation`." for any
+  work unit without a hosted-review reservation. `projectHostedReservationDischarge` returns that detail whenever the
+  reservation is null (`scripts/review-gate/policy/hosted-reservation-discharge.ts:115`), and
+  `scripts/integration/checkpoint.ts:1629` falls back to the same string. The `local-ci-capacity-qualification` landing
+  (PR #708) closed its standard lane by Owner acceptance at zero passes, and the interlock still reported a local
+  carrier — evidence the Owner reads at the merge decision.
+- _Fold-in:_ derive the review line from what actually settled the lane, distinguishing a completed local attestation,
+  an Owner-accepted terminus with its pass count, and unknown evidence. A null hosted reservation alone proves none of
+  these. This shares the unit's terminus-kind discriminant and authority boundary: the terminus reader must inspect
+  `terminus.kind` before this line can name one.
+
+### `[ ]` **Let an explicit Owner merge authorization bind a later head the tooling proves carries no unseen change**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `review-source-authority`
+
+- _Observation:_ `DEV-RULES.ARC` § Review-Increment Invariant says a pre-composition direction "never" grants
+  "prospective merge authority over a head that does not yet exist", `run-errand`'s integration interlock binds
+  approval to one exact request, and `arc errand merge` binds `approvedTarget.headSha` exactly. So an Owner who
+  explicitly approves a merge ahead of time is re-asked whenever the head moves at all — even by a conflict-free
+  base merge that cannot carry agent-authored content. That overrides the holder's own decision rather than guarding
+  it: the invariant exists to stop the agent inferring or manufacturing merge authority, not to stop the Owner
+  granting it conditionally. The re-ask also trains reflexive approval, which weakens the gate it protects. Same
+  shape as `WORKING-MEMORY`'s standing rule for review acceptance — ARC may report that the subject moved, not
+  revoke or re-ask on the strength of that movement alone.
+
+- _Approach:_ let an explicit prior authorization cover a later head within a mechanically witnessed envelope,
+  never an agent judgment of "no semantic change" (that is self-attestation). A candidate envelope: the only
+  movement is a conflict-free base merge; the change's own diff against the new base equals the approved diff
+  (`base drift`'s overlap read already proves the disjoint case); review re-resolves clean or exempt with no new
+  finding; required checks green. Any agent-authored delta, conflict, new finding, or substantive overlap falls
+  back to an ordinary stop, and the applied carry-forward is disclosed where the Owner reads. Needs a typed
+  authorization scope on the merge verbs, not only a prose change — and it is a fourth instance for the buffer
+  item "Reconcile the three Owner-acceptance instances behind one primitive, or record why not".
+
+- _Captured during:_ housekeep drain session, integrating the `planning-path-subcohort-depth` Errand ahead of the
+  paused housekeep PR, 2026-09-30.
+
+### `[ ]` **Let an Owner's stop at the disposition turn bind through the fix it approves**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ on PR #759 the Owner approved a disposition set with one fix and agreed to stop review in the same
+  turn. The fix moved the head, `arc review status` reported `review-required` ("the new head still requires
+  review", `retrigger: full-final`), and a second metered CodeRabbit pass was requested on that basis. Nothing at
+  the disposition turn could carry the Owner's stop through the fix:
+    - `review-triage`'s next-pass recommendation covers only passes beyond the routed obligation. The re-review a fix
+      triggers is never presented as spend the Owner can decline, so "stop" there means "no extra pass", not "no
+      more review".
+    - `run-errand`'s Owner-directed review stop is the Errand's only route, and it is per-head by design: open PR
+      only, refused while any review request is pending, and any changed target "requires a new exact offer …
+      never carry the prior acceptance forward". An approved fix always changes the target, so the stop cannot be
+      given in the turn that approves the fix.
+    - The agent compounded it by presenting the re-review as the policy's call instead of offering that stop.
+
+- _Principle (Owner, 2026-10-01):_ Owner acceptance overrides routed review policy by design. ARC must never
+  overrule the Owner, above all on token spend.
+
+- _Approach:_ fold into the draft's "sharp form" item (the acceptance destroyed by the fix it authorized) and extend
+  it to the Errand vehicle and the disposition turn. Show the re-review a fix will trigger beside the disposition
+  set, and let a stop given there bind through the approved fix's head movement — recorded as accepted residual
+  risk, never provider clean.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01 (PR #759, second standard pass).
+
+### `[ ]` **Predict the host's native-review blocker before the integration interlock, and settle it in that approval**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ after an Owner-directed review stop on PR #759, the approved `arc errand merge` came back
+  `host-refused / stop`: "1 review requesting changes by reviewers with write access". CodeRabbit had left two
+  `CHANGES_REQUESTED` reviews, one per standard pass, and the `main` ruleset's `pull_request` rule blocks on them
+  even with `required_approving_review_count: 0`. Nothing in ARC predicted it: `arc review status` reported green
+  checks and `approval-required`, and the interlock read the ruleset by hand and got it wrong ("0 approvals
+  required, so it may not block"). Clearing it took a second Owner decision, a host dismissal, and a second merge
+  call after the one integration approval.
+
+- _Owner direction (2026-10-01):_ smooth this out — a host blocker the Owner has already accepted review over
+  should never surface as a surprise at merge.
+
+- _Approach:_ extend the draft's "Make Owner-accepted termini settle hosted review blockers" item to the Errand stop
+  and to prediction. Before the integration interlock, derive from the host's ruleset and the PR's native reviews
+  whether merge will be refused, name each blocking review in the interlock, and let that one approval authorize
+  its dismissal (recorded as Owner acceptance, never provider clean). Restoring deferred CI belongs in the same
+  pre-merge settlement, so the approved merge runs without another stop.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01 (PR #759 merge step).
+
+- _Recurred:_ PR #773, 2026-10-02 — the same stale CodeRabbit review, the same misread at the interlock, and the same
+  dismissal plus second merge call. The prediction half is pulled forward as the § Errand capture "Report a host review
+  blocker in `arc review status` before the integration gate"; what stays here is letting the integration approval
+  authorize the dismissal.
+
+- _Resolved facet (2026-10-03):_ PR #774 shipped prediction of native-review blockers in review status.
+  Integrate only the remaining scope: let the integration approval authorize the necessary host-review settlement
+  after Owner acceptance, covering the Errand vehicle as well as work units.
+
+### `[ ]` **Decide whether the operator selection override takes the Owner past a delta check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Operator Selection Override: whether skip/prefer lift mandatory local delta-check admission
+
+- _Observation:_ `review-coverage-cadence`'s spec adds a delta check: after a converged look, a plain commit (one that
+  answers no finding) takes an incremental local look on `delegated-agent`, whose range Git proves. While one is
+  admissible, the next pass runs on `delegated-agent` with no exception, and the driver refuses a forced hosted source
+  with a remedy naming the delta check. The Owner's other outcomes come in a fixed order: a local complete pass at once,
+  by complete coverage in local prepare's request, or a hosted complete pass after the delta check (by rank under
+  `full-final`, by an additional pass under `incremental`, on an Errand and in pre-publication). An Owner lift of the
+  limit was weighed and withdrawn there, because carrying the choice to every composition that applies it (Errand
+  status, both branches of hosted request admission, the singleton's discharge and its re-read) would need a stored
+  choice. This unit's planned `selectionOverride` on the policy request is that stored choice. That spec reads the delta
+  check's admissibility from the configured list, which a one-request `skip` leaves unchanged, so as written a `skip` of
+  `delegated-agent` leaves the delta check admissible and meets the override's empty-order stop. Whether a `skip` or a
+  `prefer` should take the Owner past the delta check is this unit's decision.
+
+- _Approach:_ when grooming § Operator Selection Override, decide whether `skip` and `prefer` narrow only the configured
+  order (leaving the delta check's limit in place, so a `skip` of `delegated-agent` stops) or also lift it, and if they
+  lift it, carry the override to every composition that applies the limit.
+
+- _Captured during:_ `review-coverage-cadence` create-spec, second adversarial pass, fix-check round 4 (2026-10-17).
+
+### `[ ]` **Let an Owner revise an approved disposition after its fix commits move the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ the "Make an Owner-accepted review terminus bind thereafter" item — its sharp form, a decision destroyed by
+  the fix it authorized, has this sibling: a decision the Owner changes mid-fix cannot be recorded at all.
+
+- _Observation:_ during `storage-ref-backend`'s pass 8 fix round (2026-10-29), the Owner changed one finding's
+  approved action after fixes had begun: AGG-20 was approved as a fix adding supersession lines to the shipped
+  contract specification, and became, at the Owner's direction, a different repair — restore that specification and
+  record the changes in the cohort document (`1258af5c0`). The gate refuses to supersede an approved disposition set
+  once the reviewed head moves, which the first fix commit always does, so the approved set could not be revised to
+  the repair actually made. The commit carried the original finding line and explained the change in its body; the
+  verified-fix replay then attested the original set's wording.
+
+- _Approach:_ a typed revision of an approved set after partial application, bound to the Owner's new decision and to
+  the fix commits already made under the old one, so the record, the commit lines, and the verified-fix replay agree.
+  Design question: whether a revision supersedes the set or amends one finding's action, and how the replay binds
+  commits made before it.
+
+- _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
+
+### `[ ]` **Let a successor disposition set correct a host reply its predecessor already settled**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ "Let an Owner revise an approved disposition after its fix commits move the head" — its host-side
+  sibling: the record-side supersession succeeds, but the predecessor's posted reply and resolved thread cannot be
+  corrected through settlement.
+
+- _Observation:_ in `store-operation-git-access`'s hosted review of PR #1213 (2026-10-31), a cohort-note finding was
+  approved as a rejection, its before-fix settlement posted the reject reply, and CodeRabbit then resolved the thread.
+  The Owner reversed the decision, and a two-call supersession (`supersedes` naming the predecessor set) made it a
+  fix. The successor's after-fix settlement for that thread, carrying the correction reply, returned
+  `ambiguous / stop` with no host change: `settleHostedFinding` (`scripts/review-gate/hosted/settle.ts`) treats a
+  resolved thread with no reply matching the request body as ambiguous and never posts onto it, and nothing in the
+  successor's plan records that the thread was already settled under another disposition. On Owner direction the
+  correction was posted by hand with `gh`, and the unchanged settle request then returned `already-settled / complete`.
+
+- _Approach:_ carry the predecessor's settlement into the successor's plan: for each finding whose disposition changed
+  after its before-fix settlement ran, a correction phase that may reply on the resolved thread, bound to the
+  predecessor's reply, so a supersession needs no hand-posted reply.
+
+- _Captured during:_ `store-operation-git-access` integration, hosted review response round, 2026-10-31.
+
+---
+
+### `[ ]` **Let a prepared, unlaunched local review be withdrawn or superseded**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject"; decide
+  with its hosted counterpart, "Let an unacknowledged hosted review request be withdrawn or superseded".
+
+- `WU_Target: review-source-authority`
+
+- _Re-checked:_ 2026-11-03 at `41963788ec`, after `seam-delivery-review` merged: partly addressed; merged with a second
+  capture. Details are in that day's verification notes, kept outside the repository.
+
+- _Observation:_ on PR #1087, `arc review local prepare -`, run only to see what it would admit, recorded a pending
+  local complete pass at the head. A later `arc review hosted request` for the CodeRabbit full review the Owner chose
+  then refused "Hosted review capacity is already held by a pending request" (`hosted-reservation-admission.ts`,
+  `handlers/review.ts`). No verb withdraws a prepared, unlaunched local review: `arc review local` has only prepare,
+  attest, and resume, and attesting `failed` would record a terminal failure for a review that never ran. The only
+  clean continuation was to run the prepared pass, which took the source choice away.
+
+- _Observation:_ `arc review local cancel` now exists (`e4d8c1bb6f`, 2026-10-25), but it records the attempt as
+  `terminal-failure` with `consumedPass: false`, and the policy driver blocks on that record
+  (`review-policy-driver.ts`, the `blocked` branch) before it reaches the terminus check. The same record stops both
+  a switch to another source and an Owner-accepted stop. Merged here: "Let an Owner-accepted stop take effect after a
+  cancelled local review dispatch" (`machine-check-runner` pre-publication, head `33b6ea7ae`, 2026-10-28), where
+  re-entry with `lanes.standard.terminus: { mode: "owner-accepted" }` returned `source-outcome-terminal-failure`
+  and only merging base, which gave a head with no attempts, applied the stop.
+
+- _Observation:_ an Errand opened for this on 2026-11-04 at `680f08c208` stopped before writing code, because
+  withdrawal is not the small change it looked like. Frontline withdraws an admission only while no execution record
+  exists (`admissionHasStarted`, `frontline-pending-admission.ts:29-33`); a prepared local review already has its
+  operation record and a materialized source, so frontline's rule does not reach it.
+
+- _Observation:_ on the native store, the ended outcome cancel writes is how an execution ends. It prunes the
+  in-flight record (`hosts/local/in-flight-outcomes.ts`), lets a shared source release once every owner has finished
+  (`hosts/local/source-sweep-records.ts`, pinned by `review-local-shared-source-native.test.ts`), and makes a retried
+  cancel replay. Removing the attempt without an outcome leaves a shared source pinned until the cleanup timeout, and
+  when both owners cancel, the sweep's duplicate-owner refusal blocks even that. On the repository store, a cancel
+  retried after a withdrawal finds no admitted attempt and refuses as corrupt state (`local-cancel-command.ts:82-85`),
+  and the tested persist-then-release order depends on the record withdrawal removes.
+
+- _Observation:_ native already records a cancel distinctly, as an ended local `terminal-failure` with no receipt
+  (`replayEndedLocalCancel`). The repository lane attempt cannot carry that difference without a new field, and the
+  `state-storage` pull-forward filter admits review work ahead of the seam only as Errands that "add no stored record
+  or record shape". An admission that consumed conditional pass authority (`admittedBy` on native, a consumed
+  authorization on the repository store) cannot be withdrawn without releasing or orphaning that authority.
+
+- _Decision:_ neither remaining shape is an Errand (Owner, 2026-11-04). Withdrawal, with native deleting the owner's
+  execution record, changes how the native store ends an execution, which the cutover builds on. Reading a receiptless
+  cancel as a run that never happened adds a record shape on the repository store. Until this lands, `WORKING-MEMORY`
+  carries the avoidance and the exits: run and attest the prepared review, cancel it only to retry locally, or move to
+  a new head.
+
+- _Approach:_ two shapes remain. Cancel withdraws the pending attempt, and native also retires the owner's execution
+  record, releasing before it withdraws so an interrupted cancel still finishes on retry. Or cancel keeps its ended
+  record, and the lane projection and policy driver read a receiptless local failure as a run that never happened, so
+  it blocks neither another source nor an Owner-accepted stop while an attested `failed` run still blocks. Fit with
+  the native model, which already records the fact, favors the second. Either way, a refused hosted request names the
+  holding operation and its exit.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/runtime/local-cancel-command.ts`,
+  `policy/review-policy-driver.ts`, `policy/review-policy-attempt.ts` (`isSafeUnavailable`),
+  `hosts/local/lane-outcome-composition.ts`, `hosts/local/source-sweep-records.ts`, and the three
+  "Hosted review capacity is already held by a pending request" sites (`handlers/review.ts`,
+  `policy/hosted-reservation-admission.ts`).
+
+- _Evidence:_ the 2026-10-21 investigation's local-prepare and hosted-request results, kept outside the repository.
+
+- _Captured during:_ Errand `test-cost-diagnosis-method`, PR #1087 review, 2026-10-21; routed by the Owner 2026-10-21.
+  Re-filed from `§ Errand` on 2026-11-04 after the Errand `withdraw-local-cancel` was abandoned unrun.
+
+---
+
+### `[ ]` **Let an unacknowledged hosted review request be withdrawn or superseded**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject"; decide
+  with its local counterpart, "Let a prepared, unlaunched local review be withdrawn or superseded".
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ once `arc review hosted request -` posts a request, nothing ends it if the provider never answers. `arc
+  review hosted` has only request, await, settle and dismiss. `await` reaches `pending / inspect-or-extend` and retains
+  the request. The Errand stop (`code-review.md` § Errand stop) refuses while any review request is pending, so the
+  Owner cannot accept the residual risk either. The only exit is an Owner-directed push to a new head, which gives up
+  that review. PR #1044's repeat CodeRabbit request had no reply or submitted review on its head at capture.
+
+- _Approach:_ a typed withdrawal or supersession of a pending hosted request that records it as not run, releases its
+  hosted capacity, and leaves the Errand stop and a source switch available, without claiming a result. Decide with the
+  local counterpart, whose cancel record currently blocks the policy driver.
+
+- _Captured during:_ Errand `repeat-review-guard`, investigating ARC's automatic repeat-review requests, 2026-11-07.
+  Approved for capture by the Owner.
+
+---
+
+### `[ ]` **Accept a manual read of an exact-head hosted review as a review-stop basis**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Provider-owned Capabilities, beside "Reconcile the three Owner-acceptance instances behind one primitive".
+
+- _Observation:_ the hosted readers now stop at once, naming the review, when they cannot read a finished result
+  (`provider-completion-reply-unrecognized`, `provider-body-finding-unattributed`, Codex's unreadable-review stops).
+  The session must still settle that pass. On #1304 that took `code-review.md` § Errand stop's residual-risk
+  acceptance, which records Owner acceptance of an unreviewed residual rather than a review that was read. Nothing lets
+  a manual read of the named exact-head review, with each finding dispositioned like a parsed one, count as the pass.
+
+- _Approach:_ add a basis under which a manual read of the exact-head review the stop names settles the hosted pass,
+  recorded as a manual read. Decide who may attest the read, what binds it to the head, and how its findings enter the
+  disposition record. Check coupling with `review-source-authority`, which holds the Owner-accepted review terminus.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
+---
+
+### `[ ]` **Name the files a frontline coverage shortfall missed**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Capability Re-cut (the stored frontline outcome's reason shape).
+
+- _Observation:_ Since #1272, a CodeRabbit run that does not cover every added or modified file records
+  `unavailable / capability-unsupported` with no detail, because that reason is a strict class with no fields
+  (`policy/frontline-outcome.ts`). The repair notice cannot name the missed files and reads the same as a missing
+  CodeRabbit executable or a too-many-files refusal. It was kept that way to leave the stored shape unchanged.
+
+- _Approach:_ add a bounded list, or a count and digest, of the missed paths to that reason. That changes the
+  strict-current v1 frontline outcome and its store binding in `lib/store/kinds/review/outcome/frontline.ts`, so weigh
+  it against the storage cutover's import, which should carry one shape.
+
+- _Captured during:_ the `frontline-clean-coverage` Errand (#1272), 2026-11-04 (Owner-approved capture).
+
+---
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`
@@ -107,6 +819,13 @@ eligibility, target, and lane, while attempt history decides which eligible memb
 Remove an advertisement nothing backs, and make its absence legible rather than fatal. Two code edits — `D2.1` and
 `D2.2` — plus a recorded hand-off; `D2.2` is what lets the removal stand alone.
 
+**Both code edits are on `main` ahead of this unit (2026-09-30).** `D2.1` landed alone with `review-signal-convergence`
+(`db6010814`), which left the halt below live: `cli-substrate-complete-migration`'s chunked pre-publication review
+stopped on it. `D2.2` then landed as the Errand `frontline-scope-skip`, exactly as specified here, including the
+trigger precision. Both edit the capability table and resolver in their current home,
+`src/scripts/review-gate/policy/review-policy-driver.ts`; `D8` carries them over when it relocates the declarations.
+`D2.3`'s hand-off to `chunk-scope-binding` remains this unit's to record.
+
 **D2.1 — The table edit** (in the relocated declarations from `D8`): `coderabbit-cli`'s `scopes` becomes
 `["whole-target"]`.
 
@@ -161,12 +880,11 @@ pull-request dependence, and dispatch action are abstract axes, the source lists
 diagnostics name no provider. The hosted execution layer is already adapter-array-driven, and each adapter already
 carries a self-description constant beside its implementation (`CODERABBIT_HOSTED_REGISTRATION`,
 `CODEX_HOSTED_REGISTRATION`). **What is closed is the wrong thing, and it is closed by four independent
-authorities:**
-`REVIEW_SOURCE_CAPABILITIES` is a module-private constant in `review-policy-driver.ts` carrying four hardcoded entries,
-unexported, with no registration surface; the config schema and compatibility validator each restate provider domains;
-and `hosted/request.ts` closes `HostedProviderIdSchema` over `coderabbit-pr | codex-pr`. Those are the places where a
-fact about someone else's product becomes a second authority rather than a reference to the adapter that implements
-it.
+authorities:** `REVIEW_SOURCE_CAPABILITIES` is a module-private constant in `review-policy-driver.ts` carrying four
+hardcoded entries, unexported, with no registration surface; the config schema and compatibility validator each restate
+provider domains; and `hosted/request.ts` closes `HostedProviderIdSchema` over `coderabbit-pr | codex-pr`. Those are the
+places where a fact about someone else's product becomes a second authority rather than a reference to the adapter that
+implements it.
 
 **The boundary that decides what is a leak.** `delegated-agent` is ARC's own subagent carrier, so its lanes and scopes
 are ARC's business and belong in core. `coderabbit-cli`, `coderabbit-pr`, and `codex-pr` are third-party providers;

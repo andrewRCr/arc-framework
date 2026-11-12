@@ -19,3 +19,5 @@
 - **Next Action:** Pre-commitment — vet the premise before committing to a cut. Settle the cheap relevance filter
   (most WUs won't relate) and where the codified step lives (planning workflows vs. `arc-task-audit` vs. a
   `strategy-work-planning` convention) before graduating to `planned/`.
+
+---

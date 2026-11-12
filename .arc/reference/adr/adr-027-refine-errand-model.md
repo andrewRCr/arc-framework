@@ -56,9 +56,8 @@ wrapper-optional class, execution-only, tracked by git history); each corrects a
    concern may be reviewed in a **bounded few in-session review passes** — the **extended errand** — without
    becoming a Work Unit: staging review for reviewer ergonomics crosses neither floor. What crosses the **scale**
    floor is needing a _durable_ plan, not needing a second pass. **Commit-count and review-pass-count both drop out
-   of the gate**; concern-count stays
-   (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing spectrum, not a
-   cardinality gate.
+   of the gate**; concern-count stays (multi-concern always decomposes). The errand is the shared sub-floor of one
+   work-sizing spectrum, not a cardinality gate.
 
    **Single-session binding is the errand's structural identity.** An errand carries no durable context machinery —
    no meta, no SESSION-NOTES, no task list — so it is bound to a single session by construction. Pause/resume is a
@@ -131,7 +130,7 @@ co-mingles execution-intent records with personal session-notes content and mism
   the errand → WU promotion edge, with its deterministic mechanics handled by the CLI (branch preserved, meta
   minted, record retired, routed to the right planning stage), makes a mis-call cheap to correct.
 - The errand ref inherits the partial-push cross-machine visibility gap the user-notes ref already has; closing it
-  is `cross-machine-sync-coherence`'s concern, not this decision's.
+  is `partial-push-marker`'s concern, not this decision's.
 
 ### Risks
 
@@ -145,6 +144,11 @@ co-mingles execution-intent records with personal session-notes content and mism
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-10-09):** [ADR-037][adr-037] refines this decision. ADR-037 replaces the derivation test with the
+record test; the two-floor structure, Errand mechanism, and record-owned identity stand.
+Neither record is superseded.
+
 ---
 
 [adr-021]: adr-021-introduce-errand-work-class.md
+[adr-037]: adr-037-decide-errand-boundary-by-record-test.md

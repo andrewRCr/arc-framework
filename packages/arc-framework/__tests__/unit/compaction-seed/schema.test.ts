@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   COMPACTION_SEED_SCHEMA_VERSION,
@@ -42,6 +43,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
     repoRoot: "/repo",
     branch: "feat/compaction-recovery",
     head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
+    stateVersion: null,
     dirty: true,
     activeWorkUnit: "compaction-recovery",
     metaPath: ".arc/active/meta-compaction-recovery.md",
@@ -64,13 +66,20 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
       ".arc/active/tasks-compaction-recovery.md",
       "packages/arc-framework/src/lib/compaction-seed/schema.ts",
     ],
+    locus: { checkoutPath: "/repo", parentCheckoutPath: null },
     ...overrides,
   };
 }
 
 describe("CompactionSeed schema", () => {
+  it("refuses the retired seed version explicitly", () => {
+    expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion: 1 }))).toMatchObject({
+      ok: false, error: { kind: "schema-version-mismatch", message: "compaction seed schemaVersion must be 2, got 1" },
+    });
+  });
+
   it("pins the schema version literal", () => {
-    const version: CompactionSeedSchemaVersion = 1;
+    const version: CompactionSeedSchemaVersion = 2;
 
     expect(version).toBe(COMPACTION_SEED_SCHEMA_VERSION);
   });
@@ -85,6 +94,29 @@ describe("CompactionSeed schema", () => {
       "partial-strategic",
     ]);
   });
+
+  it("round-trips the active checkout and optional marker parent without retired authority", () => {
+    const locus = {
+      checkoutPath: "/repo/worktrees/errand",
+      parentCheckoutPath: "/repo",
+    };
+    const value = seed({ locus });
+    expect(parseCompactionSeedJson(stringifyCompactionSeed(value))).toEqual({ ok: true, seed: value });
+    expect(value.schemaVersion).toBe(2);
+    expect(JSON.stringify(value)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
+  });
+
+  it.each(["checkoutPath", "parentCheckoutPath"])(
+    "rejects a partial locus hint missing %s",
+    (key) => {
+      const complete = {
+        checkoutPath: "/repo/worktrees/errand",
+        parentCheckoutPath: null,
+      };
+      const locus = Object.fromEntries(Object.entries(complete).filter(([candidate]) => candidate !== key));
+      expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), locus })).ok).toBe(false);
+    },
+  );
 
   it("accepts absolute load-set paths for resolver-produced identity-global entries", () => {
     const value = seed({
@@ -159,7 +191,7 @@ describe("CompactionSeed schema", () => {
     expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
   });
 
-  it("strips unknown nested fields from cursor and load-set payloads", () => {
+  it("strips unknown fields at every nested reader boundary", () => {
     const canonical = seed();
     const value = {
       ...canonical,
@@ -186,6 +218,10 @@ describe("CompactionSeed schema", () => {
           },
         })),
       },
+      locus: {
+        ...canonical.locus,
+        stale: { authority: "retired" },
+      },
     };
 
     expect(isCompactionSeed(value)).toBe(false);
@@ -194,6 +230,27 @@ describe("CompactionSeed schema", () => {
       seed: canonical,
     });
     expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
+  });
+
+  it("keeps locus producers strict while stripping unknown persisted hint fields", () => {
+    const canonical = seed();
+    const value = { ...canonical, locus: { ...canonical.locus, extra: true } };
+
+    expect(isCompactionSeed(value)).toBe(false);
+    expect(() => stringifyCompactionSeed(value)).toThrow("Unrecognized key");
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({ ok: true, seed: canonical });
+  });
+
+  it.each(["checkoutPath", "parentCheckoutPath"])("rejects invalid known locus field %s despite extras", (key) => {
+    const canonical = seed();
+    const result = parseCompactionSeedJson(JSON.stringify({
+      ...canonical,
+      locus: { ...canonical.locus, [key]: "relative", extra: true },
+    }));
+
+    expect(result).toMatchObject({ ok: false, error: {
+      kind: "invalid-schema", message: expect.stringContaining(`locus.${key}`),
+    } });
   });
 
   it("accepts null WU pointers for between-unit recovery state", () => {
@@ -232,6 +289,7 @@ describe("CompactionSeed schema", () => {
       "repoRoot",
       "branch",
       "head",
+      "stateVersion",
       "dirty",
       "activeWorkUnit",
       "metaPath",
@@ -240,6 +298,7 @@ describe("CompactionSeed schema", () => {
       "taskCursor",
       "loadSet",
       "uncommittedFiles",
+      "locus",
     ]);
   });
 
@@ -252,7 +311,7 @@ describe("CompactionSeed schema", () => {
     }
   });
 
-  it.each([0, 2])("rejects schema version %s with the actual version", (schemaVersion) => {
+  it.each([0, 3])("rejects schema version %s with the actual version", (schemaVersion) => {
     const result = parseCompactionSeedJson(JSON.stringify({ ...seed(), schemaVersion }));
 
     expect(result.ok).toBe(false);
@@ -378,7 +437,7 @@ describe("CompactionSeed schema", () => {
 
   it("exposes the strict producer schema", () => {
     expect(CompactionSeedSchema.parse(seed())).toEqual(seed());
-    expect(CompactionSeedSchema.safeParse({ ...seed(), extra: true }).success).toBe(false);
+    assertSchemaRefuses(CompactionSeedSchema, { ...seed(), extra: true });
   });
 
   it("rejects blank task cursor anchors", () => {

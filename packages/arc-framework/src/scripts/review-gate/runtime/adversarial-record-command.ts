@@ -1,0 +1,129 @@
+/** Publish one caller-approved adversarial pass on its named work-unit generation. */
+import { storeRemedyText } from "../../../lib/store/native-refusal.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
+import { readWorkUnit } from "../../../lib/store/lifecycle-write.js";
+import { resolveCurrentWorkUnit } from "../../../lib/store/current-work-unit.js";
+import { recordReferences, sameOwner, type OwnerIdentity, type RecordVersion } from "../../../lib/store/identity.js";
+import type { Store } from "../../../lib/store/contract.js";
+import type { StoreResult } from "../../../lib/store/refusal.js";
+import { StoreRefusalError } from "../../../lib/store/refusal-error.js";
+import { ReviewAdversarialPassSchema } from "../../../lib/store/kinds/review/adversarial-pass/schema.js";
+import { ReviewAdversarialRecordEnvelopeSchema } from "../core/adversarial-record-schema.js";
+import type { ReviewAdversarialRecordRequest, ReviewAdversarialRecordEnvelope } from "../core/adversarial-record-schema.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import { resolveReviewInvocation } from "./invocation.js";
+
+/** Recoverable input or storage failure at the adversarial recording boundary. */
+class AdversarialRecordError extends Error {
+  constructor(readonly code: "unsupported" | "invalid-input" | "corrupt-state", message: string,
+    readonly remedy?: { text: string }) { super(message); this.name = "AdversarialRecordError"; }
+}
+
+/** Derive immutable recording coordinates from the store and publish one pass. */
+export async function recordApprovedAdversarialPass(request: ReviewAdversarialRecordRequest, options: ReviewInvocationInput): Promise<ReviewAdversarialRecordEnvelope> {
+  const input = resolveReviewInvocation(options);
+  if (!input.store.capabilities.stateOffBranch) {
+    const location = request.activity === "verification" || request.activity === "criteria"
+      ? `the criteria report for work unit \`${request.workUnit}\``
+      : `work unit \`${request.workUnit}\`'s ADVERSARIAL-PASSES.md`;
+    throw new AdversarialRecordError("unsupported", "Adversarial pass records require off-branch state.",
+      { text: `Keep this approved pass in ${location} until off-branch state is enabled.` });
+  }
+  const primary = requireRead(input.store, await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
+  if (primary.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", "Resolve the work unit's metadata conflicts, then retry.");
+  const owner = primary.reference.owner;
+  if (input.workItem !== undefined && !sameOwner(input.workItem, owner)) {
+    throw new AdversarialRecordError("invalid-input", "The requested slug and selected work-item generation differ. Select the matching work unit, then retry.");
+  }
+  const code = request.activity === "verification" || request.activity === "criteria";
+  if (code) await requireCheckoutHolds(input.store, options.cwd, owner, request.workUnit);
+  const key = { activity: request.activity, number: await nextPassNumber(input.store, owner, request.activity) };
+  const artifacts = await readArtifactVersions(input.store, owner, request.activity);
+  const codeHead = code ? (await options.exec("git", ["rev-parse", "HEAD"], { cwd: options.cwd })).stdout.trim() : undefined;
+  const { workUnit, ...header } = request;
+  void workUnit;
+  const content = canonicalize(ReviewAdversarialPassSchema.parse({ ...header, artifacts,
+    ...(codeHead === undefined ? {} : { codeHead }) }));
+  const written = requireWrite(input.store, await input.store.write({ action: "put", reference: recordReferences["review/adversarial-pass"](owner, key),
+    expected: null, content, provenance: { verb: "review-adversarial-record", lifecycleAction: "create",
+      ...(codeHead === undefined ? {} : { codeHead }) } }));
+  return ReviewAdversarialRecordEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [],
+    state: "recorded", nextAction: "none", payload: { key, version: written.version } });
+}
+
+// A code pass binds the checkout's HEAD, which is the work unit's code only in the checkout holding that work unit. A
+// claim the checkout could not read, or one naming several work units, is the checkout's state to repair, not a
+// direction to move.
+async function requireCheckoutHolds(store: Store, cwd: string, owner: OwnerIdentity, workUnit: string): Promise<void> {
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "resolved" && sameOwner(current.candidate.reference.owner, owner)) return;
+  if (current.status !== "resolved" && current.warnings.length > 0) {
+    throw new AdversarialRecordError("corrupt-state", `This checkout's work-unit claim could not be read. ${current.warnings.join(" ")}`);
+  }
+  if (current.status === "ambiguous") {
+    throw new AdversarialRecordError("corrupt-state", "This checkout's claim names more than one work unit ("
+      + `${current.candidates.map(({ reference }) => `\`${reference.owner.name}\``).join(", ")}). Repair the checkout's claim, then retry.`);
+  }
+  throw new AdversarialRecordError("invalid-input", `This checkout does not hold work unit \`${workUnit}\`, so its HEAD is not `
+    + `that work unit's code. Run the command from work unit \`${workUnit}\`'s checkout, then retry.`);
+}
+
+// Absence and a slug naming an Errand are the caller's input to correct; a stored record that does not decode, and every
+// other refusal, report as the store's.
+function requireRead<T>(store: Store, result: StoreResult<T>, context = ""): T {
+  if (result.status === "ok") return result.result;
+  const refusal = result.refusal;
+  if (refusal.code === "not-found" || (refusal.code === "record-malformed" && refusal.rule === "lifecycle.work-unit")) {
+    throw new AdversarialRecordError("invalid-input", `${context}${refusal.condition} ${storeRemedyText(store, refusal.remedy)}`);
+  }
+  throw new StoreRefusalError(refusal, store.capabilities.stateOffBranch);
+}
+
+// A refused write check is the caller's approved pass to correct; every other refusal reports as the store's.
+function requireWrite<T>(store: Store, result: StoreResult<T>): T {
+  if (result.status === "ok") return result.result;
+  if (result.refusal.code === "not-found" || result.refusal.code === "record-malformed") {
+    throw new AdversarialRecordError("invalid-input", `${result.refusal.condition} ${storeRemedyText(store, result.refusal.remedy)}`);
+  }
+  throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
+}
+
+async function artifactVersion(store: Store, owner: OwnerIdentity, artifact: "draft" | "spec" | "task-list",
+  optional = false): Promise<RecordVersion | undefined> {
+  const read = await store.read({ reference: recordReferences[`work-item/${artifact}`](owner) });
+  if (optional && read.status === "refused" && read.refusal.code === "not-found") return undefined;
+  const record = requireRead(store, read);
+  if (record.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", `Resolve the ${artifact} conflicts, then retry.`);
+  return record.version;
+}
+
+async function readArtifactVersions(store: Store, owner: OwnerIdentity, activity: ReviewAdversarialRecordRequest["activity"]) {
+  if (activity === "draft-readiness") return { draft: await artifactVersion(store, owner, "draft") };
+  const spec = await artifactVersion(store, owner, "spec");
+  if (activity === "spec-finalization") {
+    const draft = await artifactVersion(store, owner, "draft", true);
+    return { spec, ...(draft === undefined ? {} : { draft }) };
+  }
+  return { spec, taskList: await artifactVersion(store, owner, "task-list") };
+}
+
+async function nextPassNumber(store: Store, owner: OwnerIdentity, activity: ReviewAdversarialRecordRequest["activity"]): Promise<number> {
+  const listing = requireRead(store, await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
+  if (listing.status === "absent") return 1;
+  if (listing.status === "unreadable") throw new AdversarialRecordError("corrupt-state", `${listing.condition} ${storeRemedyText(store, listing.remedy)}`);
+  if (listing.missed || listing.diagnostics.length > 0) {
+    const details = listing.diagnostics.map(entry => `${entry.condition} ${storeRemedyText(store, entry.remedy)}`).join(" ");
+    throw new AdversarialRecordError("corrupt-state", `Adversarial pass listing is incomplete. ${details} Restore a complete listing, then retry.`);
+  }
+  let highest = 0;
+  for (const record of listing.records) {
+    const value = ReviewAdversarialPassSchema.safeParse(JSON.parse(record.content)), key = record.reference.key;
+    if (record.conflicts.length > 0 || !value.success || key === undefined || typeof key === "string"
+      || key.activity !== value.data.activity) {
+      throw new AdversarialRecordError("corrupt-state", "Repair the conflicting or malformed adversarial pass records, then retry.");
+    }
+    if (key.activity === activity) highest = Math.max(highest, key.number);
+  }
+  if (highest >= Number.MAX_SAFE_INTEGER) throw new AdversarialRecordError("corrupt-state", "The adversarial pass number is exhausted. Repair the pass history before retrying.");
+  return highest + 1;
+}

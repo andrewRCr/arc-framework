@@ -18,7 +18,11 @@
     - Settle the ordinary planned-set claim substrate without creating a dependency cycle with
       `session-locus-model` and its downstream `claimed-sweep-verbs` deliverable.
     - Refresh the DTI-facing contract against the shipped `decompose-transform-integrity` core before adversarial
-      review and formalization.
+      review and formalization. That core's commit `d72542accf` set the requirement below, which D4's direct receipt
+      validation contradicts; the refresh settles which one holds. "Consume the facts-only `LandedDecompositionHandoff`
+      emitted by `arc decompose <origin> --handoff` for decomposition entry. Preserve its ordered selected readiness
+      and blockers; do not parse retirement receipts, infer a frontier, or accept precomposed launch commands from the
+      core transform."
 - **Next:** Pause until the direct DTI dependency lands and the claim-substrate delivery order is settled, then
   refresh this draft against the shipped contracts.
 

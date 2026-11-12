@@ -24,25 +24,26 @@
  * stderr and exits non-zero.
  */
 
-import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
 
 import { notesRef } from "../../src/commands/user/shared.js";
-import { writeErrandRecord, type ErrandRecord } from "../../src/lib/errand/record.js";
+import {
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../src/lib/errand/identity-record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
+import { createGitExec, createGitExecInput } from "../../src/lib/io-context.js";
 import type { CoreIO } from "../../src/lib/types.js";
 import {
   acquireAdvisoryLock,
-  getNotesLockPath,
   releaseAdvisoryLock,
-} from "../../src/lib/user-sync/notes-lock.js";
+} from "../../src/lib/advisory-lock.js";
+import { getNotesLockPath } from "../../src/lib/user-sync/notes-lock.js";
 import { writeEntry } from "../../src/lib/user-sync/sync-state-ref.js";
 import { getOrCreateMachineId } from "../../src/lib/user-sync/sync-state.js";
-
-const execFileAsync = promisify(execFile);
 
 /** A fixed timestamp so an errand record's blob is deterministic across rounds. */
 const FIXED_CREATED_AT = "2026-01-01T00:00:00.000Z";
@@ -59,31 +60,16 @@ const BARRIER_POLL_MS = 3;
  */
 const BARRIER_WAIT_TIMEOUT_MS = 30_000;
 
-/** `execFile`-backed git executor bound to `cwd` (reads: rev-parse, ls-tree, cat-file). */
+/** Bind the production captured-output executor to the test repository. */
 function makeExec(cwd: string): GitExec {
-  return async (cmd, args) => {
-    const { stdout, stderr } = await execFileAsync(cmd, args, { cwd });
-    return { stdout: stdout.trimEnd(), stderr };
-  };
+  const exec = createGitExec();
+  return (cmd, args, options) => exec(cmd, args, { ...options, cwd });
 }
 
-/** `spawn`-backed stdin-fed git executor bound to `cwd` (hash-object, mktree, notes add). */
+/** Bind the production stdin-fed executor to the test repository. */
 function makeExecInput(cwd: string): GitExecInput {
-  return (args, input) =>
-    new Promise((resolve, reject) => {
-      const proc = spawn("git", args, { cwd });
-      let stdout = "";
-      let stderr = "";
-      proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-      proc.on("close", (code) => {
-        if (code === 0) resolve(stdout);
-        else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
-      });
-      proc.on("error", reject);
-      proc.stdin.write(input);
-      proc.stdin.end();
-    });
+  const execInput = createGitExecInput();
+  return (args, input, options) => execInput(args, input, { ...options, cwd });
 }
 
 function delay(ms: number): Promise<void> {
@@ -144,15 +130,34 @@ async function main(): Promise<void> {
     }
     case "errand": {
       const slug = req(extra[0], "slug");
-      const record: ErrandRecord = {
-        version: 1,
+      const record: TransientIdentityRecord = TransientIdentityRecordV3Schema.parse({
+        version: 3,
+        kind: "errand",
         slug,
+        claimId: "a".repeat(32),
+        purpose: "errand",
         origin: "description",
+        originEntry: null,
         intent: `true-race ${slug}`,
         branch: `chore/${slug}`,
+        state: "open",
+        savedHead: null,
+        changeRequest: null,
         createdAt: FIXED_CREATED_AT,
-      };
-      await writeErrandRecord({ exec, execInput, identity: id }, record);
+        updatedAt: FIXED_CREATED_AT,
+      });
+      const outcome = await transactTransientIdentities({ exec, execInput, identity: id }, {
+        remote: null,
+        message: `true-race ${slug}`,
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, [slug, record]]),
+          value: null,
+        }),
+      });
+      if (outcome.kind !== "applied" && outcome.kind !== "idempotent") {
+        throw new Error(`identity write failed: ${outcome.kind}`);
+      }
       process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
       break;
     }

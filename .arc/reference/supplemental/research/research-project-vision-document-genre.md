@@ -218,8 +218,7 @@ cited in code reviews, architectural discussions, and daily standups.
 
 1. Focus on the user and all else will follow.
 2. It's best to do one thing really, really well.
-3. Fast is better than slow.
-[etc.]
+3. Fast is better than slow. [etc.]
 
 **Citation Pattern**: Referenced by number + title: "Principle 3 is 'Fast is better than slow'" or
 colloquially "Principle 10: Great just isn't good enough."

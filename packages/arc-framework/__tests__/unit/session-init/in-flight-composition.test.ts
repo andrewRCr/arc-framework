@@ -14,6 +14,7 @@ function entry(branch: string, cls?: string): WorktreeRosterEntry {
   return {
     worktreePath: `/wt/${branch}`,
     branch,
+    metaFilePath: `/wt/${branch}/.arc/active/meta-${branch.slice(branch.indexOf("/") + 1)}.md`,
     ...(cls !== undefined ? { class: cls } : {}),
   };
 }

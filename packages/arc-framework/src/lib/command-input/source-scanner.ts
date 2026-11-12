@@ -6,10 +6,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import ts from "typescript";
+import { buildPromptSourceIndex, type PromptSourceIndex } from "./prompt-source.js";
 
 interface SourceInput {
   readonly file: string;
   readonly sourceText: string;
+  readonly sourceFiles?: Readonly<Record<string, string>>;
 }
 
 /** Stable source locus emitted by the scanner. */
@@ -31,6 +33,8 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
   readonly flags: string;
   readonly valueName: string | null;
   readonly required: boolean;
+  /** Whether Commander requires the option itself to be present. */
+  readonly presenceRequired: boolean;
   readonly variadic: boolean;
   readonly choices: readonly string[];
   readonly defaultValue?: string | number | boolean;
@@ -41,6 +45,8 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
 export interface DiscoveredAction extends DiscoveredSourceLocus {
   readonly symbol: string;
   readonly interactionContext: boolean;
+  /** Source-declared machine mode that applies to every invocation of this action. */
+  readonly constantMachineMode: boolean;
 }
 
 /** Canonical command and its syntax-discovered input surface. */
@@ -63,7 +69,6 @@ export interface CommanderSourceScan {
 /** Interaction-capable syntax class found outside the Commander tree. */
 export type DiscoveredInteractionKind =
   | "prompt"
-  | "prompt-helper"
   | "environment-policy"
   | "explicit-stdin"
   | "subprocess";
@@ -71,6 +76,8 @@ export type DiscoveredInteractionKind =
 /** One prompt, explicit-stdin, or process-launch source site. */
 export interface DiscoveredInteractionSite extends DiscoveredSourceLocus {
   readonly kind: DiscoveredInteractionKind;
+  readonly declaredId?: string;
+  readonly declaredSource?: { readonly file: string; readonly symbol: string };
   readonly callee: string;
 }
 
@@ -193,10 +200,13 @@ function parseOption(
   path: string,
 ): DiscoveredOption | undefined {
   const method = methodCall(call);
-  if (method === undefined || (method.name !== "option" && method.name !== "addOption")) return undefined;
+  if (
+    method === undefined
+    || (method.name !== "option" && method.name !== "requiredOption" && method.name !== "addOption")
+  ) return undefined;
   let flags: string | undefined;
   let decorators: readonly ts.CallExpression[] = [];
-  if (method.name === "option") {
+  if (method.name === "option" || method.name === "requiredOption") {
     flags = stringValue(call.arguments[0]);
   } else {
     const optionExpression = call.arguments[0];
@@ -208,24 +218,49 @@ function parseOption(
 
   const value = parseOperandSyntax(flags)[0];
   let choices: readonly string[] = [];
-  let defaultValue: string | number | boolean | undefined;
+  let defaultValue = method.name === "option" || method.name === "requiredOption"
+    ? literalValue(call.arguments[2])
+    : undefined;
   let conflicts: readonly string[] = [];
+  let presenceRequired = method.name === "requiredOption";
   for (const decorator of decorators) {
     const decoratorMethod = methodCall(decorator);
     if (decoratorMethod?.name === "choices") choices = stringsFromArray(decorator.arguments[0]);
     if (decoratorMethod?.name === "default") defaultValue = literalValue(decorator.arguments[0]);
     if (decoratorMethod?.name === "conflicts") conflicts = stringsFromArray(decorator.arguments[0]);
+    if (decoratorMethod?.name === "makeOptionMandatory") {
+      presenceRequired = literalValue(decorator.arguments[0]) !== false;
+    }
   }
+  if (defaultValue !== undefined) presenceRequired = false;
   return {
     flags,
     valueName: value?.name ?? null,
     required: value?.required ?? false,
+    presenceRequired,
     variadic: value?.variadic ?? false,
     choices,
     ...(defaultValue === undefined ? {} : { defaultValue }),
     conflicts,
     ...locus(file, call, path),
   };
+}
+
+function rejectsJsonOption(calls: readonly ts.CallExpression[]): boolean {
+  return calls.some((call) => {
+    const method = methodCall(call);
+    const handler = call.arguments[1];
+    if (handler === undefined || !ts.isIdentifier(handler)) return false;
+    return (
+      method?.name === "on"
+      && stringValue(call.arguments[0]) === "option:json"
+      && handler.text === "rejectUnsupportedReviewOutputJson"
+    ) || (
+      method?.name === "hook"
+      && stringValue(call.arguments[0]) === "preAction"
+      && handler.text === "rejectUnsupportedReviewJson"
+    );
+  });
 }
 
 function actionSymbol(call: ts.CallExpression): string {
@@ -254,6 +289,22 @@ function actionUsesInteractionContext(call: ts.CallExpression): boolean {
     && ts.isCallExpression(candidate)
     && ts.isIdentifier(candidate.expression)
     && candidate.expression.text === "withInteractionContext";
+}
+
+function actionHasConstantMachineMode(call: ts.CallExpression): boolean {
+  const candidate = call.arguments[0];
+  if (candidate === undefined || !ts.isCallExpression(candidate)
+    || !ts.isIdentifier(candidate.expression) || candidate.expression.text !== "withInteractionContext") return false;
+  const policy = candidate.arguments[0];
+  if (policy === undefined || !ts.isObjectLiteralExpression(policy)) return false;
+  const declaration = policy.properties.find((property) => ts.isPropertyAssignment(property)
+    && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+    && property.name.text === "machineReadable");
+  if (declaration === undefined || !ts.isPropertyAssignment(declaration)) return false;
+  const value = declaration.initializer;
+  return value.kind === ts.SyntaxKind.TrueKeyword
+    || (ts.isArrowFunction(value) && value.parameters.length === 0
+      && value.body.kind === ts.SyntaxKind.TrueKeyword);
 }
 
 /** Extract the canonical Commander tree and its syntax-owned values. */
@@ -296,6 +347,7 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
         if (syntax !== undefined && parent !== undefined) {
           const pathParts = [...parent, commandName(syntax)];
           const calls = chainedCalls(node);
+          const rejectsJson = rejectsJsonOption(calls);
           const aliases: string[] = [];
           const operands: DiscoveredOperand[] = [];
           operands.push(...commandOperands(syntax, locus(file, node, input.file)));
@@ -315,12 +367,14 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
               }
             }
             const option = parseOption(call, file, input.file);
-            if (option !== undefined) options.push(option);
+            // A flag wired solely to an explicit refusal is not an accepted command input.
+            if (option !== undefined && !(rejectsJson && option.flags === "--json")) options.push(option);
             if (chainedMethod?.name === "allowUnknownOption") allowUnknownOption = true;
             if (chainedMethod?.name === "action") {
               action = {
                 symbol: actionSymbol(call),
                 interactionContext: actionUsesInteractionContext(call),
+                constantMachineMode: actionHasConstantMachineMode(call),
                 ...locus(file, call, input.file),
               };
             }
@@ -362,17 +416,13 @@ function isExplicitStdinUse(node: ts.PropertyAccessExpression): boolean {
   return ts.isForOfStatement(current.parent) && current.parent.awaitModifier !== undefined;
 }
 
-/** Discover prompt, helper, explicit-stdin, and process-launch source sites. */
-export function scanInteractionSource(input: SourceInput): InteractionSourceScan {
-  const file = sourceFile(input);
-  const promptNamespaces = new Set<string>();
+function interactionBindings(file: ts.SourceFile): {
+  processFunctions: ReadonlySet<string>;
+} {
   const processFunctions = new Set<string>();
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const clause = statement.importClause;
-    if (statement.moduleSpecifier.text === "@clack/prompts" && clause?.namedBindings !== undefined) {
-      if (ts.isNamespaceImport(clause.namedBindings)) promptNamespaces.add(clause.namedBindings.name.text);
-    }
     if (["execa", "node:child_process"].includes(statement.moduleSpecifier.text)) {
       if (clause?.namedBindings !== undefined && ts.isNamedImports(clause.namedBindings)) {
         for (const element of clause.namedBindings.elements) processFunctions.add(element.name.text);
@@ -396,27 +446,23 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
     }
   }
 
+  return { processFunctions };
+}
+
+/** Discover declared prompts, explicit-stdin, and process-launch source sites. */
+export function scanInteractionSource(input: SourceInput,
+  promptIndex: PromptSourceIndex = buildPromptSourceIndex({ ...input.sourceFiles, [input.file]: input.sourceText })): InteractionSourceScan {
+  const file = promptIndex.files.get(input.file) ?? sourceFile(input);
+  const { processFunctions } = interactionBindings(file);
+
   const sites: Array<DiscoveredInteractionSite & { readonly position: number }> = [];
-  const promptNames = new Set([
-    "text",
-    "select",
-    "multiselect",
-    "autocompleteMultiselect",
-    "confirm",
-    "password",
-    "group",
-  ]);
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = calleeText(node, file);
-      if (ts.isPropertyAccessExpression(node.expression)) {
-        const receiver = node.expression.expression.getText(file);
-        const name = node.expression.name.text;
-        if (promptNamespaces.has(receiver) && promptNames.has(name)) {
-          sites.push({ kind: "prompt", callee, position: node.getStart(file), ...locus(file, node, input.file) });
-        } else if (/\.output$/u.test(receiver) && ["confirm", "select", "text"].includes(name)) {
-          sites.push({ kind: "prompt-helper", callee, position: node.getStart(file), ...locus(file, node, input.file) });
-        }
+      const declared = promptIndex.calls.get(input.file)?.get(node.getStart(file));
+      if (declared !== undefined) {
+        sites.push({ kind: "prompt", declaredId: declared.id, declaredSource: declared.source,
+          callee, position: node.getStart(file), ...locus(file, node, input.file) });
       }
       if (ts.isIdentifier(node.expression) && processFunctions.has(node.expression.text)) {
         sites.push({ kind: "subprocess", callee, position: node.getStart(file), ...locus(file, node, input.file) });
@@ -458,6 +504,8 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
   return {
     sites: sites.map((site) => ({
       kind: site.kind,
+      ...(site.declaredId === undefined ? {} : { declaredId: site.declaredId }),
+      ...(site.declaredSource === undefined ? {} : { declaredSource: site.declaredSource }),
       callee: site.callee,
       file: site.file,
       line: site.line,
@@ -476,18 +524,41 @@ async function typescriptFiles(root: string): Promise<readonly string[]> {
   return nested.flat().sort();
 }
 
-function importedModuleSpecifiers(sourceText: string, fileName: string): readonly string[] {
-  const file = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  return file.statements.flatMap((statement) => {
+/**
+ * Collect relative module specifiers that contribute to one source module's reachable graph.
+ *
+ * @param sourceText - TypeScript source to inspect.
+ * @param fileName - Filename used for TypeScript parsing and diagnostics.
+ * @returns Relative module specifiers in source order.
+ */
+export function importedModuleSpecifiers(sourceText: string, fileName: string): readonly string[] {
+  return moduleSpecifiers(sourceFile({ file: fileName, sourceText }));
+}
+
+function moduleSpecifiers(file: ts.SourceFile): readonly string[] {
+  const specifiers: Array<{ readonly position: number; readonly value: string }> = [];
+  const visit = (node: ts.Node): void => {
     if (
-      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
-      && statement.moduleSpecifier !== undefined
-      && ts.isStringLiteral(statement.moduleSpecifier)
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
+      && node.moduleSpecifier !== undefined
+      && ts.isStringLiteral(node.moduleSpecifier)
+      && node.moduleSpecifier.text.startsWith(".")
     ) {
-      return statement.moduleSpecifier.text.startsWith(".") ? [statement.moduleSpecifier.text] : [];
+      specifiers.push({ position: node.getStart(file), value: node.moduleSpecifier.text });
+    } else if (
+      ts.isCallExpression(node)
+      && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments.length === 1
+    ) {
+      const [argument] = node.arguments;
+      if (argument !== undefined && ts.isStringLiteral(argument) && argument.text.startsWith(".")) {
+        specifiers.push({ position: node.getStart(file), value: argument.text });
+      }
     }
-    return [];
-  });
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return specifiers.sort((left, right) => left.position - right.position).map(({ value }) => value);
 }
 
 async function loadTypescriptSources(sourceRoot: string): Promise<Readonly<Record<string, string>>> {
@@ -503,6 +574,7 @@ function cliReachableTypescriptFiles(
   sourceRoot: string,
   cliFile: string,
   sourceFiles: Readonly<Record<string, string>>,
+  parse: (file: string) => ts.SourceFile,
 ): readonly string[] {
   const byPath = new Map(Object.keys(sourceFiles).map((file) => [resolve(sourceRoot, file), file]));
   const pending = [resolve(cliFile)];
@@ -512,9 +584,8 @@ function cliReachableTypescriptFiles(
     if (file === undefined || reachable.has(file)) continue;
     reachable.add(file);
     const relativeFile = relative(sourceRoot, file).replaceAll("\\", "/");
-    const sourceText = sourceFiles[relativeFile];
-    if (sourceText === undefined) continue;
-    for (const specifier of importedModuleSpecifiers(sourceText, file)) {
+    if (sourceFiles[relativeFile] === undefined) continue;
+    for (const specifier of moduleSpecifiers(parse(relativeFile))) {
       const base = resolve(file, "..", specifier.replace(/\.js$/u, ""));
       const target = byPath.get(`${base}.ts`) ?? byPath.get(resolve(base, "index.ts"));
       if (target !== undefined) {
@@ -550,11 +621,22 @@ export async function loadCommandInputSourceSnapshot(options: {
   const cliText = sourceFiles[cliPath];
   if (cliText === undefined) throw new Error(`CLI source is outside the source snapshot: ${cliFile}`);
   const commands = scanCommanderSource({ file: cliPath, sourceText: cliText }).commands;
-  const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles);
+  // Parsing dominates the scan; the reachability walk and the prompt index share one tree per module.
+  const parsed = new Map<string, ts.SourceFile>();
+  const parse = (file: string): ts.SourceFile => {
+    const tree = sourceFile({ file, sourceText: sourceFiles[file] ?? "" });
+    parsed.set(file, tree);
+    return tree;
+  };
+  const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles, parse);
+  const promptIndex = buildPromptSourceIndex(
+    Object.fromEntries(files.map((file) => [file, sourceFiles[file] ?? ""])),
+    parsed,
+  );
   const interactions = files.flatMap((file) => scanInteractionSource({
     file,
     sourceText: sourceFiles[file] ?? "",
-  }).sites).sort((left, right) => {
+  }, promptIndex).sites).sort((left, right) => {
     if (left.file !== right.file) return left.file < right.file ? -1 : 1;
     if (left.line !== right.line) return left.line - right.line;
     return left.column - right.column;

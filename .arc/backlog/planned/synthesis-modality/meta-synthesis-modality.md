@@ -20,3 +20,5 @@
   an orthogonal axis layered onto `draft-design`'s depth ladder — settle how the prototype loop composes with the
   document-iteration loop) before committing scope. Confirm the reframed references to `draft-design` /
   `resolve-planning-depth` against those workflows' current shape.
+
+---

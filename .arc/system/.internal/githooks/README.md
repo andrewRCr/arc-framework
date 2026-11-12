@@ -41,8 +41,8 @@ chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githook
 
 ### commit-msg — Message Format
 
-Enforces the commit message standard defined in
-[DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit format:
+Enforces the commit message standard defined in [DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit
+format:
 
 The `commit-msg` hook is a thin shim. When validation is enabled, it resolves the repository-local
 `node_modules/.bin/arc` executable first, falls back to `arc` on `PATH`, and delegates to
@@ -52,7 +52,8 @@ delegation intentionally.
 
 **Errors (blocks commit):**
 
-- Conventional Commits format: `<type>(scope): description` (when `commit.format: conventional`)
+- Conventional Commits format: `<type>(scope): description`, where the scope is optional and lowercase and the
+  description starts lowercase (when `commit.format: conventional`)
 - Custom format pattern match against the `commit.custom_pattern` ECMAScript source (when
   `commit.format: custom`)
 - Subject line length: 10–`hooks.subject_max_length` characters (default 72; skipped when
@@ -72,17 +73,20 @@ delegation intentionally.
 - Task list file not found in active directories
 - Context footer issues when `commit.context_footer: recommended`
 - Contributor using non-`contribution` context footer pattern
-- Meta file not advanced when committing a completed parent task (derived
-  from the staged task list's directory)
+- Meta file not advanced when committing a completed parent task (derived from the staged task list's directory)
 
-### pre-commit — File Safety
+### pre-commit — File Safety and Declared Checks
 
 **Errors (blocks commit):**
 
+- A failed declared commit check from `arc check pre-commit`, after the structural checks
+- An unresolved CLI when `.arc/system/arc-checks.yml` is present; install `@arc-framework/cli` locally or globally
+  and retry the commit
 - Base branch commit protection in `full` mode (all changes require branches and PR review)
-- Merge conflict markers in staged files (exception: under `pm.mode: arc-in-git`, when
-  `.arc/backlog/ROADMAP.md` is the **only** conflicted or marker-bearing path, pre-commit
-  auto-regenerates and restages it from the staged-index projection before this check runs)
+- Merge conflict markers in staged files (exception: under `pm.mode: arc-in-git`, ROADMAP uses a scoped merge
+  driver that preserves normal text merging and surfaces the regenerate-and-stage remedy as soon as a conflict
+  occurs; when `.arc/backlog/ROADMAP.md` is the **only** conflicted or marker-bearing path, the pre-commit fallback
+  also auto-regenerates and restages it from the staged-index projection before this check runs)
 - Sensitive files (`.env`, `credentials.json`, etc.)
 - Invalid task numbering format in task lists (third level must use letters: 1.1.a not 1.1.1) —
   configurable via `hooks.task_numbering` (`error` | `warning` | `off`)
@@ -97,9 +101,12 @@ delegation intentionally.
 - Modified task lists not staged (maintainer only)
 - Task list staged with completions but sibling meta file not co-staged (maintainer only)
 
-### pre-push — Force-Push Safety
+### pre-push — Push Gate and Force-Push Advisory
 
-**Warnings (never blocks — always exits 0):**
+The hook runs `arc check pre-push` over the pushed ref lines and returns its exit status.
+Declared check failures block the push; state refs and deletions are skipped.
+
+**Advisory warnings:**
 
 - Force-push that rewrites published history: the remote tip being replaced is not an ancestor of the
   commit being pushed, so commits present only on the remote would be dropped. The warning names the
@@ -108,8 +115,7 @@ delegation intentionally.
 
   The hook sees only ref OIDs, not whether a branch is shared, so it warns on every non-ancestor
   overwrite — the append-only concern applies whenever published history is rewritten. The base branch is
-  not special-cased. Advisory only: it never blocks (the one sanctioned rewrite point, integration history
-  cleanup, proceeds unimpeded).
+  not special-cased. The advisory does not block; the declared push gate still applies.
 
 ## Role-Aware Behavior
 
@@ -128,9 +134,9 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 
 | Setting                             | Default             | Effect                                                                 |
 | ----------------------------------- | ------------------- | ---------------------------------------------------------------------- |
-| `hooks.pre_commit`                  | `enabled`           | Enable/disable pre-commit hook                                         |
+| `hooks.pre_commit`                  | `enabled`           | Disabled: no structural checks or commit gate dispatch                 |
 | `hooks.commit_msg`                  | `enabled`           | Enable/disable commit-msg hook                                         |
-| `hooks.pre_push`                    | `enabled`           | Enable/disable pre-push force-push advisory                            |
+| `hooks.pre_push`                    | `enabled`           | Disabled: no force-push advisory or push gate dispatch                 |
 | `commit.format`                     | `conventional`      | Format validation (`conventional` / `custom` / `any`)                  |
 | `commit.custom_pattern`             | empty               | ECMAScript pattern source used by `commit.format: custom`              |
 | `commit.context_footer`             | `required`          | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
@@ -172,8 +178,8 @@ related keys there; `commit.custom_pattern` is ECMAScript pattern source consume
 
 Edit the scripts directly only for project-specific checks that remain shell-owned. Common additions:
 
-- Project-specific sensitive file patterns (pre-commit, Check 3)
-- Additional debug statement patterns (pre-commit, Check 5)
+- Project-specific sensitive file patterns (pre-commit, `CHECK[sensitive-files]`)
+- Additional debug statement patterns (pre-commit, `CHECK[debug-statements]`)
 
 ## Hook Manager Compatibility
 

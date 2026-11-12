@@ -1224,11 +1224,9 @@ approximations, but both are flat stores rather than a staged lifecycle.
 
 ### 5.2 State machine for WU lifecycle
 
-**No tool models a structured state machine** like WOR's
-`Provisional | Planned | Active | Integrating | Shipped`. Their lifecycle is
-"spawn → work → archive" with no intermediate states. State transitions, codified value
-sets, and dependency-aware sequencing (per WOR scope item 20's `**Depends On:**` field) are
-absent.
+**No tool models a structured state machine** like WOR's `Provisional | Planned | Active | Integrating | Shipped`. Their
+lifecycle is "spawn → work → archive" with no intermediate states. State transitions, codified value sets, and
+dependency-aware sequencing (per WOR scope item 20's `**Depends On:**` field) are absent.
 
 ### 5.3 Sweep-as-you-go integration / single-branch-per-WU
 
@@ -1342,9 +1340,9 @@ opt-in for adopters who deliberately compose ARC with one of the workspace-manag
 WOR's Open Questions § "Worktree-trio dev-ergonomics pressure test (forward-compat watch)"
 flagged this exact research as deferred but not WU-blocking. The pressure test closes with
 this finding: **research findings bleed into trio scope (WF most affected, then AWL, then
-CWC), but do NOT bleed back into WOR scope materially.** WOR's foundation
-(single-branch-per-WU, location-by-state, sweep-as-you-go, Origin/Spec orthogonality, capture
-pipeline) survives unchanged. WOR's PRD-readiness is not gated by this research.
+CWC), but do NOT bleed back into WOR scope materially.** WOR's foundation (single-branch-per-WU, location-by-state,
+sweep-as-you-go, Origin/Spec orthogonality, capture pipeline) survives unchanged. WOR's PRD-readiness is not gated by
+this research.
 
 ---
 

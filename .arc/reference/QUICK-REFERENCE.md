@@ -7,17 +7,17 @@ Command patterns and environment context for the ARC framework.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands`,
 `npm Publishing` — load on demand when workflow steps reference them.
 
 ### Critical Path Reference
 
-| Resource           | Location from Repo Root          | Why It Matters                        |
-| ------------------ | -------------------------------- | ------------------------------------- |
-| Template documents | `.arc/reference/`                | Template/example content for adopters |
-| Active work        | `.arc/active/`                   | Current feature work                  |
-| CLI package        | `packages/arc-framework/`        | `@arc-framework/cli` npm package      |
-| Quality gates      | `npm run -s lint:md`, `npm test` | Zero-tolerance checks                 |
+| Resource           | Location from Repo Root   | Why It Matters                        |
+| ------------------ | ------------------------- | ------------------------------------- |
+| Template documents | `.arc/reference/`         | Template/example content for adopters |
+| Active work        | `.arc/active/`            | Current feature work                  |
+| CLI package        | `packages/arc-framework/` | `@arc-framework/cli` npm package      |
+| Quality gates      | `arc check`               | Declared checks at their deadlines    |
 
 **Working Directory Note**: Hybrid project — `.arc/` docs + `packages/arc-framework/` CLI. All
 commands run from repository root; npm workspaces delegates to the package automatically.
@@ -28,7 +28,7 @@ commands run from repository root; npm workspaces delegates to the package autom
 locally via tsup.
 
 **Quality Tools**: `markdownlint-cli2`, TypeScript, Vitest, tsup, Git. Commands live in
-§ Command Patterns and § Quality Gate Commands below.
+§ Command Patterns below; the check declaration assigns their gate deadlines.
 
 ---
 
@@ -53,6 +53,9 @@ npm run -s lint:md:fix:file -- "path/to/file.md"
 
 # Certify the exact staged candidate (normally run by pre-commit)
 npm run -s lint:md:staged
+
+# Check under-wrapping while writing a file, before staging (feedback only)
+npm run -s lint:md:underwrap -- --worktree "path/to/file.md"
 
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
@@ -106,9 +109,21 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 # Lint TypeScript source (recommended-type-checked rules)
 npm run lint:ts
 
+# Focused root targets: repository-relative files, directories, or quoted globs
+npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts
+npm run -s lint:ts:file -- 'packages/arc-framework/src/lib/*.ts'
+
+# Optional adapter delimiter: following ESLint options and values stay native
+npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts -- --fix
+
 # Lint shell scripts (githooks and system scripts)
 npm run lint:sh
 ```
+
+Root TypeScript targets precede the optional adapter `--`. ESLint runs in package cwd so suppression keys remain
+package-relative; option values and explicitly forwarded positional patterns after that delimiter use the same
+native base. Package-local `lint:ts:file` also retains package-relative paths. Markdown lint/fix helpers accept
+literal repository-relative filenames through their existing `--no-globs` scripts.
 
 ### Type Checking
 
@@ -123,123 +138,65 @@ npm run typecheck:test
 ### Testing
 
 ```bash
-# Run full test suite
+# Run the routine local lane (unit + unit-mocks + integration)
 npm test
+
+# Run every Vitest project, including E2E
+npm run test:full
 
 # Run unit tests only
 npm run test:unit
+
+# Exact repository-relative file, with a native name filter through one npm separator
+npm run -s test:file -- packages/arc-framework/__tests__/unit/dev-check.test.ts -t "returns skip when src/ is absent"
+
+# Exact directory selection; each named operand must contribute an eligible specification
+npm run -s test:file -- packages/arc-framework/__tests__/integration
+
+# Explicit native execution options override configured defaults
+npm run -s test:file -- packages/arc-framework/__tests__/unit/dev-check.test.ts --project unit --maxWorkers 1
+
+# Broad tiers retain native package-relative filename filters
+npm run -s test:unit -- __tests__/unit/dev-check.test.ts
 
 # Run tests in watch mode (during development)
 npm run -w packages/arc-framework test:watch
 ```
 
+`test:file` accepts existing files or directories under the configured unit, integration, and E2E test trees.
+It selects exact files or directory descendants; every operand must contribute before optional native pre-parsing.
+Project filters can restrict that selection. Name filters, pool, isolation, file parallelism, and worker settings
+retain native precedence and literal option values; unit-mocks keeps configured isolation unless explicitly
+overridden. Invalid/excluded/empty targets, unknown or malformed flags, extra separators, config/root overrides,
+and watch/browser/UI or alternate discovery modes receive actionable diagnostics. Zero completed cases is
+non-passing even when native empty-run or ignored-error options are supplied.
+
+Supported run-mode scripts, including retained cost measurements, discover first and retain one controller through
+closing. Unit-only selections request no heavy admission or build. Integration/E2E selections acquire CPU admission,
+then checkout artifact ownership, and prepare qualified CLI and metafile output before setup. Artifact ownership lasts
+through test execution and cleanup; logged closing errors and final worker errors fail the run. Native watch remains
+the separate package convenience shown above.
+
 ### Building
 
 ```bash
-# Build CLI package (ESM output with shebang and declarations)
-npm run build
-```
-
----
-
-## Quality Gate Commands
-
-Reference commands for the DEV-RULES.PROJECT quality gates. **Which** of them a given change has to run is
-DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions); the tier model itself is the
-[Quality Gates Strategy][quality-gates].
-
-**Parity with CI.** The full-suite set below tracks the required workflow in `.github/workflows/ci.yml`. The
-`lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
-that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
-
-**Measured cost** (2026-07-25, warm cache). Targeting is what makes Tier 1 a per-task gate rather than a second
-full suite — the expensive checks narrow by an order of magnitude, and the ARC contract checks are already cheap:
-
-| Check                   | Full project | Targeted                                    |
-| ----------------------- | ------------ | ------------------------------------------- |
-| `lint:md`               | 6.9s         | 0.25s — `lint:md:file`, per file            |
-| `lint:ts`               | 21.4s        | 2.1s one file · 9.1s one directory          |
-| `lint:sh`               | 1.0s         | not narrowable (fixed hook/script set)      |
-| `lint:arc:triggers`     | 0.27s        | corpus-wide by design; already cheap        |
-| `lint:arc:domain-rules` | 0.23s        | corpus-wide by design; already cheap        |
-| `lint:arc:section-refs` | 0.22s        | corpus-wide by design; already cheap        |
-| `typecheck`             | 4.2s         | not narrowable (whole-program)              |
-| `typecheck:test`        | 7.3s         | not narrowable (whole-program)              |
-| `test:unit`             | 24.2s        | 1.1s — filename filter                      |
-| `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
-| `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
-| `build`                 | 5.7s         | not narrowable                              |
-
-### Incremental — Tier 1 (per-task)
-
-**Always targeted** — pass the paths the task actually changed. A single-file TypeScript task runs in seconds,
-not a minute.
-
-```bash
-# Markdown — per changed file
-npm run -s lint:md:file -- "path/to/file.md"
-
-# ARC contract checks — run when any `.arc/**` methodology artifact changed
-# (~0.7s combined; required in CI, so skipping them here only defers the failure)
-npm run -s lint:arc:triggers
-npm run -s lint:arc:domain-rules
-npm run -s lint:arc:section-refs
-
-# TypeScript lint — per changed file or directory
-# (invoke eslint directly; `npm run lint:ts -- <path>` appends to the full set rather than narrowing it)
-npx eslint packages/arc-framework/src/path/to/file.ts
-
-# Unit tests — filename filter covering the area you touched
-npm run -s test:unit -- <filename-fragment>
-
-# Framework-contract tests — fast subset for two-copy sync / extension / review-gate changes
-npm run -s test:arc-contracts
-
-# Types — whole-program, not narrowable; run when TypeScript changed
-npm run typecheck
-
-# Shell — fixed hook/script set; run when a hook or script changed
-npm run lint:sh
-```
-
-### Integration — Tier 2 (coherent unit)
-
-Full-project scope. The relevance condition still applies — a unit that touched no TypeScript skips the code
-checks.
-
-```bash
-npm run -s lint:md
-npm run -s lint:arc:triggers
-npm run -s lint:arc:domain-rules
-npm run -s lint:arc:section-refs
-npm run lint:ts
-npm run lint:sh
-npm run typecheck
-npm run typecheck:test
-npm test
-```
-
-### Full Suite — Tier 3 (per-phase / pre-PR)
-
-Tier 2 plus build verification and a change review. Run it whole — the strategy's no-partial-Tier-3 rule holds.
-Worth recording that in this repo Tier 3 exceeds Tier 2 by `build` alone (~5.7s, about 5%): the two tiers have
-nearly converged here, which is an input to the eventual tier-model rework rather than a license to substitute
-one for the other.
-
-```bash
-# 1-9: the Tier 2 block above (which carries the full CI-required set), then:
-
-# 10. Build verification
+# Build CLI package (ESM output with shebang and declarations) — the build-verification gate
 npm run build
 
-# 11. Change review
-git status
-git --no-pager diff --stat
+# Fast build: CLI entry, metafile, and qualified input evidence, without declarations
+npm run build:fast
 ```
 
-`npm test` runs every Vitest project (unit, unit-mocks, integration, e2e), so `test:arc-contracts`,
-`test:integration`, `test:e2e`, and `test:portability` are subsets of it — Tier 1 targeting handles, not
-additional full-suite gates.
+Explicit `build` and `build:fast` always generate the requested output. Test preparation reuses unchanged qualified
+CLI and metafile output, including output from a full build; fast preparation supplies no declaration proof. Supported
+builders wait behind an owning controller in the same checkout and remain interruptible. Other worktrees have
+independent artifact ownership. CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass CPU admission only.
+
+CI downloads the evidence with `dist`, then runs consumer-local preparation with generation enabled before tests
+set `ARC_E2E_SKIP_BUILD=1`. Skip-build revalidates matching inputs, installation/tools, Node/platform/architecture,
+and required files under artifact ownership; it never generates. Repair unavailable installation evidence with
+`npm ci`, then run preparation or `npm run build:fast` before retrying. Direct native Vitest setup may prepare only
+when controller evidence is absent; that convenience owns generation alone and does not pin an unmanaged run.
 
 ---
 
@@ -249,10 +206,73 @@ additional full-suite gates.
 > `arc` install in this working tree. A global install would resolve to the published version,
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
-> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires `npm run build` to be
-> current (the binary points at `packages/arc-framework/dist/cli.js`). This guidance applies only
+> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
+> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
+> and `npm run build:fast` regenerates qualified runtime output. This guidance applies only
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
+
+### Command Prerequisites and Remote Access
+
+ARC requires Node.js 24 or newer and Git 2.53 or newer.
+
+`npx arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
+generation and inspects only objects already present locally. It does not fetch code objects, update or create code
+refs, prune, or run maintenance. This holds in linked worktrees, where ref and object writes would target the shared
+Git common directory. Missing advertised objects return `pending-fetch`; unreachable transport returns
+`unreachable`; disabled or absent transport returns `not-applicable`. Shallow history or missing partial-clone
+trees/blobs cannot produce an exact graph or content result and do not trigger lazy fetching.
+
+Use an explicit operation when acquisition is intended:
+
+```bash
+# Expand live in-flight candidates; may fetch missing advertised candidate objects
+npx arc active in-flight --json
+
+# Fast-forward the local base ref from advertised remote state
+npx arc base sync --json
+```
+
+Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
+Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
+code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
+
+### Schema Discovery
+
+Use `arc schema list` to find registered contracts and `arc schema get <id>` to retrieve one. Read a result's
+`editorDocument` field to locate its editor document.
+
+Run `arc schema install` to refresh checkout editor documents after a CLI upgrade or in a checkout provisioned before
+the command existed.
+
+### Artifact Viewing
+
+`npx arc view [kind]` renders an artifact. With no kind, it checks **tasks → spec → draft → meta**. The `design` kind
+follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
+`--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
+
+`--for <slug>` selects the named work unit through its composed lifecycle. For a started work unit, it reads the
+registered checkout's file, including uncommitted edits, or otherwise the selected ref this clone already holds.
+A start whose branch this clone has never fetched reads as its backlog copy until a fetch brings the ref in.
+Without a registered checkout, `--path` and `--editor` refuse with the work unit and ref; render the artifact to read
+it instead. The work unit's own artifacts and cohort metadata follow the selected copy; the cohort document and
+session notes remain local to the invoking checkout. `inbox --project` selects the shared project inbox.
+
+Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
+delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,
+usually `vi`.
+
+Editor mode inherits terminal streams and requires allowed interaction. `--no-input`, CI, piped stdin, or piped
+stdout refuse with a nonzero diagnostic. `--editor` also conflicts with `--path` and `--current`. Missing artifacts,
+failed editor selection or launch, and unsuccessful exits report failures; set `ARC_EDITOR` to repair the command
+and retry.
+
+ARC waits for the configured command to exit and preserves its wait flags. A successful exit confirms handoff;
+buffer opening and saving depend on the editor. For a GUI command that waits for the file to close:
+
+```bash
+ARC_EDITOR="code --wait" npx arc view -e
+```
 
 ### Setup and Configuration
 
@@ -293,7 +313,9 @@ by design, not a missing ceremony.
 arc status <slug> [--json]
 
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
-arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
+# --cohort accepts <cohort> or <cohort>/<subcohort> and requires the planned tier.
+arc stub <name> --commitment <provisional|planned> --priority <P#> \
+  [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
@@ -302,10 +324,20 @@ arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 # Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
 arc rename <slug> <new-slug>
 
+# Set Class at any lifecycle placement; the slug defaults to the checkout's work unit
+arc set-class <Light|Heavy|Novel> [slug]
+
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
 arc demote <slug>
+
+# Set the current WU's planning-stage pointer; --advance also resets Next Action for the new stage.
+arc set-stage <draft-design|create-spec|generate-tasks> [--advance]
+# Advance the current WU's Design pointer at a planning event.
+arc repoint-design <draft-created|spec-finalized>
+# Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
+arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
 
 # Activate a planning WU: Planning → Active (activate-work-unit.md)
 arc activate [slug] --type <type> --task <first task> --action <next action>
@@ -317,20 +349,28 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
-# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
-arc integrate [slug] --last-completed <work> --action <next action>
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc attest <name> --json [--new-root]
+
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name>
+arc integrate merge <name> --checkpoint <handle>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
 # Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --cut-map <file>
+arc decompose <origin> --execute <file>
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 14)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree
@@ -339,12 +379,16 @@ arc base sync [--json]
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand next [--json]
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--isolate] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
+arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
+arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> \
+  [--confirm-foreign-generation <generation>] [--json]
 ```
 
 ### Session State Portability
@@ -415,11 +459,11 @@ arc release status --json
 See [`commit-format`](../system/methods/commit-format.md) for multiline transport, direct-file matcher fallback,
 message structure, and wrapper retry behavior.
 
-Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+Refusal exit codes 10–17 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] §
-Commit Discipline for the trust model and opt-in semantics.
+`commit-message-preflight-failed`, and `close-precheck-failed`; audit entries land at
+`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
+trust model and opt-in semantics.
 
 ### Standalone Work History
 
@@ -439,13 +483,13 @@ ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
 Azure DevOps, or another platform, replace these commands with your team's CLI
 equivalents.
 
-| Operation    | Command                                           |
-|--------------|---------------------------------------------------|
-| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
-| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
-| View PR/MR   | `gh pr view --json number,url,state`              |
-| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
-| Create issue | `gh issue create`                                 |
+| Operation    | Command                                      |
+| ------------ | -------------------------------------------- |
+| Create PR/MR | `gh pr create --base {base} --head {branch}` |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`   |
+| View PR/MR   | `gh pr view --json number,url,state`         |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`            |
+| Create issue | `gh issue create`                            |
 
 ---
 
@@ -464,6 +508,5 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 
-[quality-gates]: strategies/arc/strategy-quality-gates.md
 [session-ops]: strategies/arc/strategy-session-operations.md
 [dev-rules-arc]: ../system/rules/DEV-RULES.ARC.md

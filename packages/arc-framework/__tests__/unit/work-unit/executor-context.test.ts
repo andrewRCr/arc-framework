@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -43,6 +44,14 @@ function metaWithBranch(branch: string): string {
     `|-----------|-----------|------------|-----------|--------------|\n` +
     `| \`Integrating\` | \`andrew\` | \`${branch}\` | \`Novel\` | \`P1\` |\n\n` +
     `- **Next Action:** continue.\n\n---\n`
+  );
+}
+
+/** A minimally complete lifecycle meta for current-workflow mutation coverage. */
+function metaWithWorkflow(workflow: string): string {
+  return metaWithBranch("feat/foo").replace(
+    "- **Next Action:** continue.",
+    `- **Current Workflow:** \`${workflow}\`\n- **Next Action:** continue.`,
   );
 }
 
@@ -125,6 +134,97 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
 
     expect(mockApplyPreparedCurrentWuReconcile).toHaveBeenCalledWith(expect.anything(), prepared);
     expect(mockPrepareCurrentWuReconcile).not.toHaveBeenCalled();
+  });
+
+  it("allows identity-independent worktree reconciliation when identity is unresolved", async () => {
+    const ctx = buildCtx(null);
+
+    await expect(ctx.reconcileWorkUnitWorktree?.({
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/foo",
+      wuName: "foo",
+      createBranch: false,
+      deferCheckout: true,
+    })).resolves.toMatchObject({ mutation: "spawn", branch: "feat/foo" });
+  });
+});
+
+describe("buildExecutorContext — current-workflow consistency", () => {
+  it("refuses an invalid Integrating workflow before writing", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("integrate-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await expect(ctx.writeCurrentWorkflowField?.(".arc/active/meta-foo.md", "prepare-work-unit"))
+      .rejects.toThrow(/Integrating|integrate-work-unit/u);
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("writes a workflow valid for the lifecycle phase", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("prepare-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowField?.(".arc/active/meta-foo.md", "integrate-work-unit");
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
+    );
+  });
+
+  it("writes an intentional source-workflow recovery marker after the phase has moved", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("integrate-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "prepare-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `prepare-work-unit`"),
+    );
+  });
+
+  it("writes the inverse recovery marker after reopen has moved back to Active", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("prepare-work-unit").replace("Integrating", "Active"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "integrate-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
+    );
   });
 });
 
@@ -250,7 +350,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
     expect(io.exec).toHaveBeenCalledWith("git", ["mv", "a", "b"], { cwd: "/repo" });
   });
 
-  it("honors an explicit per-call cwd over the default — the worktree-clean guard targets the right tree", async () => {
+  it("honors an explicit per-call cwd over the default for worktree operations", async () => {
     const io = fakeIo();
     const ctx = buildExecutorContext({
       cwd: "/repo",
@@ -260,9 +360,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
       internalTemplateDir: "/tpl",
     });
 
-    // The `worktree-clean` guard checks `git status` in the *target worktree*; the
-    // default-to-repo pin must not clobber that, or the guard checks the base repo
-    // (a dirty base then wrongly refuses a clean worktree's teardown).
+    // A worktree operation must retain its explicitly selected checkout.
     await ctx.exec!("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
@@ -284,4 +382,13 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--short"], { cwd: "/repo.plan-foo" });
   });
+});
+
+it("binds off-branch locus operations and preserves their record through checkout rebinding", async () => {
+  const context = buildExecutorContext({ cwd: "/repo", io: fakeIo(), identity: "andrew", teamMode: false,
+    internalTemplateDir: "/templates", store: createReferenceFixture().store });
+  expect(context.locusPorts).toBeDefined();
+  expect(context.withCwd?.("/other").locusPorts).toBe(context.locusPorts);
+  const clear = await context.locusPorts?.checkMarkerExclusivity({ kind: "creation", slug: "demo" });
+  expect(clear).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
 });

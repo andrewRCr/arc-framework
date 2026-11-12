@@ -20,31 +20,59 @@ override-mode: extend
 ## testing-standards.override
 
 Applied on top of `.default` (`override-mode: extend`) — the universal principles stand, instantiated here for
-`@arc-framework/cli` (TypeScript CLI, Vitest, three test tiers):
+`@arc-framework/cli` (TypeScript CLI, Vitest, and three test tiers — unit / integration / e2e, rooted at
+`packages/arc-framework/__tests__/`):
 
-- **Boundaries are** `execFile` / git, `fs`, the npm-registry check, and time — mock these in unit tests; let
-  integration and e2e exercise the real thing.
+- **Unit tier** (`__tests__/unit/**`) — no child processes, real builds or git repositories. The explicit spawn
+  allowlist holds existing exceptions as a shrinking floor; new process coverage belongs in integration.
+- **Architecture rules** — express one-hop import and syntax bans in ESLint; tests cover only structural properties
+  the compiler and linter cannot enforce.
+- **Decision matrices** — use fakes at the dependency seam or the deciding function on a filesystem fixture; keep
+  one integration run per outcome class: the real operation's end state plus the external systems that decide it.
+  Input-data differences share a class; a different deciding external system creates a separate class.
+- **Process tests** — clear output-format variables such as `FORCE_COLOR`; size waits and deadlines to the asserted
+  distinction. Heavy real work carries a named explicit timeout.
+- **Boundaries are** `execFile` / git, the npm-registry check, and time — mock these in unit tests; let integration
+  and e2e exercise the real thing.
 - **Vitest mock mechanics** — `resetAllMocks` (not `clearAllMocks`, which leaks runtime overrides), hoisted
   `vi.fn()` consts (never inline in a `vi.mock` factory), and per-test re-establishment of defaults (a single
   `resetMockDefaults()` helper at the top of the file).
-- **Dependency injection** — pass `execFile` / `fs` in rather than importing them; group 4+ related dependencies
-  into a typed context object (the `IOContext{fs,git}` pattern), so tests construct a partial context with only
-  the mocks they need.
+- **Dependency injection** — pass `execFile` in; inject `fs` where a test must fail or observe it, otherwise use a
+  temporary directory. Group 4+ related dependencies into a typed context (the `IOContext{fs,git}` pattern), so
+  tests construct a partial context with only the mocks they need.
 - **CLI handler-seam + destructive-verb discipline** — integration tests drive verb cores through
-  CLI-generated inputs (exercise the handler seam, not a hand-built argument object); a destructive verb
-  (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only proof.
+  CLI-generated inputs (exercise the handler seam, not a hand-built argument object); **a destructive verb
+  (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only
+  proof** · `[invariant]`.
 - **Fixtures and naming** — reusable multi-file fixtures live in `__tests__/fixtures/`; prefer inline data for
-  simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`).
+  simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`). A test
+  file that would exceed the per-file 1500-line cap on `__tests__/**` splits into suffixed siblings on the
+  mirrored stem (`native-landing.test.ts` → `native-landing-suffix.test.ts`), divided at a behavioral seam
+  rather than by line count; a module offering no such seam is evidence the source wants decomposition.
+- **Project fail-first reconstruction** — apply `.default`'s reconstruct-and-revert procedure by changing only the
+  narrow behavior under test and preserving every export and signature the test needs.
+- **Shared contract test support** — use `__tests__/helpers/git-exec-fake.ts` to script `GitExec`, `GitExecInput`,
+  and `RawGitExec` by arguments or response sequence; build typed failures with its `makeGitProcessError` fixture.
+  Build semantic meta Markdown with `makeMetaFixture` in `__tests__/helpers/meta-fixture.ts`, and assert schema
+  acceptance or refusal with `assertSchemaAccepts` / `assertSchemaRefuses` in
+  `__tests__/helpers/schema-assertion.ts`. Keep constant one-response stubs, real-Git doubles, fault-injecting
+  hybrids, and scenario simulators local to their tests.
 
 ## testing-standards.default
 
 - Test observable behavior through public interfaces; don't assert on implementation — including **don't assert
-  on spy / call args as the outcome** (that verifies wiring, not behavior).
-- **Keep mocked boundaries faithful** — a stub returning what the real dependency never would (including
-  success-shaped where it would error) passes against a fiction; cover response-dependent behavior at a tier
-  that runs the real thing.
-- **See it fail first** — a test that has never failed may assert nothing.
-- **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
+  on spy / call args as the outcome** · `[invariant]` (that verifies wiring, not behavior).
+- **Keep mocked boundaries and fixtures faithful** · `[invariant]` — a stub inventing dependency outcomes, or a
+  hand-built fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture
+  invariants from the producer; cover response-dependent behavior at a tier that runs the real thing.
+- **See every behavior fail first** · `[invariant]` — this includes behavior the current implementation satisfies
+  incidentally. If a new test passes before red, reconstruct only the narrow pre-behavior implementation, run the
+  test to a behavioral failure, then restore the current implementation. At completion, retain reconstruct-and-revert
+  evidence: the test fails against the reconstruction and passes after restoration. Compile or import errors do not
+  prove fail-first behavior.
+- **One behavior at a time** — don't batch tests for imagined behavior. Several coupled behaviors may share one
+  pre-implementation test batch only when they have one indivisible implementation and every test can genuinely fail
+  first.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
   test your dependencies.
 - **Design for testability** — inject dependencies; separate computation from I/O.

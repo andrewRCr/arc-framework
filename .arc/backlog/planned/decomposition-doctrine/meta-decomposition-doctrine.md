@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `decompose-transition-record`
 
 - **Origin:** [internal]
 - **Design:** `draft-decomposition-doctrine.md`

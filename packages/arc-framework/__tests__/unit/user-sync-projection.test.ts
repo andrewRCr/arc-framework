@@ -51,4 +51,12 @@ describe("projectManifest", () => {
 
     expect(projected.version).toBe(1);
   });
+
+  it("preserves a literal prototype-named file and its exact text", () => {
+    const content = "Personal file bytes.\n";
+    const projected = projectManifest(manifest({ ["__proto__"]: content }));
+    expect(Object.hasOwn(projected.files, "__proto__")).toBe(true);
+    expect(projected.files["__proto__"]).toBe(content);
+    expect(JSON.parse(JSON.stringify(projected)).files["__proto__"]).toBe(content);
+  });
 });

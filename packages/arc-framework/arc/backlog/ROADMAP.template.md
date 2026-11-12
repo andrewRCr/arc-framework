@@ -61,21 +61,21 @@ and why. This is a working document, subject to change as you learn.
 ### Included
 
 | Technology/Approach | Rationale |
-|---------------------|-----------|
-| [Tech 1]            | [Why]     |
-| [Tech 2]            | [Why]     |
+| ------------------- | --------- |
+| \[Tech 1]           | \[Why]    |
+| \[Tech 2]           | \[Why]    |
 
 ### Lower Priority
 
-| Technology/Approach | Rationale            | When              |
-|---------------------|----------------------|-------------------|
-| [Tech 3]            | [Why lower priority] | [When to revisit] |
+| Technology/Approach | Rationale             | When               |
+| ------------------- | --------------------- | ------------------ |
+| \[Tech 3]           | \[Why lower priority] | \[When to revisit] |
 
 ### Skipped
 
-| Technology/Approach | Rationale          |
-|---------------------|--------------------|
-| [Tech 4]            | [Why not included] |
+| Technology/Approach | Rationale           |
+| ------------------- | ------------------- |
+| \[Tech 4]           | \[Why not included] |
 
 ---
 

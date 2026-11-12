@@ -8,8 +8,11 @@
  */
 
 import { join, dirname, basename, relative } from "node:path";
-import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promises";
+import { readdir, stat, writeFile, rename, unlink, mkdir, link } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
+
+import { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
+export { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
 
 /**
  * Write text or bytes to a file atomically using temp-file-then-rename.
@@ -27,18 +30,28 @@ import { randomBytes } from "node:crypto";
  *
  * @param targetPath - Absolute path to the file
  * @param content - Complete text or byte content to write
+ * @param options - `createParents: false` writes only into a folder that exists, failing with `ENOENT` otherwise
  */
-export async function atomicWriteFile(targetPath: string, content: string | Uint8Array): Promise<void> {
+export async function atomicWriteFile(
+  targetPath: string, content: string | Uint8Array, options: { createParents?: boolean; checkpoint?: () => Promise<void> } = {},
+): Promise<void> {
   const dir = dirname(targetPath);
-  await mkdir(dir, { recursive: true });
+  if (options.createParents !== false) {
+    await options.checkpoint?.();
+    await mkdir(dir, { recursive: true });
+  }
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
+    await options.checkpoint?.();
     await writeFile(tmpPath, content, typeof content === "string" ? "utf-8" : undefined);
-    await rename(tmpPath, targetPath);
+    await retryTransientFileSystemRefusal(async () => {
+      await options.checkpoint?.();
+      await rename(tmpPath, targetPath);
+    });
   } catch (err) {
     // Clean up temp file if it was created before the failure
-    await unlink(tmpPath).catch(() => {});
+    await (async () => { await options.checkpoint?.(); await unlink(tmpPath); })().catch(() => {});
     throw err;
   }
 }
@@ -70,6 +83,82 @@ export async function atomicWriteJson(targetPath: string, data: unknown): Promis
 export async function exclusiveCreateFile(targetPath: string, content: string): Promise<void> {
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content, { flag: "wx" });
+}
+
+/** Filesystem and entropy boundaries for complete create-only publication. */
+export interface AtomicCreateFileContext {
+  mkdir: (path: string, options: { recursive: true }) => Promise<string | undefined>;
+  writeFile: (path: string, content: string, options: { flag: "wx" }) => Promise<void>;
+  link: (existingPath: string, newPath: string) => Promise<void>;
+  unlink: (path: string) => Promise<void>;
+  randomId: () => string;
+}
+
+/**
+ * Build a create-only writer over explicit filesystem boundaries.
+ *
+ * @param context - Directory, write, hard-link, cleanup, and entropy boundaries
+ * @returns A writer that publishes only complete payloads without replacing an existing target
+ */
+export function createAtomicFileCreator(
+  context: AtomicCreateFileContext,
+): (targetPath: string, content: string) => Promise<void> {
+  return async (targetPath, content) => {
+    const directory = dirname(targetPath);
+    const temporaryPath = join(
+      directory,
+      `.${basename(targetPath)}.${context.randomId()}.tmp`,
+    );
+    await context.mkdir(directory, { recursive: true });
+    try {
+      await context.writeFile(temporaryPath, content, { flag: "wx" });
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+        await context.unlink(temporaryPath).catch(() => undefined);
+      }
+      throw error;
+    }
+    try {
+      await context.link(temporaryPath, targetPath);
+    } finally {
+      await context.unlink(temporaryPath).catch(() => undefined);
+    }
+  };
+}
+
+const nodeAtomicCreateFile = createAtomicFileCreator({
+  mkdir,
+  writeFile: (path, content, options) => writeFile(path, content, options),
+  link,
+  unlink,
+  randomId: () => randomBytes(8).toString("hex"),
+});
+
+/**
+ * Publish a complete file generation only when the target is absent.
+ *
+ * @param targetPath - Absolute target path to create
+ * @param content - Complete UTF-8 text payload
+ * @returns A promise fulfilled after the complete payload is linked into place
+ * @throws A filesystem error, including `EEXIST` when the target is already occupied
+ */
+export async function atomicCreateFile(targetPath: string, content: string): Promise<void> {
+  await nodeAtomicCreateFile(targetPath, content);
+}
+
+/** Filesystem access refusals that name a remediable environment condition. */
+export type FilesystemAccessFault = "read-only-filesystem" | "permission-denied";
+
+/**
+ * Classify a filesystem error as a recognized access refusal.
+ * @param error - Value thrown by a filesystem operation
+ * @returns The refusal it represents, or `undefined` for any other failure
+ */
+export function classifyFilesystemAccessFault(error: unknown): FilesystemAccessFault | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  if (code === "EROFS") return "read-only-filesystem";
+  if (code === "EACCES" || code === "EPERM") return "permission-denied";
+  return undefined;
 }
 
 /**
@@ -106,8 +195,9 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = toForwardSlash(relative(dir, fullPath));
-      // Skip system/.internal directory (framework bookkeeping)
+      // Skip system/.internal (framework bookkeeping) and system/.local (machine-local files)
       if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
+      if (relPath === "system/.local" || relPath.startsWith("system/.local/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
       // gitignored personal workspaces. Top-level user/ files like README.md
       // are included since they are tracked framework content.

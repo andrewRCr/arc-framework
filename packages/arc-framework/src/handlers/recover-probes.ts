@@ -4,55 +4,76 @@
  * @module
  */
 
-import { access, readFile } from "node:fs/promises";
-
-import { runActiveSessionInitStatus } from "../commands/active.js";
 import { runConfigSessionInitStatus } from "../commands/config.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
+import { runPassiveWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import { readDerivedLocusStateSnapshot } from "./derived-locus-state-probe.js";
+import type { Store } from "../lib/store/contract.js";
+import type { StateVersion } from "../lib/store/identity.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { readStateHistory } from "../lib/handoff/state-history.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
   dirty: () => Promise<DirtyStateResult>;
+  exec: GitExec;
+  execInput: GitExecInput;
+  readFile: (path: string) => Promise<string>;
+  store?: Store;
+  sync?: StoreSyncPort;
+}
+
+/** Recovery consumes the anchor captured with its derived frame, never a later version. */
+export interface RecoverStatusProbes extends SessionRecoverProbes {
+  stateVersion(identity: string): Promise<StateVersion | null>;
 }
 
 /** Build the recover-mode probe bundle, sharing settings resolution across probes. */
 export function createRecoverStatusProbes(
   options: RecoverStatusProbeOptions,
-): SessionRecoverProbes {
-  const { cwd, dirty } = options;
-  const io = createUserIOContext();
-  const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+): RecoverStatusProbes {
+  const { cwd, dirty, exec, execInput, readFile } = options;
+  const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile });
+  const snapshots = new Map<string, ReturnType<typeof readDerivedLocusStateSnapshot>>();
+  const snapshot = (identity: string): ReturnType<typeof readDerivedLocusStateSnapshot> => {
+    let pending = snapshots.get(identity);
+    if (pending !== undefined) return pending;
+    pending = (async () => {
+      const resolved = await resolvedSettingsP;
+      return readDerivedLocusStateSnapshot({
+        cwd,
+        identity,
+        baseBranch: resolved.settings["branch.base"],
+        exec,
+        ...(options.store === undefined ? {} : { store: options.store }),
+      }, store => readStateHistory(() => store.version(), options.sync ?? bindStoreSyncPort(store)));
+    })();
+    snapshots.set(identity, pending);
+    return pending;
+  };
   return {
+    derivedLocusState: async identity => (await snapshot(identity)).frame,
+    stateVersion: async identity => (await snapshot(identity)).stateVersion,
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-      return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      return runPassiveWorktreeInspection({
+        exec,
+        execInput,
+        remoteSyncEnabled,
+        cwd,
+      });
     },
-    worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+    worktreeIdentity: () => resolveWorktreeIdentity(exec),
     dirty,
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-    active: (identity, role) => runActiveSessionInitStatus({ cwd, identity, role, exec: gitExec }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-    cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-      cwd,
-      activeMetaPath,
-      fs: {
-        readFile: (path) => readFile(path, "utf8"),
-        pathExists: (path) => access(path).then(() => true, () => false),
-      },
-    }),
-    taskCursor: async (taskListPath) => resolveTaskListCursorFromFile({ cwd, taskListPath }),
   };
 }
 

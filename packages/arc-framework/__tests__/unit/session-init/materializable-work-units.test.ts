@@ -4,6 +4,7 @@
  * session-init offers to materialize (git worktree add → arc user pull → orient).
  */
 
+import { assertSchemaRefuses, assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 import { describe, it, expect } from "vitest";
 
 import type {
@@ -12,7 +13,9 @@ import type {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import {
   MaterializableWorkUnitSchema,
+  MaterializableWorkUnitDiscoveryResultSchema,
   MaterializableWorkUnitsResultSchema,
+  composeMaterializableDiscoveryRefreshRemedy,
   findMaterializableWorkUnits,
 } from "../../../src/lib/session-init/materializable-work-units.js";
 
@@ -43,11 +46,76 @@ describe("MaterializableWorkUnitsResultSchema", () => {
     { name: "valid-slug", branch: "" },
     { name: "valid-slug", branch: "feat/valid-slug", leaked: true },
   ])("rejects a malformed candidate", (candidate) => {
-    expect(MaterializableWorkUnitSchema.safeParse(candidate).success).toBe(false);
+    assertSchemaRefuses(MaterializableWorkUnitSchema, candidate);
   });
 
   it("rejects malformed warning entries", () => {
-    expect(MaterializableWorkUnitsResultSchema.safeParse({ candidates: [], warnings: [42] }).success).toBe(false);
+    assertSchemaRefuses(MaterializableWorkUnitsResultSchema, { candidates: [], warnings: [42] });
+  });
+});
+
+describe("MaterializableWorkUnitDiscoveryResultSchema", () => {
+  const candidate = { name: "in-flight-awareness", branch: "feat/in-flight-awareness" };
+  const remedy = {
+    text: "Refresh live in-flight discovery.",
+    argv: ["arc", "active", "in-flight", "--json"],
+  };
+
+  it("enforces exact, pending, unreachable, and disabled evidence combinations", () => {
+    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [candidate], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+    });
+    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [candidate], remoteEvidence: "pending-fetch", pendingBranchCount: 2, refreshRemedy: remedy,
+    });
+    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "network",
+    });
+    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+    });
+
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 1, refreshRemedy: null,
+    });
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 0, refreshRemedy: remedy,
+    });
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+    });
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "network",
+    });
+  });
+
+  it("distinguishes exact empty discovery from incomplete and unavailable discovery", () => {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+    })).toMatchObject({ remoteEvidence: "exact", candidates: [], pendingBranchCount: 0 });
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: remedy,
+    })).toMatchObject({ remoteEvidence: "pending-fetch", candidates: [], pendingBranchCount: 1 });
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "timeout",
+    })).toMatchObject({ remoteEvidence: "unreachable", candidates: [], failureReason: "timeout" });
+  });
+
+  it("provides the exact live refresh remedy only for pending discovery", () => {
+    const composed = composeMaterializableDiscoveryRefreshRemedy();
+    expect(composed).toEqual(remedy);
+    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: composed,
+    });
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: composed,
+    });
+    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: null,
+    });
   });
 });
 
@@ -64,7 +132,7 @@ describe("findMaterializableWorkUnits", () => {
     const result = findMaterializableWorkUnits({ entries: [wu()], identity: "andrew" });
 
     expect(result.candidates).toEqual([
-      { name: "in-flight-awareness", branch: "feat/in-flight-awareness" },
+      { name: "in-flight-awareness", branch: "feat/in-flight-awareness", actions: [{ text: "arc materialize in-flight-awareness", argv: ["arc", "materialize", "in-flight-awareness"] }] },
     ]);
   });
 
@@ -125,7 +193,9 @@ describe("findMaterializableWorkUnits", () => {
       identity: "andrew",
     });
 
-    expect(result.candidates).toEqual([{ name: "valid-slug", branch: "feat/valid-slug" }]);
+    expect(result.candidates).toEqual([{ name: "valid-slug", branch: "feat/valid-slug",
+      actions: [{ text: "arc materialize valid-slug", argv: ["arc", "materialize", "valid-slug"] }],
+    }]);
   });
 
   it("excludes an errand entry (only work units are materialize-WU candidates)", () => {
@@ -137,4 +207,10 @@ describe("findMaterializableWorkUnits", () => {
   it("returns no candidates for an empty entry set", () => {
     expect(findMaterializableWorkUnits({ entries: [], identity: "andrew" }).candidates).toEqual([]);
   });
+});
+
+
+it("offers the explicit refresh for pending materializable discovery", () => {
+  const result = findMaterializableWorkUnits({ entries: [], identity: "andrew", pendingBranchCount: 2 });
+  expect(result.actions).toEqual([composeMaterializableDiscoveryRefreshRemedy()]);
 });

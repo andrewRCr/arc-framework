@@ -10,46 +10,38 @@
  * called directly so the assertions read the on-disk result.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, writeFile, stat, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink, unlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
-import { handleStart } from "../../src/handlers/start.js";
-import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
+import { runColdStart, runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
+import { handleStart, StartCommandInputSchema } from "../../src/handlers/start.js";
+import { runUserOpen } from "../../src/commands/user/open.js";
+import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { createUserIOContext } from "../../src/lib/io-context.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
+import * as ioModule from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
+import {
+  prepareGitGraduationTransaction,
+  type GitGraduationTransactionResult,
+} from "../../src/lib/work-unit/git-graduation-transaction.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const execFileAsync = promisify(execFile);
 
 const IDENTITY = "test-user";
-
-async function captureProcessOutput(fn: () => Promise<void>): Promise<string> {
-  const chunks: string[] = [];
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  }
-  return chunks.join("");
-}
 
 /** A minimal managed meta for a stub at a given State. */
 function metaFor(slug: string, state: string, branch: string, cls = "Light"): string {
@@ -71,6 +63,54 @@ async function pathExists(p: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function prepareTransaction(
+  h: Harness,
+  slug: string,
+  mode: "spawned" | "in-place",
+  worktreePath: string,
+): () => Promise<GitGraduationTransactionResult> {
+  return () => prepareGitGraduationTransaction({
+    exec: h.io.exec,
+    readBlob: (ref, path) => readGitBlobBytes(h.repo, ref, path),
+    readWorktreeFile: async (path) => {
+      try {
+        return new Uint8Array(await readFile(join(h.repo, path)));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    },
+    pathExists: async (path) => {
+      try {
+        await lstat(path);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+    },
+  }, {
+    cwd: h.repo,
+    slug,
+    location: "planned",
+    sourceRef: "main",
+    sourceDirectory: `.arc/backlog/planned/${slug}`,
+    targetDirectory: ".arc/active",
+    mode,
+    worktreePath,
+    classResolution: { kind: "preserved", value: "Light" },
+    ...(mode === "spawned"
+      ? {
+          spawn: {
+            locationTemplate: h.locationTemplate,
+            repo: basename(h.repo),
+            spawningIdentity: IDENTITY,
+          },
+        }
+      : {}),
+  });
 }
 
 interface Harness {
@@ -103,7 +143,21 @@ async function setup(): Promise<Harness> {
 async function commitMeta(repo: string, relDir: string, slug: string, state: string, branch: string): Promise<void> {
   const dir = join(repo, ".arc", relDir);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${slug}.md`), metaFor(slug, state, branch));
+  const planningStub = state === "Planning" && relDir.startsWith("backlog/");
+  await writeFile(
+    join(dir, `meta-${slug}.md`),
+    planningStub
+      ? renderMetaFile(slug, {
+          state: "Planning",
+          owner: IDENTITY,
+          branch: branch === "[none]" ? null : branch,
+          workClass: "Light",
+          design: [`draft-${slug}.md`],
+          currentWorkflow: "create-spec",
+        })
+      : metaFor(slug, state, branch),
+  );
+  if (planningStub) await writeFile(join(dir, `draft-${slug}.md`), "# Draft\n");
   await execFileAsync("git", ["add", "-A"], { cwd: repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", `stub ${slug}`], { cwd: repo });
 }
@@ -115,6 +169,19 @@ async function indexOf(repo: string): ReturnType<typeof buildLifecycleIndex> {
       readdir: (p) => readdir(p, { withFileTypes: true }),
       readFile: (p) => readFile(p, "utf8"),
     },
+  });
+}
+
+function denySpawnLocks() {
+  const original = ioModule.createUserIOContext;
+  return vi.spyOn(ioModule, "createUserIOContext").mockImplementation(() => {
+    const io = original();
+    return { ...io, exec: async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return io.exec(command, args, options);
+    } };
   });
 }
 
@@ -136,7 +203,7 @@ describe("arc start dispatch — against real worktrees", () => {
     await cleanupTempDir(h.repo);
   });
 
-  it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker", async () => {
+  it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker, locked with the projection's reason", async () => {
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
       repo: basename(h.repo),
@@ -146,7 +213,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "alpha" },
     );
 
@@ -158,6 +226,83 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/alpha");
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+  });
+
+  it("create-new: a scaffold failing after the spawn rolls the checkout and its branch back", async () => {
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "rolled-back",
+      branch: "plan/rolled-back",
+    });
+    h.spawned.push(wt);
+
+    const io = { ...h.io, writeFile: () => Promise.reject(new Error("No space left on device")) };
+    const outcome = await runCreateNew(
+      { io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+      { worktreePath: h.repo, identity: IDENTITY, name: "rolled-back" },
+    );
+
+    expect(outcome).toMatchObject({ ok: false, reason: expect.stringContaining("could not scaffold") });
+    expect(await pathExists(wt)).toBe(false);
+    expect((await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo })).stdout).not.toContain(wt);
+    expect((await execFileAsync("git", ["branch", "--list", "plan/rolled-back"], { cwd: h.repo })).stdout).toBe("");
+  });
+
+  it("create-new: a sole lock failure retains its scaffold and refuses success", async () => {
+    const input = StartCommandInputSchema.parse({ name: "lock-failed", new: true });
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo),
+      name: input.name!, branch: "plan/lock-failed" });
+    h.spawned.push(wt);
+    const io: UserIOContext = { ...h.io, exec: async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return h.io.exec(command, args, options);
+    } };
+    const result = await runCreateNew({ io, internalTemplateDir: getInternalTemplatePath(),
+      writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+    { worktreePath: h.repo, identity: IDENTITY, name: input.name! });
+    expect(result).toMatchObject({ ok: false, worktreePath: wt,
+      spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") },
+      reason: expect.stringContaining("git worktree lock --reason") });
+    expect(await pathExists(join(wt, ".arc/active/meta-lock-failed.md"))).toBe(true);
+    expect(await readWorktreeMarker(wt)).toMatchObject({ kind: "present" });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBeUndefined();
+    expect(await lockSpawnedCheckout(h.io.exec, wt)).toEqual({ kind: "locked" });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+  });
+
+  it("create-new handler: a lock-only failure retains its checkout and stops before success ceremony", async () => {
+    const name = "handler-lock-failed";
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await h.io.exec("git", ["remote", "add", "origin", remote]);
+    await h.io.exec("git", ["push", "-u", "origin", "main"]);
+    await h.io.exec("git", ["config", "arc.identity", IDENTITY]);
+    const base = (await h.io.exec("git", ["rev-parse", "main"])).stdout;
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name, branch: `plan/${name}` });
+    h.spawned.push(wt);
+    const factory = denySpawnLocks();
+    let result;
+    try {
+      result = await runHandlerAt(h.repo, () => handleStart(name, { new: true, yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" })));
+    } finally { factory.mockRestore(); }
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toContain("lock denied");
+    expect(output).toContain("git worktree lock --reason");
+    expect(output).not.toContain("Worktree ready.");
+    expect(output).not.toContain("Done.");
+    expect((await h.io.exec("git", ["rev-parse", `plan/${name}`])).stdout).toBe(base);
+    expect((await h.io.exec("git", ["ls-remote", "--heads", "origin", `plan/${name}`])).stdout).toBe("");
+    expect(await pathExists(join(wt, `.arc/active/meta-${name}.md`))).toBe(true);
+    expect(await readWorktreeMarker(wt)).toMatchObject({ kind: "present" });
+    expect(await lockSpawnedCheckout(h.io.exec, wt)).toEqual({ kind: "locked" });
   });
 
   it("create-new handler: shell invocation commits and pushes the spawned plan branch", async () => {
@@ -178,21 +323,12 @@ describe("arc start dispatch — against real worktrees", () => {
     });
     h.spawned.push(wt);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart("shell-alpha", { new: true, yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    expect(observedExitCode).toBeUndefined();
+    const result = await runHandlerAt(
+      h.repo,
+      () => handleStart("shell-alpha", { new: true, yes: true }, makeInteractionContext({ noInput: true, yes: "compatibility" })),
+    );
+    if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
+    const output = result.stdout + result.stderr;
 
     const { stdout: subject } = await execFileAsync("git", ["log", "-1", "--format=%s"], { cwd: wt });
     const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
@@ -214,6 +350,56 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(remoteHead).toContain(head.trim());
   });
 
+  it("create-new handler: keeps a lock its provisioning hook set first and warns naming the checkout and reason", async () => {
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const config = join(h.repo, ".arc", "system", "arc-config.yml");
+    await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: git worktree lock --reason provisioning-tool .\n`);
+    await execFileAsync("git", ["commit", "-am", "provision with a lock"], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "hooked",
+      branch: "plan/hooked",
+    });
+    h.spawned.push(wt);
+
+    const result = await runHandlerAt(
+      h.repo,
+      () => handleStart("hooked", { new: true, yes: true }, makeInteractionContext({ noInput: true, yes: "compatibility" })),
+    );
+
+    expect(result.exitCode, result.stderr || result.stdout).toBe(0);
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe("provisioning-tool");
+    const warning = result.stderr.split("\n").find((line) => line.startsWith("warning: ")) ?? "";
+    expect(warning, result.stderr).toContain(wt);
+    expect(warning).toContain("provisioning-tool");
+  });
+
+  it("create-new handler: refuses a seed without --here and leaves the repository unchanged", async () => {
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const before = await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo });
+    const result = await runHandlerAt(h.repo, () => handleStart(
+      "seeded-spawn", { new: true, from: "./spec-input.md", yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" }),
+    ));
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("arc start --here --from <seed>");
+    expect((await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo })).stdout)
+      .toBe(before.stdout);
+    expect((await execFileAsync("git", ["branch", "--list", "plan/seeded-spawn"], { cwd: h.repo })).stdout)
+      .toBe("");
+  });
+
   it("create-new handler: refuses an absent slug without --new", async () => {
     const slug = "implicit-create";
     const remote = `${h.repo}-origin.git`;
@@ -230,7 +416,8 @@ describe("arc start dispatch — against real worktrees", () => {
     let observedExitCode: typeof process.exitCode;
     try {
       process.chdir(h.repo);
-      await handleStart(slug, { yes: true });
+      await handleStart(slug, { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);
@@ -261,21 +448,10 @@ describe("arc start dispatch — against real worktrees", () => {
     });
     h.spawned.push(wt);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart("shell-widget", { yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    expect(observedExitCode).toBeUndefined();
+    const result = await runHandlerAt(h.repo, () => handleStart("shell-widget", { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })));
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout + result.stderr;
     expect(await pathExists(join(wt, ".arc", "active", "meta-shell-widget.md"))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(false);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(true);
@@ -322,25 +498,14 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart(slug, { yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    expect(observedExitCode).toBeUndefined();
+    const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })));
+    if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
     expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
     const record = parseMetaProjectionRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
     expect(record.Class).toBe("Light");
+    const output = result.stdout + result.stderr;
     expect(output.match(/Branch `feat\/stale-launcher`[^\n]+cleanup may be required\./gu)).toHaveLength(1);
   });
 
@@ -354,7 +519,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "clean-marker" },
     );
 
@@ -364,6 +530,90 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const { stdout } = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: wt });
     expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
+  });
+
+  it.each([
+    ["partial", "explicit"], ["full", "explicit"],
+    ["partial", "derived"], ["full", "derived"],
+  ] as const)(
+    "cold-start refuses ambiguous occupancy before writes and succeeds after repair (%s, %s)",
+    async (protection, naming) => {
+      const name = naming === "explicit" ? "widget" : undefined;
+      const wuName = name ?? "main";
+      const opts = { ...(name === undefined ? {} : { new: true }), here: true, yes: true };
+      const remote = `${h.repo}-origin.git`;
+      h.cleanupPaths.push(remote);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+      await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+      await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+      await writeFile(join(h.repo, ".arc", "system", "arc-config.yml"),
+        `branch.base: main\nbranch.protection: ${protection}\n`);
+      const active = join(h.repo, ".arc", "active");
+      const first = join(active, "meta-first.md");
+      const second = join(active, "meta-second.md");
+      const firstContent = metaFor("first", "Planning", "plan/first");
+      const secondContent = metaFor("second", "Active", "feat/second");
+      await writeFile(first, firstContent);
+      await writeFile(second, secondContent);
+      const refused = await runHandlerAt(h.repo, () => handleStart(name, opts,
+        makeInteractionContext({ noInput: true, yes: opts.yes === true ? "compatibility" : "absent" })));
+      expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
+      expect(refused.stdout + refused.stderr).toMatch(/multiple|ambiguous/i);
+      expect(refused.stdout + refused.stderr).toContain("meta-first.md");
+      expect(refused.stdout + refused.stderr).toContain("meta-second.md");
+      expect(await readFile(first, "utf8")).toBe(firstContent);
+      expect(await readFile(second, "utf8")).toBe(secondContent);
+      expect(await pathExists(join(active, `meta-${wuName}.md`))).toBe(false);
+      expect(await pathExists(join(h.repo, ".arc", "user", IDENTITY, wuName))).toBe(false);
+      expect(await readWorktreeMarker(h.repo)).toMatchObject({ kind: "absent" });
+      expect((await execFileAsync("git", ["branch", "--show-current"], { cwd: h.repo })).stdout.trim()).toBe("main");
+      expect((await execFileAsync("git", ["branch", "--list", `plan/${wuName}`], { cwd: h.repo })).stdout.trim()).toBe("");
+
+      await unlink(first);
+      await unlink(second);
+      const retried = await runHandlerAt(h.repo, () => handleStart(name, opts,
+        makeInteractionContext({ noInput: true, yes: opts.yes === true ? "compatibility" : "absent" })));
+      expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+      const meta = parseMetaProjectionRecord(await readFile(join(active, `meta-${wuName}.md`), "utf8"));
+      expect(meta).toMatchObject({ State: "Planning", Branch: protection === "full" ? `plan/${wuName}` : "main" });
+      expect(await pathExists(join(h.repo, ".arc", "user", IDENTITY, wuName, "SESSION-NOTES.md"))).toBe(true);
+    },
+  );
+
+  it("cold-start in a checkout another tool placed leaves that checkout unlocked", async () => {
+    const placed = `${h.repo}-placed`;
+    h.spawned.push(placed);
+    await execFileAsync("git", ["worktree", "add", "-b", "feat/placed", placed, "main"], { cwd: h.repo });
+    const io = { ...createUserIOContext(), exec: makeGitExec(placed) };
+
+    const outcome = await runColdStart(
+      { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+      { worktreePath: placed, branch: "feat/placed", identity: IDENTITY, name: "placed" },
+    );
+
+    expect(outcome, JSON.stringify(outcome)).toMatchObject({ ok: true, value: { worktreePath: placed } });
+    expect(await readWorktreeLock(io.exec, placed)).toBeUndefined();
+  });
+
+  it("cold-start accepts an aliased checkout path without minting a locus record", async () => {
+    const alias = `${h.repo}-alias`;
+    await symlink(h.repo, alias, process.platform === "win32" ? "junction" : "dir");
+    h.cleanupPaths.push(alias);
+
+    const outcome = await runColdStart(
+      {
+        io: h.io,
+        internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }),
+      },
+      { worktreePath: alias, branch: "main", identity: IDENTITY, name: "aliased-widget" },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const lociRoot = join(h.repo, ".arc", "user", IDENTITY, ".internal", "loci");
+    expect(await pathExists(lociRoot)).toBe(false);
   });
 
   it("create-new: copies registered gitignored harness dirs from the primary worktree only", async () => {
@@ -385,7 +635,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "harnessed" },
     );
 
@@ -395,7 +646,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(join(wt, ".unregistered-harness", "secret.txt"))).toBe(false);
   });
 
-  it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds)", async () => {
+  it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds), its checkout locked", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -410,7 +661,10 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(dispatch.arm).toBe("graduate");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       {
         name: "widget",
         cls: "Light",
@@ -418,10 +672,11 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
       },
     );
 
-    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") throw new Error(JSON.stringify(result));
     // The stub relocated `backlog → active` in the spawned worktree — not the invoking checkout.
     expect(await pathExists(wt)).toBe(true);
     expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
@@ -437,6 +692,109 @@ describe("arc start dispatch — against real worktrees", () => {
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "widget", "SESSION-NOTES.md"), "utf8");
     expect(notes).toContain("Graduated the backlog stub");
     expect(notes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+  });
+
+  it.each([false, true])("graduate: protects a retained placement after workspace failure, with lock failure %s", async (lockFails) => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const input = StartCommandInputSchema.parse({ name: "widget" });
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name: input.name!, branch: "plan/widget" });
+    h.spawned.push(wt);
+    const notes = join(wt, ".arc/user", IDENTITY, "widget/SESSION-NOTES.md");
+    let denied = true;
+    const io: UserIOContext = {
+      ...h.io,
+      writeFile: async (...args) => {
+        if (denied && args[0] === notes) throw new Error("workspace write denied");
+        return h.io.writeFile(...args);
+      },
+      exec: async (command, args, options) => {
+        if (lockFails && denied && args[0] === "worktree" && args[1] === "lock") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+        }
+        return h.io.exec(command, args, options);
+      },
+    };
+    const result = await runGraduate(buildExecutorContext({ cwd: h.repo, io, identity: IDENTITY, teamMode: false,
+      internalTemplateDir: getInternalTemplatePath() }), {
+      name: input.name!, cls: "Light", baseBranch: "main", locationTemplate: h.locationTemplate,
+      repo: basename(h.repo), spawningIdentity: IDENTITY, prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
+    }).catch((error: unknown) => ({ status: "unexpected-throw", reason: String(error) }));
+
+    expect(result).toMatchObject({ status: "rejected", worktreePath: wt, reason: expect.stringContaining("workspace write denied") });
+    expect(await pathExists(join(wt, ".arc/active/meta-widget.md"))).toBe(true);
+    expect(await readWorktreeMarker(wt)).toMatchObject({ kind: "present" });
+    if (lockFails) {
+      expect(result).toMatchObject({ spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") } });
+      expect(await lockSpawnedCheckout(h.io.exec, wt)).toEqual({ kind: "locked" });
+    } else expect(result).toMatchObject({ spawnLock: { kind: "locked" } });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+    denied = false;
+    await runUserOpen({ cwd: wt, io: h.io, identity: IDENTITY, wuName: "widget", internalTemplateDir: getInternalTemplatePath(),
+      sessionNotesSeed: "Retained graduation notes.\n" });
+    await h.io.exec("git", ["-C", wt, "commit", "-m", "Finish retained graduation"]);
+    await expect(execFileAsync("git", ["worktree", "remove", wt], { cwd: h.repo })).rejects.toThrow();
+    expect(await readFile(notes, "utf8")).toBe("Retained graduation notes.\n");
+  });
+
+  it("graduate handler: reports a retained checkout and its foreign lock after a workspace failure", async () => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await h.io.exec("git", ["remote", "add", "origin", remote]);
+    await h.io.exec("git", ["config", "arc.identity", IDENTITY]);
+    const config = join(h.repo, ".arc/system/arc-config.yml");
+    await writeFile(join(h.repo, ".arc/system/block-workspace.cjs"),
+      "const fs = require('node:fs');\nfs.mkdirSync('.arc/user/test-user', { recursive: true });\n"
+      + "fs.writeFileSync('.arc/user/test-user/widget', 'workspace blocked');\n");
+    await h.io.exec("git", ["add", ".arc/system/block-workspace.cjs"]);
+    const script = "node .arc/system/block-workspace.cjs && git worktree lock --reason provisioning-tool .";
+    await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: ${script}\n`);
+    await h.io.exec("git", ["commit", "-am", "Fail the post-placement workspace write"]);
+    await h.io.exec("git", ["push", "-u", "origin", "main"]);
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name: "widget", branch: "plan/widget" });
+    h.spawned.push(wt);
+
+    const result = await runHandlerAt(h.repo, () => handleStart("widget", { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })))
+      .catch((error: unknown) => ({ exitCode: -1, stdout: "", stderr: String(error) }));
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toContain(wt);
+    expect(result.stderr).toContain("provisioning-tool");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe("provisioning-tool");
+    expect(await pathExists(join(wt, ".arc/active/meta-widget.md"))).toBe(true);
+  });
+
+  it("graduate handler: a sole lock failure retains applied graduation and stops successful completion", async () => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await h.io.exec("git", ["remote", "add", "origin", remote]);
+    await h.io.exec("git", ["push", "-u", "origin", "main"]);
+    await h.io.exec("git", ["config", "arc.identity", IDENTITY]);
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo),
+      name: "widget", branch: "plan/widget" });
+    h.spawned.push(wt);
+    const factory = denySpawnLocks();
+    let result;
+    try {
+      result = await runHandlerAt(h.repo, () => handleStart("widget", { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" })));
+    } finally { factory.mockRestore(); }
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toContain("lock denied");
+    expect(output).toContain("git worktree lock --reason");
+    expect(output).not.toContain("Done.");
+    expect((await h.io.exec("git", ["ls-remote", "--heads", "origin", "plan/widget"])).stdout).toBe("");
+    expect(await pathExists(join(wt, ".arc/active/meta-widget.md"))).toBe(true);
+    expect(await readWorktreeMarker(wt)).toMatchObject({ kind: "present" });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBeUndefined();
+    expect(await lockSpawnedCheckout(h.io.exec, wt)).toEqual({ kind: "locked" });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
   });
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
@@ -449,11 +807,19 @@ describe("arc start dispatch — against real worktrees", () => {
     });
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true,
+        prepareTransaction: prepareTransaction(h, "widget", "in-place", h.repo),
+      },
     );
 
-    expect(result.status).toBe("graduated");
+    expect(result.status, JSON.stringify(result)).toBe("graduated");
     // The stub relocated `backlog → active` (real `git mv`) in the current checkout.
     expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(true);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
@@ -471,8 +837,16 @@ describe("arc start dispatch — against real worktrees", () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true,
+        prepareTransaction: prepareTransaction(h, "widget", "in-place", h.repo),
+      },
     );
 
     expect(result.status).toBe("rejected");
@@ -495,7 +869,10 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       {
         name: "widget",
         cls: "Light",
@@ -503,11 +880,11 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
       },
     );
 
-    expect(result.status).toBe("graduated");
-    if (result.status !== "graduated") return;
+    if (result.status !== "graduated") throw new Error(JSON.stringify(result));
     expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
     // The invoking checkout's active WU stays where it was; graduate did not add a second active meta there.
     expect(await pathExists(join(h.repo, ".arc", "active", "meta-incumbent.md"))).toBe(true);
@@ -547,7 +924,8 @@ describe("arc start dispatch — against real worktrees", () => {
       let observedExitCode: typeof process.exitCode;
       try {
         process.chdir(h.repo);
-        await handleStart(slug, { yes: true });
+        await handleStart(slug, { yes: true },
+          makeInteractionContext({ noInput: true, yes: "compatibility" }));
         observedExitCode = process.exitCode;
       } finally {
         process.chdir(originalCwd);
@@ -600,7 +978,8 @@ describe("arc start dispatch — against real worktrees", () => {
     let observedExitCode: typeof process.exitCode;
     try {
       process.chdir(h.repo);
-      await handleStart(slug, { yes: true });
+      await handleStart(slug, { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);

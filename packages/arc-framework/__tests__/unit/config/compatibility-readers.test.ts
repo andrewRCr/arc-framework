@@ -4,11 +4,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { CONFIG_COMPATIBILITY_CASES } from "../../fixtures/config/cases.js";
 import { resolveAllSettings } from "../../../src/lib/config/resolved-settings.js";
 import { readConfigSettings } from "../../../src/lib/config/status-reader.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const roots: string[] = [];
 
@@ -24,16 +25,14 @@ async function materializeConfig(content: string | null): Promise<string> {
 }
 
 function gitConfigExec(values: Readonly<Record<string, string>>) {
-  return vi.fn().mockImplementation((command: string, args: readonly string[]) => {
-    if (command !== "git" || args[0] !== "config" || args[1] !== "--get") {
-      return Promise.reject(new Error(`unexpected command: ${command} ${args.join(" ")}`));
-    }
-    const key = args[2];
-    const value = key === undefined ? undefined : values[key];
-    return value === undefined
-      ? Promise.reject(new Error("exit 1"))
-      : Promise.resolve({ stdout: `${value}\n` });
-  });
+  return scriptGitExec([{
+    match: { prefix: ["config", "--get"] },
+    responses: [({ args }) => {
+      const key = args[2];
+      const value = key === undefined ? undefined : values[key];
+      return value === undefined ? { failure: { exitCode: 1 } } : { stdout: `${value}\n` };
+    }],
+  }]).exec;
 }
 
 afterEach(async () => {

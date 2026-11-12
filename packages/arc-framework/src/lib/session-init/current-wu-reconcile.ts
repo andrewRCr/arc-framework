@@ -8,26 +8,25 @@
  * @module
  */
 
+import { z } from "zod";
+import { ArcError } from "../kernel/errors.js";
+import type { Store } from "../store/contract.js";
+import { ListingDiagnosticSchema } from "../store/read.js";
+import { workUnitMetaPath } from "../store/lifecycle-write.js";
+import { readClaimedCurrentWorkUnit } from "../store/current-work-unit-marker.js";
+import { createStoreReconcilePrepareContext } from "../work-unit/store-reconcile-context.js";
+import { CurrentWuReconcileSessionResultSchema } from "./current-wu-reconcile-schema.js";
 import {
   prepareCurrentWuReconcile,
   type CurrentWuReconcileOp,
-  type CurrentWuReconcilePlan,
   type CurrentWuReconcilePrepareContext,
-  type DependencyReconcileConflictReason,
+  type HeldDependencyEdge,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
+/** Current-WU reconcile probe input. */
+export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply"> & { checkoutPath: string };
 
 /** Session-entry projection of one current-WU reconcile inspection. */
-export interface CurrentWuReconcileSessionResult {
-  status: "clean" | "pending" | "conflict";
-  slug: string;
-  dependency: CurrentWuReconcilePlan["dependency"];
-  trackedReferences: CurrentWuReconcilePlan["trackedReferences"];
-  advisories: CurrentWuReconcilePlan["advisories"];
-  reason?: DependencyReconcileConflictReason;
-  recommendedAction: "skip" | "surface";
-  recommendedCommand: readonly string[] | null;
-  recommendedPromptText: string;
-}
+export type CurrentWuReconcileSessionResult = z.infer<typeof CurrentWuReconcileSessionResultSchema>;
 
 /**
  * Inspect the active work unit without exposing any mutation capability.
@@ -37,10 +36,37 @@ export interface CurrentWuReconcileSessionResult {
  * @returns Closed reconcile facts and precomposed session-entry guidance
  */
 export async function runCurrentWuReconcileSessionProbe(
-  ctx: CurrentWuReconcilePrepareContext,
-  op: Omit<CurrentWuReconcileOp, "apply">,
+  ctx: CurrentWuReconcilePrepareContext | { store: Store },
+  op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
-  const result = await prepareCurrentWuReconcile(ctx, op);
+  if (!("store" in ctx)) return projectCurrentWuResult(await prepareCurrentWuReconcile(ctx, op), op);
+  const warnings: string[] = [];
+  const current = await readClaimedCurrentWorkUnit({ cwd: op.checkoutPath, store: ctx.store }, warnings);
+  if (current.kind === "unbound") return unavailable(op.slug, current.reason, [...current.exits]);
+  if (current.kind === "absent") return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
+    [{ text: "Inspect arc locus --json, repair the checkout's work-unit claim, then retry session status." }]);
+  let acquired;
+  try { acquired = await createStoreReconcilePrepareContext(op.checkoutPath, ctx.store, op.slug, current.record.reference); }
+  catch (error) {
+    if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
+    const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);
+    if (diagnostics.success && diagnostics.data.length > 0) return unavailable(op.slug,
+      diagnostics.data.map(item => item.condition).join("\n"),
+      diagnostics.data.map(item => ({ text: `${item.key}: ${item.condition} ${item.remedy.text}` })));
+    return unavailable(op.slug, error.message, [{ text: error.message }]);
+  }
+  if (acquired.status === "refused") return unavailable(op.slug, acquired.refusal.condition, [{ text: acquired.refusal.remedy.text }]);
+  const primary = acquired.result.primary;
+  const selected = { ...op, slug: primary.reference.owner.name, metaPath: await workUnitMetaPath(op.checkoutPath, primary) };
+  return projectCurrentWuResult(await prepareCurrentWuReconcile(acquired.result.context, selected), selected);
+}
+
+function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrentWuReconcile>>,
+  op: CurrentWuReconcileSessionOp): CurrentWuReconcileSessionResult {
+  const inspect = {
+    text: `arc wu reconcile ${op.slug} --json`,
+    argv: ["arc", "wu", "reconcile", op.slug, "--json"],
+  };
   if (result.status === "clean") {
     return {
       status: "clean",
@@ -57,6 +83,10 @@ export async function runCurrentWuReconcileSessionProbe(
     const hasTrackedEdits = result.prepared.edits.length > 0;
     return {
       status: "pending",
+      actions: [inspect, ...(hasTrackedEdits ? [{
+        text: `arc wu reconcile ${op.slug} --apply --json`,
+        argv: ["arc", "wu", "reconcile", op.slug, "--apply", "--json"], checkout: op.checkoutPath,
+      }] : [])],
       slug: op.slug,
       dependency: result.prepared.plan.dependency,
       trackedReferences: result.prepared.plan.trackedReferences,
@@ -65,16 +95,12 @@ export async function runCurrentWuReconcileSessionProbe(
       recommendedCommand: hasTrackedEdits
         ? ["arc", "wu", "reconcile", op.slug, "--apply", "--json"]
         : ["arc", "wu", "reconcile", op.slug, "--json"],
-      recommendedPromptText: hasTrackedEdits
-        ? `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
-          + `Apply them in its own review increment with `
-          + `\`arc wu reconcile ${op.slug} --apply --json\`.`
-        : `Current work unit \`${op.slug}\` has advisory reference findings. `
-          + `Inspect them with \`arc wu reconcile ${op.slug} --json\`.`,
+      recommendedPromptText: pendingPromptText(op.slug, hasTrackedEdits, result.prepared.plan.dependency.held),
     };
   }
   return {
     status: "conflict",
+    actions: [inspect],
     slug: op.slug,
     dependency: result.prepared.plan.dependency,
     trackedReferences: result.prepared.plan.trackedReferences,
@@ -86,4 +112,17 @@ export async function runCurrentWuReconcileSessionProbe(
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,
   };
+}
+
+function pendingPromptText(slug: string, hasTrackedEdits: boolean, held: readonly HeldDependencyEdge[] = []): string {
+  const heldNames = [...new Set(held.map(item => item.edge))].map(edge => `\`${edge}\``).join(", ");
+  if (hasTrackedEdits) return `Current work unit \`${slug}\` has pending tracked reconcile edits. `
+    + `Apply them in its own review increment with \`arc wu reconcile ${slug} --apply --json\`.`
+    + (heldNames === "" ? "" : ` It also has held dependency edges: ${heldNames}.`);
+  const findings = heldNames === "" ? "advisory reference findings" : `held dependency edges: ${heldNames}`;
+  return `Current work unit \`${slug}\` has ${findings}. Inspect them with \`arc wu reconcile ${slug} --json\`.`;
+}
+
+function unavailable(slug: string, condition: string, actions: { text: string }[]): CurrentWuReconcileSessionResult {
+  return { status: "unavailable", slug, condition, actions, recommendedAction: "surface", recommendedCommand: null, recommendedPromptText: condition };
 }

@@ -1,6 +1,8 @@
 inheritance: true
 reviews:
   request_changes_workflow: true
+  review_progress: false
+  review_status: false
   commit_status: true
   fail_commit_status: true
   path_instructions:

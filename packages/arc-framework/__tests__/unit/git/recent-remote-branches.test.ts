@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { runRecentRemoteBranches } from "../../../src/lib/git/recent-remote-branches.js";
+import {
+  analyzeRecentRemoteBranchesSnapshot,
+  runRecentRemoteBranches,
+} from "../../../src/lib/git/recent-remote-branches.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const NOW = Date.UTC(2026, 4, 25); // 2026-05-25
 const DAY = 86_400;
@@ -48,8 +52,8 @@ describe("runRecentRemoteBranches", () => {
   });
 
   it("returns an empty list when the read fails (recency is a soft signal)", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("for-each-ref failed");
+    const exec: GitExec = vi.fn(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "for-each-ref failed" });
     });
 
     const result = await runRecentRemoteBranches({ exec, withinDays: 30, now: NOW });
@@ -63,5 +67,93 @@ describe("runRecentRemoteBranches", () => {
     const result = await runRecentRemoteBranches({ exec, withinDays: 30, now: NOW });
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("analyzeRecentRemoteBranchesSnapshot", () => {
+  it("sorts locally available advertised tips by their commit dates", async () => {
+    const newerOid = "a".repeat(40);
+    const olderOid = "b".repeat(40);
+    const { exec, calls } = scriptGitExec([
+      { match: { predicate: (args) => args[0] === "show" && args.at(-1) === newerOid },
+        responses: [{ stdout: String(NOW_S - DAY), stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "show" && args.at(-1) === olderOid },
+        responses: [{ stdout: String(NOW_S - 2 * DAY), stderr: "" }] },
+    ]);
+
+    const result = await analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/older": olderOid, "feat/newer": newerOid },
+      objectAvailability: { kind: "complete", commits: { [olderOid]: true, [newerOid]: true } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    });
+
+    expect(result).toEqual({ branches: ["feat/newer", "feat/older"], pendingBranchCount: 0 });
+    expect(calls).toHaveLength(2);
+    expect(calls.every(({ options }) => options?.objectAccess === "local-only")).toBe(true);
+  });
+
+  it("applies exclusions before availability inspection and counts only eligible missing objects", async () => {
+    const localOid = "a".repeat(40);
+    const pendingOid = "b".repeat(40);
+    const excludedOid = "c".repeat(40);
+    const { exec } = scriptGitExec([{
+      match: { predicate: (args) => args[0] === "show" && args.at(-1) === localOid },
+      responses: [{ stdout: String(NOW_S - DAY), stderr: "" }],
+    }]);
+
+    const result = await analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/local": localOid, "feat/pending": pendingOid, main: excludedOid },
+      objectAvailability: { kind: "complete", commits: { [localOid]: true, [pendingOid]: false } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(["main"]),
+      withinDays: 30,
+      now: NOW,
+    });
+
+    expect(result).toEqual({ branches: ["feat/local"], pendingBranchCount: 1 });
+  });
+
+  it("refuses an exact recent tier when local classification has shallow history", async () => {
+    const oid = "a".repeat(40);
+    await expect(analyzeRecentRemoteBranchesSnapshot({
+      exec: execReturning(String(NOW_S)),
+      tips: { "feat/local": oid },
+      objectAvailability: { kind: "complete", commits: { [oid]: true } },
+      history: { kind: "shallow" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    })).rejects.toThrow("Complete local history is required");
+  });
+
+  it.each([
+    {
+      name: "malformed date output",
+      exec: execReturning("not-a-date"),
+      message: "Malformed commit date",
+    },
+    {
+      name: "local execution failure",
+      exec: vi.fn(async (command, args): Promise<ExecResult> => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "date read failed" });
+      }) as GitExec,
+      message: "date read failed",
+    },
+  ])("propagates $name", async ({ exec, message }) => {
+    const oid = "a".repeat(40);
+    await expect(analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/local": oid },
+      objectAvailability: { kind: "complete", commits: { [oid]: true } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    })).rejects.toThrow(message);
   });
 });

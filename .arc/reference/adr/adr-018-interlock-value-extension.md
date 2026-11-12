@@ -65,11 +65,11 @@ Adopt the following authorization model for the release wrappers, layered on the
 capture _trigger sets_, not single triggers — `manual` is the ∅ trigger set, `on-{primary}` is the established
 singleton trigger set, and `on-workflow` is the superset capturing any agent-mediated workflow event.
 
-| Interlock          | `manual` | `on-{primary}`     | `on-workflow`                           |
-|--------------------|----------|--------------------|-----------------------------------------|
-| `commit_interlock` | ∅        | task-work commits  | task-work + ceremony commits            |
-| `push_interlock`   | ∅        | sync-internal push | sync + ceremony pushes                  |
-| `sync_interlock`   | ∅        | handoff workflow   | handoff + future workflow-driven sync   |
+| Interlock          | `manual` | `on-{primary}`     | `on-workflow`                         |
+| ------------------ | -------- | ------------------ | ------------------------------------- |
+| `commit_interlock` | ∅        | task-work commits  | task-work + ceremony commits          |
+| `push_interlock`   | ∅        | sync-internal push | sync + ceremony pushes                |
+| `sync_interlock`   | ∅        | handoff workflow   | handoff + future workflow-driven sync |
 
 `commit_interlock: on-task-approval` already worked this way: `manual` was ∅ and `on-task-approval` was
 {task-approval}. `on-workflow` extends each axis to a superset that includes any agent-mediated workflow event,
@@ -88,7 +88,7 @@ three.
 fixed scope describing the commit / push class the agent uses it for:
 
 | Wrapper command      | Scope                                                       |
-|----------------------|-------------------------------------------------------------|
+| -------------------- | ----------------------------------------------------------- |
 | `arc release commit` | any commit the agent fires (task-work ∪ ceremony)           |
 | `arc release push`   | ceremony push only (sync uses its own internal push helper) |
 

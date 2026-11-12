@@ -18,6 +18,7 @@ export type GitProcessErrorKind =
   | "timed-out"
   | "output-limit"
   | "nonzero-exit"
+  | "command-line-capacity"
   | "spawn-failure"
   | "unexpected";
 
@@ -36,7 +37,9 @@ export interface GitProcessErrorInit {
   readonly isMaxBuffer?: boolean;
   readonly stdout?: string;
   readonly stderr?: string;
+  readonly commandLine?: Readonly<{ units: number; limit: number }>;
   readonly expectedOutcome?: GitExpectedOutcome;
+  readonly descendantsUnconfirmed?: boolean;
   readonly cause?: unknown;
 }
 
@@ -45,6 +48,7 @@ const CODE_BY_KIND = {
   "timed-out": "git.timed-out",
   "output-limit": "git.output-limit",
   "nonzero-exit": "git.nonzero-exit",
+  "command-line-capacity": "git.command-line-capacity",
   "spawn-failure": "git.spawn-failure",
   unexpected: "git.unexpected",
 } as const satisfies Record<GitProcessErrorKind, ArcErrorCode>;
@@ -63,7 +67,10 @@ export class GitProcessError extends ArcError {
   readonly stderr: string;
   readonly diagnosticStdout: string;
   readonly diagnosticStderr: string;
+  readonly commandLine?: Readonly<{ units: number; limit: number }>;
   readonly expectedOutcome?: GitExpectedOutcome;
+  /** A canceled process whose descendants could not be confirmed ended, because the platform's process utility failed. */
+  readonly descendantsUnconfirmed: boolean;
 
   /**
    * Create a stable Git process failure.
@@ -73,6 +80,9 @@ export class GitProcessError extends ArcError {
   constructor(init: GitProcessErrorInit) {
     if (init.expectedOutcome !== undefined && init.kind !== "nonzero-exit") {
       throw new TypeError("expectedOutcome is valid only for nonzero-exit Git process errors");
+    }
+    if (init.descendantsUnconfirmed && init.kind !== "canceled") {
+      throw new TypeError("descendantsUnconfirmed is valid only for canceled Git process errors");
     }
 
     const stdout = init.stdout ?? "";
@@ -95,7 +105,9 @@ export class GitProcessError extends ArcError {
     this.stderr = stderr;
     this.diagnosticStdout = diagnosticStdout;
     this.diagnosticStderr = diagnosticStderr;
+    this.commandLine = init.commandLine === undefined ? undefined : Object.freeze({ ...init.commandLine });
     this.expectedOutcome = init.expectedOutcome;
+    this.descendantsUnconfirmed = init.descendantsUnconfirmed ?? false;
   }
 }
 
@@ -174,6 +186,16 @@ export function gitFailureText(value: unknown): string {
   return streamField(record, "stderr") ?? stringField(record, "message") ?? "";
 }
 
+/** Distinguish a completed failed command from cancellation or incomplete execution.
+ * @param value - Original executor rejection.
+ * @returns Whether its diagnostic text can describe a completed nonzero operation.
+ */
+export function isCompletedGitFailure(value: unknown): boolean {
+  const failure = normalizeGitRejection(value, { command: "git", args: [] });
+  return failure.kind === "nonzero-exit" && failure.exitCode !== undefined && failure.exitCode !== 0
+    && failure.signal === undefined;
+}
+
 function classifyExpectedOutcome(
   invocation: GitInvocation,
   exitCode: number | undefined,
@@ -202,7 +224,9 @@ function buildMessage(init: GitProcessErrorInit, stderr: string, stdout: string)
   const status = init.exitCode !== undefined
     ? `exit ${init.exitCode}`
     : init.signal !== undefined ? `signal ${singleLine(init.signal)}` : undefined;
-  const identity = `${invocation || "git"}: ${init.kind}${status === undefined ? "" : ` (${status})`}`;
+  const unconfirmed = init.descendantsUnconfirmed ? ", descendant processes not confirmed ended" : "";
+  const capacity = init.commandLine ? ` (${init.commandLine.units} UTF-16 units, limit ${init.commandLine.limit}; process did not start)` : "";
+  const identity = `${invocation || "git"}: ${init.kind}${status === undefined ? "" : ` (${status})`}${unconfirmed}${capacity}`;
   const evidence = singleLine(stderr || stdout);
   if (evidence === "") return truncate(identity, GIT_ERROR_MESSAGE_MAX_CHARS);
   const separator = ": ";

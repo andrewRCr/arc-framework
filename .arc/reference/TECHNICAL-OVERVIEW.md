@@ -29,7 +29,7 @@ _Key characteristics:_
 - **Self-hosting** — Framework development follows its own ARC methodology, providing continuous real-world
   validation of workflows and conventions
 - **Customization surfaces** — Adopters override behavior without forking via `arc-config.yml` (project settings),
-  `system/methods/` (overridable defaults), and `system/extensions/` (lifecycle hook points)
+  `system/methods/` (overridable defaults), and `system/arc-checks.yml` (project checks and their deadlines)
 
 ## 2. Architecture Components
 
@@ -48,8 +48,8 @@ committed to their repositories. Five top-level concerns:
   decision records), `research/` (technical research with lasting reference value), and `templates/` (artifact
   skeletons).
 - **System layer** (`system/`) — `workflows/` (numbered lifecycle workflows plus supplemental ones), `methods/`
-  (overridable defaults), `extensions/` (lifecycle hook points), `briefs/` (session-init orientation by role),
-  `githooks/` (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
+  (overridable defaults), `briefs/` (session-init orientation by role), `githooks/`
+  (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
   (canonical skill sources rendered to harness-specific subdirectories).
 - **Work surfaces** — `active/` (in-flight work units: meta files plus task lists and companions, flat layout),
   `backlog/` (future-work pipeline: `ROADMAP.md` plus `planned/` and `provisional/` state-dirs and inbox
@@ -70,8 +70,7 @@ for adopters, plus inspects and orchestrates state in existing installations. Pu
 _Command surface — three categories:_
 
 - **Lifecycle** — Install, join, and refresh ARC in projects
-- **Inspection** — Probe installed state: identity, configured settings, active work, available extensions, file
-  diffs, commit history
+- **Inspection** — Probe installed state: identity, configured settings, active work, file diffs, commit history
 - **Orchestration** — Cross-concern operations: `sync` (push coordination), `release` (interlock-gated git
   operations), `user` (portable user-state)
 
@@ -80,7 +79,7 @@ See `arc --help` for the full command list.
 _Architecture_ — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
 
 - **`src/lib/kernel/`** — Bottom-of-graph runtime contracts: Zod-backed shared schema vocabulary, a versioned
-  registry, extensible error primitives, the bounded Result seam, and byte-stable canonical-data utilities. Kernel
+  registry, extensible error primitives, and byte-stable canonical-data utilities. Kernel
   modules import only Node builtins and approved external libraries; every other CLI layer may depend downward on
   the kernel.
 - **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files). No direct side
@@ -97,13 +96,16 @@ Three orthogonal mechanisms let teams adapt ARC without forking:
 
 - **`arc-config.yml`** — Flat key-value project settings (branch protection, commit/push interlocks, hook
   toggles, PM mode, session-init pull behavior, user-notes push behavior). The live shape is `system/arc-config.yml`.
-- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, quality
-  gate commands, test-first assessment, session state, branch format, and similar). Each method ships a default
-  and an override slot; teams replace the default in place. See `system/methods/README.md` for the full set.
-- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task, unit,
-  work-unit activate/archive, commit, push, PR, merge, and context-load. Teams declare `active: true` in the
-  extension's frontmatter and supply `.actions` content for team-specific automation. See
-  `system/extensions/README.md` for available hook points.
+- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, test-first
+  assessment, session state, branch format, and similar). Each method ships a default and an override slot; teams
+  replace the default in place. See `system/methods/README.md` for the full set.
+- **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, explicit
+  environment inputs (`environment_inputs`), runner eligibility (`runner: true`), and earliest event deadlines.
+  `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the same declaration.
+
+Project strategies, workflows, and domain rules supply additional content channels. Project workflows may run
+beside ARC workflows and use methods; ARC supplies no supported workflow-step insertion or tracker notification
+mechanism. QUICK-REFERENCE tool commands and harness-native lifecycle hooks retain their separate roles.
 
 ### Cross-Machine User State
 
@@ -127,19 +129,22 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 Self-hosting integration runs one configured review loop through the shipped `arc review` command tree. Frontline
 sources run independently through `frontline resolve` and `frontline run`. The standard-review stream resolves one
 ordered source per pass: `delegated-agent` uses the local prepare/attest/resume boundary, while `coderabbit-pr` and
-`codex-pr` use the hosted request/await/settle boundary. Chunking and source resolution return typed actions, so the
-workflow dispatches mechanics without reconstructing provider state or asking which source to try next.
+`codex-pr` use the hosted request/await/settle boundary. Fix checks run locally on `delegated-agent`; hosted sources
+run complete passes with bare provider commands. After material fixes, a local fix check converges before another
+hosted pass. Chunking and source resolution return typed actions, so the workflow dispatches mechanics without
+reconstructing provider state or asking which source to try next.
 
 The CLI owns deterministic mechanics: immutable target and guidance bindings, ordered safe fallback, bounded
 awaiting, result normalization, and thread settlement. The operating agent owns bounded judgment about finding
-disposition, later-head applicability, and whether targeted verification, focused supplementation, or a complete
-pass fits a changed target. Confident in-scope choices proceed and are disclosed; mutations, durable commitments,
-material uncertainty, exceptional cost, and final integration remain human-authorized.
+disposition and later-head applicability. At a bounded review applicability stop, the Owner may first choose a fresh
+local check of the movement to inform that choice; typed continuations carry verification and complete-review routes.
+Confident in-scope choices proceed and are disclosed; mutations, durable commitments, material uncertainty,
+exceptional cost, and final integration remain human-authorized.
 
-The final exact candidate head may invoke `arc review unlock` only from the combined disposition and integration
-interlock. The required `arc-cleared` commit status is a thin lifecycle lock: pushes re-lock a reviewed PR, and an
-exact-head unlock releases only the still-current, lifecycle-ready candidate. It does not prove provider evidence or
-grant autonomous merge authority. No GitHub App or resident review controller exists.
+When `merge.lock: draft` is enabled, the final exact candidate head may invoke `arc merge lock release` only from
+the combined disposition and integration interlock. Draft-state lock is a per-PR structural hold on host
+mergeability; provider evidence and merge authorization stay separate — the integration interlock remains the sole
+merge authority.
 
 ## 3. Infrastructure
 
@@ -153,9 +158,11 @@ _Runtime & environment:_
 
 _Language & build:_
 
-- **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
-- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; neverthrow provides typed
-  success/failure composition through the kernel's bounded export seam
+- **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution. The two type
+  checks use TypeScript 7 through `src/scripts/run-typecheck.ts`: one source process and five test shards.
+  TypeScript 6 remains for compiler-API tooling, typed linting and declaration generation.
+- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; plain discriminated unions
+  represent success and failure outcomes
 - **Git process execution**: execa 10 provides the ESM-native subprocess runtime behind the injectable Git executor
 - **Build**: tsup — ESM output, shebang injection, declaration generation
 
@@ -163,7 +170,7 @@ _Testing & quality tooling:_
 
 - **Test Framework**: Vitest — unit, integration, and E2E test tiers
 - **Documentation Linting**: markdownlint-cli2 (pinned local) — `npm run -s lint:md`
-- **Code Linting**: typescript-eslint (recommended-type-checked) — `npm run lint:ts`
+- **Code Linting**: typescript-eslint (strict-type-checked) — `npm run lint:ts`
 - **Shell Linting**: shellcheck (system-installed) — `npm run lint:sh`
 
 _CI & configuration:_
@@ -172,11 +179,15 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. Reviewed PRs are born with `arc-cleared` locked, every push re-locks the head, and only the
-  pinned default-branch unlock workflow may clear an exact lifecycle-ready candidate. Commit status is a deliberate
-  lock, not evidence proof or autonomous merge authority. `.github/CODEOWNERS` marks the reviewed lane, and native
-  auto-merge is enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge
-  deliberately (solo repo: no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
+  documentation lint. A change to ARC prose or other content the integration suite reads still runs that suite, which
+  runs at merge rather than at push. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at
+  the lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
+  no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
+- **Runners**: every Linux job runs on GitHub-hosted `ubuntu-latest`, and the scheduled portability pair adds
+  `windows-latest` and `macos-latest`. The repository is public, so no job routes to a self-hosted runner while fork
+  pull requests run CI. The repository variable `ARC_CI_VITEST_MAX_WORKERS` retunes Vitest's worker count without a
+  code change.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 
@@ -185,12 +196,15 @@ _CI & configuration:_
 ### CLI Package Testing
 
 - **Framework**: Vitest
-- **Execution**: `npm test` (full suite), `npm run test:unit` (unit only)
-- **Structure**: Three tiers by isolation level:
-    - **Unit** (`__tests__/unit/`) — Pure function and module tests, no side effects
-    - **Integration** (`__tests__/integration/`) — Module interaction, may use temp filesystem
+- **Execution**: `npm test` (routine unit + integration lane), `npm run test:full` (all projects),
+  `npm run test:unit` (unit projects only)
+- **Structure**: Four Vitest projects across three isolation tiers:
+    - **Unit** and **unit-mocks** (`__tests__/unit/`) — Functions and modules, including temporary filesystem
+      fixtures; no child processes, real builds or git repositories beyond the explicit legacy spawn allowlist.
+      Mock-heavy files are isolated in their own project.
+    - **Integration** (`__tests__/integration/`) — Real module interactions, git repositories and child processes
     - **E2E** (`__tests__/e2e/`) — Full CLI invocation against real (temporary) git repos
-- **Command**: `npm test` (unit + integration, then E2E)
+- **Command**: `npm test` (unit + unit-mocks + integration); `npm run test:full` also includes E2E
 
 See `strategy-testing-methodology.md` for TDD decision tree, tier boundaries, mocking rules, and vertical-slice
 workflow.
@@ -198,10 +212,15 @@ workflow.
 ### Quality Gates
 
 - **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
-- **TypeScript type checking** — `tsc --noEmit` with strict mode
-- **Code linting** — typescript-eslint (recommended-type-checked) and shellcheck
+- **TypeScript type checking** — TypeScript 7 through `src/scripts/run-typecheck.ts`, with strict mode: `typecheck`
+  runs one source process and `typecheck:test` runs five sequential shards. TypeScript 6 remains for tooling.
+- **Code linting** — typescript-eslint (strict-type-checked) and shellcheck
 - **Test suite** — Vitest with all tests passing
 - **Build verification** — tsup produces working CLI output
 - **CI validation** — GitHub Actions validates all gates on push and PR
-- **Tiered approach** — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR). See
-  `strategy-quality-gates.md` for tier boundaries and escalation guidance.
+- **Check execution** — `checks.runner` in machine-local `~/.arc/config.yml` names the subprocess adapter for
+  `runner: true` checks; a missing key retains native execution. ARC owns selection, fixed input capture, reusable
+  passes, and results; the adapter owns dependency preparation, admission, placement, execution, and settlement.
+- **Event deadlines** — The commit gate, push gate, and merge quality gate require declared checks to pass before
+  their respective events. Increment and segment requests provide earlier feedback; verification and attestation
+  requests force fresh results at their required scope.

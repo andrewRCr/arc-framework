@@ -5,6 +5,12 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
+import type { SessionInitProbeResult } from "../../../src/commands/status/types.js";
+import type { SessionInitProbeResultSchemaInputCompatibility } from "../../../src/commands/status/schema.js";
+
+type InvalidProducer = Omit<SessionInitProbeResult, "mode"> & { mode: "invalid" };
+// @ts-expect-error Invalid producer modes must fail schema input compatibility.
+export type InvalidSessionInitProducer = SessionInitProbeResultSchemaInputCompatibility<InvalidProducer>;
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "../../../src");
 
@@ -22,6 +28,8 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/recover/audit.ts", type: "RecoveryAuditVerdict" },
     { file: "lib/recover/report.ts", type: "RecoverAuditReport" },
     { file: "lib/session-init/inbox-state.ts", type: "InboxStateResult" },
+    { file: "lib/session-init/paused-work.ts", type: "PausedWorkResult" },
+    { file: "lib/session-init/inbound-back-pressure.ts", type: "InboundBackPressureResult" },
     {
         file: "lib/session-init/errand-staleness-sweep.ts",
         type: "ErrandStalenessSweepResult",
@@ -32,7 +40,7 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     },
     {
         file: "lib/session-init/materializable-work-units.ts",
-        type: "MaterializableWorkUnitsResult",
+        type: "MaterializableWorkUnitDiscoveryResult",
     },
     {
         file: "lib/session-init/orphan-branch-sweep.ts",
@@ -51,20 +59,24 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
         file: "lib/session-init/branch-gone-cascade.ts",
         type: "CascadeResolution",
     },
-    { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSyncStatusResult" },
-    { file: "commands/status/types.ts", type: "StatusIdentity" },
-    { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
-];
-
-const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
+    { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSnapshotAnalysisResult" },
     { file: "lib/git/dirty-state.ts", type: "DirtyStateResult" },
     { file: "lib/git/worktree-sync.ts", type: "WorktreeSyncStatusResult" },
-    { file: "lib/git/base-distance.ts", type: "BaseDistanceStatusResult" },
+    { file: "lib/git/worktree-sync.ts", type: "WorktreeSnapshotAnalysisResult" },
     { file: "lib/git/worktree-roster.ts", type: "WorktreeRosterResult" },
-    {
-        file: "lib/session-init/current-husk-advisory.ts",
-        type: "CurrentHuskAdvisory",
-    },
+    { file: "lib/git/base-drift-types.ts", type: "BaseDriftResult" },
+    { file: "lib/git/base-distance.ts", type: "BaseDistanceSnapshotAnalysisResult" },
+    { file: "lib/git/base-distance.ts", type: "BaseDistanceNotApplicableResult" },
+    { file: "lib/git/worktree-identity.ts", type: "WorktreeIdentity" },
+    { file: "lib/git/supersession.ts", type: "SupersessionResult" },
+    { file: "lib/git/supersession.ts", type: "SupersessionSnapshotAnalysisResult" },
+    { file: "lib/session-init/current-husk-advisory.ts", type: "CurrentHuskAdvisory" },
+    { file: "commands/active/types.ts", type: "ActiveSessionInitResult" },
+    { file: "commands/config/types.ts", type: "ConfigSessionInitResult" },
+    { file: "lib/release/routing.ts", type: "ReleaseRoutingValue" },
+    { file: "commands/constitution/types.ts", type: "DomainRulesSessionInitResult" },
+    { file: "commands/status/types.ts", type: "StatusIdentity" },
+    { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
     {
         file: "lib/session-init/stale-worktree-sweep.ts",
         type: "StaleWorktreeSweepResult",
@@ -74,18 +86,14 @@ const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
         type: "WorkUnitStateResult",
     },
     { file: "lib/session-init/errand-state.ts", type: "ErrandStateResult" },
-    {
-        file: "commands/extensions/types.ts",
-        type: "ExtensionsSessionInitResult",
-    },
-    { file: "commands/config/types.ts", type: "ConfigSessionInitResult" },
-    { file: "commands/active/types.ts", type: "ActiveSessionInitResult" },
-    {
-        file: "commands/constitution/types.ts",
-        type: "DomainRulesSessionInitResult",
-    },
     { file: "commands/user/types.ts", type: "UserSessionInitStatusResult" },
-    { file: "lib/release/routing.ts", type: "ReleaseRoutingValue" },
+    { file: "lib/session-init/current-wu-reconcile.ts", type: "CurrentWuReconcileSessionResult" },
+    { file: "lib/user-reference-reconcile.ts", type: "UserReferenceReconcileSessionResult" },
+    { file: "lib/locus/derived-reader.ts", type: "DerivedLocusFrame" },
+
+];
+
+const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     { file: "commands/status/types.ts", type: "SessionInitProbeResult" },
     { file: "commands/status/types.ts", type: "SessionRecoverProbeResult" },
 ];

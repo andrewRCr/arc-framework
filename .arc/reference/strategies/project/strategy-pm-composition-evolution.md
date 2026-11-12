@@ -106,7 +106,7 @@ association surface, not a sufficient binding or sync contract.
 
 Provider selection, capability checks, API calls, mapping, retries, timeouts, and failure classification belong in
 typed CLI or adapter contracts. Workflows invoke stable operations and render precomposed outcomes. Projects should not
-have to encode correctness-critical synchronization as free-form extension instructions.
+have to encode correctness-critical synchronization as free-form workflow instructions.
 
 ### 7. Start below bidirectional synchronization
 
@@ -143,8 +143,10 @@ Use distinct levels when describing support:
 5. **Federated:** declared external facts are authoritative through typed mappings and reconciliation.
 6. **Synchronized:** controlled bidirectional mutation is supported.
 
-Do not call Level 1 or a free-form extension “integrated” without naming the actual level. The target level remains
-open pending the audit; synchronization is not the default assumption.
+These levels distinguish capabilities; they do not establish current support. `Origin` supplies linkage, but ARC
+provides no supported lifecycle notification or synchronization mechanism. Name the actual implemented level when
+calling a capability “integrated”. The target level remains open pending the audit; synchronization is not the
+default assumption.
 
 ## Interim Boundaries
 
@@ -155,8 +157,8 @@ Until `external-pm-composition` settles the target:
 - Do not add a generic bidirectional sync engine.
 - Do not make provider data the sole durable home of ARC's agent-native WU artifacts.
 - Do not add a new provider or storage mode merely to express tracker choice.
-- Preserve provider-neutral lifecycle fire points, but do not promise that existing free-form extensions form a
-  complete integration contract.
+- Preserve provider-neutral lifecycle-event intent and contracts as design inputs; do not preserve inactive
+  extension fire points or claim a supported notification/synchronization mechanism until one is implemented.
 - State field-level authority explicitly in any interim design that crosses the ARC/tracker boundary.
 
 ## Required Evaluation
@@ -182,8 +184,8 @@ The owning WU must:
   removes that enum value and makes tracker integration orthogonal; it is not yet accepted.
 - `Origin` is an unstructured semantic value. It cannot by itself express provider identity, workspace, item key,
   cardinality, version, rebinding, or conflict behavior.
-- Current external setup relies on free-form capture rules, extensions, and method overrides. These are useful escape
-  hatches but do not establish a tested provider contract.
+- Current external setup relies on free-form capture rules and method overrides, with `Origin` supplying linkage.
+  These do not establish a tested provider contract or a supported lifecycle notification/synchronization route.
 - The planned external coordination probe solves a narrow read-side discovery question. It is evidence for an adapter
   seam, not the general PM-composition architecture.
 

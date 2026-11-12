@@ -1,24 +1,32 @@
 /**
- * Worktree roster — enumerates `git worktree list` and resolves each
- * worktree's per-checkout WU meta file into a structured entry.
- *
- * The result is one dataset describing every branched worktree: those
- * with a meta file (WU worktrees) and those without (admin / main
- * checkouts). Callers filter on `metaFilePath` to select between views.
- * Detached-HEAD worktrees are excluded — no branch identity to act on.
+ * Physical worktree registrations and their work-unit lifecycle facts.
+ * Store-backed rows retain detached checkouts, marker associations and
+ * authenticated terminal lineage. The legacy arm retains branched rows
+ * and resolves their per-checkout metadata.
  *
  * @module
  */
 
-import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
+import type { StoreRecord } from "../store/read.js";
+import type { Store } from "../store/contract.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, type WorktreeMarker } from "./worktree-marker.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
+import { lstat } from "node:fs/promises";
+import { readTerminalWorkUnitLineage } from "../locus/store-terminal-work-unit.js";
+import { classifyUnboundMarker } from "../locus/unbound-marker.js";
+
+import { validateState } from "../kernel/schema/vocabulary.js";
+import { z } from "zod";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 
 import type { GitExec } from "./exec.js";
 import {
-  parseGitWorktreePorcelain,
+  parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
 } from "./worktree-porcelain.js";
 
@@ -29,24 +37,35 @@ import {
  * (the roster surfaces every branched worktree, including ones with
  * malformed or unrecognized State).
  */
-export type WorktreeRosterState = WorkUnitState | "unknown";
+export const WorktreeRosterStateSchema = z.union([WorkUnitStateSchema, z.literal("unknown")]);
+export type WorktreeRosterState = z.infer<typeof WorktreeRosterStateSchema>;
 
 /**
- * One worktree-roster entry. `branch` is always populated — detached-HEAD
- * worktrees are excluded from the result entirely. Meta-derived fields
+ * One physical registration. Store-backed rows may be detached and carry
+ * authoritative placement. The legacy roster includes only branched worktrees. Meta-derived fields
  * (`identity`, `metaFilePath`, `state`, `cohort`, `class`, `priority`,
  * `dependsOn`) are absent when no meta file resolves for the worktree.
  */
-export interface WorktreeRosterEntry {
-  worktreePath: string;
-  branch: string;
-  identity?: string;
-  metaFilePath?: string;
-  state?: WorktreeRosterState;
-  cohort?: string;
-  class?: string;
-  priority?: string;
-  dependsOn?: readonly string[];
+export const WorktreeRosterEntrySchema = z.strictObject({
+  worktreePath: z.string(),
+  branch: z.string().optional(),
+  workUnit: z.string().optional(),
+  placement: z.enum(["active", "backlog", "completed"]).optional(),
+  retired: z.literal(true).optional(),
+  identity: z.string().optional(),
+  metaFilePath: z.string().optional(),
+  state: WorktreeRosterStateSchema.optional(),
+  cohort: z.string().optional(),
+  class: z.string().optional(),
+  priority: z.string().optional(),
+  dependsOn: z.array(z.string()).readonly().optional(),
+});
+export type WorktreeRosterEntry = z.infer<typeof WorktreeRosterEntrySchema>;
+
+/** Select logical work-unit rows while excluding known inactive placement and administrative checkouts. */
+export function isInFlightWorkUnitRosterEntry(entry: WorktreeRosterEntry): boolean {
+  return entry.retired !== true && (entry.workUnit !== undefined || entry.metaFilePath !== undefined)
+    && (entry.placement === undefined || entry.placement === "active");
 }
 
 /**
@@ -58,24 +77,22 @@ export interface WorktreeRosterFs {
   readFile(path: string): Promise<string>;
 }
 
-export interface WorktreeRosterResult {
-  entries: WorktreeRosterEntry[];
-  warnings: string[];
-}
+/** Full emitted roster, including degraded entries and read warnings. */
+export const WorktreeRosterResultSchema = z.strictObject({
+  entries: z.array(WorktreeRosterEntrySchema),
+  warnings: z.array(z.string()),
+});
+export type WorktreeRosterResult = z.infer<typeof WorktreeRosterResultSchema>;
 
 /** Registered worktree topology without meta or lifecycle resolution. */
-export interface RegisteredWorktree {
-  /** Filesystem root registered with Git. */
-  path: string;
-  /** Exact commit currently checked out. */
-  head: string;
-  /** Local branch name, or `null` for a detached worktree. */
-  branch: string | null;
-  /** Whether Git reports the worktree at detached HEAD. */
-  detached: boolean;
-  /** Whether this is Git's primary worktree (the first porcelain stanza). */
-  primary: boolean;
-}
+export const RegisteredWorktreeSchema = z.strictObject({
+  path: z.string(), head: z.string(), branch: z.string().nullable(),
+  detached: z.boolean(), primary: z.boolean(), folderPresent: z.boolean(),
+  /** Absent when unlocked; null for a bare lock, or its reason. */
+  locked: z.string().nullable().optional(),
+});
+/** Registered topology inferred from its runtime wire contract. */
+export type RegisteredWorktree = z.infer<typeof RegisteredWorktreeSchema>;
 
 /** Result of reading registered worktree topology. */
 export type RegisteredWorktreeScanResult =
@@ -83,6 +100,8 @@ export type RegisteredWorktreeScanResult =
   | { ok: false; message: string };
 
 export interface RunWorktreeRosterOptions {
+  cwd?: string;
+  store?: Store;
   exec: GitExec;
   fs: WorktreeRosterFs;
 }
@@ -91,7 +110,9 @@ export async function runWorktreeRoster(
   options: RunWorktreeRosterOptions,
 ): Promise<WorktreeRosterResult> {
   const { exec, fs } = options;
-  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd ?? process.cwd(), exec }));
+  if (store.capabilities.stateOffBranch) return runStoreRoster(store, worktrees);
   const branched = worktrees.filter(
     (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
@@ -164,7 +185,7 @@ export function filterRosterByIdentity(
  */
 export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string | null> {
   try {
-    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
     return worktrees[0]?.path ?? null;
   } catch {
     return null;
@@ -197,14 +218,21 @@ export interface WorktreePathsByBranchResult {
  * the `git worktree list` read succeeded.
  *
  * @param exec - Injectable command executor (local only — no remote).
+ * @param cwd - Repository root the read runs against. Omitted, the executor's own
+ * directory applies, which for the production executor is the process directory.
  * @returns The branch map plus an `ok` bit for warning/marking consumers.
  */
 export async function resolveWorktreePathsByBranchResult(
   exec: GitExec,
+  cwd?: string,
 ): Promise<WorktreePathsByBranchResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec(
+      "git",
+      ["worktree", "list", "--porcelain", "-z"],
+      cwd === undefined ? {} : { cwd },
+    ));
   } catch {
     return { ok: false, paths: new Map() };
   }
@@ -215,16 +243,23 @@ export async function resolveWorktreePathsByBranchResult(
   return { ok: true, paths: byBranch };
 }
 
+type FolderStat = (path: string) => Promise<unknown>;
+
 /**
- * Read Git's registered worktree topology without resolving managed metadata.
+ * Read registered topology and observe each registration's physical folder once.
  *
+ * Missing paths read absent; other observation failures retain presence.
  * @param exec - Injectable command executor (local only — no remote)
+ * @param lstatPath - Folder observation boundary, defaulting to Node lstat
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
-export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
+export async function scanRegisteredWorktrees(
+  exec: GitExec,
+  lstatPath: FolderStat = lstat,
+): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -236,14 +271,26 @@ export async function scanRegisteredWorktrees(exec: GitExec): Promise<Registered
 
   return {
     ok: true,
-    worktrees: worktrees.map((worktree, index) => ({
+    worktrees: await Promise.all(worktrees.map(async (worktree, index) => ({
       path: worktree.path,
       head: worktree.head as string,
       branch: worktree.branch,
       detached: worktree.detached,
       primary: index === 0,
-    })),
+      folderPresent: await registeredFolderPresent(worktree.path, lstatPath),
+      ...(worktree.locked === undefined ? {} : { locked: worktree.locked }),
+    }))),
   };
+}
+
+async function registeredFolderPresent(path: string, lstatPath: FolderStat): Promise<boolean> {
+  try {
+    await lstatPath(path);
+    return true;
+  } catch (error) {
+    if (typeof error !== "object" || error === null || !("code" in error)) return true;
+    return error.code !== "ENOENT" && error.code !== "ENOTDIR";
+  }
 }
 
 interface EntryResolution {
@@ -406,7 +453,7 @@ function buildEntry(
 }
 
 function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return parseGitWorktreePorcelain(result.stdout);
+  return parseGitWorktreePorcelainZ(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {
@@ -419,4 +466,58 @@ async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promis
   } catch {
     return [];
   }
+}
+
+async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorcelainRecord[]): Promise<WorktreeRosterResult> {
+  const warnings: string[] = [];
+  const entries = await Promise.all(worktrees.map(async worktree => {
+    const entry: WorktreeRosterEntry = { worktreePath: worktree.path,
+      ...(worktree.branch === null ? {} : { branch: worktree.branch }) };
+    try {
+      const marker = await readWorktreeMarkerGeneration(worktree.path);
+      if (marker.kind === "absent") return entry;
+      if (marker.kind === "malformed") { warnings.push(`${marker.path}: ${marker.message}`); return entry; }
+      const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+      if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
+      entry.workUnit = ownership.subject.name;
+      if (marker.marker.husk?.subject.kind === "work-unit") return { ...entry, retired: true as const };
+      const unbound = await unboundRosterWarning(store, worktree.path, marker.marker, ownership.subject.uid);
+      if (unbound !== null) {
+        warnings.push(unbound);
+        return entry;
+      }
+      const lookup = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, entry.workUnit, ownership.subject.uid) });
+      if (lookup.status === "refused") {
+        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, ownership.subject.uid ?? entry.workUnit) !== null) {
+          entry.retired = true;
+          return entry;
+        }
+        warnings.push(`${worktree.path}: ${lookup.refusal.condition} ${lookup.refusal.remedy.text}`); return entry;
+      }
+      const read = await store.read({ reference: lookup.result.reference });
+      if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition} ${read.refusal.remedy.text}`); return entry; }
+      if (read.result.conflicts.length > 0) throw new Error(
+        `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the roster.`);
+      Object.assign(entry, storeRosterFields(read.result));
+    } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
+    return entry;
+  }));
+  return { entries, warnings };
+}
+async function unboundRosterWarning(store: Store, cwd: string, marker: WorktreeMarker, uid?: string): Promise<string | null> {
+  if (uid !== undefined || marker.husk !== undefined) return null;
+  return (await classifyUnboundMarker({ store, cwd, marker })).reason;
+}
+
+function storeRosterFields(record: StoreRecord): Partial<WorktreeRosterEntry> {
+  const fields = ParsedMetaRecordSchema.parse(record.fields);
+  return {
+    ...(record.placement === undefined ? {} : { placement: record.placement.kind }),
+    ...(fields.owner === null ? {} : { identity: fields.owner }),
+    ...(fields.state === null ? {} : { state: validateState(fields.state) }),
+    ...(fields.cohort === null ? {} : { cohort: fields.cohort }),
+    ...(fields.workClass === null ? {} : { class: fields.workClass }),
+    ...(fields.priority === null ? {} : { priority: fields.priority }),
+    ...(fields.dependsOn.length === 0 ? {} : { dependsOn: fields.dependsOn }),
+  };
 }

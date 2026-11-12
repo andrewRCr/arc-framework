@@ -1,6 +1,7 @@
 /** Zod authority for forward-only review-gate targets, requests, and identity preimages. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import {
   canonicalize,
@@ -13,13 +14,12 @@ import {
   ProjectRoutingReasonSchema,
   ReviewRetriggerSchema,
 } from "../policy/routing-schema.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 
 export const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
 export type ReviewGateV2Semantics = z.infer<typeof ReviewGateV2SemanticsSchema>;
 
-export const ReviewCanonicalDigestSchema = z.string()
-  .regex(/^sha256:[0-9a-f]{64}$/u);
+export const ReviewCanonicalDigestSchema = CanonicalDigestSchema;
 export type ReviewCanonicalDigest = z.infer<typeof ReviewCanonicalDigestSchema>;
 
 export const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -27,11 +27,14 @@ export type GitObjectId = z.infer<typeof GitObjectIdSchema>;
 
 export const ReviewIdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 
+export const ReviewTargetKindSchema = z.enum(["change-set", "delivery-member"]);
+export type ReviewTargetKind = z.infer<typeof ReviewTargetKindSchema>;
+
 export const ReviewTargetIdPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.target-id/v2"),
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
-  kind: z.literal("change-set"),
+  kind: ReviewTargetKindSchema,
   repositoryId: ReviewIdentifierSchema,
   baseRef: ReviewIdentifierSchema,
   diffBaseSha: GitObjectIdSchema,
@@ -59,6 +62,7 @@ export const ReviewCarrierSchema = z.discriminatedUnion("kind", [
     kind: z.literal("local-change-set"),
     adapterId: ReviewIdentifierSchema,
     changeRequestId: z.null(),
+    errandClaimId: ReviewIdentifierSchema.optional(),
   }),
 ]);
 export type ReviewCarrier = z.infer<typeof ReviewCarrierSchema>;
@@ -72,6 +76,8 @@ const ReviewRequestFieldsSchema = z.strictObject({
   carrier: ReviewCarrierSchema,
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
+  lineageId: ReviewCanonicalDigestSchema,
+  logicalPass: z.number().int().positive(),
   generation: z.number().int().nonnegative(),
   requestMechanism: ReviewIdentifierSchema,
 });
@@ -204,7 +210,7 @@ const ReviewReceiptFieldsSchema = z.strictObject({
   rubricVersion: ReviewIdentifierSchema,
   rubricDigest: ReviewCanonicalDigestSchema,
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
-  findings: z.array(NormalizedReviewFindingSchema),
+  findings: NormalizedReviewFindingsSchema,
 });
 
 export const ReviewReceiptV2Schema = ReviewReceiptFieldsSchema.superRefine((receipt, context) => {
@@ -236,7 +242,7 @@ export const ReviewReceiptCreationInputSchema = z.strictObject({
   attestationMechanism: ReviewIdentifierSchema,
   providerEventIdentity: ReviewIdentifierSchema.nullable(),
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
-  findings: z.array(NormalizedReviewFindingSchema),
+  findings: NormalizedReviewFindingsSchema,
 });
 export type ReviewReceiptCreationInput = z.infer<typeof ReviewReceiptCreationInputSchema>;
 

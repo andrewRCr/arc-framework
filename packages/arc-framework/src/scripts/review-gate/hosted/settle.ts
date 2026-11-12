@@ -1,13 +1,22 @@
 /** Direct reply and review-thread settlement contract for hosted findings. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
+import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
+import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
+import { observeHostedFixHead, type HostedSettlementHeadRegistration } from "./settlement-head.js";
 
 const HostedSettleDispositionSchema = z.enum(["fix", "defer", "reject"]);
 
 export const HostedSettleEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  response: z.strictObject({
+    attemptRef: z.string().trim().min(1),
+    dispositionSetId: CanonicalDigestSchema,
+    findingId: ReviewFindingIdentitySchema,
+  }),
   target: HostedTargetSchema,
   fixTarget: HostedTargetSchema.nullable(),
   actorIdentity: z.string().min(1),
@@ -18,23 +27,14 @@ export const HostedSettleEnvelopeSchema = z.strictObject({
   disposition: HostedSettleDispositionSchema,
   reply: z.string().min(1),
 }).superRefine((request, context) => {
-  if (request.disposition !== "fix") {
-    if (request.fixTarget !== null) {
+  if (request.fixTarget === null) {
+    if (request.disposition === "fix") {
       context.addIssue({
         code: "custom",
         path: ["fixTarget"],
-        message: "fixTarget must be null unless disposition is fix",
+        message: "fixTarget is required when disposition is fix",
       });
     }
-    return;
-  }
-
-  if (request.fixTarget === null) {
-    context.addIssue({
-      code: "custom",
-      path: ["fixTarget"],
-      message: "fixTarget is required when disposition is fix",
-    });
     return;
   }
   if (
@@ -94,11 +94,34 @@ export interface HostedSettlementPort {
 const HostedSettleResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-hosted-settle"),
+  response: HostedSettleEnvelopeSchema.shape.response,
   disposition: HostedSettleDispositionSchema,
   threadId: z.string().min(1),
 };
 
 export const HostedSettleResultSchema = z.union([
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("head-pending"),
+    nextAction: z.literal("retry"),
+    observedHeadSha: HostedTargetSchema.shape.headSha,
+    expectedHeadSha: HostedTargetSchema.shape.headSha,
+    remedy: z.strictObject({
+      text: z.string().min(1),
+      argv: z.tuple([z.literal("arc"), z.literal("review"), z.literal("hosted"), z.literal("settle"), z.literal("-")]),
+      stdin: HostedSettleEnvelopeSchema,
+    }),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("stale-target"),
+    nextAction: z.literal("retry"),
+    remedy: z.strictObject({
+      text: z.string().min(1),
+      argv: z.tuple([z.literal("arc"), z.literal("review"), z.literal("hosted"), z.literal("settle"), z.literal("-")]),
+      stdin: HostedSettleEnvelopeSchema,
+    }),
+  }),
   z.strictObject({
     ...HostedSettleResultBaseShape,
     state: z.literal("settled"),
@@ -109,11 +132,18 @@ export const HostedSettleResultSchema = z.union([
     ...HostedSettleResultBaseShape,
     state: z.literal("already-settled"),
     nextAction: z.literal("complete"),
+    replyId: z.string().min(1),
   }),
   z.strictObject({
     ...HostedSettleResultBaseShape,
     state: z.enum(["missing-thread", "missing-comment", "actor-mismatch", "stale-target", "ambiguous"]),
     nextAction: z.literal("stop"),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("fix-not-performed"),
+    nextAction: z.literal("complete-verified-fix"),
+    interactionText: z.string().trim().min(1),
   }),
 ]);
 export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
@@ -121,6 +151,7 @@ export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
 interface HostedSettleBase {
   schemaVersion: 1;
   mode: "review-hosted-settle";
+  response: HostedSettleEnvelope["response"];
   disposition: "fix" | "defer" | "reject";
   threadId: string;
 }
@@ -129,8 +160,24 @@ function resultBase(request: HostedSettleEnvelope): HostedSettleBase {
   return {
     schemaVersion: 1,
     mode: "review-hosted-settle",
+    response: request.response,
     disposition: request.disposition,
     threadId: request.finding.threadId,
+  };
+}
+
+/**
+ * Refuse a fix settlement, before any host mutation, whose approved fix has no recorded verified response.
+ *
+ * @param request - The validated settlement request.
+ * @returns The typed refusal naming the verified-fix response as its remedy.
+ */
+export function hostedFixNotPerformedResult(request: HostedSettleEnvelope): HostedSettleResult {
+  return {
+    ...resultBase(request),
+    state: "fix-not-performed",
+    nextAction: "complete-verified-fix",
+    interactionText: FIX_NOT_PERFORMED_INTERACTION_TEXT,
   };
 }
 
@@ -155,30 +202,80 @@ async function canonicalReply(
     : { kind: "ambiguous" };
 }
 
+/**
+ * Offer a deferred or rejected settlement refused as stale its retry at the response's verified fix head.
+ *
+ * A thread missed before the approved fix changed the head can no longer settle against its originating head; once
+ * the response records the head its fix produced, the same request settles there.
+ *
+ * @param result - The settlement result for `request`.
+ * @param request - The validated settlement request.
+ * @param producedHeadSha - The head the approved response recorded for this disposition set, when recorded.
+ * @returns The stale stop with an exact retry at that head, or `result` unchanged when no such retry applies.
+ */
+export function withVerifiedFixHeadRetry(
+  result: HostedSettleResult,
+  request: HostedSettleEnvelope,
+  producedHeadSha: string | undefined,
+): HostedSettleResult {
+  if (result.state !== "stale-target" || result.nextAction !== "stop" || request.disposition === "fix"
+    || request.fixTarget !== null || producedHeadSha === undefined || producedHeadSha === request.target.headSha) {
+    return result;
+  }
+  return {
+    ...resultBase(request),
+    state: "stale-target",
+    nextAction: "retry",
+    remedy: {
+      text: "The pull request moved past this thread's originating head when the approved fix was pushed. Settle it "
+        + "at the response's verified fix head.",
+      argv: ["arc", "review", "hosted", "settle", "-"],
+      stdin: { ...request, fixTarget: { ...request.target, headSha: producedHeadSha } },
+    },
+  };
+}
+
 async function targetIsCurrent(
   request: HostedSettleEnvelope,
   port: HostedSettlementPort,
 ): Promise<boolean> {
-  const expectedTarget = request.disposition === "fix" && request.fixTarget !== null
-    ? request.fixTarget
-    : request.target;
+  const expectedTarget = request.fixTarget ?? request.target;
   return await port.readHead(expectedTarget) === expectedTarget.headSha;
 }
 
-/** Reply at the originating comment and resolve its live thread under exact actor/current-head checks. */
+async function initialHeadRefusal(
+  request: HostedSettleEnvelope,
+  dependencies: { port: HostedSettlementPort; headRegistration?: HostedSettlementHeadRegistration },
+): Promise<HostedSettleResult | null> {
+  const base = resultBase(request);
+  if (request.fixTarget === null) {
+    return await targetIsCurrent(request, dependencies.port) ? null : { ...base, state: "stale-target", nextAction: "stop" };
+  }
+  const observation = await observeHostedFixHead(request.fixTarget, dependencies.port, dependencies.headRegistration);
+  if (observation.state === "current") return null;
+  if (observation.state === "stale") return { ...base, state: "stale-target", nextAction: "stop" };
+  return { ...base, state: "head-pending", nextAction: "retry", observedHeadSha: observation.observedHeadSha,
+    expectedHeadSha: request.fixTarget.headSha,
+    remedy: {
+      text: "The host still reports an ancestor of the verified fix head. Retry this unchanged request after the host registers the push.",
+      argv: ["arc", "review", "hosted", "settle", "-"], stdin: request,
+    } };
+}
+
+/** Settle the originating thread under exact actor/target checks and current-head guards for host mutation. */
 export async function settleHostedFinding(
   input: unknown,
-  dependencies: { port: HostedSettlementPort },
+  dependencies: { port: HostedSettlementPort; headRegistration?: HostedSettlementHeadRegistration },
 ): Promise<HostedSettleResult> {
   const request = HostedSettleEnvelopeSchema.parse(input);
   const base = resultBase(request);
   if (await dependencies.port.currentActorIdentity() !== request.actorIdentity) {
     return { ...base, state: "actor-mismatch", nextAction: "stop" };
   }
-  if (!await targetIsCurrent(request, dependencies.port)) {
-    return { ...base, state: "stale-target", nextAction: "stop" };
+  if (request.disposition === "fix") {
+    const refusal = await initialHeadRefusal(request, dependencies);
+    if (refusal !== null) return refusal;
   }
-
   const before = await dependencies.port.readThread(request.target, request.finding.threadId);
   if (before.kind === "missing") {
     return { ...base, state: "missing-thread", nextAction: "stop" };
@@ -186,11 +283,26 @@ export async function settleHostedFinding(
   if (!before.commentIds.includes(request.finding.commentId)) {
     return { ...base, state: "missing-comment", nextAction: "stop" };
   }
+  let replyMatch = await canonicalReply(request, dependencies.port);
   if (before.isResolved) {
-    return { ...base, state: "already-settled", nextAction: "complete" };
+    if (replyMatch.kind !== "unique") {
+      return { ...base, state: "ambiguous", nextAction: "stop" };
+    }
+    if (request.fixTarget !== null && !await targetIsCurrent(request, dependencies.port)) {
+      return { ...base, state: "stale-target", nextAction: "stop" };
+    }
+    return {
+      ...base,
+      state: "already-settled",
+      nextAction: "complete",
+      replyId: replyMatch.reply.id,
+    };
   }
 
-  let replyMatch = await canonicalReply(request, dependencies.port);
+  if (request.disposition !== "fix") {
+    const refusal = await initialHeadRefusal(request, dependencies);
+    if (refusal !== null) return refusal;
+  }
   if (replyMatch.kind === "ambiguous") {
     return { ...base, state: "ambiguous", nextAction: "stop" };
   }

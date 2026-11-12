@@ -19,18 +19,39 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Fix adversarial-review convergence and make cap exhaustion report**
+### `[ ]` **Re-check inbox entries adopted into a draft when the draft crystallizes into a spec**
 
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
-  create-spec finalization.
-- _Concern:_ the current exit test asks whether primary-confirmed findings remain open after their repairs land,
-  so a pass that found several majors can immediately read as converged. Reaching the pass cap can then end the
-  loop silently even when another pass is still likely to find material issues.
-- _Fold-in:_ judge what the pass found and explicitly ask whether another pass is likely to find anything
-  material. Treat the cap as a cost ceiling that always reports: when not converged, recommend the additional
-  pass and let the author accept or decline. Include repair-introduced defects as evidence against convergence.
-  `wu-rename` required three passes despite a Heavy cap of two; pass two found a repair-introduced blocker and
-  pass three found an original blocker missed by both earlier passes.
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ A `USER-INBOX` entry was captured 2026-09-09, marked `_Adopted:_ folded into
+  draft-test-suite-right-sizing.md § Measurement instrument`, and then did not survive draft→spec crystallization.
+  Its substance — that Vitest's `list --shard` accepts the shard argument and silently returns the whole tier,
+  producing plausible-looking but false partition evidence — was absent from the finished spec, which said only
+  that shard membership is asked of Vitest through `vitest list`. Rediscovering it cost an adversarial pass plus
+  an empirical run. The draft is retired to the notes companion at spec finalization, so nothing re-checks the
+  transfer afterward.
+
+- _Approach:_ The fork is where the re-check lives and what it can actually check. Substance-level verification is
+  not mechanical. Two cheaper shapes: record `_Adopted:_` against the destination spec section rather than the
+  draft, retiring the entry only once the spec carries it; or add a create-spec finalization step that walks the
+  entries marked adopted into this draft and confirms each survived. Settle which before building either.
+
+- _Note:_ this is planning-stage mechanics, which is why it routes to `planning-iteration-mechanics` rather than
+  minting a stub. Route it into that WU's draft at drain rather than leaving it here.
+
+- _Captured during:_ `test-suite-right-sizing` planning close, 2026-09-10.
+
+### `[ ]` **Make success-criteria marking express the assertions being verified**
+
+- _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-20).
+- _Concern:_ one success criterion can bundle four or five assertions while the marking model has only met,
+  not-met, and unknown; a partially satisfied bundle becomes inexpressible and tends to resolve optimistically.
+- _Fold-in:_ require one independently falsifiable assertion per criterion or add a truthful partial representation.
+  Coordinate the authoring shape with `verification-falsification-contract`; this WU owns the planning-time
+  criterion form, not the verification method. `delivery-native-stack-composition` owns member-scoped criteria
+  slices and their boundary cadence, so consume that topology rather than re-deriving it here.
 
 ### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
 
@@ -192,6 +213,185 @@
   closeout instead. Design an explicit exception model for WUs whose purpose is itself a release, GA, migration,
   or other gate where post-integration evidence may legitimately define completion.
 
+### `[ ]` **Run inbound re-triage at Concern 1 with the routing method's rubric**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § Concern 1 — Iteration-time Inbound Buffer integration ceremony.
+
+- _Observation:_ `inbound-routing-method` supplies the rubric Concern 1 runs. The owner's planning pass calls
+  `route-discovered-work` with the owner's-pass door, folds or dispositions every inbound entry before the draft is
+  formalization-ready, may not keep an entry held at the pass that makes it ready, and leaves a compact dispositions
+  table, one row per entry, which review reads for "integrated or consciously rejected"
+  (`spec-inbound-routing-method.md` D5, D9). That change already wires the call where a draft's buffer drains today —
+  `draft-design`'s readiness exit, on the criterion-3 gap, and `create-spec`'s buffer hook — and adds no step. Whether
+  an iteration-time drain step runs earlier, and the table's format, are Concern 1's.
+
+- _Approach:_ if Concern 1 adds an iteration-time step, move the `draft-design` readiness-exit call into it and set the
+  table format there.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Make the draft-close routing gate the routing method's cascade-door caller**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the draft-close routing gate its inbound entry "Place coordination routing at draft close, not at task
+  generation" would place.
+
+- _Observation:_ the routing method's cascade door (`spec-inbound-routing-method.md` D6, D9) names that gate as its
+  caller. A cascade item routes only when it names the decision it shapes in the affected work unit, never re-opening
+  that work unit's body mid-pass. The door allows `hold <other>` and `new-stub`, executed as pre-routed captures until
+  the flip; `errand` as a `§ Errand` capture; `capture`; and `dismiss`. Until the gate ships, a draft-close capture is
+  an ordinary capture the drain gates.
+
+- _Approach:_ the gate calls `route-discovered-work` with the cascade door.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+---
+
+### `[ ]` **Let a task plan mark a pin-only task distinctly from a build task**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ A task whose behavior the tree already satisfies and a task that must build that behavior are
+  formally identical in a task list: both carry ``Build `test-first` (one behavior at a time):`` and a behavior
+  list. But they demand different execution discipline — a build task runs RED first, while a pin-only task
+  cannot, and owes a reconstruct-and-revert per behavior instead. The distinction decides whether the increment
+  proves anything, and nothing in the entry form carries it.
+
+- _Why it matters more than a lost turn:_ the two misreadings fail in opposite directions. Reading pin-only as
+  build produces redundant code beside a route that already worked. Reading it correctly but skipping the
+  reconstructions produces a green report over tests that pin nothing — silent, and indistinguishable from
+  success in the record.
+
+- _Approach:_ Likely a marker peer to the test-first one rather than prose, since prose in a parent's
+  `_Rationale:_` is what failed here. Settle whether the signal belongs to the task entry, to the `test-first`
+  marker's vocabulary, or to `arc-task-audit` as a detector — the third only catches it after authoring. Note
+  that `testing-standards` already owns the reconstruct-and-revert procedure, so the marker would be selecting an
+  existing discipline, not minting one.
+
+- _Observation on reach:_ this is not specific to characterization work. Any task whose behavior is already
+  incidentally satisfied hits it, which is why it reads as a form gap rather than one plan's wording.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 2.3, 2026-09-17.
+
+### `[ ]` **Place coordination routing at draft close, not at task generation**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30); captured during `storage-contract` draft-design,
+  C14 tags (2026-09-29).
+- _Observation:_ Coordination routing — sibling-seam captures, stub mints, register routes — is timed "at planning
+  close" by `WORKING-MEMORY`'s coordination-seam entry, and `planning-iteration-mechanics`'s inbound entry "Codify
+  planning closeout and keep task lists implementation-only" puts its gate at the generate-tasks finalization
+  boundary. No shipped workflow or strategy states the timing yet. Under the spec reader standard (`USER-INBOX §
+  Work Unit`, "Write specs for the reader who checks the change against them") a spec cites no other work unit, so
+  these routes must leave the planning record while the draft still holds them — at draft close, before
+  create-spec.
+- _Approach:_ Route the correction to its home: add an inbound entry to `planning-iteration-mechanics`'s draft
+  placing the closeout gate at draft-design exit rather than generate-tasks finalization, citing the reader
+  standard. The `WORKING-MEMORY` entry's wording follows at the next handoff.
+
+### `[ ]` **Surface USER-INBOX captures addressed to the work unit a planning session resumes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-09-30);
+  captured during `delivery-rebuild-continuity` draft-design, resolving open decisions against the inbox, 2026-09-21.
+- _Observation:_ A capture can name its destination work unit and still never reach it. `USER-INBOX` held "Make the
+  checkpoint `movementCause` crossing compiler-enforced" with `WU_Target: delivery-rebuild-continuity` and
+  `_Awaiting:_ owner adoption by the in-flight planning session` from 2026-09-19; the planning session it named
+  resumed on 2026-09-21 and was never shown it. The cause is structural rather than incidental: session-init's inbox
+  surfaces (`inboxState.housekeepNeeded`, the reminder nudge) are Orient-arm and primary-worktree only, so a Resume
+  into an active planning work unit — the exact session a `WU_Target` capture addresses — cannot see it by
+  construction, and a linked worktree omits the slot outright. A second instance sat in the same sweep: "Adopt the
+  shared Git ancestry primitive…" waits on a primitive that shipped 2026-09-19, so its hold is discharged and
+  nothing says so.
+- _Approach:_ This is the link upstream of Concern 1's drain ceremony — `USER-INBOX` → a draft's `Inbound Buffer` →
+  the draft body. Concern 1 owns the second arrow; this is the first, and one ceremony should own both so the chain
+  has no unowned link. The durable form is computed rather than narrated: a `WU_Target`-filtered read resolves
+  mechanically from the slug the session already holds, so it wants a probe slot surfaced on the Resume arm, not
+  prose telling the agent to go look. Boundaries worth settling together: draft-design entry and spec finalization
+  are the two the pipeline actually stops at; more than that is nagging.
+- _Interim pulled forward:_ an errand-sized hook — a `draft-design` / `create-spec` line directing a check of
+  `USER-INBOX` for entries naming the active work unit — closes the hole before the computed surface exists. Take
+  it only if this work unit stays queued; it is the interim, not the design.
+
+### `[ ]` **Settle the generate-tasks entry gate beside the planning grounding check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ `grounded-planning-review` hands `spec-review`'s grounding slice and `task-audit`'s grounding floor
+  to a new `source-grounding` method — behavior-grade, author-run every time — and every adversarial pass the Owner
+  takes at a planning fire-point grounds from fresh context through its own rubric. This work unit's open question,
+  whether `generate-tasks` gates spec readiness at entry, sits beside it; the draft leaves the gate here.
+
+- _Approach:_ when settling the entry gate, count the spec's grounding already run at `create-spec` and the task
+  list's own.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+### `[ ]` **Absorb the sustained non-convergence signal into depth-aware navigation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Concern 2 — depth-aware navigation as the correction for sizing mis-calls.
+
+- _Observation:_ PR #965 landed an interim in `adversarial-review` § Exit gate. From pass two on, when most of a pass's
+  material findings originate in an earlier new-design fold and their approved fixes are new design again, the loop
+  is named sustained non-convergence: a floor-raising derivation signal that offers `resolve-planning-depth`'s
+  re-entry valve at any pass count, plus an `assess-boundary-fit` read when the design written in folds spans
+  separable concerns. The offers belong to planning stages (an amendment routes through its own depth read and
+  ceiling), the report names the signal apart from the stop reason, `re-entered` joined the stop reasons, and the
+  pass record keeps any offer and its settlement. Evidence: `seam-locus`'s draft and spec loops.
+
+- _Approach:_ fold the signal into the work unit's navigation design. Test its threshold against more loops, decide
+  whether re-entry stays an offer or becomes a routed default, and decide whether the signal belongs in the review
+  method or the navigation layer.
+
+- _Captured during:_ the `review-nonconvergence` Errand, 2026-10-13.
+
+### `[ ]` **Re-ground the draft-close routing entries on routing when a concern is raised**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
+- _Shapes:_ Concern 1 and two routing inbound entries: route when raised, draft-close backstop sweep
+
+- _Observation:_ routing now happens when a concern is raised, at the latest at the next report boundary
+  (`route-discovered-work` § Target lifecycle, PR #1035), and the method's draft-close cascade reads as a sweep for what
+  was not routed when raised (Errand `timing-when-raised`). The first entry's timing premise, that coordination routes
+  leave the planning record at draft close, no longer holds; its placement point, keeping coordination routing out of
+  specs and implementation records, still does. The second entry stands: the draft-close gate is the sweep's caller.
+
+- _Approach:_ at the owner's pass, rewrite the first entry to its placement point with draft close as the backstop
+  sweep, and keep the second as the sweep's caller.
+
+- _Captured during:_ Errand `timing-when-raised`, 2026-10-17.
+
+### `[ ]` **Keep a task-list disposition line for every success criterion a review fix adds**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ how the task list's Success Criteria relate to the spec's — the held entries "Codify planning closeout and
+  keep task lists implementation-only" and "Make success-criteria marking express the assertions being
+  verified". `verification-falsification-contract` owns the check arm, which its Direction leaves to this work
+  unit's authoring shape.
+
+- _Observation:_ in `storage-ref-backend`, review-fix commits amended the spec forward with new success criteria,
+  for example A38 in `30d0ca6aa` and A60 in `7bf19fe31`. The task list's Success Criteria gained lines for some of
+  them (A54–A59, back-filled by one later design-amendment commit, `48907d07c`) and none for fifteen others, spec
+  criteria 44–57 and 64. Those reached integration undispositioned, so the Completion Notes disclose them as landed
+  with their exposing cases but never re-checked as criteria. Nothing caught the gap: verification reads the task
+  list's record, and no check compares it with the spec's criteria.
+
+- _Approach:_ either have the findings round's fix authoring add the task-list line whenever an approved fix adds a
+  spec criterion (a method rule), or have verification and the integration checkpoint refuse a spec criterion with
+  no disposition line (a check). Whether the task list should mirror the spec's criteria at all is the design
+  question.
+
+- _Captured during:_ `storage-ref-backend` integration, 2026-10-29.
+
 ---
 
 ## Problem / Motivation
@@ -271,6 +471,14 @@ entry; likely `Heavy` given the multi-surface workflow design, but confirm again
 - **Coordination (not blockers):** `planning-pipeline-readiness` — the buffer-drain contract (Concern 1's seam)
   composes with PPR's `assess-draft-readiness` method; sequence so the readiness _criterion_ and the drain
   _ceremony_ agree. No hard dependency edge — the seam is a contract, not a gate.
+- **Coordination:** `grounded-planning-review` owns grounding planning claims and checking adversarial fixes between
+  passes; its pre-flight sits beside this work unit's question of a spec-readiness gate at `generate-tasks` entry.
+- **Storage program:** much of this draft predates `state-storage` and is reshaped by it — re-scope against it before
+  starting. `storage-contract` replaces the `Inbound Buffer` section with a per-work-unit inbound list that captures
+  route into directly (its D11), which changes Concern 1's drain ceremony and absorbs the computed form of the
+  `USER-INBOX` surfacing entry. The grooming entry is a storage-coupling register row (re-scope to branchless
+  grooming). The `Current Workflow` and readiness re-validation entries depend on how the meta's verb-owned fields are
+  stored, and the create-spec gate shape on how planning artifacts persist once planning is branchless.
 
 ## Continuity
 

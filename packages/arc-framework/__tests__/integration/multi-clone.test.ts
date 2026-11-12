@@ -6,6 +6,7 @@
  * exercises the post-2.R user-notes sync contract end-to-end across clones.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -37,24 +38,23 @@ vi.mock("@clack/prompts", () => ({
 }));
 import {
   DEFAULT_PROMPTS,
-  loadRecipe,
   makeIOContext,
   makeUserIO,
   makeGitExec,
   makeGitExecInput,
-  getArcTemplatePath,
-  getInternalTemplatePath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
+import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
+import { errandsRef, readTreeEntries, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
+import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 import {
-  writeErrandRecord,
-  reconcileErrandPush,
-  errandsRef,
-  type ErrandRecord,
-  type ErrandRecordIO,
-} from "../../src/lib/errand/index.js";
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../src/lib/errand/identity-record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -126,7 +126,8 @@ describe("user-notes cross-clone sync regression", () => {
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -250,7 +251,8 @@ describe("user-notes paired-push cross-clone regression", () => {
         const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
         process.chdir(harness.cloneA);
         try {
-          await handleSync({ json: true });
+          await handleSync({ json: true }, undefined,
+            makeInteractionContext({ noInput: true, machineReadable: true }));
         } finally {
           const written = stdoutWrite.mock.calls
             .map((call) => String(call[0]))
@@ -322,19 +324,42 @@ describe("user-notes paired-push cross-clone regression", () => {
 });
 
 describe("errand-ref cross-clone sync regression", () => {
-  function errandRecord(slug: string): ErrandRecord {
-    return {
-      version: 1,
+  function errandRecord(slug: string): TransientIdentityRecord {
+    return TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "errand",
       slug,
+      claimId: "a".repeat(32),
+      purpose: "errand",
       origin: "description",
+      originEntry: null,
       intent: `do ${slug}`,
       branch: `chore/${slug}`,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
       createdAt: "2026-06-19T12:00:00.000Z",
-    };
+      updatedAt: "2026-06-19T12:00:00.000Z",
+    });
   }
 
   function errandIo(dir: string, identity: string): ErrandRecordIO {
     return { exec: makeGitExec(dir), execInput: makeGitExecInput(dir), identity };
+  }
+
+  async function writeIdentity(io: ErrandRecordIO, record: TransientIdentityRecord): Promise<void> {
+    const outcome = await transactTransientIdentities(io, {
+      remote: null,
+      message: `write ${record.slug}`,
+      transform: (basis) => ({
+        kind: "applied",
+        records: new Map([...basis, [record.slug, record]]),
+        value: null,
+      }),
+    });
+    if (outcome.kind !== "applied" && outcome.kind !== "idempotent") {
+      throw new Error(`identity write failed: ${outcome.kind}`);
+    }
   }
 
   it("arc sync reconciles the errand ref: fetches the remote, tree-merges, and pushes", async () => {
@@ -361,20 +386,21 @@ describe("errand-ref cross-clone sync regression", () => {
 
       // Clone B creates an errand and pushes it — origin's errand ref now holds `from-b`.
       const ioB = errandIo(harness.cloneB, identity);
-      await writeErrandRecord(ioB, errandRecord("from-b"));
+      await writeIdentity(ioB, errandRecord("from-b"));
       expect((await reconcileErrandPush(ioB)).kind).toBe("pushed");
 
       // Clone A creates a divergent errand. `arc sync` must fetch B's ref, union
       // the trees, and push — clone A never had `from-b`, so its push is a real
       // non-fast-forward the cross-cutting errand leg reconciles.
       const ioA = errandIo(harness.cloneA, identity);
-      await writeErrandRecord(ioA, errandRecord("from-a"));
+      await writeIdentity(ioA, errandRecord("from-a"));
 
       let envelope: SyncEnvelope;
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -397,6 +423,167 @@ describe("errand-ref cross-clone sync regression", () => {
     }
   });
 
+  it("arc sync keeps a remote-only record update and an independent local record", async () => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const identity = "test-user";
+    const ref = errandsRef(identity);
+
+    try {
+      const recipe = await loadRecipe();
+      for (const dir of [harness.cloneA, harness.cloneB]) {
+        await runInit({
+          cwd: dir,
+          io: makeIOContext(dir),
+          templateDir: getArcTemplatePath(),
+          internalTemplateDir: getInternalTemplatePath(),
+          recipe,
+          prompts: DEFAULT_PROMPTS,
+          identityResult: identity,
+        });
+      }
+      const ioA = errandIo(harness.cloneA, identity);
+      const ioB = errandIo(harness.cloneB, identity);
+      await writeIdentity(ioA, errandRecord("shared"));
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+      await execFileAsync("git", ["fetch", "origin", `${ref}:${ref}`], { cwd: harness.cloneB });
+
+      const localRecord = TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("local-only"),
+        claimId: "b".repeat(32),
+      });
+      await writeIdentity(ioA, localRecord);
+      const remoteRecord = TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("shared"),
+        intent: "updated on the other machine",
+        updatedAt: "2026-06-19T13:00:00.000Z",
+      });
+      await writeIdentity(ioB, remoteRecord);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+
+      let envelope: SyncEnvelope;
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+      process.chdir(harness.cloneA);
+      try {
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+      } finally {
+        const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+        stdoutWrite.mockRestore();
+        process.chdir(originalCwd);
+        envelope = JSON.parse(written) as SyncEnvelope;
+      }
+
+      expect(envelope.errand).toEqual({ action: "reconcile", result: "success" });
+      for (const dir of [harness.cloneA, harness.origin]) {
+        const { stdout: tree } = await execFileAsync("git", ["ls-tree", "--name-only", ref], { cwd: dir });
+        expect(tree.trim().split("\n").sort()).toEqual(["local-only", "shared"]);
+        for (const record of [remoteRecord, localRecord]) {
+          const { stdout } = await execFileAsync("git", ["show", `${ref}:${record.slug}`], { cwd: dir });
+          expect(JSON.parse(stdout)).toEqual(record);
+        }
+      }
+    } finally {
+      await harness.cleanup();
+    }
+  }, 30_000);
+
+  it.each([
+    { json: true, mode: "JSON" },
+    { json: false, mode: "human" },
+  ])("surfaces ambiguous-history guidance in $mode sync and recovers after repair", async ({ json }) => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const originalExitCode = process.exitCode;
+    const identity = "test-user";
+    const ref = errandsRef(identity);
+    try {
+      await runInit({
+        cwd: harness.cloneA,
+        io: makeIOContext(harness.cloneA),
+        templateDir: getArcTemplatePath(),
+        internalTemplateDir: getInternalTemplatePath(),
+        recipe: await loadRecipe(),
+        prompts: DEFAULT_PROMPTS,
+        identityResult: identity,
+      });
+      const ioA = errandIo(harness.cloneA, identity);
+      const ioB = errandIo(harness.cloneB, identity);
+      const alpha = errandRecord("alpha");
+      await writeIdentity(ioA, alpha);
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+      await writeIdentity(ioB, TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("beta"), claimId: "b".repeat(32),
+      }));
+      const aRoot = (await ioA.exec("git", ["rev-parse", ref])).stdout.trim();
+      const bRoot = (await ioB.exec("git", ["rev-parse", ref])).stdout.trim();
+      await ioA.exec("git", ["fetch", harness.cloneB, `${ref}:refs/test/b-root`]);
+      await ioB.exec("git", ["fetch", "origin", `${ref}:refs/test/a-root`]);
+      const union = new Map([
+        ...await readTreeEntries(ioA.exec, aRoot), ...await readTreeEntries(ioA.exec, bRoot),
+      ]);
+      await writeTreeCommit(ioA, union, "merge alpha and beta", [aRoot, bRoot], aRoot);
+      await writeTreeCommit(ioB, union, "independently merge beta and alpha", [bRoot, aRoot], bRoot);
+      expect((await transactTransientIdentities(ioA, {
+        remote: null,
+        message: "delete beta",
+        transform: (basis) => ({
+          kind: "applied", records: new Map([...basis].filter(([slug]) => slug !== "beta")), value: null,
+        }),
+      })).kind).toBe("applied");
+      const updatedAlpha = TransientIdentityRecordV3Schema.parse({ ...alpha, intent: "updated remotely" });
+      await writeIdentity(ioB, updatedAlpha);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const localTip = (await ioA.exec("git", ["rev-parse", ref])).stdout.trim();
+      const remoteTip = (await ioB.exec("git", ["rev-parse", ref])).stdout.trim();
+      process.chdir(harness.cloneA);
+      process.exitCode = undefined;
+      async function runSync(): Promise<{ text: string; warnings: string[] }> {
+        const capture = makeCapturingSyncOutput();
+        const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+        try {
+          await handleSync({ json, yes: true }, { ...capture.output, jsonMode: json },
+            makeInteractionContext({ noInput: true, yes: "authority", machineReadable: json }));
+          return { text: stdoutWrite.mock.calls.map((call) => String(call[0])).join(""), warnings: capture.stderr };
+        } finally {
+          stdoutWrite.mockRestore();
+        }
+      }
+      const failed = await runSync();
+      const diagnostic = json ? (JSON.parse(failed.text) as SyncEnvelope).errand?.detail : failed.warnings.join("\n");
+      expect(diagnostic).toContain("multiple best common ancestors");
+      expect(diagnostic).toContain("before retrying arc sync");
+      if (json) expect((JSON.parse(failed.text) as SyncEnvelope).errand?.result).toBe("failed");
+      else expect(failed.text).toBe("");
+      expect(process.exitCode).toBeUndefined();
+      expect((await ioA.exec("git", ["rev-parse", ref])).stdout.trim()).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", ref], { cwd: harness.origin })).stdout.trim()).toBe(remoteTip);
+      const markerPath = join(harness.cloneA, ".arc", "user", identity, ".internal", ".sync-state.json");
+      expect((JSON.parse(await readFile(markerPath, "utf8")) as { partialPushErrand?: unknown }).partialPushErrand)
+        .toBeDefined();
+
+      await ioB.exec("git", ["fetch", harness.cloneA, `${ref}:refs/test/local-tip`]);
+      const repaired = await readTreeEntries(ioB.exec, remoteTip);
+      repaired.delete("beta");
+      await writeTreeCommit(ioB, repaired, "reconcile intended changes", [remoteTip, localTip], remoteTip);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const recovered = await runSync();
+      if (json) expect((JSON.parse(recovered.text) as SyncEnvelope).errand?.result).toBe("success");
+      expect(recovered.warnings.join("\n")).not.toContain("Errand sync failed");
+      expect(process.exitCode).toBeUndefined();
+      expect((JSON.parse(await readFile(markerPath, "utf8")) as { partialPushErrand?: unknown }).partialPushErrand)
+        .toBeUndefined();
+      expect(JSON.parse((await ioA.exec("git", ["show", `${ref}:alpha`])).stdout)).toEqual(updatedAlpha);
+      expect((await ioA.exec("git", ["ls-tree", "--name-only", ref])).stdout.trim()).toBe("alpha");
+      expect((await execFileAsync("git", ["rev-parse", ref], { cwd: harness.origin })).stdout.trim())
+        .toBe((await ioA.exec("git", ["rev-parse", ref])).stdout.trim());
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = originalExitCode;
+      await harness.cleanup();
+    }
+  }, 30_000);
+
   it("degrades gracefully and records the errand marker when the remote is unavailable", async () => {
     const harness = await setupMultiClone();
     const originalCwd = process.cwd();
@@ -415,13 +602,14 @@ describe("errand-ref cross-clone sync regression", () => {
 
       // Drop the remote so the errand push has nowhere to land, and seed a local errand ref.
       await execFileAsync("git", ["remote", "remove", "origin"], { cwd: harness.cloneA });
-      await writeErrandRecord(errandIo(harness.cloneA, identity), errandRecord("orphaned"));
+      await writeIdentity(errandIo(harness.cloneA, identity), errandRecord("orphaned"));
 
       let envelope: SyncEnvelope;
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();

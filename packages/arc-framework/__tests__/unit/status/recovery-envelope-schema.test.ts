@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   assertSessionRecoverProbeResult,
@@ -29,11 +30,18 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("lean recovery envelope schema", () => {
+  it("rejects the obsolete top-level extension probe slot", () => {
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, {
+      ...recovery(),
+      extensions: { ok: true, value: { mode: "session-init", active: [], warnings: [] } },
+    });
+  });
+
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
-    (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
+    (value.recoveryFrame as { value: { kind: string } }).value.kind = "unknown";
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(
-      /session-recover-envelope: active\.value\.resolution:/u,
+      /session-recover-envelope: recoveryFrame\.value\.kind:/u,
     );
   });
 
@@ -47,48 +55,90 @@ describe("lean recovery envelope schema", () => {
     "identity",
     "worktree",
     "dirty",
-    "extensions",
     "config",
-    "active",
     "releaseRouting",
+    "derivedLocusState",
+    "locusGuidance",
+    "recoveryFrame",
     "loadSet",
   ])("requires the %s slot", (key) => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), key)).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, withoutKey(recovery(), key));
   });
 
   it("rejects undeclared root keys and malformed mapped routing fields", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse({ ...recovery(), undeclared: true }).success).toBe(false);
-
-    const invalidActive = recovery();
-    (invalidActive.active as { value: { resolution: string } }).value.resolution = "ambiguous";
-    expect(SessionRecoverProbeResultSchema.safeParse(invalidActive).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, { ...recovery(), undeclared: true });
 
     const invalidWorktree = recovery();
     (invalidWorktree.worktree as { value: { identity: { kind: string } } }).value.identity.kind = "other";
-    expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, invalidWorktree);
   });
 
-  it("allows cohort omission but rejects it outside a single active path", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "cohortDocPath")).success).toBe(true);
-
-    const invalid = recovery();
-    (invalid.active as { value: { resolution: string; path: string | null } }).value.resolution = "none";
-    (invalid.active as { value: { resolution: string; path: string | null } }).value.path = null;
-    delete invalid.taskCursor;
-    expect(SessionRecoverProbeResultSchema.safeParse(invalid).success).toBe(false);
+  it("rejects undeclared dirty-state fields at the recovery slot", () => {
+    const value = recovery();
+    (value.dirty as { value: Record<string, unknown> }).value.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/dirty\.value:.*unexpected/u);
   });
 
-  it("requires a cursor exactly when the active task-list path is safe", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
+  it("rejects undeclared config fields at the recovery slot", () => {
+    const value = recovery();
+    (value.config as { value: Record<string, unknown> }).value.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/config\.value:.*unexpected/u);
+  });
+
+  it("rejects undeclared release-routing fields at the recovery slot", () => {
+    const value = recovery();
+    const routing = (value.releaseRouting as { value: { rationale: Record<string, unknown> } }).value;
+    routing.rationale.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/releaseRouting\.value\.rationale:.*unexpected/u);
+  });
+
+  it("rejects undeclared worktree fields at the recovery slot", () => {
+    const value = recovery();
+    (value.worktree as { value: Record<string, unknown> }).value.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/worktree\.value:.*unexpected/u);
+  });
+
+  it("requires typed failure evidence exactly for an unreachable worktree read", () => {
+    const unreachableWithoutReason = recovery();
+    const unreachableWorktree = unreachableWithoutReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    unreachableWorktree.value.remoteEvidence = "unreachable";
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, unreachableWithoutReason);
+
+    unreachableWorktree.value.failureReason = "network";
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, unreachableWithoutReason);
+
+    const exactWithReason = recovery();
+    const exactWorktree = exactWithReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    exactWorktree.value.remoteEvidence = "exact";
+    exactWorktree.value.failureReason = "auth";
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, exactWithReason);
+  });
+
+  it("requires strategic cursors and permits cursor evidence for resolved integration", () => {
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, withoutKey(recovery(), "taskCursor"));
 
     const noTask = recovery();
     delete noTask.taskCursor;
-    delete noTask.cohortDocPath;
-    const active = noTask.active as { value: { taskListPath: string | null } };
-    active.value.taskListPath = null;
-    expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(true);
+    const loadSet = noTask.loadSet as { value: { entries: Array<{ readMode: { kind: string } }> } };
+    loadSet.value.entries = loadSet.value.entries.filter((entry) => entry.readMode.kind !== "partial-strategic");
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, noTask);
 
     noTask.taskCursor = recovery().taskCursor;
-    expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, noTask);
+
+    const integration = structuredClone(noTask);
+    const recoveryFrame = integration.recoveryFrame as {
+      value: { workflow: string; sessionType: string };
+    };
+    recoveryFrame.value.workflow = "integrate-work-unit";
+    recoveryFrame.value.sessionType = "integration";
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, integration);
+
+    delete integration.taskCursor;
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, integration);
   });
 });

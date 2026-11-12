@@ -6,38 +6,42 @@
  * receipts. The applier binds the resulting rewrite to the exact meta content
  * that produced it and stages only declared current-work-unit paths.
  *
- * `dischargeDepEdges` remains the activation compatibility entry point over the
- * same planner/applier.
- *
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
+import type { DependencyResolver } from "./store-dependency-resolution.js";
+import { planStoreDependencyReconcile } from "./store-dependency-rows.js";
+import type { ClashTie } from "../../store/clash-repair.js";
+import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
   parseMetaRecord,
   setMetaBulletFields,
 } from "../../active/meta-reader.js";
-import { canonicalDigest, type CanonicalDigest } from "../../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../../kernel/canonical/canonical-json.js";
 import type { GitIndexTransaction } from "../../git/exec.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { resolveSlugState } from "../lifecycle-resolver.js";
 import {
-  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReferenceAdvisory,
+  type ReferenceArtifactSnapshot,
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
+  type ReachableReferenceTransition,
+  type ArtifactReferenceOwner,
 } from "../reference-reconcile.js";
-import type { RetirementRecordEnumerationResult } from "../retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "../transition-record-enumeration.js";
 import type {
-  RetirementDispositionQuery,
-  RetirementDispositionQueryResult,
-  RetirementEvidenceQuality,
-} from "../retirement-disposition-query.js";
+  TransitionDispositionQuery,
+  TransitionDispositionQueryResult,
+} from "../transition-disposition-query.js";
 
 /** One evidence hop retained in a dependency repair. */
 export interface DependencyReconcileEvidence {
   subject: string;
-  quality: RetirementEvidenceQuality;
 }
 
 /** Closed reasons that refuse a dependency reconcile before mutation. */
@@ -47,7 +51,6 @@ export type DependencyReconcileConflictReason =
   | "missing-target"
   | "ambiguous-evidence"
   | "unmapped-dependent"
-  | "version-conflict"
   | "namespace-corrupt"
   | "rename-cycle"
   | "reference-history-conflict"
@@ -61,8 +64,19 @@ export interface DependencyReconcileConflict {
   reason: DependencyReconcileConflictReason;
 }
 
-/** Typed dependency component shared by current-WU reconcile consumers. */
+/** An edge retained because its intended holder cannot be selected. */
+export interface HeldDependencyEdge {
+  edge: string;
+  name: string;
+  cause: "tie" | "not-a-work-unit" | "unresolved-follow";
+  candidates: RecordReference[];
+  tie?: ClashTie;
+  repair: Remedy;
+}
+
+/** Scheduling edges and the identity evidence that discharged, held, or replaced them. */
 export interface DependencyReconcileComponent {
+  held?: readonly HeldDependencyEdge[];
   before: readonly string[];
   after: readonly string[];
   replacements: ReadonlyArray<{
@@ -109,10 +123,11 @@ export type CurrentWuReconcilePlan =
 
 /** Pure dependency-plan inputs. */
 export interface PlanDependencyReconcileInput {
+  resolveDependency?: DependencyResolver;
   index: LifecycleIndex;
   dependentSlug: string;
   edges: readonly string[];
-  queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
+  queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
 }
 
 /** One exact current-WU edit guarded by the content that produced it. */
@@ -130,6 +145,8 @@ export interface CurrentWuReconcileGuard {
 
 /** Complete current-WU plan carried unchanged from inspection into apply. */
 export interface PreparedCurrentWuReconcile {
+  /** Complete record bases retained for the off-branch apply. */
+  storePlan?: PreparedLifecycleWrite;
   slug: string;
   plan: CurrentWuReconcilePlan;
   guards?: readonly CurrentWuReconcileGuard[];
@@ -138,9 +155,15 @@ export interface PreparedCurrentWuReconcile {
 
 /** I/O boundary for inspecting and applying one dependent-owned plan. */
 export interface CurrentWuReconcileContext {
+  /** Resolve dependency holders once through the store's identity inventory. */
+  resolveDependency?: DependencyResolver;
+  /** Alias-backed reference evidence acquired from the current artifacts. */
+  additionalReferenceTransitions?: readonly ReachableReferenceTransition[];
+  /** Store-resolved artifact owner interpretations, including ambiguous paired names. */
+  artifactReferenceOwners?: ReadonlyMap<string, readonly ArtifactReferenceOwner[]>;
   index: LifecycleIndex;
-  queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
-  enumerateRetirementRecords?: () => Promise<RetirementRecordEnumerationResult>;
+  queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
+  enumerateTransitionRecords?: () => Promise<TransitionRecordEnumerationResult>;
   listArtifactPaths?: (slug: string, metaPath: string) => Promise<readonly string[]>;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
@@ -151,7 +174,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateRetirementRecords" | "listArtifactPaths" | "readFile"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners" | "resolveDependency"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -167,13 +190,16 @@ export type CurrentWuReconcileResult =
   | { status: "applied"; prepared: PreparedCurrentWuReconcile; stagedPaths: readonly string[] }
   | {
       status: "conflict";
+      refusal?: StoreRefusal;
+      remedy?: Remedy;
       prepared: PreparedCurrentWuReconcile;
-      reason: DependencyReconcileConflictReason;
+      reason: DependencyReconcileConflictReason | "paused";
     };
 
 /** Current work-unit target and explicit apply mode. */
 export interface CurrentWuReconcileOp {
   slug: string;
+  reference?: RecordReference;
   metaPath: string;
   apply: boolean;
 }
@@ -207,6 +233,11 @@ interface ResolvedRetiredEdge {
 export async function planDependencyReconcile(
   input: PlanDependencyReconcileInput,
 ): Promise<CurrentWuReconcilePlan> {
+  return input.resolveDependency === undefined ? planIndexedDependencyReconcile(input)
+    : planStoreDependencyReconcile({ ...input, resolveDependency: input.resolveDependency });
+}
+
+async function planIndexedDependencyReconcile(input: PlanDependencyReconcileInput): Promise<CurrentWuReconcilePlan> {
   const before = canonicalEdges(input.edges);
   const after: string[] = [];
   const discharged: string[] = [];
@@ -280,7 +311,7 @@ async function resolveRetiredEdge(
   }
   visited.add(subject);
   const resolution = await input.queryDisposition({
-    retiredSubject: subject,
+    origin: subject,
     dependentSlug: input.dependentSlug,
   });
   if (resolution.status !== "unique") {
@@ -292,7 +323,7 @@ async function resolveRetiredEdge(
       },
     };
   }
-  const evidence = [{ subject, quality: resolution.evidenceQuality }] satisfies DependencyReconcileEvidence[];
+  const evidence = [{ subject }] satisfies DependencyReconcileEvidence[];
   switch (resolution.disposition.kind) {
     case "retarget": {
       const target = resolution.disposition.targetSlug;
@@ -375,7 +406,7 @@ async function resolveRetiredEdge(
 }
 
 function conflictReason(
-  status: Exclude<RetirementDispositionQueryResult["status"], "unique">,
+  status: Exclude<TransitionDispositionQueryResult["status"], "unique">,
 ): DependencyReconcileConflictReason {
   switch (status) {
     case "absent":
@@ -384,8 +415,6 @@ function conflictReason(
       return "ambiguous-evidence";
     case "unmapped-dependent":
       return "unmapped-dependent";
-    case "version-conflict":
-      return "version-conflict";
     case "namespace-corrupt":
       return "namespace-corrupt";
   }
@@ -438,6 +467,7 @@ export async function prepareCurrentWuReconcile(
     index: ctx.index,
     dependentSlug: op.slug,
     edges,
+    ...(ctx.resolveDependency === undefined ? {} : { resolveDependency: ctx.resolveDependency }),
     queryDisposition: ctx.queryDisposition,
   });
 
@@ -450,7 +480,9 @@ export async function prepareCurrentWuReconcile(
     path,
     content: path === op.metaPath ? content : await ctx.readFile(path),
   })));
-  const referencePlan = await prepareReferencePlan(ctx, artifacts);
+  const heldDependencyEdges = plan.dependency.held?.map(item => item.edge);
+  const referencePlan = await prepareReferencePlan(ctx, artifacts.map(artifact => artifact.path === op.metaPath
+    && heldDependencyEdges !== undefined ? { ...artifact, heldDependencyEdges } : artifact));
   const combinedPlan: CurrentWuReconcilePlan = {
     status: plan.status === "conflict" || referencePlan.status === "conflict" ? "conflict" : "ready",
     dependency: plan.dependency,
@@ -484,8 +516,13 @@ export async function prepareCurrentWuReconcile(
       reason: plan.dependency.conflicts[0]?.reason ?? "reference-history-conflict",
     };
   }
-  if (edits.length === 0 && combinedPlan.advisories.length === 0) return { status: "clean", prepared };
+  if (edits.length === 0 && !hasPendingReconcileFindings(combinedPlan)) return { status: "clean", prepared };
   return { status: "pending", prepared };
+}
+
+/** Whether a plan remains visible even when it has no tracked edits to apply. */
+export function hasPendingReconcileFindings(plan: CurrentWuReconcilePlan): boolean {
+  return plan.advisories.length > 0 || (plan.dependency.held?.length ?? 0) > 0;
 }
 
 /**
@@ -598,12 +635,12 @@ function invalidPrepared(
 
 async function prepareReferencePlan(
   ctx: CurrentWuReconcilePrepareContext,
-  artifacts: ReadonlyArray<{ path: string; content: string }>,
+  artifacts: readonly ReferenceArtifactSnapshot[],
 ): Promise<ReturnType<typeof planReferenceReconcile>> {
-  if (ctx.enumerateRetirementRecords === undefined || ctx.listArtifactPaths === undefined) {
+  if (ctx.enumerateTransitionRecords === undefined || ctx.listArtifactPaths === undefined) {
     return planReferenceReconcile({ transitions: [], artifacts });
   }
-  const projected = enumerateReferenceTransitions(await ctx.enumerateRetirementRecords());
+  const projected = enumerateTransitionReferenceTransitions(await ctx.enumerateTransitionRecords());
   if (projected.status === "conflict") {
     return {
       status: "conflict",
@@ -612,37 +649,12 @@ async function prepareReferencePlan(
       conflicts: [{ subject: "", reason: projected.reason }],
     };
   }
-  return planReferenceReconcile({ transitions: projected.transitions, artifacts });
+  return planReferenceReconcile({ transitions: [...projected.transitions, ...ctx.additionalReferenceTransitions ?? []], artifacts,
+    artifactOwners: ctx.artifactReferenceOwners });
 }
 
 function byteSort(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
-/** Dependencies for {@link dischargeDepEdges}. */
-export interface DischargeDepEdgesContext {
-  /** The lifecycle-complete index — resolves each dependency's state. */
-  index: LifecycleIndex;
-  /** Read the dependent's meta content (production binds `fs.readFile`). */
-  readMeta: (metaPath: string) => Promise<string>;
-  /** Write the dependent's rewritten meta (production binds `fs.writeFile`). */
-  writeMeta: (metaPath: string, content: string) => Promise<void>;
-}
-
-/** The dependent WU being activated, and its meta path. */
-export interface DischargeDepEdgesOp {
-  /** The dependent's slug — whose `Depends On` edges are examined. */
-  slug: string;
-  /** Path to the dependent's meta (the gate rewrite target). */
-  metaPath: string;
-}
-
-/** The partition of a dependent's edges after a discharge pass. */
-export interface DischargeDepEdgesResult {
-  /** Edges resolved off the gate (their dependency is `shipped` ∨ `integrating`). */
-  discharged: string[];
-  /** Edges still blocking (their dependency has not reached integration). */
-  live: string[];
 }
 
 /** Render an identifier-list value (each element backticked), or the empty sentinel. */
@@ -650,34 +662,3 @@ function renderEdgeList(edges: string[]): string {
   return edges.length === 0 ? "[none]" : edges.map((s) => `\`${s}\``).join(", ");
 }
 
-/**
- * Discharge a newly-activated WU's satisfied `Depends On` edges: partition each
- * edge by the `shipped ∨ integrating` readiness verdict and, when any discharge,
- * rewrite the `Depends On` gate to the live set only. A WU with no edges — or no
- * satisfied edge — writes nothing.
- *
- * @param ctx - The index plus the meta read / write seams.
- * @param op - The dependent slug and its meta path.
- * @returns The discharged / live edge partition.
- */
-export async function dischargeDepEdges(
-  ctx: DischargeDepEdgesContext,
-  op: DischargeDepEdgesOp,
-): Promise<DischargeDepEdgesResult> {
-  const result = await runCurrentWuReconcile({
-    index: ctx.index,
-    queryDisposition: () => Promise.resolve({ status: "absent" }),
-    readFile: ctx.readMeta,
-    writeFile: ctx.writeMeta,
-    stagePaths: () => Promise.resolve(),
-    captureIndexState: () => Promise.resolve({
-      indexFile: "unused",
-      commit: () => Promise.resolve(),
-      rollback: () => Promise.resolve(),
-    }),
-  }, { ...op, apply: true });
-  return {
-    discharged: [...result.prepared.plan.dependency.discharged],
-    live: [...result.prepared.plan.dependency.live],
-  };
-}

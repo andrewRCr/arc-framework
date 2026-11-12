@@ -8,8 +8,8 @@
  * in, so tests supply bytes directly.
  */
 
-import { canonicalDigest, type CanonicalDigest, digestBytes } from "./canonical-json.js";
-import type { ManagedPath } from "./managed-path.js";
+import { canonicalDigest, type CanonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 
 /**
  * Hash the exact canonical stored bytes of a file's content.
@@ -25,6 +25,14 @@ export function contentDigest(bytes: Uint8Array): CanonicalDigest {
 export type ArtifactSetEntry =
   | { path: ManagedPath; state: "present"; contentDigest: CanonicalDigest }
   | { path: ManagedPath; state: "absent" };
+
+/** Digest a complete artifact group independently of input order. */
+export function artifactGroupDigest(entries: readonly ArtifactSetEntry[]): CanonicalDigest {
+  const pathSorted = [...entries].sort((left, right) =>
+    Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")),
+  );
+  return canonicalDigest(pathSorted);
+}
 
 /** A single patch operation over one managed path. */
 export type PatchOperation =

@@ -2,11 +2,41 @@
 
 import { z } from "zod";
 
+import { StateVersionSchema } from "../store/identity.js";
+
 import {
+  SlugSchema,
   PrioritySchema,
+  CanonicalDigestSchema,
   WorkClassSchema,
   WorkUnitStateSchema,
 } from "../kernel/index.js";
+
+/** Whole verb-owned pause section, independent of lifecycle placement. */
+export const MetaPauseSchema = z.strictObject({
+  pausedBy: SlugSchema,
+  since: z.string().regex(z.regexes.datetime({})),
+  reason: z.string().min(1),
+  waitsOn: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("work-unit"), slug: SlugSchema }),
+    z.strictObject({ kind: z.literal("note"), text: z.string().min(1) }),
+  ]).nullable().default(null),
+  resumeNotes: z.string().nullable().default(null),
+  open: z.boolean().default(false),
+});
+/** Tolerant scalar evidence from a present Pause section, retaining independent meta fields. */
+export const ParsedMetaPauseSchema = MetaPauseSchema.extend({
+  pausedBy: z.string(), since: z.string(), reason: z.string(),
+  waitsOn: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("work-unit"), slug: z.string() }),
+    z.strictObject({ kind: z.literal("note"), text: z.string() }),
+  ]).nullable().default(null),
+});
+/** Parsed Pause evidence; durable validation owns its scalar vocabulary. */
+export type ParsedMetaPause = z.infer<typeof ParsedMetaPauseSchema>;
+
+/** Semantic pause state written by pause and resume. */
+export type MetaPause = z.infer<typeof MetaPauseSchema>;
 
 const SemanticStringSchema = z.string()
   .min(1)
@@ -18,8 +48,15 @@ export const MetaWorkClassSchema = z.union([WorkClassSchema, z.literal("TBD")]);
 /** Resolved or deliberately unresolved work-unit priority. */
 export const MetaPrioritySchema = z.union([PrioritySchema, z.literal("TBD")]);
 
-/** Semantic origin value, including the internal-origin token. */
+/** Semantic origin: a locator, the internal token, or an `[internal] — <prose>` narrative. */
 export const MetaOriginSchema = SemanticStringSchema;
+
+/** Canonical originating Errand generation retained by a promoted work unit. */
+export const MetaPromotionReceiptSchema = z.string()
+  .regex(/^errand-v1\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-f0-9]{32}$/u);
+
+/** Candidate attestation identity projected into the managed work-unit record. */
+export const MetaCandidateIdSchema = CanonicalDigestSchema;
 
 /** Exact Markdown-label to semantic-key mapping for managed meta fields. */
 export const META_FIELD_KEYS = [
@@ -34,11 +71,16 @@ export const META_FIELD_KEYS = [
   { name: "Design", key: "design" },
   { name: "Task List", key: "taskList" },
   { name: "Review Rubric", key: "reviewRubric" },
+  { name: "Promotion Receipt", key: "promotionReceipt" },
+  { name: "Candidate", key: "candidateId" },
   { name: "Current Workflow", key: "currentWorkflow" },
   { name: "Last Completed", key: "lastCompleted" },
   { name: "Next Task", key: "nextTask" },
   { name: "Blockers", key: "blockers" },
   { name: "Next Action", key: "nextAction" },
+  { name: "State at Handoff", key: "stateAtHandoff" },
+  { name: "Commit at Handoff", key: "commitAtHandoff" },
+  { name: "Session Type", key: "sessionType" },
   { name: "PR URL", key: "prUrl" },
   { name: "Completed", key: "completed" },
 ] as const;
@@ -52,8 +94,20 @@ const metaProjectionShape = Object.fromEntries(
   META_FIELD_KEYS.map(({ name }) => [name, ProjectionValueSchema]),
 ) as MetaProjectionShape;
 
-/** Complete tokenizer output keyed by the current Markdown labels. */
-export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape);
+/**
+ * Complete tokenizer output keyed by the current Markdown labels.
+ *
+ * Historical and ordinary work-unit metas omit Promotion Receipt entirely.
+ * Normalize that optional projection field to null so downstream semantic
+ * adapters retain a complete record without making old metas unreadable.
+ */
+export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape).extend({
+  "Promotion Receipt": ProjectionValueSchema.optional().default(null),
+  Candidate: ProjectionValueSchema.optional().default(null),
+  "State at Handoff": ProjectionValueSchema.default(null),
+  "Commit at Handoff": ProjectionValueSchema.default(null),
+  "Session Type": ProjectionValueSchema.default(null),
+});
 
 const ParsedStringSchema = SemanticStringSchema.nullable();
 
@@ -70,6 +124,8 @@ export const ParsedMetaRecordSchema = z.strictObject({
   design: z.array(SemanticStringSchema),
   taskList: ParsedStringSchema,
   reviewRubric: ParsedStringSchema,
+  promotionReceipt: ParsedStringSchema.optional().default(null),
+  candidateId: ParsedStringSchema.optional().default(null),
   currentWorkflow: ParsedStringSchema,
   lastCompleted: ParsedStringSchema,
   nextTask: ParsedStringSchema,
@@ -77,6 +133,13 @@ export const ParsedMetaRecordSchema = z.strictObject({
   nextAction: ParsedStringSchema,
   prUrl: ParsedStringSchema,
   completed: ParsedStringSchema,
+  stateAtHandoff: StateVersionSchema.nullable().default(null),
+  commitAtHandoff: z.string().min(1).nullable().default(null),
+  sessionType: z.string().nullable().default(null),
+  sessionContext: z.string().nullable().default(null),
+  pause: ParsedMetaPauseSchema.nullable().default(null),
+  completionNotes: z.array(z.string()).default([]),
+  releaseNotesEntry: z.array(z.string()).default([]),
 });
 
 /** Complete durable semantic record independent of its Markdown projection. */
@@ -92,6 +155,8 @@ export const MetaRecordSchema = z.strictObject({
   design: z.array(SemanticStringSchema),
   taskList: SemanticStringSchema.nullable(),
   reviewRubric: SemanticStringSchema.nullable(),
+  promotionReceipt: MetaPromotionReceiptSchema.nullable(),
+  candidateId: MetaCandidateIdSchema.nullable(),
   currentWorkflow: SemanticStringSchema.nullable(),
   lastCompleted: SemanticStringSchema.nullable(),
   nextTask: SemanticStringSchema.nullable(),
@@ -99,6 +164,13 @@ export const MetaRecordSchema = z.strictObject({
   nextAction: SemanticStringSchema.nullable(),
   prUrl: SemanticStringSchema.nullable(),
   completed: SemanticStringSchema.nullable(),
+  stateAtHandoff: StateVersionSchema.nullable().default(null),
+  commitAtHandoff: z.string().min(1).nullable().default(null),
+  sessionType: z.enum(["planning", "execution"]).nullable().default(null),
+  sessionContext: z.string().nullable().default(null),
+  pause: MetaPauseSchema.nullable().default(null),
+  completionNotes: z.array(z.string()).default([]),
+  releaseNotesEntry: z.array(z.string()).default([]),
 });
 
 export type MetaWorkClass = z.infer<typeof MetaWorkClassSchema>;

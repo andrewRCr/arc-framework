@@ -46,10 +46,44 @@ describe("parseMethodFrontmatter", () => {
     expect(result.frontmatter?.related).toBeUndefined();
   });
 
+  it("accepts method-owned arc.methods dependencies", () => {
+    const content = [
+      "---",
+      "name: validate-criteria",
+      "description: Validate scoped criteria",
+      "arc:",
+      "  methods:",
+      "    - adversarial-review",
+      "override-active: false",
+      "---",
+      "",
+    ].join("\n");
+
+    const result = parseMethodFrontmatter(content, "validate-criteria");
+    expect(result.errors).toEqual([]);
+    expect(result.frontmatter?.arc).toEqual({ methods: ["adversarial-review"] });
+  });
+
+  it("rejects malformed method-owned declarations", () => {
+    const malformedMethods = validMethod.replace(
+      "override-active: false",
+      "arc:\n  methods: adversarial-review\noverride-active: false",
+    );
+    expect(parseMethodFrontmatter(malformedMethods, "commit-format").errors)
+      .toContain("invalid `arc.methods` (expected array of strings)");
+
+    const unknownArcField = validMethod.replace(
+      "override-active: false",
+      "arc:\n  extensions: []\noverride-active: false",
+    );
+    expect(parseMethodFrontmatter(unknownArcField, "commit-format").errors)
+      .toContain("unknown method `arc` frontmatter field `extensions`");
+  });
+
   it("accepts optional activation only for a registered activatable method", () => {
     const content = [
       "---",
-      "name: self-review",
+      "name: code-review-author",
       "description: Aggregate author review",
       "active: false",
       "override-active: true",
@@ -57,7 +91,7 @@ describe("parseMethodFrontmatter", () => {
       "---",
       "",
     ].join("\n");
-    expect(parseMethodFrontmatter(content, "self-review").frontmatter).toMatchObject({
+    expect(parseMethodFrontmatter(content, "code-review-author").frontmatter).toMatchObject({
       active: false,
       "override-active": true,
       "override-mode": "extend",
@@ -98,14 +132,14 @@ describe("parseMethodFrontmatter", () => {
     );
     const malformed = [
       "---",
-      "name: frontline-review",
+      "name: code-review-frontline",
       "description: Advisory review",
       'active: "yes"',
       "override-active: false",
       "---",
       "",
     ].join("\n");
-    expect(parseMethodFrontmatter(malformed, "frontline-review").errors)
+    expect(parseMethodFrontmatter(malformed, "code-review-frontline").errors)
       .toContain("invalid `active` (expected boolean)");
   });
 

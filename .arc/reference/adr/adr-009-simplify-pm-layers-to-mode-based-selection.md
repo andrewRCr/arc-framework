@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted (Part 2 file placement superseded by ADR-012)
+Accepted (Part 2 file placement superseded by ADR-012; Part 1 extension relevance bullet and Part 3 ADR-008
+extension-point preservation superseded by ADR-038)
 
 ## Context
 

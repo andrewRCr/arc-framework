@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  LocalReviewEvaluatorResultSchema,
   NormalizedLocalReviewResultSchema,
   normalizeLocalReviewResult,
   type LocalReviewResultBindings,
 } from "../../../../../src/scripts/review-gate/core/local-review-result.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
 const bindings: LocalReviewResultBindings = {
@@ -71,6 +73,51 @@ describe("local review result normalization", () => {
       repositoryId: undefined,
     };
 
-    expect(NormalizedLocalReviewResultSchema.safeParse(withoutRepository).success).toBe(false);
+    assertSchemaRefuses(NormalizedLocalReviewResultSchema, withoutRepository);
+  });
+
+  it("assigns capture ordinals without treating opaque evidence references as labels", () => {
+    const findings = [
+      {
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/one.ts:1",
+        evidenceUrlOrId: "opaque:one",
+      },
+      {
+        findingId: "finding-2",
+        severity: "minor",
+        locus: "src/two.ts:2",
+        evidenceUrlOrId: "opaque:two",
+      },
+    ];
+
+    expect(normalizeLocalReviewResult({
+      ...evaluatorResult,
+      result: "findings",
+      findings,
+    }, bindings).findings).toEqual([
+      { ...findings[0], sourceOrdinal: 1 },
+      { ...findings[1], sourceOrdinal: 2 },
+    ]);
+  });
+
+  it("keeps runtime navigation fields out of evaluator-owned input", () => {
+    const finding = {
+      findingId: "finding-1",
+      severity: "major",
+      locus: "src/one.ts:1",
+      evidenceUrlOrId: "opaque:one",
+    };
+    assertSchemaRefuses(LocalReviewEvaluatorResultSchema, {
+      ...evaluatorResult,
+      result: "findings",
+      findings: [{ ...finding, sourceOrdinal: 1 }],
+    });
+    assertSchemaRefuses(LocalReviewEvaluatorResultSchema, {
+      ...evaluatorResult,
+      result: "findings",
+      findings: [{ ...finding, sourceLabel: "Invented label" }],
+    });
   });
 });

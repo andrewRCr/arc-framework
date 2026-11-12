@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-11-04).
 
 Concurrent work is governed by **advisory conventions plus one hard append-only invariant** — decided here. The
 doctrine itself ships with this work unit (`strategy-concurrent-work` and the `assess-parallel-fit` method); the
@@ -10,6 +10,12 @@ _enforcement_ of the conventions it states ships with the sibling cohort members
 the foreign-write backstop (`merge-safety-mechanism`), the single-owner-per-WU model (`single-owner-wu-model`),
 and the awaiting-review lifecycle seam (`async-merge-lifecycle`). Promote to Accepted when this work unit
 integrates.
+
+Its one hard invariant, append-only until integration, gives way to [ADR-035]'s configurable history policy in each
+repository once that repository's cutover retires Git notes, and holds until then (noted 2026-09-28).
+
+The promotion condition is met: the concurrency doctrine and advisory assessment, behind-base detector, foreign-write
+backstop, single-owner model, and awaiting-review lifecycle seam have shipped.
 
 ## Context
 
@@ -167,3 +173,4 @@ internal to this ADR, invisible to the shipping doctrine.
 [ADR-022]: adr-022-managed-operational-state-documents.md
 [ADR-023]: adr-023-class-model-scaled-ceremony.md
 [ADR-024]: adr-024-cohort-decomposition-model.md
+[ADR-035]: adr-035-keep-operational-state-in-repository-refs.md

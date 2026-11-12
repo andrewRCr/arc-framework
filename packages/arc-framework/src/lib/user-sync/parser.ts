@@ -56,6 +56,17 @@ export function shapeForFile(filename: string): CrossWuShape | null {
 }
 
 /**
+ * Drop HTML comment blocks: templates carry commented-out shape examples (an
+ * entry header without a real trigger) that are not entries.
+ *
+ * @param content - A cross-WU file's full text.
+ * @returns The text with every HTML comment block removed.
+ */
+export function stripHtmlComments(content: string): string {
+  return content.replace(HTML_COMMENT, "");
+}
+
+/**
  * Parse a cross-WU file's content into per-entry outcomes.
  *
  * @param content - The file's full text.
@@ -63,10 +74,7 @@ export function shapeForFile(filename: string): CrossWuShape | null {
  * @returns One outcome per detected entry block, in document order.
  */
 export function parseCrossWuEntries(content: string, shape: CrossWuShape): EntryParse[] {
-  // Drop HTML comments first: templates carry commented-out shape examples
-  // (an entry header without a real trigger) that would otherwise parse as
-  // malformed entries.
-  const body = content.replace(HTML_COMMENT, "");
+  const body = stripHtmlComments(content);
   if (shape === "working-memory") return parseWorkingMemory(body);
   return parseUserInbox(body);
 }

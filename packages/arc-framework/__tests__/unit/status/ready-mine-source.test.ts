@@ -12,11 +12,12 @@ function meta(
   return [
     "# Metadata: x",
     "",
-    `- **State:** ${fields.state ?? "Planning"}`,
-    `- **Owner:** ${fields.owner ?? "andrew"}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? "Planning"} | ${fields.owner ?? "andrew"} | — | ${fields.class ?? "—"} | — |`,
+    "",
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
-    ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
     "",
     "---",
   ].join("\n");
@@ -84,6 +85,15 @@ describe("loadReadyMineSlice", () => {
     const slice = await loadReadyMineSlice({ cwd: root, identity: "andrew" });
 
     expect(slice).toEqual([]);
+  });
+
+  it("keeps a readable malformed planned meta without field evidence", async () => {
+    await seed(["backlog", "planned"], "broken", [
+      "# Metadata: broken", "", "| State | Owner | Branch | Class | Priority |",
+      "| --- | --- | --- | --- | --- |", "| Active |", "",
+    ].join("\n"));
+    const slice = await loadReadyMineSlice({ cwd: root, identity: null });
+    expect(slice).toEqual([{ workUnit: "broken", state: "Planning", dependsOn: [] }]);
   });
 
   it("skips a planned meta that vanishes between discovery and read", async () => {

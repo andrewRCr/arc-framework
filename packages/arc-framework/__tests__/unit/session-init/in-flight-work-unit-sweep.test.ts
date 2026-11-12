@@ -11,6 +11,7 @@ import {
   classifyInFlightWorkUnits,
   enumerateOwnedIntegratingWorkUnits,
   projectWorkUnitPresenceFacts,
+  type BehindBaseRelation,
   type InFlightWorkUnitFacts,
 } from "../../../src/lib/session-init/in-flight-work-unit-sweep.js";
 import type { WorktreeRosterEntry } from "../../../src/lib/git/worktree-roster.js";
@@ -18,6 +19,12 @@ import type { WorktreeRosterEntry } from "../../../src/lib/git/worktree-roster.j
 const NOW = "2026-06-13T00:00:00.000Z";
 const NOW_SEC = Math.floor(Date.parse(NOW) / 1000);
 const daysAgo = (n: number): number => NOW_SEC - n * 86400;
+const KNOWN_CURRENT: BehindBaseRelation = { status: "known", value: false, remoteEvidence: "exact" };
+const KNOWN_BEHIND: BehindBaseRelation = { status: "known", value: true, remoteEvidence: "exact" };
+const NOT_APPLICABLE: BehindBaseRelation = {
+  status: "not-applicable",
+  remoteEvidence: "not-applicable",
+};
 
 const rosterEntry = (over: Partial<WorktreeRosterEntry> = {}): WorktreeRosterEntry => ({
   worktreePath: "/repo",
@@ -37,7 +44,7 @@ const facts = (over: Partial<InFlightWorkUnitFacts> = {}): InFlightWorkUnitFacts
   approved: false,
   changesRequested: false,
   checksFailed: false,
-  behindBase: false,
+  behindBase: KNOWN_CURRENT,
   ageDays: 0,
   ...over,
 });
@@ -54,7 +61,7 @@ describe("classifyInFlightWorkUnits", () => {
         name: "widget-refactor",
         branch: "feat/widget-refactor",
         state: "merged-needs-archival",
-        behindBase: false,
+        behindBase: KNOWN_CURRENT,
         ageDays: 0,
       },
     ]);
@@ -76,6 +83,72 @@ describe("classifyInFlightWorkUnits", () => {
     });
 
     expect(result.workUnits[0]?.state).toBe("mergeable");
+  });
+
+  it("withholds mergeability when the advertised base commit is pending fetch", () => {
+    const result = classifyInFlightWorkUnits({
+      workUnits: [facts({
+        approved: true,
+        behindBase: {
+          status: "unavailable",
+          remoteEvidence: "pending-fetch",
+          reason: "base-object-pending-fetch",
+        },
+      })],
+      staleThresholdDays: 3,
+    });
+
+    expect(result.workUnits[0]).toMatchObject({
+      state: "mergeability-unavailable",
+      mergeabilityGuidance: "Fetch remote evidence before deciding whether this work unit is mergeable.",
+    });
+  });
+
+  it.each([
+    [
+      { status: "unavailable", remoteEvidence: "unreachable", failureReason: "network" } as const,
+      "Retry remote inspection before deciding mergeability (network).",
+    ],
+    [
+      { status: "unavailable", remoteEvidence: "exact", reason: "remote-base-absent" } as const,
+      "Restore the configured remote base before deciding whether this work unit is mergeable.",
+    ],
+    [
+      { status: "not-applicable", remoteEvidence: "not-applicable" } as const,
+      "Enable remote comparison before deciding whether this work unit is mergeable.",
+    ],
+  ])("precomputes mergeability guidance for %s evidence", (behindBase, guidance) => {
+    const result = classifyInFlightWorkUnits({
+      workUnits: [facts({ approved: true, behindBase })],
+      staleThresholdDays: 3,
+    });
+
+    expect(result.workUnits[0]).toMatchObject({
+      state: "mergeability-unavailable",
+      mergeabilityGuidance: guidance,
+    });
+  });
+
+  it.each([
+    [{ merged: true }, "merged-needs-archival"],
+    [{ changesRequested: true }, "blocked"],
+    [{ checksFailed: true }, "blocked"],
+  ] as const)("preserves %s precedence over unavailable base evidence", (overrides, state) => {
+    const result = classifyInFlightWorkUnits({
+      workUnits: [facts({
+        approved: true,
+        behindBase: {
+          status: "unavailable",
+          remoteEvidence: "pending-fetch",
+          reason: "base-object-pending-fetch",
+        },
+        ...overrides,
+      })],
+      staleThresholdDays: 3,
+    });
+
+    expect(result.workUnits[0]?.state).toBe(state);
+    expect(result.workUnits[0]?.mergeabilityGuidance).toBeUndefined();
   });
 
   it("classifies an open PR with changes requested as blocked", () => {
@@ -124,19 +197,19 @@ describe("classifyInFlightWorkUnits", () => {
       name: "widget-refactor",
       branch: "feat/widget-refactor",
       state: "stale",
-      behindBase: false,
+      behindBase: KNOWN_CURRENT,
       ageDays: 7,
     });
   });
 
   it("carries the behindBase qualifier through onto the report without changing the state", () => {
     const result = classifyInFlightWorkUnits({
-      workUnits: [facts({ approved: true, behindBase: true })],
+      workUnits: [facts({ approved: true, behindBase: KNOWN_BEHIND })],
       staleThresholdDays: 3,
     });
 
     expect(result.workUnits[0]?.state).toBe("mergeable");
-    expect(result.workUnits[0]?.behindBase).toBe(true);
+    expect(result.workUnits[0]?.behindBase).toEqual(KNOWN_BEHIND);
   });
 
   it("classifies a WU with no open PR yet as awaiting-review (Integrating, pre-PR)", () => {
@@ -280,7 +353,7 @@ describe("projectWorkUnitPresenceFacts", () => {
         approved: false,
         changesRequested: false,
         checksFailed: false,
-        behindBase: false,
+        behindBase: NOT_APPLICABLE,
         ageDays: 2,
       },
     ]);

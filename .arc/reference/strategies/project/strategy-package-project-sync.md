@@ -23,6 +23,18 @@ The package source is what ships. The project instance is a self-hosted installa
 project uses ARC to develop ARC. Edits to methodology content must flow through the package
 source to reach adopters.
 
+### Harness skill directories
+
+The harness-local skill directories (`.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, and their siblings —
+all gitignored) are a third, derived surface. `arc update` regenerates them deterministically from the canonical
+`SKILL.md` sources under `system/.internal/skills/`, so adopters get a fresh copy on every update. This repo does
+not run `arc update` against itself, so its harness copies drift from the canonical sources in
+`.arc/system/.internal/skills/` and `packages/arc-framework/arc/system/.internal/skills/` as canonical content
+changes.
+
+The consequence is self-hosting-only: on a fresh session, if a skill's behavior surprises you, suspect drift
+before suspecting the skill, and hand-sync by copying the canonical `SKILL.md` into the harness subdirectory.
+
 ## Edit Flow Rules
 
 Edit direction depends on file classification (per [strategy-file-classification.md][file-class]):
@@ -46,8 +58,7 @@ ambiguous, ask.
 both copies of a Configurable file must be applied with targeted edits, not `cp`. Configurable
 files diverge by design: the package source carries template defaults; the `.arc/` instance
 carries this project's overrides. A blind `cp` from package to instance silently regresses
-every project-specific value (`branch.protection`, interlock policies, `hooks.*_patterns`
-extensions, etc.).
+every project-specific value (`branch.protection`, interlock policies, custom `hooks.*_patterns`, etc.).
 
 **To propagate a schema change correctly:**
 
@@ -62,13 +73,12 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-11 files in the package use a `.template.md` suffix, stripped at init time. Two contain
+10 files in the package use a `.template.md` suffix, stripped at init time. One contains
 `<!-- arc:if -->` conditionals resolved during rendering:
 
-| Template file                   | Conditions           |
-| ------------------------------- | -------------------- |
-| `session-init.template.md`      | team.mode (2 blocks) |
-| `02_define-project.template.md` | pm.mode (10 blocks)  |
+| Template file                   | Conditions          |
+| ------------------------------- | ------------------- |
+| `02_define-project.template.md` | pm.mode (10 blocks) |
 
 **Editing template files:** When editing a workflow that has a `.template.md` counterpart,
 edit the template in the package source. The `.arc/` rendered copy reflects this project's
@@ -82,16 +92,16 @@ they contain no conditional blocks. `init-recipe.json` is authoritative for temp
 
 ### Pre-commit hook (automated)
 
-`scripts/check-package-sync.sh` runs via `.husky/pre-commit` after the ARC hook. Two checks,
-each scoped by `manifest.json` classification:
+`scripts/check-package-sync.sh` is declared at the commit gate and dispatched by ARC's hook. Its supplied paths,
+checked index, exported base, and merged-in parents define the content range. Two checks use `manifest.json`
+classification:
 
-1. **Framework wrong-direction** (warning): a Framework file is staged in `.arc/` without its
-   package-source counterpart also staged.
-2. **Configurable blind-`cp`** (error, blocks commit): a Configurable file is staged
-   byte-identical to its package-source counterpart after diverging at HEAD. This is the
-   `cp pkg/<f> .arc/<f>` signature — staged content matches package, but HEAD content didn't,
-   so the commit just wiped project-specific overrides. Files already byte-identical at HEAD
-   (project inherits the template default for that file) don't trigger.
+1. **Framework wrong-direction** (warning): a Framework file is selected in `.arc/` without its
+   package-source counterpart also selected.
+2. **Configurable blind-`cp`** (error, blocks commit): a Configurable file in the checked index is
+   byte-identical to its package-source counterpart after diverging at the exported base. Files already identical
+   at that base do not trigger. Content inherited from a merged-in parent is accepted, and an override that an
+   incoming parent's two copies already removed is not attributed to the base.
 
 **What it catches:**
 
@@ -114,21 +124,20 @@ package source. Points here for the full architecture.
 
 ### Hook separation pattern
 
-Dev-only checks live in the husky layer (`.husky/pre-commit` → `scripts/*.sh`), not in the
-ARC pre-commit hook (`.arc/system/.internal/githooks/pre-commit`). The ARC hook is a Framework file
-shipped to adopters — only universal checks belong there. This supersedes the prior
-`.arc-internal/` dual-hook approach from WU2.
+Project checks live in repository scripts and `.arc/system/arc-checks.yml`. Husky delegates to ARC's pre-commit hook,
+whose universal dispatcher reads that declaration. The project-specific check implementations remain outside the
+Framework hook shipped to adopters.
 
 ## Documentation Architecture
 
 **Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
 
-| Aspect     | Strategy documents                            | ADRs                                       |
-| ---------- | --------------------------------------------- | ------------------------------------------ |
-| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
-| Style      | "How we think about X"                        | "What we chose for X situation"            |
-| Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
-| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies    |
+| Aspect     | Strategy documents                            | ADRs                                                      |
+| ---------- | --------------------------------------------- | --------------------------------------------------------- |
+| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time                |
+| Style      | "How we think about X"                        | "What we chose for X situation"                           |
+| Mutability | Updated as understanding evolves              | Immutable once the accepting change merges (supersession) |
+| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies                   |
 
 Multiple related ADRs may reveal patterns worth extracting into a strategy. This separation
 operationalizes a widely-recognized principle: ADRs should remain point-in-time records, not
@@ -148,11 +157,11 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 86 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 103 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 35
+### Configurable files (project sections expected to differ) — 44
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -160,35 +169,44 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 - `reference/strategies/STRATEGY-INDEX.md`
 - `reference/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
 - `system/arc-config.yml`
-- `system/extensions/post-context-load.md`
-- `system/extensions/post-task-completion.md`
-- `system/extensions/post-task-quality.md`
-- `system/extensions/post-unit-quality.md`
-- `system/extensions/post-work-unit-activate.md`
-- `system/extensions/post-work-unit-archive.md`
-- `system/extensions/pre-activation.md`
-- `system/extensions/pre-commit-review.md`
-- `system/extensions/pre-merge.md`
-- `system/extensions/pre-pr-open.md`
-- `system/extensions/post-pr-open.md`
-- `system/extensions/pre-push-review.md`
-- `system/extensions/pre-spec-finalization-review.md`
+- `system/methods/assess-boundary-fit.md`
+- `system/methods/assess-design-proportionality.md`
+- `system/methods/assess-draft-readiness.md`
+- `system/methods/assess-evidence-applicability.md`
+- `system/methods/adversarial-review.md`
+- `system/methods/classify-review-risk.md`
 - `system/methods/classify-work-unit.md`
+- `system/methods/route-discovered-work.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
-- `system/methods/frontline-review.md`
-- `system/methods/standard-review.md`
+- `system/methods/pull-request-format.md`
+- `system/methods/design-audit.md`
+- `system/methods/disposition-report.md`
+- `system/methods/code-review-frontline.md`
+- `system/methods/code-review-standard.md`
 - `system/methods/implementation-audit.md`
 - `system/methods/review-chunking.md`
-- `system/methods/self-review.md`
+- `system/methods/code-review-author.md`
 - `system/methods/issue-triage.md`
-- `system/methods/quality-gate-commands.md`
+- `system/methods/resolve-plan-segmentation.md`
 - `system/methods/resolve-planning-depth.md`
+- `system/methods/review-model.md`
+- `system/methods/planning-review.md`
+- `system/methods/code-review.md`
+- `system/methods/verification-review.md`
 - `system/methods/review-response.md`
 - `system/methods/review-triage.md`
 - `system/methods/session-state.md`
+- `system/methods/read-load-set.md`
+- `system/methods/assess-start-readiness.md`
+- `system/methods/discover-next-work.md`
+- `system/methods/assess-parallel-fit.md`
+- `system/methods/source-grounding.md`
 - `system/methods/spec-review.md`
+- `system/methods/task-audit.md`
 - `system/methods/test-first.md`
+- `system/methods/testing-standards.md`
+- `system/methods/validate-criteria.md`
 
 ### Package-only files (not in `.arc/` — expected)
 
@@ -210,19 +228,17 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
   `system/workflows/arc/initial-setup/02_define-project.md` (Framework)
 - `system/workflows/arc/session-lifecycle/session-handoff.template.md` →
   `system/workflows/arc/session-lifecycle/session-handoff.md` (Framework)
-- `system/workflows/arc/session-lifecycle/session-init.template.md` →
-  `system/workflows/arc/session-lifecycle/session-init.md` (Framework)
 
 ### Summary
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 86    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 103   | Wholesale replaced. No conflicts.                     |
+| Configurable   | 44    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 125. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 151. **Template counterparts:** 10. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

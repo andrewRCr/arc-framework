@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 
 import { runHeadHashStatus } from "../../../src/lib/git/head-hash.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 function execWithRevParse(stdout: string): GitExec {
   return async (cmd, args) => {
@@ -37,8 +38,8 @@ describe("runHeadHashStatus", () => {
   });
 
   it("propagates exec failures to the caller", async () => {
-    const failing: GitExec = async () => {
-      throw new Error("fatal: not a git repository");
+    const failing: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: not a git repository" });
     };
     await expect(runHeadHashStatus({ exec: failing })).rejects.toThrow(
       /not a git repository/u,

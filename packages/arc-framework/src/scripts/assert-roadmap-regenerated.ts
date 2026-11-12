@@ -14,13 +14,16 @@ import { fileURLToPath } from "node:url";
 
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import {
   ROADMAP_PATH,
   ROADMAP_RERENDER_INSTRUCTION,
   assertRoadmapRegenerated,
   renderRoadmapFromIndexResult,
+  resolveStagedTransitionOverlays,
   type RenderRoadmapFromIndexOptions,
 } from "../lib/status/roadmap-regeneration-assert.js";
+import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
 
 /** Script result mapped by the shell hook into error/warning/pass behavior. */
 export interface RoadmapRegenerationScriptResult {
@@ -60,15 +63,19 @@ export async function runRoadmapRegenerationAssert(
   const stagedPaths = options.stagedPaths ?? await stagedRoadmapPaths(options.exec, options.cwd);
   if (!stagedPaths.includes(ROADMAP_PATH)) return pass();
 
-  const [stagedContent, rendered] = await Promise.all([
+  const [stagedContent, transitionOverlays] = await Promise.all([
     readStagedRoadmap(options.exec, options.cwd),
-    renderRoadmapFromIndexResult({
-      cwd: options.cwd,
-      exec: options.exec,
-      baseBranch: options.baseBranch ?? await readBaseBranch(options.cwd),
-      ...(options.renderedRef !== undefined ? { renderedRef: options.renderedRef } : {}),
-    }),
+    resolveStagedTransitionOverlays({ cwd: options.cwd, exec: options.exec }),
   ]);
+  const rendered = await renderRoadmapFromIndexResult({
+    cwd: options.cwd,
+    exec: options.exec,
+    baseBranch: options.baseBranch ?? await readBaseBranch(options.cwd),
+    ...(options.renderedRef !== undefined ? { renderedRef: options.renderedRef } : {}),
+    ...(transitionOverlays.length === 0
+      ? {}
+      : { transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput) }),
+  });
 
   const verdict = assertRoadmapRegenerated({
     stagedContent,
@@ -118,7 +125,7 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
     cwd: options?.cwd,
     signal: options?.signal,
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
     timeout: 15_000,
   });
   return { stdout, stderr };

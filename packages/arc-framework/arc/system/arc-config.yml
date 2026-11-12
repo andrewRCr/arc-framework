@@ -53,12 +53,21 @@ worktree.post_create: ""
 # Comma-separated list of top-level gitignored harness directories to copy
 # from the primary checkout into ARC-created linked worktrees. ARC copies only
 # entries that exist on the primary checkout and skips absent entries.
+# For individual files such as `.env`, list gitignore-syntax patterns in a
+# `.worktreeinclude` file at the primary checkout's root instead: before the
+# post-create script runs, ARC copies each matching untracked, gitignored file
+# outside `.arc/` into the new worktree, leaving files already there in place.
 worktree.harness_dirs: .claude,.codex,.gemini,.opencode
+
+# --- Storage ---
+
+# Optional backing repository URL for ARC state. Empty uses no backing repository pointer.
+storage.backing_repository: ""
 
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.
-#   conventional - type(scope): description (default)
+#   conventional - type(scope): description; scope optional, description lowercase (default)
 #   custom       - validates against commit.custom_pattern ECMAScript source
 #   any          - no format validation
 commit.format: conventional
@@ -84,14 +93,22 @@ commit.custom_pattern:
 #   "^#[0-9]+ .+"                                 — GitHub issue
 commit.context_pattern:
 
-# --- Merge Strategy ---
+# --- Merge ---
 
 # How branches are integrated into the base branch.
 #   merge  - Merge commits preserve branch topology (default, most traceable)
 #   rebase - Linear history, commits replayed onto base
-#   squash - Single commit per branch (traceability shifts to PR descriptions)
+#   squash - Single commit per branch; the pull-request title becomes the commit subject
 # See strategy-configurability-architecture.md § Settings with behavioral implications.
 merge.strategy: merge
+
+# Whether pull requests are held unmergeable until the work is cleared to land.
+#   draft - Pull requests open as drafts and stay unmergeable until they are released, so no one
+#           can land the work early — including you. Costs a release step before every merge, and
+#           review automation that skips drafts does not run until that release.
+#   none  - No host-side hold (default). Interlocks and harness permissions are the only guard.
+# See strategy-configurability-architecture.md § Settings with behavioral implications.
+merge.lock: none
 
 # --- Hooks ---
 
@@ -106,9 +123,9 @@ hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 
 # Pre-push hook.
-#   enabled  - Advisory warning before a force-push that rewrites published
-#              history; never blocks the push (default)
-#   disabled - Skips the force-push advisory
+#   enabled  - Runs declared push checks and warns before a force-push that
+#              rewrites published history; only the checks block (default)
+#   disabled - Skips the push gate and force-push advisory
 hooks.pre_push: enabled
 
 # Task numbering format check in pre-commit hook.
@@ -136,18 +153,29 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # Strict meta-project reference patterns scanned in ALL staged code, including
 # tests. These cover patterns rare enough in legitimate fixture data that the
 # test exemption is unsafe — PRD R-codes, bare requirement / behavior numeric
-# IDs, and section-symbol citations. PROJECT-PRD lines are filtered as a known
-# false positive (real framework template filename). Pipe-separated regex.
-#   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
-hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
+# IDs, and section-symbol citations. The pre-commit hook additionally filters
+# known false-positive tokens (stripped per line before re-check, not whole-line
+# drops): PROJECT-PRD (framework template filename) and quoted three-digit Git
+# --name-status R/C scores ("R100", 'C075', …). A bare R/B id requires a
+# non-identifier, non-dot character to its left: a dot is a word boundary, so an
+# unguarded pattern reads the numbered tail of a task id (1.R2, 1.R2.a) as a
+# requirement code. Pipe-separated regex.
+#   default: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
+hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
 
 # Broad meta-project reference patterns scanned in production code only — test
 # files (see hooks.test_patterns) are exempted because parser tests legitimately
-# consume task / phase / artifact-name strings as fixture input.
+# consume task / phase / artifact-name strings as fixture input. The artifact-name
+# alternation requires a non-identifier, non-dot character to its left, so a
+# filename that merely embeds an artifact prefix (resolve-plan-segmentation.md)
+# is not read as a work-unit artifact.
+# The pre-commit hook strips each complete commit Context footer ("Context:
+# tasks-foo.md (Task 4.2)") per line before re-check, so footer examples and
+# diagnostics pass while a planning reference elsewhere on the line still flags.
 # Reduce to remove checks that cause false positives for your project (e.g.,
 # tooling that legitimately operates on .arc/ paths). Pipe-separated regex.
-#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
-hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
+#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
 
 # Subject line hard limit for commit-msg hook.
 # Aligns with GitHub's truncation point and `git log --oneline` width.
@@ -188,17 +216,35 @@ review.frontline_sources: []
 
 # Ordered sources for ordinary review. Empty disables the standard-review lane.
 # Built-ins: delegated-agent, coderabbit-pr, codex-pr.
+# delegated-agent runs fix checks; without it the lane stops after a pass approves material fixes.
+# Hosted sources run complete passes first or after a converged look.
 review.standard_sources: []
 
-# Positive safe-integer pass ceilings. An exceptional extra pass requires explicit approval.
+# Positive safe-integer ceilings. Frontline counts completed frontline passes.
+# Standard counts complete passes; fix checks and delta checks run outside its ceiling.
+# Exceeding either ceiling requires explicit approval for the named pass.
 review.frontline_max_passes: 2
 review.standard_max_passes: 2
 
-# Exact-target attention tripwires for considering contract-cohesive review chunks.
+# Hosted review await timing. Each call waits for at most two minutes and begins
+# provider polling at 15-second intervals. After 15 minutes of unattended waiting,
+# ARC asks whether to inspect or extend without invalidating the hosted request.
+review.hosted_await_timeout_seconds: 120
+review.hosted_await_initial_poll_interval_seconds: 15
+review.hosted_await_attention_after_minutes: 15
+
+# Required-check await timing: how long one call keeps polling an exact head's required
+# checks before a final observation reports where they stand, and the polling interval it
+# starts from before backing off. A call returns as soon as the checks pass or fail; raise
+# the bound when CI routinely runs longer.
+review.checks_await_timeout_seconds: 300
+review.checks_await_initial_poll_interval_seconds: 5
+
+# Exact-target changeset-size advisory thresholds for considering contract-cohesive review chunks.
 # These are not chunk-size caps or review-provider limits. Either dimension can be
 # enabled independently; 0 disables that dimension (both 0 preserves whole-target review).
-review.chunking_threshold_lines: 0
-review.chunking_threshold_files: 0
+changeset.advisory_threshold_lines: 0
+changeset.advisory_threshold_files: 0
 
 # --- Project Management ---
 
@@ -235,14 +281,16 @@ session.remote_sync: enabled
 #   prompt - Prompt before pulling. (default)
 # `always` is rejected for this channel — auto-pulling tracked working-tree
 # state silently is too invasive even on clean trees.
-# See session-init.md § Conditional Sync Pulls for dirty-tree precheck and prompt behavior.
+# Worktree and notes recommendations combine into one offer when both apply.
+# Accepted sync actions are followed by a fresh session-entry compile.
 session.init_pull.worktree: prompt
 
 # Notes pull policy at session init when the remote notes ref is ahead.
 #   manual - Surface the drift in orientation; user runs `arc user pull` when ready.
 #   prompt - Prompt before pulling. (default)
 #   always - Pull automatically (notes are gitignored personal context only).
-# See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
+# A pending worktree pull shares the offer with notes. Pulling recompiles entry
+# and re-evaluates whether local notes now need loading.
 session.init_pull.notes: prompt
 
 # Base-branch pull policy at session init when the local base ref (`branch.base`)
@@ -250,8 +298,8 @@ session.init_pull.notes: prompt
 # clone. Fast-forward-only; never resolves a diverged base.
 #   manual - Surface the staleness in orientation; user fast-forwards when ready.
 #   prompt - Prompt before fast-forwarding. (default)
-#   always - Fast-forward automatically when fast-forwardable (refused on a dirty tree).
-# See session-init.md § Conditional Sync Pulls for the base-ref pull behavior.
+#   always - Fast-forward automatically when fast-forwardable.
+# Accepted base sync recompiles session entry from fresh state.
 session.init_pull.base: prompt
 
 # Notes load policy at session init when the local notes ref is current but the
@@ -260,7 +308,8 @@ session.init_pull.base: prompt
 #   manual - Surface the load action in orientation; user runs `arc user load` when ready.
 #   prompt - Prompt before loading. (default)
 #   always - Load automatically (the pre-load backup snapshot is the safety net).
-# See session-init.md § Conditional Sync Pulls for the load cascade and dirty-tree refusal under `always`.
+# Retired-directory edits retain the CLI prompt recommendation even under always.
+# Loading creates a backup and recompiles session entry.
 session.init_load.notes: prompt
 
 # --- User Directory ---
@@ -292,6 +341,22 @@ sync.auto_pull: false
 #                      separate commit in the integration PR. (default)
 #   manual           - Defer archival until explicitly invoked.
 archive.cadence: with-integration
+
+# --- Design export ---
+
+# Export the stored specification into the code repository for pull-request review.
+# Applies only where operational state is kept off the branch, which in-repo state already tracks.
+#   specs - Write and stage the spec at attestation and after a review fix. (default)
+#   none  - Keep design documents exclusively in operational storage.
+storage.track_design_docs: specs
+
+# --- Active layout ---
+
+# Lay out the work item held by this checkout when operational state is off branch.
+#   nested - Place its files under .arc/active/current/. (default)
+#   flat   - Place its files directly under .arc/active/.
+# Other work items remain under .arc/active/in-flight/<slug>/.
+layout.active: nested
 
 # --- Inbox ---
 

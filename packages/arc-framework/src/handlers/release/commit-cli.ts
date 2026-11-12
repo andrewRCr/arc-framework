@@ -19,13 +19,15 @@ import { execa } from "execa";
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createUserIOContext } from "../../lib/io-context.js";
+import { createGitExec } from "../../lib/io-context.js";
 import {
-  createExecaGitExec,
-  environmentForGitCwd,
-  MAX_GIT_OUTPUT_BYTES,
-} from "../../lib/git/process-executor.js";
-import { normalizeGitRejection } from "../../lib/git/process-error.js";
+  formatMissingHooksPathMessage,
+  resolveHooksPathVerdict,
+} from "../../lib/git/hooks-path.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../../lib/git/process-executor.js";
+import type { GitExec } from "../../lib/git/exec.js";
+import { isGitProcessError, normalizeGitRejection } from "../../lib/git/process-error.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
@@ -33,7 +35,7 @@ import { createCommitMessageRetryStore } from "../../lib/release/commit-message-
 import {
   acquireAdvisoryLock,
   releaseAdvisoryLock,
-} from "../../lib/user-sync/notes-lock.js";
+} from "../../lib/advisory-lock.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 import {
   resolveProcessInteractionContext,
@@ -44,9 +46,14 @@ import { declareInteractionSite, type CommandInputDeclaration } from "../../lib/
 import {
   runReleaseCommit,
   type CreateCommitMessageSnapshot,
+  type ListRemoteRefsContainingHead,
   type ResolveHead,
   type SpawnGit,
 } from "./commit.js";
+import { createTaskCommandContext, renderTaskClose } from "../task.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createTaskCloseOperations } from "./task-close.js";
 import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
 export interface HandleReleaseCommitOptions {
@@ -83,8 +90,6 @@ export const releaseCommitInputPolicyDeclarations = [{
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
-const capturedGitExec = createExecaGitExec();
-
 /**
  * Strip a leading `--no-wrap` token from `args`, honoring the `--` terminator.
  *
@@ -96,10 +101,25 @@ export function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: bo
   return { argv: [...args], wrap: true };
 }
 
+/** Strip wrapper options only from leading tokens, preserving Git operands and terminators.
+ * @param args - Opaque Git commit arguments
+ * @returns Git arguments, wrapping policy, and optional close IDs
+ */
+export function stripReleaseCommitOptions(args: readonly string[]): { argv: string[]; wrap: boolean; close?: string[] } {
+  let wrap = true; let close: string[] | undefined; let position = 0;
+  for (const token of args) {
+    if (token === "--no-wrap") wrap = false;
+    else if (token === "--close" || token.startsWith("--close=")) close = token === "--close" ? [] : token.slice(8).split(",");
+    else break;
+    position += 1;
+  }
+  return { argv: args.slice(position), wrap, ...(close === undefined ? {} : { close }) };
+}
+
 /**
  * `arc release commit` Commander entry point. Resolves the I/O surface
  * needed by the orchestrator and delegates. Refusal paths print to
- * stderr and exit with the matched refusal code (10–13 or message-preflight 16); the authorize
+ * stderr and exit with the matched refusal code (10–13, message-preflight 16, or task-precheck 17); the authorize
  * path forwards to a wrapped `git commit` invocation that bubbles git's
  * stdout, stderr, and exit code verbatim.
  */
@@ -110,9 +130,10 @@ export async function handleReleaseCommit(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  const exec = createGitExec(context.subprocess);
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (err instanceof UserFacingError) {
       process.stderr.write(`${formatError(err)}\n`);
@@ -129,44 +150,72 @@ export async function handleReleaseCommit(
     return;
   }
 
+  // Fail closed when core.hooksPath points at a missing directory: Git would
+  // otherwise commit with zero hooks and report success (unprovisioned worktrees).
+  try {
+    const hooksVerdict = await resolveHooksPathVerdict(cwd, async (command, args, opts) => {
+      const { stdout } = await exec(command, [...args], { cwd: opts.cwd });
+      return { stdout };
+    });
+    if (hooksVerdict.kind === "missing") {
+      process.stderr.write(formatMissingHooksPathMessage(hooksVerdict, "arc release commit"));
+      process.exitCode = 1;
+      return;
+    }
+  } catch (cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    process.stderr.write(
+      `error: could not resolve core.hooksPath before commit: ${detail}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
-  const preflightRemedy = renderCommitMessageRemedy();
-  const { argv, wrap } = stripNoWrap(opts.args);
+  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
+  const { argv, wrap, close } = stripReleaseCommitOptions(opts.args);
+  const preflightRemedy = renderCommitMessageRemedy(argv, close === undefined ? []
+    : [close.length === 0 ? "--close" : `--close=${close.join(",")}`]);
+  const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({
+    stateOffBranch: createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })).capabilities.stateOffBranch,
     cwd,
     identity,
     argv,
     settings,
     currentBranch,
     spawnGit: createSpawnGit(context),
-    resolveHead: realResolveHead,
-    createMessageSnapshot: createRealCommitMessageSnapshot,
-    persistMessageRetry: persistRealCommitMessageRetry,
-    cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+    resolveHead: realResolveHead(exec),
+    createMessageSnapshot: createRealCommitMessageSnapshot(exec),
+    persistMessageRetry: retryStore.persist,
+    cleanupConsumedMessageRetry: retryStore.cleanup,
+    listRemoteRefsContainingHead: createRemoteRefsContainingHead(exec),
     preflightRemedy,
+    ...(close === undefined ? {} : { taskClose: createTaskCloseOperations(close, async () => createTaskCommandContext({ cwd, identity,
+      io: { ...createUserIOContext(context.subprocess), exec } }), renderTaskClose) }),
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: context.interaction === "allowed" && context.promptInput.isTTY,
       interactionAllowed: context.interaction === "allowed",
       readFile: (path) => readFile(path),
-      readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+      readFileWithIdentity: retryStore.readFileWithIdentity,
       readStdin,
       setupRepository: (root) => createDefaultCommitCheckRepository(root, {
-        exec: gitExec,
+        exec,
         readFile: (path) => readFile(path, "utf8"),
         pathExists,
       }),
-      hasPrepareCommitMsgHook,
+      hasPrepareCommitMsgHook: (root) => hasPrepareCommitMsgHook(root, exec),
       wrap,
     }),
   });
 
+  if (result.continuation?.argv !== undefined) process.stderr.write(`Run: ${result.continuation.argv.join(" ")}\n`);
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }
@@ -188,12 +237,12 @@ async function readStdin(): Promise<Uint8Array> {
   return Buffer.concat(chunks);
 }
 
-async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
+async function hasPrepareCommitMsgHook(cwd: string, exec: GitExec): Promise<boolean> {
   return hasEffectiveHook(cwd, "prepare-commit-msg", {
     access,
     readFile: (path) => readFile(path, "utf8"),
     resolveGitHookPath: async (root, name) => {
-      const { stdout } = await capturedGitExec(
+      const { stdout } = await exec(
         "git",
         ["rev-parse", "--path-format=absolute", "--git-path", `hooks/${name}`],
         { cwd: root },
@@ -211,7 +260,7 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
  *
  * @returns A `SpawnGit` adapter with captured output and guarded stdin transport
  */
-export function createSpawnGit(context?: InteractionContext): SpawnGit {
+export function createSpawnGit(context?: InteractionContext, inheritOutput = true): SpawnGit {
   return async ({ args, cwd, stdin }) => {
     const invocation = ["commit", ...args];
     const forbidden = context?.subprocess.terminalPrompts === "forbidden";
@@ -224,19 +273,27 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
           PAGER: "cat",
         }
       : environmentForGitCwd(cwd);
-    const result = await execa("git", invocation, {
+    const subprocess = execa("git", invocation, {
       cwd,
       env,
       extendEnv: false,
       ...(stdin === undefined
         ? { stdin: context?.subprocess.ambientStdin === "closed" ? "ignore" as const : "inherit" as const }
         : { input: stdin }),
-      stdout: ["inherit", "pipe"],
-      stderr: ["inherit", "pipe"],
+      stdout: inheritOutput ? ["inherit", "pipe"] : "pipe",
+      stderr: inheritOutput ? ["inherit", "pipe"] : "pipe",
       reject: false,
       stripFinalNewline: false,
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
+    // Execa normally waits for captured-stream EOF after the child exits. A hook can
+    // background a descendant that inherits those descriptors, so close ARC's read
+    // ends at the direct Git boundary instead of waiting on unrelated process lifetime.
+    subprocess.nodeChildProcess.once("exit", () => {
+      subprocess.stdout.destroy();
+      subprocess.stderr.destroy();
+    });
+    const result = await subprocess;
     if (!result.failed) return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
 
     const error = normalizeGitRejection(result, { command: "git", args: invocation });
@@ -245,8 +302,9 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
   };
 }
 
-export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
-  const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+/** Capture commit-message bytes under the Git directory resolved by this invocation. */
+export const createRealCommitMessageSnapshot = (exec: GitExec): CreateCommitMessageSnapshot => async ({ cwd, bytes }) => {
+  const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
   const path = join(stdout.trim(), `.arc-release-commit-message-${randomUUID()}`);
   const handle = await open(path, "wx", 0o600);
   try {
@@ -270,7 +328,7 @@ function formatFileIdentity(stats: { dev: bigint; ino: bigint }): string {
  * @param path - Commit-message file to capture.
  * @returns Captured bytes plus opaque filesystem identity.
  */
-export async function readRealCommitMessageFileWithIdentity(path: string): Promise<{
+async function readRealCommitMessageFileWithIdentity(path: string): Promise<{
   bytes: Uint8Array;
   identity: string;
 }> {
@@ -283,55 +341,61 @@ export async function readRealCommitMessageFileWithIdentity(path: string): Promi
   }
 }
 
-const realCommitMessageRetryStore = createCommitMessageRetryStore({
-  resolveGitDir: async (cwd) => {
-    const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
-    return stdout.trim();
-  },
-  randomId: randomUUID,
-  openPrivate: async (path) => open(path, "wx", 0o600),
-  identifyFile: async (path) => formatFileIdentity(await stat(path, { bigint: true })),
-  rename,
-  unlink,
-  withLock: async (path, operation) => {
-    const handle = await acquireAdvisoryLock(path);
-    try {
-      return await operation();
-    } finally {
-      await releaseAdvisoryLock(handle);
-    }
-  },
-});
-
-/**
- * Atomically replace the worktree-local latest-retry message with private bytes.
- *
- * @param opts - Repository root and canonical approved message bytes.
- * @returns The absolute wrapper-owned retry path.
- */
-export async function persistRealCommitMessageRetry(opts: {
-  cwd: string;
-  bytes: Uint8Array;
-}): Promise<{ path: string }> {
-  return realCommitMessageRetryStore.persist(opts);
-}
-
-/**
- * Remove the same wrapper-owned retry generation after successful consumption.
- *
- * @param opts - Repository root, original file operand, and captured generation identity.
- * @returns Whether the wrapper-owned path was removed.
- */
-export async function cleanupRealConsumedMessageRetry(opts: {
-  cwd: string;
-  sourcePath: string;
-  sourceIdentity: string;
-}): Promise<boolean> {
-  return realCommitMessageRetryStore.cleanup(opts);
+/** Bind retry persistence, cleanup, and generation reads to one Git executor. */
+export function createRealCommitMessageRetryStore(exec: GitExec) {
+  const store = createCommitMessageRetryStore({
+    resolveGitDir: async (cwd) => {
+      const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+      return stdout.trim();
+    },
+    randomId: randomUUID,
+    openPrivate: async (path) => open(path, "wx", 0o600),
+    identifyFile: async (path) => formatFileIdentity(await stat(path, { bigint: true })),
+    rename,
+    unlink,
+    withLock: async (path, operation) => {
+      const handle = await acquireAdvisoryLock(path);
+      try {
+        return await operation();
+      } finally {
+        await releaseAdvisoryLock(handle);
+      }
+    },
+  });
+  return {
+    readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+    persist: store.persist,
+    cleanup: store.cleanup,
+  };
 }
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
-const realResolveHead: ResolveHead = async ({ cwd }) => {
-  const { stdout } = await capturedGitExec("git", ["rev-parse", "HEAD"], { cwd });
+const realResolveHead = (exec: GitExec): ResolveHead => async ({ cwd }) => {
+  const { stdout } = await exec("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 };
+
+/**
+ * List the remote-tracking refs that contain `HEAD`, from local refs only, leaving out symbolic refs such as
+ * `origin/HEAD`. An unborn `HEAD` is on none, so Git reports the missing commit itself.
+ */
+export function createRemoteRefsContainingHead(exec: GitExec): ListRemoteRefsContainingHead {
+  return async ({ cwd }) => {
+    try {
+      await exec("git", ["rev-parse", "--verify", "--quiet", "HEAD"], { cwd });
+    } catch (error: unknown) {
+      if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return [];
+      throw error;
+    }
+    const { stdout } = await exec(
+      "git",
+      ["for-each-ref", "--contains", "HEAD", "--format=%(refname:short)%09%(symref)", "refs/remotes"],
+      { cwd },
+    );
+    return stdout
+      .split("\n")
+      .map((line) => line.split("\t"))
+      .filter(([ref, symref]) => ref !== undefined && ref !== "" && (symref ?? "") === "")
+      .map(([ref]) => ref ?? "");
+  };
+}

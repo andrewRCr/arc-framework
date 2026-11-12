@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createLocalFrontlineSourcePreferenceReader } from "../../../../../../src/scripts/review-gate/hosts/local/frontline-source-preferences.js";
+import { makeGitProcessError } from "../../../../../helpers/git-exec-fake.js";
 
 describe("local frontline source preferences", () => {
   it("reads the private developer key and tracked project default without mutation", async () => {
@@ -17,7 +18,8 @@ describe("local frontline source preferences", () => {
   it("normalizes missing or empty preferences to empty lists", async () => {
     const reader = createLocalFrontlineSourcePreferenceReader({
       cwd: "/repo",
-      exec: vi.fn().mockRejectedValue(new Error("unset")),
+      exec: vi.fn().mockRejectedValue(makeGitProcessError({ command: "git",
+        args: ["config", "--get-all", "arc.frontlineSources"], exitCode: 1, stderr: "unset" })),
       readFile: vi.fn().mockResolvedValue("review.frontline_sources: []\n"),
     });
 
@@ -30,7 +32,8 @@ describe("local frontline source preferences", () => {
     async (value) => {
       const reader = createLocalFrontlineSourcePreferenceReader({
         cwd: "/repo",
-        exec: vi.fn().mockRejectedValue(new Error("unset")),
+        exec: vi.fn().mockRejectedValue(makeGitProcessError({ command: "git",
+          args: ["config", "--get-all", "arc.frontlineSources"], exitCode: 1, stderr: "unset" })),
         readFile: vi.fn().mockResolvedValue(`review.frontline_sources: ${value}\n`),
       });
 

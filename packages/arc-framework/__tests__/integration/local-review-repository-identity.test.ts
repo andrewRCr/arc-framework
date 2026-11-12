@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   RepositoryGitCommonStatePublisher,
+} from "../../src/lib/git-common-state.js";
+import {
   resolveRepositoryIdentity,
 } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 

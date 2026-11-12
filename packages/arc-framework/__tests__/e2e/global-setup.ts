@@ -1,30 +1,17 @@
+/** Native E2E setup consumes controller evidence or prepares direct runtime artifacts. */
+import { resolve } from "node:path";
+import type { TestProject } from "vitest/node";
+import { ensureHookManagerTools, type ToolExec } from "../helpers/hook-manager-tools.js";
+import { ensureTestRuntime } from "../../src/lib/build-runtime-setup.js";
+
 /**
- * Vitest global setup for E2E tests.
- *
- * Builds the CLI package once before any E2E test runs. All E2E tests invoke
- * the built `dist/cli.js` artifact as a subprocess — this setup ensures the
- * artifact exists and reflects the current source. `ARC_E2E_SKIP_BUILD=1`
- * skips the build for callers that already built the exact tree (CI jobs run
- * `npm run build` as their own step); the spawn helpers still fail fast with
- * a "build the CLI first" error if `dist/cli.js` is missing.
+ * Establish required CLI and metafile output before E2E workers execute.
+ * @param project - Native project and its inherited controller context
+ * @param toolExec - Optional hook-tool process boundary for synthetic runtime fixtures
+ * @returns Completion once runtime artifacts and native hook tools qualify
  */
-
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-export function setup(): void {
-  const packageRoot = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../..",
-  );
-  if (process.env.ARC_E2E_SKIP_BUILD !== "1") {
-    execSync("npm run build", { cwd: packageRoot, stdio: "inherit" });
-  }
-  for (const artifact of ["dist/cli.js", "dist/schemas/kernel.json"]) {
-    if (!existsSync(resolve(packageRoot, artifact))) {
-      throw new Error(`${artifact} missing; build the CLI before running E2E tests`);
-    }
-  }
+export async function setup(project: TestProject, toolExec?: ToolExec): Promise<void> {
+  const packageRoot = resolve(import.meta.dirname, "../..");
+  await ensureTestRuntime(packageRoot, project.getProvidedContext());
+  project.provide("arcHookManagerTools", await ensureHookManagerTools(packageRoot, toolExec));
 }

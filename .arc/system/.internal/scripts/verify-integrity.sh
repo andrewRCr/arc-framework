@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify ARC installation integrity — config, files, references, hooks, session state.
+# Verify ARC installation integrity — config, files, references, hooks, session state, Git maintenance.
 # Location: .arc/system/.internal/scripts/verify-integrity.sh
 #
 # Run from repository root:
@@ -106,7 +106,7 @@ check_file "$ARC_DIR/reference/strategies/STRATEGY-INDEX.md" "Strategy index"
 
 # Workflows
 check_file "$ARC_DIR/system/workflows/arc/session-lifecycle/session-init.md" "Session init workflow"
-check_file "$ARC_DIR/system/workflows/arc/3_process-task-loop.md" "Process task loop"
+check_file "$ARC_DIR/system/workflows/arc/process-task-loop.md" "Process task loop"
 
 # Scripts
 check_file "$ARC_DIR/system/.internal/scripts/arc-lib.sh" "Shared library"
@@ -178,6 +178,41 @@ echo "--- Strategy Index ---"
 
 strategy_index="$ARC_DIR/reference/strategies/STRATEGY-INDEX.md"
 strategy_dir="$ARC_DIR/reference/strategies/arc"
+team_mode=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "team.mode" "false")
+manifest="$ARC_DIR/system/.internal/manifest.json"
+installed_strategies=""
+
+# Keep expecting files recorded by the installer even if configuration has since changed.
+# Without a manifest, the active modes determine the two optional strategy entries.
+if [ -f "$manifest" ]; then
+    if ! installed_strategies=$(node - "$manifest" 2>/dev/null <<'NODE'
+const fs = require("node:fs");
+const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
+    process.exit(1);
+}
+for (const path of Object.keys(manifest.files)) {
+    if (/^reference\/strategies\/arc\/strategy-[a-z0-9-]+\.md$/.test(path)) {
+        console.log(path.slice("reference/strategies/".length));
+    }
+}
+NODE
+    ); then
+        error "Could not read installed strategy inventory from manifest: $manifest"
+    fi
+fi
+
+strategy_expected() {
+    local entry="$1"
+    if printf '%s\n' "$installed_strategies" | grep -Fxq "$entry"; then
+        return 0
+    fi
+    case "$entry" in
+        arc/strategy-planning-module.md) [ "$pm_mode" = "arc-in-git" ] ;;
+        arc/strategy-team-coordination.md) [ "$team_mode" = "true" ] ;;
+        *) return 0 ;;
+    esac
+}
 
 if [ -f "$strategy_index" ] && [ -d "$strategy_dir" ]; then
     # Extract strategy filenames referenced in the index
@@ -186,6 +221,10 @@ if [ -f "$strategy_index" ] && [ -d "$strategy_dir" ]; then
 
     # Check indexed entries exist as files
     for entry in $indexed_files; do
+        if ! strategy_expected "$entry"; then
+            info "Strategy excluded by install mode: $entry"
+            continue
+        fi
         entry_path="$ARC_DIR/reference/strategies/$entry"
         if [ ! -f "$entry_path" ]; then
             error "Strategy indexed but file missing: $entry"
@@ -276,21 +315,19 @@ fi
 echo ""
 
 # ============================================================================
-# 6. Method/extension structure
+# 6. Method structure
 # ============================================================================
 
-echo "--- Methods & Extensions ---"
+echo "--- Methods ---"
 
 methods_dir="$ARC_DIR/system/methods"
-extensions_dir="$ARC_DIR/system/extensions"
 
-# Structural sanity check: each file under system/methods/ and system/extensions/
+# Structural sanity check: each file under system/methods/
 # opens with a YAML frontmatter block containing the required keys. Deep schema
 # validation (name matches basename, type checks, etc.) runs in pre-commit
-# CHECK 11; this is a post-hoc diagnostic, not a replacement.
-check_per_file_frontmatter() {
+# CHECK[frontmatter-schema]; this is a post-hoc diagnostic, not a replacement.
+check_method_frontmatter() {
     local file="$1"
-    local kind="$2"  # "method" or "extension"
     local file_label
     file_label=$(basename "$file")
 
@@ -301,21 +338,23 @@ check_per_file_frontmatter() {
         return
     fi
 
-    if ! head -n 20 "$file" | tail -n +2 | grep -qE '^---$'; then
-        error "$file_label: frontmatter block not closed within first 20 lines"
+    local frontmatter
+    if ! frontmatter=$(awk '
+        NR == 1 { next }
+        /^---$/ { closed=1; exit }
+        { print }
+        END { exit closed ? 0 : 1 }
+    ' "$file"); then
+        error "$file_label: frontmatter block not closed"
         return
     fi
 
     local required_keys
-    if [ "$kind" = "method" ]; then
-        required_keys="name description override-active"
-    else
-        required_keys="name description active"
-    fi
+    required_keys="name description override-active"
 
     local missing=""
     for key in $required_keys; do
-        if ! head -n 20 "$file" | grep -qE "^${key}:"; then
+        if ! printf '%s\n' "$frontmatter" | grep -qE "^${key}:"; then
             missing="${missing} ${key}"
         fi
     done
@@ -328,9 +367,8 @@ check_per_file_frontmatter() {
     pass "$file_label: frontmatter present"
 }
 
-check_per_file_dir() {
+check_methods_dir() {
     local dir="$1"
-    local kind="$2"  # "method" or "extension"
     local dir_label
     dir_label=$(basename "$dir")
 
@@ -344,16 +382,15 @@ check_per_file_dir() {
         [ -f "$file" ] || continue
         [ "$(basename "$file")" = "README.md" ] && continue
         found=true
-        check_per_file_frontmatter "$file" "$kind"
+        check_method_frontmatter "$file"
     done
 
     if [ "$found" = false ]; then
-        warn "${dir_label^} directory contains no ${kind} files: $dir"
+        warn "${dir_label^} directory contains no method files: $dir"
     fi
 }
 
-check_per_file_dir "$methods_dir" "method"
-check_per_file_dir "$extensions_dir" "extension"
+check_methods_dir "$methods_dir"
 
 echo ""
 
@@ -412,6 +449,26 @@ if [ -f "$manifest" ]; then
     # Future: validate manifest entries match files on disk
 else
     info "No manifest file (pre-CLI or fresh install)"
+fi
+
+echo ""
+
+# ============================================================================
+# 9. Git maintenance
+# ============================================================================
+
+echo "--- Git Maintenance ---"
+
+if maintenance_lock=$(git rev-parse --git-path objects/maintenance.lock 2>/dev/null) && [ -n "$maintenance_lock" ]; then
+    if [ -e "$maintenance_lock" ] || [ -L "$maintenance_lock" ]; then
+        warn "Git maintenance lock exists: $maintenance_lock (maintenance may be active or interrupted)"
+        info "Confirm no Git maintenance process is running before removing the lock; then run: git maintenance run --task=gc"
+        info "Schedule maintenance outside the agent sandbox with: git maintenance start"
+    else
+        pass "No Git maintenance lock"
+    fi
+else
+    warn "Could not resolve the Git maintenance lock path; run verification from a Git repository"
 fi
 
 echo ""

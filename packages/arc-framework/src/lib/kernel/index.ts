@@ -7,17 +7,8 @@
  */
 
 export {
-  ResultAsync,
-  err,
-  errAsync,
-  fromAsyncThrowable,
-  fromThrowable,
-  ok,
-  okAsync,
-  type Result,
-} from "./result.js";
-export {
   ArcError,
+  assertNever,
   toArcError,
   type ArcErrorCode,
 } from "./errors.js";
@@ -36,14 +27,20 @@ export {
   validateManagedPath,
 } from "./canonical/managed-path.js";
 export {
+  CanonicalDigestSchema,
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   WORK_UNIT_STATE_ORDER,
   WorkClassSchema,
   WorkUnitStateSchema,
   validateClass,
   validatePriority,
   validateState,
+  withRemoteEvidence,
   type Priority,
+  type RemoteEvidence,
+  type RemoteFailureReason,
   type WorkClass,
   type WorkUnitState,
 } from "./schema/vocabulary.js";
@@ -60,7 +57,12 @@ export {
   type KernelJSONSchema,
   type KernelJSONSchemaBundle,
   type KernelRegistry,
+  type KernelProjectionOptions,
   type KernelSchemaMeta,
   type MigrationPosture,
   type SchemaErrorCode,
 } from "./schema/registry.js";
+
+export { ArchiveQuarterSchema, ArchiveSequenceSchema, type ArchiveQuarter, type ArchiveSequence } from "./schema/archive.js";
+
+export { LocusTokenSchema } from "./schema/token.js";

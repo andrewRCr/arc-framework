@@ -20,6 +20,22 @@ time.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Extend the surface list to the personal surfaces — `WORKING-MEMORY` and `USER-INBOX`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: documentation-surface-routing`), housekeep drain
+  (2026-07-28); captured during `judgment-authority-model` planning.
+- _Concern:_ Charter names commit bodies, task-list notes, status pointers, SESSION-NOTES, notes companions, and
+  PR descriptions — but omits `WORKING-MEMORY` and `USER-INBOX`, the personal surfaces where duplication actually
+  bites. Live symptom: agent-added WORKING-MEMORY entries that are too WU-specific or wordy for an identity-global
+  always-loaded surface (content qualification, not write authority).
+- _Fold-in:_ fold both into the charter with a positive content test each — e.g. WORKING-MEMORY earns place when it
+  constrains work the reader has not started yet.
+
 ## Problem / Motivation
 
 The codified rules across task-adjacent surfaces already say "don't restate":
@@ -62,15 +78,15 @@ salience for inconsistent rules.
 
 ### Surface set and audience-per-surface
 
-| Surface                  | Audience                         | Purpose                                                       |
-|--------------------------|----------------------------------|---------------------------------------------------------------|
-| Commit body              | Future code archaeology          | WHY + IMPACT; decisions; verification status                  |
-| Task-list Outcome bullet | Integration-time review          | Synthesis from subtasks; spec → outcome traceability          |
-| Status-file pointers     | Next session's session-init      | One-line pointers — what was done / what's next               |
-| SESSION-NOTES            | Next session's agent (cold load) | Personal working context; what tracked surfaces don't carry   |
-| `notes-*.md`             | Integration-time review + author | Free-form temporal scratchpad; trim-or-delete at integration  |
-| PR description           | External reviewer                | Scope summary + test plan; review entry point                 |
-| Handoff commit body      | Cross-machine resume / audit     | Handoff metadata + position pointer (recently codified)       |
+| Surface                  | Audience                         | Purpose                                                      |
+| ------------------------ | -------------------------------- | ------------------------------------------------------------ |
+| Commit body              | Future code archaeology          | WHY + IMPACT; decisions; verification status                 |
+| Task-list Outcome bullet | Integration-time review          | Synthesis from subtasks; spec → outcome traceability         |
+| Status-file pointers     | Next session's session-init      | One-line pointers — what was done / what's next              |
+| SESSION-NOTES            | Next session's agent (cold load) | Personal working context; what tracked surfaces don't carry  |
+| `notes-*.md`             | Integration-time review + author | Free-form temporal scratchpad; trim-or-delete at integration |
+| PR description           | External reviewer                | Scope summary + test plan; review entry point                |
+| Handoff commit body      | Cross-machine resume / audit     | Handoff metadata + position pointer (recently codified)      |
 
 ### Routing principles
 
@@ -453,5 +469,5 @@ Captured 2026-05-20 in maintainer-side exploratory session. The parallel-session
 
 Per ADR-022, the `SESSION-NOTES` / meta pointer-field length hooks become schema-derived — the managed
 operational-state document schema owns the field set and which fields are pointer-shaped vs. free-text,
-so enforcement reads from one schema rather than per-field hooks. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+so enforcement reads from one schema rather than per-field hooks. See `adr-022-managed-operational-state-documents.md` §
+Coordination.

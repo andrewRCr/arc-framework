@@ -1,24 +1,10 @@
-/** Typed Result composition and the sole adapter to public status Probe slots. */
+/** Typed local slot outcomes and the adapter to public status Probe slots. */
 
-import {
-  ArcError,
-  errAsync,
-  fromAsyncThrowable,
-  type Result,
-  type ResultAsync,
-} from "../../lib/kernel/index.js";
+import { ArcError } from "../../lib/kernel/index.js";
 import type {
   Probe,
-  SessionSharedProbes,
 } from "./types.js";
-import type { ActiveSessionInitResult } from "../active/types.js";
-import type { UserSessionInitStatusResult } from "../user/types.js";
-import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
-import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
-
-const IDENTITY_MISSING_MESSAGE =
-  "User probe skipped: `arc.identity` is not configured in git config.";
+import type { SessionRemoteContext } from "../../handlers/status-remote-context.js";
 
 function causeMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -29,7 +15,8 @@ export class SessionIdentityMissingError extends ArcError {
   readonly slot: string;
 
   constructor(slot: string) {
-    super(IDENTITY_MISSING_MESSAGE, "session.identity-missing");
+    const label = slot === "user" ? "User" : "Session locus state";
+    super(`${label} probe skipped: no identity resolved from \`arc.identity\` or Git \`user.name\`. Set one with \`git config arc.identity <name>\`.`, "session.identity-missing");
     this.name = "SessionIdentityMissingError";
     this.slot = slot;
   }
@@ -63,75 +50,152 @@ export class SessionCompositionError extends ArcError {
   }
 }
 
-/** Exhaustive internal error channel for status Result composition. */
+/** Exhaustive internal error channel for status composition. */
 export type SessionStatusError =
   | SessionIdentityMissingError
   | SessionProbeError
   | SessionCompositionError;
 
-/** One resolved internal session slot. */
-export type SessionResult<Value> = Result<Value, SessionStatusError>;
+/** One resolved internal slot with the public Probe success discriminant. */
+export type SessionResult<Value, Failure extends SessionStatusError = SessionStatusError> =
+  | { ok: true; value: Value }
+  | { ok: false; error: Failure };
 
-/** Wrap one probe invocation in the typed asynchronous error channel. */
-export function safeProbe<Value>(
+/**
+ * Produce a successful local slot without changing its value identity.
+ * @param value - Resolved probe value.
+ * @returns The successful slot with its original value.
+ */
+export function resolvedSlot<Value>(value: Value): { ok: true; value: Value } {
+  return { ok: true, value };
+}
+
+/**
+ * Propagate a typed local slot failure without changing its error identity.
+ * @param error - Typed status failure.
+ * @returns The failed slot with its original error.
+ */
+export function failedSlot<Failure extends SessionStatusError>(error: Failure): { ok: false; error: Failure } {
+  return { ok: false, error };
+}
+
+/**
+ * Enrich a successful slot while preserving a failed slot.
+ * @param result - Resolved status slot.
+ * @param map - Transformation applied only to success.
+ * @returns The mapped success or unchanged failure.
+ */
+export function mapSlot<Value, Mapped, Failure extends SessionStatusError>(
+  result: SessionResult<Value, Failure>,
+  map: (value: Value) => Mapped,
+): SessionResult<Mapped, Failure> {
+  return result.ok ? resolvedSlot(map(result.value)) : result;
+}
+
+/**
+ * Resolve an intentionally fallible synchronous composition.
+ * @param operation - Composition operation label.
+ * @param slot - Destination status slot.
+ * @param compose - Synchronous composition to evaluate.
+ * @returns Its value or a typed composition failure.
+ */
+export function composeSlot<Value>(
+  operation: string,
+  slot: string,
+  compose: () => Value,
+): SessionResult<Value, SessionCompositionError> {
+  try {
+    return resolvedSlot(compose());
+  } catch (cause) {
+    return failedSlot(new SessionCompositionError(operation, slot, cause));
+  }
+}
+
+/**
+ * Resolve one probe independently, capturing synchronous and asynchronous failure.
+ * @param slot - Destination status slot.
+ * @param probe - Independent asynchronous probe.
+ * @returns Its value or a typed probe failure.
+ */
+export async function safeProbe<Value>(
   slot: string,
   probe: () => Promise<Value>,
-): ResultAsync<Value, SessionProbeError> {
-  return fromAsyncThrowable(probe, (cause) => new SessionProbeError(slot, cause))();
+): Promise<SessionResult<Value, SessionProbeError>> {
+  try {
+    return resolvedSlot(await probe());
+  } catch (cause) {
+    return failedSlot(new SessionProbeError(slot, cause));
+  }
 }
 
-/** Declare an optional probe only when its gate fires. */
-export function gatedSlot<Value>(
-  condition: boolean,
-  slot: string,
-  probe: () => Promise<Value>,
-): ResultAsync<Value, SessionProbeError> | undefined {
-  return condition ? safeProbe(slot, probe) : undefined;
+/** One memoized internal context with per-dependent probe error isolation. */
+export interface SessionRemoteContextSlot {
+  run<Value>(
+    slot: string,
+    probe: (context: SessionRemoteContext) => Promise<Value>,
+  ): Promise<SessionResult<Value, SessionProbeError>>;
 }
 
-/** Declare an identity-scoped user probe with a typed immediate absence error. */
-export function userSlot<Value>(
-  identity: string | null,
-  probe: (identity: string) => Promise<Value>,
-): ResultAsync<Value, SessionIdentityMissingError | SessionProbeError> {
-  return identity === null
-    ? errAsync(new SessionIdentityMissingError("user"))
-    : safeProbe("user", () => probe(identity));
-}
-
-/** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
-export interface SessionSharedResults {
-  user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
-  worktree: ResultAsync<WorktreeSyncStatusResult, SessionProbeError>;
-  dirty: ResultAsync<DirtyStateResult, SessionProbeError>;
-  active: ResultAsync<ActiveSessionInitResult, SessionProbeError>;
-  releaseRouting: ResultAsync<ReleaseRoutingValue, SessionProbeError>;
-}
-
-/** Declare the shared eager session probes without awaiting or aggregating them. */
-export function buildSessionSharedSlots(options: {
-  identity: string | null;
-  role: string | null;
-  probes: SessionSharedProbes;
-}): SessionSharedResults {
-  const { identity, role, probes } = options;
+/**
+ * Build the internal request-context prerequisite shared by session-init dependents.
+ * @param contextProbe - Shared request-context probe.
+ * @returns A memoized context with independent dependent failures.
+ */
+export function buildSessionRemoteContextSlot(
+  contextProbe: () => Promise<SessionRemoteContext>,
+): SessionRemoteContextSlot {
+  const context = safeProbe("remoteContext", contextProbe);
   return {
-    user: userSlot(identity, (id) => probes.user(id)),
-    worktree: safeProbe("worktree", () => probes.worktree()),
-    dirty: safeProbe("dirty", () => probes.dirty()),
-    active: safeProbe("active", () => probes.active(identity, role)),
-    releaseRouting: safeProbe("releaseRouting", () => probes.releaseRouting()),
+    run: <Value>(slot: string, probe: (value: SessionRemoteContext) => Promise<Value>) =>
+      safeProbe(slot, async (): Promise<Value> => {
+        const resolved = await context;
+        if (!resolved.ok) throw resolved.error.originalCause;
+        if (resolved.value.kind === "unavailable") {
+          throw new Error(`Session remote prerequisite failed: ${resolved.value.prerequisite}.`);
+        }
+        return probe(resolved.value);
+      }),
   };
 }
 
 /**
- * Adapt one resolved internal Result to the stable public Probe wire union.
- *
- * @param result - Independently resolved status Result
- * @returns Exact legacy success/error probe branch
+ * Declare an optional probe only when its gate fires.
+ * @param condition - Whether this probe is enabled.
+ * @param slot - Destination status slot.
+ * @param probe - Probe invoked only when enabled.
+ * @returns The pending outcome or undefined when gated off.
  */
-export function toProbe<Value>(result: Result<Value, SessionStatusError>): Probe<Value> {
-  if (result.isOk()) return { ok: true, value: result.value };
+export function gatedSlot<Value>(
+  condition: boolean,
+  slot: string,
+  probe: () => Promise<Value>,
+): Promise<SessionResult<Value, SessionProbeError>> | undefined {
+  return condition ? safeProbe(slot, probe) : undefined;
+}
+
+/**
+ * Declare an identity-scoped user probe with a typed immediate absence error.
+ * @param identity - Configured identity or null.
+ * @param probe - Identity-scoped asynchronous probe.
+ * @returns The user outcome or typed identity absence.
+ */
+export function userSlot<Value>(
+  identity: string | null,
+  probe: (identity: string) => Promise<Value>,
+): Promise<SessionResult<Value, SessionIdentityMissingError | SessionProbeError>> {
+  return identity === null
+    ? Promise.resolve(failedSlot(new SessionIdentityMissingError("user")))
+    : safeProbe("user", () => probe(identity));
+}
+
+/**
+ * Adapt one resolved internal slot to the stable public Probe wire union.
+ *
+ * @param result - Independently resolved status slot
+ * @returns Stable success/error probe branch
+ */
+export function toProbe<Value>(result: SessionResult<Value>): Probe<Value> {
+  if (result.ok) return { ok: true, value: result.value };
   return {
     ok: false,
     error: {

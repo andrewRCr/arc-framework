@@ -57,8 +57,8 @@ What are you explicitly NOT doing, even if requested? Articulate the predictable
 
 ## Principles
 
-3-5 named principles that guide decisions on this project. Quotable by name as alignment-check referents in PRs, ADRs,
-and PRDs. Default format is a bulleted list with bolded names:
+3-5 named principles that guide decisions on this project. Quotable by name as alignment-check referents
+in PRs, ADRs, and PRDs. Default format is a bulleted list with bolded names:
 `**Name**: one or two sentences on how this principle gets applied.`
 
 Principles are _discovered_, not invented — they emerge from recurring decisions that need consistent anchoring.

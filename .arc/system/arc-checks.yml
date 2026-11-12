@@ -1,0 +1,630 @@
+# yaml-language-server: $schema=./.internal/schemas/check-declaration.schema.json
+
+commit_fixes: restage
+checks:
+  format:tables:
+    command:
+      - npm
+      - run
+      - -s
+      - format:tables
+      - --
+    gate: commit
+    inputs:
+      - '*.md'
+      - packages/arc-framework/arc/**/*.md
+      - .arc/active/**/*.md
+      - .arc/backlog/**/*.md
+      - .arc/reference/adr/**/*.md
+      - .arc/reference/strategies/project/**/*.md
+      - .arc/reference/QUICK-REFERENCE.md
+      - .arc/system/rules/DEV-RULES.PROJECT.md
+      - .arc/reference/strategies/STRATEGY-INDEX.md
+      - .arc/reference/briefs/AGENT-BRIEF.PROJECT.md
+      - .arc/system/methods/assess-boundary-fit.md
+      - .arc/system/methods/assess-design-proportionality.md
+      - .arc/system/methods/assess-draft-readiness.md
+      - .arc/system/methods/assess-evidence-applicability.md
+      - .arc/system/methods/adversarial-review.md
+      - .arc/system/methods/classify-review-risk.md
+      - .arc/system/methods/classify-work-unit.md
+      - .arc/system/methods/route-discovered-work.md
+      - .arc/system/methods/commit-footer.md
+      - .arc/system/methods/commit-format.md
+      - .arc/system/methods/design-audit.md
+      - .arc/system/methods/code-review-frontline.md
+      - .arc/system/methods/code-review-standard.md
+      - .arc/system/methods/implementation-audit.md
+      - .arc/system/methods/review-chunking.md
+      - .arc/system/methods/code-review-author.md
+      - .arc/system/methods/issue-triage.md
+      - .arc/system/methods/resolve-plan-segmentation.md
+      - .arc/system/methods/resolve-planning-depth.md
+      - .arc/system/methods/review-model.md
+      - .arc/system/methods/planning-review.md
+      - .arc/system/methods/code-review.md
+      - .arc/system/methods/verification-review.md
+      - .arc/system/methods/review-response.md
+      - .arc/system/methods/review-triage.md
+      - .arc/system/methods/session-state.md
+      - .arc/system/methods/source-grounding.md
+      - .arc/system/methods/spec-review.md
+      - .arc/system/methods/task-audit.md
+      - .arc/system/methods/test-first.md
+      - .arc/system/methods/testing-standards.md
+      - .arc/system/methods/validate-criteria.md
+      - .arc/reference/PROJECT-PRD.md
+      - .arc/reference/TECHNICAL-OVERVIEW.md
+      - '!.arc/backlog/ROADMAP.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+      - '!.arc/active/README.md'
+      - '!.arc/backlog/README.md'
+      - '!.arc/reference/adr/README.md'
+      - '!.arc/reference/strategies/project/README.md'
+      - '!.arc/reference/strategies/project/style/README.md'
+    mode: files
+    fixes: true
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync,readdirSync} from 'node:fs';import {join} from 'node:path';import {createHash} from
+          'node:crypto';const hash=createHash('sha256');function walk(dir){for(const entry of
+          readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){const
+          path=join(dir,entry.name);if(entry.isDirectory())walk(path);else
+          if(entry.isFile())hash.update(path).update('\0').update(readFileSync(path));}}walk('packages/arc-framework/src');process.stdout.write(hash.digest('hex'));
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          [".arc/system/.internal/manifest.json","packages/arc-framework/init-recipe.json"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:md:selection:
+    command: [npm, run, -s, lint:md:file, --, --allow-ignored]
+    mode: selection
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/**/WORKING-MEMORY.md'
+      - '!.arc/user/**/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+  lint:md:underwrap:selection:
+    command: [npm, run, -s, lint:md:underwrap, --, --worktree, --allow-ignored]
+    mode: selection
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+      - '!packages/arc-framework/__tests__/fixtures/**'
+      - '!**/.venv*'
+  lint:arc:links:selection:
+    command: [npm, run, -s, lint:arc:links, --]
+    mode: selection
+    inputs:
+      - '.arc/**/*.md'
+      - '!.arc/completed/**'
+      - '!.arc/**/*.template.md'
+      - '!.arc/**/template-*.md'
+  lint:md:staged:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md:staged
+    gate: commit
+    inputs:
+      - '**/*.md'
+      - '**/.markdownlint*'
+      - packages/arc-framework/src/**
+      - package.json
+      - packages/arc-framework/package.json
+      - package-lock.json
+      - .husky/pre-commit
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+    reads_index: true
+  lint:md:underwrap:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md:underwrap
+      - --
+    gate: commit
+    mode: files
+    reads_index: true
+    widen: false
+    cache: false
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+      - '!packages/arc-framework/__tests__/fixtures/**'
+  lint:md:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md
+    gate: push
+    inputs:
+      - '**/*.md'
+      - '**/.markdownlint*'
+      - packages/arc-framework/src/**
+      - package.json
+      - packages/arc-framework/package.json
+      - package-lock.json
+      - .husky/pre-commit
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+    reads_index: true
+  lint:arc:triggers:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:triggers
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/**/*.md
+      - packages/arc-framework/src/**
+  lint:arc:domain-rules:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:domain-rules
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/rules/**/*.md
+      - packages/arc-framework/src/**
+  lint:arc:section-refs:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:section-refs
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  lint:arc:links:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:links
+    gate: commit
+    inputs:
+      - .arc/**
+      - '!.arc/user/**'
+      - '!.arc/completed/**'
+      # Trees outside .arc/ that .arc/ links point into; a link into another tree needs that tree listed here.
+      - docs/**
+      - packages/arc-framework/src/scripts/audit-links.ts
+      - packages/arc-framework/src/scripts/repo-root.ts
+  lint:ts:file:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:ts:file
+      - --
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
+      - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
+    mode: files
+    root: packages/arc-framework
+  typecheck:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - typecheck
+    gate: commit
+    inputs:
+      - packages/arc-framework/tsconfig*.json
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
+      - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
+  typecheck:test:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - typecheck:test
+    gate: commit
+    inputs:
+      - packages/arc-framework/tsconfig*.json
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
+      - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
+  lint:ts:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - lint:ts
+    gate: push
+    inputs:
+      - packages/arc-framework/tsconfig*.json
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
+      - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
+  lint:sh:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:sh
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/.internal/githooks/**
+      - packages/arc-framework/arc/system/.internal/scripts/*.sh
+      - scripts/**/*.sh
+    runtime_inputs:
+      - - shellcheck
+        - --version
+  lint:workflows:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:workflows
+    gate: commit
+    inputs:
+      - .github/workflows/**
+      - .github/actionlint.*
+      - scripts/lint-workflows.sh
+    runtime_inputs:
+      - - actionlint
+        - -version
+      - - shellcheck
+        - --version
+  lint:adr:status:
+    command: [npm, run, -s, lint:adr, --, status]
+    gate: merge
+    mode: files
+    widen: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:adr:numbers:
+    command: [npm, run, -s, lint:adr, --, numbers]
+    gate: merge
+    mode: files
+    pass_paths: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  check-package-sync:
+    command:
+      - bash
+      - scripts/check-package-sync.sh
+    gate: commit
+    mode: files
+    reads_index: true
+    inputs:
+      - .arc/README.md
+      - .arc/reference/**
+      - .arc/system/**
+      - packages/arc-framework/arc/**
+      - scripts/check-package-sync.sh
+      - '!.arc/system/.internal/**'
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["scripts/check-package-sync.sh",".arc/system/.internal/manifest.json",".arc/system/.internal/scripts/arc-lib.sh"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  build:
+    command:
+      - npm
+      - run
+      - -s
+      - build
+    gate: merge
+    inputs:
+      - packages/arc-framework/src/**
+      - packages/arc-framework/arc/**
+      - packages/arc-framework/init-recipe.json
+      - packages/arc-framework/templates/**
+      - packages/arc-framework/tsup*.ts
+      - packages/arc-framework/build-compiler.config.ts
+  test:changed:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - test:changed
+      - --
+    mode: files
+    no_evidence_exit: 5
+    root: packages/arc-framework
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+      - '!packages/arc-framework/__tests__/integration/**/*.test.ts'
+      - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'
+  test:unit:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - test:unit
+      - --
+    gate: push
+    inputs:
+      - '**'
+      - '!.arc/**/*.md'
+      - '!packages/arc-framework/arc/**/*.md'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    shards:
+      count: 2
+      argument: --shard={index}/{count}
+  test:integration:
+    runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
+    command:
+      - npm
+      - run
+      - -s
+      - test:integration
+      - --
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    shards:
+      routed: true
+      count: 4
+      argument: --shard={index}/{count}
+  # The store suites run by reach: the runner selects the suites a change reaches from the base and tree it is given,
+  # as its data file declares them, and runs in full when asked, given no base, or changed itself. CI divides the
+  # selection among shards balanced by the integration durations. An opted-in routed run divides it the same way when
+  # given a duration file, and by the partitioner's fallback estimates without one; an unmanaged run stays one.
+  test:store:
+    runner: true
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/run-reach-check.mjs
+      - packages/arc-framework/__tests__/reach/store-suites.json
+    gate: merge
+    mode: files
+    pass_paths: false
+    widen: false
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    environment_inputs:
+      ARC_STORE_CHECK: value
+      ARC_STORE_BURSTS: value
+      ARC_TEST_DURATION_FILE: file
+    shards:
+      routed: true
+      count: 6
+      argument: --shard={index}/{count}
+  # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
+  test:integration:content:
+    runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
+    command:
+      - npm
+      - run
+      - -s
+      - test:integration
+      - --
+    mode: files
+    pass_paths: false
+    cache: false
+    inputs:
+      - .arc/**/*.md
+      - packages/arc-framework/arc/**/*.md
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/**'
+      - '!.arc/system/.internal/candidates/**'
+      # Decision records and supplemental research and analysis, which no integration test reads.
+      - '!.arc/reference/adr/adr-*.md'
+      - '!.arc/reference/supplemental/research/research-*.md'
+      - '!.arc/reference/supplemental/analysis/analysis-*.md'
+    shards:
+      routed: true
+      count: 4
+      argument: --shard={index}/{count}
+  test:arc-contracts:
+    runner: true
+    command:
+      - npm
+      - run
+      - -s
+      - test:arc-contracts
+    gate: commit
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+  test:e2e:
+    command:
+      - npm
+      - run
+      - -s
+      - test:e2e
+      - --
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    shards:
+      count: 4
+      argument: --shard={index}/{count}
+  # The hosted Windows/macOS job divides the tier among shards balanced by each platform's own recorded durations, or
+  # by the integration durations until a full run has saved them; the Linux job runs it whole. Outside a pull request,
+  # a change that reaches none of the store suites leaves them all out; any other run takes them all.
+  test:portability:
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
+      ARC_STORE_CHECK: value
+      ARC_STORE_BURSTS: value
+    command:
+      - npm
+      - run
+      - -s
+      - test:portability
+      - --
+    gate: merge
+    mode: files
+    pass_paths: false
+    widen: false
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+    shards:
+      count: 6
+      argument: --shard={index}/{count}
+  test:portability:macos:
+    command:
+      - npm
+      - run
+      - -s
+      - test:portability:macos
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
+  test:e2e:local:
+    runner: true
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/run-local-e2e.mjs
+    mode: files
+    select_deletions: true
+    cache: false
+    inputs:
+      - packages/arc-framework/__tests__/e2e/**
+      - scripts/run-local-e2e.mjs
+      - .arc/system/arc-checks.yml
+global_inputs:
+  - .npmrc
+  - scripts/check-install-policy.mjs
+  - package.json
+  - package-lock.json
+  - packages/arc-framework/package.json
+  - .editorconfig
+  - '**/.markdownlint*'
+  - vitest.config.ts
+  - packages/arc-framework/vitest.config.ts
+  - packages/arc-framework/tsconfig*.json
+  - packages/arc-framework/eslint.config.js
+  - packages/arc-framework/eslint-suppressions.json
+  - packages/arc-framework/eslint/**
+  - packages/arc-framework/tsup*.ts
+  - packages/arc-framework/build-compiler.config.ts
+global_runtime_inputs:
+  - - node
+    - --input-type=module
+    - -e
+    - >-
+      import {readFileSync} from 'node:fs';import {createHash} from
+      'node:crypto';process.stdout.write(createHash('sha256').update(readFileSync('node_modules/.package-lock.json')).digest('hex'));

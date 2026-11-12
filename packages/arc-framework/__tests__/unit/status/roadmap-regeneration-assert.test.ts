@@ -1,14 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
   renderRoadmapFromIndexViewResult,
+  resolveStagedTransitionOverlays,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { collectLifecycleMetaFiles } from "../../../src/lib/work-unit/lifecycle-index.js";
+import {
+  resolveTransitionRecordRelativePath,
+} from "../../../src/lib/work-unit/transition-record-store.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -30,10 +38,10 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
     "",
@@ -42,21 +50,53 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   ].join("\n");
 }
 
-function isStagedReceiptList(args: readonly string[]): boolean {
+function isStagedTransitionList(args: readonly string[]): boolean {
   return args.join("\0") === [
     "diff",
     "--cached",
     "--name-only",
-    "--diff-filter=A",
+    "--diff-filter=AM",
     "-z",
     "--",
-    ".arc/system/.internal/retirement-receipts",
+    ".arc/system/.internal/transitions",
   ].join("\0");
+}
+
+function transition(origin = "retired"): LineageRecord {
+  return LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "decompose", successors: [{ name: "member" }], incoming: [] , outgoing: []});
+}
+
+interface StagedTransition {
+  record: LineageRecord;
+  path: string;
+}
+
+function makeStagedTransitionsExec(records: readonly StagedTransition[]): GitExec {
+  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (isStagedTransitionList(args)) {
+      return { stdout: records.map(({ path }) => path).join("\0") + "\0", stderr: "" };
+    }
+    if (args[0] === "ls-tree" && args[2] === "HEAD") {
+      return { stdout: "", stderr: "" };
+    }
+    if (args[0] === "show") {
+      const record = records.find(({ path }) => args[1] === `:${path}`);
+      if (record !== undefined) return { stdout: canonicalize(record.record), stderr: "" };
+    }
+    throw new Error(`unexpected git args: ${args.join(" ")}`);
+  });
+}
+
+function makeStagedTransitionExec(
+  record: LineageRecord,
+  path = resolveTransitionRecordRelativePath(record.origin.name),
+): GitExec {
+  return makeStagedTransitionsExec([{ record, path }]);
 }
 
 function makeIndexExec(files: Record<string, string>): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+    if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       const lines = Object.keys(files)
@@ -86,7 +126,7 @@ function makeTransitionExec(
 ): GitExec {
   const metaPath = `.arc/active/meta-${input.slug}.md`;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+    if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       return {
@@ -114,7 +154,9 @@ function makeTransitionExec(
     }
     if (args[0] === "worktree") {
       return {
-        stdout: `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        stdout: worktreePorcelainZ(
+          `worktree /repo\nHEAD ${"1".repeat(40)}\nbranch refs/heads/${input.branch}\n`,
+        ),
         stderr: "",
       };
     }
@@ -189,6 +231,104 @@ describe("createIndexProjectViewFs", () => {
       ":.arc/backlog/planned/ready/meta-ready.md",
     ], { cwd: "/repo" });
   });
+
+  it("lists a staged symlink as neither file nor directory, so the lifecycle walk skips it", async () => {
+    const link = ".arc/active/meta-linked twin.md";
+    const real = ".arc/active/meta-real.md";
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] !== "ls-files") throw new Error(`unexpected git args: ${args.join(" ")}`);
+      const dir = args.at(-1) ?? "";
+      const rows = [`120000 object-id 0\t${link}`, `100755 object-id 0\t${real}`];
+      return { stdout: rows.filter((row) => row.includes(`\t${dir}/`)).join("\n"), stderr: "" };
+    });
+    const fs = createIndexProjectViewFs({ cwd: "/repo", exec });
+
+    const entries = await fs.readdir("/repo/.arc/active");
+
+    expect(entries.map((entry) => [entry.name, entry.isFile(), entry.isDirectory()])).toEqual([
+      ["meta-linked twin.md", false, false],
+      ["meta-real.md", true, false],
+    ]);
+    await expect(collectLifecycleMetaFiles("/repo", fs)).resolves.toEqual([
+      { location: "active", path: `/repo/${real}` },
+    ]);
+  });
+});
+
+describe("resolveStagedTransitionOverlays", () => {
+  it("derives suppression authority from a path-bound decomposition transition", async () => {
+    const record = transition();
+
+    await expect(resolveStagedTransitionOverlays({
+      cwd: "/repo",
+      exec: makeStagedTransitionExec(record),
+    })).resolves.toMatchObject([{
+      kind: "validated",
+      origin: record.origin.name,
+      sourceBranch: "plan/retired",
+    }]);
+  });
+
+  it("derives direct-transition suppression from the origin meta branch at HEAD", async () => {
+    const record: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "retired" },
+      kind: "rename",
+      successors: [{ name: "renamed" }],
+      incoming: [],
+    });
+    const path = resolveTransitionRecordRelativePath(record.origin.name);
+    const metaPath = ".arc/backlog/planned/retired/meta-retired.md";
+    const exec: GitExec = async (_command, args) => {
+      if (isStagedTransitionList(args)) return { stdout: `${path}\0`, stderr: "" };
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(record), stderr: "" };
+      }
+      if (args[0] === "ls-tree" && args[1] === "-z") return { stdout: "", stderr: "" };
+      if (args[0] === "ls-tree" && args[1] === "-r") {
+        return { stdout: `${metaPath}\0`, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `HEAD:${metaPath}`) {
+        return { stdout: transitionMeta(record.origin.name, "Planning", "feat/retired"), stderr: "" };
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(resolveStagedTransitionOverlays({ cwd: "/repo", exec })).resolves.toMatchObject([{
+      kind: "validated",
+      origin: record.origin.name,
+      sourceBranch: "feat/retired",
+    }]);
+  });
+
+  it("rejects suppression authority when the staged path does not match the content origin", async () => {
+    const record = transition();
+    const mismatchedPath = resolveTransitionRecordRelativePath("other");
+
+    await expect(resolveStagedTransitionOverlays({
+      cwd: "/repo",
+      exec: makeStagedTransitionExec(record, mismatchedPath),
+    })).resolves.toEqual([]);
+  });
+
+  it("admits every terminal transition carried by one staged merge", async () => {
+    const records = [
+      transition(),
+      transition("other"),
+    ];
+
+    await expect(resolveStagedTransitionOverlays({
+      cwd: "/repo",
+      exec: makeStagedTransitionsExec(records.map((record) => ({
+        record,
+        path: resolveTransitionRecordRelativePath(record.origin.name),
+      }))),
+    })).resolves.toMatchObject([
+      { kind: "validated", origin: "retired", sourceBranch: "plan/retired" },
+      { kind: "validated", origin: "other", sourceBranch: "plan/other" },
+    ]);
+  });
+
 });
 
 describe("renderRoadmapFromIndex", () => {
@@ -229,6 +369,11 @@ describe("renderRoadmapFromIndexViewResult", () => {
     // the assert appends).
     expect(`${view.result.markdown}\n`).toBe(markdown);
     expect(view.result.facts.some((fact) => fact.slug === "ready")).toBe(true);
+    expect(exec).not.toHaveBeenCalledWith(
+      "git",
+      expect.arrayContaining(["diff", "--cached"]),
+      expect.anything(),
+    );
   });
 
   it.each([

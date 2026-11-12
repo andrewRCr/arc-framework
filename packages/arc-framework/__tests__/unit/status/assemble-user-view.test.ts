@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { assembleStatusUserView } from "../../../src/lib/status/assemble-user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 /**
  * Exec stub answering the reads the assembled view makes in local-only mode:
@@ -11,7 +12,9 @@ import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 function makeExec(overrides: { forEachRef?: string; worktreeList?: string } = {}): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") return { stdout: overrides.forEachRef ?? "", stderr: "" };
-    if (args[0] === "worktree") return { stdout: overrides.worktreeList ?? "", stderr: "" };
+    if (args[0] === "worktree") {
+      return { stdout: worktreePorcelainZ(overrides.worktreeList ?? ""), stderr: "" };
+    }
     if (args[0] === "ls-remote") throw new Error("ls-remote must not run on the local-only path");
     return { stdout: "", stderr: "" };
   });

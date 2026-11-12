@@ -6,13 +6,16 @@
  * sequence.
  */
 
-import { ensureDir } from "./template/index.js";
+import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { detectHookManager } from "./hook-manager.js";
-import { integrateHooks } from "./hook-integration.js";
-import { join } from "node:path";
+import { ARC_GIT_HOOKS_DIR, integrateHooks } from "./hook-integration.js";
+import { join, dirname } from "node:path";
+import { preparePersonalIdentitySetup, seedPersonalIdentityRecords, type PersonalIdentitySetupOptions, type PreparedPersonalIdentitySetup } from "./personal-identity-setup.js";
+import { setTimeout as delay } from "node:timers/promises";
 import type { CoreIO } from "./types.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 import type { AccessFn } from "./hook-manager.js";
+import { normalizeGitRejection } from "./git/process-error.js";
 
 /** Options for git integration setup. */
 export interface GitIntegrationOptions {
@@ -21,7 +24,30 @@ export interface GitIntegrationOptions {
   readFile: ReadFileFn;
   writeFile: WriteFileFn;
   access: AccessFn;
+  /** Track the derived ROADMAP merge-driver attribute for arc-in-git projects. */
+  enableRoadmapConflictRemedy?: boolean;
 }
+
+/** Attribute and local driver name for the derived ROADMAP conflict surface. */
+export const ROADMAP_MERGE_ATTRIBUTE = ".arc/backlog/ROADMAP.md merge=arc-roadmap";
+export const ROADMAP_MERGE_DRIVER_NAME = "ARC ROADMAP conflict remedy";
+export const ROADMAP_MERGE_DRIVER_COMMAND = [
+  "git merge-file %A %O %B",
+  "status=$?",
+  "if [ \"$status\" -ne 0 ]; then printf '%s\\n' 'ROADMAP conflict: if this is the only unresolved path, run \"arc hook-remedy-roadmap-conflict\" after Git finishes to regenerate and stage it.' >&2; fi",
+  "exit \"$status\"",
+].join("; ");
+
+/** I/O needed to install the local ROADMAP driver and optional tracked attribute. */
+export type RoadmapConflictRemedySetupOptions = Pick<
+  GitIntegrationOptions,
+  "cwd" | "exec" | "readFile" | "writeFile"
+> & {
+  /** Injectable wait boundary for bounded Git config retries. */
+  waitForRetry?: (delayMs: number) => Promise<void>;
+};
+
+const GIT_CONFIG_RETRY_DELAYS_MS = [10, 25, 50, 100] as const;
 
 /**
  * Configure git integration for an ARC project.
@@ -31,17 +57,86 @@ export interface GitIntegrationOptions {
  * and join need this.
  *
  * @param options - Git integration options with injectable I/O
+ * @returns Native hook-manager installation instructions
  */
 export async function configureGitIntegration(
   options: GitIntegrationOptions,
-): Promise<void> {
-  const { cwd, exec, readFile, writeFile, access } = options;
+): Promise<string[]> {
+  const { cwd, exec, readFile, writeFile, access, enableRoadmapConflictRemedy = false } = options;
 
   const hookManager = await detectHookManager(cwd, access);
+  let messages: string[] = [];
   if (hookManager) {
-    await integrateHooks(hookManager, readFile, writeFile);
+    messages = await integrateHooks(hookManager, readFile, writeFile);
   } else {
-    await exec("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"]);
+    await exec("git", ["config", "core.hooksPath", ARC_GIT_HOOKS_DIR]);
+  }
+
+  await configureRoadmapConflictRemedy(
+    { cwd, exec, readFile, writeFile },
+    enableRoadmapConflictRemedy,
+  );
+  return messages;
+}
+
+/**
+ * Install the repository-local ROADMAP merge driver and, for arc-in-git,
+ * track its scoped attribute.
+ *
+ * @param options - Repository and injectable I/O
+ * @param enableAttribute - Whether the project owns a tracked ROADMAP
+ */
+export async function configureRoadmapConflictRemedy(
+  options: RoadmapConflictRemedySetupOptions,
+  enableAttribute: boolean,
+): Promise<void> {
+  const { cwd, exec, readFile, writeFile, waitForRetry = delay } = options;
+  await setLocalGitConfigWithRetry(
+    exec,
+    "merge.arc-roadmap.name",
+    ROADMAP_MERGE_DRIVER_NAME,
+    waitForRetry,
+  );
+  await setLocalGitConfigWithRetry(
+    exec,
+    "merge.arc-roadmap.driver",
+    ROADMAP_MERGE_DRIVER_COMMAND,
+    waitForRetry,
+  );
+
+  if (enableAttribute) {
+    await writeArcGitattributesBlock(
+      join(cwd, ".gitattributes"),
+      [ROADMAP_MERGE_ATTRIBUTE],
+      readFile,
+      writeFile,
+    );
+  }
+}
+
+async function setLocalGitConfigWithRetry(
+  exec: CoreIO["exec"],
+  key: string,
+  value: string,
+  waitForRetry: (delayMs: number) => Promise<void>,
+): Promise<void> {
+  const args = ["config", "--local", key, value];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await exec("git", args);
+      return;
+    } catch (error) {
+      const normalized = normalizeGitRejection(error, { command: "git", args });
+      const retryDelay = GIT_CONFIG_RETRY_DELAYS_MS[attempt];
+      if (
+        normalized.kind !== "nonzero-exit"
+        || normalized.exitCode === undefined
+        || retryDelay === undefined
+      ) {
+        throw normalized;
+      }
+      await waitForRetry(retryDelay);
+    }
   }
 }
 
@@ -50,7 +145,7 @@ export async function configureGitIntegration(
  * creation (`arc init` / `arc join` via {@link runPostInitSetup}, and `arc user add`).
  * SESSION-NOTES is intentionally excluded — it is per-WU and seeded lazily by
  * `arc user open` once a work unit is anchored. Every creation path must seed the same
- * set, so both loops read this single source.
+ * set in the legacy filesystem arm, so both loops read this single source.
  */
 export const CROSS_WU_INSTANCE_FILES = [
   "WORKING-MEMORY.md",
@@ -58,7 +153,9 @@ export const CROSS_WU_INSTANCE_FILES = [
 ] as const;
 
 /** Options for post-init user setup. */
-export interface PostInitSetupOptions {
+export interface PostInitSetupOptions extends PersonalIdentitySetupOptions {
+  preparedIdentity?: PreparedPersonalIdentitySetup | null;
+  command?: "init" | "join";
   arcDir: string;
   internalTemplateDir: string;
   io: CoreIO;
@@ -70,19 +167,28 @@ export interface PostInitSetupOptions {
  *
  * Stores identity in git config and creates the user directory with the
  * cross-WU instance files (WORKING-MEMORY, USER-INBOX) seeded from the
- * internal templates. SESSION-NOTES is per-WU and seeded lazily by
- * `arc user open` once a work unit is anchored — there is no anchored WU
+ * internal templates. With off-branch state, confirmation precedes identity
+ * changes and only absent personal records are created in the selected Store.
+ * SESSION-NOTES is per-WU and seeded lazily by `arc user open` in legacy
+ * workspaces once a work unit is anchored — there is no anchored WU
  * at init time. Per-user files seed cross-PM-mode (R65b) — `pm.mode` no
  * longer gates user-directory seeding.
+ * @returns Whether personal setup selected off-branch state.
  */
 export async function runPostInitSetup(
   options: PostInitSetupOptions,
-): Promise<void> {
+): Promise<boolean> {
   const { arcDir, internalTemplateDir, io, identityResult } = options;
 
   if (identityResult) {
+    const prepared = options.preparedIdentity !== undefined ? options.preparedIdentity
+      : await preparePersonalIdentitySetup({ ...options, cwd: dirname(arcDir), identity: identityResult, command: options.command ?? "init" });
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
 
+    if (prepared !== null) {
+      await seedPersonalIdentityRecords({ prepared, identity: identityResult, io, internalTemplateDir });
+      return prepared.store.capabilities.stateOffBranch;
+    }
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
 
@@ -91,4 +197,5 @@ export async function runPostInitSetup(
       await io.writeFile(join(userDir, filename), content);
     }
   }
+  return false;
 }

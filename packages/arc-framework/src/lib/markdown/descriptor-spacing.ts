@@ -22,44 +22,29 @@ export interface TaskDescriptorSpacingDiagnostic {
   readonly message: string;
 }
 
-interface DescriptorEntry {
+/** One root task descriptor and the physical lines its value spans. */
+export interface TaskDescriptorExtent {
+  readonly parent: TaskStructureItem;
   readonly label: string;
   readonly startLine: number;
-  endLine: number;
-  wrapped: boolean;
+  readonly endLine: number;
+  readonly wrapped: boolean;
 }
 
-const PEER_DESCRIPTOR_RE = /^- _(?<label>Goal|Context|Rationale|Approach|Shape|Note):_(?:\s|$)/u;
-const ADDITIONAL_CONTEXT_RE = /^- \*\*Additional Context:\*\*(?:\s|$)/u;
-const CONTINUATION_RE = /^(?: {2,}|\t)\S/u;
-const LIST_ITEM_RE = /^\s*(?:[-+*]|\d+[.)])\s+/u;
-
-/**
- * Validate root descriptor spacing without reading from or writing to disk.
- *
- * @param document - Repository-relative path and Markdown content
- * @returns Every malformed adjacent descriptor pair
- */
-export function validateTaskDescriptorSpacing(
-  document: TaskDescriptorDocument,
-): readonly TaskDescriptorSpacingDiagnostic[] {
-  const scan = scanTaskListStructure(document.content);
+/** Resolve opening descriptor extents for every structurally valid parent task. */
+export function scanTaskDescriptorExtents(content: string): readonly TaskDescriptorExtent[] {
+  const scan = scanTaskListStructure(content);
   if (scan.status === "malformed") return [];
 
-  const diagnostics: TaskDescriptorSpacingDiagnostic[] = [];
+  const extents: TaskDescriptorExtent[] = [];
   let parent: TaskStructureItem | null = null;
   let entries: DescriptorEntry[] = [];
   let clusterClosed = true;
 
   const finishCluster = (): void => {
-    if (parent !== null && entries.some(({ wrapped }) => wrapped)) {
-      for (let index = 1; index < entries.length; index += 1) {
-        const previous = entries[index - 1];
-        const next = entries[index];
-        if (previous === undefined || next === undefined) continue;
-        if (next.startLine > previous.endLine + 1) continue;
-        diagnostics.push(createDiagnostic(document.path, parent, previous, next));
-      }
+    const currentParent = parent;
+    if (currentParent !== null) {
+      extents.push(...entries.map((entry) => ({ parent: currentParent, ...entry })));
     }
     entries = [];
   };
@@ -89,6 +74,49 @@ export function validateTaskDescriptorSpacing(
     });
   }
   finishCluster();
+  return extents;
+}
+
+interface DescriptorEntry {
+  readonly label: string;
+  readonly startLine: number;
+  endLine: number;
+  wrapped: boolean;
+}
+
+const PEER_DESCRIPTOR_RE = /^- _(?<label>Goal|Context|Rationale|Approach|Shape|Note):_(?:\s|$)/u;
+const ADDITIONAL_CONTEXT_RE = /^- \*\*Additional Context:\*\*(?:\s|$)/u;
+const CONTINUATION_RE = /^(?: {2,}|\t)\S/u;
+const LIST_ITEM_RE = /^\s*(?:[-+*]|\d+[.)])\s+/u;
+
+/**
+ * Validate root descriptor spacing without reading from or writing to disk.
+ *
+ * @param document - Repository-relative path and Markdown content
+ * @returns Every malformed adjacent descriptor pair
+ */
+export function validateTaskDescriptorSpacing(
+  document: TaskDescriptorDocument,
+): readonly TaskDescriptorSpacingDiagnostic[] {
+  const diagnostics: TaskDescriptorSpacingDiagnostic[] = [];
+  const extents = scanTaskDescriptorExtents(document.content);
+  for (let start = 0; start < extents.length;) {
+    const parent = extents[start]?.parent;
+    if (parent === undefined) break;
+    let end = start + 1;
+    while (extents[end]?.parent.lineHint === parent.lineHint) end += 1;
+    const entries = extents.slice(start, end);
+    if (entries.some(({ wrapped }) => wrapped)) {
+      for (let index = 1; index < entries.length; index += 1) {
+        const previous = entries[index - 1];
+        const next = entries[index];
+        if (previous === undefined || next === undefined) continue;
+        if (next.startLine > previous.endLine + 1) continue;
+        diagnostics.push(createDiagnostic(document.path, parent, previous, next));
+      }
+    }
+    start = end;
+  }
   return diagnostics;
 }
 

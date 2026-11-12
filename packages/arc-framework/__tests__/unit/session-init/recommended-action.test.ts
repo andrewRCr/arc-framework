@@ -27,16 +27,18 @@ import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-syn
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import {
   BaseBranchSyncStatusResultSchema,
+  type BaseBranchSnapshotAnalysisResult,
   type BaseBranchSyncStatusResult,
 } from "../../../src/lib/git/base-branch-sync.js";
 import type { UserSessionInitStatusResult } from "../../../src/commands/user/types.js";
 
 function baseDistance(
-  overrides: Partial<BaseDistanceStatusResult> = {},
+  overrides: Partial<Extract<BaseDistanceStatusResult, { verdict: "clean" | "reconcile" }>> = {},
 ): BaseDistanceStatusResult {
   return {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
+    movement: "disjoint",
     integrationEvidence: {
       coverage: "complete", scannedCommitCount: 0, events: [],
       unclassifiedCommitCount: 0, truncated: false, limitations: [],
@@ -44,6 +46,30 @@ function baseDistance(
     overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     register: null,
     ...overrides,
+    headOid: overrides.headOid ?? "b".repeat(40),
+  };
+}
+
+function skippedBaseDistance(): BaseDistanceStatusResult {
+  return {
+    mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+    base: "main", baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+  };
+}
+
+function unavailableBaseDistance(): BaseDistanceStatusResult {
+  return {
+    mode: "advisory", verdict: "unavailable", state: "remote-unavailable", ahead: 0, behind: 0,
+    base: "main", baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+    unavailableReason: "distance-read-failed",
+    detail: "Base-distance evidence is unavailable.",
+    coordinates: { base: "main", baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: "Refresh base evidence before relying on this advisory.",
+    },
   };
 }
 
@@ -422,8 +448,8 @@ describe("inferBaseDistance — analyzer-owned advisory", () => {
   });
 
   it("clean, skipped, and unavailable verdicts skip", () => {
-    for (const verdict of ["clean", "skipped", "unavailable"] as const) {
-      expect(inferBaseDistance(baseDistance({ verdict })).recommendedAction).toBe("skip");
+    for (const result of [baseDistance(), skippedBaseDistance(), unavailableBaseDistance()]) {
+      expect(inferBaseDistance(result).recommendedAction).toBe("skip");
     }
   });
 
@@ -448,6 +474,52 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
   }
 
   const policy = (p: BaseBranchSyncPullPolicy): BaseBranchSyncPullPolicy => p;
+
+  it("offers only the base-sync remedy while advertised base objects are pending", () => {
+    const pending: BaseBranchSnapshotAnalysisResult = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      unavailableReason: "base-object-pending-fetch",
+      refreshRemedy: {
+        text: "Materialize and synchronize the local main branch.",
+        argv: ["arc", "base", "sync", "--json"],
+      },
+      guidance: null,
+      remoteEvidence: "pending-fetch",
+    };
+
+    expect(inferBaseBranchSync(pending, policy("prompt"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    });
+    // The always policy does not convert the guarded remedy into a fetch-into-ref either.
+    expect(inferBaseBranchSync(pending, policy("always"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    });
+  });
+
+  it("surfaces unreachable evidence as local-safe guidance without a refresh offer", () => {
+    const unreachable: BaseBranchSnapshotAnalysisResult = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      refreshRemedy: null,
+      guidance: "Remote base evidence is unavailable (auth).",
+      remoteEvidence: "unreachable",
+      failureReason: "auth",
+    };
+
+    expect(inferBaseBranchSync(unreachable, policy("always"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Remote base evidence is unavailable (auth).",
+    });
+  });
 
   it("always + behind & fast-forwardable → pull, no prompt text", () => {
     const result = inferBaseBranchSync(baseBranchSync({ state: "remote-ahead", behind: 3 }), policy("always"));

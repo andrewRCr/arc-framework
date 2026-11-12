@@ -1,70 +1,197 @@
 /** Canonical channel-neutral disposition proposals and approval records. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import type { CanonicalDigest, KernelRegistry } from "../../../lib/kernel/index.js";
+import { CandidateVerificationApplicabilitySchema } from
+  "../../../lib/work-unit/candidate-attestation.js";
+import { ReviewFindingIdentitySchema } from "./finding-records.js";
 import { FindingDispositionSchema, ReviewSeveritySchema } from "./review-primitives.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const NonEmptyTextSchema = z.string().trim().min(1).max(4096);
 const ReferenceSchema = z.string().trim().min(1);
+/** A finding's issue in a phrase, for the report's index and heading. */
+export const DispositionTitleSchema = z.string().trim().min(1).max(160);
+/** The reviewer's claim in plain words, stated before ARC's verdict on it. */
+export const DispositionIssueSchema = z.string().trim().min(1).max(1024);
 
-export const DispositionReportItemSchema = z.strictObject({
-  findingId: z.string().trim().min(1).max(512),
+const DispositionReportItemFieldsSchema = z.strictObject({
+  findingId: ReviewFindingIdentitySchema,
   sourceIdentity: IdentifierSchema,
   locus: z.string().trim().min(1).max(2048),
-  sourceVerification: z.enum(["verified", "not-supported"]),
   verificationRefs: z.array(ReferenceSchema).min(1),
-  severity: ReviewSeveritySchema,
-  nit: z.literal(true).optional(),
-  disposition: FindingDispositionSchema,
-  gating: z.enum(["blocking", "record-only"]),
+  reportedSeverity: ReviewSeveritySchema,
+  reportedNit: z.literal(true).optional(),
+  title: DispositionTitleSchema.optional(),
+  issue: DispositionIssueSchema.optional(),
   rationale: NonEmptyTextSchema,
   recommendation: NonEmptyTextSchema,
   openQuestions: z.array(NonEmptyTextSchema),
-}).superRefine((item, context) => {
-  if (item.nit === true && item.severity !== "minor") {
-    context.addIssue({ code: "custom", message: "nit is valid only for minor findings", path: ["nit"] });
-  }
-  if (item.nit === true && item.gating !== "record-only") {
-    context.addIssue({ code: "custom", message: "nit findings are record-only", path: ["gating"] });
-  }
-  if (item.severity !== "minor" && item.gating !== "blocking") {
-    context.addIssue({ code: "custom", message: "blocker and major findings are blocking", path: ["gating"] });
-  }
-  if (item.sourceVerification === "not-supported" && item.disposition !== "reject") {
+});
+
+const VerifiedDispositionSchema = DispositionReportItemFieldsSchema.extend({
+  sourceVerification: z.literal("verified"),
+  verifiedSeverity: ReviewSeveritySchema,
+  verifiedNit: z.literal(true).optional(),
+  disposition: FindingDispositionSchema,
+  gating: z.enum(["blocking", "record-only"]),
+});
+
+const UnsupportedDispositionSchema = DispositionReportItemFieldsSchema.extend({
+  sourceVerification: z.literal("not-supported"),
+  verifiedSeverity: z.null(),
+  disposition: z.literal("reject"),
+  gating: z.literal("record-only"),
+});
+
+export const DispositionReportItemSchema = z.union([
+  VerifiedDispositionSchema,
+  UnsupportedDispositionSchema,
+]).superRefine((item, context) => {
+  if (item.reportedNit === true && item.reportedSeverity !== "minor") {
     context.addIssue({
       code: "custom",
-      message: "a finding not supported by source must be rejected",
-      path: ["disposition"],
+      message: "reported nit is valid only for reported minor findings",
+      path: ["reportedNit"],
     });
+  }
+  if (item.sourceVerification === "not-supported") return;
+  if (item.verifiedNit === true && item.verifiedSeverity !== "minor") {
+    context.addIssue({
+      code: "custom",
+      message: "verified nit is valid only for verified minor findings",
+      path: ["verifiedNit"],
+    });
+  }
+  if (item.verifiedNit === true && item.gating !== "record-only") {
+    context.addIssue({ code: "custom", message: "verified nit findings are record-only", path: ["gating"] });
+  }
+  if (item.verifiedSeverity !== "minor" && item.gating !== "blocking") {
+    context.addIssue({ code: "custom", message: "critical and major findings are blocking", path: ["gating"] });
   }
 });
 export type DispositionReportItem = z.infer<typeof DispositionReportItemSchema>;
 
-const DispositionSetFieldsSchema = z.strictObject({
+/** Resolve the approved verified grade, or null when the observation was not supported. */
+export function verifiedDispositionSeverity(item: DispositionReportItem): z.infer<typeof ReviewSeveritySchema> | null {
+  return item.verifiedSeverity;
+}
+
+/** Resolve the reported grade used to bind a disposition to its producer finding. */
+export function reportedDispositionSeverity(item: DispositionReportItem): z.infer<typeof ReviewSeveritySchema> {
+  return item.reportedSeverity;
+}
+
+/** Resolve the reported nit marker independently from the verified classification. */
+export function reportedDispositionNit(item: DispositionReportItem): true | undefined {
+  return item.reportedNit;
+}
+
+export const FrontlineDispositionBindingSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  sourceBindingId: CanonicalDigestSchema,
+  outcomeDigest: CanonicalDigestSchema,
+});
+export type FrontlineDispositionBinding = z.infer<typeof FrontlineDispositionBindingSchema>;
+interface DispositionProducerBinding {
+  producerId: string;
+  resultDigest: CanonicalDigest;
+}
+export type DispositionSourceContext = DispositionProducerBinding & (
+  | {
+      kind: "rubric";
+      policyVersion: CanonicalDigest;
+      rubricVersion: string;
+      rubricDigest: CanonicalDigest;
+    }
+  | {
+      kind: "frontline";
+      policyVersion: CanonicalDigest;
+      frontlineBinding: FrontlineDispositionBinding;
+    }
+);
+
+const DispositionSetFieldsShape = {
   schemaVersion: z.literal(2),
   semanticsVersion: z.literal("review-gate/v2"),
   targetId: CanonicalDigestSchema,
+  producerId: IdentifierSchema,
+  resultDigest: CanonicalDigestSchema,
   policyVersion: CanonicalDigestSchema,
-  rubricVersion: IdentifierSchema,
-  rubricDigest: CanonicalDigestSchema,
+  rubricVersion: IdentifierSchema.optional(),
+  rubricDigest: CanonicalDigestSchema.optional(),
+  frontlineBinding: FrontlineDispositionBindingSchema.optional(),
   proposedBy: IdentifierSchema,
+  proposedVerification: CandidateVerificationApplicabilitySchema,
   findings: z.array(DispositionReportItemSchema).min(1),
-});
+};
+
+function validateDispositionSourceBinding(
+  value: {
+    rubricVersion?: string;
+    rubricDigest?: string;
+    frontlineBinding?: FrontlineDispositionBinding;
+  },
+  context: z.RefinementCtx,
+): void {
+  const hasRubricVersion = value.rubricVersion !== undefined;
+  const hasRubricDigest = value.rubricDigest !== undefined;
+  if (hasRubricVersion !== hasRubricDigest) {
+    context.addIssue({
+      code: "custom",
+      message: "rubric version and digest must be supplied together",
+      path: [hasRubricVersion ? "rubricDigest" : "rubricVersion"],
+    });
+    return;
+  }
+  if (hasRubricVersion === (value.frontlineBinding !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "disposition set must bind exactly one rubric or frontline source context",
+      path: [value.frontlineBinding === undefined ? "rubricVersion" : "frontlineBinding"],
+    });
+  }
+}
 
 export const DispositionSetPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.disposition-set/v2"),
-  ...DispositionSetFieldsSchema.shape,
-});
+  ...DispositionSetFieldsShape,
+}).superRefine(validateDispositionSourceBinding);
 export type DispositionSetPreimage = z.infer<typeof DispositionSetPreimageSchema>;
 
 export const DispositionSetSchema = z.strictObject({
-  ...DispositionSetFieldsSchema.shape,
+  ...DispositionSetFieldsShape,
   dispositionSetId: CanonicalDigestSchema,
-});
+}).superRefine(validateDispositionSourceBinding);
 export type DispositionSet = z.infer<typeof DispositionSetSchema>;
+
+/**
+ * Compare one disposition set with the exact source context that produced its findings.
+ *
+ * @param set - Canonical disposition set to inspect.
+ * @param context - Durable source context expected for that set.
+ * @returns Whether policy and source-specific bindings match exactly.
+ */
+export function dispositionSetMatchesSourceContext(
+  set: DispositionSet,
+  context: DispositionSourceContext,
+): boolean {
+  return set.producerId === context.producerId
+    && set.resultDigest === context.resultDigest
+    && (context.kind === "rubric"
+    ? set.policyVersion === context.policyVersion
+      && set.rubricVersion === context.rubricVersion
+      && set.rubricDigest === context.rubricDigest
+      && set.frontlineBinding === undefined
+    : set.policyVersion === context.policyVersion
+      && set.rubricVersion === undefined
+      && set.rubricDigest === undefined
+      && set.frontlineBinding?.operationId === context.frontlineBinding.operationId
+      && set.frontlineBinding.sourceBindingId === context.frontlineBinding.sourceBindingId
+      && set.frontlineBinding.outcomeDigest === context.frontlineBinding.outcomeDigest);
+}
 
 export const DispositionApprovalSchema = z.strictObject({
   schemaVersion: z.literal(2),

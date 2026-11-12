@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent — distilled "what + why," not framing
-  prose. Body sections carry the full context.}
+- **Purpose:** {One- to three-line north-star summary of the WU's intent, opening with a one-sentence thesis.
+  Distilled "what + why," not framing prose; body sections carry the full context.}
 
 ---
 
@@ -11,6 +11,13 @@
 design and its tradeoffs_ (a refactor, migration, internal architecture, or perf rework). (When the open
 question is instead _what should this do_, use the `PRD` subtype.) The heart is the Proposed Design and the
 Alternatives that justify it.}
+
+{Make the structured design, interfaces, invariants, failure behavior, decisive rationale, and criteria a complete
+technical contract understandable without planning history. Replace planning references with their required
+substance; preserve technical precision and permitted references, and state unshipped prerequisite contracts with
+availability conditions. An accessible complementary PRD/RFC pair by distinct product and engineering authors may
+share context under its existing division of content. Apply [spec-review][spec-review]'s common reader checks to
+the specification set.}
 
 <!--
   Paired-spec mode — when this RFC is authored alongside a product spec (`spec-{name}-prd.md`), it goes
@@ -30,6 +37,8 @@ a reader to evaluate the design without prior briefing.
 What the design must achieve — the outcomes a correct design satisfies. Focus on ends, not the mechanism.
 
 ## Non-Goals · `omit-when-paired`
+
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this design explicitly won't address. Bounds the design space and the review.
 
@@ -58,3 +67,17 @@ aspirations.
 
 Design questions still open — resolved during the work, not deferred as debt. A "resolve-before-starting"
 blocker here means the design isn't settled enough to build.
+
+## Amendments
+
+{The amendment log. One row per amendment — the amendment's identity, and the only mandatory write on every arm.
+The first amendment adds this section when the form's template predates it; the row grammar and its token sets are
+defined once, in [`amend-design`][amend-design]. Replace the example row with the first real one.}
+
+- **A1** — {YYYY-MM-DD} — design: {one-sentence summary of what the amendment settles}. _Supersedes:_
+  § Non-Goals ¶3. _Trigger:_ 4.2 member. _Work:_ 4.R. _Revalidated:_ 4.R.c.
+
+---
+
+[amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md

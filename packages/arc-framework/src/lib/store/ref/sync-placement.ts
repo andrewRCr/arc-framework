@@ -1,0 +1,99 @@
+/** Complete merged record values with placement derived from captured archive folders. */
+
+import type { RefBackendContext } from "./context.js";
+import type { SyncTreeSide } from "./sync-tree.js";
+import { archivedFolders, archiveOwnerTrees } from "./archive-read.js";
+import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
+import { readHistoricalGraph } from "./history-graph.js";
+import { RefSyncLabelError } from "./sync-label.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
+import { OwnerIdentitySchema } from "../identity.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
+
+/** Fill caller-owned merge snapshots without changing their version-bearing stored metadata. */
+export async function completeSyncPlacements(context: RefBackendContext, ref: string, sides: readonly SyncTreeSide[],
+  tipSets: readonly ReadonlyMap<string, string>[]): Promise<boolean> {
+  const completed = sides.filter((side) => (side.metadata.primary?.placement ?? side.metadata.placement)?.kind === "completed"
+    && side.metadata.primary?.role !== "work-item/record");
+  if (!completed.length) return true;
+  const quarters = new Set(completed.map((side) => {
+    const placement = side.metadata.primary?.placement ?? side.metadata.placement;
+    return placement?.kind === "completed" ? `refs/arc/archive/${placement.quarter}` : "";
+  }));
+  const captured = tipSets.flatMap((tips, index) => [...tips].filter(([name]) => quarters.has(name))
+    .map(([name, tip]) => ({ label: `${index}:${name}`, ref: name, tip })));
+  if (!captured.length) return false;
+  const trees = await readRefTrees(context, new Map(captured.map(({ label, tip }) => [label, tip])));
+  // A quarter whose tree cannot be read may hold the folder itself, so no earlier state of it supplies the placement.
+  const unreadable = captured.find(({ label }) => !trees.has(label));
+  if (unreadable) throw new RefSyncLabelError(ref, refObjectFault(unreadable.ref, "missing", {
+    condition: `The tip or a tree of ${unreadable.ref} is unavailable locally.`,
+  }).refusal);
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  const family = ref.includes("/cohort/") ? "cohort" : "work-item";
+  const live = ref.replace("refs/arc/history/", "refs/arc/");
+  const folders = captured.flatMap(({ label, ref: quarter }) => archivedFolders(family, quarter, trees.get(label) ?? [], objects).folders);
+  for (const side of completed) {
+    const placement = side.metadata.primary?.placement ?? side.metadata.placement;
+    const folder = folders.find((candidate) => candidate.liveRef === live && candidate.metadata.endBatch === side.metadata.endBatch
+      && candidate.metadata.primary?.role === side.metadata.primary?.role
+      && candidate.placement.kind === "completed" && placement?.kind === "completed" && candidate.placement.quarter === placement.quarter);
+    side.placement = folder?.placement ?? await historicalPlacement(context, live, side, captured);
+    if (!side.placement) {
+      requireReadableOwnedFolders(live, side, captured, trees, objects);
+      return false;
+    }
+  }
+  return true;
+}
+
+function requireReadableOwnedFolders(live: string, side: SyncTreeSide, captured: readonly { label: string; ref: string }[],
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>): void {
+  const placement = side.metadata.primary?.placement ?? side.metadata.placement;
+  if (placement?.kind !== "completed") return;
+  for (const { label, ref: quarter } of captured) {
+    if (quarter !== `refs/arc/archive/${placement.quarter}`) continue;
+    const fault = ownedPlacementFault(live, quarter, trees.get(label) ?? [], objects);
+    if (fault) throw new RefSyncLabelError(live, refDiagnosticRefusal(quarter, fault));
+  }
+}
+
+async function historicalPlacement(context: RefBackendContext, live: string, side: SyncTreeSide,
+  captured: readonly { ref: string; tip: string }[]): Promise<SyncTreeSide["placement"]> {
+  const placement = side.metadata.primary?.placement ?? side.metadata.placement;
+  if (placement?.kind !== "completed" || !side.metadata.endBatch) return undefined;
+  const quarter = `refs/arc/archive/${placement.quarter}`;
+  const tips = [...new Set(captured.filter(({ ref }) => ref === quarter).map(({ tip }) => tip))];
+  if (!tips.length) return undefined;
+  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], () => refObjectFault(quarter, "missing", {
+    condition: `The tip or a tree of ${quarter} is unavailable locally.`,
+  }).refusal);
+  if (walked.status === "refused") throw new RefSyncLabelError(live, walked.refusal);
+  const commits = walked.result.split(/\r?\n/u).filter(Boolean);
+  if (!commits.length) return undefined;
+  const trees = await readRefTrees(context, new Map(commits.map((commit) => [commit, commit])));
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  const family = live.includes("/cohort/") ? "cohort" : "work-item";
+  let fault: CapturedRefDiagnostic | undefined;
+  for (const [commit, entries] of trees) {
+    const folder = archivedFolders(family, quarter, entries, objects).folders
+      .find((folder) => folder.liveRef === live && folder.metadata.endBatch === side.metadata.endBatch
+        && folder.metadata.primary?.role === side.metadata.primary?.role);
+    if (folder) return folder.placement;
+    fault ??= ownedPlacementFault(live, quarter, entries, objects, !tips.includes(commit));
+  }
+  const missing = commits.find(commit => !trees.has(commit));
+  if (missing) throw new RefSyncLabelError(live, refObjectFault(quarter, "missing", {
+    condition: `A root or nested tree of archive history commit ${missing} on ${quarter} is unavailable locally.`,
+  }).refusal);
+  if (fault) throw new RefSyncLabelError(live, refDiagnosticRefusal(quarter, fault));
+  return undefined;
+}
+
+function ownedPlacementFault(live: string, quarter: string, entries: readonly RefTreeEntry[],
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): CapturedRefDiagnostic | undefined {
+  const family = live.includes("/cohort/") ? "cohort" : "work-item";
+  const owner = OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) });
+  const owned = archiveOwnerTrees(new Map([[quarter, entries]]), [owner]).get(quarter) ?? [];
+  return archivedFolders(family, quarter, owned, objects, saved).diagnostics.find(diagnostic => diagnostic.fault);
+}

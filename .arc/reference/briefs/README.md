@@ -9,8 +9,8 @@ plus project orientation. Contributor sessions (`git config arc.role = contribut
 `DEV-RULES.ARC` (methodology) and `DEV-RULES.PROJECT` (project standards) — framework content and project content
 kept in separate files with appropriate merge strategies.
 
-**Loading model:** Briefs load in full at the top of the session-init load order — framework and project context
-before active work state. See [session-init.md][session-init] Step 3.
+**Loading model:** The session-init agenda emits full brief reads before state-specific context. The
+[session-init spine][session-init] executes that read plan.
 
 ## Files
 

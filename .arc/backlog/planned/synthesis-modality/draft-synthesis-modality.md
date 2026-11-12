@@ -40,6 +40,49 @@
   integration seam, run a bounded spike before declaring the design settled. This complements, rather than
   replaces, `planning-iteration-mechanics`' open-question and writable-task checks.
 
+### `[ ]` **Settle what a spike that hardens into an executable model keeps, and for how long**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-09-30); captured
+  during `delivery-rebuild-continuity` create-spec Gate 1, 2026-09-23.
+- _Observation:_ `delivery-rebuild-continuity`'s create-spec Gate 1 grew its scratch spikes into an executable model
+  of the design's git algebra (about 45 bash scripts) with about forty topology cases and recorded outcomes, and it
+  settled design questions the documents alone could not. The draft's disposition lifecycle has no clear place for
+  it: Throwaway discards a working oracle the implementation could be checked against, and Reference ("archived on
+  a non-merging branch or tag; main implementation rewritten fresh") covers the archive but not that use.
+- _Approach:_ the established idiom is a reference model, or test oracle — a golden model in hardware verification,
+  model-based and differential testing, TLA+ specs kept beside the code — whose cases become acceptance tests.
+  Decide whether the Reference disposition names that use and its limits (a lifetime bounded by the implementation
+  it checks; the spec stays the authority; a disagreement between model and implementation is a finding, not a win
+  for the model), and whether create-spec or generate-tasks routes a spike's case catalogue into the spec's Testing
+  section so the cases reach test-first tasks.
+- _Worked example:_ `delivery-rebuild-continuity` carries its cases into its spec's Testing section and keeps the
+  model on a non-merging branch through implementation, retired at archive.
+
+### `[ ]` **Register deliberately kept branches so residue detection can tell them from leftovers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-10-15); homed at the
+  drain.
+
+- _Shapes:_ § Disposition lifecycle, the Reference disposition (code archived on a non-merging branch); inbound "Settle
+  what a spike that hardens into an executable model keeps, and for how long".
+
+- _Drain note:_ `operational-advisory-registers` was the other candidate home (residue re-emitted every session); the
+  registration is what makes a Reference disposition legible to residue detection, so it homes here.
+
+- _Observation:_ `arc errand check` and status report a `branch-residue` warning for every branch with no Errand
+  record or active work-unit meta, including branches kept on purpose: `spike/delivery-rebuild-continuity-model` is
+  the executable model `delivery-rebuild-continuity` keeps as a spike input while it is held at Planning, and it is
+  reported on every run.
+
+- _Approach:_ give a deliberately kept branch a canonical registration — a spike or reference model ARC knows is
+  intentional, with its owner and the work unit it serves — so residue detection skips it and status can say what it
+  is. A registration is a stored record, so it belongs under the storage seam; check where `synthesis-modality`'s
+  "Settle what a spike that hardens into an executable model keeps, and for how long" was routed (its Reference
+  disposition keeps a model on a non-merging branch) before placing it.
+
+- _Captured during:_ Errand `main-underwrap-sweep`, 2026-10-13; split from its Errand capture ("Keep branch residue
+  out of the pre-commit in-flight advisory, reporting only staged overlaps") on 2026-10-14.
+
 ---
 
 ## Concept
@@ -61,7 +104,7 @@ unchanged.
 ## Three modalities
 
 | Modality      | Synthesis activity                                                                               | Best for                                                                         |
-|---------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| ------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | **Document**  | Iterate `draft-*` through collaborative refinement passes (`draft-design`)                       | Conceptual unknowns; integration shape known; "do I understand the problem?"     |
 | **Prototype** | Build bounded code spikes, capture learnings between iterations (`refine-prototype-loop`)        | Empirical unknowns; integration shape unclear; "will this work the way I think?" |
 | **Hybrid**    | Spikes inform document iteration; planning flips loop per pass based on next unknown's character | Most genuinely novel work — mix of conceptual and empirical unknowns             |
@@ -133,7 +176,7 @@ suggestion rather than switching silently — same posture as depth-selection mi
 Three canonical stances for spike code:
 
 | Disposition             | When it applies                                                               | Mechanics                                                                                                             |
-|-------------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| ----------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | **Throwaway** (default) | Empirical question answered; code's value was the learning                    | Code dropped at the `graduation-cleanup` ceremony; learnings preserved in `draft-*` findings + ADRs                   |
 | **Evolutionary**        | Spike code has validated value AND a stabilization contract is committed      | Code carries into implementation; stabilization contract enumerates refactoring + tests + docs requirements pre-merge |
 | **Reference**           | Spike's investigation path itself has documentation value beyond the decision | Code archived on a non-merging branch or tag; main implementation rewritten fresh                                     |
@@ -143,15 +186,15 @@ code forward via the evolutionary path requires _explicit decision_ and a _stabi
 requirements, test coverage, doc expectations enumerated before the spike code is considered part of
 implementation.
 
-This default actively prevents "tracer-bullet syndrome" (spike code calcifies into production through inertia)
-and "sunk-cost fallacy" (we built it so we should keep it). The decision is deliberate, not accidental.
+This default actively prevents **spike calcification** (spike code drifts into production through inertia) and
+"sunk-cost fallacy" (we built it so we should keep it). The decision is deliberate, not accidental.
 
 ## Learning capture pipeline
 
 Spike learnings flow through ARC's existing artifact surfaces, depth-dependent:
 
 | Depth    | Capture pipeline                                                                                                     |
-|----------|----------------------------------------------------------------------------------------------------------------------|
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
 | Minimum  | Spike findings → ADRs (for significant decisions); spec written directly from learnings; no `draft-*`                |
 | Standard | Spike findings → `draft-*` findings section + ADRs for significant decisions; `draft-*` graduates to spec normally   |
 | Expanded | Spike findings → `draft-*` (promoted structure with findings register) + ADRs; per-spike pointer for loop continuity |
@@ -235,9 +278,9 @@ mechanisms:
 
 - **Workflow-interlock** fires at end of each loop pass (refinement batch in document modality; spike completion
   in prototype modality). Structural fire-site, always-stop.
-- **Commit-interlock release** at workflow-interlock approval. Under
-  `commit.interlock ∈ {on-task-approval, on-workflow}` plus `arc.releaseOptedIn`, commits fire through
-  `arc release commit` per the `workflowCommit` class-tag routing that already exists in ARC's machinery.
+- **Commit-interlock release** at workflow-interlock approval. Under `commit.interlock ∈ {on-task-approval,
+  on-workflow}` plus `arc.releaseOptedIn`, commits fire through `arc release commit` per the `workflowCommit`
+  class-tag routing that already exists in ARC's machinery.
 - **Within-pass commit cadence** is exploratory — no per-edit gates inside a spike or inside a refinement batch.
   Planning is not task execution; commit atomicity at the pass boundary is sufficient.
 
@@ -251,7 +294,7 @@ The following failure modes are _actively prevented_ by the design above:
 - **Sunk-cost fallacy** — throwaway-default + explicit stabilization contract for evolve
 - **Scope creep ("just one more spike")** — soft cap + spike-cycle exit conditions tied to empirical questions
   specifically
-- **Tracer-bullet syndrome** — throwaway default prevents accidental calcification
+- **Spike calcification** — throwaway default prevents spike code drifting into production unexamined
 - **Prototype without learning capture** — workflow-interlock pre-report checklist gates on learning being
   captured
 - **Prototype-as-procrastination** — soft cap + visible exit conditions + spike contract forces hypothesis-framing
@@ -273,6 +316,17 @@ The following failure modes are _actively prevented_ by the design above:
   exists. Spike learnings flow INTO `draft-*` rather than competing with it
 - **Session-init planning detection**: the detection signals for active planning extend naturally to detect
   prototype activity (spike commits, populated findings register)
+- **`plan-segmentation`**: adjacent on one risk timeline, not coupled. A spike runs before a design exists and so
+  cannot falsify a spec — it de-risks _inputs_; that work unit's vertical slices run against a settled design and
+  de-risk _composition_. Two consequences hold in both directions: spike code is never built for downstream reuse
+  (that is the calcification pathway this modality's disposition lifecycle exists to prevent), and the anchor term
+  `spike` is not reused for slice work. The flow between them is informational — spike findings tell task
+  generation where composition risk lives. Distinguish both from the Pragmatic Programmer's **tracer bullet**
+  (lean-but-complete code deliberately kept and grown), which is a slice-side concept and never a spike
+  disposition. **Open seam:** a vertical slice generally needs scaffolding for layers it does not yet fully build,
+  and that code is not kept either — so the slice/spike boundary does not reduce to kept-versus-throwaway.
+  Whether this modality's disposition lifecycle should extend to cover that second code kind, or whether
+  `plan-segmentation` owns it, is unsettled in both drafts
 
 ## Scope Estimate
 

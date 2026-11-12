@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { access } from "node:fs/promises";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import { runReleasePush } from "../../src/handlers/release/push.js";
 import type { ReleasePushDeps } from "../../src/handlers/release/push.js";
@@ -34,7 +35,7 @@ import type {
   PushInterlock,
   ResolvedSettingsResult,
 } from "../../src/lib/config/resolved-settings.js";
-import type { ConfigSettings } from "../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../src/lib/config/schema.js";
 import { reconcileBranch } from "../../src/lib/work-unit/mutators/reconcile-branch.js";
 
 const execFileAsync = promisify(execFile);
@@ -52,14 +53,7 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
   await mkdir(join(root, ".arc", "active"), { recursive: true });
   await writeFile(
     join(root, ".arc", "active", "meta-sample.md"),
-    [
-      "# Metadata: Sample",
-      "",
-      "- **State:** Active",
-      `- **Branch:** ${branch}`,
-      "- **Task List:** `tasks-sample.md`",
-      "",
-    ].join("\n"),
+    makeMetaFixture("Sample", { branch, taskList: "tasks-sample.md" }),
   );
   return root;
 }
@@ -67,24 +61,34 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
 function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
+    "inbound.retriage_after_entries": "10",
+    "inbound.retriage_after_days": "30",
+    "pause.review_after_days": "14",
     "integration.stale_after_days": "2",
-    "review.chunking_threshold_lines": "0",
-    "review.chunking_threshold_files": "0",
+    "changeset.advisory_threshold_lines": "0",
+    "changeset.advisory_threshold_files": "0",
     "branch.base": "main",
     "branch.protection": "partial",
     "worktree.location_template": "../{repo}.{name}",
     "worktree.post_create": "",
     "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+    "storage.backing_repository": "",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",
     "commit.context_pattern": "",
     "merge.strategy": "merge",
+    "merge.lock": "none",
     "platform.type": "github",
       "review.frontline_sources": "[]",
       "review.standard_sources": "[]",
       "review.frontline_max_passes": "2",
       "review.standard_max_passes": "2",
+      "review.hosted_await_timeout_seconds": "120",
+      "review.hosted_await_initial_poll_interval_seconds": "15",
+      "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
     "pm.mode": "arc-in-git",
     "team.mode": "false",
     "session.remote_sync": "enabled",
@@ -94,6 +98,8 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
     "session.init_load.notes": "prompt",
     "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
+    "storage.track_design_docs": "specs",
+    "layout.active": "nested",
     "user.notes_push": "on-sync",
   };
   return {

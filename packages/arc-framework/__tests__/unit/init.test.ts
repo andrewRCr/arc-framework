@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../helpers/ignore-setup.js";
 /**
  * Unit tests for init command orchestration.
  *
@@ -6,6 +7,7 @@
  * full init flow against real filesystems.
  */
 
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +43,7 @@ import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const actualRecipe = JSON.parse(
@@ -250,6 +253,14 @@ describe("resolveFileList", () => {
 
 describe("resolveFileList — actual recipe", () => {
   const TEAM_COORD = "reference/strategies/arc/strategy-team-coordination.md";
+  const EVIDENCE_APPLICABILITY_METHOD = "system/methods/assess-evidence-applicability.md";
+
+  it.each(["none", "external", "arc-in-git"])("omits retired membership for pm=%s", (pmMode) => {
+    for (const teamMode of ["false", "true"]) {
+      const files = resolveFileList(actualRecipe, { "pm.mode": pmMode, tools: "", "team.mode": teamMode });
+      expect(files.some((path) => path.startsWith("system/extensions/"))).toBe(false);
+    }
+  });
 
   it("solo-mode excludes strategy-team-coordination.md", () => {
     const files = resolveFileList(actualRecipe, {
@@ -270,17 +281,53 @@ describe("resolveFileList — actual recipe", () => {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
-    expect(files).toContain("system/methods/assess-cohort-fit.md");
+    expect(files).toContain("system/methods/route-discovered-work.md");
+    expect(files).toContain("system/methods/assess-boundary-fit.md");
+    expect(files).not.toContain("system/methods/assess-cohort-fit.md");
     expect(files).toContain("system/methods/assess-design-proportionality.md");
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
     expect(files).toContain("system/methods/design-audit.md");
+    expect(files).toContain("system/methods/disposition-report.md");
+    expect(files).toContain("system/methods/review-model.md");
     expect(files).toContain("system/methods/review-chunking.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
+    expect(files).toContain("system/methods/source-grounding.md");
     expect(files).toContain("system/methods/spec-review.md");
     expect(files).toContain("system/methods/task-audit.md");
-    expect(files).toContain("system/extensions/pre-spec-finalization-review.md");
     expect(files).toContain("system/workflows/arc/draft-design.md");
+  });
+
+  it("ships pull-request formatting as a configurable core method", () => {
+    const method = "system/methods/pull-request-format.md";
+    for (const pm of ["none", "arc-in-git", "external"]) {
+      const files = resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": "false" });
+      expect(files).toContain(method);
+      expect(files).not.toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    }
+    expect(classifyFile(method)).toBe("Configurable");
+    expect(fileLayer(method, new Set())).toBe("core");
+  });
+
+  it.each(["review-model", "planning-review", "code-review", "verification-review"])("ships %s in every project configuration", name => {
+    const method = `system/methods/${name}.md`;
+    for (const pm of ["none", "external", "arc-in-git"]) {
+      for (const team of ["false", "true"]) {
+        expect(resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": team })).toContain(method);
+      }
+    }
+    expect(classifyFile(method)).toBe("Configurable");
+    expect(fileLayer(method, new Set())).toBe("core");
+  });
+
+  it("ships residual evidence assessment as a configurable core method", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "false",
+    });
+
+    expect(files).toContain(EVIDENCE_APPLICABILITY_METHOD);
+    expect(classifyFile(EVIDENCE_APPLICABILITY_METHOD)).toBe("Configurable");
+    expect(fileLayer(EVIDENCE_APPLICABILITY_METHOD, new Set())).toBe("core");
   });
 });
 
@@ -296,18 +343,19 @@ describe("classifyFile", () => {
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/methods/assess-design-proportionality.md")).toBe("Configurable");
-    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-boundary-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Framework");
     expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
     expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/route-discovered-work.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/review-chunking.md")).toBe("Configurable");
     expect(classifyFile("system/methods/resolve-planning-depth.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/source-grounding.md")).toBe("Configurable");
     expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/task-audit.md")).toBe("Configurable");
-    expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
-    expect(classifyFile("system/extensions/pre-spec-finalization-review.md")).toBe("Configurable");
     expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
     expect(classifyFile("reference/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
@@ -318,10 +366,8 @@ describe("classifyFile", () => {
     expect(classifyFile("system/rules/DEV-RULES.ARC.md")).toBe("Framework");
     expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/process-task-loop.template.md")).toBe("Framework");
-    // Per-file methods/extensions directory READMEs fall through to Framework —
-    // only the method and extension files themselves are adopter-customizable.
+    // The method directory README falls through to Framework; method files are customizable.
     expect(classifyFile("system/methods/README.md")).toBe("Framework");
-    expect(classifyFile("system/extensions/README.md")).toBe("Framework");
   });
 });
 
@@ -407,13 +453,18 @@ function mockIO(
     ...files,
   };
   const written: Record<string, string> = {};
+  const virtualFiles = new Map(Object.entries(allFiles));
+  const ignoreIO = virtualIgnoreSetup(virtualFiles);
   return {
+    lstat: ignoreIO.lstat,
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
-      if (path in allFiles) return allFiles[path]!;
+      if (virtualFiles.has(path)) return virtualFiles.get(path)!;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     writeFile: vi.fn(async (path: string, content: string) => {
       written[path] = content;
+      virtualFiles.set(path, content);
     }),
     mkdir: vi.fn(async () => undefined),
     access: vi.fn(async (path: string) => {
@@ -421,20 +472,15 @@ function mockIO(
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     chmod: vi.fn(async () => undefined),
-    exec: vi.fn(async (_cmd: string, args: string[]) => {
-      // Default: git config --get returns not found
-      if (args[0] === "config" && args[1] === "--get") {
-        throw new Error("not found");
-      }
-      // git config set: no-op
-      if (args[0] === "config") return { stdout: "" };
-      return { stdout: "" };
-    }),
+    exec: vi.fn(scriptGitExec([
+      { match: { prefix: ["config", "--get"] }, responses: [{ failure: { exitCode: 1, stderr: "not found" } }] },
+      { match: { prefix: [] }, responses: [{ stdout: "" }] },
+    ]).exec),
     // Init lock primitives — default virtual behavior is "lock always free":
     // create resolves, release resolves. Contention tests override
     // exclusiveCreate to reject with an EEXIST error.
-    exclusiveCreate: vi.fn(async () => undefined),
-    removeFile: vi.fn(async () => undefined),
+    exclusiveCreate: vi.fn(ignoreIO.exclusiveCreate),
+    removeFile: vi.fn(async (path: string) => { virtualFiles.delete(path); }),
     _written: written,
   } as IOContext & { _written: Record<string, string> };
 }
@@ -819,6 +865,24 @@ describe("runInit", () => {
     expect(result!.tools).toEqual(["claude", "cursor"]);
   });
 
+  it("fresh mode: writes ARC's managed .ignore block", async () => {
+    const io = mockIO({ "/templates/README.md": "# hi", "/templates/system/arc-config.yml": "pm.mode: none" });
+    const files = new Map<string, string>();
+    const write = io.writeFile;
+    (io as { writeFile: typeof write }).writeFile = async (path, content) => {
+      files.set(path, content);
+      await write(path, content);
+    };
+
+    await runInit({
+      cwd: "/project", io, templateDir: "/templates", internalTemplateDir: "/internal-templates",
+      recipe: { include_files: ["README.md", "system/arc-config.yml"], prompts: minimalRecipe.prompts, conditions: {} },
+      prompts: DEFAULT_PROMPTS, identityResult: "andrew",
+    });
+
+    expect(files.get("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
+  });
+
   it("fresh mode: sets up git integration (gitignore, hooks)", async () => {
     const existingGitignore = "node_modules/\n";
     const io = mockIO({
@@ -847,7 +911,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: DEFAULT_PROMPTS,
+      prompts: { ...DEFAULT_PROMPTS, pm_mode: "arc-in-git" },
       identityResult: "andrew",
     });
 
@@ -868,16 +932,22 @@ describe("runInit", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
-    // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
+    // arc-in-git projects track ROADMAP through the conflict-surfacing driver.
     const gitattributesWrite = writeCalls.find(
       (c) => c[0] === "/project/.gitattributes",
     );
-    expect(gitattributesWrite).toBeUndefined();
+    expect(gitattributesWrite).toBeDefined();
+    expect(gitattributesWrite![1]).toContain(
+      ".arc/backlog/ROADMAP.md merge=arc-roadmap",
+    );
 
     const mergeDriverCall = execCalls.find(
-      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+      (c) => c[1]?.includes("merge.arc-roadmap.driver"),
     );
-    expect(mergeDriverCall).toBeUndefined();
+    expect(mergeDriverCall).toBeDefined();
+    expect(mergeDriverCall![1].join(" ")).toContain(
+      "arc hook-remedy-roadmap-conflict",
+    );
   });
 
   // --- init lock ---

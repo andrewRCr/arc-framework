@@ -1,9 +1,11 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Strict top-level and conditional-presence coverage for session-init envelopes. */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { assertSessionInitProbeResult, SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
 
@@ -13,7 +15,45 @@ function fixture(name: string): Record<string, unknown> {
   const normalized = readFileSync(join(FIXTURE_DIR, `session-init-${name}.json`), "utf8");
   const producerCompatible = normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02");
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
+  const derivedRow = {
+    kind: "free-primary",
+    checkout: { folderPresent: true, path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, lifecycleLocation: null,
+    subject: null,
+    context: null,
+    diagnostics: [],
+  };
+  value.derivedLocusState = {
+    ok: true,
+    value: {
+      roster: [derivedRow],
+      entering: { kind: "selected", row: derivedRow },
+      primaryAvailability: { kind: "free", checkoutPath: "/redacted/primary" },
+      identityDiscovery: { kind: "absent" },
+      active: null,
+    },
+  };
+  delete value.deliveryPosition;
   const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
+  const baseDistance = value.baseDistance as {
+    ok?: boolean;
+    value?: { state?: string; remoteEvidence?: string };
+  };
+  const baseDistanceValue = baseDistance.value;
+  if (baseDistance.ok === true && baseDistanceValue !== undefined && baseDistanceValue.remoteEvidence === undefined) {
+    const state = baseDistanceValue.state ?? "";
+    // `remote-unavailable` admits exact, pending-fetch, and unreachable, each with a
+    // different required shape, so no default can be correct — a fixture must say which.
+    if (state === "remote-unavailable") {
+      throw new Error("A remote-unavailable base-distance fixture must state its remoteEvidence.");
+    }
+    // The arms that resolve before any snapshot evidence is consulted. Keep this list in
+    // step with the base-distance rule in `commands/status/schema.ts`; a state missing
+    // here defaults to `exact` and silently passes a fixture the producer cannot emit.
+    baseDistanceValue.remoteEvidence = ["skipped", "no-remote", "detached-head"].includes(state)
+      ? "not-applicable"
+      : "exact";
+  }
   if (active.ok === true && active.value?.resolution === "single") {
     const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
     value.currentWuReconcile = {
@@ -42,7 +82,12 @@ function fixture(name: string): Record<string, unknown> {
         ok: true,
         value: {
           status: "clean",
-          authority: { status: "ready", ref: "main", transitions: [] },
+          authority: {
+            status: "ready",
+            ref: "main",
+            transitions: [],
+            remoteEvidence: "not-applicable",
+          },
           plan: { status: "clean", edits: [], advisories: [] },
           recommendedAction: "skip",
           recommendedCommand: null,
@@ -54,12 +99,21 @@ function fixture(name: string): Record<string, unknown> {
   return value;
 }
 
+function owningWorkUnitFixture(): Record<string, unknown> {
+  const normalized = readFileSync(join(FIXTURE_DIR, "session-init-active-resume.json"), "utf8");
+  return JSON.parse(normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02")) as Record<string, unknown>;
+}
+
 function clone(value: Record<string, unknown>): Record<string, unknown> {
   return structuredClone(value);
 }
 
 function expectInvalid(value: Record<string, unknown>): void {
-  expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  assertSchemaRefuses(SessionInitProbeResultSchema, value);
+}
+
+function expectValid(value: Record<string, unknown>): void {
+  assertSchemaAccepts(SessionInitProbeResultSchema, value);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -82,7 +136,337 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
   expect(() => assertSessionInitProbeResult(value)).toThrow(`session-init-envelope: ${expectedPath}:`);
 }
 
+describe("Store user slot diagnostics", () => {
+  it.each([
+    ["text", 42, "user.value.remedy.text:"],
+    ["argv", [42], "user.value.remedy.argv.0:"],
+  ] as const)("retains the actual nested pull remedy %s defect", (field, replacement, path) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: { status: "designation-needed", remote: "origin", choices: ["shared"], summary: "Choose a role.",
+      remedy: { text: "Designate the remote.", argv: ["arc", "remote", "designate"], [field]: replacement } } };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(path);
+  });
+
+  it.each([null, { status: "pulled", summary: "Store state pulled." }])("continues to admit the new Store value %j", (user) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: user };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+  });
+});
+
+function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    mode: "integration-boundary",
+    workUnit,
+    candidateId: `sha256:${"1".repeat(64)}`,
+    candidateSubjectDigest: `sha256:${"2".repeat(64)}`,
+    terminus: null,
+    locus: "publication-pending",
+    nextAction: {
+      kind: "continue-publication",
+      command: `git push -u origin feat/${workUnit}`,
+      interactionText: "Continue publication.",
+    },
+    policy: null,
+    reservation: null,
+  };
+}
+
 describe("session-init envelope schema", () => {
+  it("rejects the obsolete top-level extension probe slot", () => {
+    assertSchemaRefuses(SessionInitProbeResultSchema, {
+      ...fixture("orient"),
+      extensions: { ok: true, value: { mode: "session-init", active: [], warnings: [] } },
+    });
+  });
+
+  it.each(["baseBranchSync", "retiredSubdirs"] as const)(
+    "names an undeclared %s key and accepts retry after removal",
+    (slot) => {
+      const value = fixture("orient");
+      expectValid(value);
+      setPath(value, [slot, "value", "unexpectedKey"], true);
+      const before = JSON.stringify(value);
+      expect(() => assertSessionInitProbeResult(value)).toThrow('Unrecognized key: "unexpectedKey"');
+      expect(JSON.stringify(value)).toBe(before);
+      const probeValue = (value[slot] as { value: Record<string, unknown> }).value;
+      delete probeValue.unexpectedKey;
+      expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+      expectValid(value);
+    },
+  );
+
+  it.each([
+    [["baseBranchSync", "value", "checkout", "primary"], "yes", "baseBranchSync.value.checkout.primary"],
+    [["retiredSubdirs", "value", "candidates"], [42], "retiredSubdirs.value.candidates.0"],
+  ] as const)("preserves a nested slot issue path %s and accepts repaired input", (path, replacement, issuePath) => {
+    const value = fixture("orient");
+    const repaired = clone(value);
+    setPath(value, path, replacement);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(issuePath);
+    expect(() => assertSessionInitProbeResult(repaired)).not.toThrow();
+    expectValid(repaired);
+  });
+
+  it("refuses undeclared base-distance fields while retaining a valid composed value", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["baseDistance", "value", "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: baseDistance.value: Unrecognized key: "extraEvidence"');
+  });
+
+  it("refuses undeclared fields inside the emitted roster and names the field", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["roster", "value", "entries", 0, "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: roster.value.entries.0: Unrecognized key: "extraEvidence"');
+  });
+
+  it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
+    const value = owningWorkUnitFixture();
+    setPath(value, ["active", "value", "sessionType"], "integration");
+    setPath(value, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(value, ["active", "value", "integrationBoundary"], null);
+    setPath(value, ["derivedLocusState", "value", "active", "context", "sessionType"], "integration");
+    setPath(value, ["derivedLocusState", "value", "active", "context", "workflow"], "integrate-work-unit");
+    setPath(value, ["derivedLocusState", "value", "active", "context", "integrationBoundary"], null);
+    setPath(value, ["derivedLocusState", "value", "roster", 1, "lifecycleLocation"], "completed");
+
+    expectValid(value);
+  });
+
+  it("accepts task and verification substages without changing the integration session type", () => {
+    const taskWork = owningWorkUnitFixture();
+    const boundary = integrationBoundaryFixture();
+    setPath(taskWork, ["active", "value", "sessionType"], "integration");
+    setPath(taskWork, ["active", "value", "currentWorkflow"], "process-task-loop");
+    setPath(taskWork, ["active", "value", "integrationBoundary"], boundary);
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "sessionType"], "integration");
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "workflow"], "process-task-loop");
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "integrationBoundary"], boundary);
+    expectValid(taskWork);
+
+    const verification = clone(taskWork);
+    const closed = { status: "no-open-task" };
+    setPath(verification, ["taskCursor", "value"], closed);
+    setPath(verification, ["active", "value", "currentWorkflow"], "verify-work-unit");
+    setPath(verification, ["derivedLocusState", "value", "active", "context", "workflow"], "verify-work-unit");
+    setPath(verification, ["derivedLocusState", "value", "active", "context", "taskCursor"], closed);
+    expectValid(verification);
+
+    const changedCandidateVerification = clone(verification);
+    setPath(changedCandidateVerification, ["active", "value", "integrationBoundary"], null);
+    setPath(
+      changedCandidateVerification,
+      ["derivedLocusState", "value", "active", "context", "integrationBoundary"],
+      null,
+    );
+    expectValid(changedCandidateVerification);
+
+    const boundarylessIntegration = clone(changedCandidateVerification);
+    setPath(boundarylessIntegration, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(
+      boundarylessIntegration,
+      ["derivedLocusState", "value", "active", "context", "workflow"],
+      "integrate-work-unit",
+    );
+    expectContractFailure(boundarylessIntegration, "active.value.integrationBoundary");
+
+    const skippedTask = clone(taskWork);
+    setPath(skippedTask, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(
+      skippedTask,
+      ["derivedLocusState", "value", "active", "context", "workflow"],
+      "integrate-work-unit",
+    );
+    expectContractFailure(skippedTask, "active.value.currentWorkflow");
+  });
+
+  it("requires the delivery-position slot exactly at the owning work-unit locus", () => {
+    const owning = owningWorkUnitFixture();
+    expectValid(owning);
+
+    const missing = clone(owning);
+    delete missing.deliveryPosition;
+    expectContractFailure(missing, "deliveryPosition");
+
+    const ineligible = fixture("orient");
+    ineligible.deliveryPosition = { ok: true, value: null };
+    expectContractFailure(ineligible, "deliveryPosition");
+  });
+
+  it("accepts null, coherent, and degraded delivery-position probe arms", () => {
+    const coherent = owningWorkUnitFixture();
+    coherent.deliveryPosition = {
+      ok: true,
+      value: {
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        workUnitId: "active-widget",
+        landedCount: 1,
+        totalCount: 2,
+        activeOperation: { kind: "rewrite", operationId: "op-1" },
+        line: "Delivery position: 1/2 landed; active operation: rewrite op-1.",
+      },
+    };
+    expectValid(coherent);
+
+    const mismatched = clone(coherent);
+    setPath(mismatched, ["deliveryPosition", "value", "workUnitId"], "other-widget");
+    expectContractFailure(mismatched, "deliveryPosition.value.workUnitId");
+
+    const degraded = owningWorkUnitFixture();
+    degraded.deliveryPosition = {
+      ok: false,
+      error: { kind: "runtime", message: "delivery evidence unavailable" },
+    };
+    expectValid(degraded);
+
+    setPath(coherent, ["deliveryPosition", "value", "landedCount"], 3);
+    expectContractFailure(coherent, "deliveryPosition.value.landedCount");
+  });
+  it("rejects retired session-frame fields", () => {
+    const value = fixture("orient");
+    setPath(value, ["derivedLocusState", "value", "current"], { kind: "none" });
+    expectContractFailure(value, "derivedLocusState.value");
+  });
+
+  it("rejects crossed worktree and base-distance evidence fields", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "remoteEvidence"], "unreachable");
+    expectInvalid(worktree);
+
+    const baseDistance = fixture("orient");
+    setPath(baseDistance, ["baseDistance", "value", "remoteEvidence"], "unreachable");
+    expectInvalid(baseDistance);
+
+    const inapplicableWorktree = fixture("orient");
+    setPath(inapplicableWorktree, ["worktree", "value", "state"], "clean");
+    expectInvalid(inapplicableWorktree);
+
+    const inapplicableBaseDistance = fixture("orient");
+    setPath(inapplicableBaseDistance, ["baseDistance", "value", "verdict"], "clean");
+    expectInvalid(inapplicableBaseDistance);
+
+    const missingExactBase = fixture("branch-gone");
+    setPath(missingExactBase, ["baseDistance", "value", "baseOid"], null);
+    expectInvalid(missingExactBase);
+
+    const missingHealthyMovement = fixture("branch-gone");
+    setPath(missingHealthyMovement, ["baseDistance", "value", "movement"], undefined);
+    expectInvalid(missingHealthyMovement);
+
+    const crossedInapplicableMovement = fixture("orient");
+    setPath(crossedInapplicableMovement, ["baseDistance", "value", "movement"], "disjoint");
+    expectInvalid(crossedInapplicableMovement);
+
+    const crossedBaseRecommendation = fixture("branch-gone");
+    setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedAction"], "surface");
+    setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedPromptText"], "wrong");
+    expectInvalid(crossedBaseRecommendation);
+
+    const missingWorktreeBranch = fixture("branch-gone");
+    setPath(missingWorktreeBranch, ["worktree", "value", "branch"], null);
+    expectInvalid(missingWorktreeBranch);
+
+    const crossedSupersession = fixture("branch-gone");
+    setPath(crossedSupersession, ["worktree", "value", "supersession"], { superseded: true });
+    expectInvalid(crossedSupersession);
+  });
+
+  it("accepts typed pending user-reference authority and rejects incomplete unreachable authority", () => {
+    const pending = fixture("active-resume");
+    setPath(pending, ["userReferenceReconcile", "value"], {
+      status: "pending",
+      authority: {
+        status: "pending",
+        ref: "a".repeat(40),
+        reason: "base-object-pending-fetch",
+        remoteEvidence: "pending-fetch",
+      },
+      plan: null,
+      recommendedAction: "surface",
+      recommendedCommand: null,
+      recommendedPromptText: "Base evidence is pending.",
+    });
+    assertSchemaAccepts(SessionInitProbeResultSchema, pending);
+
+    const unreachable = clone(pending);
+    setPath(unreachable, ["userReferenceReconcile", "value", "status"], "unavailable");
+    setPath(unreachable, ["userReferenceReconcile", "value", "authority"], {
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+    });
+    expectInvalid(unreachable);
+
+    const crossedReady = fixture("active-resume");
+    setPath(crossedReady, ["userReferenceReconcile", "value", "authority", "failureReason"], "network");
+    expectInvalid(crossedReady);
+
+    const crossedRecommendation = clone(pending);
+    setPath(crossedRecommendation, ["userReferenceReconcile", "value", "recommendedAction"], "apply");
+    expectInvalid(crossedRecommendation);
+
+    const emptyPendingPlan = fixture("active-resume");
+    setPath(emptyPendingPlan, ["userReferenceReconcile", "value"], {
+      status: "pending",
+      authority: {
+        status: "ready",
+        ref: "a".repeat(40),
+        transitions: [],
+        remoteEvidence: "exact",
+      },
+      plan: { status: "pending", edits: [], advisories: [] },
+      recommendedAction: "apply",
+      recommendedCommand: ["arc", "user", "reconcile-references", "--apply", "--json"],
+      recommendedPromptText: "Apply references.",
+    });
+    expectInvalid(emptyPendingPlan);
+
+    // A complete pending edit supplies the positive control for the command contract.
+    const realApplyCommand = clone(emptyPendingPlan);
+    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{
+      path: "/tmp/USER-INBOX.md", content: "Updated target", replacements: [{ subject: "old", targetSlug: "new" }],
+    }]);
+    expectValid(realApplyCommand);
+
+    const fakeApplyCommand = clone(realApplyCommand);
+    setPath(fakeApplyCommand, ["userReferenceReconcile", "value", "recommendedCommand"], ["fake", "--apply"]);
+    expectInvalid(fakeApplyCommand);
+  });
+
+  it("rejects mergeable work units without known base evidence", () => {
+    const value = fixture("orient");
+    value.workUnitState = {
+      ok: true,
+      value: {
+        inFlight: {
+          workUnits: [{
+            state: "mergeable",
+            behindBase: {
+              status: "unavailable",
+              remoteEvidence: "pending-fetch",
+              reason: "base-object-pending-fetch",
+            },
+          }],
+        },
+        nudge: { shouldNudge: false },
+      },
+    };
+    expectInvalid(value);
+  });
+
+  it("does not publish the request-only remote context", () => {
+    const value = fixture("orient");
+    value.remoteContext = { kind: "available", generation: "internal" };
+    expectInvalid(value);
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";
@@ -183,7 +567,6 @@ describe("session-init envelope schema", () => {
       "baseBranchSync.value.recommendedAction",
     ],
     ["dirty state", "orient", ["dirty", "value", "state"], "unknown", "dirty.value.state"],
-    ["extensions mode", "orient", ["extensions", "value", "mode"], "unknown", "extensions.value.mode"],
     ["config mode", "orient", ["config", "value", "mode"], "unknown", "config.value.mode"],
     ["active mode", "orient", ["active", "value", "mode"], "unknown", "active.value.mode"],
     ["active layout", "orient", ["active", "value", "layout"], "unknown", "active.value.layout"],
@@ -298,7 +681,7 @@ describe("session-init envelope schema", () => {
       "orient",
       ["retiredSubdirs", "value", "candidates"],
       ["invalid name"],
-      "retiredSubdirs.value",
+      "retiredSubdirs.value.candidates.0",
     ],
     [
       "partial-push-marker-surface",
@@ -380,6 +763,16 @@ describe("session-init envelope schema", () => {
     "rejects the mapped deep routing field: %s",
     (_label, fixtureName, path, replacement, expectedPath) => {
       const value = fixture(fixtureName);
+      if (path[0] === "workUnitState") {
+        value.workUnitState = structuredClone(fixture("branch-gone").workUnitState);
+        setPath(value, ["workUnitState", "value", "inFlight", "workUnits"], [{
+          name: "heavy-widget",
+          branch: "feat/heavy-widget",
+          behindBase: { status: "not-applicable", remoteEvidence: "not-applicable" },
+          ageDays: 0,
+          state: "awaiting-review",
+        }]);
+      }
       setPath(value, path, replacement);
       expectContractFailure(value, expectedPath);
     },
@@ -405,7 +798,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "unknown" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "removable" },
       },
       "sweep.value.worktrees.0.subject.kind",
@@ -425,7 +818,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "unknown" },
       },
       "sweep.value.worktrees.0.decision.action",
@@ -435,7 +828,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "blocked", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
@@ -445,26 +838,30 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "outside", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
     ],
   ] as const)("rejects the stale-worktree routing field: %s", (_label, report, expectedPath) => {
     const value = fixture("orient");
-    setPath(value, ["sweep", "value", "worktrees"], [report]);
+    const complete = report.kind === "husk"
+      ? { worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
+          ...report, subject: { name: "alpha", ...report.subject }, stamp: { ...fixtureHuskProof, ...report.stamp } }
+      : { worktreePath: "/tmp/alpha", branch: "feat/alpha", ...report };
+    setPath(value, ["sweep", "value", "worktrees"], [complete]);
     expectContractFailure(value, expectedPath);
   });
 
   it("accepts typed retirement and rename remedies while rejecting reconstructed argv", () => {
     const value = fixture("orient");
+    setPath(value, ["sweep", "value", "remoteEvidence"], "exact");
     setPath(value, ["sweep", "value", "retirements"], [{
       status: "actionable",
       worktreePath: "/wt/retired",
       lifecycle: {
         subject: { slug: "retired", branch: "feat/retired" },
         transition: "abandon",
-        authority: { kind: "receipt-backed", receiptId: "receipt", authorityVersion: "version" },
         cleanup: {
           branch: { status: "pending" },
           worktree: { status: "pending" },
@@ -482,11 +879,13 @@ describe("session-init envelope schema", () => {
       from: "/wt/old",
       to: "/wt/new",
       remedy: {
-        argv: ["git", "worktree", "move", "/wt/old", "/wt/new"],
-        text: "git worktree move /wt/old /wt/new",
+        argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new",
       },
+      actions: [{ argv: ["git", "worktree", "move", "-f", "-f", "/wt/old", "/wt/new"],
+        text: "git worktree move -f -f /wt/old /wt/new" }],
     }]);
-    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, value);
 
     setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
     expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
@@ -496,19 +895,33 @@ describe("session-init envelope schema", () => {
     [
       "errand classification",
       ["errandState", "value", "inFlight", "errands"],
-      [{ state: "unknown" }],
+      [{ slug: "alpha", branch: "chore/alpha", ageDays: 0, state: "unknown" }],
       "errandState.value.inFlight.errands.0.state",
     ],
     [
       "errand candidate slug",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "", branch: "chore/test" }],
+      [{
+        slug: "",
+        claimId: "a".repeat(32),
+        branch: "chore/test",
+        expectedHead: "b".repeat(40),
+        state: "paused",
+        originEntry: null,
+      }],
       "errandState.value.materializable.candidates.0.slug",
     ],
     [
       "errand candidate branch",
       ["errandState", "value", "materializable", "candidates"],
-      [{ slug: "entry", branch: "" }],
+      [{
+        slug: "entry",
+        claimId: "a".repeat(32),
+        branch: "",
+        expectedHead: "b".repeat(40),
+        state: "paused",
+        originEntry: null,
+      }],
       "errandState.value.materializable.candidates.0.branch",
     ],
   ] as Array<readonly [string, MutationPath, unknown, string]>)(
@@ -528,12 +941,13 @@ describe("session-init envelope schema", () => {
   it.each([
     "mode",
     "identity",
+    "derivedLocusState",
+    "locusGuidance",
     "user",
     "worktree",
     "baseDistance",
     "baseBranchSync",
     "dirty",
-    "extensions",
     "config",
     "active",
     "domainRules",
@@ -542,6 +956,16 @@ describe("session-init envelope schema", () => {
     "recommendedCombinedPrompt",
   ])("requires the unconditional %s slot", (key) => {
     expectInvalid(withoutKey(fixture("orient"), key));
+  });
+
+  it("rejects malformed derived entering-checkout routing fields", () => {
+    const badSelector = fixture("orient");
+    setPath(badSelector, ["derivedLocusState", "value", "entering", "kind"], "ambiguous");
+    expectContractFailure(badSelector, "derivedLocusState.value.entering.kind");
+
+    const badRow = fixture("orient");
+    setPath(badRow, ["derivedLocusState", "value", "roster", 0, "kind"], "legacy-record");
+    expectContractFailure(badRow, "derivedLocusState.value.roster.0.kind");
   });
 
   it("rejects undeclared top-level keys and malformed probe branches", () => {
@@ -554,6 +978,85 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "mixed" },
       },
     });
+  });
+
+  it("rejects undeclared dirty-state and current-husk fields at their envelope slots", () => {
+    const dirty = fixture("orient");
+    setPath(dirty, ["dirty", "value", "unexpected"], true);
+    expectContractFailure(dirty, "dirty.value");
+
+    const husk = fixture("current-husk");
+    setPath(husk, ["currentHusk", "value", "unexpected"], true);
+    expectContractFailure(husk, "currentHusk.value");
+  });
+
+  it.each([ "active", "domainRules"])(
+    "rejects an undeclared %s field at its envelope slot",
+    (slot) => {
+      const value = fixture("orient");
+      setPath(value, [slot, "value", "unexpected"], true);
+      expectContractFailure(value, `${slot}.value`);
+    },
+  );
+
+  it("rejects undeclared config fields", () => {
+    const extra = fixture("orient");
+    setPath(extra, ["config", "value", "unexpected"], true);
+    expectContractFailure(extra, "config.value");
+  });
+
+  it("names a misconfigured config setting at its envelope slot", () => {
+    const misconfigured = fixture("orient");
+    setPath(misconfigured, ["config", "value", "settings", "session.remote_sync"], "sometimes");
+    expectContractFailure(misconfigured, "config.value.settings.session.remote_sync");
+  });
+
+  it("rejects undeclared release-routing fields at its envelope slot", () => {
+    const value = fixture("orient");
+    setPath(value, ["releaseRouting", "value", "rationale", "unexpected"], true);
+    expectContractFailure(value, "releaseRouting.value.rationale");
+  });
+
+  it("accepts a diverged worktree with snapshot supersession evidence", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+  });
+
+  it.each([
+    ["not-needed", { superseded: false, supersededCommits: [], novelCommits: [] }],
+    ["pending-fetch", {
+      superseded: false, supersededCommits: [], novelCommits: [], remoteEvidence: "pending-fetch",
+    }],
+    ["unreachable", {
+      superseded: false, supersededCommits: [], novelCommits: [],
+      remoteEvidence: "unreachable", failureReason: "network",
+    }],
+  ])("accepts a diverged worktree with %s supersession", (_arm, supersession) => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "",
+      identity: { kind: "linked", path: "/redacted/worktree" }, supersession,
+    });
+    expectValid(value);
+  });
+
+  it("rejects undeclared worktree and identity fields at their session-init slot", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "unexpected"], true);
+    expectContractFailure(worktree, "worktree.value");
+
+    const identity = fixture("active-resume");
+    setPath(identity, ["worktree", "value", "identity", "unexpected"], true);
+    expectContractFailure(identity, "worktree.value.identity");
   });
 
   it("enforces roster, recovery, and primary sweep gates", () => {
@@ -578,22 +1081,26 @@ describe("session-init envelope schema", () => {
     expectInvalid(missingSweep);
   });
 
-  it("allows current-husk omission but rejects impossible presence and failure probes", () => {
+  it("requires current-husk at a linked branchless locus and forbids it elsewhere", () => {
+    // An eligible locus always emits the slot, so omission there would report a failed
+    // probe as an inapplicable locus rather than as the degraded slot it is.
     const omitted = fixture("current-husk");
     delete omitted.currentHusk;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
+    expectInvalid(omitted);
 
     expectInvalid({
       ...fixture("orient"),
       currentHusk: fixture("current-husk").currentHusk,
     });
-    expectInvalid({
+    const failed = {
       ...fixture("current-husk"),
       currentHusk: {
         ok: false,
         error: { kind: "runtime", message: "degraded" },
       },
-    });
+    };
+    assertSchemaAccepts(SessionInitProbeResultSchema, failed);
+    expectInvalid({ ...fixture("orient"), currentHusk: failed.currentHusk });
   });
 
   it("enforces orphan and identity-scoped advisory presence", () => {
@@ -608,9 +1115,22 @@ describe("session-init envelope schema", () => {
     linkedWorktree.value.identity = { kind: "linked", path: "/linked" };
     expectInvalid(identityAbsentLinked);
 
-    const identityScoped = ["retiredSubdirs", "errandSweep", "inboxState", "partialPushMarker"];
+    const identityScoped = ["retiredSubdirs", "partialPushMarker"];
     for (const key of identityScoped) {
       expectInvalid(withoutKey(fixture("orient"), key));
+
+      const impossible = fixture("identity-missing");
+      impossible[key] = fixture("orient")[key];
+      expectInvalid(impossible);
+    }
+
+    const primaryOnly = ["errandSweep", "inboxState"] as const;
+    for (const key of primaryOnly) {
+      expectInvalid(withoutKey(fixture("orient"), key));
+
+      const linked = fixture("active-resume");
+      linked[key] = fixture("orient")[key];
+      expectInvalid(linked);
 
       const impossible = fixture("identity-missing");
       impossible[key] = fixture("orient")[key];
@@ -644,10 +1164,14 @@ describe("session-init envelope schema", () => {
     const orient = fixture("orient");
     delete orient.compactionAdvisory;
     delete orient.inFlightComposition;
-    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, orient);
 
     expectInvalid({
       ...fixture("identity-missing"),
+      compactionAdvisory: fixture("orient").compactionAdvisory,
+    });
+    expectInvalid({
+      ...fixture("active-resume"),
       compactionAdvisory: fixture("orient").compactionAdvisory,
     });
     expectInvalid({
@@ -679,26 +1203,22 @@ describe("session-init envelope schema", () => {
   it("validates but never requires the invocation-only seed-write status", () => {
     const omitted = fixture("orient");
     delete omitted.compactionSeedWrite;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "skipped",
-          reason: "identity-missing",
-        },
-      }).success,
-    ).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "failed",
-          reason: "seed-invalid",
-          message: "invalid",
-        },
-      }).success,
-    ).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, omitted);
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "skipped",
+        reason: "identity-missing",
+      },
+    });
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "failed",
+        reason: "seed-invalid",
+        message: "invalid",
+      },
+    });
     expectInvalid({
       ...fixture("orient"),
       compactionSeedWrite: { status: "written", path: "" },

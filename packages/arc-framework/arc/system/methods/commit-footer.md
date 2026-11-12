@@ -70,8 +70,10 @@ Used for WU lifecycle ceremonies (which edit the meta file) and for off-ceremony
 - `Context: meta-[name].md (handoff)` — meta-file rotation at session boundary (dedicated
   `chore(arc):` commit per [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline)
 - `Context: meta-[name].md (activation)` — backlog → active transition
-- `Context: meta-[name].md (integration)` — integration prep (completion doc, cleanup, reference
-  fixes; not review-driven fixes — see `(code review)` on `tasks-`/`plan-`)
+- `Context: meta-[name].md (prepublication)` — Candidate preparation and the publication transition before the
+  first public push (not finding-driven fixes — see `(code review)` on `tasks-`/`draft-`/`spec-`)
+- `Context: meta-[name].md (integration)` — public integration ceremony (completion doc, cleanup, reconcile,
+  reference fixes; not finding-driven fixes)
 - `Context: meta-[name].md (archival)` — active → archive transition
 - `Context: meta-[name].md (deactivation)` — active → backlog rotation
 - `Context: meta-[name].md (maintenance)` — off-ceremony meta edits (review-driven or otherwise)

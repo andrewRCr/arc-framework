@@ -2,7 +2,7 @@
  * Foreign-write advisory backstop — pre-commit hook entry point.
  *
  * Given a list of staged file paths, surfaces any that another in-flight work
- * unit also touches — a foreign-owned write about to land on the wrong branch.
+ * unit or Errand also touches — a foreign-owned write about to land on the wrong branch.
  * It reuses {@link detectForeignArtifactOverlap} (the same primitive behind the
  * `arc errand` advisory gate) over the locally-derived in-flight set, so the
  * hook stays fast and offline: no network read at commit time.
@@ -22,6 +22,9 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -108,6 +111,7 @@ export function selectForeignWriteCandidates(paths: string[]): string[] {
 
 /** Inputs for {@link detectStagedForeignWrites}. */
 export interface StagedForeignWriteOptions {
+  store?: Store;
   /** Injectable git executor. */
   exec: GitExec;
   /** Identity-filtered in-flight roster (local derivation, projected by the caller). */
@@ -127,7 +131,7 @@ export interface StagedForeignWriteOptions {
 }
 
 /**
- * Detect staged work-unit-surface paths that a foreign in-flight WU also touches.
+ * Detect staged work-unit-surface paths that a foreign in-flight work unit or Errand also touches.
  * A thin orchestration over {@link detectForeignArtifactOverlap}: narrows the
  * candidates to the work-unit surface, then defers to the shared primitive.
  *
@@ -137,6 +141,7 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
+  if (options.store?.capabilities.stateOffBranch) return { overlaps: [] };
   const {
     exec,
     roster,
@@ -163,22 +168,22 @@ export async function detectStagedForeignWrites(
 }
 
 /**
- * Word the overlaps as advisory warning lines (one per foreign WU). Empty input
+ * Word the overlaps as advisory warning lines (one per foreign entry). Empty input
  * yields no lines — the hook stays silent on a clean self-write.
  */
 export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): string[] {
   return overlaps.map(
-    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
+    (o) => `${o.branch ?? o.workItem ?? "unknown work item"} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
   );
 }
 
 function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
   const marks = entry.marks.join(", ");
-  return `${entry.branch} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
+  return `${entry.branch ?? entry.workItem ?? "unknown work item"} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
 }
 
 function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
-  return `${entry.branch} skipped: probe indeterminate (${overlapLocation(entry)})`;
+  return `${entry.branch ?? entry.workItem ?? "unknown work item"} skipped: probe indeterminate (${overlapLocation(entry)})`;
 }
 
 function overlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
@@ -191,7 +196,7 @@ export function formatForeignWriteAdvisories(
   oracleWarnings: readonly InFlightWarning[] = [],
 ): string[] {
   return [
-    ...oracleWarnings.map(renderInFlightWarning),
+    ...oracleWarnings.filter((warning) => warning.code !== "branch-residue").map(renderInFlightWarning),
     ...(result.skipped ?? []).map(formatSkippedEntry),
     ...(result.indeterminate ?? []).map(formatIndeterminateProbe),
     ...(result.notes ?? []),
@@ -233,6 +238,7 @@ async function main(): Promise<void> {
   if (selectForeignWriteCandidates(paths).length === 0) return;
 
   const cwd = process.cwd();
+  if (createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: gitExec })).capabilities.stateOffBranch) return;
   const { settings } = await readConfigSettings(cwd);
   const baseBranch = settings["branch.base"];
   if (!baseBranch) return;

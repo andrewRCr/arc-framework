@@ -1,3 +1,4 @@
+import { LineageRecordSchema } from "../../../../src/lib/store/kinds/lineage/index.js";
 /**
  * Unit tests for the `discharge-dep-edges` side-effect — the write half of
  * dep-edge discharge, fired at `activate`.
@@ -14,174 +15,182 @@
 
 import { describe, it, expect } from "vitest";
 
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { receiptId } from "../../../../src/lib/canonical/receipt-id.js";
+import type { MetaRenderOverrides } from "../../../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
-import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
-  RetirementRecordEnumerationResult,
-} from "../../../../src/lib/work-unit/retirement-record-enumeration.js";
-import type {
-  RetirementDispositionQueryResult,
-} from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+  TransitionRecordEnumerationResult,
+} from "../../../../src/lib/work-unit/transition-record-enumeration.js";
+import type { TransitionDispositionQueryResult } from "../../../../src/lib/work-unit/transition-disposition-query.js";
 import {
-  dischargeDepEdges,
   planDependencyReconcile,
   runCurrentWuReconcile,
-  type DischargeDepEdgesContext,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
-function meta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+/** Valid metadata for the surviving dependency verdict and planning cases. */
+function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: string[] = []): string {
+  return makeMetaFixture("x", { state, dependsOn });
+}
+
+/** Keep independently authored projection values for the carved current-WU apply cases. */
+function legacyMeta(state: string, dependsOn?: string[]): string {
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const DEPENDENT_PATH = ".arc/active/meta-dependent.md";
 
 function queryResults(
-  results: Readonly<Record<string, RetirementDispositionQueryResult>>,
-): (input: { retiredSubject: string }) => Promise<RetirementDispositionQueryResult> {
-  return ({ retiredSubject }) => Promise.resolve(results[retiredSubject] ?? { status: "absent" });
+  results: Readonly<Record<string, TransitionDispositionQueryResult>>,
+): (input: { origin: string }) => Promise<TransitionDispositionQueryResult> {
+  return ({ origin }) => Promise.resolve(results[origin] ?? { status: "absent" });
 }
 
 function renameEnumeration(
   retiredSubject = "origin",
   targetSlug = "successor",
-): RetirementRecordEnumerationResult {
-  const subject = { kind: "work-unit", name: retiredSubject } as const;
-  const source = {
-    branch: `feat/${retiredSubject}`,
-    head: "a".repeat(40),
-    artifactDigest: canonicalDigest(`source:${retiredSubject}`),
-  };
-  const candidate: RetirementReceipt = {
-    schemaVersion: 1,
-    receiptId: receiptId({
-      schemaVersion: 1,
-      subject,
-      transition: "rename",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    }),
-    subject,
-    transition: "rename",
-    source,
-    transitionPatchDigest: canonicalDigest(`patch:${retiredSubject}`),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "identity-renamed",
-    result: {
-      kind: "rename",
-      targetSlug,
-      artifactDigest: canonicalDigest(`target:${targetSlug}`),
-    },
-  };
+): TransitionRecordEnumerationResult {
   return {
     status: "valid",
-    records: [{
-      id: candidate.receiptId,
-      content: "",
-      record: { kind: "receipt", value: candidate },
+    groups: [{
+      origin: retiredSubject,
+      records: [LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: retiredSubject },
+        kind: "rename",
+        successors: [{ name: targetSlug }],
+        incoming: [],
+      })],
     }],
   };
 }
 
-/**
- * Build a discharge context over an index of one dependent plus dependencies in
- * the named states, with an in-memory meta read/write keyed on path.
- */
-function buildCtx(dependsOn: string[]): { ctx: DischargeDepEdgesContext; writes: string[] } {
-  const metas = [
-    { path: DEPENDENT_PATH, content: meta("Active", dependsOn) },
-    { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
-    { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
-    { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
-    { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
-    { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
-  ];
-  const files = new Map(metas.map((m) => [m.path, m.content]));
-  const writes: string[] = [];
-
-  const ctx: DischargeDepEdgesContext = {
-    index: buildLifecycleIndexFromMetas(metas),
-    readMeta: (path) => {
-      const content = files.get(path);
-      return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
-    },
-    writeMeta: (path, content) => {
-      files.set(path, content);
-      writes.push(content);
-      return Promise.resolve();
-    },
-  };
-
-  return { ctx, writes };
+/** Build the production planner input for the readiness verdict. */
+function readinessPlan(edges: string[]) {
+  return planDependencyReconcile({
+    index: buildLifecycleIndexFromMetas([
+      { path: DEPENDENT_PATH, content: meta("Active", edges) },
+      { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
+      { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
+      { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
+      { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
+      { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
+    ]),
+    dependentSlug: "dependent",
+    edges,
+    queryDisposition: async () => ({ status: "absent" }),
+  });
 }
 
-describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)", () => {
-  it("discharges a shipped (landed) dependency off the gate", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["shipped-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    // The gate is rewritten to the live set only.
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+describe("dependency reconcile readiness verdict", () => {
+  it.each(["shipped-dep", "integrating-dep"])("discharges a satisfied %s and keeps live edges", async (dependency) => {
+    const result = await readinessPlan([dependency, "active-dep"]);
+    expect(result.status).toBe("ready");
+    expect(result.dependency.discharged).toEqual([dependency]);
+    expect(result.dependency.after).toEqual(["active-dep"]);
+    expect(result.dependency.live).toEqual(["active-dep"]);
   });
 
-  it("discharges an integrating dependency too (the team-review-latency case)", async () => {
-    const { ctx, writes } = buildCtx(["integrating-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+  it("clears the gate when every edge is satisfied", async () => {
+    const result = await readinessPlan(["shipped-dep", "integrating-dep"]);
+    expect(result.dependency.discharged).toEqual(["integrating-dep", "shipped-dep"]);
+    expect(result.dependency.after).toEqual([]);
+    expect(result.dependency.live).toEqual([]);
   });
 
-  it("clears the gate to [none] when every edge is satisfied", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "integrating-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep", "shipped-dep"]);
-    expect(result.live).toEqual([]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("[none]");
-  });
-});
-
-describe("dischargeDepEdges — live edges stay", () => {
-  it("leaves an only-planning/active dependency on the gate, writing nothing", async () => {
-    const { ctx, writes } = buildCtx(["active-dep", "parked-dep", "planned-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual([]);
-    expect(result.live).toEqual(["active-dep", "parked-dep", "planned-dep"]);
-    // Nothing satisfied → no meta rewrite.
-    expect(writes).toEqual([]);
+  it("keeps planning and active dependencies live", async () => {
+    const edges = ["active-dep", "parked-dep", "planned-dep"];
+    const result = await readinessPlan(edges);
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(edges);
+    expect(result.dependency.live).toEqual(edges);
   });
 
-  it("returns a non-overlapping conservative projection when any edge conflicts", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "missing-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result).toEqual({
-      discharged: [],
-      live: ["missing-dep", "shipped-dep"],
-    });
-    expect(writes).toEqual([]);
+  it("keeps every edge live and discharges none when any edge conflicts", async () => {
+    const result = await readinessPlan(["shipped-dep", "missing-dep"]);
+    expect(result.status).toBe("conflict");
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(["missing-dep", "shipped-dep"]);
+    expect(result.dependency.live).toEqual(["missing-dep", "shipped-dep"]);
   });
 });
 
 describe("current-WU dependency reconcile planning", () => {
+  it("preserves recursive lean rename, abandon, replacement, and drop decisions", async () => {
+    const results: Readonly<Record<string, TransitionDispositionQueryResult>> = {
+      renamed: { status: "unique", disposition: { kind: "retarget", targetSlug: "middle" } },
+      middle: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      abandoned: { status: "unique", disposition: { kind: "abandoned" } },
+      replaced: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      dropped: { status: "unique", disposition: { kind: "drop", reason: "not retained" } },
+    };
+    const result = await planDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+        { path: ".arc/active/meta-member.md", content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["renamed", "abandoned", "replaced", "dropped"],
+      queryDisposition: ({ origin }) => Promise.resolve(results[origin] ?? { status: "absent" }),
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      dependency: {
+        after: ["member"],
+        drops: [
+          { retiredSubject: "abandoned", reason: "retired work unit was abandoned" },
+          { retiredSubject: "dropped", reason: "not retained" },
+        ],
+        conflicts: [],
+      },
+    });
+    expect(result.dependency.replacements.map(({ evidence }) =>
+      evidence.map(({ subject }) => subject))).toEqual([
+      ["renamed", "middle"],
+      ["replaced"],
+    ]);
+  });
+
+  it.each([
+    [{ status: "ambiguous" }, "ambiguous-evidence"],
+    [{ status: "unmapped-dependent" }, "unmapped-dependent"],
+    [{ status: "namespace-corrupt" }, "namespace-corrupt"],
+  ] as const)("preserves the lean %s refusal", async (resolution, reason) => {
+    const result = await planDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["origin"],
+      queryDisposition: async () => resolution,
+    });
+
+    expect(result).toMatchObject({
+      status: "conflict",
+      dependency: { conflicts: [{ edge: "origin", subject: "origin", reason }] },
+    });
+  });
+
   it("replaces one retired edge with its deduplicated delivering members", async () => {
     const index = buildLifecycleIndexFromMetas([
       { path: DEPENDENT_PATH, content: meta("Active", ["origin"]) },
@@ -195,7 +204,6 @@ describe("current-WU dependency reconcile planning", () => {
       edges: ["origin"],
       queryDisposition: async () => ({
         status: "unique",
-        evidenceQuality: "reachable",
         disposition: {
           kind: "replace",
           replacementTargets: ["member-b", "member-a", "member-a"],
@@ -210,7 +218,7 @@ describe("current-WU dependency reconcile planning", () => {
         replacements: [{
           retiredSubject: "origin",
           replacementTargets: ["member-a", "member-b"],
-          evidence: [{ subject: "origin", quality: "reachable" }],
+          evidence: [{ subject: "origin" }],
         }],
         conflicts: [],
       },
@@ -222,18 +230,16 @@ describe("current-WU dependency reconcile planning", () => {
       label: "authored decompose drop",
       resolution: {
         status: "unique",
-        evidenceQuality: "degraded",
         disposition: { kind: "drop", reason: "not retained" },
-      } satisfies RetirementDispositionQueryResult,
+      } satisfies TransitionDispositionQueryResult,
       reason: "not retained",
     },
     {
       label: "abandon",
       resolution: {
         status: "unique",
-        evidenceQuality: "unknown",
         disposition: { kind: "abandoned" },
-      } satisfies RetirementDispositionQueryResult,
+      } satisfies TransitionDispositionQueryResult,
       reason: "retired work unit was abandoned",
     },
   ])("drops an edge retired by $label while surfacing its reason", async ({ resolution, reason }) => {
@@ -266,12 +272,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "unknown",
           disposition: { kind: "retarget", targetSlug: "renamed-once" },
         },
         "renamed-once": {
           status: "unique",
-          evidenceQuality: "degraded",
           disposition: { kind: "retarget", targetSlug: "successor" },
         },
       }),
@@ -285,8 +289,8 @@ describe("current-WU dependency reconcile planning", () => {
           retiredSubject: "origin",
           replacementTargets: ["successor"],
           evidence: [
-            { subject: "origin", quality: "unknown" },
-            { subject: "renamed-once", quality: "degraded" },
+            { subject: "origin" },
+            { subject: "renamed-once" },
           ],
         }],
       },
@@ -304,12 +308,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "tree-only",
           disposition: { kind: "replace", replacementTargets: ["member"] },
         },
       }),
@@ -322,8 +324,8 @@ describe("current-WU dependency reconcile planning", () => {
         replacements: [{
           replacementTargets: ["member"],
           evidence: [
-            { subject: "origin", quality: "reachable" },
-            { subject: "renamed", quality: "tree-only" },
+            { subject: "origin" },
+            { subject: "renamed" },
           ],
         }],
       },
@@ -340,12 +342,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "unknown",
           disposition: { kind: "abandoned" },
         },
       }),
@@ -358,8 +358,8 @@ describe("current-WU dependency reconcile planning", () => {
         drops: [{
           reason: "retired work unit was abandoned",
           evidence: [
-            { subject: "origin", quality: "reachable" },
-            { subject: "renamed", quality: "unknown" },
+            { subject: "origin" },
+            { subject: "renamed" },
           ],
         }],
       },
@@ -369,8 +369,7 @@ describe("current-WU dependency reconcile planning", () => {
   it.each([
     ["missing evidence", { status: "absent" }, "missing-evidence"],
     ["ambiguous evidence", { status: "ambiguous" }, "ambiguous-evidence"],
-    ["unmapped evidence", { status: "unmapped-dependent", evidenceQuality: "degraded" }, "unmapped-dependent"],
-    ["version conflict", { status: "version-conflict" }, "version-conflict"],
+    ["unmapped evidence", { status: "unmapped-dependent" }, "unmapped-dependent"],
     ["corrupt namespace", { status: "namespace-corrupt" }, "namespace-corrupt"],
   ] as const)("refuses %s without producing a rewrite", async (_label, resolution, reason) => {
     const result = await planDependencyReconcile({
@@ -403,12 +402,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "origin" },
         },
       }),
@@ -440,7 +437,6 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "replace", replacementTargets: ["missing"] },
         },
       }),
@@ -463,17 +459,14 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "replace", replacementTargets: ["first", "second"] },
         },
         first: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "final" },
         },
         second: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "abandoned" },
         },
       }),
@@ -503,15 +496,14 @@ describe("current-WU dependency reconcile apply", () => {
     commit: () => Promise.resolve(),
     rollback: () => Promise.resolve(),
   });
-  const original = meta("Active", ["origin"]);
+  const original = legacyMeta("Active", ["origin"]);
   const index = buildLifecycleIndexFromMetas([
     { path: DEPENDENT_PATH, content: original },
-    { path: ".arc/active/meta-successor.md", content: meta("Active") },
+    { path: ".arc/active/meta-successor.md", content: legacyMeta("Active") },
   ]);
   const queryDisposition = queryResults({
     origin: {
       status: "unique",
-      evidenceQuality: "reachable",
       disposition: { kind: "retarget", targetSlug: "successor" },
     },
   });
@@ -565,7 +557,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition,
-      readFile: async () => reads++ === 0 ? original : meta("Active", ["changed"]),
+      readFile: async () => reads++ === 0 ? original : legacyMeta("Active", ["changed"]),
       writeFile: async (_path, content) => { writes.push(content); },
       stagePaths: async (paths) => { stages.push(paths); },
       captureIndexState: captureCleanIndex,
@@ -577,14 +569,14 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("discovers a structured reference transition without a Depends On edge", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
       readFile: (path) => Promise.resolve(files.get(path)!),
       writeFile: () => Promise.resolve(),
@@ -610,7 +602,7 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("guards every scanned artifact before writing or staging the bounded batch", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const reads = new Map<string, number>();
@@ -619,7 +611,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
       readFile: (path) => {
         const count = reads.get(path) ?? 0;
@@ -642,7 +634,7 @@ describe("current-WU dependency reconcile apply", () => {
   it.each(["write", "stage"] as const)(
     "rolls back a partial multi-file %s failure so the exact plan can retry",
     async (failurePoint) => {
-      const metaContent = meta("Active", ["origin"]);
+      const metaContent = legacyMeta("Active", ["origin"]);
       const specPath = ".arc/active/spec-dependent.md";
       const specContent = "See `spec-origin.md`.\n";
       const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
@@ -654,7 +646,7 @@ describe("current-WU dependency reconcile apply", () => {
       const context = {
         index,
         queryDisposition,
-        enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+        enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
         listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
         readFile: (path: string) => Promise.resolve(files.get(path)!),
         writeFile: (path: string, content: string) => {
@@ -718,7 +710,7 @@ describe("current-WU dependency reconcile apply", () => {
   );
 
   it("preserves an advisory-only plan when apply has no mechanical edits", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const notesPath = ".arc/active/notes-dependent.md";
     const notesContent = "The origin remains relevant context.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [notesPath, notesContent]]);
@@ -728,7 +720,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, notesPath]),
       readFile: (path) => Promise.resolve(files.get(path)!),
       writeFile: async (path) => { writes.push(path); },

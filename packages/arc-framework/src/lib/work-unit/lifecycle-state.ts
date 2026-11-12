@@ -22,7 +22,7 @@
  * @module
  */
 
-import { validateState, type WorkUnitState } from "../../commands/active/types.js";
+import { validateState, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 
 /**
  * The phase axis — the meta `**State:**` field, verbatim. Reuses the codified
@@ -80,6 +80,7 @@ export function locationFromPath(path: string): Location | null {
       return "planned";
     case "backlog/provisional":
       return "provisional";
+    case undefined:
     default:
       return null;
   }

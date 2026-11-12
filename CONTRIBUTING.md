@@ -4,38 +4,57 @@ Thanks for your interest in contributing to ARC.
 
 ## Quick Start
 
-**Prerequisites:** Node.js ≥24 (current Active LTS), Git ≥2.28, and `shellcheck`
+**Prerequisites:** Node.js ≥24 (current Active LTS), Git ≥2.53, and `shellcheck`
 installed on your system (`apt-get install shellcheck`, `brew install shellcheck`,
 or equivalent). Shellcheck is invoked by `npm run lint:sh` from the system PATH;
 it is not bundled as an npm dependency.
 
+Install [actionlint][actionlint-install] on the system PATH as well (`brew install actionlint` on macOS, or use its
+release binary on Linux/Windows). `npm run lint:workflows` requires both actionlint and ShellCheck so inline workflow
+shell is checked alongside GitHub Actions expressions and dependencies. CI installs actionlint 1.7.12.
+
 1. Fork and clone the repository
-2. Install dependencies: `npm install`
+2. Install dependencies and initialize the approved tools: `npm install && npm run setup`
 3. Join as a contributor: `npx arc join`
-4. Verify your setup — all checks should pass on a clean checkout:
+4. Verify your setup — run the declared local merge checks on a clean checkout:
 
 ```bash
-npm run -s lint:md
-npm run lint:ts
-npm run lint:sh
-npm run typecheck
-npm test
-npm run build
+npx arc check gate merge
 ```
+
+Dependency lifecycle scripts are disabled by the repository's `.npmrc`, including during `npm audit fix`.
+Run `npm run setup` after installing or updating dependencies: it refuses an unexpected `lefthook.yml`, rebuilds
+only esbuild, and installs the Husky hooks. Keep `ignore-scripts` enabled for installs; setup explicitly enables
+scripts only for the named esbuild rebuild.
 
 ## Development Workflow
 
-After pulling self-hosting changes or making local source edits, run `npm run build` before
-invoking handoff-critical commands (`npx arc sync`, `npx arc user save`, `npx arc user push`,
-`npx arc user sync`, and `npx arc status --session-init --json` or
-`npx arc status --session-handoff --json`). The CLI's dev-mode check refuses these commands
-with a stderr error and exit 1 when `dist/cli.js` is older than the newest `src/**/*.ts`,
-since their output drives cross-machine state and a stale build silently produces wrong
-answers. Quick-read commands (`npx arc log`, `npx arc health`, `npx arc diff`, plain
-`npx arc status`) print a stderr warning but still run.
+After pulling self-hosting changes or making local source edits, rebuild before invoking the
+CLI. Its dev-mode check refuses to run against a stale build: commands exit 1 with a stderr
+error naming the fix, since a stale bundle silently produces wrong answers. Rebuild with
+`npm run build:fast` — a runtime-only build that takes about a second — and retry.
 
-The check fires only in this development checkout — published installs don't include `src/`,
-so adopters never see it.
+There is no warning tier and no allowlist of safe commands, so read-only commands refuse too.
+The one exception is not a command at all: the compaction-seed write is an option on `status`,
+and it proceeds so that a recovery seed still lands. The repository's `commit-msg` hook runs through the CLI as well, so
+a stale build blocks committing until you rebuild — editing source and then committing is the ordinary way to meet the
+check.
+
+The check fires only when the CLI runs as the built bundle in this development checkout.
+Invoking it from source produces no verdict at all, and published installs don't include `src/`,
+so it never fires there.
+
+### Packing and publishing the CLI
+
+The CLI's `prepack` script runs the full build before packing or publishing. Enable lifecycle scripts explicitly for
+these commands because the repository's `.npmrc` disables them:
+
+```bash
+npm pack --workspace @arc-framework/cli --ignore-scripts=false
+npm publish --workspace @arc-framework/cli --ignore-scripts=false
+```
+
+Keep scripts disabled for file-list checks with `npm pack --dry-run --ignore-scripts --workspace @arc-framework/cli`.
 
 ## Commit Convention
 
@@ -55,9 +74,10 @@ addresses.
 
 ## Quality Standards
 
-Quality gates are zero-tolerance — all checks must pass before any commit. The pre-commit
-hook runs automatically. See the [full contributing guide][contributing-docs] for the
-complete check reference, PR guidelines, and what to know about the project structure.
+Quality gates are zero-tolerance: each check must pass at its declared commit, push, or merge deadline. The Git
+hooks run the relevant declared checks automatically. Checks and deadlines live in
+[the check declaration][check-declaration]; use `npx arc check` for selection, results, and measured costs. See the
+[full contributing guide][contributing-docs] for PR guidelines and project structure.
 
 ## Areas to Contribute
 
@@ -74,5 +94,7 @@ Full guide: [Contributing to ARC][contributing-docs] | [Report a bug][issues] |
 ---
 
 [contributing-docs]: https://andrewrcr.github.io/arc-framework/contributing/
+[check-declaration]: .arc/system/arc-checks.yml
 [issues]: https://github.com/andrewRCr/arc-framework/issues
 [discussions]: https://github.com/andrewRCr/arc-framework/discussions
+[actionlint-install]: https://github.com/rhysd/actionlint/blob/main/docs/install.md

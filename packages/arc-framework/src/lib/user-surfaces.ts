@@ -17,6 +17,9 @@ import { resolvePrimaryWorktreePath } from "./git/worktree-roster.js";
 import type { Slug } from "./kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "./layout/index.js";
 
+/** Filename of the derived identity status view, outside stored personal records. */
+export const IDENTITY_STATUS_FILENAME = "STATUS.USER.md";
+
 export interface UserSurfaceResolverOptions {
   /** Current ARC project root / active worktree root. */
   cwd: string;

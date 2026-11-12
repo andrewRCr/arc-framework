@@ -5,16 +5,20 @@ purpose: >-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - route-discovered-work
     - resolve-planning-depth
     - classify-work-unit
-    - assess-cohort-fit
+    - assess-boundary-fit
     - assess-draft-readiness
-    - adversarial-review
+    - planning-review
     - assess-design-proportionality
-    - design-audit
+    - source-grounding
 ---
 
 # Workflow: Draft Design
+
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
 
 The first authoring stage — peer to [create-spec](create-spec.md) and [generate-tasks](generate-tasks.md).
 It shapes the design before a spec crystallizes it: surface the problem, work the alternatives, and settle the
@@ -28,9 +32,15 @@ start.
 
 ## Planning-entry gate
 
-**Grooming-entry skip.** A `--plan <stub>` grooming session enters already on a committable grooming branch —
-under full protection, session-init's signal-leaf relocate uses `chore/groom-<slug>` cut from the base. Skip this
-gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
+**Session-init grooming resume:** `subjectKind: "groom"`, `subjectKey`, and `generation` identify the selected
+existing grooming set. Continue in its current checkout at **Resolve depth & Class**, without running this fresh-entry
+gate or treating the set key as a backlog stub.
+
+**Session-init planning entry:** `stub` identifies the selected backlog stub; `onGroomingBranch` reports whether
+this checkout is already on that stub's grooming branch.
+
+**Grooming-entry skip.** A `--plan` entry skips this gate only when `onGroomingBranch` is true, continuing to
+**Resolve depth & Class**. Every other `--plan` entry runs the gate below.
 
 Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
 context and routes so a draft never lands where it can't be committed:
@@ -63,12 +73,18 @@ read drives both, yielding this stage's **level** (`low` / `medium` / `high`) an
 **`Class`**, born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage
 re-entry valve.
 
-Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the cheap **upper-bound** confirm paired with
-`classify-work-unit`'s lower-bound one: is this one work unit, or has the design surfaced orthogonal subsystems
-that want decomposing into a cohort? It is **maturity-gated**, so while the design is still forming it clears
-trivially — hold as one unit and iterate. It fires affirmative only once the design is stable enough that the
-cuts are real (the **predicted-decomposition** arm, where you author directly into the cohort structure rather
-than a monolith); re-confirm cheaply as the draft matures across passes.
+Off the same read, run [`assess-boundary-fit`][assess-boundary-fit] — the cheap boundary confirm paired with
+`classify-work-unit`'s lower-bound read. Dispatch its one selected outcome:
+
+| Outcome                                  | Owner                   | Action                                                                                                                                         |
+| ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; continue whole and stay silent while evidence is materially unchanged.     |
+| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map to that workflow; it alone owns the transform.                                                                      |
+| `stays one WU + delivery-plan candidate` | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; author the draft slice-aware without publishing or binding delivery state. |
+
+The selected result is sticky planning judgment. At later fire-points, compare the evidence semantically and
+re-raise only for a material new-evidence delta, never for mere invocation, elapsed time, or restatement. No CLI
+parser, fingerprint, schema, or new decision record is introduced.
 
 The resolved level selects this stage's path below — the stage default, re-selectable, never below the
 derivation floor.
@@ -88,6 +104,9 @@ not as a proof-of-check marker.
 
 Each level maps to a path — the drafting procedure at that depth. Run the one the entry read selected; if a path
 surfaces heavier derivation than the read assumed, step up.
+
+Whatever the path produces, the scope boundary it records is what the spec inherits — author it as a handoff
+surface, not a private note.
 
 ### `low` — quick determinacy-confirm (no draft artifact)
 
@@ -128,7 +147,8 @@ usual.
    ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
    before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
    alternatives and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The
-   developer formulates _with_ the agent; the agent does not produce a finished design for sign-off.
+   developer formulates _with_ the agent; **the agent does not produce a finished design for sign-off** ·
+   `[invariant]`.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
    re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
    decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for
@@ -144,10 +164,23 @@ formalization-ready gate:
 - **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
   for create-spec.
 
-At loop-exit, assess the draft's formalization-readiness with the
-[assess-draft-readiness][assess-draft-readiness] method. On **ready**, the draft crosses into create-spec; on
-**not-ready**, re-synthesize against the returned gaps and keep iterating. These readiness states describe a
-draft's maturity for cross-session continuity; a draft is `formalization-ready` when the method returns `ready`.
+At loop-exit, assess the draft's formalization-readiness with the [assess-draft-readiness][assess-draft-readiness]
+method. On **ready**, the draft crosses into create-spec; on **not-ready**, re-synthesize against the returned gaps and
+keep iterating. For a gap of inbound entries not yet integrated, run [route-discovered-work][route-discovered-work] at
+this owner's-pass fire-point:
+
+```yaml
+route-discovered-work:
+  entry: each held inbound entry
+  door: owner's planning pass
+  host: the work unit whose draft holds the entries
+```
+
+At the Owner's pass, show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon
+advisory, and any wait the binding names. On confirmation, execute through the binding and leave the dispositions
+table before re-assessing readiness. This is the pass that makes the draft ready; nothing remains held.
+These readiness states describe a draft's maturity for cross-session continuity; a draft is `formalization-ready`
+when the method returns `ready`.
 
 **Coherence-consolidation (`high`-only, suggest-not-enforce).** A draft that iterates across many sessions
 accretes superseded sketch beside current design — the design can be settled while the document is not yet a
@@ -159,42 +192,39 @@ Three leans, never hard gates:
 - **Interim softcap.** When accretion makes the draft costly to _resume against_ mid-loop — each session
   re-parsing a pile of separate amendments to continue — suggest an integrating rewrite _before_ everything is
   settled, so derivation runs against a clean artifact rather than a growing pile.
-- **No detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
-  detail; self-check the rewrite against the pre-rewrite layers. A coherence rewrite must not silently drop
-  substance.
+- **No silent detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
+  detail; self-check the rewrite against the pre-rewrite layers. Dropping superseded sketch is what a
+  consolidation is _for_ — drop it deliberately and name what went, in the draft or to the developer. Substance
+  disappearing unremarked is the failure, not removal itself.
 
 A single-sitting draft is coherent by construction and clears all three criteria at once; they bite only when
 accretion is real.
 
 ## Capture the draft
 
-On a draft-producing path (`medium` / `high`), the readiness boundary carries an advisory adversarial
-fire-point — the gate's own rubrics run from fresh context:
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel` (strongest framing);
-> surface a neutral offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline
-> proceeds normally.
+Run [planning-review's author checks][planning-author-checks] and [independent offer][planning-offer] at this
+stage gate, then its [findings and pass record][planning-findings].
 
 ```yaml
-adversarial-review:
-  rubric:          # assess-draft-readiness divergence + assess-design-proportionality + design-audit
-  artifacts:       # draft-{name}.md + non-exhaustive key-file pointers (the implementation loci the design names)
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
+planning-review:
+  artifact: draft
+  artifacts:       # draft-{name}.md or determinacy confirmation + upstream chain + neutral key-file pointers
+  class:           # resolved Class
+  prior-findings:  # recorded history; fresh-loop first pass takes ended-loop findings, not folds, as context
 ```
+
+On a draft-producing path, run `arc check increment` before readiness approval and report its result.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
 
-**Re-entry valve (the loop's floor-raising back-edge):** if review surfaces that the design runs deeper than the
-resolved level authored, re-enter `draft-design` higher — the derivation headwater re-enters itself only — per
-[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
-ship a too-thin draft.
+**Re-entry valve (the loop's floor-raising back-edge):** follow
+[resolve-planning-depth's mid-stage route][resolve-planning-depth] when the design runs deeper than the resolved
+level authored. Below `high`, re-enter this derivation headwater higher. At `high`, offer a return to the facilitated
+shaping step over the named locus, from the problem and alternatives, the `Novel` ratchet when invention is required,
+or boundary assessment when concerns can stand apart. Accepting a return ends the loop as `re-entered`; re-run
+readiness after shaping, then offer a fresh loop with a fresh cap and the ended loop's findings as context.
 
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
@@ -222,14 +252,13 @@ lean PR on the auto-merge lane: one-line Summary, Test Plan only when non-obviou
 not assume the repo's advertised default is the allowed method. After the PR lands, return to the base checkout,
 fast-forward it, and remove the local grooming branch if it is still present.
 
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
-adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
-coherence check, re-fired) as the last step before the capture commit. The final pass's folds are otherwise
-never re-attacked.
-
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
 commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
+
+Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If draft text
+changed after the first request, including review amendments or this reread, run `arc check increment` again before
+the capture commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -253,8 +282,15 @@ planning-depth level is never recorded.
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
-[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[source-grounding]: ../../methods/source-grounding.md
+[route-discovered-work]: ../../methods/route-discovered-work.md
+
+[planning-author-checks]: ../../methods/planning-review.md#author-checks
+[planning-offer]: ../../methods/planning-review.md#independent-offer
+[planning-findings]: ../../methods/planning-review.md#findings-and-pass-record
+[planning-reread]: ../../methods/planning-review.md#post-settle-reread
