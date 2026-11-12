@@ -31,6 +31,7 @@ import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 async function fixture(completed = false, phase: "Active" | "Planning" | "Integrating" = "Active") {
   const cwd = await createTempRepo();
@@ -54,6 +55,8 @@ async function fixture(completed = false, phase: "Active" | "Planning" | "Integr
   const saved = await h.seedMeta("held-unit", { state: completed ? "Shipped" : phase, owner: "test-user", currentWorkflow: phase === "Planning" ? "draft-design" : phase === "Integrating" ? "integrate-work-unit" : "process-task-loop" }, completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") } : { kind: "active" });
   await writeWorktreeMarker(holder, { spawnedByArc: false, createdFor: boundWorkUnitSubject(saved), spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: randomUUID() })), "{}");
+  await seedImportedUserProjection(cwd, h.store);
+  await seedImportedUserProjection(holder, h.store);
   return { ...h, cwd, holder, exec, saved, head: (await exec("git", ["rev-parse", "HEAD"])).stdout };
 }
 async function invoke(h: Awaited<ReturnType<typeof fixture>>, argv: readonly string[]) {

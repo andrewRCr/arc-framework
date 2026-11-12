@@ -17,6 +17,7 @@ import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { writeMetaPause } from "../../src/lib/store/kinds/meta/writers.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -29,6 +30,7 @@ async function checkout(h: Fixture, name: string, record?: StoreRecord) {
   await writeWorktreeMarker(path, { spawnedByArc: false,
     createdFor: record === undefined ? { kind: "work-unit", name: "example" } : boundWorkUnitSubject(record),
     spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  await seedImportedUserProjection(path, h.store);
   return path;
 }
 async function fixture(backlog = false) {

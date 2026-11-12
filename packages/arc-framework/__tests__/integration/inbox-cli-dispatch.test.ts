@@ -20,6 +20,7 @@ import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js"
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import { listInbox } from "../../src/lib/inbox/listing.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed ID/version", async () => {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
@@ -30,6 +31,7 @@ it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed 
   await exec("git", ["config", "arc.identity", "test-user"]);
   const before = (await exec("git", ["rev-parse", "HEAD"])).stdout;
   const h = createInboxHarness();
+  await seedImportedUserProjection(cwd, h.context.store);
   binding.store = h.context.store;
   const originalCwd = process.cwd();
   const originalExit = process.exitCode;
@@ -83,6 +85,7 @@ async function lifecycleFixture(protection: "full" | "partial") {
   const h = createInboxHarness();
   await h.inbox("project");
   await seed(h.fixture, recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: randomUUID() })), "{}");
+  await seedImportedUserProjection(cwd, h.context.store);
   return { h, cwd, exec, before: (await exec("git", ["rev-parse", "HEAD"])).stdout };
 }
 async function invokeRegistered(h: Awaited<ReturnType<typeof lifecycleFixture>>, args: readonly string[]) {
@@ -165,7 +168,11 @@ it.each([false, true])("closes a partial Errand with a pre-import digest marker 
   await addBareRemote(h.cwd); await h.exec("git", ["push", "-u", "origin", "main"]);
   const beforeImport = "## Errand\n\n### **Concern**\n- _Created:_ `2026-01-01`\n\nOriginal capture\n";
   const digest = inboxEntrySourceDigest(beforeImport, "Concern");
-  const imported = await seed(h.h.fixture, h.h.fixture.reference("personal/inbox"), beforeImport);
+  const reference = h.h.fixture.reference("personal/inbox");
+  const initial = success(await h.h.context.store.read({ reference }));
+  success(await h.h.context.store.write({ action: "put", reference, expected: initial.version, content: beforeImport,
+    provenance: { verb: "import", lifecycleAction: "import" } }));
+  const imported = success(await h.h.context.store.read({ reference }));
   const listed = await listInbox({ list: "personal" }, h.h.context);
   if (listed.state === "refused" || !listed.entries[0]) throw new Error("Imported capture required");
   expect(await invokeRegistered(h, ["errand", "open", "legacy-partial", "--from-inbox", `personal:${listed.entries[0].id}`, "--json"]))
