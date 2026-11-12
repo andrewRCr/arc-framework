@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "land-flip-cohort-edits",
+  "claimId": "fd75bd6cae83490a726cd438858920b5",
+  "createdAt": "2026-11-12T01:15:33.578Z",
+  "updatedAt": "2026-11-12T01:15:33.578Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Land cutover-flip's planning edits to cohort-storage-cutover.md on main: the flip's edge list without storage-ref-hardening, the artifact-kind register-share row, and the flip's Exposes and Consumes lines",
+  "branch": "chore/land-flip-cohort-edits",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
