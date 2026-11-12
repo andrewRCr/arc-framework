@@ -1,3 +1,4 @@
+import { fixtureHuskProof } from "./worktree-husk-fixture.js";
 /** Validated session probes and read-bound compiler inputs for agenda tests. */
 
 import { activeSessionInit, derivedFrameFromActive, sessionInitFixture, worktreeSync, type SessionInitProbeOverrides } from "./session-init-fixtures.js";
@@ -46,7 +47,7 @@ Promise<SessionInitProbeResult> {
     currentHusk: async () => {
       if (husk === "failed") throw new Error("marker read failed");
       return husk === "present" ? { worktreePath: row.checkout.path, subject: { kind: "work-unit", name: "work" },
-        branch: "feat/work", stamp: { kind: "legacy", authorization: "merged-preserved" } } : null;
+        branch: "feat/work", stamp: fixtureHuskProof } : null;
     },
     ...probes,
   });

@@ -82,7 +82,7 @@ describe("integrateHooks — husky", () => {
     expect(io.written).toEqual({});
   });
 
-  it("migrates only the exact legacy generated commit-msg line", async () => {
+  it("leaves an existing commit-msg invocation unchanged without upgrading its arguments", async () => {
     const io = makeIO({
       "/repo/.husky/commit-msg": [
         "#!/usr/bin/env sh",
@@ -94,10 +94,7 @@ describe("integrateHooks — husky", () => {
 
     await integrateHooks(detection, io.readFile, io.writeFile);
 
-    const output = io.written["/repo/.husky/commit-msg"];
-    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "$1"');
-    expect(output).not.toContain("\n.arc/system/.internal/githooks/commit-msg $1\n");
-    expect(output).toContain("if custom; then .arc/system/.internal/githooks/commit-msg $1; fi");
+    expect(io.written["/repo/.husky/commit-msg"]).toBeUndefined();
   });
 
   it("preserves a customized commit-msg invocation", async () => {
@@ -204,7 +201,7 @@ describe("integrateHooks — lefthook", () => {
     expect(io.written).toEqual({});
   });
 
-  it("migrates the exact legacy generated commit-msg command", async () => {
+  it("preserves an existing lefthook command without upgrading its arguments", async () => {
     const io = makeIO({
       "/repo/lefthook.yml": [
         "commit-msg:",
@@ -219,7 +216,7 @@ describe("integrateHooks — lefthook", () => {
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     const output = io.written["/repo/lefthook.yml"];
-    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "{1}"');
+    expect(output).toContain("run: .arc/system/.internal/githooks/commit-msg {1}");
     expect(output).toContain("glob: '*.md'");
   });
 

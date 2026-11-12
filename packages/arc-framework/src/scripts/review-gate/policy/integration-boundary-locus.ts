@@ -29,7 +29,7 @@ import {
 } from "./review-terminus.js";
 
 import { CandidateIdSchema, CandidateSubjectDigestSchema, ActionFields, RunSelfReviewActionSchema,
-  ContinuePrePublicationActionSchema, ContinueHostedReviewActionSchema, ResolveDeliveryStatusActionSchema,
+  ContinuePrePublicationActionSchema, ResolveDeliveryStatusActionSchema,
   PublishCandidateActionSchema, ContinuePublicationActionSchema, StandardReviewReservationTargetSchema,
   StandardReviewReservationV1Schema, type StandardReviewReservationV1, BoundaryIdentityShape, validateUniqueDeliveryTerminusVehicles } from "./integration-boundary-locus-shared.js";
 export { RunSelfReviewActionSchema, ContinuePrePublicationActionSchema, ContinueHostedReviewActionSchema,
@@ -43,11 +43,6 @@ export const PostAttestContinuationSchema = z.strictObject({
   projectionDisposition: z.literal("keep-staged-until-publication"),
 });
 export type PostAttestContinuation = z.infer<typeof PostAttestContinuationSchema>;
-const LegacyContinueHostedReviewActionSchema = z.strictObject({
-  kind: z.literal("continue-hosted-review"),
-  command: z.literal("arc review status --target '{targetRef}' --json"),
-  interactionText: z.string().trim().min(1),
-});
 const RunConvergenceVerificationActionFieldsSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
   requiredScope: z.enum(["focused", "full"]),
@@ -290,47 +285,6 @@ export const DeliveryStatusRequiredBoundarySchema = z.strictObject({
   }
 });
 
-// Boundaries written before work-unit status existed carried an unresolvable target placeholder.
-// This read-only migration schema stays outside the registered canonical schema because transforms
-// cannot be represented in JSON Schema.
-const LegacyHostedReviewPendingBoundarySchema = z.strictObject({
-  ...BoundaryCommonShape,
-  mode: z.literal("integration-boundary"),
-  locus: z.literal("hosted-review-pending"),
-  nextAction: z.union([
-    ContinueHostedReviewActionSchema,
-    LegacyContinueHostedReviewActionSchema,
-  ]),
-  policy: z.null(),
-  reservation: StandardReviewReservationV1Schema,
-  deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
-}).superRefine((boundary, context) => {
-  if (boundary.reservation.target.kind !== "delivery") {
-    context.addIssue({
-      code: "custom",
-      path: ["reservation", "target", "kind"],
-      message: "the legacy delivery continuation requires a delivery reservation",
-    });
-  }
-  if ("workUnitId" in boundary.nextAction
-    && boundary.nextAction.workUnitId !== boundary.workUnit) {
-    context.addIssue({
-      code: "custom",
-      path: ["nextAction", "workUnitId"],
-      message: "the legacy delivery action must identify the boundary work unit",
-    });
-  }
-  if (boundary.deliveryContinuation !== undefined
-    && (boundary.reservation.target.kind !== "delivery"
-      || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId)) {
-    context.addIssue({
-      code: "custom",
-      path: ["deliveryContinuation"],
-      message: "the legacy delivery continuation must match its reservation",
-    });
-  }
-});
-
 export const IntegrationBoundaryLocusSchema = z.union([
   CandidateReviewBoundarySchema,
   CandidateFixBoundarySchema,
@@ -347,21 +301,7 @@ export type PublishedIntegrationBoundaryLocus = z.infer<typeof PublishedIntegrat
 
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
-  const canonical = IntegrationBoundaryLocusSchema.safeParse(input);
-  if (canonical.success) return canonical.data;
-  const legacy = LegacyHostedReviewPendingBoundarySchema.safeParse(input);
-  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(input);
-  return DeliveryStatusRequiredBoundarySchema.parse({
-    ...legacy.data,
-    locus: "delivery-status-required",
-    nextAction: {
-      ...legacy.data.nextAction,
-      kind: "resolve-delivery-status",
-      workUnitId: legacy.data.workUnit,
-      command: `arc review status --work-unit ${legacy.data.workUnit}`,
-      interactionText: "Resolve the retained delivery status.",
-    },
-  });
+  return IntegrationBoundaryLocusSchema.parse(input);
 }
 
 const PublicationBoundaryInputSchema = z.strictObject({

@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 /** In-place lifecycle claims refuse roles hidden by current-work-unit resolution. */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +40,7 @@ it.each(["absent", "live", "reused"] as const)("refuses a work-unit husk for a m
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   if (state !== "absent") await h.seedMeta("old");
   await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "old" }, spawningIdentity: "andrew", now: 0 });
-  await stampWorktreeHusk(h.cwd, { sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "old" }, branch: "feat/old" });
+  await stampWorktreeHusk(h.cwd, makeHuskStamp({ sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "old" }, branch: "feat/old" }));
   const before = lifecycleSuccess(await h.store.version()), result = await h.guard();
   expect(result).toMatchObject({ ok: false, message: expect.stringContaining("manual decision") });
   if (result.ok) throw new Error("Expected occupancy refusal");

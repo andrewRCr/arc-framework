@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 /** Store-backed roster includes every registration, including detached work. */
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -116,8 +117,8 @@ it("marks a pre-store husk retired and excludes it from in-flight work beside a 
   const h = createLifecycleHarness();
   await h.seedMeta("demo", { owner: "andrew" });
   await writeWorktreeOwnershipMarker(holder, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
-  expect(await stampWorktreeHusk(holder, { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z",
-    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" })).toMatchObject({ kind: "stamped" });
+  expect(await stampWorktreeHusk(holder, makeHuskStamp({ sha: "a".repeat(40), at: "2026-10-24T00:00:00Z",
+    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" }))).toMatchObject({ kind: "stamped" });
   const marker = await readWorktreeMarkerGeneration(holder), before = lifecycleSuccess(await h.store.version());
   const roster = await runWorktreeRoster({ cwd, store: h.store,
     exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",

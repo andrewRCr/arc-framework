@@ -4,6 +4,7 @@
  * Benchmarks reuse the unnormalized fixture without importing Vitest.
  */
 
+import { makeHuskStamp } from "./worktree-husk-fixture.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -317,12 +318,13 @@ async function setupCurrentHuskFixture(state: MutableFixture): Promise<string> {
     createdFor: { kind: "work-unit", name: "current-husk" },
     spawningIdentity: "test-user",
     createdAt: "2026-01-02T03:04:05.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: head,
       at: "2026-01-02T04:05:06.000Z",
       subject: { kind: "work-unit", name: "current-husk" },
       branch: "feat/current-husk",
-    },
+      authorization: "future-policy",
+    }),
   }));
   return linked;
 }
