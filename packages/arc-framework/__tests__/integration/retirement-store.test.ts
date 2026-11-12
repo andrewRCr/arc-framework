@@ -1,20 +1,19 @@
+/** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
+import { retirementRecording, retirementRetainedBase, interruptedRetirementCopy, interruptedRetirementReplacement } from "../helpers/store/projection-retirement.js";
 import { createRefusingStore } from "../helpers/store/projection/refusing-store.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
-import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
-/** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
+
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { link, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { createRetirementHarness, retirementLink } from "../helpers/store/retirement-harness.js";
+import { retirementLink } from "../helpers/store/retirement-harness.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
-import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js";
 import { createStoreTeardownContext } from "../../src/lib/work-unit/store-teardown-context.js";
-import { nodeReconcileWorkUnitWorktreeFs } from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { runStoreAbandon } from "../../src/lib/work-unit/verbs/abandon-store.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
@@ -24,8 +23,7 @@ import { runTeardownForOperand } from "../../src/handlers/teardown-operand.js";
 import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
-import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
-import { persistProjectionRemoval, type ProjectionPersistContext } from "../../src/lib/store/projection/removal-persist.js";
+import { persistProjectionRemoval } from "../../src/lib/store/projection/removal-persist.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 import { passingProjectionRemovalSlots } from "../../src/lib/git/worktree-removal.js";
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
@@ -36,7 +34,7 @@ import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 import { selectProjectionResolution } from "../../src/lib/store/projection/save-resolution.js";
 import { formatConflictToken } from "../../src/lib/status/conflict-token.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { beginProjectionCommand, projectionProcessState } from "../../src/lib/store/projection/process-state.js";
+import { projectionProcessState } from "../../src/lib/store/projection/process-state.js";
 import { withFanOut } from "../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../src/lib/store/projection/fan-out-binding.js";
 import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../src/lib/store/projection/lock.js";
@@ -44,166 +42,13 @@ import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHan
 import { ADVISORY_LEASE_DURATION_MS } from "../../src/lib/renewable-lease.js";
 import { createProjectionEnginePorts } from "../../src/lib/store/projection/engine-ports.js";
 import { guardProjectionIgnores } from "../../src/lib/store/projection/ignore-guard.js";
-import { stageRecordFile } from "../../src/lib/store/projection/staging.js";
-import { guardReplacement } from "../../src/lib/store/projection/replace-guard.js";
-import { swapBatch } from "../../src/lib/store/projection/swap.js";
-import { createRecordRenderer } from "../../src/lib/store/projection/record-render.js";
-import { readReference } from "../../src/lib/store/projection/change-detection.js";
-import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../src/lib/store/projection/index-file.js";
-import { createHistoryMemo } from "../../src/lib/store/projection/base-recovery.js";
-import { recordWriteBack, TAKEN_IN_FOLDER } from "../../src/lib/store/projection/taken-in.js";
-import { projectionEntryForRecord } from "../../src/lib/store/projection/materialization-file.js";
+import { PROJECTION_INDEX_FILE, readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.js";
 import { startProjection, endProjection } from "../../src/lib/store/projection/engine.js";
 import { createStagedFile, nameAsideFile, parseAsideFile } from "../../src/lib/store/projection/aside.js";
-import type { TakeInPort } from "../../src/lib/store/projection/take-in-port.js";
-import type { ProjectionIndex, RecordEntry } from "../../src/lib/store/projection/index-schema.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-const roots: string[] = [];
+import { fixture, projectedRetirement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
-async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean } = {}) {
-  const root = await createTempRepo(); roots.push(root);
-  const exec = makeGitExec(root), execInput = makeGitExecInput(root);
-  await exec("git", ["branch", "-M", "main"]); await writeFile(join(root, "base"), "base\n");
-  if (options.projected) {
-    await mkdir(join(root, ".arc/user"), { recursive: true });
-    await writeFile(join(root, ".gitignore"), ".arc/user/*/\n");
-    await writeFile(join(root, ".arc/user/.npmignore"), "*\n");
-    await exec("git", ["add", ".gitignore", ".arc/user/.npmignore"]);
-  }
-  await exec("git", ["add", "base"]); await exec("git", ["commit", "-m", "base"]);
-  await writeFile(join(root, ".git", "info", "exclude"), "origin.git/\ncheckout*/\n" + (options.projected
-    ? ".arc/active/\n.arc/backlog/\n.arc/completed/\n.arc/system/.local/\n" : ".arc/\n"));
-  const baseOid = (await exec("git", ["rev-parse", "HEAD"])).stdout;
-  await exec("git", ["init", "--bare", join(root, "origin.git")]); await exec("git", ["remote", "add", "origin", join(root, "origin.git")]); await exec("git", ["push", "origin", "main"]);
-  await exec("git", ["switch", "-c", "feat/demo"]); await writeFile(join(root, "work"), "work\n");
-  await exec("git", ["add", "work"]); await exec("git", ["commit", "-m", "work"]); await exec("git", ["push", "-u", "origin", "feat/demo"]);
-  const workOid = (await exec("git", ["rev-parse", "HEAD"])).stdout;
-  if (options.secondary) { await exec("git", ["branch", "chore/demo", workOid]); await exec("git", ["push", "origin", "chore/demo"]); }
-  const h = await createRetirementHarness({ ended: options.ended, end: options.end, branches: [...(options.secondary ? [retirementLink("chore/demo")] : []), retirementLink("feat/demo", options.adopted ? "adopted" : "created")] });
-  let holder: string | null = root;
-  const marker: WorktreeMarker = { spawnedByArc: false, wuName: "demo", createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" };
-  const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => holder) };
-  const io = { ...createUserIOContext(), exec, execInput };
-  const executor = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
-  const ctx = createStoreTeardownContext({ cwd: root, identity: "test-user", io }, executor);
-  // The locus provider's admitted anchored claim is supplied through its marker seam; Git and filesystem operations stay real.
-  ctx.readTeardownSelection = undefined; ctx.teardownWorktree = undefined;
-  ctx.readMarker = (path) => Promise.resolve(path === holder ? { kind: "present", marker } : { kind: "absent" });
-  ctx.worktreeFs = nodeReconcileWorkUnitWorktreeFs;
-  const abandon = () => runStoreAbandon({ executor, storeTeardown: ctx, baseBranch: "main", removal: { exec, readMarker: ctx.readMarker } }, { name: "demo", confirmed: true });
-  const teardown = async (name = "demo") => { const input = TeardownCommandInputSchema.parse({ name });
-    if (input.name === undefined) throw Error("Expected teardown operand");
-    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: input.name }, base: "main" });
-    if (result.status === "rejected") throw Error(result.reason); return result; };
-  return { ...h, root, exec, ctx, executor, marker, baseOid, workOid, abandon, teardown, setHolder: (path: string) => { holder = path; },
-    local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
-}
-
-async function projectedRetirement(content = "Original prose.\n", extension: "md" | "txt" = "md") {
-  beginProjectionCommand();
-  const h = await fixture({ projected: true });
-  await h.exec("git", ["switch", "main"]);
-  const checkout = join(h.root, "checkout"), path = `.arc/user/test-user/scratch/persist.${extension}`;
-  await h.exec("git", ["worktree", "add", checkout, "feat/demo"]);
-  h.marker.spawnedByArc = true; h.setHolder(checkout); await writeWorktreeMarker(checkout, h.marker);
-  await ensureWorktreeMarkerIgnored(checkout, h.exec, nodeWorktreeMarkerIgnoreFs);
-  await h.exec("git", ["config", "arc.identity", "test-user"], { cwd: checkout });
-  const identity = SlugSchema.parse("test-user");
-  const ports = createProjectionEnginePorts(checkout);
-  expect(await guardProjectionIgnores({ root: checkout, identity, exec: ports.execInput, fs: ports.fs })).toMatchObject({ kind: "passed" });
-  const record = await h.seed(RecordReferenceSchema.parse({ kind: "personal/document",
-    owner: { type: "person", name: identity }, key: `scratch/persist.${extension}` }), content);
-  const projected = await seedProjection({ checkout, store: h.store, identity, files: [{ path, reference: record.reference }] });
-  const entry = projected.index.entries[path];
-  if (entry?.kind !== "record") throw new Error("Missing projected fixture entry");
-  let projectionContext: ProjectionPersistContext = { store: h.store, identity };
-  h.ctx.projectionRemovalSlots = { ...passingProjectionRemovalSlots,
-    persist: target => persistProjectionRemoval(target, projectionContext) };
-  const remove = () => {
-    const input = TeardownCommandInputSchema.parse({ name: "demo" });
-    if (input.name === undefined) throw new Error("No teardown operand");
-    return runTeardown(h.ctx, { subject: { kind: "slug", slug: input.name }, base: "main" });
-  };
-  return { ...h, ...projected, path, record, entry, remove,
-    persist: () => persistProjectionRemoval(checkout, projectionContext),
-    configure: (changes: Partial<ProjectionPersistContext>) => { projectionContext = { ...projectionContext, ...changes }; },
-    edit: (content: string) => writeFile(join(checkout, path), extension === "md" ? renderStampedFile({ content, stamp: entry.base.blob }) : content) };
-}
-
-async function retirementRecording() {
-  const h = await projectedRetirement();
-  const initial = { checkout: h.checkout, store: h.store, mode: "save" as const };
-  expect(await startProjection(initial)).toMatchObject({ kind: "ready" });
-  await endProjection(initial);
-  await h.edit("Accepted input awaiting its recording.\n");
-  const refusing = createRefusingStore(h.store);
-  let blocked = true;
-  const store = overrideEngineStore(refusing.store, { batch: async input => {
-    const result = await h.store.batch(input);
-    if (blocked && result.status === "ok") refusing.refuse("read", { code: "state-unresolvable", class: "recoverable", historyRefs: [],
-      condition: "Read-back is unavailable.", remedy: { text: "Repair the read-back and retry arc save." } });
-    return result;
-  } });
-  const command = { ...initial, store };
-  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
-  await endProjection(command);
-  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
-  const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
-  if (entry?.kind !== "record" || entry.persisted?.recording !== true || entry.persisted.takenIn.kind !== "copy")
-    throw new Error("The failed read-back did not retain unfinished recording");
-  h.configure({ store });
-  return { ...h, command, retained: join(h.location.stateDir, TAKEN_IN_FOLDER, entry.persisted.takenIn.name),
-    repair: () => { blocked = false; refusing.refuse("read", null); } };
-}
-
-async function retirementRetainedBase(extension: "md" | "txt") {
-  const h = await projectedRetirement("opening\nbase\nclosing\n", extension);
-  const takenIn = "opening\naccepted\nclosing\n";
-  lifecycleSuccess(await h.store.write({ action: "put", reference: h.record.reference, expected: h.record.version,
-    content: takenIn, provenance: { verb: "edit", lifecycleAction: "edit" } }));
-  const accepted = lifecycleSuccess(await h.store.read({ reference: h.record.reference }));
-  lifecycleSuccess(await h.store.write({ action: "put", reference: accepted.reference, expected: accepted.version,
-    content: `${takenIn}concurrent\n`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
-  const current = lifecycleSuccess(await h.store.read({ reference: h.record.reference }));
-  const recorded = await recordWriteBack({ location: h.location, entry: h.entry, stamp: h.entry.base.blob, takenIn,
-    outcome: { kind: "landed", version: accepted.version }, readBack: current, grammar: undefined, format: "sha1", memo: createHistoryMemo(h.store) });
-  const kept = recorded.entry.persisted?.takenIn;
-  if (kept?.kind !== "copy") throw new Error("The accepted input was not retained");
-  const refreshed = { ...projectionEntryForRecord(current, h.path, "sha1"), persisted: recorded.entry.persisted };
-  await writeProjectionIndex(h.location, { ...h.index, entries: { ...h.index.entries, [h.path]: refreshed } });
-  const content = current.content.replace("opening", "edited opening");
-  await h.edit(content);
-  return { ...h, content, current, retained: join(h.location.stateDir, TAKEN_IN_FOLDER, kept.name) };
-}
-
-async function interruptedRetirementCopy() {
-  const h = await projectedRetirement("opening\nbase\nclosing\n");
-  lifecycleSuccess(await h.store.write({ action: "put", reference: h.record.reference, expected: h.record.version,
-    content: "opening\nbase\nclosing\nremote footer\n", provenance: { verb: "edit", lifecycleAction: "edit" } }));
-  return interruptedRetirementReplacement(h, h.index, h.entry);
-}
-
-async function interruptedRetirementReplacement(h: Awaited<ReturnType<typeof projectedRetirement>>, index: ProjectionIndex, previous: RecordEntry) {
-  const record = lifecycleSuccess(await h.store.read({ reference: h.record.reference }));
-  const writer = await createProjectionEnginePorts(h.checkout).writer(), renderer = createRecordRenderer({ store: h.store });
-  const staged = lifecycleSuccess(await stageRecordFile({ checkout: h.checkout, path: h.path, record,
-    replacing: previous.base.blob, writer, format: "sha1", renderer }));
-  const takeIn: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
-  const replace = await guardReplacement({ checkout: h.checkout, path: h.path, entry: previous, staged,
-    reference: await readReference(h.checkout), store: h.store, writer, format: "sha1", renderer, takeIn });
-  if (replace.kind !== "replace") throw new Error("Fixture replacement refused");
-  const stopped = new Error("stop after copy move");
-  await expect(swapBatch({ checkout: h.checkout, location: h.location, index,
-    files: [{ path: h.path, replace }], writer, format: "sha1", takeIn, readBack: false,
-    hooks: { afterMove: async () => { throw stopped; } } })).rejects.toBe(stopped);
-  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
-  const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
-  const copy = entry?.kind === "record" ? entry.copies.at(-1) : undefined;
-  if (entry?.kind !== "record" || copy === undefined) throw new Error("No interrupted replacement copy");
-  if (disk.kind !== "index") throw new Error("No interrupted replacement index");
-  return { ...h, index: disk.index, entry, copy, staged };
-}
 
 describe("store retirement real Git", () => {
   it("persists a projected edit through its store teardown context before removing the linked checkout", async () => {
@@ -1065,7 +910,6 @@ describe("store retirement real Git", () => {
   });
 
 });
-
 
 it.each(["local", "tracking"].flatMap((source) => ["moved", "absent"].map((fault) => ({ source, fault }))))("retains additional refs when the $source preservation ref is $fault before deletion", async ({ source, fault }) => {
   const input = TeardownCommandInputSchema.parse({ name: "demo" });

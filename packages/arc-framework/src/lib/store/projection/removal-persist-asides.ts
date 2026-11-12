@@ -66,7 +66,7 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
   const published = await commitReturnedCopies({ checkout: root.checkout, location: root.location, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, settled.entry),
     returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [] });
-  return { index: published, refusal: settlementRefusal(settled, name, diagnosticFrom) };
+  return { index: published, refusal: removalCopyRefusal(settled, name, diagnosticFrom) };
 }
 
 async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string,
@@ -79,7 +79,8 @@ async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string
   return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(copy.name) };
 }
 
-function settlementRefusal(settled: CopySettlement, copy: string, diagnosticFrom: number): Remedy | undefined {
+/** Preserve the copy's actual blocking outcome and diagnostic across retirement operations. */
+export function removalCopyRefusal(settled: CopySettlement, copy: string, diagnosticFrom: number): Remedy | undefined {
   if (settled.kind === "deleted" || settled.kind === "dropped" || settled.kind === "linked-back") return undefined;
   if (settled.kind === "not-a-file") return settled.remedy;
   if (settled.kind === "moved-on") return recoverCopy(copy);

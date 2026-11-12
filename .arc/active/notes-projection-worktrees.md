@@ -1243,3 +1243,115 @@ The Owner approved that disposition and its independent fix check on 2026-11-12.
 before the authoritative final observations. Focused run `4cc21a3fa57543a4929b38dc6510cd51` passes all 90 retirement
 cases, including both final-feasibility regressions. Astra's bounded independent fix check confirms F1 is closed at
 that boundary and reports no material ordering regression; it is not a renewed full-footprint review.
+
+The final corrected task 2.2 footprint passed 82 files and 844 cases in `e11ccd612b8c47158bcfe4c4628410df`, source and
+all test type-check shards in `80bd353fef344b93b66d1a660b989b5d`, related unit feedback in
+`c17d63a308d2483e87ec6b3002e6020d`, and the increment and commit gates. Commit `27e8f1d5e1` closes persistence under the
+authorized atomic-commit batch.
+
+## Task 2.3: release under the persistence lease
+
+The release reuses persistence's target configuration, history retry and memo invalidation, unregistered binding,
+write-back, copy takeover, and final observations. `withPersistedProjection` runs a successful continuation before that
+binding's checkpoint is cleared or its lease releases. Ordinary persistence's continuation keeps its existing retirement
+mark and binding drop. Release's continuation reads native `ProjectionLocation.primary`: a primary keeps its projection
+and existing command root; a linked checkout guards each indexed file for removal, including unchanged files under a
+previous identity, runs the native removal swap, checks its actual copies again, and verifies physical completion before
+removing recovery storage and the index header and partitions. Production slot binding remains in task 2.4.
+
+The approach consultation with Astra selected this continuation over releasing and reacquiring the lease or copying the
+persistence loop. It also identified the need for positive physical completion: a native move can fail without calling
+take-in. A real nonempty destination makes the removal rename fail in `d626206e5b7d442c95709fba9c641e86`; the initial
+implementation incorrectly releases. Explicit completion checking passes refusal, retention of the original and index,
+and retry after repair in `827224470bc3414b81c3f853e2c51963`.
+
+Actual take-in results retain the first refusal and its diagnostic. First- and second-check pending copies initially
+lose their admission remedy in `b88aab115cc848d388527f42f42e2b06`; their observer passes both repair continuations in
+`051ea3165755475e811406d7ab232db6`. The shared settlement classifier also preserves empty-save and nonregular-copy
+repair routes: `998ce5fa4df54b919c138279d73ef2de` rejects the generic copy-deletion remedy for both, and
+`29ad3ca33d494b67a1d138aea4a6cb40` passes completing the save or restoring a regular file and retrying.
+
+Native primary selection and root preservation are observable after release. Forcing a primary through linked cleanup
+fails both ordinary and separate-Git-directory primaries in `6a8a5b60ff9f43fca31025a32f4e4032`; restoration passes in
+`0f8c358b3fa343498104130353c1f728`. The same control prevents a later Store write from refreshing the primary in
+`68b33e1c57b14362be046dea2ececd9d`. The restored case observes the written record's changed mark and a save into the
+refresh's copy reaching command-end settlement in `16b25e8c487c41888e847b7df5cb2dda`. The live-writer primary fixture
+interrupts the real swap after linking and its first copy check, so the installed file's identity proves that deleting
+its taken-over copy can clear the replacement-progress record. An interruption before linking retains that record by the
+substrate's existing rule and does not establish this completion case.
+
+A destination link created during removal initially holds release in `c7b0838a48c341af8cef92386bd0335b`; fresh
+destination observations pass in `1532738cd9ab438497125bc815bb772e`. A late edited copy beside that opaque destination
+then exposes an unsafe success in `314f6fa6ba7b4700bf098e07173adf6e`. Checking the remaining copies' content before
+cleanup passes its retention and explicit-recovery continuation in `8ac006ab986442a793518ea322dbe5f9`. Cleanup also
+removes the header's remaining partitions, including a partition kept for an opaque destination.
+
+The shared native fixtures moved to `projection-retirement.ts`; the original 90-case retirement suite remains intact.
+Release adds anchored-checkout preservation, repaired identity/index/admission/unadopted-input holds, native held and
+lost leases, late adoption, previous-identity files, post-release linked fan-out, parser and local-clash return paths,
+retained Markdown and plain-text bases, and primary copy takeover. The local clash uses `recordWriteBack`'s real
+retained-input producer: the copy's original stamp selects accepted bytes rather than a stored base, so the actual local
+merge returns `clashed`. An ordinary stale stored-base write instead reaches backend conflict creation and is not this
+outcome's fixture.
+
+Fail-first reconstruction `3dc928f8135548b18403fb5ae72982d5` substitutes only the public release's no-op result and
+fails 26 of the 28 cases. The two incidentally preserved behaviors have their own controls: the primary's later fan-out
+above, and the no-projection fast path, whose suppression fails missing-identity release in
+`236176a9e3a947f0898de9142ef7de57`. Restored broad regression `c4070516fab847049bd24afea0cf3356` passes 84 files and 876
+cases, including all 28 release cases, the original retirement cases, the projection directory, native adoption and
+write-back, and save and retirement CLI E2E. Source and all test type-check shards pass in
+`4cfddfe09e13460da12ed8b8e81e10de`. Focused lint's unused type imports after fixture extraction were removed.
+
+### Completion advice: remaining recovery-file authority
+
+Astra's whole-footprint task 2.3 completion consultation found two material linked-cleanup gaps. The primary verified
+both against the release, second-check, copy-settlement, and unrecorded-copy observation code, then added two native
+regressions without applying a production correction:
+
+- **F1 — copy-ancestor links before the second check.** The release's fresh link evidence covers destinations but not
+  the copy locations it passes to `runSecondCheck`. Moving the actual aside tree elsewhere and linking its old location
+  to that tree in `afterFirstCheck` leaves the second check following the link and deleting its target's unchanged copy.
+  The later remaining-copy observation cannot protect a copy already deleted.
+
+- **F2 — unrecorded copies before recursive cleanup.** An unrecorded native aside copy initially holding its base passes
+  persistence's final feasibility check. Editing it in a removal swap's `afterFirstCheck` leaves an authored recovery
+  file outside the batch's recorded copies and the remaining-index completion check. Recursive folder deletion then
+  removes that edit without sending it.
+
+Diagnostic run `f3074df5c71b44e7aa2120e30f49555e` confirms both: release returns `released`, F1's external target copy
+is gone, and F2's edited unrecorded copy is gone while the Store still holds the original content. The other 28 release
+cases pass. Both new tests remain failing, with no temporary reconstruction active. Source and all test type-check
+shards pass with these diagnostics in `febd6cce7d034cfea1cdb3ba84115537`; focused TypeScript lint passes for all six
+changed TypeScript files.
+
+Proposed complete disposition: accept F1 and establish copy-ancestor authority before any second-check copy read or
+deletion, retaining opaque-link behavior; accept F2 and observe actual remaining recovery files after the removal swaps
+and second check, preserving and refusing an edited unrecorded copy with its recovery route before recursive cleanup.
+Keep both regressions, verify repaired continuations, run appropriate checks and an independent fix check, then close
+task 2.3 and continue the authorized batch. These production corrections await the Owner's complete-set disposition
+approval under the review finding mutation guard. Task 2.3 remains unchecked and uncommitted; no task 2.4
+implementation, Phase 3 verification, or new A3 work has begun.
+
+The Owner approved both corrections, their independent fix check, and continuation of the deferred batch on 2026-11-12.
+F1 now includes actual copy locations in the fresh second-check boundary and leaves copies behind links outside
+settlement. Focused run `c113a82660b84ebc9c30590e965232d9` passes that target-preservation regression; only F2 remains
+failing. F2 reuses the removal check's unrecorded-copy observation through `checkUnrecordedProjectionCopies`, invoked
+after linked removal and second-check settlement and before folder deletion. It freshly checks copy ancestors and keeps
+the existing base-content and withheld-copy verdicts. The regression also verifies that refusal retains the marker and
+index and that explicit recovery/deletion permits release on retry.
+
+Focused run `eb3f69e66cad4709b23e5ead3c04fba8` passes all 120 retirement and release cases, including both findings.
+Source and all test type-check shards pass in `89ce183bab8248b5843ee0335a5b00a7`. Factoring each unrecorded copy's
+stat/base observation keeps the function inside the complexity gate without changing its verdict. Astra's bounded
+independent fix check confirms F1 and F2 are closed, reports no material correction-induced gap, and confirms read
+failures stop before cleanup. It is a source-only fix check of these corrections and regressions, not another
+whole-footprint review or a Candidate review attestation.
+
+Post-refactor run `a92b3a9f9a304a0bb7298a97ccf58d18` passes the same 120 retirement and release cases. Focused
+TypeScript lint passes for all seven changed TypeScript files, without suppressions.
+
+The corrected boundary footprint passes 84 files and 878 cases in `8a4d7826367c497baee8154eed546760`, including the
+native adoption/write-back suites, projection suite, both retirement suites, and both selected CLI E2E files. Its
+randomized save-loss cases account for 3,000 Linux saves across the three save modes, with no lost save. The final
+observation-helper refactor is covered by the 120-case focused run above and passing focused lint. Task 2.3's completion
+edit preserves its Goal; the final increment and commit gates close the atomic release change.

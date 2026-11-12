@@ -323,76 +323,18 @@ No production composition sets the slots today, so every caller runs `passingPro
   persistence loop. Success marks the target retiring and drops its command binding before unlock and fan-out;
   `notes-projection-worktrees.md` records the fault boundaries, repaired continuations, and final-observation fix.
 
-### `[ ]` **2.3 The release step — § 12.3**
+### `[x]` **2.3 The release step — § 12.3**
 
 - _Goal:_ On every path that releases a checkout rather than removing it — teardown, abandon, and `arc locus release` of
   an anchored checkout, and the end of an Errand on the primary — the `release` slot persists every edit as the persist
   step does and, on a linked checkout, removes its projection, refusing where an edit would go back as a refused edit.
 
-    - Reconcile 1.6.R's ownership handoffs under the target's lease and ignore authority before write-back; refuse
-      while a handoff or its ambiguous withheld bytes remain, and succeed after the ordinary deletion/retry remedy.
-    - A checkout 1.1 gives no projection and that holds no index returns at once, before the identity is consulted, as
-      2.2's does. Otherwise, under the target's projection lock, taken and refused as 2.2 takes it, over the same
-      history-retry store, reading `history` through a memo of its own over it and dropping each record it lands from
-      the command's memo, as 2.2 does: write back, take over aside copies, and run the last check as 2.2 does, refusing
-      on the same conditions, a target of another identity than the command's among them.
-    - On a linked checkout it then removes each projected file by the removal swap (`swapBatch` with no staged file,
-      `lib/store/projection/swap.ts`), every other identity's personal root's files among them, since the swap reads no
-      root's writability, which gates writing a file into a root (`root.writable`, read by `sendFile`,
-      `lib/store/projection/engine-files.ts`), refusing with the edit's remedy where an edit goes back to its path as a
-      refused edit or fails to parse (`unparseable`), as held by a conflict where its take-in answers `clashed`, and,
-      where it answers `deferred` or `pending`, with the remedy write-back reports for it, or a retry where it reports
-      none, then runs the end's second check over its removal swaps' copies (`runSecondCheck`,
-      `lib/store/projection/second-check.ts`), refusing on its outcomes as on the first check's, and only then removes
-      the aside folder and the index. The primary — decided by `ProjectionLocation.primary` (`locateProjection`), as 1.1
-      decides it, never by the `isPrimary` the release (`releaseWorktreeCheckout`) passes, which compares the checkout
-      with the primary path its caller supplies — keeps its projection, which its next refresh lays out for its new
-      claim (1.8).
-    - Its own binding is never registered, as 2.2's is not. On a linked checkout it marks its target as retiring and
-      drops any root the command's roots hold for it, as 2.2 does; on the primary, which keeps its projection, it marks
-      nothing and leaves any root the command holds there as it is, so the fan-out after its release refreshes the
-      primary and the end still checks the copies that fan-out makes. It releases the lock before it returns. A caller
-      failing after the step leaves the marker, and the next command projects again.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through teardown's store-backed context over the reference backend, the slots injected until
-          2.4.b binds them
-        - releasing an anchored linked checkout persists its edits and leaves it with no projection, its uncommitted Git
-          changes intact
-        - the primary's release keeps its projection
-        - releasing a linked checkout after a changed identity removes the previous identity's unchanged files with its
-          projection, and an edit there links back and refuses the release naming that identity's remedy, the marker
-          staying
-        - the step, called directly on a target whose own configuration yields another identity than the command's,
-          refuses naming the removal or release run from that checkout
-        - a write after a linked checkout's release fans out to every worktree but that checkout, whose aside folder the
-          release removed
-        - in a command run in the primary, a write after the primary's release refreshes it and marks the written
-          records changed there, and a swap that fan-out makes there reaches the end's second check
-        - releasing a primary made by `git init --separate-git-dir`, passed `isPrimary` false, keeps its projection
-        - each held state refuses the release with its remedy, the marker staying, and the release succeeds once it is
-          resolved
-        - a lease lost mid-step refuses the release with a retry, the marker staying, and the retry releases it
-        - a symbolic link in a projected root refuses no release, its target unread and untouched
-        - a lock held past its bound refuses naming the holder, and the retry succeeds
-        - an unusable index refuses naming the checkout to run from, and the release succeeds once a command run there
-          rebuilds it; an altered `completed/` partition refuses naming `arc save`, and the release succeeds once it has
-          run
-        - with no identity the release refuses naming the remedy, and once `arc.identity` is set it succeeds
-        - a checkout with no projection is released with no identity configured
-        - a new file created after the release's write-back walk is found by its last check and adopted
-        - a removal swap whose take-in answers `pending` refuses the release with a retry, the file kept
-        - a save landing in a removal swap's copy after its first check is taken in by the release's second check, never
-          deleted with the aside folder
-        - a removal swap whose edit is refused, or fails to parse, links the file back and refuses the release with the
-          edit's remedy, the marker staying, and the release succeeds once the edit is resolved
-        - a removal swap whose take-in answers `clashed` refuses the release as held by a conflict, the marker staying,
-          and the release succeeds once the clash is resolved
-        - the primary's release takes over an aside copy and clears the in-progress record naming it and the copy's own
-          record
-        - an aside copy kept because its path moved on refuses the release naming its path, the marker staying, and the
-          release succeeds once it is deleted
-        - a file whose retained base cannot be read refuses the release with write-back's remedy, the marker staying,
-          and the release succeeds once the base is restored
+- _Outcome:_ `releaseProjectionRemoval` continues persistence under the target's existing lease. Native primary
+  detection retains the primary's projection and command binding; linked release guards and swaps every indexed
+  root, settles removal copies, and verifies physical completion before deleting recovery storage and index parts.
+  Fresh copy-ancestor authority keeps links opaque, and a final actual-copy observation holds unrecorded edits with
+  their recovery route. Only a completed linked release marks the target retiring and drops its command binding.
+  `notes-projection-worktrees.md` records the native fault boundaries, repaired continuations, and fix check.
 
 ### `[ ]` **2.4 Bind the slots where the removal function's callers are composed — § 12.2, § 12.3**
 

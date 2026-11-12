@@ -1,15 +1,22 @@
 /** Observe saved edits in swap order without settling, returning, or deleting their copies. */
 import { checkAsideCopy, recordWriteBackSent } from "./aside-copies.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { readProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
 import type { ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { projectionFeasibilityRefusal, type ProjectionRemovalCheck } from "./removal-verdict.js";
-import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
+import type { AsideCopyRecord, RecordEntry, ProjectionIndex } from "./index-schema.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
+import { ASIDE_FILES_ROOT, parseAsideFile, type AsideFile } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
 import { readStat } from "./change-detection.js";
-import { storedBlobId } from "./blob-id.js";
+import { storedBlobId, type ObjectFormat } from "./blob-id.js";
+
+interface UnrecordedProjectionCopyInput {
+  readonly checkout: string;
+  readonly index: ProjectionIndex;
+  readonly format: ObjectFormat;
+  readonly linkFs?: ProjectionLinkFs;
+}
 
 /** Simulate only successful preparation's sequencing effect on later copies of the same path. */
 export async function checkProjectionRemovalAsides(input: ProjectionRemovalObservationInput): Promise<ProjectionRemovalCheck> {
@@ -35,27 +42,33 @@ export async function checkProjectionRemovalAsides(input: ProjectionRemovalObser
       entry = checked.entry;
     }
   }
-  return checkUnrecordedCopies(input);
+  return checkUnrecordedProjectionCopies({ checkout: root.checkout, index, format: root.context.format, linkFs: input.ports.linkFs });
 }
 
-async function checkUnrecordedCopies(input: ProjectionRemovalObservationInput): Promise<ProjectionRemovalCheck> {
-  const { root, index } = input;
-  const boundary = await readProjectionLinkBoundary(root.checkout, [ASIDE_FILES_ROOT], input.ports.linkFs);
+/** Refuse authored recovery files absent from the index before their containing folder can be removed. */
+export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectionCopyInput): Promise<Exclude<ProjectionRemovalCheck, { kind: "unobservable" }>> {
+  const { checkout, index } = input;
+  const boundary = await readProjectionLinkBoundary(checkout, [ASIDE_FILES_ROOT], input.linkFs);
   if (boundary(ASIDE_FILES_ROOT) !== null) return { kind: "passes" };
   const recorded = new Set(Object.values(index.entries).flatMap(entry => entry.kind === "record" ? entry.copies.map(copy => copy.name) : []));
-  for await (const visit of walkProjectionAsideFolder(root.checkout)) {
+  for await (const visit of walkProjectionAsideFolder(checkout)) {
     if (visit.kind !== "copy" || recorded.has(visit.location)) continue;
     const named = parseAsideFile(visit.location);
     if (named?.role !== "aside") continue;
-    const stat = await readStat(join(root.checkout, visit.location));
-    if (stat === null || stat.type === "symlink") continue;
-    if (stat.type === "file" && !index.withheldCopies.includes(visit.location)) {
-      const content = await readFile(join(root.checkout, visit.location), "utf8");
-      if (storedBlobId(content, { format: root.context.format, markdown: named.path.endsWith(".md") }) === named.base) continue;
-    }
+    const links = await readProjectionLinkBoundary(checkout, [visit.location], input.linkFs);
+    if (links(visit.location) !== null) continue;
+    if (await unrecordedCopyIsUnchanged(input, visit.location, named)) continue;
     return { kind: "would-refuse", remedy: { text: `Recover anything wanted from ${visit.location}, then delete that copy and retry removal.` } };
   }
   return { kind: "passes" };
+}
+
+async function unrecordedCopyIsUnchanged(input: UnrecordedProjectionCopyInput, location: string, named: AsideFile): Promise<boolean> {
+  const stat = await readStat(join(input.checkout, location));
+  if (stat === null || stat.type === "symlink") return true;
+  if (stat.type !== "file" || input.index.withheldCopies.includes(location)) return false;
+  const content = await readFile(join(input.checkout, location), "utf8");
+  return storedBlobId(content, { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
 }
 
 async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: string, entry: RecordEntry,
