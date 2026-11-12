@@ -1317,7 +1317,13 @@ forward (`spec-storage-contract.md` D14). Then, in order:
    holds it and the import picks each live work unit's latest pushed copy (`spec-storage-ref-backend.md` § 10.8);
 5. the quiesce check runs and records (§ 1.3);
 6. every checkout saves its personal state (`arc user save`), immediately before the import, since live sessions edit
-   the identity-global files and each live work unit's session notes continuously and an early save goes stale.
+   the identity-global files and each live work unit's session notes continuously and an early save goes stale. A
+   checkout with no built CLI, which the quiesce check passes, runs no ARC command through its launcher, which only
+   imports the built bundle (`packages/arc-framework/bin/arc.js`). It saves through the importing checkout's build
+   instead, run with that checkout as its working directory (`runUserSave`, `commands/user/save-load.ts`). The
+   self-hosting freshness check judges the running CLI's own package (`createDevBuildGuardDeps`, `lib/dev-check.ts`), so
+   that build runs there. A checkout left unsaved would hold personal files that differ from their notes, and the import
+   refuses on that (`appendImportPersonal`, `lib/store/ref/import/personal.ts`).
 
 #### 10.3 The state remote's designation
 
