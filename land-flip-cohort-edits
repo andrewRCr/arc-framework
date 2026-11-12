@@ -3,14 +3,20 @@
   "slug": "land-flip-cohort-edits",
   "claimId": "fd75bd6cae83490a726cd438858920b5",
   "createdAt": "2026-11-12T01:15:33.578Z",
-  "updatedAt": "2026-11-12T01:15:33.578Z",
+  "updatedAt": "2026-11-12T01:41:11.859Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Land cutover-flip's planning edits to cohort-storage-cutover.md on main: the flip's edge list without storage-ref-hardening, the artifact-kind register-share row, and the flip's Exposes and Consumes lines",
   "branch": "chore/land-flip-cohort-edits",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/land-flip-cohort-edits",
+    "headSha": "d2c85d6331a3d88b3cd3ce48ad655c5a260f6a7f"
+  }
 }
