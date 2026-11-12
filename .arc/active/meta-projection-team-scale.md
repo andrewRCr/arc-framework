@@ -8,11 +8,11 @@
 - **Depends On:** `projection-worktrees`
 
 - **Origin:** [internal] — the split of `projection-worktrees`' scale changes (2026-11-07)
-- **Design:** `draft-projection-team-scale.md`
+- **Design:** `spec-projection-team-scale.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
