@@ -29,7 +29,7 @@ import { createKindRegistry, type KindDefinition } from "../registry.js";
 import type { KindId } from "../catalog.js";
 import { recordPendingWriteBack, recordWriteBack } from "./taken-in.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
-import { selectWriteBackBase } from "./base-selection.js";
+import { selectWriteBackBase, type WriteBackBaseDecision } from "./base-selection.js";
 import { readBaseContent } from "./base-content.js";
 import type { RecoveredBase } from "./base-recovery.js";
 import { checkWriteBackEdit } from "./check-edit.js";
@@ -90,7 +90,7 @@ export type PreparedWriteBack =
       readonly stamp: string; readonly takenIn: string; readonly selectedBase: RecoveredBase; readonly captured: CapturedWriteBackFile; readonly random?: () => number; readonly retained?: RefusedMark }
   | { readonly kind: "clashed"; readonly drawing: CheckoutDrawing; readonly read: TakeInRead; readonly result: TakeInResult; readonly diagnostic: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
-      readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal };
+      readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal; readonly readRefusal?: StoreRefusal };
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
@@ -124,7 +124,7 @@ export async function prepareCapturedWriteBack(context: WriteBackContext, reques
   request = observeProjectionEdit(request, file.read.blob);
   const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
   if (selected.status === "refused") return refusedPreparation(request.entry, selected.refusal);
-  if (selected.result.kind === "held") return heldBasePreparation(context, request, file, selected.result.mark);
+  if (selected.result.kind === "held") return heldBasePreparation(context, request, file, selected.result);
   const { base, stamp } = selected.result;
   const markers = await prepareMarkers(context, request, file.content, base);
   if (markers.status === "refused") return refusedPreparation(request.entry, markers.refusal);
@@ -232,9 +232,11 @@ async function ambiguousPreparation(context: WriteBackContext, request: TakeInRe
     : clashedPreparation(request, drawing.result, file.read);
 }
 
-async function heldBasePreparation(context: WriteBackContext, request: TakeInRequest, file: Extract<ReadEdit, { kind: "read" }>, mark: RefusedMark): Promise<PreparedWriteBack> {
+async function heldBasePreparation(context: WriteBackContext, request: TakeInRequest, file: Extract<ReadEdit, { kind: "read" }>, held: Extract<WriteBackBaseDecision, { kind: "held" }>): Promise<PreparedWriteBack> {
+  const { mark, readRefusal } = held;
   if (mark.reason === "ambiguous-base") return ambiguousPreparation(context, request, file);
-  return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } }, diagnostic: mark };
+  return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } }, diagnostic: mark,
+    ...(readRefusal === undefined ? {} : { readRefusal }) };
 }
 
 /** Capture one settled local file without making store-derived preparation decisions. */
@@ -291,7 +293,7 @@ async function stamplessVerdict(
 
 function pendingRead(context: WriteBackContext, request: TakeInRequest, refusal: StoreRefusal): HeldWriteBack {
   return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } },
-    diagnostic: markStoreRefusal(refusal, context.verb) };
+    readRefusal: refusal, diagnostic: markStoreRefusal(refusal, context.verb) };
 }
 
 function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWriteBack {

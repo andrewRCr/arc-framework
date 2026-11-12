@@ -36,7 +36,7 @@ export async function selectStamplessBase(
   if (current.status === "refused") return current;
   const agreement = await compareCandidates(context, request, candidates.bases, current.result.content, content);
   if (agreement.status === "refused") return { status: "ok", result: { kind: "held",
-    mark: { reason: agreement.refusal.condition, remedy: agreement.refusal.remedy } } };
+    readRefusal: agreement.refusal, mark: { reason: agreement.refusal.condition, remedy: agreement.refusal.remedy } } };
   return agreement.result ? carried : { status: "ok", result: ambiguousBase() };
 }
 

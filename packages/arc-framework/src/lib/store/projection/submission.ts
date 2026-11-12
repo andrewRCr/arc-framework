@@ -23,9 +23,12 @@ const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
 /** The one submitted batch and the basis to retain if it is accepted. */
 export interface PreparedProjectionSubmission { readonly batch: BatchInput; readonly plan: ProjectionWritePlan }
 
+/** Preserve a planner's failed Store observation separately from a locally refused edit. */
+export type ProjectionSubmissionResult = StoreResult<PreparedProjectionSubmission> & { readonly nativeRefusal?: true };
+
 /** Preserve a local ready edit while deriving its actual mutation and evidence afresh. */
 export async function prepareIndexedProjectionSubmission(context: WriteBackContext, request: TakeInRequest,
-  prepared: Extract<PreparedWriteBack, { kind: "ready" }>): Promise<StoreResult<PreparedProjectionSubmission>> {
+  prepared: Extract<PreparedWriteBack, { kind: "ready" }>): Promise<ProjectionSubmissionResult> {
   const copies = await captureRetainedBases(context, request.entry);
   if (copies.status === "refused") return copies;
   return prepareStable(context, request.checkout, request.path, request.copy === null ? "file" : "aside", {
@@ -37,13 +40,13 @@ export async function prepareIndexedProjectionSubmission(context: WriteBackConte
 
 /** Prepare new content without granting authority to the earlier discovered target. */
 export function prepareAdoptedProjectionSubmission(context: WriteBackContext, checkout: string, path: string,
-  file: ProjectionAdmission["input"]["file"], index: ProjectionIndex): Promise<StoreResult<PreparedProjectionSubmission>> {
+  file: ProjectionAdmission["input"]["file"], index: ProjectionIndex): Promise<ProjectionSubmissionResult> {
   return prepareStable(context, checkout, path, "file", { selection: { kind: "unindexed" }, input: {
     format: context.format, file, basis: null, base: null, rendering: null, resolution: null, recoveringBase: false, retainedBases: [] } }, index);
 }
 
 async function prepareStable(context: WriteBackContext, checkout: string, path: string, source: "file" | "aside",
-  data: Pick<ProjectionPreparationRequest, "selection" | "input">, index?: ProjectionIndex): Promise<StoreResult<PreparedProjectionSubmission>> {
+  data: Pick<ProjectionPreparationRequest, "selection" | "input">, index?: ProjectionIndex): Promise<ProjectionSubmissionResult> {
   const capture = () => context.captureLocal?.(path, source) ?? captureProjectionLocal({ checkout, path, source, location: context.location, index });
   let local = await capture();
   for (let attempt = 0; attempt < 2; attempt += 1) {

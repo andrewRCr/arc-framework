@@ -16,6 +16,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 
 afterEach(() => { beginProjectionCommand(); });
 it.each([
@@ -92,6 +93,8 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
+  const checked = await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") });
+  expect(checked).toMatchObject({ kind: "would-refuse" });
   await startProjection({ store: f.store, checkout: f.root });
   const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing ownerless index");
@@ -99,6 +102,7 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
     text: expect.stringContaining("--cohort alpha"),
   } } });
   expect(refused.index.entries[path]?.refused?.remedy.text).toContain("--commitment planned");
+  expect(checked).toMatchObject({ remedy: refused.index.entries[path]?.refused?.remedy });
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
   expect(success(await f.store.version())).toBe(before);
   await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "alpha" })),
@@ -106,6 +110,7 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
     makeMetaFixture("beta", { state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", cohort: "alpha", currentWorkflow: "draft-design" }),
     { kind: "backlog", commitment: "planned" });
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "note.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);

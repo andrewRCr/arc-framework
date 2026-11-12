@@ -24,6 +24,8 @@ import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { captureWriteBackFile, prepareCapturedWriteBack } from "../../../../src/lib/store/projection/write-back.js";
 import { prepareIndexedProjectionSubmission } from "../../../../src/lib/store/projection/submission.js";
+import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -53,6 +55,26 @@ it("keeps a new generation retryable when it arrives at a renamed cohort's forme
   }
   expect(parseStampedFile(await readFile(join(h.f.root, ".arc/backlog/planned/root/cohort-root.md"), "utf8")).content).toContain("root");
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(h.arrived);
+});
+
+it("checks a journaled installed arrival without publishing its ownership confirmation", async () => {
+  const h = await reusedPathFixture();
+  const command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await startProjection(command);
+  const indexPath = join(h.projected.location.stateDir, "index");
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(disk).toMatchObject({ kind: "index", index: { entries: { [h.path]: { withheld: true,
+    handoff: { reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } } },
+  } } } });
+  const header = await readFile(indexPath), bytes = await readFile(join(h.f.root, h.path));
+  const version = success(await h.f.store.version());
+  expect(await checkProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
+  expect(await readFile(indexPath)).toEqual(header);
+  expect(await readFile(join(h.f.root, h.path))).toEqual(bytes);
+  expect(success(await h.f.store.version())).toBe(version);
+  await endProjection(command);
 });
 
 it.each(SAVE_MODES)("holds a late %s save across command end and resumes after deletion", async mode => {

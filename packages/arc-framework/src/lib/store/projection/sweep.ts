@@ -5,11 +5,11 @@
 import { removeProjectionAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
-import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
-import { ASIDE_FILES_ROOT, parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
+import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
+import { walkProjectionAsideFolder } from "./aside-discovery.js";
 import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
@@ -342,31 +342,12 @@ function judgeWriters(input: SweepInput): (name: string) => WriterState {
 
 /** Every copy and staged file in the aside folder, a symbolic link read as itself, by repository-relative location. */
 async function listAsideFolder(checkout: string, checkpoint?: () => Promise<void>): Promise<string[]> {
-  const pending = [{ directory: ASIDE_FILES_ROOT, visited: false }];
   const found: string[] = [];
-  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-    const { directory } = next;
-    if (next.visited) { await pruneAsideScaffold(checkout, directory, checkpoint); continue; }
-    const entries = asideDirectoryEntries(checkout, directory);
-    pending.push({ directory, visited: true });
-    for (const entry of entries) {
-      const location = `${directory}/${entry.name}`;
-      const named = parseAsideFile(location);
-      // A directory at a copy's exact location is opaque: none of its contents are projection-owned copies.
-      if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) found.push(location);
-      if (named === undefined && entry.isDirectory()) pending.push({ directory: location, visited: false });
-    }
-    await new Promise<void>(resolve => setImmediate(resolve));
+  for await (const visit of walkProjectionAsideFolder(checkout)) {
+    if (visit.kind === "copy") found.push(visit.location);
+    else await pruneAsideScaffold(checkout, visit.location, checkpoint);
   }
   return found;
-}
-
-function asideDirectoryEntries(checkout: string, directory: string): import("node:fs").Dirent[] {
-  try { return readdirSync(join(checkout, directory), { withFileTypes: true }); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
 }
 
 /** Report retained directories with their repair route, without deleting their contents. */

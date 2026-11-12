@@ -21,6 +21,7 @@ import { createProjectionEnginePorts } from "../../src/lib/store/projection/engi
 import { createEngineFixture, initializeEngineCheckout } from "../helpers/store/projection/engine-fixture.js";
 import { createHistoryRefusingStore } from "../helpers/store/projection/history-refusing-store.js";
 import { createHistoryMemo } from "../../src/lib/store/projection/base-recovery.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
@@ -80,6 +81,9 @@ it.each(["landed", "refused", "unparseable", "pending"])("marks a genuinely obse
     const future = new Date(Date.now() + 60_000);
     await utimes(join(f.root, path), future, future);
   }
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toMatchObject({
+    kind: outcome === "landed" ? "passes" : "would-refuse",
+  });
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
   const stored = success(await f.store.read({ reference: primary.reference }));
   expect(stored.content).toBe(outcome === "landed" ? content : primary.content);
@@ -89,6 +93,7 @@ it.each(["landed", "refused", "unparseable", "pending"])("marks a genuinely obse
   if (outcome === "pending") expect(disk.index.entries[path]).toMatchObject({ pending: true });
   if (outcome === "refused" || outcome === "unparseable") expect(disk.index.entries[path]).toMatchObject({ refused: expect.any(Object) });
   await writeFile(join(f.root, path), renderStampedFile({ content: `${before.content}\nRepaired hand edit.\n`, stamp: before.stamp }));
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: primary.reference })).content).toContain("Repaired hand edit.");

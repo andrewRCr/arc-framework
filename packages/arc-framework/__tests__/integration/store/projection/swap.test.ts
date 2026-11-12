@@ -3,7 +3,7 @@ import { link, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile 
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  deferring, landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions,
+  deferring, landingCopies, prepareSwap, SWAP_PATH, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { gitBlobId, storedBlobId } from "../../../../src/lib/store/projection/blob-id.js";
@@ -20,7 +20,6 @@ const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 const PATH = SWAP_PATH;
-const WRITER = SWAP_WRITER;
 
 /** A prepared swap whose checkout this file removes after each test. */
 async function prepared(
@@ -203,7 +202,7 @@ describe("the swap", () => {
     expect(await readStat(file)).toBeNull();
     const [copy] = written.copies;
     if (copy === undefined) throw new Error("expected the aside copy's record");
-    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring, writer: WRITER }))
+    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring }))
       .toEqual({ kind: "no-edit", entry: written });
   });
 });

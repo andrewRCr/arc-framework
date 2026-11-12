@@ -23,6 +23,7 @@ import { createStagedFile, nameAsideFile } from "../../src/lib/store/projection/
 import { withProjectionLock } from "../../src/lib/store/projection/lock.js";
 import { createWriteBackPort } from "../../src/lib/store/projection/write-back.js";
 import { TAKEN_IN_FOLDER } from "../../src/lib/store/projection/taken-in.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -121,12 +122,18 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
     base: { blob: gitBlobId(body, "sha1"), version: original.version },
     refused: { reason: expect.stringContaining("read-back failed") }, adoption: { kind: "read-back" } });
   expect(await readFile(join(f.root, path), "utf8")).toBe(bytes);
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toMatchObject({
+    kind: "would-refuse", remedy: { text: expect.stringContaining("arc save") },
+  });
   await repair();
   expect(success(await f.store.read({ reference })).version).toBe(accepted.version);
   const beforeRetry = success(await f.store.version());
   const pendingEntry = held.index.entries[path];
   if (pendingEntry?.kind !== "record" || pendingEntry.adoption?.kind !== "read-back" || !pendingEntry.persisted?.recording
     || pendingEntry.persisted?.takenIn.kind !== "copy") throw new Error("The accepted edit has no unfinished take-in record");
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toMatchObject({
+    kind: "would-refuse", remedy: { text: expect.stringContaining("arc save") },
+  });
   const payload = join(projected.location.stateDir, TAKEN_IN_FOLDER, pendingEntry.persisted.takenIn.name);
   const payloadBytes = await readFile(payload);
   const external = join(f.root, "external-accepted-destination"), backup = join(f.root, "accepted-authored-directory");
@@ -170,6 +177,7 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   if (settled.kind !== "index") throw new Error("Missing repaired-file index");
   expect(settled.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   expect(settled.index.entries[path]).not.toHaveProperty("adoption");
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await writeFile(join(f.root, path), bytes.replace("Authored correction", "Second authored correction"));
   await startProjection({ store: f.store, checkout: f.root });
   expect(projectionProcessState().diagnostics).toEqual([]);

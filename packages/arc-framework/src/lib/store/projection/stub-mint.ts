@@ -9,7 +9,7 @@ import type { StoreRecord } from "../read.js";
 import type { TakeInRead } from "./take-in-port.js";
 import { sameReference } from "../identity.js";
 import { gateRead } from "./read-gate.js";
-import { gitBlobId } from "./blob-id.js";
+import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { createHistoryMemo } from "./base-recovery.js";
@@ -20,6 +20,11 @@ export type MintedProjectionOwner = { readonly kind: "minted"; readonly index: P
   readonly ownership: Extract<BacklogOwnership, { kind: "owned" }> } | MintRefusal;
 type MintRefusal = { readonly kind: "refused"; readonly mark: RefusedMark; readonly index?: ProjectionIndex };
 type BoundMetadata = { readonly kind: "bound"; readonly index: ProjectionIndex; readonly record: StoreRecord } | MintRefusal;
+type StubReadRoot = Pick<ProjectionRootState, "checkout"> & { readonly context: Pick<ProjectionRootState["context"], "format"> };
+type MintedBasisRoot = Pick<ProjectionRootState, "store"> & { readonly context: Pick<ProjectionRootState["context"], "memo" | "verb"> };
+
+/** Current generation authority and the exact content captured by its creation receipt. */
+export interface MintedProjectionBasis { readonly kind: "basis"; readonly record: StoreRecord; readonly content: string }
 
 /** Publish the exact receipt before reading its basis, then bind the meta before its triggering companion. */
 export async function mintProjectionMetadata(root: ProjectionRootState, index: ProjectionIndex,
@@ -28,7 +33,7 @@ export async function mintProjectionMetadata(root: ProjectionRootState, index: P
     `Run arc stub ${proposed.params.name} --commitment ${proposed.params.commitment} --priority ${proposed.params.priority}`
       + (proposed.params.cls === undefined ? "" : ` --class ${proposed.params.cls}`)
       + (proposed.params.cohort === undefined ? "" : ` --cohort ${proposed.params.cohort}`) + ", then retry.");
-  const observed = await readMetadata(root, proposed.metaPath);
+  const observed = await readProjectionStubMetadata(root, proposed.metaPath);
   if (observed.kind === "refused") return observed;
   await root.context.checkpoint?.();
   const minted = await root.mint({ store: root.store, checkout: root.checkout, params: proposed.params });
@@ -51,11 +56,12 @@ export async function mintProjectionMetadata(root: ProjectionRootState, index: P
 /** Continue an accepted stub by exact receipt, without reminting or rebinding its public name. */
 export async function resumeProjectionStub(root: ProjectionRootState, index: ProjectionIndex, path: string,
   receipt: MintedStubReceipt): Promise<BoundMetadata> {
-  const observed = await readMetadata(root, path);
+  const observed = await readProjectionStubMetadata(root, path);
   return observed.kind === "refused" ? observed : bindMintedMetadata(root, index, path, receipt, observed.read);
 }
 
-async function readMetadata(root: ProjectionRootState, path: string): Promise<{ kind: "observed"; read: TakeInRead } | MintRefusal> {
+/** Read settled authored metadata without creating or binding its future owner. */
+export async function readProjectionStubMetadata(root: StubReadRoot, path: string): Promise<{ kind: "observed"; read: TakeInRead } | MintRefusal> {
   const absolute = join(root.checkout, path), gate = await gateRead({ path: absolute, markdown: false });
   if (gate.kind !== "read") return refused("The proposed metadata is not ready to read.",
     "Let the metadata save finish, or restore the proposed file, then retry adoption.");
@@ -64,24 +70,29 @@ async function readMetadata(root: ProjectionRootState, path: string): Promise<{ 
 
 async function bindMintedMetadata(root: ProjectionRootState, index: ProjectionIndex, path: string,
   receipt: MintedStubReceipt, read: TakeInRead): Promise<BoundMetadata> {
-  const basis = await readMintedBasis(root, receipt);
+  const basis = await readMintedProjectionBasis(root, receipt);
   if (basis.kind === "refused") return { ...basis, index };
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, receipt.reference);
   if (denied !== null) return { kind: "refused", mark: denied, index };
-  const entry: RecordEntry = { kind: "record", reference: basis.record.reference, stat: read.stat, written: read.blob,
-    base: { blob: gitBlobId(basis.content, root.context.format), version: receipt.version }, markers: null, notices: [],
-    unshown: basis.record.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
-    persisted: null, inProgress: null, copies: [], adoption: { kind: "write-back", stub: true } };
+  const entry = mintedProjectionEntry(receipt, basis, read, root.context.format);
   root.unsent.add(path);
   const bound = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     checkpoint: root.context.checkpoint, index: withProjectionEntry(index, path, entry) });
   return { kind: "bound", index: bound, record: basis.record };
 }
 
-async function readMintedBasis(root: ProjectionRootState, receipt: MintedStubReceipt): Promise<
-  { kind: "basis"; record: StoreRecord; content: string } | MintRefusal
-> {
+/** Construct the same provisional binding the writable receipt continuation will publish. */
+export function mintedProjectionEntry(receipt: MintedStubReceipt, basis: MintedProjectionBasis,
+  read: TakeInRead, format: ObjectFormat): RecordEntry {
+  return { kind: "record", reference: basis.record.reference, stat: read.stat, written: read.blob,
+    base: { blob: gitBlobId(basis.content, format), version: receipt.version }, markers: null, notices: [],
+    unshown: basis.record.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
+    persisted: null, inProgress: null, copies: [], adoption: { kind: "write-back", stub: true } };
+}
+
+/** Resolve the receipt's exact generation and version without reminting or publishing an attachment. */
+export async function readMintedProjectionBasis(root: MintedBasisRoot, receipt: MintedStubReceipt): Promise<MintedProjectionBasis | MintRefusal> {
   const current = await root.store.read({ reference: receipt.reference });
   if (current.status === "refused") return { kind: "refused", mark: markStoreRefusal(current.refusal, root.context.verb) };
   if (!sameReference(current.result.reference, receipt.reference)) return refused("The minted metadata no longer has its created role.",

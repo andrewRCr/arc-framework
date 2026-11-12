@@ -873,3 +873,200 @@ a systematic archive-entry cost at fixed owner and quarter counts. Both raw runs
 are retained; artifact digests and all eleven metric medians were checked independently. The repeat qualifies through
 the Owner's explicit direction. It demonstrates intermittent performance variation, not a repaired cause of the first
 macOS miss, and changes no limit or locking decision.
+
+### Removal-check read boundaries
+
+`checkProjectionRemoval` reuses `bindReadOnlyProjectionRoot`, which already supplies fresh target layout, rights,
+local capture, and a non-creating actor read. The check reads every index partition with its lock-free retry, and
+`readRemovalProjectionRoots` includes personal roots left by earlier identities. `checkProjectionRemovalFiles` uses
+ordinary change detection and the bound feasibility preparation. `ProjectionSubmissionResult` retains the planner's
+`nativeRefusal` flag; `prepareProjectionFeasibility` carries it forward. `observeProjectionReads`, shared with
+`createProjectionPreparationView`, also retains Store failures that protection helpers present as ordinary marks.
+The check uses only this failure observation across its stages, leaving version consistency inside each admission
+preparation, so changed authority remains a local admission conflict rather than a fabricated failed read.
+
+The initial behavior pairs are: missing index `919db593743c4d6fbde039e0613bfe80` →
+`2146a1d5934c46ec824641dbb4fee6ed`; missing identity `60f0ee2083234843bd7eec48bc63c034` →
+`c46536b928cc46d5b751b1bdf13b0adb`; target identity mismatch `bc805c9ebc34453cb533838b056c4b2d` →
+`7f6b7e1ec5704396a31608d349d05248`; malformed marker `9d5405885eec44e599117218b4804359` →
+`c1c1b5b9e3df42ecb57038d7e07913ca`; and protected edit `ccba0e356f244d63acac9aff7ed7382e` →
+`0e5f86be0de94aad97c59560b1c9cfad`. Each rejects the unsafe or unobservable state and succeeds after its repair.
+
+The valid-edit control `6719c9df56534a69a14bda436cc7c55d` rejects an omitted ready-admission path; restored run
+`3b912b921cfa44bf84c1c090ae5ea085` passes while the target's real lease is held. Store version, file bytes, index,
+lease file, and registered roots stay unchanged, and no machine ID is created. Admission read failure
+`cb8e8adabc3b452cb83341ede078ef92` → `5ba829485ae4478abe783931d3b7ce68`, filesystem failure
+`b0f312bf7a724aa18830971a1e03cfee` → `0006a932885149d6b5610647541dc3ac`, and rights-read failure
+`fcb293e1b32d4e2a88f3e54672712312` → `665567bd0adb4f34bb6807df75b7e7b6` preserve `unobservable` and recover after
+repair. Earlier-identity edits `5e5459e6197b465c9d7ba6b7039ae876` → `a29d455268f14629a7a818e94926be13` retain that
+identity's remedy. A real rebuild's withheld file `bd0ceae85864447e90247491924ea977` →
+`fb812ffe28c14134959cfb43f8e7fdf9` holds removal until deletion. These are incremental checks within Task 2.1.
+
+An actual accepted write whose read-back failed leaves the recording mark consumed by
+`unfinishedRecordingRefusal`; the check holds that local state before read preparation, rather than classifying its
+locally made refusal as a Store failure. Run `c0b6d01d36c341ec875a30f7aa5e04a1` rejected the prior classification;
+`68107d5e506b40b7a28f78bf29cafb7f` passed the hold and save-mode continuation. Changing metadata ownership between
+the rights read and admission exposed the whole-check consistency wrapper in `b2e009d249a54dcd9a55158dfe9a6e46`;
+`f4fa77eb3d374f6f9cad01788ccd4e73` passed the narrower observation, refusal, restored authority, and binder scenarios.
+
+Run `746f61f78d8a4868bb376f4827467a83` passed the existing authority, content-rule, native-refusal, and historical-control
+cases affected by the observation extraction. The deleted-file control `6dfcc8f0fe1d4024b0b78091e66cf217` rejects
+holding absent files merely because their index entries remain; restored run `6eb684b0f6ca4c62b32c43e2ded03935` passes
+the recording exception and withheld-file deletion. A reverted file still holding unfinished recording remains held.
+
+`inspectProjectionAdoption` shares the adopter's protection, link, existence, and primary-creation verdict, preserving
+its refusal stats. `existingProjectionEntry` constructs attachment's basis without publication; the removal check
+uses only its read path and serialization, never indexed capture. `resolveProjectionAdoptionIntent` shares receipt,
+located-target, and backlog-owner selection, including the prospective stub's own parameter validator. Classification
+remains after minting in the writable continuation; the check can classify a prospective pathname without minting it.
+Unindexed foreign files fail in `c0f9cd323ac840b5bebcf7b839eb9561` and pass with the existing-adoption regressions in
+`9a4e14a0eac14828be1e5c83ffef478b`. Omitting existing-record feasibility fails in
+`685c612b86e34ba9b978ebdb19b29176`; `b21640f822e240afab6020e2856735c7` restores it without changing file, index,
+or Store version. Prospective-owner feasibility fails in `e82798875f094205a8c181af26d14385` and passes in
+`534f47666cf24dd188b874d48ce0d577`, alongside every existing native stub-mint scenario, including exact receipt
+recovery and mint-before-filename-classification ordering.
+
+Accepted adoption installation is held separately from its finished recording: ignore repair changes the guard remedy
+to the save remedy, and a save completes installation. Runs `da802300d7884c18a7cf0b9160889181` →
+`0fc8c1ff3c1a402c83df053d3a6dfc57` cover that continuation; `e4347d24963b40ef9a0229f6327feb4e` →
+`c10fc8d6375b432f9cf650c6f74bb63b` cover the hold after deletion. Receipt observation reuses the minted metadata
+reader, exact-version basis, and entry builder: `d476bb37aa534137b23bbb032a0b21df` →
+`63dd9a7d167d46b195aa4315abcc4dc9`. A missing authored metadata file remains held through the same verdict adoption
+uses, without changing the header or Store version: `378195b3c4704df0ac69008c6ba4478d` →
+`b3a79482df744905b89aa22b4fe80730`.
+
+Personal-container discovery observes its ancestor links before enumeration; its linked target is never walked.
+Runs `8b87be53edea4155818f6c128b0900bd` → `a1139a38115640a6b715ae30d80a38e2` cover the filesystem boundary and
+regular-container continuation. `observeProjectionHandoffs` shares the writer's installation evidence calculation
+without publishing its result. The real ref-backed journaled-arrival case fails in
+`2ee015525b6f43ad9f2633d71d03e3e4` and passes, alongside the writer's ownership tests, in
+`16542999d75241049742e4222ba02fc6`; header, arriving bytes, and Store version remain unchanged.
+
+Unfinished personal recording and installation name the previous identity's protection remedy before the local hold.
+The initial installation assertion matched an identity inside a pathname and was tightened to the actual identity
+instruction. Both cases fail in `7454266adfd348e0bd581647f8e79d3f` and pass, with save-mode continuation under the
+owning identity, in `4423e5bca1eb44b7a2dc5b4069b59ae1`.
+
+Recorded aside copies use `checkAsideCopy` with only its read capabilities. Successful feasibility advances
+`recordWriteBackSent` in memory for later copies, without submission or copy settlement. An interrupted real swap's
+moved-on edit fails in `0cef8a5823b44c068a44178ef83b60e1` and passes in `3f950cdd703a4585a00375e5ba84597b`.
+Omitting aside observation fails the history-refusal and repaired-preparation case in
+`f3cc85f6173345b7bfe3ad37470a0972`; restored run `3e1532ac9ee0420ca83bbe7897cd0383` preserves copy bytes, absent
+destination, index, and Store version. Two edited copies of one absent path fail in
+`e6d72bc23d474fd39c7f78ad63e2b793` and pass in `fd7b0df0d5c9468180f191349c66ab62`: the newer copy holds until
+deleted after the older copy's provisional preparation.
+
+`walkProjectionAsideFolder` separates typed discovery from pruning: the writable sweep consumes its directory-exit
+events, while removal reads them without mutation. An unrecorded edit fails in
+`1b516f60844b479f90c8a3461d44beec` and passes with the sweep regressions in
+`7908a4edacd7491db6067ddeeca26299`; empty scaffolding remains. A real rebuild's withheld copy stays held even after
+its bytes return to its named base: ignoring withholding fails in `f9f52afeda5d4eeaafa597699aee884d`, restored in
+`459ce3b36c644de88926d752e1a8b5cc`. An empty young Markdown save holds, while a settled empty file is no edit:
+`ff3b60d32ca94e51bbd5272bcabfafda` → `4bb3fdddb00044f6b8a0c4b71b753181`.
+
+Real accepted writes, a later read-back version, and `recordWriteBack` produce retained-input copies for Markdown and
+plain-text cases. The first repair fixture accidentally combined adjacent conflicting edits; the corrected fixture
+uses a refreshed current basis and an independent edit. Both repaired cases pass in
+`d9ab670772f243ab8f609a1628324c47`; classifying their missing local copies as failed Store observations fails in
+`1ab51323b52941b18986fcc732729f03`. Task 2.1 remains open while its remaining states are exercised.
+
+Restored retained-base classification passes in `695c030a112a4c1abcd4addfc0b2d439`. Native adoption scenarios compare
+removal's refusal remedy with the adopter's actual indexed refusal, then check repaired feasibility before adoption.
+Prospective parameter checks fail when bypassed in `26fc5017dcbd49e0a76042e554385d13`, restored in
+`ce231fe2a2cf463b81ea06b064035d65`. Missing cohort-generation and container authority fail under the same narrow
+omission in `6d00a005b33143da9a7d21c437099976`, restored in `66c9bc7aa555441b810808060e90fb47`. The native fixed
+personal-record case also checks new-file feasibility before its actual adoption.
+
+Unreadable projected file, index, and marker; failed target configuration; and another-format index all fail a
+local-refusal reconstruction in `b6f62fe5e7c24296afc6fc21461699db`, restored in
+`e8b3c8a5b0424108bfe7e11cc4db6955`. The marker changed after binding fails a stale-layout reconstruction in
+`05844f51ed9b4588a8f764187399eaca`; fresh captures pass in `e2bdefc638b14073b0d4b5faef09395d` without changing the
+marker. Native refused, unparseable, and pending metadata fail an omitted read-path hold in
+`8c36c620576e453ba1e02f06481f3978`; valid, held, and repaired cases pass in
+`a85be6ab31b84c1eb788ea694729acb5`.
+
+The cold-partition fixture includes both the archived record and the claim's own active metadata. Without that active
+file, removing the claim leaves no former-claim bytes to withhold; the corrected fixture passes in
+`606d66aa01bf4f8895dc7825e75fa20b`. It exercises all-partition reads, `arc save` rebuilding the damaged partition,
+and the unclaimed checkout's deletion remedy for withheld former-claim bytes. The same run covers an index retained
+without a claim and the no-index, no-identity fast path.
+
+An unchanged conflict drawing exposed two requirements in `516b946a74484667a53104af1d84c651`: conflict evidence must
+still reach preparation, and a ready preparation may preserve existing stored conflicts. Reading the file alone
+remained insufficient in `9cb398c6c6fd49f196cd1b0bd213226d`; the correction compares the proposed mutation's
+resolutions with its sealed subject-conflict observations. Qualification remains in progress.
+
+The conflict correction passes with all 34 then-current cases in `de81d048699e468784096deae2eb557b`, and native Windows
+feedback `2aea02221dcd48c69b33f5dc1d8fa4cb` passes the same cases. The cold-partition tests were strengthened by
+removing the archived file before corrupting its partition, so neither a walk nor an entry lookup can discover it.
+Reading only walked partitions, and consulting identity before the no-projection fast path, fail in
+`17abb7b523ed4a42b580105805eb6204`; the complete reader and observation cases pass in
+`a743cc23aa6f4d24a607f0e973dc4e77`.
+
+The retained-blob case proves the ordinary read path is ready while only admission capture detects altered retained
+input. Omitting that comparison fails in `e87e35413169476a8709f2f777c16a6b`; restoration and copy repair pass in
+`23783cfcab954aca8084b7e9acc83df1`. Native accepted companion and inbound edits with unfinished adoption recording
+reject omitted local holds in `3304227c022d4cc9bd634b3dba411447`; the restored hold, read repair, and eventual installed
+continuation pass in `e23747ae300047de9fdc9a70a7f5b41a`. A conservative refusal of ready new-file admission fails
+the native personal-record case in `f5ef7f0eda954812a0cd644640b67413`, restored in
+`2fc28a05f0e44c89869350019b28fdc5`.
+
+An actual interrupted plain-text swap reaches a refused history read through the supplied Store double and performs
+no history pull. It passes refusal and repair in `07264ace77bb481c9cdfb45867ad9bb2`; changing failed Store reads into
+local edit refusals rejects it alongside the other native-failure boundaries in
+`b0f2f6a8941d48bf9d22b76e7f1db4db`. Source type feedback `58c756a2488944678822b502d0359dff` and focused lint
+`5b6b2a6f342c44848bfb9f10a5646f24` passed their then-current inputs. Test type feedback
+`8da42e69f426475ab71fd550706c37be` found the marker test's nullable stamp; an explicit fixture assertion now narrows
+it. Fresh types remain due before completion.
+
+Aside feasibility preserves marker, native metadata-parse, and retained-base checkout-clash refusals. Omitting the
+feasibility verdict fails all three in `7287d1c948d841f7b436885230ecdd61`; restoration passes in
+`812bf75cfd434662aac9a9b873b99f29`. A copy beneath an ancestor link is opaque, while a regular edited copy outside a
+linked destination still holds removal without reading the destination. Their exposing runs are
+`d2badec7a357495a8ea19537ba04f3d1` and `a3a0185db3e940f38cc440599b71a84e`; restored observation plus ordinary
+aside/sweep regressions pass in `6ba3c58ed2ab4b62a0bc9164a358a4c8`.
+
+Two real interrupted replacements expose why the file walk precedes aside takeover: a provisionally prepared file
+marks its older copies as having a later write-back, even where the file's bytes equal an old copy's linked bytes.
+The asides-first order passes incorrectly in `7368696ac0ad47b69fa0d44c17b658d5`; the corrected order and in-memory
+send marks pass with observation cases in `957467269af64b6aadf4a54d53947c9e`. Previous-identity repair now sends
+through an actual command under that identity. Ignoring completed edits fails the other-owner archived-note case in
+`a668fa90f95a499285bc3e2f6f082972`; the restored walk passes in `83fc5fad79ae49f788309fe0acf18c48`.
+
+Indexed and unindexed file symlinks remain unread, with path-specific access failures detecting a target read.
+Deliberate target reads fail in `3dc653653f764731ad9df610af478744`; opaque observation passes all ten filesystem
+cases in `63697698c7934e6a9616558e0d19b982`. An unsettled empty aside needs a wait-and-retry remedy rather than a
+delete instruction: `b186a801cb7041039ac7b0679ba86ddd` exposes the mismatch and
+`bcd7724514b2436b97d77e3b39bae4b4` passes its settled-empty continuation with all 54 then-current focused cases.
+
+An unindexed attachment can prepare while preserving unseen stored conflicts. The real conflicting-write fixture
+passes removal incorrectly in `7d424a68fb114e26acda80c4fe6321aa`; comparing the pure attachment's open conflicts
+with the read-path mutation's resolutions holds it, and an explicit stored resolution releases it. Run
+`b9209463c9bf42d4a019ff1aff063fe9` passes all 55 focused cases without publishing an attachment. Fresh source types
+`d948be13486040caaf048d34c6281e75` and all test-type shards `e087785fc45242e39afa2793d1ee25ac` pass that state.
+
+The completion consultation with Astra identified one remaining provenance gap: `pendingRead` retains only a
+diagnostic, so the global observer cannot identify `readStamplessFile`'s synthesized `state-unresolvable` when a
+successful history listing contains neither interrupted-replacement version. Task 2.1 explicitly requires a separate
+pending-read refusal field that the ordinary send does not interpret as a send refusal. Its disposition and production
+correction await review-mutation approval; task 2.1 remains open and uncommitted.
+
+Run `aef81d9277d14f3c95e76056a29acca4` reproduces that gap: the ordinary preparation remains pending, but removal
+returns `would-refuse` instead of `unobservable` when history listing succeeds with both interrupted versions'
+content unavailable. The regression's readable-history continuation is written but not yet reached. The proposed
+correction retains pending-read provenance separately through `pendingRead` and a base selection's held result,
+and consumes it only in removal classification; it preserves the sender's existing pending/retry policy.
+
+Broader feedback `4f72cc4d911e4c5aa85c4bbe059fd8df` passes 81 files and 750 cases: the projection directory,
+changed native adoption/metadata files, native write-back and adoption continuations, and the real save-command E2E
+file. This precedes the new failing provenance regression. Focused lint found the swap test's obsolete writer
+constant after the narrowed read interface removed its sole use; removing that constant and import leaves all changed
+TypeScript files lint-clean. Increment quality and task completion remain due after the finding is settled.
+
+The Owner approved the provenance correction, its checks, and batch continuation on 2026-11-12. `readRefusal` now
+travels separately through `pendingRead`, the held base decision, and held preparation; removal classifies it as
+`unobservable`, while `heldPreparation` preserves the ordinary sender's pending policy. A second regression keeps the
+current version readable and hides only the replaced version, reaching base comparison rather than the earlier
+stampless gate. Omitting that path's provenance fails in `c40968fdbf0544298f2ad5406f7519f6`; restoration passes both
+read-repair continuations and write-back regressions in `da8110995aa5492fbc528924716e4070` (85 cases). No temporary
+negative controls remain. The completion consultation's sole finding is corrected within the approved boundary.

@@ -9,6 +9,8 @@ import { startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 
 afterEach(() => { vi.resetAllMocks(); beginProjectionCommand(); });
 
@@ -20,6 +22,8 @@ it("preserves a dropped cohort document until its cohort exists, then adopts the
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
+  const checked = await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") });
+  expect(checked).toMatchObject({ kind: "would-refuse" });
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.version())).toBe(before);
   expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -30,7 +34,9 @@ it("preserves a dropped cohort document until its cohort exists, then adopts the
     reason: expect.stringMatching(/existing live cohort/iu),
     remedy: { text: expect.stringMatching(/restore.*cohort|existing cohort.*canonical/iu) },
   } });
+  expect(checked).toMatchObject({ remedy: refused.index.entries[path]?.refused?.remedy });
   const established = await seed(f, reference, content.replace("Authored cohort prose", "Stored cohort prose"));
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: established.reference })).content).toBe(content);
   const listing = success(await f.store.list({ family: "cohort", kind: "cohort/document" }));
@@ -90,6 +96,7 @@ it("creates a missing fixed personal record through ordinary file adoption", asy
   expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   const stored = success(await f.store.read({ reference }));
   expect(stored.content).toBe(content);
