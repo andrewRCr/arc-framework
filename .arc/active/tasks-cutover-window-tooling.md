@@ -37,42 +37,26 @@ fact the family reads arrives through one port that takes a supplied fact only w
           after registry removal. Sync's existing error rendering retains both condition and remedy without a handler
           change; its unit test pins the load direction's message and exit status.
 
-### `[ ]` **1.3 Family entry, results, lint boundary, and inertness — § 1.2, § 1.4**
+### `[x]` **1.3 Family entry, results, lint boundary, and inertness — § 1.2, § 1.4**
 
 - _Goal:_ Every operation runs from source through one entry, prints a report, emits one typed `--json` result listing
   every failing subject rather than the first, and exits non-zero on a refusal, a stop, or an `account` or `chain`
   finding; the family may read the store's private implementation, and nothing the package, the install recipe, or the
   CLI bundle reaches includes it.
 
-    - `[ ]` **1.3.a Entry, dispatch, and the lint exemption**
-        - `packages/arc-framework/src/scripts/cutover-window/main.ts` dispatches each operation of § 1.2 as it lands,
-          run with `node --import tsx` through one root `package.json` script beside the repository's others; the check
-          lives at exactly `packages/arc-framework/src/scripts/cutover-window/check.ts`, since C6's anchor derives from
-          that path. Every operation acts on the checkout `--repo` names, never on the process's working directory, so
-          this unit's source can run against a rehearsal copy.
-        - Exempt `src/scripts/cutover-window/` from `store-production`, `store-raw-state`, `surface-names`, and
-          `work-unit-paths` through the `ignores` of the `eslint.config.js` rows carrying them, splitting
-          `store-production` from `store-reference` into a row of its own, and pin it in
-          `__tests__/unit/eslint-architecture-config.test.ts` (see `notes-cutover-window-tooling.md` § Lint boundary and
-          imports).
-        - Build `test-first` (one behavior at a time):
-            - An unknown or not yet built operation exits non-zero with usage, as does one without `--repo`
-            - A module in the folder may import `lib/store/in-repo/` and `lib/store/ref/`, while the same import outside
-              it still refuses
-            - A file in the folder carries `clack`, `store-reference`, `layout-private`, and `configured-identity`, and
-              none of the four exempted rules
+    - `[x]` **1.3.a Entry, dispatch, and the lint exemption**
+        - The source entry requires `--repo`, dispatches only built operations, and propagates usage refusals to the
+          process exit status. A root npm script runs it. The family's four lint exemptions leave the remaining
+          architecture boundaries intact, including the private-import restriction everywhere outside the folder.
 
-    - `[ ]` **1.3.b The result and report shape**
-        - Build `test-first` (one behavior at a time):
-            - A result lists every failing subject with its remedy, and its report prints each
-            - A refusal, a stop, and an `account` or `chain` finding each exit non-zero; a pass and a report-only
-              `compare` or `lock` exit zero
+    - `[x]` **1.3.b The result and report shape**
+        - The typed result preserves every finding and remedy. JSON output is one stdout value with its complete report
+          on stderr; human mode prints that report on stdout. Central exit classification distinguishes failures from
+          passes and report-only operations, and the entry passes the explicitly named checkout to its handler.
 
-    - `[ ]` **1.3.c Prove the family ships nowhere**
-        - Tests beside `__tests__/integration/store-reference-packaging.test.ts`, reading the package build's metafile as
-          it does and filtering with `referenceBundleInputs` (`__tests__/helpers/store/ship-guard.ts`):
-            - The metafile names no input under `src/scripts/cutover-window/`
-            - Neither the package's `files` list nor `init-recipe.json` names the folder or a file in it
+    - `[x]` **1.3.c Prove the family ships nowhere**
+        - `cutover-window-packaging.test.ts` checks the actual bundle's raw inputs and output attribution, the package's
+          published-file patterns, and every nested install-recipe path.
 
 ### `[ ]` **1.4 Host facts and the merged-flip test — § 1.1**
 

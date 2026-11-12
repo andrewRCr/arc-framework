@@ -15,6 +15,29 @@ async function architectureOptions(filename: string): Promise<unknown> {
 }
 
 describe("composed architecture configuration", () => {
+  it("keeps the window family's remaining boundaries while exempting its private store reads", async () => {
+    const filename = "src/scripts/cutover-window/main.ts";
+    expect(await architectureOptions(filename)).toEqual([2, [
+      "clack", "store-reference", "layout-private", "configured-identity",
+    ]]);
+    const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, filename)) as
+      { rules: Record<string, unknown> };
+    expect(configuration.rules["arc/store-raw-state"]).toBeUndefined();
+    expect(configuration.rules["arc/surface-names"]).toBeUndefined();
+    expect(configuration.rules["arc/work-unit-paths"]).toBeUndefined();
+  }, ESLINT_CONFIG_LOAD_TIMEOUT);
+
+  it("permits private store imports only within the window family", async () => {
+    const inside = await eslint.lintText('import "../../lib/store/in-repo/meta.js";\nimport "../../lib/store/ref/context.js";\n',
+      { filePath: resolve(packageRoot, "src/scripts/cutover-window/main.ts") });
+    expect(inside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
+      .toEqual([]);
+    const outside = await eslint.lintText('import "../lib/store/in-repo/meta.js";\nimport "../lib/store/ref/context.js";\n',
+      { filePath: resolve(packageRoot, "src/scripts/run-focused-lint.ts") });
+    expect(outside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
+      .toHaveLength(2);
+  }, ESLINT_CONFIG_LOAD_TIMEOUT);
+
   it("resolves the global package restriction for a source module", async () => {
     expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["clack", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   }, ESLINT_CONFIG_LOAD_TIMEOUT);
