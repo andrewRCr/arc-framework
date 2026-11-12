@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "narrative-internal-origin",
+  "claimId": "aead4b120114040cd1b5a5d3c8253107",
+  "createdAt": "2026-11-12T03:51:14.366Z",
+  "updatedAt": "2026-11-12T03:51:14.366Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Accept and round-trip a narrative internal Origin without a surrounding code span",
+  "branch": "chore/narrative-internal-origin",
+  "origin": "inbox",
+  "originEntry": "Write and render a narrative internal Origin without a code span",
+  "originEntrySourceDigest": "sha256:0ed3ab5f6878e3340e375b638ed089def7c979c9e2741562762f65cd9c99aa37",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
