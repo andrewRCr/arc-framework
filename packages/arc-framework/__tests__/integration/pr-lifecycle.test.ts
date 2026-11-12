@@ -671,7 +671,8 @@ describe("PR lifecycle and review contracts", () => {
       const normalized = rules.toLowerCase().replace(/\s+/gu, " ");
       expect(normalized).toContain("verify every review finding against source");
       expect(normalized).toContain("complete proposed disposition set");
-      expect(normalized).toContain("approval before applying any finding-driven fix");
+      expect(normalized).toContain("approval before applying any finding-driven fix from a formal review pass");
+      expect(normalized).toContain("declining or dismissing a finding from any review is never yours to decide");
       expect(rules).not.toMatch(/GitHub|CodeRabbit|review-gate/iu);
     }
   });

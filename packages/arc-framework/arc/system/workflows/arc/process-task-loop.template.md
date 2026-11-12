@@ -169,8 +169,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
        on another task or external input, unanticipated design decision that needs user input,
        or scope significantly exceeding expectations for the task
      - **Continue with note:** auto-fixable lint issues (fix and note), an in-scope fix (make it, note it on the
-       task it serves, and re-run), task taking longer than expected but progressing, minor deviation from plan
-       that doesn't change outcomes
+       task it serves, and re-run), including one for a confirmed finding from your own review of the unfinished
+       work ([DEV-RULES.ARC][dev-rules-arc] § Review finding mutation guard), task taking longer than expected but
+       progressing, minor deviation from plan that doesn't change outcomes
 
      Stop conditions are not suspended by deferred review — a gate failure with neither an auto-fix nor an
      in-scope fix ends the deferred scope early and surfaces the issue to the user.
