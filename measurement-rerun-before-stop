@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "measurement-rerun-before-stop",
+  "claimId": "77290757b5bb0d458efcb9ece70364cb",
+  "createdAt": "2026-11-12T17:16:42.093Z",
+  "updatedAt": "2026-11-12T17:16:42.093Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Gather cheap measurement evidence before stopping on a failing measurement",
+  "branch": "chore/measurement-rerun-before-stop",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
