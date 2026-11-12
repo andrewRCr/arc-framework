@@ -125,13 +125,10 @@ restarted after each of its steps.
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Consumed comparison.
 
-    - `[ ]` **2.2.a The records the held identity refs give**
-        - Read each held identity ref with `readTransientIdentitySnapshotAtRef`, and restate the import's mapping, private
-          to its module: a claim compares by `transientKind` and `transientReference`'s kind, person, and key, its content
-          as canonical parsed JSON (`serializeTransientIdentityRecord`).
-        - Build `test-first` (one behavior at a time):
-            - Grooming and housekeep claims map to `claims/groom` and `claims/housekeep` with their content
-            - A held tip whose snapshot reads absent, errored, or with diagnostics is a difference
+    - `[x]` **2.2.a The records the held identity refs give**
+        - `readWindowTransientRecords` reads exact identity refs at their held immutable tips and maps claims through
+          the import's logical coordinates and canonical JSON. Absent, failed, or diagnostic-bearing snapshots remain
+          named differences rather than empty identities; unrelated ARC refs are ignored.
 
     - `[ ]` **2.2.b The three regimes**
         - Read the landed records with plain Git reads of the claim trees and work-item refs; decide "landed" by a strict
