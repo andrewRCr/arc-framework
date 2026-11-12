@@ -411,6 +411,36 @@ No production composition sets the slots today, so every caller runs `passingPro
         - over the store, the stale-worktree sweep and branch-gone recovery read no user-surface safety; over the
           in-repo implementation, they still read it and teardown still merges
 
+    - `[ ]` **2.5.R Protect residual personal files before unindexed removal — A6**
+
+        - _Goal:_ Implement A6's destructive-removal refusal for non-machine-local personal files in an ARC-managed
+          checkout without a projection/index, preserving explicit recovery and identity-free empty-husk retirement.
+        - Extend the existing check slot with optional remove/release disposition, defaulting direct callers to remove;
+          forward the native check's disposition through the factory. Add the shared residual observer at unindexed
+          check and persist boundaries, with explicit disposition in `withPersistedProjection` and its internal
+          `persistUnderLease` recheck so release skips it. Keep capability-off and missing-folder ordering, caller ownership
+          checks, and indexed behavior.
+        - Extract only the applicable machine-local predicate from discovery's exclusion logic; inspect all actual
+          personal directories without resolving identities or following observed links. Report local-path recovery
+          or read uncertainty; never inspect or modify a primary copy.
+        - Thread the command-bound slots from Errand open into native provisioning and its required `checkRollback`
+          dependency. Check destructive spawn compensation before it clears an owned pending marker and before physical
+          rollback where no owned marker is removed. On refusal/read failure retain pending recovery evidence and the
+          checkout, branch and claim, with actionable detail alongside the setup error; keep exact generation/receipt
+          authority and the existing borrowed-marker retention.
+        - Build `test-first` (one behavior at a time):
+            - the existing unindexed-husk regression retains its bytes/registration on refusal, then removes only after
+              explicit recovery; its primary copy stays unchanged, and indexed unowned prose still refuses
+            - a residual introduced after the check refuses persistence; unreadability refuses both observations
+            - release succeeds over the same residual without the scan; empty/machine-local-only targets succeed
+              without an identity or configuration read; capability-off and missing folders perform no residual scan
+            - unregistered derived/editor files remain protected, while observed file/directory links are not followed
+            - native post-create setup writes ignored personal bytes and fails: compensation retains bytes, checkout,
+              branch, pending marker and claim; explicit recovery and setup repair resume the same claim; an observation
+              failure also retains them, while empty/machine-local-only and capability-off failures still clean up
+        - Run native production removal and release contexts, retain the in-repo migration cases, and include A6's
+          criterion in 2.8's acceptance and amendment revalidation. Do not change 2.5's Goal or earlier completion text.
+
 ### `[ ]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
 
 - _Goal:_ The registry lists every machine-local file under `.arc/system/` by name, so a source projecting
@@ -515,5 +545,11 @@ No production composition sets the slots today, so every caller runs `passingPro
         repair; lint rejects missing slots at direct start, rename apply/rollback, and legacy park/abandon compositions.
         Store/identity forwarding is inspected, and factory tests cover capability, identity, and mint-port authority
         (A5; spec criterion 12).
+
+- `[ ]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain
+        their bytes until explicit recovery; retry leaves primary bytes untouched. Release, empty/machine-local-only
+        targets without identity, missing folders, disabled capability, unreadability, and symbolic links follow A6's
+        defined behavior; failed setup compensation preserves pending recovery state and permits same-claim retry
+        after recovery and setup repair (spec criterion 13).
 
 - `[ ]` Ready for integration

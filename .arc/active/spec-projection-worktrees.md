@@ -749,10 +749,59 @@ directions, and legacy park/abandon compositions; inspect their resolved Store a
 separately. Test the factory's capability gating, identity authority, and mint-port lifetime through slot behavior.
 Every production composition still binds the slots.
 
-**`check(checkout)`** — the removal check's projection part. It reads only, writes nothing, and takes no lock, and
-answers:
+**Unindexed personal files (A6).** With state off the branch, a destructive removal also protects residual personal
+files in an ARC-managed checkout that has neither a projection nor an index. A present marker whose ownership decodes as
+`current` establishes this local ARC-managed scope, including husk-stamped, branch, and pending transient subjects; this
+adds no ownership authority to the caller. An absent or manual-only marker adds no residual-data policy, while a
+malformed or unreadable marker makes the observation unobservable. The rule creates no projection and resolves no
+identity.
 
-- `passes`, as a checkout § 2.5 gives no projection and that holds no index does before the identity is consulted;
+The new `observeUnprojectedPersonalFiles` in `lib/store/projection/removal-residual.ts` examines actual directories
+immediately under `.arc/user/` and their descendants, irrespective of their names. It reports any regular file not
+covered by the applicable `MACHINE_LOCAL_PATHS` rules (`lib/store/registry.ts`), naming its checkout-local path and the
+remedy: recover the wanted bytes outside this checkout, remove the local residual, then retry. It never compares with,
+reads, or writes a primary copy, adopts a file, or sends it to the Store. Editor backups and derived status files remain
+covered unless the machine-local registry excludes them; the broader discovery exclusions are not this predicate.
+Extract `isMachineLocalProjectionPath` from `isExcludedProjectionPath` (`lib/store/projection/discovery-exclusions.ts`)
+without changing discovery's existing additional exclusions. Missing `.arc/user/` and empty or machine-local-only
+personal directories pass. Enumerate without following observed symbolic links, including links at either root; their
+external targets remain outside removal. A failed directory or file observation is unobservable, never evidence of
+absence. The observer takes an injectable filesystem boundary for directory enumeration and `lstat`, defaulting to
+native filesystem operations, so read failures are testable without changing caller authority.
+
+`ProjectionRemovalSlots.check` gains an optional second argument, `"remove" | "release"`, defaulting to `"remove"`.
+`checkWorktreeRemoval` forwards its existing `disposition`; `createProjectionRemovalSlots` forwards it to
+`checkProjectionRemoval`. The residual observer runs only at the latter's unindexed/no-projection boundary on remove,
+and runs there again during `persistProjectionRemoval`, before its no-projection success. Both observations precede
+identity resolution and retain the current missing-folder and capability-off ordering. Thread a required internal
+disposition through `withPersistedProjection` and its internal read-only recheck in `persistUnderLease`: persist selects
+remove, release selects release. Release never runs this residual observer, since it retains the checkout; indexed
+projection persistence and removal remain as specified below.
+
+Spawn compensation observes the same rule before it can erase its ownership marker (A6). `rollbackSpawn` in
+`lib/locus/provisioning.ts` receives the existing check through a required `checkRollback` dependency of
+`ProvisionTransientLocusDependencies`. `createNodeProvisioningDependencies` takes the command-bound
+`ProjectionRemovalSlots` and supplies its check; `openOrdinaryErrandAtRuntimeWithDisposition` binds those slots from
+its resolved Store and identity, using the passing defaults when no off-branch Store is selected. Before compensation
+removes an owned pending marker on a path that would roll back a created checkout, it runs that check in remove
+disposition. It also checks before a physical rollback that has no owned marker to remove. A refusal, failed read, or
+thrown check retains the marker, checkout and branch; existing pending-marker or marker-residue evidence keeps the
+identity claim, and the reported setup failure includes the local recovery/read remedy. Repair requires recovering
+wanted personal bytes outside the checkout and removing the residual, repairing the failed setup, then retrying the
+same Errand open; the retained pending generation can resume through the existing recovery path. The primary copy is
+never inspected or modified. A passing check leaves exact marker-generation deletion and receipt/roster rollback
+checks in force. Borrowed pending markers remain retained as today; empty/machine-local targets and capability-off
+compensation preserve their cleanup behavior. This adds a check dependency, not a fourth projection slot.
+
+There is no fourth slot, new setting, persisted state, automatic recovery, or additional lock. A save after the last
+observation remains the physical-removal residual in § 17; repeating the observation does not make deletion atomic
+with arbitrary editor saves.
+
+**`check(checkout, disposition = "remove")`** — the removal check's projection part and unindexed personal-data
+observation. It reads only, writes nothing, and takes no lock, and answers:
+
+- `passes` on a checkout § 2.5 gives no projection and that holds no index, before identity is consulted, once
+  the residual observer passes for remove; release returns directly on that boundary (A6);
 - `would-refuse` with a remedy, when the persist step would refuse, save for a new file under a prospective owner,
   whose kind's content checks wait for the persist step's mint (below) — a file adoption would refuse
   (`spec-projection-write-back.md` § 9), held by a conflict (`spec-projection-write-back.md` § 6), failing to parse,
@@ -821,11 +870,12 @@ planner reads, its preparation's captures, two Git calls in the usual case (§ 1
 **`persist(checkout)`** — the persist step, run by the function after the check and before it unlocks and removes the
 checkout:
 
-1. On a checkout § 2.5 gives no projection and that holds no index it returns at once, before the identity is consulted.
-   Otherwise it takes the target worktree's projection lock. Where the lock stays held until `AdvisoryLockTimeoutError`,
-   the step refuses, naming the holder and a retry; where the lock's lease is lost while the step runs
-   (`spec-projection-substrate.md` § 3.2), it refuses with a retry; and with no identity (§ 2.5) it refuses naming the
-   remedy that sets `arc.identity`.
+1. On a checkout § 2.5 gives no projection and that holds no index, it repeats the residual observer above before
+   identity is consulted, refusing with its local-path recovery remedy or unreadable-path detail; once that observation
+   passes it returns without taking a projection lock (A6). Otherwise it takes the target worktree's projection lock.
+   Where the lock stays held until `AdvisoryLockTimeoutError`, the step refuses, naming the holder and a retry; where
+   the lock's lease is lost while the step runs (`spec-projection-substrate.md` § 3.2), it refuses with a retry; and
+   with no identity (§ 2.5) it refuses naming the remedy that sets `arc.identity`.
 2. It writes back every edit there under `write-back` (`spec-projection-write-back.md` § 7.4), every projected root
    included and every other identity's personal root present, read as the check reads it, each file as its own
    one-mutation admission batch (`spec-projection-write-back.md` § 7.2), waiting through the settle rule's tries for a
@@ -889,10 +939,11 @@ check and this slot and returns; its caller clears the marker, `arc locus releas
 once the slot has returned (`lib/locus/release.ts`), so the slot, which clears no marker, never stands in for the
 caller's checks:
 
-1. On a checkout § 2.5 gives no projection and that holds no index it returns at once, as the persist step does.
-   Otherwise, under the target worktree's projection lock, taken and refused as the persist step takes it, it runs the
-   persist step's steps 2–4 — the write-back of every edit there under `write-back`, the takeover of every aside copy,
-   and the last check — refusing on the same conditions.
+1. On a checkout § 2.5 gives no projection and that holds no index it returns at once, before identity is consulted,
+   with its check and `withPersistedProjection` explicitly in release disposition. The residual-file refusal applies
+   only to destructive removal (A6). Otherwise, under the target worktree's projection lock, taken and refused as the
+   persist step takes it, it runs the persist step's steps 2–4 — the write-back of every edit there under `write-back`,
+   the takeover of every aside copy, and the last check — refusing on the same conditions.
 2. On a linked checkout, it then removes the projection — each file by the removal swap (`spec-projection-substrate.md`
    § 5.6), every other identity's personal root's files among them, refusing where an edit goes back to its path as a
    refused edit, as held by a conflict where an edit the swap takes in clashes in the checkout
@@ -1705,6 +1756,15 @@ _These considerations cover the design the three members build together; § 1.1 
     inspected, and factory tests distinguish enabled/disabled capability, unavailable command identity, and mint-port
     precedence and command lifetime.
 
+13. **Unindexed personal bytes survive destructive retirement (A6).** With state off branch, an ARC-managed checkout
+    holding no projection/index refuses destructive removal over non-machine-local regular files under `.arc/user/*/`,
+    naming their local paths and explicit recovery. Refusal retains bytes and topology; recovery permits retry without
+    ARC touching the primary. Empty/machine-local-only targets need no identity, release retains its current success,
+    missing folders and disabled capability perform no residual scan, unreadability refuses, and links are not followed.
+    Failed transient setup observes the same protection before compensation clears its pending marker: residual or read
+    failure retains checkout, branch, marker and claim with recovery detail; repaired setup resumes that same claim,
+    while empty/machine-local-only and capability-off compensation retain their cleanup behavior.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1723,6 +1783,9 @@ this design open.
 
 - **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ Task 2.4.b tests.
   _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.8.
+
+- **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
+  _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ pending → 2.8.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

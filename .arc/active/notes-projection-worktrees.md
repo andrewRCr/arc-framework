@@ -1578,3 +1578,91 @@ Astra's bounded R consultation found no decisive gap in the approved presence-on
 the listed authority forwarding and confirmed that the private move type and explicit nested property preserve the
 existing binding. The rule does not establish aliases, overwrite behavior, factory origin, or runtime values; these
 are not claimed as lint evidence. No temporary control remains.
+
+## Task 2.5: checkout-local personal surfaces
+
+Store teardown no longer merges a linked checkout's personal files into the primary. Reconcile removal resolves its
+primary destination as before but skips the legacy merge when its Store keeps state off branch. Cheap-branch husking
+and later husk removal share the same capability gate, and both branch-removal reconcile contexts now forward their
+Store. These paths retain the linked projection until its persist step carries the edit to the Store; the primary's
+unsent projection bytes stay unchanged.
+
+The registered teardown case first merged the linked inbox into the primary in `b55b29b34acb4d29ab51377f734e833a`.
+After removing that merge, teardown preserves the primary in `0501e8522c394a1788bbb39abc95a3c7`, while the new executor
+case still exposes reconciliation's merge. Gating reconciliation passes both in `189669e214db415aad0a89b9381eebbd`.
+Assertions compare the primary's bytes exactly and check the stored capture's authored text; the normal inbox admission
+may add its capture ID.
+
+Cheap-branch self-husking first alters the primary in `f8801fdd7112413fa2c4ae7e4e3adca3`. Gating husking exposes the
+later removal's legacy signposting in `315344c1178249caa9dc78397a64f274`; gating that merge still leaves the nested
+reconcile without its Store, reproduced in `ee8d9bb1fccb4ecfaf41760d3962a5e5`. The strengthened case adds another saved
+capture after husking and still exposes both captures merging into primary in `a4c38e55b08e4126b65cddc762ac47cb`.
+Forwarding the Store passes all nine native lifecycle composition cases in `fead62093f77491daa04cb8730b8a4da`.
+
+Both cleanup readers now skip legacy user-surface safety when their composed Store keeps state off branch. Status
+passes its Store through branch-gone recovery's options and candidate context. Native fault cases supply real remote
+snapshot/object/history evidence and projection checks while making the legacy filesystem reader unavailable. The
+stale sweep first blocks on user surfaces in `37a00336253d45b5bb963f1e95fecfe8`; the corrected evidence fixture passes
+that gate while branch-gone recovery still chooses switch in `cd57f696b8ce4a7a804abe428c3974f4`. Both native fault
+cases and the existing projection-refusal/repair cases pass in `d4942634a2dd49e4902a91afd8c46d1e`.
+
+The architecture table forbids projection modules' resolver and migration imports while retaining the
+`IDENTITY_STATUS_FILENAME` named import. Nine native configured-lint cases fail without the row in
+`d4818d4b4093461bac5cf0714e0a25c6`; all 170 architecture cases pass after it in `e45c2cd7b94a4a96828a84ee3d3dca42`.
+
+The inbox isolation/fan-out case uses a real personal-inbox record and separate primary/linked indexes. Editing the
+linked file leaves the primary unchanged; command-start take-in persists the capture and fan-out refreshes primary.
+The existing engine already passes this case. An own-writes-based control is inert because a lease-held take-in queues
+a round without that list; it is not fail-first evidence. Omitting primary target visits instead exposes the missing
+propagation in `e47c480ed9d74468b475eca2e7b55365`. The original source is restored before regression checks. A separate
+stale-gate omission also reproduces its user-surfaces refusal in `fd37f10279c74492b3154e515ee6fac1`.
+
+Regression run `97cb53173d694fbf9d56f925a373d7f1` passes 453 cases and fails both variants of the existing divergent
+ignored-personal-file case in `retirement-store.test.ts`. The indexed holder still refuses over unowned prose, but its
+projection remedy differs from the legacy filename-specific assertion. The unindexed stamped husk instead completes
+removal while holding unique ignored `personal.md`: `huskFixture` deliberately creates no index, § 2.5 grants husks no
+new projection, and the projection check/persist return success before reading those personal files. The removed legacy
+migration was the remaining protection for that admitted state.
+
+Source inspection and Astra's bounded follow-up confirm this is a preservation gap, not proof that the old husk fixture
+is invalid. The old automatic merge after deleting the primary conflict also conflicts with the new no-primary-write
+rule, so the preservation outcome and explicit recovery route need disposition together. No extra guard or change to
+the failing regression has been applied; Task 2.5 remains open. Projection-folder and changed-file lint pass in
+`437096ace28147bc85ac46af239fa79f`; source types pass in `b707926fac654e4099b65bb17cc0f16b` and all five test type
+shards pass in `e789616491264905ae7d02a97384d7d5`. These passing checks do not settle the regression.
+
+## A6 — residual personal files in unindexed retirement
+
+Owner direction, 2026-11-12: protect non-machine-local files under `.arc/user/*/` before destructive removal of an
+ARC-managed unprojected/unindexed checkout; require explicit recovery, retain identity-free empty-husk success, and
+never compare with or write primary. The subsequent direction requests the planning review, including its independent
+pass. Task 2.5's implementation remains uncommitted; no A6 corrective code is applied before capture.
+
+Superseded check text: “`passes`, as a checkout § 2.5 gives no projection and that holds no index does before the
+identity is consulted”. Superseded persist text: “On a checkout § 2.5 gives no projection and that holds no index it
+returns at once, before the identity is consulted.” The release's no-index success remains, now explicitly distinguished
+from destructive removal. The three existing slots remain; the check forwards caller intent as its optional second
+argument, defaulting to remove for direct callers, and the shared persistence helper receives explicit internal intent.
+
+`checkWorktreeRemoval` already carries remove/release disposition but drops it when calling the check slot.
+`checkProjectionRemoval` and `withPersistedProjection` currently return success on `no-projection`;
+`releaseProjectionRemoval` shares the latter helper with persist. These source paths ground the required forwarding
+and the need to keep release outside the residual scan. `MACHINE_LOCAL_PATHS` covers identity and work-unit `.internal`
+subtrees; `isExcludedProjectionPath` also excludes editor and derived files, so reusing it wholesale would drop approved
+coverage. The new observer will reuse only the extracted machine-local predicate, with no derived-file exception.
+
+The correction's footprint is § 12.2's no-index fast paths and check interface, § 12.3's shared-helper release
+qualification, new criterion 13, Task 2.5.R, and 2.8's covering acceptance. Projection eligibility, indexed persistence,
+legacy capability-off merging, missing-folder pruning, caller marker/HEAD authority, and the § 17 removal race remain
+unchanged. A bounded set of disposition, filesystem, and propagation decisions makes this a medium-depth amendment;
+no additional segment or lifecycle change is needed.
+
+A6 planning review F1 exposed transient setup compensation outside the ordinary retirement slots.
+`establishReadyMarker` returns owned pending bytes after `setupLinkedWorktree` fails; `rollbackSpawn` clears that
+marker before native `rollbackSpawned` removes the created checkout directly. Pending transient ownership decodes as
+current but grants no projection, so personal bytes written by the setup script meet A6's scope. The approved repair
+threads the existing command-bound check into compensation before marker deletion, preserving pending recovery
+state and its identity claim on residual data or read uncertainty. Existing `rollbackIdentity` retains claims for
+pending-marker/marker-residue evidence, and pending setup recovery can resume after explicit byte recovery and setup
+repair. Exact generation/receipt authority, borrowed-marker retention, empty cleanup and capability-off behavior stay.
+The Owner approved this correction, an independent fix check, and conditional complete pass 2 after the repair settles.
