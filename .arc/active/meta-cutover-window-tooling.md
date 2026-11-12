@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** create-spec — `spec-cutover-window-tooling.md` finalized
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Merge `main` into this branch first (it brings #1329's cohort edits and merges cleanly; keep this
+  unit's Exposes and Consumes lines), then begin generate-tasks
 
 - **PR URL:** [none]
 - **Completed:** [none]
