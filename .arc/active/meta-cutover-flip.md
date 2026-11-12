@@ -9,11 +9,11 @@
   `cutover-window-tooling`
 
 - **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
-- **Design:** `draft-cutover-flip.md`
+- **Design:** `spec-cutover-flip.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
