@@ -1,4 +1,5 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { requireResponseErrand, staleErrandResponseEnvelope } from "./respond-errand-context.js";
 import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
@@ -506,6 +507,8 @@ export class UnchangedVerifiedFixTargetError extends RespondCommandError {
 }
 
 interface ResolvedResponseSource {
+  /** Producer claim corroborated after acquiring this response's operation lock. */
+  errand?: ErrandReviewBinding;
   result: ReviewResult;
   operationId: string;
   repositoryId: string;
@@ -726,13 +729,6 @@ async function resolveLocalSource(
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
-  }
-  if (result.vehicle.kind === "errand") {
-    const activeErrand = await dependencies.resolveActiveErrand();
-    if (activeErrand === null || activeErrand.key !== result.vehicle.identity
-      || activeErrand.claimId !== result.vehicle.claimId) {
-      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
-    }
   }
   if (result.originalOutcome !== "findings") {
     throw new RespondCommandError("invalid-input", "local response requires a findings receipt");
@@ -2178,7 +2174,11 @@ async function resolveResponsePosition(
       ? null
       : projectEffectiveCandidateCurrentness(lineage.effective);
     if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
-      return { kind: "refused" as const, envelope: staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget) };
+      return { kind: "refused" as const, envelope: source.errand === undefined
+        ? staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget)
+        : staleErrandResponseEnvelope({ operationId: source.operationId, attemptedTarget: confirmation.attemptedTarget,
+          currentTarget: confirmation.currentTarget, errand: source.errand, result: source.result,
+          record: await dependencies.dispositionStore.readDispositionRecord(source.operationId) }) };
     }
     // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.
     // The managed Candidate subject, not the stale whole-repository target, is authoritative for whether
@@ -2304,7 +2304,7 @@ async function settleNewApprovedResponse(
         source.responseBinding?.candidate.target ?? source.target,
       );
   const errand = lineage === null && deliveryMember === null
-    ? await dependencies.resolveActiveErrand()
+    ? source.errand ?? await dependencies.resolveActiveErrand()
     : null;
   const authoringResolution = await resolveCandidateMemberAuthoring(source, lineage, plan, dependencies);
   if (authoringResolution.kind === "refused") return authoringResolution.envelope;
@@ -2667,6 +2667,8 @@ async function respondToResolvedReviewCommand(
   source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const errand = await requireResponseErrand(source.result, () => dependencies.resolveActiveErrand());
+  if (errand !== null) source.errand = errand;
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
   const supersession = "supersedes" in request ? request.supersedes : undefined;
