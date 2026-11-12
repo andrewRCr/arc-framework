@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "update-zod-4-6-6",
+  "claimId": "74dba6ae76e666713a4ff57cdd3cc0f9",
+  "createdAt": "2026-11-12T22:51:26.417Z",
+  "updatedAt": "2026-11-12T22:51:26.417Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Update the published Zod range and lockfile to the advisory fix, and compare type-check memory before and after.",
+  "branch": "chore/update-zod-4-6-6",
+  "origin": "inbox",
+  "originEntry": "Update Zod to 4.6.6 for its oversized-collection advisory",
+  "originEntrySourceDigest": "sha256:ffb80c5a829eb6df489d4f9ab48238318072632325a274f48c1bb137c8114be4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
