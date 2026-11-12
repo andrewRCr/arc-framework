@@ -3,7 +3,7 @@
   "slug": "narrative-internal-origin",
   "claimId": "aead4b120114040cd1b5a5d3c8253107",
   "createdAt": "2026-11-12T03:51:14.366Z",
-  "updatedAt": "2026-11-12T03:51:14.366Z",
+  "updatedAt": "2026-11-12T13:56:50.085Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Accept and round-trip a narrative internal Origin without a surrounding code span",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Write and render a narrative internal Origin without a code span",
   "originEntrySourceDigest": "sha256:0ed3ab5f6878e3340e375b638ed089def7c979c9e2741562762f65cd9c99aa37",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/narrative-internal-origin",
+    "headSha": "bdf3aed08e5b022cb992eb34dc8f682868489417"
+  }
 }
