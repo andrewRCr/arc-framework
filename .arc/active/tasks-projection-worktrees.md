@@ -310,125 +310,18 @@ No production composition sets the slots today, so every caller runs `passingPro
   Existing unindexed records use only attachment's read path; prospective owners are validated without minting.
   `notes-projection-worktrees.md` records the fault boundaries and repaired continuations.
 
-### `[ ]` **2.2 The persist step — § 12.2**
+### `[x]` **2.2 The persist step — § 12.2**
 
 - _Goal:_ The `persist` slot writes back every edit in the target checkout under its projection lock, every projected
   root included, takes over every settled aside copy, and refuses with the blocking file's remedy rather than let a
   removal drop an edit — releasing the lock before it returns.
 
-    - Reconcile 1.6.R's ownership handoffs under the target's lease and ignore authority before write-back; refuse
-      while a handoff or its ambiguous withheld bytes remain, and succeed after the ordinary deletion/retry remedy.
-    - Under the target's projection lock, taken through 1.7.a's lock wrapper over `withProjectionLock`
-      (`lib/store/projection/lock.ts`), waiting its default bound of 10 s and refusing on `held` naming the holder —
-      which may be unreadable or absent — and a retry, and refusing with a retry on `lost` or `gone`, it binds the
-      target's root through 1.3's binder, with the target's own configuration read, refusing first, naming the removal
-      or release run from that checkout, where that read yields another identity than the command's (1.3), over its
-      store wrapped for the history retry (`retryEndedItemHistory`, `lib/store/history-retry.ts`), which the command's
-      start applies for `arc save` alone (`initializeProjection`), so a missing history ref is pulled and the write or
-      `history` read retried once: the root reads `history` through a memo of its own over that wrapped store
-      (`createHistoryMemo`), never the command's (`ProjectionProcessState.history`). A landing there drops its record
-      from the command's memo too, so a later fan-out's refresh reads that record's `history` afresh.
-    - It writes back every edit under `write-back`, every other identity's personal root present read as 2.1 reads it,
-      each file its own one-mutation admission batch (`submitProjectionBatch`, `lib/store/projection/submission.ts`),
-      waiting through the settle rule, and refuses where any file stays unadopted, held by a conflict, failing to parse,
-      holding a refused edit, withheld, not yet settled, or pending for any other cause — a `lock-held` refusal, a
-      `version-conflict` one its recovery did not clear (`sendWriteBack`, `lib/store/projection/write-back.ts`), one
-      carrying `cause: "projection-admission"`, which takes no recovery, a retained base it cannot read, for any format,
-      or an accepted-input recording the step could not finish among them — the file keeping its content. An unfinished
-      recording or an uninstalled read-back meets the step only where it arrived after the check, which holds one left
-      before it in the target identity's roots (2.1), or where it is a write-back's recording whose file is gone, which
-      the walk never visits and the step leaves as it is; the step finishes one it meets under the target's lock as the
-      command's walk does (`writeBackProjectionFiles`, `lib/store/projection/engine-files.ts`): an accepted adoption
-      awaiting its read-back by resuming it (`resumeAdoptionReadBack`), which refuses where the record's read refuses,
-      and any other by the send, which finishes a recording before it prepares (`completeWriteBackRecording`,
-      `lib/store/projection/write-back-recording.ts`), refusing where its retained copy, the record's read-back, or the
-      accepted version's history cannot be read; each refusal names the repair it reports. A file write-back leaves
-      pending refuses with the remedy write-back reports for it, or a retry where it reports none. A symbolic link, at a
-      path the index lists or not, is never adopted and refuses nothing.
-    - It then takes over every aside copy, per path in the order their swaps were made (`RecordEntry.copies`), its
-      writer live or not, once it has settled (`settleAsideCopy`, `lib/store/projection/aside-copies.ts`) — an edit
-      taken in only while its path has not moved on — deleting it through `deleteAsideCopy`
-      (`lib/store/projection/stampless.ts`), which clears the copy's own record and the in-progress record naming it
-      while the path still holds the entry's recorded file. A refused or unparseable copy is kept and refuses; a copy
-      holding an edit once its path has moved on is kept and refuses, naming the copy's path and the remedy of copying
-      out what it holds and deleting it; a copy whose edit clashes in the checkout is kept and refuses as held by a
-      conflict; a withheld one is left and refuses; one that does not settle, or whose edit write-back defers or leaves
-      pending, is kept and refuses with the remedy write-back reports for it, or a retry where it reports none.
-    - It then checks every projected file and the aside folder once more against the index by the racy rule
-      (`checkChange`, `lib/store/projection/change-detection.ts`), and walks the projected roots' folders, and every
-      other identity's personal root present, again for files the index does not hold, writing back, adopting, or taking
-      over whatever changed or appeared since, at most three passes, refusing with a retry where something still
-      changes. An unusable index refuses naming the checkout to run from, or `arc save` run there for a partition that
-      does not hash to its name (2.1).
-    - It marks its target as retiring in the process state, through a mark this task adds with the fan-out's skip of a
-      checkout so marked (1.7.b), and drops any root the command's roots hold for the target, since it took over the
-      copies itself and the checkout may be gone before the command's end; its own binding is never registered (1.3). It
-      then releases the lock and returns, and its writes fan out then.
-    - Under `--skip-projection` the step runs as without it. A checkout 1.1 gives no projection and that holds no index
-      returns at once, before the identity is consulted; on any other, with no identity the step refuses naming the
-      remedy the configuration's `no-identity` answer carries (`ConfiguredIdentity`).
-    - A step hook before it takes over each aside copy, and one before its last check, let the multi-process lane (2.7)
-      place a save there.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through teardown's store-backed context (`createStoreTeardownContext`,
-          `lib/work-unit/store-teardown-context.ts`) over the reference backend, the slots injected into it until 2.4.b
-          binds them
-        - teardown persists a pending edit, then removes the checkout
-        - a refused edit reverted to its base persists nothing and lets the removal proceed
-        - each held state refuses the persist with its remedy, and the removal proceeds once it is resolved
-        - a file whose write meets a `version-conflict` its recovery does not clear (`createRefusingStore`) is left
-          pending and refuses with the remedy write-back reports, and the retry removes the checkout once the refusal
-          clears
-        - a file whose write meets a `version-conflict` carrying `cause: "projection-admission"` is left pending with no
-          base recovery and refuses with its remedy, and the retry removes the checkout once the refusal clears
-        - a Markdown file and a file other than Markdown whose retained write-back base cannot be read each refuse with
-          write-back's remedy, and the removal proceeds once the base is restored
-        - with the check slot passing, as for a recording arriving after the check: an unfinished recording is finished
-          by the step's send, and an accepted adoption awaiting its read-back by the resumed read-back, and the removal
-          proceeds; one whose retained copy cannot be read, and one whose record's read-back refuses through a store
-          double, each refuse with the repair it reports, and the removal proceeds once that is repaired
-        - with 2.1's check slot injected too, a recording left before the check holds the removal at the check, and
-          `arc save` run in that checkout finishes it, after which the removal proceeds
-        - an aside copy left by a live writer is taken over once settled
-        - an aside copy whose take-in answers `pending` is kept and refuses with a retry
-        - a save landing after write-back read its file, before the lock is released, is taken in by the last check
-        - a new file created after write-back's walk, before the lock is released, is found by the last check and
-          adopted
-        - a file still changing through the last check's three passes refuses with a retry, and the retry removes the
-          checkout once it settles
-        - with no identity the step refuses naming the remedy, and once `arc.identity` is set the removal proceeds
-        - a checkout with no projection is removed with no identity configured
-        - an unclaimed checkout that still holds an index has its edits persisted, never returning at once
-        - a lock held past its bound refuses naming the holder, and the retry removes the checkout
-        - a lease lost mid-step refuses with a retry, and the retry removes the checkout
-        - a drawing's aside copy a failed command left, its markers since resolved, is taken over as no edit, and
-          teardown removes the checkout
-        - an aside copy holding an edit whose path has moved on refuses naming its path and remedy, and the removal
-          proceeds once it is deleted
-        - of two copies of one absent path, the older is taken in and the newer, recorded as sent since by that take-in,
-          is kept and refuses
-        - a symbolic link in a projected root, at a path the index lists or not, lets the removal proceed, its target
-          unread
-        - an unusable index refuses naming the checkout to run from, and the removal proceeds once a command run there
-          rebuilds it; an altered `completed/` partition refuses naming `arc save`, and the removal proceeds once it has
-          run
-        - a write refused for a missing history ref is pulled and retried, and lands (`lackingEndedHistory`,
-          `__tests__/helpers/store/ended-history.ts`)
-        - a `history` read refused for a missing history ref, as base-stamp recovery makes for an edit whose stamp was
-          lost, is pulled and retried, and the edit lands (`lackingEndedHistory`)
-        - a record whose `history` the command read before the persist step landed an edit to it is read afresh by the
-          fan-out after the step
-        - after a changed identity, an edit in the previous identity's personal root refuses the persist naming that
-          identity's remedy, and the removal proceeds once a command run there under that identity sends it, that root's
-          unchanged files leaving with the checkout
-        - teardown under `--skip-projection` still persists the checkout's edits before removing it
-        - the step returns with the lock released and no root held for the target, so its own fan-out runs and the
-          command's end checks no removed checkout
-        - the fan-out after the step's release lays nothing in its target, which the step marked retiring, and refreshes
-          every other worktree
-        - the step, called directly on a target whose own configuration yields another identity than the command's,
-          refuses naming the removal or release run from that checkout; through the removal function the check refuses
-          it first, and the removal proceeds once run there
+- _Outcome:_ `persistProjectionRemoval` writes back every target root under its native lease, with a fresh history
+  memo over the retrying Store and receipt-based invalidation of the command memo. It reconciles ownership handoffs,
+  consumes actual send/read-back outcomes, and settles live writers' copies in swap order, retaining held edits and
+  their repair routes. Bounded final file/copy observations follow feasibility so newly observed edits re-enter the
+  persistence loop. Success marks the target retiring and drops its command binding before unlock and fan-out;
+  `notes-projection-worktrees.md` records the fault boundaries, repaired continuations, and final-observation fix.
 
 ### `[ ]` **2.3 The release step — § 12.3**
 

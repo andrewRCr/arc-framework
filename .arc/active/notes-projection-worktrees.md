@@ -1070,3 +1070,176 @@ current version readable and hides only the replaced version, reaching base comp
 stampless gate. Omitting that path's provenance fails in `c40968fdbf0544298f2ad5406f7519f6`; restoration passes both
 read-repair continuations and write-back regressions in `da8110995aa5492fbc528924716e4070` (85 cases). No temporary
 negative controls remain. The completion consultation's sole finding is corrected within the approved boundary.
+
+## Removal persistence
+
+Task 2.1 closed in `69deff1e03889dcb45c36e27ef15189a4a7db657`; its final increment request passed seven checks and
+reused four, related-unit feedback `016253f24b87478381d67a1d3b74266e` passed, and the commit gate passed four checks
+and reused seven. Phase 3 verification and Success Criteria remain untouched.
+
+Task 2.2's teardown cases compose `createStoreTeardownContext` over the lifecycle reference backend and real linked
+Git checkouts, injecting the persist slot until task 2.4 composes production slots. A passing stub loses a projected
+edit during actual teardown in `f1f4150845e84a888c7ef15767ec1117`; lease-bound write-back passes the initial case in
+`cf87f0bc4ba04a5e8aed23a5f71c1dbc`. The fixture now proves the native ignore guard passes, installs the marker's
+specific exclude rule, and uses the projection's separate shared and personal rules instead of a broad `.arc/`
+exclude that prevents personal read-back authorization.
+
+Feasibility after a refused send is insufficient: omitting the actual send-outcome hold passes ordinary and
+`projection-admission` version conflicts incorrectly in `af02452e7aaa465b918d197b6ecf934d`; the restored hold and
+successful retries pass in `2a235e83435d48a8af817923875eec54`. The ordinary recovery fixture keeps unchanged opening
+and closing lines around its edit; replacing an entire one-line document can legitimately reach an ambiguous-base
+drawing instead of the injected refusal's remedy.
+
+A save after the first write-back is lost by a single-pass step in `3333bca2473c4cc89b609a51e12350ee`. The bounded
+three-pass file recheck passes with the qualified fixture in `32d10fcc88274ae388e8c3292793a9b3`. Omitting that loop
+loses a new file created after the walk and wrongly removes a checkout still changing in its last pass:
+`ee59c1f794a44034bb6f3efc5b8c10d4` fails all three cases; restoration passes all 52 then-current teardown cases in
+`d33538c081f24b18ace0903606aed887`, including continuation once saving stops.
+
+An accepted edit can remain pending because its ignore guard denies read-back, even after the unsent set clears.
+`04ff075349704be39c245af5167fd0c8` exposes the missing specific remedy. Conversely, a successful swap can carry an
+older pending flag, so a changed accepted-input receipt plus that flag is not sufficient proof of an unfinished
+installation. `writeBackProjectionFiles` now reports the actual file outcome and whether local installation was
+authorized. The persist step consumes that observation, while its final check reuses unchanged-input recognition for
+previously accepted bytes. `d62b2da400024f97a919618205e97c5d` passes 79 teardown and engine cases, including the
+ignore-repair continuation and both conflict retries. Task 2.2 remains open.
+
+Direct settlement takes over live writers' copies in swap order. Omitting settlement loses an edited copy in
+`841d8616f38b4dd596b9d556ce5c7588`; restored settlement passes 83 retirement, aside, and swap cases in
+`131cda00048044989f7c082652e89588`. Omitting the pending-copy hold fails `0d41101292f44eddaf1768b71fc6f383`;
+restoration and admission retry pass in `15a737750fdc43deba9384e4303d5cc5`. The final file observation recognizes
+settled empty Markdown as deletion: `b2e6eb747fc842518e756d72acd724b9` exposes the false hold, and
+`5a1cb7bfe29840238799fc09efe48562` passes after reusing the ordinary read gate.
+
+The existing moved-on guard prevents an older buffer from overwriting its current path and prevents a second copy
+from sending after the first one lands. Its temporary omission fails `e02c4e0f621a4291b914b0881a5819ff` and
+`fef9bafc682c42e284eb211237072478`; restoration passes `00271580fafb4cfdbef12c28dc58f272` and
+`183f332452de4720b1069bd061538c2a`. Both cases proceed after explicit deletion of the held copy.
+
+Target identity is checked before mutation or actor creation: `ca3509464c774e41b3002e1988f63a96` exposes a Store
+write before the late mismatch refusal; `0030cbf2bb4f4d34a53453f180059c19` passes with the early guard. Missing
+identity retains configuration's own remedy: `e8f36e35202b40efb44a1879e77ace90` rejects a generic replacement,
+and `622fee60d3aa4f92b7abf6a2b42516d0` passes refusal and continuation after configuration. The missing-identity
+fixture clears both `arc.identity` and `user.name`; a nonempty name would supply a fallback identity.
+
+An unusable header cannot authorize retirement. `866a0011b18f4695a76e5479b2e2e703` removes the checkout under a
+temporary passing answer; `dada0f34b3e14f38bacc7877ec01c539` passes the restored refusal and a real save-command
+rebuild followed by teardown. Persistence now marks its target retiring and drops its command binding before
+unlocking; fan-out skips that mark before visiting the target. Dropping the binding alone lets fan-out recreate it
+in `7a11cff3ee1b41cebd42642513a77a3f`; `5f5241f6d4f546178dc490d711531112` passes with the skip, sibling refresh,
+released-lease reacquisition, and command end after physical removal.
+
+The target uses a fresh history memo over the retrying Store. A landed receipt also invalidates the command's memo:
+`3bc07cb562b5437a8b6bf2532878d95b` retains old history without that invalidation, while
+`e6b93ebde1d349b9833550bc1d6af772` reads the landed merged content through the original command memo and passes
+the teardown and sibling-refresh case. Receipt observation covers successful writes and batch members before a
+later recording or read-back can refuse.
+
+Real failed read-backs produce unfinished accepted-input recordings for the removal cases. Replacing their specific
+read-back and retained-copy remedies with a generic refusal fails all four recording/base cases in
+`1385b28288474c508506a5bd736a6f7f`; restoration passes all 66 then-current cases in
+`247a91654215472d89cf106ee34e08f9`. A missing retained base holds both Markdown and plain text without changing
+their authored bytes or Store version; restoring it permits persistence and physical removal. A recording likewise
+finishes after either its retained input or its refused Store read is repaired.
+
+The history-retry wrapper is required for both an archived file's batch and stamp-loss recovery's history read.
+Omitting it fails both teardown cases in `af4285984a82461f8047fd3284d96e5c`, naming the missing history ref;
+`b6ae28ad0d0841c2b5e76b9a08c106fc` passes after restoration. The history-read case observes the refused read before
+the named pull, and both pulls run while the target lease holds. The archived edit survives, including an independent
+remote footer in the stamp-loss case.
+
+The final check must perform settlement, not merely prove an edit could settle. A recorded copy left opaque as a link
+can become an edited regular file at the final hook; `faac03b84b344b56891656393de15dbe` removes that save without
+landing it. Re-observing recorded copies and taking another bounded pass preserves it in
+`902bb0b24ca3413c8bc8e1748448edfc`. The original link target remains unchanged.
+
+Resolution selection and alias checks now consume intent only in its command checkout, matching the binder's
+already-scoped resolution reporting. `d6b37ffa692b4f669eb64effd9be29a2` applies another checkout's conflict token to
+an ordinary same-path edit and refuses it. `82bd6a5b1ec24212a1a6de7c3f072874` persists that edit and removes its
+checkout while the first store's actual conflict and unaccepted selector-produced intent remain.
+
+Native held and replaced leases both prevent retirement. A temporary passing answer for either state falsely removes
+the target in `0438a6d8ae854501b14958cfb772458c`; restored refusals, holder release, and ownership repair pass in
+`ab8219eb53124f98b12d5949aa550cee`. The test's 100 ms override permits observation of the live holder; a zero wait
+can legitimately report no observed holder. Production still uses the lock's ordinary 10 s default.
+
+Omitting previous identities from the root walk loses their edit in `7d2d6714556c46a38545dee917a7f0ae`. Restored
+discovery passes the hold and save-under-owner continuation in `583a5a4932b4409baafd86f31f6e1ef0`; the reference
+backend's admission identity changes alongside Git's configured identity for that save. A temporary skip-switch early
+return loses the target's edit in `e6d2c3ad16b54dacad92fb905ea44f14`; the same restored run preserves it under a
+real skipped command start. An unprojected husk needs no identity: removing the early no-projection return refuses it
+in `e2b3b5d6da8649c59981c875678aa138`, and restoration permits actual husk teardown in
+`45a0b26837c64de5a2f4eb0ecb65882d`.
+
+The ordinary rebuild's withheld-file remedy survives teardown: `5246692dc9814c0b8d025e1fd4473ed4` rejects a generic
+replacement, and restoration passes refusal and explicit-deletion continuation in
+`03efdf73af7c4fefbc5daa5e5afaca73`. An unclaimed husk still persists an existing index; treating eligibility alone
+as a passing answer loses its pending edit in `4da45e7ad97242229a3aae6973f33e20`, while
+`d65319a5cbe949d6a946d51ff66f6685` persists the edit before actual husk removal.
+
+Accepted adoption resumption uses its retained reference and version. Omitting the read-back continuation returns the
+wrong recording remedy in `d575328cd1e2447a8983734d9ccd5640`; restoration passes the refused read, repaired
+installation, and unchanged accepted version in `7401a36717cb47578135c591dd07f860`. The composed removal check
+continues to hold a recording left before removal starts: bypassing that check falsely permits teardown in
+`b0b80d75617049619f1d6891e34bc9da`; `9a0956346a3e4580801c54d1f0847f33` holds it until a real save command
+finishes recording, then removes it.
+
+The native path-reuse fixture supplements the reference-backend teardown cases with actual ownership arrivals. An
+ambiguous late save initially returned the generic changing-files remedy in `6ec4b53ac47e45e0b7a3ed235feb4b7a`.
+Keeping a withheld bound file in the unsent set returns its deletion remedy; deleting those bytes then permits
+persistence without a Store mutation. Omitting lease-bound handoff reconciliation instead refuses an already
+installed arrival in `66b91c3848f7451096c98e782ba28530`. Both outcomes pass after restoration in
+`7c75b56787e448838c7ae988ab785a65`, with the arriving UID confirmed in the index before the command binding drops.
+
+Retirement validates every cold archive partition even when its projected file is absent. Skipping completed groups
+from an all-group read permits removal over altered partition bytes in `54f3478ec16c4633aa370fb216699a23`;
+`5d65db92b1c7422aab41eaad7ffb14ba` refuses with `arc save`, then passes actual save-command repair and teardown.
+The common empty-save gate also remains binding for both files and copies: treating a young empty save as deletion
+falsely removes both in `8e2c4a9bfc7c4a18b747448ca09e1d9f`; restoration passes the completed-file save and settled
+copy-deletion continuations in `8cb7543937264cef8c77ee92227ff2f2`.
+
+Parser refusals retain the repair naming their file. `0b73d3a0f4c3456f85f8d05ceb6c1cf9` rejects a generic remedy at
+write-back's actual record-parser boundary; `a85d402fa12e4a4b8d01b8fb770b7e5a` preserves the invalid metadata and
+passes teardown after valid archived metadata is restored. A refused edit reverted to its base needs no further
+write: blindly treating a pending flag as an authored change wrongly retries the still-blocked writer in
+`a0616a1a2ece431cb25288de574cd832`; fresh file comparison passes removal without a new version in
+`4b7e62a5095541aca829b448cd49b9d5`.
+
+Concurrent backend writes and ordinary projection entry produce the stored-conflict drawing. Substituting a generic
+conflict remedy fails `6b91b27b14a1475088e0dec662306548`; restoration passes the unchanged drawing's hold and a
+hand-resolved edit's persistence and teardown in `86a47c2497ac441ea8d7aeb5280681ec`. A rebuild-produced withheld
+copy stays held even if its bytes return to the base: ignoring that obligation permits teardown in
+`c08f5c08ece0436ea1bcf655dda408bd`, while `6480b50248064e14a00a46b925b5033b` holds it until explicit deletion.
+
+Unadopted prose keeps the move-to-owned-folder remedy. `3fe3874e0d984394b3687a13ae77e138` rejects a generic
+replacement, and `ebfc6070728b47498ca472cb1f6182dc` passes the hold, move into scratch, adoption, and teardown.
+Treating a symbolic link as a discovered file instead of an opaque link wrongly holds an unindexed link in
+`6a51f3d12b1a4921a570c99c22949a71`; the restored walker is included in the broader regression request.
+
+Before completion advice, broad regression `122fb0b1f8e341819b1cddcb43815601` passed 82 files and 842 cases,
+including retirement, the projection directory, native adoption/write-back, and save E2E. Source and all five test
+type-check shards passed in `e6c92979e2b6492a808e44938e75486c`; focused TypeScript lint passed for all seven changed
+TypeScript files. The restored symbolic-link case passes in that broad run. These checks precede the two diagnostic
+cases below; task 2.2 remains open and uncommitted, with no completion or Phase 3 attestation.
+
+### Completion advice: final observation race
+
+Astra's task 2.2 completion consultation found one material gap, F1. `persistUnderLease` performs its racy file/copy
+observations before calling `checkProjectionRemoval`; that later read-only check can observe a valid unsent edit or
+new file and answer `passes`. No send follows it before persistence reports success. The primary verified this
+ordering and the provisional meaning of `passes` against the source.
+
+Diagnostic run `a46dde9fbb8841e9a668f8f38f323d6a` confirms both variants: a save injected at final feasibility's
+native configuration read is observed there, but persistence returns `persisted` while the Store keeps the old
+existing-file content or has no new record. Both added cases fail on that data outcome; the other 88 retirement
+cases pass. No production correction or temporary control is applied for this diagnosis.
+
+Proposed disposition: accept F1 and move the remaining-holds feasibility check before the authoritative final racy
+file/copy observations, so either late save re-enters the bounded persistence loop. Retain both regressions, run the
+appropriate checks and an independent fix check, then close task 2.2 through the authorized atomic-commit batch.
+The correction awaited the Owner's complete-set disposition approval under the review finding mutation guard.
+
+The Owner approved that disposition and its independent fix check on 2026-11-12. The correction now runs feasibility
+before the authoritative final observations. Focused run `4cc21a3fa57543a4929b38dc6510cd51` passes all 90 retirement
+cases, including both final-feasibility regressions. Astra's bounded independent fix check confirms F1 is closed at
+that boundary and reports no material ordering regression; it is not a renewed full-footprint review.

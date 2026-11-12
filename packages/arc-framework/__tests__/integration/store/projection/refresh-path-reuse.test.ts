@@ -25,6 +25,7 @@ import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { captureWriteBackFile, prepareCapturedWriteBack } from "../../../../src/lib/store/projection/write-back.js";
 import { prepareIndexedProjectionSubmission } from "../../../../src/lib/store/projection/submission.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 const directories: string[] = [];
@@ -76,6 +77,42 @@ it("checks a journaled installed arrival without publishing its ownership confir
   expect(success(await h.f.store.version())).toBe(version);
   await endProjection(command);
 });
+
+it("persists an installed ownership arrival under its own lease before dropping the command binding", async () => {
+  const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await startProjection(command);
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
+    entries: { [h.path]: { withheld: true, handoff: expect.any(Object) } },
+  } });
+  expect(await persistProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "persisted" });
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("No persisted ownership index");
+  expect(disk.index.entries[h.path]).toMatchObject({ reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } }, withheld: false });
+  expect(disk.index.entries[h.path]).not.toHaveProperty("handoff");
+  expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(h.arrived);
+  expect(projectionProcessState().roots.has(h.f.root)).toBe(false);
+  await endProjection(command);
+}, 30_000);
+
+it("holds ambiguous handoff bytes during persistence and proceeds after their explicit deletion", async () => {
+  const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await startProjection(command);
+  const late = h.old.replace("Coordinate the work.", "A late leaving save must stay recoverable.");
+  await writeFile(join(h.f.root, h.path), late);
+  const version = success(await h.f.store.version());
+  expect(await persistProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") }))
+    .toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("delete the withheld file") } });
+  expect(await readFile(join(h.f.root, h.path), "utf8")).toBe(late);
+  expect(success(await h.f.store.version())).toBe(version);
+  await rm(join(h.f.root, h.path));
+  expect(await persistProjectionRemoval(h.f.root, { store: h.f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "persisted" });
+  expect(success(await h.f.store.version())).toBe(version);
+  await endProjection(command);
+}, 30_000);
 
 it.each(SAVE_MODES)("holds a late %s save across command end and resumes after deletion", async mode => {
   const h = await reusedPathFixture();
