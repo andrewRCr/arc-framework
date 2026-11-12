@@ -389,17 +389,13 @@ No production composition sets the slots today, so every caller runs `passingPro
   deletion, including failed setup compensation, while release and empty-husk fast paths remain identity-free.
   `notes-projection-worktrees.md` records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
 
-### `[ ]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
+### `[x]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
 
 - _Goal:_ The registry lists every machine-local file under `.arc/system/` by name, so a source projecting
   `.arc/system/` leaves them alone.
 
-    - `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) gains, under the `checkout` root that holds only
-      `.arc/system/.local/**` today, `.arc/system/.internal/worktree-marker.json`,
-      `.arc/system/.internal/pristine.json`, and `.arc/system/.internal/schemas/**`, each by name, never all of
-      `.internal/`.
-    - Build `test-first` (one behavior at a time):
-        - each of the three entries is machine-local, and a tracked file beside them under `.internal/` is not
+- _Outcome:_ `MACHINE_LOCAL_PATHS` names the checkout's marker, pristine metadata and generated schema subtree.
+  Projection discovery excludes those paths while a neighboring project-owned file under `.internal/` remains eligible.
 
 ### `[ ]` **2.7 Hold saves through bursts into a removal's persist step — § 1.5**
 

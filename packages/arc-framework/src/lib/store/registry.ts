@@ -205,6 +205,9 @@ export const MACHINE_LOCAL_PATHS = [
   { root: "git-worktree", pattern: "arc-checks/**" },
   { root: "git-worktree", pattern: "arc-projection/**" },
   { root: "checkout", pattern: ".arc/system/.local/**" },
+  { root: "checkout", pattern: ".arc/system/.internal/worktree-marker.json" },
+  { root: "checkout", pattern: ".arc/system/.internal/pristine.json" },
+  { root: "checkout", pattern: ".arc/system/.internal/schemas/**" },
 ] as const;
 /** Status and archive listings are derived, never state records. */
 export const DERIVED_VIEWS = ["project-status", "identity-status", "archive-index"] as const;
