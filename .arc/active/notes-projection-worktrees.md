@@ -1547,3 +1547,34 @@ confirms both status paths and residue forwarding, all five Errand options and t
 leave authorization check, and locus release's default versus explicit slots. Reinspection follows the release await
 because projection success cannot establish the caller's checkout generation. This consultation is working advice,
 not a Candidate review or segment acceptance.
+
+## Task 2.4.R: explicit policy at inert compositions
+
+A focused ESLint rule enforces explicit projection policy at the direct start reconcile, both in-repo rename directions,
+the Store-rename adapter and its nested reconcile, and legacy park/abandon removal checks. It accepts an explicit
+`projectionRemovalSlots` property for reconcile/move contexts and nested `removal.check` for the legacy contexts;
+spreads alone establish neither. Configuration enables the rule only in the four owning production files. This is a
+presence check, not proof of factory origin, resolved values, or Store/identity dataflow.
+
+Native ESLint fixtures first failed all fourteen cases in `1952778185314f9ab67f131893ddc3d6` with the no-op rule and
+no production activation. The implemented rule passes them in `d685ce7e4e2d481299e63903acdd2e37`: missing/corrected
+forms, both rename directions, absent/opaque contexts, quoted properties, and actual configuration activation. The
+first production lint run flagged the Store-rename nested reconcile's spread-only context. That context now carries
+its existing slot field explicitly, and its private move context requires the field; apply and inverse still use the
+same closure. Production lint then passes without suppression.
+
+Separate authority inspection confirms that direct start resolves one Store and uses its parameter identity; in-repo
+rename closes apply and inverse over one resolved Store and command identity; Store rename resolves its Store once,
+passes it into the adapter command, and constructs slots with that command identity before both move directions;
+legacy park and abandon use the executor Store, or their existing default, and the base command identity. The syntax
+check does not replace this inspection or the factory authority cases completed in 2.4.b.
+
+Focused run `f6b6c64c30ad4f6db43fc139aba19d3a` passes 47 cases across the lint, native rename composition, Store
+rename command, locus release, and rename CLI E2E files. Source types pass in `9832d7cbc53b4bc8b1afa8946a2c6613`,
+and all five test type-check shards pass in `75390829f15d4967a5d8362f93c83568`. A5's criterion and revalidation remain
+open for the segment acceptance at 2.8.
+
+Astra's bounded R consultation found no decisive gap in the approved presence-only scope. It independently inspected
+the listed authority forwarding and confirmed that the private move type and explicit nested property preserve the
+existing binding. The rule does not establish aliases, overwrite behavior, factory origin, or runtime values; these
+are not claimed as lint evidence. No temporary control remains.

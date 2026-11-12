@@ -87,9 +87,10 @@ async function deferredMove(exec: GitExec, request: StoreRenameCheckoutRequest, 
   catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; branch = null; }
   return { oldSlug: request.sourceSlug, newSlug: request.targetSlug, branch, head, from: request.checkoutPath, to };
 }
-function checkoutMove(context: Pick<ReconcileWorkUnitWorktreeContext, "exec" | "store" | "projectionRemovalSlots">, cwd: string, from: string, to: string, remember: (result: ReconcileWorkUnitWorktreeResult) => void): RenameWorktreeMove {
+function checkoutMove(context: Pick<ReconcileWorkUnitWorktreeContext, "exec" | "store"> & { projectionRemovalSlots: ProjectionRemovalSlots }, cwd: string, from: string, to: string, remember: (result: ReconcileWorkUnitWorktreeResult) => void): RenameWorktreeMove {
   const move = async (source: string, target: string, locus: string): Promise<void> => {
-    const result = await reconcileWorkUnitWorktree({ ...context, fs: nodeReconcileWorkUnitWorktreeFs, chdir: (path) => { process.chdir(path); } },
+    const result = await reconcileWorkUnitWorktree({ ...context, projectionRemovalSlots: context.projectionRemovalSlots,
+      fs: nodeReconcileWorkUnitWorktreeFs, chdir: (path) => { process.chdir(path); } },
       { mutation: "move", from: source, to: target, currentLocus: locus });
     if (result.mutation === "move" && result.followUpNotice !== undefined) throw new Error(result.followUpNotice);
     remember(result);

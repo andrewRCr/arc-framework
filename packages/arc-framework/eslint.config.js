@@ -7,6 +7,7 @@ import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
 import { refCompletedFailureRule } from "./eslint/ref-completed-failure.ts";
+import { projectionRemovalBindingRule } from "./eslint/projection-removal-binding.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -162,6 +163,7 @@ export default tseslint.config(
             [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
           "module-doc-comment": moduleDocCommentRule,
           "ref-completed-failure": refCompletedFailureRule,
+          "projection-removal-binding": projectionRemovalBindingRule,
         },
       },
     },
@@ -234,6 +236,10 @@ export default tseslint.config(
   {
     files: ["src/lib/store/ref/**/*.ts"],
     rules: { "arc/ref-completed-failure": "error" },
+  },
+  {
+    files: [src("commands/start.ts"), src("commands/rename.ts"), src("commands/rename-store.ts"), src("handlers/lifecycle.ts")],
+    rules: { "arc/projection-removal-binding": "error" },
   },
   ...composeArchitectureBans(architectureBans),
   {

@@ -336,12 +336,10 @@ No production composition sets the slots today, so every caller runs `passingPro
   their recovery route. Only a completed linked release marks the target retiring and drops its command binding.
   `notes-projection-worktrees.md` records the native fault boundaries, repaired continuations, and fix check.
 
-### `[ ]` **2.4 Bind the slots where the removal function's callers are composed — § 12.2, § 12.3**
+### `[x]` **2.4 Bind the slots where the removal function's callers are composed — § 12.2, § 12.3**
 
 - _Goal:_ Every production caller of the removal check, the removal function, and the release takes the projection's
   three slots, so none falls back to the passing defaults once the capability is on.
-
-- _Note:_ The callers on `main` as of task generation are listed in `notes-projection-worktrees.md` § Removal callers.
 
     - `[x]` **2.4.a The callers on the merged base**
 
@@ -364,14 +362,13 @@ No production composition sets the slots today, so every caller runs `passingPro
           rechecking their exact generation after release. Native refusal, error, and repaired completion coverage is
           recorded in `notes-projection-worktrees.md`.
 
-    - `[ ]` **2.4.R Enforce the inert compositions' slot bindings — A5**
+    - `[x]` **2.4.R Enforce the inert compositions' slot bindings — A5**
 
         - _Goal:_ Implement A5's static enforcement for the direct start spawn, rename apply/rollback, and legacy
           park/abandon compositions while preserving their resolved Store and command identity authority.
-        - Add focused lint enforcement of slot presence at these compositions. Exercise each rule against a missing
-          binding and the corrected form, then run it on the production sources. Inspect Store/identity forwarding in
-          both rename directions and the start and legacy contexts; factory behavior and executable retirement tests
-          remain in 2.4.b. Close the amended acceptance at 2.8.
+        - _Outcome:_ Added focused ESLint enforcement of explicit slot/check presence and exercised missing and
+          corrected contexts. Store rename now forwards its required slots explicitly through both move directions.
+          Separate Store/identity inspection is recorded in `notes-projection-worktrees.md`; A5 acceptance remains at 2.8.
 
 ### `[ ]` **2.5 The user surfaces in every worktree — § 12.8**
 
