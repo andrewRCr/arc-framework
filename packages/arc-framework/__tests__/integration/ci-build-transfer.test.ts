@@ -3,7 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
-import { CALL_LIMIT } from "../helpers/call-limit.js";
+import { NESTED_CALL_LIMIT, nestedRunLimit } from "../helpers/call-limit.js";
 import { ciBuildSteps, downloadCiBuild, runCiPreflight, runCiProducer } from "../helpers/ci-build-fixture.js";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -18,7 +18,7 @@ beforeAll(async () => {
   expect(qualification.status).toBe("qualified");
   if (qualification.status !== "qualified") throw new Error(qualification.reason);
   generation = qualification.evidence.generation;
-}, 120_000);
+}, nestedRunLimit(120_000));
 afterAll(async () => {
   // A setup that timed out before making the fixture leaves it unset.
   const fixture = producer as typeof producer | undefined;
@@ -89,7 +89,7 @@ it.each(["integration"])(
       await expect(readFile(join(consumer.packageRoot, ".arc-build.lock")))
         .rejects.toMatchObject({ code: "ENOENT" });
     } finally { await rm(consumer.root, { recursive: true, force: true }); }
-  }, 5 * CALL_LIMIT,
+  }, 5 * NESTED_CALL_LIMIT,
 );
 
 it("retains full producer and platform-local declaration gates before preparation", async () => {
@@ -110,4 +110,4 @@ it("retains full producer and platform-local declaration gates before preparatio
   });
   expect((await runVitestControllerFixture(producer.packageRoot, ["full"],
     { CI: "1", ARC_E2E_SKIP_BUILD: "1" })).code).toBe(0);
-}, 3 * CALL_LIMIT);
+}, 3 * NESTED_CALL_LIMIT);

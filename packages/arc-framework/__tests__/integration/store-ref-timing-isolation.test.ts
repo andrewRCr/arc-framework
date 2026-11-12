@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 import { localVitestTierArguments } from "../../src/lib/local-vitest-runner.js";
 
 const isolatedSuites = ["store-ref-timing", "store-ref-projection-timing", "store-ref-bursts", "store-ref-projection-bursts"];
@@ -57,4 +58,4 @@ it(${JSON.stringify(name)}, async () => {
       }
     }
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

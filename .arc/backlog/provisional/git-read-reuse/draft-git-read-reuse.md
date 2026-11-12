@@ -29,8 +29,8 @@
   exact commit/tree reads covering only 47 unique commands. Historical applicability carry replays contribution
   proofs and verifies the same coordinates repeatedly; this is a production cost beyond the fixture cleanup.
 
-- _Evidence:_ Identity-local investigation `review-status-base-movement-timeout-2026-10-19` retains both Git
-  traces, original failure and retry logs, final full-tier results, and the increment proposal. Source loci:
+- _Evidence:_ The `review-status-base-movement-timeout-2026-10-19` investigation, kept outside the repository, retains
+  both Git traces, original failure and retry logs, final full-tier results, and the increment proposal. Source loci:
   `git-review-contribution-applicability.ts`, `git-contribution-proof.ts`, `hosted-applicability-context.ts`, and
   `mechanical-review-applicability-carry.ts`.
 
@@ -40,7 +40,7 @@
   keeping only successful answers since an object can appear after a fetch, and decide for each repeated mutable
   read whether it is a deliberate freshness check. `seam-delivery-review` and the storage cutover rewrite many of
   these readers, so profile again after they land before designing; the per-call spawn log and CPU profile method
-  is in the Errand's scratch notes, `~/dev/scratch/review-fix-prof/`.
+  is in the Errand's notes (`review-fix-prof/`), kept outside the repository.
 
 - _Approach (hosted applicability):_ If the cost remains, consider reuse of
   immutable object reads within one observation, preserving fresh endpoint/ref reads, repository boundaries,

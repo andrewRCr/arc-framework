@@ -343,19 +343,21 @@ describe("cleanupOrdinaryErrandRefs", () => {
   });
 
   it("retains a local branch checked out by any registered worktree", async () => {
+    const linkedPath = await mkdtemp(join(tmpdir(), "arc-close-occupied-"));
+    TEMP_DIRS.push(linkedPath);
     const git = fakeGit({
       local: EXPECTED,
       remote: null,
       worktrees: [
         { path: "/repo", branch: "main" },
-        { path: "/repo-linked", branch: "chore/done" },
+        { path: linkedPath, branch: "chore/done" },
       ],
     });
 
     await expect(cleanupOrdinaryErrandRefs(git.exec, target(), BASE_GUARD)).resolves.toEqual({
       kind: "refused",
       reason: "preservation-unproven",
-      message: "Local Errand branch is checked out by registered worktree '/repo-linked'.",
+      message: `Local Errand branch is checked out by registered worktree '${linkedPath}'.`,
     });
     expect(git.state.local).toBe(EXPECTED);
   });

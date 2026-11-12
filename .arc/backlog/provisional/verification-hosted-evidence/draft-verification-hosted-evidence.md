@@ -8,6 +8,45 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Run hosted CI once when review rounds converge, with targeted local integration tests between rounds**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Interim rule, which this unit canonizes or replaces; the durable selection half is in
+  `test-suite-contention-hardening`'s buffer.
+
+- _Observation:_ `cohort-identity-verbs` dispatched a full hosted CI run per review round: 16 on
+  `feat/cohort-identity-verbs` from 2026-11-05 to 11-07, the last twelve at a round's "record verified" commit. No
+  workflow or method dispatches CI; the trigger reads as the project rule's "Dispatch again after any later code
+  change", though attestation needs a passing run only at the head being attested. Two runs failed, both at a
+  record-verified head, on regressions the local merge gate missed because it skips the integration and E2E tiers:
+  `99dd3ea873`, and `fe80531a81`, where fix `3d536c05d0` broke the inherited `review-local-native-defaults`
+  integration test. Per-round CI catches a regression near its cause, but every round waits on a full hosted run while
+  review is still finding things.
+
+- _Approach:_ Owner direction (2026-11-07): while review is still running, use local checks and let the rounds settle,
+  or target. Between rounds, run the local gates plus the integration and E2E files that exercise each fix's code
+  (`npm run test:file -- <file>`), adding the content tier (`arc check run test:integration:content --range`) only
+  when a fix changes ARC Markdown those tests read, and have each round's record state the local evidence it rests on.
+  Dispatch one full hosted run when the rounds converge, at the head to be recorded verified or published; a failure
+  there bisects by round, since each is its own commit. No import graph shows integration tests' reach, so finding
+  those files is a search an agent can miss. The durable fix selects the code integration tests by reach in the local
+  gate, as `test:store` does, and clarifies the project rule to dispatch at the head being attested rather than after
+  each fix; it also meets the `WORKING-MEMORY` entry's removal trigger.
+
+- _Evidence:_ `gh run list --branch feat/cohort-identity-verbs --workflow ci.yml` (16 `workflow_dispatch` runs,
+  failures 42382374250 and 42426832861); `integration.CIV`'s report.
+
+- _Captured during:_ `project-manager.ARC`, routing `integration.CIV`'s process report, 2026-11-07, approach revised
+  the same day on the Owner's direction (Owner-approved).
+
+---
+
 ## Problem / Motivation
 
 Verification attests on the local merge gate, which reports `test:e2e`, `test:portability`, and

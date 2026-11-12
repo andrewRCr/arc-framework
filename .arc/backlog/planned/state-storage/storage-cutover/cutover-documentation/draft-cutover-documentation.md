@@ -144,4 +144,22 @@ item cited here that this draft does not hold is in another member's draft under
 - _Captured during:_ `cutover-flip` draft-design, planning review's source-grounding, 2026-11-06 (Owner-approved; the
   target has no session).
 
+### `[ ]` **Retire § Auto-Merge Lane, and move the draft-lock model it holds**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ its strategy rewrites (`cutover-tracked-state-removal` D10 hands it this section).
+
+- _Observation:_ `cutover-tracked-state-removal` retires the shipped merge-gate recipe whole (its D10; Owner,
+  2026-11-10): the README and CODEOWNERS template under `reference/templates/arc/merge-gate/` and
+  `setup-merge-gate.md` serve only the planning auto-merge lane, which has nothing to classify once planning state is
+  untracked. Their doctrine, `strategy-work-organization.md` § Auto-Merge Lane, is in no member's scope. The section
+  also holds the draft-state merge lock's model (`merge.lock: draft`, `arc merge lock`), which stays, and
+  `01_verify-and-configure.md` links to it for that lock.
+
+- _Approach:_ retire the lane's doctrine and move the draft-lock model to a home that survives, re-pointing its links.
+
+- _Captured during:_ `cutover-tracked-state-removal` design review, pass 1, 2026-11-10 (Owner-approved; the target has
+  no session).
+
 ---

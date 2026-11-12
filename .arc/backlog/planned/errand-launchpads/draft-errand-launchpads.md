@@ -62,8 +62,8 @@
 - _Files:_ `src/lib/errand/close-runtime.ts`, `terminal-occupancy.ts`, and `open.ts` under `packages/arc-framework/`;
   unchanged since capture (re-checked 2026-10-21).
 
-- _Evidence:_ Identity-global `.internal/investigations/errand-close-next-launch-2026-10-19/` retains the successful
-  close, refused open, old and refreshed locus reports, and successful ordinary retry. Source anchors:
+- _Evidence:_ The `errand-close-next-launch-2026-10-19` investigation, kept outside the repository, retains the
+  successful close, refused open, old and refreshed locus reports, and successful ordinary retry. Source anchors:
   `close-runtime.ts:253`, `terminal-occupancy.ts:70`, and `open.ts:123,351-380`.
 
 - _Captured during:_ Sequential execute-bound Errand batch, entering declaration-registry projection; requested by
@@ -89,6 +89,26 @@
   has shipped, so it can be planned now.
 
 - _Captured during:_ `disposition-report-trim` Errand launch, 2026-10-20.
+
+### `[ ]` **Offer to clean up registered checkouts ARC does not manage or whose folder is gone**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Direction › A managed launchpad lifecycle (`review-checkout-lifecycle` deliberately leaves absent-root
+  repair to Git's prune).
+
+- _Observation:_ On 2026-11-10 arc-framework had 23 registered worktrees: five pointed at deleted temporary folders and
+  five were detached evidence checkouts outside the repository. The recovery roster already classifies such rows
+  (`unmanaged-checkout`, and `unresolved-checkout` with `topology-mismatch`), but nothing offers to remove or prune
+  them, so they accumulate; the cutover's rehearsal saves every registered checkout first.
+
+- _Approach:_ after the flip, have session start or `arc locus` report unmanaged and dead registrations with a removal
+  offer: prune a registration whose folder is gone, and remove a clean unmanaged checkout once the person confirms.
+  Neighbors: `review-checkout-lifecycle`, `errand-launchpads`, the stale-worktree sweep. Today's ten go by hand before
+  the rehearsal.
+
+- _Captured during:_ `project-manager.ARC`'s survey of where agents write on this machine, 2026-11-10 (Owner-approved;
+  `pm-briefs/machine-write-zones.md`).
 
 ---
 

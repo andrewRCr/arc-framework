@@ -3,6 +3,7 @@ import { execa } from "execa";
 import { cp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { MeasurementProjectSet } from "../../src/lib/test-cost/mode.js";
+import { NESTED_CALL_LIMIT } from "./call-limit.js";
 import { makeFocusedVitestFixture } from "./focused-vitest-fixture.js";
 
 /**
@@ -28,6 +29,6 @@ export async function runNativeTestCostFixture(
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
     "--condition", "tier-isolated", "--project-set", projectSet, "--workers", "1", "--output", fixture.output],
-    { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
+    { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: NESTED_CALL_LIMIT });
   return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr };
 }

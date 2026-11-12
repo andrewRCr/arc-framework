@@ -13,6 +13,8 @@
  * @module
  */
 
+import { ZodError } from "zod";
+
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
@@ -30,6 +32,38 @@ const ADMISSION_INVARIANT = "Review capacity is spent only on the action the sta
 
 const ATTEMPTS_INVARIANT = "A lane's attempts belong to the exact head they reviewed; attempts concluded at an "
   + "earlier head carry forward only as the logical attempt count.";
+
+type SourceSelectionProblem = "unconfigured" | "precedes-progress";
+
+/** A caller-owned forced-source choice rejected by the configured policy. */
+class ReviewSourceSelectionInputError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly correction: string;
+
+  constructor(problem: SourceSelectionProblem, sourceId: string, cause: ZodError) {
+    super(problem === "unconfigured"
+      ? `Forced source '${sourceId}' must name a configured standard-review source.`
+      : `Forced standard-review source '${sourceId}' cannot precede recorded source progress.`, { cause });
+    this.name = "ReviewSourceSelectionInputError";
+    this.correction = problem === "unconfigured"
+      ? "Select a configured standard-review source, or configure the intended source, then retry the same request."
+      : "Attempts must contain only the current logical pass. Remove attempts from an earlier pass while preserving "
+        + "completedPasses; otherwise keep current-pass attempts and select a source at or after recorded progress. "
+        + "Then retry the repaired request.";
+  }
+}
+
+function sourceSelectionInputError(error: unknown, request: unknown): ReviewSourceSelectionInputError | null {
+  if (!(error instanceof ZodError) || error.issues.length !== 1) return null;
+  const issue = error.issues[0];
+  if (issue?.code !== "custom" || issue.path.length !== 2
+    || issue.path[0] !== "invocation" || issue.path[1] !== "sourceId") return null;
+  const problem: unknown = issue.params?.reviewPolicySourceSelection;
+  if (problem !== "unconfigured" && problem !== "precedes-progress") return null;
+  const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
+  if (!parsed.success || parsed.data.lane !== "standard" || parsed.data.invocation?.mode !== "force") return null;
+  return new ReviewSourceSelectionInputError(problem, parsed.data.invocation.sourceId, error);
+}
 
 /** A lane re-resolved at the checkout's current head while still carrying attempts reviewed at an earlier head. */
 export class StaleLaneAttemptsError extends Error {
@@ -202,6 +236,7 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof ReviewSourceSelectionInputError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
   if (error instanceof PendingHostedSettlementError) return hostedSettlementRemedy(error.pending, "re-resolving the lane");
   if (error instanceof ReviewPolicyContextError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
   if (error instanceof ReviewDriverAdmissionError && incrementalOverride(error)) return incrementalOverrideRemedy(request, RESOLVE_ARGV);
@@ -238,6 +273,8 @@ export function requireReviewSourceSelection(
  * @returns The refusal with caller recovery guidance, or the original failure unchanged.
  */
 export function reviewResolveError(error: unknown, request: unknown): unknown {
+  const selection = sourceSelectionInputError(error, request);
+  if (selection !== null) return selection;
   if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-producer") return error;
   const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
   const attempt = parsed.success ? parsed.data.attempts.at(-1) : undefined;

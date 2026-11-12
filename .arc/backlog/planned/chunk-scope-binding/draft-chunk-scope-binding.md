@@ -135,9 +135,9 @@
   that hand assembly.
 
 - _Observation:_ `storage-ref-backend`'s review accumulated 323 per-round scripts, about 40k lines, across 47 round
-  directories, each round's set rewritten with its scope IDs hard-coded; this machine keeps a copy, without its
-  repository clones, at `~/dev/arc-evidence/storage-ref-backend/`. Most of it translates between ARC's own outputs
-  and inputs and carries no judgment. The stage this entry covers:
+  directories, each round's set rewritten with its scope IDs hard-coded; a copy without its repository clones is
+  kept outside the repository. Most of it translates between ARC's own outputs and inputs and carries no judgment.
+  The stage this entry covers:
 
   1. Scope: inventorying the range by path treatment, checking a partition's closure, coverage union, and seam
      derivation (`guard-partition`, `build-scopes`, `build-seams`), and freezing the review inputs and hashing the
