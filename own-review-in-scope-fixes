@@ -3,14 +3,20 @@
   "slug": "own-review-in-scope-fixes",
   "claimId": "a52b3f8fe1f12916071a85edc4e31e93",
   "createdAt": "2026-11-12T13:18:18.821Z",
-  "updatedAt": "2026-11-12T13:18:18.821Z",
+  "updatedAt": "2026-11-12T17:16:11.453Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Treat a confirmed finding from the agent's own in-progress review as an in-scope fix",
   "branch": "chore/own-review-in-scope-fixes",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/own-review-in-scope-fixes",
+    "headSha": "d518aba4a27fc4583b0c6d2da91df5d08bc4871b"
+  }
 }
