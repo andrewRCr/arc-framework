@@ -361,4 +361,38 @@ At 50 and 150 people most of a command's cost is the store's `version()` listing
 On Linux the same rows run 6, 23, 11, 7, 14, and 27 ms a command. One person's pull brings only their own work from
 other machines, which the model's team churn does not describe, so that row shows no pull.
 
+## Inbound Buffer — Pending Integration
+
+### Sequential fan-out attribution — routed from projection-worktrees, 2026-11-11
+
+_Shapes:_ the fanned pull at the anchor, destination scheduling, and the growth-relative scale criterion.
+
+The Owner leaves sibling scheduling here; the proposed concurrent-root locking amendment in `projection-worktrees` stays
+held. Its current build preserves sequential root visits and two durable publications per normal refresh, intent before
+moving files and final settlement. Removing intent would change recovery rather than merely scheduling.
+
+Native full-round Linux run `334880664e4646cc95ceeca70a1c47cb` measured 217.42 ms for one backlog notes file and 567.38
+ms for ten, across the writer and twenty linked worktrees. The Store mutation is outside the timer; version, changes,
+protection, layout checks, index publication, and replacement are inside. Spike 4's 3.3/13.4 ms prototype timed smaller
+file work with Store reads outside, a simpler lock, and one publication. Current tripwire bounds therefore need their
+own full-round calibration.
+
+Diagnostic run `8d12426922ea4e3da5c2c9dbff1e095b`, eleven samples per cell, measured one-root rounds at 32.18/95.26 ms
+and 21-root rounds at 209.82/573.65 ms. The additional twenty lock scopes totaled 160.33/442.79 ms. Store record reads
+stayed shared: two calls for one changed owner and twenty for ten, independent of destinations. Physical Git starts were
+9/27, independent of root count: six control starts, one changes reader, and two public-operation UID readers per
+changed owner. Their reader lifetimes end before each public operation returns.
+
+Destination work scales: 42 publications totaled 54.64/55.68 ms; refresh scopes totaled 81.71/425.51 ms, including swap
+scopes of 41.79/149.30 ms. These are nested durations and cannot be summed. The rounds made 510/2,625 lstat calls and
+189/378 writes totaling 8.18/8.36 MB. Each root rewrote its roughly 192–195 KB backlog partition twice. No
+scaffold-pruning call ran in measured fan-out. Consolidating the intent publication's obsolete-partition collection can
+save at most its measured tail, about 3.5 ms across all roots, and was left unchanged.
+
+The trace identifies scheduling opportunity without proving every per-root operation necessary or predicting a
+concurrency speedup. Scheduling cannot remove shared Store preparation, and narrowing cannot be credited for reducing
+unchanged shared reads. Assess bounded sibling scheduling together with view selection at the anchor, preserving
+recovery ordering and each root's checks. Attribution and limitations are recorded at commit `6cc7816eba`, in
+`notes-projection-worktrees.md`; no scheduling change is authorized by this entry.
+
 ---

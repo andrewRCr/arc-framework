@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
 it("generates under direct preparation ownership and releases before the unmanaged run", async () => {
@@ -27,4 +28,4 @@ export async function runBuildHook(outDir: string, packageRoot: string): Promise
     expect(events.map((event) => event.stage).sort()).toEqual(["integration:setup", "integration:teardown"]);
     expect(events.every((event) => !event.owned)).toBe(true);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

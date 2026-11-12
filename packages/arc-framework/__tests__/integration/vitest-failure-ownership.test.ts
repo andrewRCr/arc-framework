@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const execute = promisify(execFile);
 
@@ -44,4 +45,4 @@ it.each(["setup", "collection"])("closes a native %s failure before releasing CP
       await expect(access(lease)).rejects.toMatchObject({ code: "ENOENT" });
     }
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

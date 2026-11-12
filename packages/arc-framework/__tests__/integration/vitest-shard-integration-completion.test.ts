@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeNativeWriterFixture, nativeWriterEvents } from "../helpers/native-writer-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it.each(["unmatched name", "all skipped", "oversubscribed selection"] as const)(
   "keeps ordinary integration %s nonpassing and closes the native controller", async kind => {
@@ -27,5 +28,5 @@ it.each(["unmatched name", "all skipped", "oversubscribed selection"] as const)(
       expect(events.find(event => event.stage === "closing")?.owned).toBe(true);
       await expect(readFile(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
-  }, 60_000,
+  }, nestedRunLimit(60_000),
 );
