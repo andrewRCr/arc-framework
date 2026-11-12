@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — split from `cutover-flip` at its create-spec entry (2026-11-10)
 - **Design:** `spec-cutover-window-tooling.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cutover-window-tooling.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Merge `main` into this branch first (it brings #1329's cohort edits and merges cleanly; keep this
-  unit's Exposes and Consumes lines), then begin generate-tasks
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

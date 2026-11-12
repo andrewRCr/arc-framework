@@ -1,0 +1,939 @@
+# Task List: cutover-window-tooling
+
+- **Design:** `spec-cutover-window-tooling.md`
+
+---
+
+## **Phase 1:** Shipped seams and the host boundary
+
+_Purpose:_ the two changes to shipped code, and the script family's entry, results, lint boundary, and host facts that
+every later operation stands on.
+
+_Mode:_ `layer` — closes on the shipped seams and the family's host boundary settled.
+
+_Exit criterion:_ both shipped changes pass their suites with no existing caller or constructor changed, and every host
+fact the family reads arrives through one port that takes a supplied fact only where the repository has no host.
+
+### `[ ]` **1.1 Carry the composition's provenance on its result — § 1.3**
+
+- _Goal:_ The composition's result exposes, by slug, every copy of each in-flight work unit exactly as its in-flight
+  entry records it, while no existing caller, constructor, test fixture, or serialized output changes.
+
+- _Approach:_ one optional, read-only, `Map`-keyed field on `ComposedLifecycleIndexResult`
+  (`lib/work-unit/composed-lifecycle-index.ts`), filled in `resolveComposedLifecycleIndex` from each work-unit entry's
+  `provenance` in the oracle's entries (`provenanceForGroup`, `lib/git/in-flight-derivation.ts`), unfiltered, and
+  absent when no oracle runs.
+
+- _Note:_ provenance exists only for copies on a branch other than the base, and a terminal unit's leftover branch keeps
+  its provenance, so later tasks read liveness from `recordsBySlug`, never from the field's presence. A unit whose every
+  branch copy is stale has no entry; its copies arrive as `stale-location-dropped` or `stale-location-shadow` warnings
+  in `qualityFacts.bySlug`.
+
+    - Build `test-first` (one behavior at a time), through `resolveCallerComposedLifecycleIndex`, and through
+      `resolveComposedLifecycleIndex` for the run with no oracle, since tests may not import the in-repo store (see
+      `notes-cutover-window-tooling.md` § Lint boundary and imports):
+        - A unit carried on its branch, a branch's local and fetched copies, and a stale copy each appear with branch,
+          ref, source, relation, and selected flag, keyed by slug
+        - A completed unit whose leftover branch still carries its meta keeps that branch's provenance while its
+          selected record stays completed
+        - A unit whose every branch copy is stale has no entry in the field, and each copy's branch appears in its
+          slug's stale-location warnings
+        - A composition run with no oracle carries no field
+        - Every existing constructor and fixture of the result compiles unchanged under both type checks
+
+### `[ ]` **1.2 Seal `arc user load` — § 7**
+
+- _Goal:_ Once the registry ref exists, every load path refuses before writing any file, ending with the
+  store-imported refusal's condition and remedy and a non-zero exit; before it exists, load behaves exactly as today.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Load seal callers for both callers' traced error paths.
+
+    - `[ ]` **1.2.a Guard `runUserLoad` first**
+        - Call `refuseWriteIfStoreImported(cwd, io.exec)` as the first act of `runUserLoad`
+          (`commands/user/save-load.ts`), before the current-unit and resolver reads.
+        - Build `test-first` (one behavior at a time), in `__tests__/integration/store-imported-seal.test.ts`:
+            - `runUserLoad` runs no Git beyond the import lookup once the registry ref exists, beside the suite's other
+              sealed writers
+            - A load over its own saved note refuses once the registry ref exists, writing no file
+            - The same load restores the files once the registry ref is gone
+
+    - `[ ]` **1.2.b Pin both callers' refusal**
+        - `arc user load` rethrows the refusal to the CLI's error boundary, and the user-sync load direction logs it and
+          sets exit 1; where the logged message lacks the remedy, render it through `formatError` as the boundary does.
+        - Tests, passing once 1.2.a lands:
+            - In `__tests__/e2e/user.e2e.test.ts`, with the registry ref made by `git update-ref`, `arc user load` exits
+              1 with the condition and remedy on stderr and restores no file
+            - In `__tests__/unit/sync.test.ts`, with the mocked `runUserLoad` rejecting with `StoreImportedError`, the
+              sync's load direction logs the condition and remedy and sets exit 1
+
+### `[ ]` **1.3 Family entry, results, lint boundary, and inertness — § 1.2, § 1.4**
+
+- _Goal:_ Every operation runs from source through one entry, prints a report, emits one typed `--json` result listing
+  every failing subject rather than the first, and exits non-zero on a refusal, a stop, or an `account` or `chain`
+  finding; the family may read the store's private implementation, and nothing the package, the install recipe, or the
+  CLI bundle reaches includes it.
+
+    - `[ ]` **1.3.a Entry, dispatch, and the lint exemption**
+        - `packages/arc-framework/src/scripts/cutover-window/main.ts` dispatches each operation of § 1.2 as it lands,
+          run with `node --import tsx` through one root `package.json` script beside the repository's others; the check
+          lives at exactly `packages/arc-framework/src/scripts/cutover-window/check.ts`, since C6's anchor derives from
+          that path. Every operation acts on the checkout `--repo` names, never on the process's working directory, so
+          this unit's source can run against a rehearsal copy.
+        - Exempt `src/scripts/cutover-window/` from `store-production`, `store-raw-state`, `surface-names`, and
+          `work-unit-paths` through the `ignores` of the `eslint.config.js` rows carrying them, splitting
+          `store-production` from `store-reference` into a row of its own, and pin it in
+          `__tests__/unit/eslint-architecture-config.test.ts` (see `notes-cutover-window-tooling.md` § Lint boundary and
+          imports).
+        - Build `test-first` (one behavior at a time):
+            - An unknown or not yet built operation exits non-zero with usage, as does one without `--repo`
+            - A module in the folder may import `lib/store/in-repo/` and `lib/store/ref/`, while the same import outside
+              it still refuses
+            - A file in the folder carries `clack`, `store-reference`, `layout-private`, and `configured-identity`, and
+              none of the four exempted rules
+
+    - `[ ]` **1.3.b The result and report shape**
+        - Build `test-first` (one behavior at a time):
+            - A result lists every failing subject with its remedy, and its report prints each
+            - A refusal, a stop, and an `account` or `chain` finding each exit non-zero; a pass and a report-only
+              `compare` or `lock` exit zero
+
+    - `[ ]` **1.3.c Prove the family ships nowhere**
+        - Tests beside `__tests__/integration/store-reference-packaging.test.ts`, reading the package build's metafile as
+          it does and filtering with `referenceBundleInputs` (`__tests__/helpers/store/ship-guard.ts`):
+            - The metafile names no input under `src/scripts/cutover-window/`
+            - Neither the package's `files` list nor `init-recipe.json` names the folder or a file in it
+
+### `[ ]` **1.4 Host facts and the merged-flip test — § 1.1**
+
+- _Goal:_ Every host fact the family reads arrives through one injectable port: a repository whose every effective
+  remote URL and push URL is a local path has no host and takes supplied facts, any other refuses a supplied fact before
+  any host read, and a host read that fails or may be incomplete refuses, save the discovery read's one answer of none;
+  the merged-flip test answers merged only from a reachable recorded head on a host that merges by merge commit alone.
+
+- _Approach:_ the port runs `git ls-remote origin <patterns>` and the `gh` reads — open pull requests with head and base,
+  the flip's `autoMergeRequest`, and the merge settings from `gh api repos/<owner>/<repo>` — each with `--repo` derived
+  from `origin`, plus one discovery read without `--repo`, `gh repo view --json nameWithOwner` run in the target, which
+  copy safety asks. The discovery read answers a repository name, or none on `gh`'s error that no remote names a known
+  GitHub host; any other failure refuses. Tests replace the port at that boundary, so no test reads the host.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Host port.
+
+    - `[ ]` **1.4.a No-host detection and supplied facts**
+        - Judge every remote's effective URLs (`git remote get-url --all`, and `--push --all`); a `file://` URL is a
+          local path.
+        - A supplied listing holds each open pull request's number, head branch, and base branch, and the flip's pull
+          request, named by the operation, with its auto-merge state.
+        - Build `test-first` (one behavior at a time):
+            - A repository whose every effective URL is a local path has no host and takes a supplied anchor and listing
+            - A supplied fact refuses before any host read where an effective URL names a host, an `insteadOf` rewrite
+              to a host and a second push URL among them
+            - A repository with no host and no supplied listing refuses, naming the missing listing
+
+    - `[ ]` **1.4.b Host reads**
+        - Build `test-first` (one behavior at a time):
+            - A failed host read refuses
+            - An `ls-remote` read keeps only lines whose ref begins with its own prefix, `refs/heads/` for branches and
+              `refs/arc/` for store refs, and an identity ref only by the import's identity pattern, so a branch whose
+              name contains `refs/arc/` is a branch, never a store or identity ref, and a nested
+              `refs/arc/user/<a>/<b>/errands` is no identity ref
+            - A pull-request listing that reaches its limit refuses as possibly truncated
+            - Merge settings missing `allow_squash_merge` or `allow_rebase_merge` refuse rather than read as `false`
+            - The discovery read answers a name on success and none on `gh`'s no-known-host error, and refuses on any
+              other failure, an authentication failure among them, tested on recorded `gh` outputs
+
+    - `[ ]` **1.4.c The merged-flip test**
+        - Fetch the host's `main` tip into a scratch ref, never `refs/remotes/origin/*`, and test ancestry with
+          `--no-replace-objects`, restating the strict rule.
+        - Build `test-first` (one behavior at a time):
+            - Merged when the recorded head is reachable from `main`'s tip on the host
+            - A tip whose commit is not local is fetched, and the test refuses when the tip still cannot be resolved
+            - Only exit status 1 from `git merge-base --is-ancestor` answers not merged; any other failure refuses
+            - With a host, merge settings allowing squash or rebase merging refuse before the ancestry test
+            - With no host, no merge settings are read
+
+## **Phase 2:** The restore point
+
+_Purpose:_ the abort's restore point, proven end to end over a real import before the check grows its other conditions.
+
+_Mode:_ `slice` — closes on an abort's restore exercisable end to end over a real import.
+
+_Exit criterion:_ in a temporary repository with a local bare `origin`, a designation, and an identity ref holding a
+claim, `check` records and holds, the import lands and publishes, and `restore` returns every recorded ref on both
+sides, removes the store directories and the designation, lifts the guard, and deletes the hold, finishing when
+restarted after each of its steps.
+
+### `[ ]` **2.1 The record and the hold, with C9 — § 2.1, § 4**
+
+- _Goal:_ A passing check writes the record and the hold with the completion marker last, and a refusing or killed run
+  leaves no complete hold, so every later operation reads a restore point it can trust.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Hold, record, and stop points.
+
+    - `[ ]` **2.1.a The hold's layout, the record document, and the writer**
+        - The namespaces of § 4.3 under `refs/arc-window/`; the record document of § 4.1, holding the flip's branch, pull
+          request, and head, in the tree of the `refs/arc-window/record` commit; `refs/arc-window/complete` pointing at
+          that commit, written last.
+        - One writer builds a hold from a record, and one reader serves every later operation, reporting a hold without
+          its marker as incomplete; later phases' tests build holds through the writer rather than through `check`.
+        - Build `test-first` (one behavior at a time):
+            - The record round-trips through its commit
+            - Held local, `origin`, and tracking refs keep their recorded tips reachable after the source refs are
+              deleted
+            - A hold without its completion marker reads as incomplete
+
+    - `[ ]` **2.1.b The passing baseline**
+        - One shared test fixture passes every condition built so far, so each condition's test plants one failure in it
+          and the whole check passes again once that failure's remedy is applied. It starts from `importFixture` with
+          `.arc-fixture/` and `.arc/user/` excluded and `remote.origin.arc-state` unset, `main` and a flip branch one
+          commit ahead of it pushed to the bare `origin` with upstreams set, a file under `.arc/user/<identity>/` for
+          the save to write, and a supplied listing holding the flip's pull request; it takes a supplied anchor and the
+          `PATH` C6 judges as those conditions land. Each condition task in Phases 3 and 4 extends it so it keeps
+          passing (see `notes-cutover-window-tooling.md` § Test fixtures).
+
+    - `[ ]` **2.1.c C9 — a store, designation, or earlier hold**
+        - Evaluated first, refusing with nothing written: any `remote.*.arc-state`, a `storage.backing_repository`
+          (`readBackingRepository`), or `origin` not the code remote (`readRefDesignation`); a store directory under
+          `<commonDir>/arc/`; a store ref (`isStateRef`) or a ref under the store's working namespaces in `refs/arc/tmp/`;
+          anything under `refs/arc-window/`.
+        - Build `test-first` (one behavior at a time):
+            - Each condition refuses naming its subject and remedy, and the check passes once the remedy is applied
+            - The other refs C9 lets pass, an Errand's temporary refs among them, do not refuse
+            - An incomplete hold refuses and passes once deleted; a complete hold refuses, its `restore` remedy proven in
+              Task 2.3
+
+    - `[ ]` **2.1.d The run order and its stop points**
+        - The check takes the flip's branch and pull request, and, where the repository has no host, a supplied listing.
+          After C9, fetch `origin`'s `refs/arc/*` under `refs/arc-window/origin/`, evaluate every other condition, and
+          report all; on any failure delete everything written under `refs/arc-window/`; on a pass write the record and
+          the marker last. An injectable step hook names the record write and the marker write.
+        - Build `test-first` (one behavior at a time):
+            - The baseline passes the check, its record and marker written
+            - A refusing run leaves nothing under `refs/arc-window/`
+            - A run stopped between the record write and the marker leaves a hold without a completion marker
+        - The check evaluates only C9, and its record holds the flip, the refs, worktree paths and heads, and branch tips,
+          without digests, live-branch marks, or host tips.
+        - _Retired in:_ Phase 4
+
+### `[ ]` **2.2 What the import consumed — § 3, § 6.1**
+
+- _Goal:_ One comparison decides whether what the import consumed of each Errand identity ref equals its held tip — by
+  kept tip while the kept tips remain, by landed transient record once they are dropped, and by the ref's own value
+  before a landing — writing nothing, so `restore` and `recompute` judge consumption the same way.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Consumed comparison.
+
+    - `[ ]` **2.2.a The records the held identity refs give**
+        - Read each held identity ref with `readTransientIdentitySnapshotAtRef`, and restate the import's mapping, private
+          to its module: a claim compares by `transientKind` and `transientReference`'s kind, person, and key, its content
+          as canonical parsed JSON (`serializeTransientIdentityRecord`).
+        - Build `test-first` (one behavior at a time):
+            - Grooming and housekeep claims map to `claims/groom` and `claims/housekeep` with their content
+            - A held tip whose snapshot reads absent, errored, or with diagnostics is a difference
+
+    - `[ ]` **2.2.b The three regimes**
+        - Read the landed records with plain Git reads of the claim trees and work-item refs; decide "landed" by a strict
+          read of the registry ref, where only exit status 1 means absent.
+        - Build `test-first` (one behavior at a time):
+            - With kept tips, each held ref's kept tip must equal its held tip, and no other ref may have one
+            - After a landing with the kept tips dropped, the landed claims must be exactly those the held tips give, and
+              any landed `work-item/record` or `work-item/description` is a difference
+            - With kept tips and no landing, nothing is consumed, and each ref's own value is left to the caller
+            - Each difference names the ref, its held tip, any kept tip, and each differing record in full
+
+### `[ ]` **2.3 The restore — § 6**
+
+- _Goal:_ From a complete hold whose flip has not merged, `restore` returns every recorded ref on both sides, deletes
+  what the window added, removes the store directories and the designation, lifts the guard, and deletes the hold;
+  it changes no ref another writer moved until the Owner accepts that value, and finishes when re-run after stopping
+  at any step.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Restore leases and § Hold, record, and stop points. Tests build holds
+  through Task 2.1.a's writer, create all three store directories themselves, and stop the import at its own steps to
+  reach each state.
+
+    - `[ ]` **2.3.a Refusals before any write — § 6.3**
+        - An injectable step hook names the comparison record, each of the five steps, and each merged-flip test.
+        - Build `test-first` (one behavior at a time):
+            - An incomplete hold refuses with its delete remedy
+            - A merged flip refuses, a merge commit that is not local included
+            - Auto-merge armed on the flip's pull request refuses
+            - A host that allows squash or rebase merging refuses
+            - An unreadable host refuses with a retry
+            - A supplied pull-request listing where a remote URL names a host refuses before any host read
+
+    - `[ ]` **2.3.b The consumed comparison and its record**
+        - Before the first write, where the import has landed, apply Task 2.2's comparison; refuse on a difference,
+          printing each differing record in full; take `--accept <ref>=<kept tip>` or `<ref>=absent`; and record each
+          held identity ref's regime, outcome, and accepted value at `refs/arc-window/restore`, which a restarted restore
+          reads in place of comparing again and from which steps 1 and 2 take every identity-ref lease.
+        - Build `test-first` (one behavior at a time):
+            - An identity ref advanced and pushed after the check, where the window stopped at `account` after the
+              import dropped its kept tips, refuses printing each differing record until `<ref>=absent` is accepted
+            - The same ref where the import stopped after landing, before retiring `origin`'s copy, refuses until
+              `<ref>=<kept tip>` is accepted
+            - With kept tips and no landing, a ref at its held tip passes, and one advanced or deleted refuses until its
+              value is accepted
+            - With no kept tips and no landing, an identity ref holding a claim at its held tip passes with no
+              comparison
+            - Restarted after its first write, the restore finishes on its recorded comparison without comparing again
+
+    - `[ ]` **2.3.c Leases checked before the first push**
+        - Before step 1's first push, test every `origin` ref against the value the window left — its held tip, the
+          tracking or same-named local tip for a ref the store's publication pushes (restating the publishable-ref
+          rule), or absence for a retired identity ref the comparison passed or accepted, or for an unheld ref — and
+          every local identity ref and every local ref the window never writes against its held tip or absence.
+        - Build `test-first` (one behavior at a time):
+            - An `origin` ref another writer moved or deleted refuses, a non-store ref among them whose tip equals the
+              local one, and the restore finishes once `<ref>=<tip>` or `<ref>=absent` is accepted
+            - A local Errand identity ref or a ref the window never writes, an Errand's temporary ref among them, that
+              another writer moved refuses naming it, and finishes once its value is accepted
+            - Each refusal leaves `origin` unchanged
+
+    - `[ ]` **2.3.d Steps 1 and 2 — `origin` and local refs**
+        - Step 1 sets each `origin` `refs/arc/*` ref back to its held tip from `refs/arc-window/origin/` and deletes every
+          ref the record does not hold, the registry ref last, each push leased as Task 2.3.c settled; it re-runs the
+          merged-flip test before the first push and before deleting the registry ref. Step 2 sets back or deletes the
+          store's refs and working namespaces under `refs/arc/tmp/`, each `refs/arc-remotes/origin/*` ref, and each
+          Errand identity ref.
+        - Build `test-first` (one behavior at a time):
+            - Before publication step 1 changes nothing; after it, every recorded ref returns on both sides and every
+              other `refs/arc/*` ref and unrecorded tracking ref is gone
+            - A merge landed on `origin` after the first test refuses before the registry ref is deleted, leaving the
+              local store whole
+
+    - `[ ]` **2.3.e Steps 3 to 5 and re-running — § 6.2**
+        - Remove the store directories; unset `remote.origin.arc-state`; verify both sides equal the record and the
+          registry ref is absent on both, by a strict read; delete the completion marker, then the rest of the hold.
+        - Build `test-first` (one behavior at a time):
+            - Run before publication, with the import stopped at `import.publish`, the restore returns every local ref,
+              removes the directories, unsets the designation, and deletes the hold
+            - Run after publication, it does the same on both sides and lifts the guard
+            - Stopped after each step and run again, it finishes
+
+### `[ ]` **2.4 Hold, import, and restore round trip** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds over a real import.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Test fixtures.
+
+    - Over Task 2.1.b's baseline, with a grooming claim in the configured identity's ref: `check` with a supplied
+      listing, then the save, the designation, and the import with publication, then `restore`, checking every recorded
+      ref on both sides, the store directories, the designation, the guard, and the hold.
+    - Repeat with the restore stopped after each step and re-run.
+    - Run `arc check segment` and record the scenario and its result.
+
+## **Phase 3:** Checkouts, the lock step, and the rehearsal copy
+
+_Purpose:_ the check's checkout conditions with the models they read, the lock step, and the copy driver, so the
+complete check can run over a copy of this repository at the segment's close.
+
+_Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run over a copy of this repository.
+
+### `[ ]` **3.1 Marked checkouts and live branches — § 1.1, § 1.3**
+
+- _Goal:_ The family classifies every registered checkout as marked or names its kind, and derives the live work units
+  and live branches from the same composition call the import makes.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
+
+    - `[ ]` **3.1.a Marked checkouts**
+        - Marked: a linked checkout whose marker's ownership decodes as `current` (`decodeWorktreeMarkerOwnership`),
+          whose subject is a work unit with no provisioning or a transient claim whose provisioning is `ready`, and
+          which carries no husk stamp (`decodeWorktreeHuskStamp`). Every other linked checkout takes one kind: no marker
+          (naming its path, machinery and hand-made checkouts alike), a branch subject, a partial Errand,
+          `manual-only`, `pending`, a malformed marker, or a missing folder; a husk-stamped marker goes to C4.
+        - Build `test-first` (one behavior at a time):
+            - A work-unit checkout, a hand-made checkout that ran `arc start`, and a ready Errand checkout are marked
+            - Each other kind is classified as that kind
+            - A husk-stamped marker is classified for C4, not C2
+
+    - `[ ]` **3.1.b Live work units and live branches**
+        - Take the composition from `composedMetas` over the ports the import's source binding builds
+          (`runStoreMigrate`, `lib/store/create.ts`), reading Task 1.1's provenance field and, for a live unit with
+          none, the branches its stale-location warnings name in `qualityFacts.bySlug`, at their local and fetched tips;
+          a unit is live when its selected record's location is not `completed`, and abandoned and cut units are absent.
+        - Read open, paused, and awaiting-merge Errands from every identity's local ref and those under
+          `refs/arc-window/origin/`, with Task 2.2.a's reader.
+        - Build `test-first` (one behavior at a time):
+            - A unit merged but not archived is live, and a completed one is not
+            - A unit present only through a leftover branch's active meta is live, as the import reads it
+            - Live branches are those a registered checkout holds, those on which the composition finds a copy of a live
+              unit's meta, the branches an all-stale unit's warnings name among them, and live Errands' branches
+        - The record lists each live branch with its local and fetched tips and why it is live.
+
+### `[ ]` **3.2 The personal and review-gate digests — § 4.2**
+
+- _Goal:_ Each worktree's personal digest and the review gate's digest change exactly when what the import would read
+  changes, computed from the import's own acquisition so the two cannot drift.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Digests.
+
+    - `[ ]` **3.2.a The personal digest**
+        - Computed from one `readImportPersonalDisk` acquisition, its import source bound, split per worktree by
+          physical path: each file's path and content in sorted path order, and each recorded link's path.
+        - Build `test-first` (one behavior at a time):
+            - A real `runUserSave` leaves every digest unchanged
+            - An edited personal file and a link made after the check each change their worktree's digest
+
+    - `[ ]` **3.2.b The review-gate digest**
+        - Computed from `readImportReviewGate`'s read, without `arc/review-gate/identity/repository-identity.json`;
+          a read that adds a notice stops rather than digesting as empty.
+        - Build `test-first` (one behavior at a time):
+            - A review record written after the check changes it
+            - Minting the repository identity file leaves it unchanged
+            - An unreadable review gate stops
+        - The record holds each worktree's personal digest and the review gate's digest.
+
+### `[ ]` **3.3 The lock step — § 8, C3**
+
+- _Goal:_ After `lock`, every marked linked checkout carries a Git worktree lock, so C3 passes, while existing locks and
+  every other checkout are untouched.
+
+    - Select the marked linked checkouts whose registration carries no lock, as C3 reads them, then lock each through
+      `lockSpawnedCheckout` (`lib/git/worktree-removal.ts`), which uses `PROJECTION_LOCK_REASON`. Its `locked` result
+      also covers a checkout already locked with that reason, so the report comes from the selection. A `failed` result
+      is reported with the checkout and its detail while the rest are still locked, and `lock` still exits zero, since
+      it refuses nothing; C3 refuses that checkout, and running `lock` again retries it.
+    - Build `test-first` (one behavior at a time):
+        - C3 refuses an unlocked marked checkout, naming it, and passes after `lock`
+        - `lock` locks each unlocked marked checkout and reports each one, and none it did not lock
+        - An existing lock and its reason are left alone, and unmarked checkouts stay unlocked
+        - A checkout whose lock fails is reported with its detail, the others are still locked, and C3 refuses it
+
+### `[ ]` **3.4 Checkout refusals — C1, C2, C4, C5, C6**
+
+- _Goal:_ The check refuses each checkout condition of § 2.2 exactly, naming the checkout, branch, stash entry, or
+  `arc` executable concerned with its remedy, and passes once the remedy is applied.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
+
+    - `[ ]` **3.4.a C1 — dirty, off its upstream, a personal link, or tracked state stashed**
+        - Build `test-first` (one behavior at a time):
+            - A dirty checkout refuses, untracked files included, as do one ahead, behind, detached, or without an
+              upstream
+            - An ignored file under the tracked-state paths refuses
+            - A personal link refuses, a nested one included
+            - A stash entry changing a file under the tracked-state paths refuses in its index, working-tree, and
+              untracked parts, named by position and message
+
+    - `[ ]` **3.4.b C2 and C4 — unmarked, ended, husked, or unresolved checkouts**
+        - C4 reads the roster `arc status` shows, `readStatusCheckoutRoster` (`handlers/status/checkout-roster.ts`), at
+          the primary as the configured identity; an Errand marker must match a record in some identity's local or
+          fetched ref by slug and claim.
+        - Build `test-first` (one behavior at a time):
+            - Each unmarked kind refuses under C2 with its remedy, a locked missing folder's unlock before its prune
+              included
+            - A checkout the roster derives as `retired` or `unresolved-checkout` refuses under C4, as do a husk-stamped
+              marker and an Errand marker no record holds
+
+    - `[ ]` **3.4.c C5 — a staged decomposition cut**
+        - Build `test-first` (one behavior at a time):
+            - A local or fetched decomposition-candidate branch (`isDecomposeCandidateBranch`, given the short name)
+              whose tip `main` does not contain refuses, and one `main` contains passes
+            - An entry under `<commonDir>/arc/decompose-worktrees/` refuses
+
+    - `[ ]` **3.4.d C6 — a checkout without the seals**
+        - The anchor is the commit on `main`'s first-parent history that added
+          `packages/arc-framework/src/scripts/cutover-window/check.ts`. A checkout with no
+          `packages/arc-framework/dist/cli.js` has no built CLI; one with it is judged by `checkDevBuildStaleness`.
+        - C6 takes the `PATH` it judges as an input, the process's own by default, and resolves every `arc` on it, not
+          only the first; the checkout it runs from is the one holding `check.ts`. Task 2.1.b's baseline supplies one.
+        - Build `test-first` (one behavior at a time):
+            - The anchor derives from `main`'s history, and a checkout whose `HEAD` does not descend from it refuses
+            - A supplied anchor is accepted where the repository has no host and refused anywhere else
+            - A built CLI stale against its source refuses, and an absent one passes
+            - An `arc` on `PATH` resolving outside every registered checkout and the checkout C6 runs from refuses, even
+              behind an earlier `arc` that passes
+            - The `arc` link in the running checkout's `node_modules/.bin` passes
+
+### `[ ]` **3.5 The copy driver and copy safety — § 9.1**
+
+- _Goal:_ `copy` produces a full copy of this machine's repository with its mirror, neither able to reach the host or a
+  live checkout, leaves the live repository untouched, and stops before any `arc` command runs in a copy that fails an
+  assertion.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Copy.
+
+    - `[ ]` **3.5.a The copy**
+        - Take a destination outside every live checkout; copy the primary with its Git directory and every registered
+          linked checkout; create the mirror as a bare mirror clone of `origin`; rewrite every remote URL and push URL
+          to the mirror; repair each registration in the copy (`git worktree repair`).
+        - Build `test-first` (one behavior at a time):
+            - The live repository's registrations and each live checkout's `.git` file are byte-identical after `copy`
+            - Every copied registration names its copied checkout
+
+    - `[ ]` **3.5.b Copy safety**
+        - Build `test-first` (one behavior at a time), each violation below stopping the stage:
+            - A copy meeting every assertion passes, its discovery read answering none
+            - An effective remote URL or push URL other than the mirror
+            - A registration or a copied checkout's `.git` file naming a path outside the copy
+            - A `storage.backing_repository` naming a repository
+            - A copy with a host, or one from which `gh` finds a repository, read through the host port's discovery
+              read
+            - A copied Errand awaiting its merge
+
+## **Phase 4:** Tracked state and the host
+
+_Purpose:_ the read map and read rule, and the conditions over tracked state, copies, pull requests, Errand records,
+and the host, completing the check and its record.
+
+_Exit criterion:_ on a copy of this repository taken by `copy`, with a stand-in flip branch, `lock` then `check` with a
+supplied listing and anchor evaluate all thirteen conditions, each refusal naming its subject and remedy, and none
+failing for a reason outside § 2.2.
+
+### `[ ]` **4.1 The read map and the read rule — § 1.1**
+
+- _Goal:_ For any path under the tracked-state paths at `main`'s `HEAD` or a live branch's tip, the family names its
+  record or none, the record's unit, its read revision, and the read copy's ref, and whether its content there passes
+  the read rule, finding records only through the in-repo store's own discovery.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Read map.
+
+    - `[ ]` **4.1.a The read map**
+        - At each revision compared, run the store's discovery (`heldMetaSources` at that revision, then `recordPath`,
+          `companionNames`, and `internalReferences`) and map each path to its record; find a path absent there at the
+          comparison bases. A live unit reads at `composedMetaSource`'s copy; a parked unit at the branch tip its pointer
+          names (`readImportParkedSources`), or nowhere when that tip cannot be resolved; its pointer and every other
+          record at `main`'s `HEAD`; a stale copy is never a read copy.
+        - `account` (Task 5.3) reuses this map.
+        - Build `test-first` (one behavior at a time):
+            - A unit's meta, draft, spec, task list, notes, and `<word>-<slug>.md` companions map to its records
+            - Candidate and `.boundary.json` records map to their unit's records
+            - A transition record under `.arc/system/.internal/transitions/` maps to its lineage record
+            - A parked unit's pointer reads at `main`'s `HEAD` and its meta at its branch tip
+            - A stale copy is never a read copy
+            - A file whose path names no record reads at `main`'s `HEAD`
+            - A path deleted at the revision maps through its comparison base
+
+    - `[ ]` **4.1.b The read rule**
+        - A path passes when its content, absence included, equals its content at its read revision, at the merge base
+          of the revision and its read revision, or, at a branch tip, at the tip's merge base with `main`'s `HEAD`;
+          where there are several merge bases, any one of them; `.arc/backlog/ROADMAP.md` is exempt; a parked unit's
+          pointer passes at a branch tip where it is absent both there and at the tip's merge base with the branch the
+          pointer names.
+        - Build `test-first` (one behavior at a time):
+            - Content equal to the read revision's or to either merge base's passes, and other content fails
+            - Absence is compared as content
+            - With several merge bases, equality with any one passes
+            - `.arc/backlog/ROADMAP.md` passes whatever its content
+
+### `[ ]` **4.2 Tracked state the import would not read — C7**
+
+- _Goal:_ C7 refuses every tracked-state change the import would lose, at `main`'s `HEAD` and every live branch's local
+  and fetched tips, the flip's included, and passes every change a branch only inherited, naming the revision, the
+  work unit where one applies, and each path.
+
+    - Build each parked unit as the repository builds one: a stub on `main`, graduated on its branch, then parked.
+    - Build `test-first` (one behavior at a time):
+        - A branch that changes a work unit's records without being its read copy refuses
+        - A branch that only deletes another unit's record refuses
+        - A branch carrying a stale copy that changes that unit's records refuses
+        - A stale copy that changes its unit's records refuses where it is that unit's only branch copy, the unit merged
+          to `main` and its own branch gone
+        - A live unit's record `main` changed after its read copy forked refuses
+        - A live unit's file `main` deleted while its read copy still holds it refuses
+        - A branch cut from `main` after a park that deletes the pointer refuses
+        - A parked unit whose branch tip cannot be resolved refuses
+        - Each refused case passes once its named remedy is applied
+        - A stale-copy branch that only inherits its unit's changes passes
+        - A branch that merged `main` after that change on `main` passes
+        - A resumed unit's pointer deleted on `main` passes
+        - A unit parked after its branch forked passes at `main`, at its branch's local and fetched tips, and at a
+          branch forked from that branch after graduation
+        - A `main` edit to that unit's backlog draft after the fork refuses, then passes once `main` is merged into the
+          parked branch keeping the branch's side at the pointer path and the meta
+
+### `[ ]` **4.3 Diverging copies and the flip's base — C8, C10**
+
+- _Goal:_ No live work unit has a copy the import would pass over that diverges from the one it reads, and `main` is a
+  proper ancestor of the flip's branch.
+
+    - `[ ]` **4.3.a C8 — a diverging copy**
+        - Compare every non-stale copy in the provenance field with the composed record's selected copy, by strict
+          ancestry; leave parked units to the import (`readImportParkedSources`, `resolveImportBranchTip`).
+        - Build `test-first` (one behavior at a time):
+            - A passed-over copy whose commit is not an ancestor of the selected copy refuses, naming the unit and both
+              refs
+            - A branch's local and fetched copies that both moved refuse, though the composition withholds
+              `candidate-shadowed` for them
+            - The refusal clears once the passed-over copy is merged into the selected one and pushed
+
+    - `[ ]` **4.3.b C10 — `main` not a proper ancestor of the flip's branch**
+        - Build `test-first` (one behavior at a time):
+            - A flip branch equal to `main` refuses, and passes once it takes a commit
+            - A flip branch `main` is not an ancestor of refuses, and passes once `main` is merged into it
+
+### `[ ]` **4.4 Pull requests, Errand records, and the host — C11, C12, C13**
+
+- _Goal:_ The check refuses anything that could move `main` or a live branch on the host unseen, any Errand record or
+  identity-ref mismatch the import would carry across or strand, and an importing checkout off the host, and its
+  record is complete.
+
+    - `[ ]` **4.4.a C11 — open pull requests, auto-merge, and merge settings**
+        - Build `test-first` (one behavior at a time):
+            - An open pull request into `main` other than the flip's refuses, as does one into a live branch, and each
+              passes once closed
+            - Auto-merge armed on the flip's own pull request refuses, and passes once disarmed
+            - A host that allows squash or rebase merging refuses
+            - A supplied listing refuses where a remote URL names a host, and an unreadable host refuses
+
+    - `[ ]` **4.4.b C12 — Errand records and identity refs**
+        - Read `origin`'s records from the refs fetched under `refs/arc-window/origin/`; an Errand record is one whose
+          `transientKind` is `work-item/record`, since housekeep routing records also carry `kind: "errand"`; a snapshot
+          that reads errored or with diagnostics refuses; the configured identity is the ports' `identity`.
+        - Build `test-first` (one behavior at a time):
+            - An open, paused, or awaiting-merge Errand's record refuses, locally or on `origin`, and passes once the
+              Errand is closed or abandoned, while grooming and housekeep claims pass
+            - An identity ref whose local and `origin` tips differ refuses, as does one only on `origin`, each passing
+              once fetched or pushed into agreement, and one held only locally passes
+            - A claim held by an identity other than the configured one refuses on either side
+
+    - `[ ]` **4.4.c C13 — off the host**
+        - Read every branch's host tip with one `git ls-remote origin 'refs/heads/*'` through the host port.
+        - Build `test-first` (one behavior at a time):
+            - An importing checkout that is not the primary, or not on `main`, refuses
+            - `main`'s host tip differing from its `HEAD` refuses, and passes once `main` is pulled
+            - A live branch whose fetched tip differs from its tip on the host refuses, and passes once fetched again
+
+    - `[ ]` **4.4.d The complete check and record**
+        - The check evaluates all thirteen conditions, and its record holds everything § 4.1 lists, the live branches'
+          and `main`'s host tips among them.
+        - Build `test-first` (one behavior at a time):
+            - Every field § 4.1 lists round-trips through the record
+            - One run with several failing conditions reports every one of them
+        - Task 2.1.b's baseline passes the full check, and Task 2.4's round trip runs over it.
+
+### `[ ]` **4.5 The check over a copy of this repository** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds on a copy of this repository.
+
+    - Take a copy with `copy`, then create the stand-in flip branch from the copy's `main` with one commit that changes
+      no file under the tracked-state paths, pushed to the mirror, and a supplied listing holding its pull request as
+      the flip's.
+    - From this unit's source, run `lock` and `check` with `--repo` at the copy's primary, the supplied listing, and the
+      sealing guard's merge (`a61e24716a`) as the anchor, since this unit has not landed.
+    - Confirm every refusal names its subject and remedy, and that no condition fails for a reason outside § 2.2.
+    - Run `arc check segment` and record the scenario and its result; raw output stays outside the repository.
+
+## **Phase 5:** After the import, before the merge
+
+_Purpose:_ the comparisons the window runs between the import and the merge.
+
+_Mode:_ `layer` through Phase 6 — closes on every comparison the window runs after the import settled.
+
+### `[ ]` **5.1 The recompute — § 5.1**
+
+- _Goal:_ After the import, `recompute` stops on any change since the record to an import input or to a place a
+  recorded branch could move, naming it with both values, and passes on none.
+
+    - Read host tips and identity refs with one `git ls-remote origin 'refs/heads/*' 'refs/arc/user/*/errands'`, and
+      judge the landed transient records with Task 2.2's comparison. Expose the comparisons as one function taking an
+      exemption for the flip, which `last-read` supplies.
+    - Build `test-first` (one behavior at a time):
+        - A changed worktree set, worktree `HEAD`, personal digest, or review-gate digest stops it
+        - A dirty working tree, an ignored file under the tracked-state paths, or a stash entry changing one stops it
+        - A changed local, fetched, or host branch tip stops it, as do a new or deleted local or fetched branch and a
+          moved host `main`
+        - A landed `work-item/record`, or a landed claim the held identity refs do not give, stops it
+        - An identity ref remaining locally or on `origin` stops it
+        - With none of these, it passes
+
+### `[ ]` **5.2 The last read — § 5.2**
+
+- _Goal:_ As the last act before the merge, `last-read` admits only the recorded flip head plus exactly one commit that
+  only deletes files under the tracked-state paths, on the flip's branch, in its checkout, and on the host, with every
+  other recompute comparison passing and no auto-merge armed.
+
+- _Approach:_ the flip's local, fetched, and host tips and its checkout's `HEAD` are exempt from equality with the
+  record; instead they must be one commit whose only parent is the recorded head and whose diff holds only deletions
+  under the tracked-state paths. Only the sides the record holds are compared: with no checkout holding the flip, or
+  no local flip branch, at the check, that side is left out. Every other comparison runs unchanged.
+
+    - Build `test-first` (one behavior at a time):
+        - The flip's head plus one deletion-only commit, on its branch, in its checkout, and on the host, passes
+        - A host tip still at the recorded head stops it, as do a branch and a checkout that disagree
+        - With no checkout holding the flip at the check, its other sides alone decide; likewise with no local flip
+          branch
+        - A merge commit, a second commit, a modification, an addition, or a deletion outside the tracked-state paths
+          stops it
+        - A moved host `main` stops it
+        - Auto-merge armed on the flip's pull request stops it
+        - A supplied listing where a remote URL names a host refuses before any host read, and an unreadable host
+          refuses
+
+### `[ ]` **5.3 The accounting case — § 10.2**
+
+- _Goal:_ `account` places every tracked file under the tracked-state paths at `main`'s `HEAD`, and every live unit's
+  records at a read copy that is not `main`'s, as imported, superseded, deliberately left, or reported, finding source
+  paths only through the in-repo store's own discovery, and exits non-zero on any reported file.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Accounting and chain.
+
+    - Take records and read revisions from Task 4.1's read map, adding the cohort listing (`cohortPaths`) and the
+      project inbox (`recordPath` over the `project-inbox/inbox` reference); a record is held when a read of the landed
+      store returns it.
+    - Build `test-first` (one behavior at a time):
+        - A file at its read revision whose record the landed store holds counts as imported, a parked unit's pointer
+          with its meta
+        - A rename transition counts as imported when its landed successor carries the origin's name among its former
+          names
+        - An abandon or decompose transition counts as imported when the landed registry holds its lineage record
+        - A file that discovery claims but whose record the landed store lacks counts as reported
+        - A file unchanged since the fork whose read copy is a branch's counts as superseded, listed with its read copy
+        - `.arc/backlog/ROADMAP.md` and `.arc/completed/README.md` count as deliberately left, each with its reason
+        - A tracked file no record claims, and a file failing the read rule, count as reported and exit non-zero
+        - A closed cohort's folder counts as imported
+
+### `[ ]` **5.4 The chain comparison — § 10.3**
+
+- _Goal:_ `chain` shows every Candidate record's supersession chain read through today's reader over the repository and
+  over the imported store agreeing link for link, and stops on any difference the import's report does not list.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Accounting and chain for the walk's inputs on each side.
+
+    - Read each chain twice with `readRepositoryCandidateSupersessionChain`: over the repository at the read revision
+      Task 4.1's map gives, and over the store from `createRefStore` with each owner passed as its `workItem`; read the
+      current record and each link's record on both sides, and compare every field but `recordRevision`, each record as
+      canonical parsed JSON.
+    - Build `test-first` (one behavior at a time):
+        - Equal chains and equal current records pass
+        - A version listed in the report's `reviewMapping`, and a chain listed in `brokenChains`, are listed and stop
+          nothing
+        - A store walk that refuses where the repository walk passes is a difference and stops it, as does any other
+          unlisted difference
+        - A live unit's replayed versions arrive mapped with their transitions whole, and a unit no longer live
+          arrives as found
+
+## **Phase 6:** After the merge
+
+_Purpose:_ the comparisons, confirmation, and close the window runs once no abort remains.
+
+_Exit criterion:_ `compare`, `confirm`, and `close` hold every late change in a marked range until its confirmation, and
+`close` deletes the whole hold only once every refusal clears.
+
+### `[ ]` **6.1 The after-merge comparisons — § 5.3**
+
+- _Goal:_ For each named branch and checkout after the merge, `compare` marks what it found, records moved, gone, and
+  unrecorded ranges, and reports a changed digest, never stopping.
+
+    - `compare` takes one branch or one checkout; a branch the record does not hold is compared as unrecorded.
+    - Build `test-first` (one behavior at a time):
+        - Every recorded side of a live branch other than `main` and the flip's is marked under
+          `refs/arc-window/compared/`
+        - A host tip whose commit is not local is fetched, and its moved range runs from the recorded tip to the mark
+        - A deleted recorded side is marked under `refs/arc-window/gone/` at its recorded tip and reported as gone
+        - A branch missing from the record that tracks state is marked and reported from its merge base with `main`'s
+          recorded tip
+        - A changed personal digest is reported, and nothing stops
+        - Running it again for a branch replaces its marks
+
+### `[ ]` **6.2 Confirmation — § 5.4**
+
+- _Goal:_ `confirm <branch>` records the Owner's confirmation at exactly each side's current mark and refuses anything
+  else.
+
+    - Build `test-first` (one behavior at a time):
+        - A confirmation is written under `refs/arc-window/confirmed/` at the side's current mark, for a moved, gone, or
+          unrecorded range
+        - An unknown branch, and a branch with no range, refuse
+        - A tip that differs from the side's current mark refuses
+
+### `[ ]` **6.3 The close — § 5.4**
+
+- _Goal:_ `close` lists every mark and range, then deletes the whole hold only once the merged-flip test answers merged
+  and every refusal clears.
+
+    - Build `test-first` (one behavior at a time):
+        - It refuses before the merge, and recognizes a host merge whose commit is not local
+        - A registered checkout whose `HEAD` tree tracks a file under the tracked-state paths refuses
+        - An unmarked recorded live branch refuses, as does an unmarked branch missing from the record that tracks
+          state
+        - An unconfirmed range refuses, as does a range moved after its confirmation
+        - Once all clear, it deletes the completion marker first and then the whole hold
+        - Run again over the incomplete hold a stopped close leaves, it deletes what remains and tests nothing else
+
+## **Phase 7:** Stage 1
+
+_Purpose:_ the rehearsal of the window's mechanics on full copies of this repository, at the head that lands.
+
+_Mode:_ `slice` — closes on Stage 1 run clean at the head that lands.
+
+_Exit criterion:_ Stage 1's first and second runs pass every step at the head that lands, each planted condition
+refusing and then passing after its remedy, with the import's cost recorded from both runs.
+
+### `[ ]` **7.1 The rehearsal driver — § 9.2**
+
+- _Goal:_ `rehearse` runs the ten steps of § 9.2 on a copy, reporting each step's outcome and stopping at the first
+  unexpected one, writing nothing outside the copy and its mirror.
+
+- _Note:_ See `notes-cutover-window-tooling.md` § Stage 1 driver.
+
+    - `[ ]` **7.1.a Steps 1 to 4 — preparing the copy**
+        - Fetch from the mirror. Make every commit, merge, and push in a scratch clone of the mirror, which has no hooks
+          installed, plants included, except a plant that must leave a copied checkout's `HEAD` or a branch's local copy
+          apart from the mirror, written in the copy with `git commit-tree` and `git update-ref`. First apply C1's
+          remedy: drop each copied checkout's changes, untracked files included and ignored files kept, and push each
+          branch ahead of its upstream to the mirror, the scratch clone fetching it from the copy; then fetch. Then C7's
+          remedies (merge the copy's `main` into each failing read copy's branch, then return each still-failing path to
+          its merge-base content) and C6's merge of `main`, each pushed to the mirror. After each fetch, fast-forward
+          each copied checkout holding a changed branch to the mirror's tip and set every other changed branch's local
+          copy to it, except where a plant written in the copy holds it apart; remove `dist` from each copied linked
+          checkout whose source moved or whose built CLI C6 judges stale, and rebuild the primary copy when stale (see
+          `notes-cutover-window-tooling.md` § Stage 1 driver).
+        - Conclude a merge whose only conflict is `.arc/backlog/ROADMAP.md` with `applyRoadmapConflictAutoRemedy` and a
+          commit, resolve a parked unit's branch as C7's remedy does, and stop on any other conflict, naming the branch.
+        - Push each copied Errand's branch to the mirror and abandon it from its own copied checkout; drop each stash
+          entry C1 refuses; create the stand-in flip branch afresh from the copy's `main` plus one commit that changes
+          no file under the tracked-state paths, pushed to the mirror, with a supplied listing holding its pull request
+          as the flip's.
+        - When the copied identity's `USER-INBOX.md` holds no entry, plant one before step 5, whose check records
+          personal digests, since step 8 needs an entry to remove and a removal over an absent entry writes nothing.
+          Write `### **<title>**` under `## Errand`, adding that section when it is missing, since only an H3 bold title
+          under `## Errand` or `## Work Unit` counts as an entry, and confirm through `listInboxEntryTitles`
+          (`lib/user-sync/inbox-writer.ts`) that the title reads back.
+
+    - `[ ]` **7.1.b Steps 5 to 10 — the window's mechanics**
+        - Run `lock` and `check` with `--repo` at the copy, the supplied listing, the anchor, and the `PATH` C6 judges,
+          a driver parameter defaulting to the process's own; run each ARC command through the launcher the driver takes
+          as a parameter, by default that copied checkout's own build, or the primary copy's with that checkout as its
+          working directory where it has none, under a `PATH` with no other `arc`: `arc user save` in every copied
+          checkout, then `arc store remote origin push`.
+        - Run `arc store migrate --import --json` under a 6 GB address-space cap through a cap wrapper the driver takes
+          as a parameter, Node's heap ceiling set below it, keeping its report and recording its wall time and peak
+          resident memory.
+        - In every copied checkout with its own launcher (its own built CLI by default, or the one the driver is given
+          for it), `arc user inbox-remove --inbox-title-file <file>`, naming an entry the copied identity's
+          `USER-INBOX.md` holds by its inner bold title read from that file, reaches the in-repo store's `write` and
+          refuses with the store-imported refusal, while `git status --porcelain`, `git for-each-ref`, and the inbox
+          file stay byte-identical; report each checkout without one; check the identity refs are gone from the copy and
+          the mirror with the kept tips dropped; then run `account`, `chain`, and `recompute`.
+
+    - `[ ]` **7.1.c Run plans and the driver's test**
+        - A run plan names each plant's point within a step, the C3 unlock between `lock` and `check` among them; its
+          route, through the scratch clone and the sync or, where it must stay apart from the mirror, written in the
+          copy; how its removal reaches the copy, any reset applied on the mirror and in the copy, a checkout holding
+          the branch included; and the exact set of (condition, subject) pairs each `check` run expects, collateral
+          pairs listed.
+        - The test supplies the package's built CLI as every copied checkout's launcher, since a small temporary copy
+          holds no package or build, and a `PATH` for `check` with no other `arc`; its checkouts have no `dist`, so the
+          build rule changes nothing. It builds its copy with `copy`, the host port replaced by one whose discovery read
+          answers none, so no test reads the host. Its identity's inbox starts with no file, so the run exercises the
+          driver's plant, section included.
+        - Build `test-first` (one behavior at a time), in the end-to-end tier over a small temporary copy with no host,
+          as `__tests__/e2e/store-import-errands.e2e.test.ts` runs the real import:
+            - A run whose steps all meet their expected outcomes passes
+            - Preparation leaves every copied checkout clean and at its upstream, and every branch the driver changed
+              equal locally and on the mirror
+            - The first unexpected outcome stops the run, naming its step
+            - A target outside the copy refuses
+
+### `[ ]` **7.2 The first run — § 9.3**
+
+- _Goal:_ Stage 1's first run, at the head that lands, shows each planted condition refusing and passing after its
+  remedy, store-backed case 1 refusing with nothing landed, the import publishing to the mirror, the accounting case
+  reporting exactly the backfill's files, and the abort restoring the copy and its mirror.
+
+- _Note:_ the host's memory gate must report runs allowed; when it reports them blocked, stop and ask. Raw evidence
+  stays in the work unit's runs folder outside the repository; the completion note states each conclusion and its
+  commit. Any later change to the tools runs this again. See `notes-cutover-window-tooling.md` § Stage 1 driver.
+
+    - Copy with the pre-meta backfill (`68bddbb526`) reverted on the copy's `main`, pushed to the mirror.
+    - At step 5, plant and remedy the five conditions of § 9.3: a shared tracked-state change, an open pull request, an
+      Errand, an unlocked marked checkout, and a diverging copy of an unheld live unit's branch, its mirror side fetched
+      before the check. Every live unit's branch is held on today's repository, so the plant makes one: a new unit's
+      meta committed on a new branch in the scratch clone, pushed to the mirror with its local copy set, then moved on
+      both sides, the local side with `git commit-tree` and `git update-ref` and left in place by the sync after a
+      fetch; Task 7.1.c's run plan lists any collateral pairs it causes.
+    - Between steps 6 and 7, run store-backed case 1: a schema-valid `<A>.boundary.json` whose work unit names unit B,
+      committed on live unit A's branch in the scratch clone and reaching A's holding checkout by the sync, since that
+      checkout's local tip is A's read copy; expect the import to refuse with no `refs/arc/` ref differing from the
+      hold, then reset the branch to its recorded tip on the mirror and in the copy, A's checkout included.
+    - After step 7, confirm the store's refs reached the mirror. At step 10, expect the accounting case to report
+      exactly the twenty pre-meta folders' files and `.arc/completed/2026-q1/completed-atomic-2026-q1.md`, listing
+      `main`'s superseded copies apart.
+    - After step 10, expect `close` to refuse; plant a commit in a copied checkout with `git commit-tree` and
+      `git update-ref`, expect `recompute` to refuse naming it, run `restore`, and verify every recorded ref back on the
+      copy and the mirror, every other `refs/arc/*` ref and unrecorded tracking ref gone, the registry ref absent in every
+      copied checkout, and the hold deleted; then drop the planted commit.
+
+### `[ ]` **7.3 The second run — § 9.4**
+
+- _Goal:_ Stage 1's second run, at the head that lands, shows the aborted copy importing again with nothing unplaced,
+  the last read guarding the merge, the restore refusing a merged flip, and the after-merge comparisons and close
+  holding late changes.
+
+- _Note:_ the import runs again under Task 7.2's memory-gate and evidence rules.
+
+    - Use the aborted copy with the backfill restored on its `main`, pushed to the mirror; steps 1 to 10 pass.
+    - Add a stand-in deletion commit and push it to the mirror; a commit planted on the mirror's `main` makes
+      `last-read` refuse, and it passes once that `main` is put back.
+    - Merge the stand-in branch into the mirror's `main` with `git merge --no-ff` from a separate clone; `restore`
+      refuses, naming the merge.
+    - Run `compare` for every live branch and copied checkout, with a commit planted on a live branch and a personal
+      file edited in a copied checkout; then `close` refuses, naming each checkout that still tracks state and listing
+      the range unconfirmed.
+
+### `[ ]` **7.4 Stage 1 at the landing head** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds at the head that lands.
+
+    - Confirm both runs ran at the current head, or run them again.
+    - Record the import's wall time and peak resident memory from both runs.
+    - Run `arc check segment` and record the scenario and its result.
+
+## **Phase 8:** Verification
+
+### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` Each quiesce refusal, C1 to C13, has a test showing it refuse with its subject named, its remedy applied, and
+  the check pass, covering every case spec Success Criterion 1 enumerates; a refusing run leaves nothing under
+  `refs/arc-window/`, and a run killed while recording leaves no completion marker.
+
+- `[ ]` `recompute`, `last-read`, `compare`, `confirm`, and `close` have tests for every stop, mark, report, and refusal
+  spec Success Criterion 2 enumerates, and `close` deletes the whole hold once all clear.
+
+- `[ ]` `restore` has tests before and after publication against a local bare `origin` for every return, refusal,
+  acceptance, and restart spec Success Criterion 3 enumerates.
+
+- `[ ]` `lock` locks each unlocked marked checkout with the projection's reason and touches no other, and each
+  copy-safety assertion stops the stage on a copy that violates it.
+
+- `[ ]` `runUserLoad`, `arc user load`, and the user-sync load direction each refuse once the registry ref exists,
+  writing no file and exiting non-zero with the refusal's condition and remedy, and load once it is gone.
+
+- `[ ]` Stage 1's first run is clean at the head that lands, with every outcome spec Success Criterion 6 lists observed
+  (Task 7.2).
+
+- `[ ]` Stage 1's second run is clean at the head that lands, with every outcome spec Success Criterion 7 lists
+  observed (Task 7.3).
+
+- `[ ]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
+
+- `[ ]` The family lands inert: no package `files` entry, recipe entry, or bundle metafile input names it; no existing
+  caller reads the provenance field and no existing constructor of the composition's result changed; and the full
+  unit, integration, and end-to-end tiers pass with the load guard present.
+
+- `[ ]` From the import to the merge, every record the import took equals what the check recorded and the merged head
+  differs from the recorded flip head only by its deletion commit, proved by the comparison tests and by Stage 1's
+  first-run abort and second-run last read (Tasks 5.1, 5.2, 7.2, 7.3).
+
+- `[ ]` Between the check and the merge, `main` changes on the host only by the flip's merge and no live branch changes
+  there, proved by Stage 1's second-run last read and stand-in merge (Task 7.3).
+
+- `[ ]` No Errand record crosses the window, every claim crosses it or stops it, and an abort rewinds no record another
+  writer added unseen, proved by Stage 1's planted Errand and retirement check and by the restore's tests
+  (Tasks 2.3, 7.2).
+
+- `[ ]` No live work unit's copy is dropped in favor of one it diverges from, proved by Stage 1's planted diverging copy
+  (Task 7.2).
+
+- `[ ]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
+  is never deleted unseen, proved by Stage 1's second run (Task 7.3).
+
+- `[ ]` All quality gates pass (tests, linting, type checking)
+
+- `[ ]` Ready for integration

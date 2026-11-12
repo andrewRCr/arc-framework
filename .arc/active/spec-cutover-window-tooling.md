@@ -39,20 +39,22 @@ check's record (§ 5.1).
 
 ### The sealing guard
 
-Once `refs/arc/project/registry` exists, the sealing guard (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`,
-on `main` since `a61e24716a`) refuses every pre-flip in-repo, notes, and Errand-identity write with a recoverable
-store-imported refusal, while reads stay open. Every worktree on a machine shares one ref namespace, so the guard fires
-in every checkout the moment the import lands. Writers that bypass the store do not consult it — lifecycle's transition
-records (`writeTransitionRecord`, through `terminalTransitionWriter` in `handlers/lifecycle.ts`) and the old
-decomposition operation's writes — so the quiesce, which stops every session first, covers those. One notes command
-that writes the disk is not sealed today: `arc user load` (`runUserLoad`, `commands/user/save-load.ts`), which § 7 seals.
+Once `refs/arc/project/registry` exists, the sealing guard (`storeImported`, `lib/store/store-imported.ts`, on `main`
+since `a61e24716a`) refuses every pre-flip in-repo, notes, and Errand-identity write with a recoverable store-imported
+refusal, while reads stay open. The notes commands consult it through `refuseWriteIfStoreImported`, the in-repo store
+through `refuseIfImported` (`lib/store/in-repo/backend.ts`), and the Errand writers through `storeImportedHere`. Every
+worktree on a machine shares one ref namespace, so the guard fires in every checkout the moment the import lands.
+Writers that bypass the store do not consult it — lifecycle's transition records (`writeTransitionRecord`, through
+`terminalTransitionWriter` in `handlers/lifecycle.ts`) and the old decomposition operation's writes — so the quiesce,
+which stops every session first, covers those. One notes command that writes the disk is not sealed today:
+`arc user load` (`runUserLoad`, `commands/user/save-load.ts`), which § 7 seals.
 
 ### What this unit delivers
 
-A repository-only script family and its tests, one optional field on an in-repo composition result, and one guard call
-in `runUserLoad`. Nothing runs the scripts outside a rehearsal stage or the window. They run on `main`'s pre-flip build,
-so they land before the window. The window's order, the steps around these tools, and the second rehearsal stage are
-the flip's.
+A repository-only script family, its tests, and its lint exemption, one optional field on an in-repo composition result,
+and one guard call in `runUserLoad`. Nothing runs the scripts outside a rehearsal stage or the window. They run on
+`main`'s pre-flip build, so they land before the window. The window's order, the steps around these tools, and the
+second rehearsal stage are the flip's.
 
 ## Goals
 
@@ -118,8 +120,8 @@ _Editable in place until activation, then frozen; changes after that append: `Am
   window: C12 while its Errand's record remains, and C4 once it has retired.
 - **Live work unit:** a work unit in the in-repo lifecycle composition whose selected record is not archived,
   abandoned, or cut. A unit merged but not yet archived is live.
-- **Live branch:** a branch a registered checkout holds, a branch carrying a copy of a live work unit's meta in the
-  composition's provenance (§ 1.3), or an open, paused, or awaiting-merge Errand's branch. The flip's branch is one.
+- **Live branch:** a branch a registered checkout holds, a branch on which the composition finds a copy of a live work
+  unit's meta (§ 1.3), or an open, paused, or awaiting-merge Errand's branch. The flip's branch is one.
 - **The read map:** the revision at which the import reads each record under the tracked-state paths
   (`readImportSource`, `lib/store/ref/import/source.ts`):
     - a live work unit's records — its meta; its draft, spec, task list, and notes, each its own kind at the path the
@@ -192,13 +194,14 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 | `copy`      | Before each rehearsal stage                                                                   | A copy and its mirror outside every live checkout               | Stops on any failed copy-safety assertion |
 | `rehearse`  | Stage 1, and Stage 1's steps in Stage 2                                                       | The copy and its mirror only                                    | Stops at the first unexpected outcome     |
 
-Each operation prints a report and, with `--json`, one typed result that lists every failing subject, not only the
-first. A refusal or stop exits non-zero, and so does `account` or `chain` with a finding. Flag spelling and the result
-schemas' exact field names are implementation detail.
+Each operation acts on the checkout it is named, never on the process's working directory, so the tools at one head can
+run against a rehearsal copy whose `main` predates them. Each prints a report and, with `--json`, one typed result
+that lists every failing subject, not only the first. A refusal or stop exits non-zero, and so does `account` or
+`chain` with a finding. Flag spelling and the result schemas' exact field names are implementation detail.
 
 #### 1.3 The composition's provenance
 
-The check reads every copy of every live work unit from the in-repo lifecycle composition's provenance. The composition
+The check reads every copy of every live work unit from the in-repo lifecycle composition's result. The composition
 already computes it: `provenanceForGroup` (`lib/git/in-flight-derivation.ts`) records each copy's branch, ref, source,
 relation, and whether it was selected, on each in-flight entry. `ComposedLifecycleIndexResult`
 (`lib/work-unit/composed-lifecycle-index.ts`) does not carry it today. This unit adds one optional, read-only field to
@@ -207,6 +210,17 @@ the field, and because it is optional no existing constructor or test fixture ch
 like its siblings, so no output that serializes the result changes. The check takes the field from the same call the
 import makes (`composedMetas`, `lib/store/in-repo/meta.ts`), built over the same ports the import's source binding
 builds (`runStoreMigrate`, `lib/store/create.ts`), so local acquisition and the configured base match the import's.
+
+Provenance exists only for a unit the composition keeps an in-flight entry for, one with a copy that is not stale. A
+unit whose every branch copy is stale, such as one merged to `main` whose own branch is gone while branches cut later
+carry its meta, has none: `chooseWorkUnitCandidate` selects no copy, and `dedupeWorkUnitCandidates` records each copy as
+a `stale-location-dropped` or `stale-location-shadow` warning naming its branch and its unit, which the result already
+carries by slug (`qualityFacts`, `qualityFactsFor`). A live work unit's copies are therefore its provenance or, where it
+has none, the branches those warnings name for it, each read at its local and fetched tips where they exist. In-flight
+discovery skips `delivery/` and `review-projection/` branches (`isExcludedInFlightBranch`,
+`lib/git/in-flight-expansion.ts`), and the import with it, so neither source names them, and neither needs reading: each
+delivery member is an ancestor of the next, the last being its unit's branch (`deriveDeliveryMaterialization`,
+`lib/delivery/materialization.ts`; `lib/delivery/eligibility.ts`), and a review projection never carries `.arc/active/`.
 
 #### 1.4 Where the tools live
 
@@ -219,6 +233,14 @@ CLI bundles: the import reaches `src/scripts/review-gate/` (`lib/store/ref/impor
 - The built CLI bundles only what `src/cli.ts` reaches (`tsup.config.ts`'s single entry). Nothing it reaches imports the
   family, and the bundle's metafile names no input from `src/scripts/cutover-window/`.
 - The install recipe (`init-recipe.json`) names none of them.
+
+The family reads the import's and the in-repo store's own functions, so its digests, read map, and record mapping
+cannot drift from what the import reads. The repository's architecture lint keeps those implementations private to
+`lib/store/` (the `store-production` rule, `eslint/architecture-imports.ts`) and ratchets three related uses, the raw
+composition, layout surface names, and the layout resolver, at zero for any new file. A file takes the rules of every
+row in `packages/arc-framework/eslint.config.js` that covers it, so the exemption lists the family's folder in the
+`ignores` of each row carrying one of those four rules; `store-production` moves to a row of its own, apart from
+`store-reference`, which the folder keeps. These entries are repository configuration and ship nothing.
 
 At the window they run from the importing checkout's source at `main`'s pre-flip head. After the merge, `compare`,
 `confirm`, and `close` read only Git and disk, so they run from either build.
@@ -278,9 +300,9 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   a registration whose folder is missing. The refusal names the checkout and its kind. Remedies:
     - copy out anything wanted, then remove the worktree (`git worktree remove`);
     - where the checkout holds a branch, make it clean, apply any C7 remedy the same run names for that branch, push it,
-      and then remove the worktree. The branch survives. If it carries a live work unit's meta in provenance, it stays
-      live, and the window's branch step treats it as a branch no checkout holds. Otherwise it is no longer live and C7
-      no longer reads it, which is why C7's remedy comes first;
+      and then remove the worktree. The branch survives. If the composition finds a copy of a live work unit's meta on
+      it (§ 1.3), it stays live, and the window's branch step treats it as a branch no checkout holds. Otherwise it is
+      no longer live and C7 no longer reads it, which is why C7's remedy comes first;
     - for a missing folder, unlock the registration if it is locked (`git worktree unlock`), since `git worktree prune`
       skips locked entries, then prune it.
 
@@ -307,9 +329,12 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   self-hosting freshness check reads it (`checkDevBuildStaleness`, `lib/dev-check.ts`), or absent. A checkout with no
   built CLI runs no ARC command through its launcher, which only imports the built bundle
   (`packages/arc-framework/bin/arc.js`), but its Git hooks fall back to `arc` on `PATH` when the checkout has no
-  `node_modules/.bin/arc` (`.arc/system/.internal/githooks/pre-commit`). The check therefore also refuses while an `arc`
-  outside every registered checkout resolves on `PATH`. Remedies: merge `main` into the branch, then
-  `npm run build:fast` in that checkout; for an `arc` on `PATH`, uninstall it or take it off `PATH` for the window.
+  `node_modules/.bin/arc` (`.arc/system/.internal/githooks/pre-commit`), under the committing shell's `PATH` rather
+  than the check's. The check therefore resolves every `arc` on the `PATH` it is given, its own by default, not only the
+  first, and refuses one whose target lies outside every registered checkout and outside the checkout it runs from. Run
+  through `npm`, its own `PATH` begins with that checkout's `node_modules/.bin`, whose `arc` link passes without hiding
+  another further on. Remedies: merge `main` into the branch, then `npm run build:fast` in that checkout; for an `arc`
+  on `PATH`, uninstall it or take it off `PATH` for the window.
 - **C7 — Tracked state the import would not read.** At `main`'s `HEAD` and at each live branch's local and fetched tips,
   the flip's included, every path the read rule (§ 1.1) covers must pass it. A path that fails holds a change the
   import would lose:
@@ -336,11 +361,11 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   `resolveCallerComposedLifecycleIndex`). Its selection (`chooseWorkUnitCandidate`, `lib/git/in-flight-derivation.ts`)
   drops stale copies and orders the rest by source, relation, ancestry, lifecycle state, commit time, and finally branch
   name. So a passed-over copy that diverges loses its changes, and two copies of one branch that both moved, with equal
-  state and commit time, are decided by listing position. The check reads every copy from the provenance field (§ 1.3),
-  not from the composition's warnings, since `candidate-shadowed` is withheld for a stale copy and for a branch's local
-  and fetched copies (`isLocalRemoteMirror`). It compares each copy with the one the composed record selects
-  (`recordsBySlug`'s `selected`), the copy `composedMetaSource` reads. That differs from provenance's selected copy only
-  where the importing checkout's tree holds an active or terminal meta for the unit (`selectRecordCandidate`,
+  state and commit time, are decided by listing position. The check reads every non-stale copy from the provenance field
+  (§ 1.3), not from the composition's warnings, since `candidate-shadowed` is withheld for a stale copy and for a
+  branch's local and fetched copies (`isLocalRemoteMirror`). It compares each copy with the one the composed record
+  selects (`recordsBySlug`'s `selected`), the copy `composedMetaSource` reads. That differs from provenance's selected
+  copy only where the importing checkout's tree holds an active or terminal meta for the unit (`selectRecordCandidate`,
   `lib/status/project-view.ts`), as `main`'s does not. The check finds parked units as the import does
   (`readImportParkedSources`, `lib/store/ref/import/parked-source.ts`) and leaves them to the import. The import reads a
   parked unit from its branch tip rather than the composition, and refuses a diverged pair itself
@@ -387,8 +412,7 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
 - **C11 — An open pull request into `main` or a live branch other than the flip's, auto-merge on the flip's, or a host
   that squashes or rebases.** The repository allows auto-merge, the grooming and planning lanes arm it, an Errand left
   awaiting its merge keeps its pull request open, and `main`'s ruleset requires only the `ci-ok` check, so any open pull
-  request could merge with no session running. One whose base is a live branch, such as a stacked delivery member's
-  (`DeliveryNativeStackMember`'s `baseRef`, `lib/delivery/native-stack.ts`), would move that branch on the host. The
+  request could merge with no session running. One whose base is a live branch would move that branch on the host. The
   flip's own pull request must not have auto-merge armed (`gh pr view --json autoMergeRequest`): it would merge as soon
   as `ci-ok` passed on the deletion commit, before the last read and without the Owner's head match (§ 5.2). The check
   reads open pull requests from the host and refuses when it cannot read them. It accepts a supplied listing only where
@@ -567,10 +591,11 @@ the Owner accepts it (§ 6.1).
 pull request has auto-merge armed (C11). The flip's checkout has made its deletion commit by then, so the flip's branch
 and checkout must equal their recorded head plus exactly one commit. That commit's parent is the recorded head, and it
 only deletes files under the tracked-state paths. A different count, a modification, an addition, or a deletion
-elsewhere stops the merge. The window runs `last-read` after the checks at the flip's merged head have finished:
-`main`'s ruleset does not require a branch to be current, so a merge landing while those checks run would otherwise go
-unseen. The Owner then merges through the host's head match, which refuses a pull-request head that moved after
-authorization.
+elsewhere stops the merge. Only the sides the record holds are compared: where no checkout held the flip at the check,
+or no local flip branch existed, that side is not. The window runs `last-read` after the checks at the flip's merged
+head have finished: `main`'s ruleset does not require a branch to be current, so a merge landing while those checks run
+would otherwise go unseen. The Owner then merges through the host's head match, which refuses a pull-request head that
+moved after authorization.
 
 #### 5.3 The after-merge comparisons
 
@@ -832,19 +857,39 @@ repository's materializations by absolute path (`materializationRef`). Only the 
 `rehearse` runs the sequence below on a copy, reporting each step's outcome and stopping at the first unexpected one.
 Every run of `check`, `last-read`, or `restore` on the copy takes its supplied pull-request listing (§ 1.1).
 
+The copy is a live repository's working state, its Git hooks and builds included, so the driver acts on it by one
+contract. Every commit, merge, and push it makes runs in a scratch clone of the mirror, where no hooks are installed,
+and reaches the copy by fetch: the copy's hooks would refuse a push from a checkout whose build a merge left stale, and
+once fresh would run the repository's gates, with checks sent outside the copy. After each fetch, a copied checkout
+holding a branch the driver changed fast-forwards to the mirror's tip, and every other branch it changed has its local
+copy set to that tip, since C7 reads local tips. A copied linked checkout whose source moved, or whose built CLI C6
+judges stale, then has its `dist` removed rather than rebuilt: a merge of `main` can bring a dependency its
+`node_modules` lacks, and an install would read the network and write outside the copy. C6 then passes it as having no
+built CLI, and its ARC commands run through the build in the primary checkout's copy (the primary copy), with that
+checkout as their working directory. The primary copy, on `main` with `main`'s dependencies, rebuilds when stale. A
+plant is made the same way and reaches the copy by the same sync, so one on a branch a checkout holds reaches that
+checkout, whose local tip is the branch's read copy (`candidateSourceRank`, `lib/git/in-flight-derivation.ts`, ranks a
+checkout's branch above every remote copy). Only a plant that must leave a copied checkout's own `HEAD`, or a branch's
+local copy, apart from the mirror is written in the copy instead, with `git commit-tree` and `git update-ref`, which run
+none of the hooks the copy installs, and the sync leaves it in place. A removal that resets a branch resets it on the
+mirror and in the copy, any checkout holding it included, since no fast-forward carries a reset.
+
 1. Fetch every branch from the mirror.
-2. Apply C7's remedies on the copy, as live branches do before the window, each pushed to the mirror. First, to each
-   read copy's branch whose unit has a path on the copy's `main` that fails the read rule (§ 1.1), a merge of the copy's
-   `main`. Then, to each copied branch with a path that still fails it, a commit returning that path to its content at
-   the branch's merge base with the copy's `main`. This rehearses the remedies too. Likewise apply C6's remedy to each
-   copied checkout whose `HEAD` does not descend from the anchor: merge the copy's `main` into its branch, push it to
-   the mirror, and rebuild there. A merge whose only conflicted path is `.arc/backlog/ROADMAP.md` is concluded with the
-   repository's ROADMAP remedy, which regenerates the view (`applyRoadmapConflictAutoRemedy`,
-   `lib/status/roadmap-conflict-auto-remedy.ts`), as the pre-commit hook concludes a live merge. A merge into a parked
-   unit's branch resolves the pointer path and the unit's meta as C7's remedy does. Any other conflict stops the stage,
-   naming the branch; it is resolved on the live branch and the copy taken again. Stage 1 runs before this unit lands,
-   so it supplies the sealing guard's merge (`a61e24716a`) as the anchor. Stage 2, after the landing, uses the derived
-   one.
+2. First apply C1's remedy to the copied checkouts, as the Owner's cleanup does on the live repository before the
+   window, here to a copy taken while sessions run: drop each one's changes, untracked files included and ignored files
+   kept, push each branch ahead of its upstream to the mirror, the scratch clone fetching it from the copy first, and
+   fetch. Then apply C7's remedies on the copy, as live branches do before the window, each pushed to the mirror: first,
+   to each read copy's branch whose unit has a path on the copy's `main` that fails the read rule (§ 1.1), a merge of
+   the copy's `main`. Then, to each copied branch with a path that still fails it, a commit returning that path to its
+   content at the branch's merge base with the copy's `main`. This rehearses the remedies too. Likewise apply C6's
+   remedy to each copied checkout whose `HEAD` does not descend from the anchor: merge the copy's `main` into its branch
+   and push it to the mirror, after which that checkout fast-forwards and loses its `dist`, as the contract above
+   provides. A merge whose only conflicted path is `.arc/backlog/ROADMAP.md` is concluded with the repository's ROADMAP
+   remedy, which regenerates the view (`applyRoadmapConflictAutoRemedy`, `lib/status/roadmap-conflict-auto-remedy.ts`),
+   as the pre-commit hook concludes a live merge. A merge into a parked unit's branch resolves the pointer path and the
+   unit's meta as C7's remedy does. Any other conflict stops the stage, naming the branch; it is resolved on the live
+   branch and the copy taken again. Stage 1 runs before this unit lands, so it supplies the sealing guard's merge
+   (`a61e24716a`) as the anchor. Stage 2, after the landing, uses the derived one.
 3. Abandon each copied Errand (`arc errand abandon`), and drop each copied stash entry C1 refuses, as the Owner's
    cleanup does on the live repository before the window.
 4. Create the stand-in flip branch afresh from the copy's current `main`, replacing any earlier one: `main` plus one
@@ -853,12 +898,15 @@ Every run of `check`, `last-read`, or `restore` on the copy takes its supplied p
    as the flip's own.
 5. Run `lock`, then `check` with the supplied listing and anchor.
 6. Save from every copied checkout (`arc user save`), then designate the mirror as the copy's state remote
-   (`arc store remote origin push`).
+   (`arc store remote origin push`). A copied checkout without a built CLI saves through the primary copy's build, run
+   with that checkout as its working directory, since the import refuses where a checkout's personal files differ from
+   its saved notes (§ 2.3).
 7. Import with publication to the mirror (`arc store migrate --import --json`), keeping its report for `chain`
    (§ 10.3). The import runs under a 6 GB address-space cap, with Node's heap ceiling set below it so the import's own
    failure arrives first, and its wall time and peak resident memory are recorded.
-8. In every copied checkout, a write through the in-repo implementation refuses with the store-imported refusal and
-   changes nothing (`refuseWriteIfStoreImported`).
+8. In every copied checkout with a built CLI, a write through the in-repo implementation, run by that checkout's own
+   build, refuses with the store-imported refusal and changes nothing (`refuseIfImported`,
+   `lib/store/in-repo/backend.ts`). A checkout without one runs no ARC command through its own launcher (C6).
 9. The Errand identity refs are gone from the copy and the mirror, and the tips the import kept under
    `refs/arc/tmp/migrate/import/kept/` are dropped.
 10. Run `account` (§ 10.2), then `chain` (§ 10.3), then `recompute`.
@@ -943,7 +991,9 @@ its read copy where that is not `main`'s (§ 1.1). Each file counts as one of fo
 - **Imported:** the tallied revision is its read revision, the file is the source path the in-repo store's own
   discovery gives there for a record, and the landed store holds that record. The tool finds source paths through that
   discovery (`heldMetaSources`, `recordPath`, `companionNames`, `internalReferences`, and the cohort and project-inbox
-  listings), never by a pattern of its own. A parked unit's pointer counts with its meta.
+  listings), never by a pattern of its own. A parked unit's pointer counts with its meta. A rename transition lands as
+  no record: the import adds its origin's name to its successor's former names (`formerSlugs`, `importRename`,
+  `lib/store/ref/import/lineage.ts`), so it counts as imported when the landed successor carries that name there.
 - **Superseded:** the tallied revision is not its read revision, and the file passes the read rule (§ 1.1): it is
   unchanged since the fork, so its read copy carries all it holds, such as a backlog draft a unit's planning branch has
   retired. The flip's deletion commit removes it, and the report lists each with its read copy.
@@ -1056,6 +1106,8 @@ For each transition the window makes that these tools observe:
 | Addition                                               | Shipped | Removed by                                                             |
 | ------------------------------------------------------ | ------- | ---------------------------------------------------------------------- |
 | The script family and its tests                        | No      | `cutover-tracked-state-removal`, with the window's other leftovers     |
+| The family's lint exemption and its config-test pin    | No      | `cutover-tracked-state-removal`, with the script family                |
+| The family's root `package.json` script                | No      | `cutover-tracked-state-removal`, with the script family                |
 | The hold under `refs/arc-window/`                      | No      | `close` at the window's end; any remainder with the window's leftovers |
 | The provenance field on `ComposedLifecycleIndexResult` | Yes     | `cutover-in-repo-removal`, with the in-repo composition                |
 | The guard call in `runUserLoad` and its suite case     | Yes     | `cutover-notes-removal`, with the notes commands                       |
@@ -1098,8 +1150,12 @@ For each transition the window makes that these tools observe:
 - **Accounting through the in-repo store's own discovery.** A path pattern in the tool would restate the store's claim
   rules and could disagree with them. That is the class of error the case exists to catch.
 - **Boundary: one work unit.** The parts land together, Stage 1 verifies them together, and the window runs them once.
-  The forecast change set is about 2,000 to 5,000 lines, under every size mark. No part is independently landable to
-  any purpose, so there is no delivery-plan candidate.
+  No part is independently landable to any purpose, so there is no delivery-plan candidate. The task list crosses two
+  size marks: it takes seven phases and a verification phase, and the forecast change set is about 8,000 to 11,000
+  lines, the tests that Success Criteria 1 to 4 enumerate among them. The unit stays whole (Owner, 2026-11-11) because
+  Stage 1, the only end-to-end verification, runs every tool at the head that lands, and one review holds the change
+  set when it reads it in chunks by phase with a pass over the seams between them. A cut at the import would land the
+  check and the restore before Stage 1 had run them.
 
 ## Cross-cutting Considerations
 
@@ -1143,23 +1199,24 @@ stage or the window does.
    applied, and the check passing. Further tests show a refusing run leaving nothing under `refs/arc-window/`, a run
    killed while recording leaving a hold without a completion marker, and C9 refusing both an incomplete hold and a
    complete one. C6's tests also show the anchor derived from `main`'s history, a supplied anchor accepted where the
-   repository has no host and refused anywhere else, and an `arc` on `PATH` outside every checkout refused. C1's include
-   an ignored file under the tracked-state paths, a personal link, and a stash entry changing a file there. C7's include
-   a branch that changes a work unit's records without being its read copy, a branch that only deletes another unit's
-   record, a branch carrying a stale copy that changes that unit's records, a live unit's record `main` changed after
-   its read copy forked, a live unit's file `main` deleted while its read copy still holds it, and a branch cut from
-   `main` after a park that deletes the pointer, each refused. They also include a stale-copy branch that only inherits
-   its unit's changes, a branch that merged `main` after that change on `main`, and a resumed unit's pointer deleted on
-   `main`, each passing. A unit parked after its branch forked passes at `main`, at its branch's local and fetched tips,
-   and at a branch forked from that branch after graduation, while a `main` edit to its backlog draft after the fork
-   refuses, then passes once C7's remedy merges `main` into the parked branch, keeping the branch's side at the pointer
-   path and the meta. The parked unit is built as the repository builds one: a stub on `main`, graduated on its branch,
-   then parked. C10's show a flip branch equal to `main` refused. C11's show a pull request into a live branch,
-   auto-merge on the flip's own, and a host that allows squash or rebase merging refused. C12's show an identity ref
-   whose local and `origin` tips differ, one only on `origin`, and a claim held by an identity other than the configured
-   one refused, and one held only locally passing. C13's show a live branch whose fetched tip differs from its tip on
-   the host. The check, `last-read`, and `restore` each refuse a supplied pull-request listing where a remote URL names
-   a host, before any host read.
+   repository has no host and refused anywhere else, and an `arc` on `PATH` outside every registered checkout and the
+   one the check runs from refused, even behind an earlier `arc` that passes. C1's include an ignored file under the
+   tracked-state paths, a personal link, and a stash entry changing a file there. C7's include a branch that changes a
+   work unit's records without being its read copy, a branch that only deletes another unit's record, a branch carrying
+   a stale copy that changes that unit's records, that copy its unit's only branch copy included (§ 1.3), a live unit's
+   record `main` changed after its read copy forked, a live unit's file `main` deleted while its read copy still holds
+   it, and a branch cut from `main` after a park that deletes the pointer, each refused. They also include a stale-copy
+   branch that only inherits its unit's changes, a branch that merged `main` after that change on `main`, and a resumed
+   unit's pointer deleted on `main`, each passing. A unit parked after its branch forked passes at `main`, at its
+   branch's local and fetched tips, and at a branch forked from that branch after graduation, while a `main` edit to its
+   backlog draft after the fork refuses, then passes once C7's remedy merges `main` into the parked branch, keeping the
+   branch's side at the pointer path and the meta. The parked unit is built as the repository builds one: a stub on
+   `main`, graduated on its branch, then parked. C10's show a flip branch equal to `main` refused. C11's show a pull
+   request into a live branch, auto-merge on the flip's own, and a host that allows squash or rebase merging refused.
+   C12's show an identity ref whose local and `origin` tips differ, one only on `origin`, and a claim held by an
+   identity other than the configured one refused, and one held only locally passing. C13's show a live branch whose
+   fetched tip differs from its tip on the host. The check, `last-read`, and `restore` each refuse a supplied
+   pull-request listing where a remote URL names a host, before any host read.
 2. **The comparisons are tested.**
     - `recompute` stops on a changed worktree head, personal digest, or review-gate digest, a dirty working tree, an
       ignored file under the tracked-state paths, a stash entry changing one, a changed local, fetched, or host branch
@@ -1199,7 +1256,7 @@ stage or the window does.
    branch, work unit, Errand, or pull request, then passes after its remedy, the lock step's included. Case 1 refuses
    with nothing landed. Then:
     - the import publishes to the mirror;
-    - the sealing guard refuses in every copied checkout;
+    - the sealing guard refuses in every copied checkout with a built CLI;
     - the Errand identity refs are gone from the copy and the mirror, the kept tips dropped;
     - the accounting case reports exactly the files of the twenty pre-meta folders and the quarter's atomic record the
       backfill split, listing `main`'s superseded copies apart;
