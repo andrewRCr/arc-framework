@@ -214,7 +214,7 @@ async function integrateHuskyHook(
 ): Promise<void> {
   const existing = await readFileOrNull(hookPath, readFile);
 
-  if (existing !== null && existing.includes(arcCommand)) {
+  if (existing !== null && existing.split(/\r?\n/).some(line => !line.trimStart().startsWith("#") && line.includes(arcCommand))) {
     return; // Already integrated — preserve the installed invocation.
   }
 

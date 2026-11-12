@@ -82,6 +82,26 @@ describe("integrateHooks — husky", () => {
     expect(io.written).toEqual({});
   });
 
+  it.each([
+    { event: "pre-commit", commentLine: ".arc/system/.internal/githooks/pre-commit", installedLine: ".arc/system/.internal/githooks/pre-commit" },
+    { event: "commit-msg", commentLine: ".arc/system/.internal/githooks/commit-msg", installedLine: '.arc/system/.internal/githooks/commit-msg "$1"' },
+    { event: "pre-push", commentLine: '.arc/system/.internal/githooks/pre-push "$@"', installedLine: '.arc/system/.internal/githooks/pre-push "$@"' },
+  ].flatMap(row => ["", "  "].map(indent => ({ ...row, indent, label: indent === "" ? "plain" : "indented" }))))(
+    "installs $event when its command appears only in a $label comment, then stays idempotent",
+    async ({ event, commentLine, installedLine, indent }) => {
+      const hookPath = `/repo/.husky/${event}`;
+      const existing = `#!/usr/bin/env sh\n${indent}# ${commentLine}\n`;
+      const io = makeIO({ [hookPath]: existing });
+
+      await integrateHooks(detection, io.readFile, io.writeFile);
+
+      expect(io.written[hookPath]).toBe(`${existing}${installedLine}\n`);
+      const repeat = makeIO(io.written);
+      await integrateHooks(detection, repeat.readFile, repeat.writeFile);
+      expect(repeat.written).toEqual({});
+    },
+  );
+
   it("leaves an existing commit-msg invocation unchanged without upgrading its arguments", async () => {
     const io = makeIO({
       "/repo/.husky/commit-msg": [
