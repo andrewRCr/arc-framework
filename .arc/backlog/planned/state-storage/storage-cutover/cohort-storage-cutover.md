@@ -29,9 +29,8 @@ cutover-window-tooling                 the quiesce check, its record, the abort'
 ```
 
 Each member's `Depends On` edges are the source of truth: `cutover-window-tooling` depends on no member outstanding,
-`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `storage-ref-hardening`,
-`projection-team-scale`, and `cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not
-edges:
+`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `projection-team-scale`, and
+`cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not edges:
 
 - **Gate B placement** (Owner, 2026-11-03; the window tooling and the internal collapse, 2026-11-10):
     - `cutover-window-tooling`, `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and
@@ -118,7 +117,7 @@ removal** names `cutover-decompose-removal`, **documentation** names `cutover-do
 | Residue refs and held delivery spike                                         | Import held delivery artifacts before cleanup.                                                                                                                                                       | Notes removal deletes notes residue; tracked-state removal deletes window refs; the held delivery spike waits until its owning work unit archives.                                                              |
 | Lifecycle encoded in directory placement                                     | Make lifecycle a record field and placement its projection, including parked state.                                                                                                                  | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
 | Surviving hand-built work-unit state paths                                   | Route every surviving live caller and harness path through the contract/layout authority.                                                                                                            | Collapse removes dormant in-repo path builders; do not claim completion from the already-landed seed rewrite alone.                                                                                             |
-| Hand-maintained artifact-kind lists                                          | Derive surviving lists from the registry, including the `design` selector.                                                                                                                           | Tracked-state removal deletes hook patterns; collapse deletes write-context and branch-classification patterns.                                                                                                 |
+| Hand-maintained artifact-kind lists                                          | None: the `design` selector is already built, and no surviving list breaks or misleads after the flip.                                                                                               | Collapse derives the surviving lists from the registry and deletes write-context and branch-classification patterns; tracked-state removal deletes hook patterns.                                               |
 | Lifecycle read from branch refs and planning-branch longevity                | Use the store inventory; detach planning at base and create the branch at activation.                                                                                                                | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
 | Archive before merge under `with-integration`                                | Replace branch placement with a store archive operation.                                                                                                                                             | Decision required: the unchanged fate says at or after merge, whereas A26 and the flip preserve before-merge archival under `with-integration`.                                                                 |
 | Tracked retirement receipt and artifact deletions                            | Retire with one store write rather than a receipt/deletion PR.                                                                                                                                       | None in this row’s fate; proposed flip closure.                                                                                                                                                                 |
@@ -227,12 +226,11 @@ _Consumes:_ nothing outstanding; it reads only landed machinery.
 
 ### `cutover-flip`
 
-_Exposes:_ the flipped repository: Stage 2, the quiesce run through `cutover-window-tooling`'s check, the import and its
-second run, the flip change, every workflow rewritten onto the store, and Git notes retired.
+_Exposes:_ the flipped repository: Stage 2, the quiesce run through `cutover-window-tooling`'s check, the import, the
+flip change, every workflow rewritten onto the store, Git notes retired, and two amendments to ADR-035, items 2 and 8.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, `storage-ref-hardening`, and `projection-team-scale`; and
-`cutover-window-tooling`.
+`projection-worktrees`, `projection-write-back`, and `projection-team-scale`; and `cutover-window-tooling`.
 
 ### `cutover-tracked-state-removal`
 
