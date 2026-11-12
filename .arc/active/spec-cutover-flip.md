@@ -168,12 +168,17 @@ contract that does not hold when its member lands is a forward amendment to this
       such ref and every unrecorded tracking ref deleted, the store directories (`store`, `store-migrate-build`, and
       `store-migrate-old` under `<commonDir>/arc/`) removed, `remote.origin.arc-state` unset, and the hold deleted, each
       push to `origin` leased on the value the window left, so a ref another writer moved or deleted on `origin`, or a
-      local one the window never writes, such as delivery's or an Errand or retirement command's temporary ref, or a
-      local Errand identity ref at neither its held tip nor absent, refuses before the first push until the Owner
-      accepts the value found (`restore --accept <ref>=<tip>`, or `<ref>=absent` for a deleted ref), which covers that
-      ref on either side; and refusing once the flip has merged, which it tests first, again before its first push to
-      `origin`, and again before it deletes `origin`'s registry ref, restoring `origin` before the local refs, so a
-      merge found at that last test leaves `origin`'s registry ref and the local store whole for the fix-forward (§ 11);
+      local one the window never writes, such as delivery's or an Errand or retirement command's temporary ref, or,
+      where the import has not landed, a local Errand identity ref moved from or deleted at its held tip, refuses before
+      the first push until the Owner accepts the value found (`restore --accept <ref>=<tip>`, or `<ref>=absent` for a
+      deleted ref), which covers that ref on either side; where the import has landed, comparing what it consumed of
+      each identity ref with that ref's held tip and refusing on a difference, each differing record printed in full
+      since the store the restore deletes holds the only copy, until the Owner accepts what the import consumed
+      (`<ref>=<kept tip>` while the import's kept tips remain, `<ref>=absent` once they are dropped), the outcome
+      recorded at `refs/arc-window/restore` so a restart does not compare again; and refusing once the flip has merged,
+      which it tests first, again before its first push to `origin`, and again before it deletes `origin`'s registry
+      ref, restoring `origin` before the local refs, so a merge found at that last test leaves `origin`'s registry ref
+      and the local store whole for the fix-forward (§ 11);
     - **the worktree lock step,** locking each marked linked checkout that carries no lock with the projection's
       reason;
     - **the seal on `arc user load`:** the sealing guard added to `runUserLoad` (`commands/user/save-load.ts`), so every
@@ -1458,18 +1463,22 @@ record a difference and go on.
   removes the registry ref and lifts the sealing guard; the hold is deleted so a re-run's check records afresh. Each
   push to `origin` is leased on the value the window left there, so a ref another writer moved or deleted since refuses
   before the first push, naming it, as does a local ref the window never writes, such as delivery's or an Errand or
-  retirement command's temporary ref, that another writer moved, or a local Errand identity ref at neither its held tip
-  nor absent; the restore continues once the Owner accepts the value found (`restore --accept <ref>=<tip>`, or
-  `<ref>=absent` for a deleted ref), which covers that ref on either side. An abort after the flip's deletion commit
-  also reverts that commit on the flip's branch, an ordinary commit rather than a rewrite of the pushed branch, made
-  under the override, so nothing has projected there; before the window runs again, the flip's head is fixed again as
-  § 10.1 fixes it, at the new head: `main` merged, review settled, verification done, and CI passing there and with the
-  deletion commit applied, and Stage 2 re-run as Success Criterion 1 requires. Until the merge, an abort leaves `main`
-  untouched.
+  retirement command's temporary ref, that another writer moved, or, where the import has not landed, a local Errand
+  identity ref moved from or deleted at its held tip; the restore continues once the Owner accepts the value found
+  (`restore --accept <ref>=<tip>`, or `<ref>=absent` for a deleted ref), which covers that ref on either side. Where the
+  import has landed, the restore also compares what the import consumed of each identity ref with its held tip and
+  refuses on a difference, printing each differing record in full, until the Owner accepts what the import consumed
+  (§ 1.3). An abort after the flip's deletion commit also reverts that commit on the flip's branch, an ordinary commit
+  rather than a rewrite of the pushed branch, made under the override, so nothing has projected there; before the window
+  runs again, the flip's head is fixed again as § 10.1 fixes it, at the new head: `main` merged, review settled,
+  verification done, and CI passing there and with the deletion commit applied, and Stage 2 re-run as Success
+  Criterion 1 requires. Until the merge, an abort leaves `main` untouched.
 - **After publication,** the pre-import tidy still matters, since anything pushed may already have been copied; an
   abort does not unpublish.
-- **The recompute's stop exits through the abort.** The recompute runs after publication, so a change it finds stops
-  the window by restoring the recorded `refs/arc/*` tips on both sides (§ 13.1).
+- **The recompute's stop exits through the abort.** The recompute runs after publication, so a change it finds stops the
+  window by restoring the recorded `refs/arc/*` tips on both sides (§ 13.1). Where it found a transient record differing
+  from what the held identity refs give, the restore refuses on the same difference until the Owner accepts it, so a
+  record written in that interval is seen before its only copy is deleted.
 - **After the merge, fix forward.** A failed step past the merge — the flip's archive or register closures, its
   checkout's folder removal and release, any checkout's deletion commit, merge and rebuild, folder removal, first
   materialization, identity-root removal, or marker carry, or notes retirement — stops the window there; nothing is
@@ -1577,11 +1586,13 @@ check that proves it, each check a refusal followed by a legitimate repair and c
   whose `origin` tip the local ref does not equal, an `origin`-only ref included, while one held only locally passes,
   since the retirement skips it on `origin`; the import's landing lease on the identity ref tip it read, so one that
   advanced refuses the landing; `retireImportRemote`'s lease on the kept tip; the window tooling's recompute after the
-  import, which refuses a landed Errand record (`work-item/record`) and an identity ref left on either side (§ 1.3); and
-  from the flip the record schema's suffixed-branch check (§ 4.8), so a record that crossed would read as malformed
-  rather than misroute.
+  import, which refuses a landed Errand record (`work-item/record`) and an identity ref left on either side (§ 1.3); the
+  restore's comparison of what the import consumed of each identity ref with its held tip (§ 1.3); and from the flip the
+  record schema's suffixed-branch check (§ 4.8), so a record that crossed would read as malformed rather than misroute.
 - **Residual:** none the window leaves open. An Errand opened between the check and the import's read of the identity
-  ref lands a record the recompute after the import refuses, so the window stops through the abort (§ 1.3, § 11).
+  ref lands a record the recompute after the import refuses, so the window stops through the abort (§ 1.3, § 11). An
+  abort that stops before the recompute, at the accounting case or the chain comparison, meets the restore's own
+  comparison of what the import consumed, which refuses rather than rewinding that record.
 - **Checks:** perturbation 3 (§ 9.3); Stage 1's own Errand refusal and repair; the window tooling's tests of the
   recompute's refusal of a landed Errand record (§ 1.3); the import tests advancing an identity ref between the import's
   read and its landing, and `origin`'s between the landing and its retirement (§ 7.6); and the sealing guard's
