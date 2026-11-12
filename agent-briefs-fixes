@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "agent-briefs-fixes",
+  "claimId": "0b1c0f571aed25c8fadcbf48389ffad4",
+  "createdAt": "2026-11-12T23:15:49.624Z",
+  "updatedAt": "2026-11-12T23:15:49.624Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "agent-briefs-fixes",
+  "branch": "chore/agent-briefs-fixes",
+  "origin": "inbox",
+  "originEntry": "Fix the agent briefs' stale and repeated lines",
+  "originEntrySourceDigest": "sha256:487ad86856f78f24069960a31801d86c0623cf9e97e0de0b9b47bf87a7dbb90b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
