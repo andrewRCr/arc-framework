@@ -13,12 +13,13 @@ export type MetaRenderMode = "core-table" | "bullet";
  * with each element individually backticked (`` `a`, `b` ``), `url` → a
  * navigable locator rendered as a clickable `<…>` autolink when it is an
  * `http(s)` URL, falling back to a backticked identifier for a non-URL reference
- * (an issue ref in `Origin`), `narrative` → free prose. Bracket sentinels
+ * (an issue ref), `origin` → an internal narrative or that locator form,
+ * `narrative` → free prose. Bracket sentinels
  * (`[none]` / `[internal]` / `[TBD]`) are a cross-cutting form detected at
  * render/parse time and are orthogonal to this class — a field permits a
  * sentinel when its `default` is one.
  */
-export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" | "narrative";
+export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" | "origin" | "narrative";
 
 /**
  * A managed-meta field descriptor: the bold-marker label, the value rendered
@@ -60,7 +61,7 @@ export const META_FIELDS = [
   { name: "Priority", key: "priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
   { name: "Cohort", key: "cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
   { name: "Depends On", key: "dependsOn", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", key: "origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
+  { name: "Origin", key: "origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "origin" },
   { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Review Rubric", key: "reviewRubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
@@ -155,6 +156,11 @@ export function isSentinel(value: string): boolean {
   return SENTINEL_RE.test(value.trim());
 }
 
+/** Recognize an internal-origin sentinel followed by a prose explanation. */
+export function isNarrativeInternalOrigin(value: string): boolean {
+  return /^\[internal\]\s+—\s+\S/u.test(value);
+}
+
 function capitalizeFirst(value: string): string {
   return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
@@ -187,6 +193,8 @@ export function formatValue(value: string, valueClass: MetaValueClass): string {
       return parseIdentifierList(value)
         .map((item) => `\`${item}\``)
         .join(", ");
+    case "origin":
+      return isNarrativeInternalOrigin(value) ? value : formatValue(value, "url");
     case "url":
       // A navigable locator: clickable `<…>` autolink for a real URL (lint-safe,
       // no bare-URL MD034), backticked identifier for a non-URL ref (an issue ref).
