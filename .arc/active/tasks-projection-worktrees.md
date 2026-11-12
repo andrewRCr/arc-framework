@@ -357,34 +357,12 @@ No production composition sets the slots today, so every caller runs `passingPro
           and command-scoped mint port; unavailable identity keeps target eligibility and remedy ordering.
           `notes-projection-worktrees.md` records native refusal/repair coverage and the authority checks.
 
-    - `[ ]` **2.4.c The sweeps, the Errand exits, and the releases**
+    - `[x]` **2.4.c The sweeps, the Errand exits, and the releases**
 
-        - The `projectionRemovalSlots` field is bound where `composeSessionInitStatus` (`handlers/status.ts`, which
-          `arc agenda` also reaches) builds `RunStaleWorktreeSweepOptions` and `RunBranchGoneRecoveryOptions`, the stale
-          sweep passing its own to the residue sweep it runs; on the Errand runtimes' options at each of their
-          constructions in `handlers/errand.ts` — the leave, the close and partial close, and the abandon and partial
-          abandon — which carry it into `SettleTerminalOccupancyOptions` (`lib/errand/terminal-occupancy.ts`) and the
-          leave's authorization; and on `arc locus release`'s handler context (`LocusReleaseHandlerContext`,
-          `handlers/locus-release.ts`), which its CLI call in `cli.ts` passes none of today. The decisions read its
-          `check`, and the exits and the release pass it whole.
-        - An Errand on the primary ends through `removePrimary` (`createTerminalOccupancyIO`), which clears the
-          primary's claim (`removePrimaryTransientOccupancy`, `lib/git/worktree-marker.ts`) with no slot. From the flip
-          `removeOccupancy` (`lib/errand/terminal-occupancy.ts`) runs the `release` slot from its options'
-          `projectionRemovalSlots` with `isPrimary` true before it calls `io.removePrimary`, so before the restore
-          branch is checked out, and maps a refusal to `refused("persist-would-refuse", remedy.text)`, as the spawned
-          path maps the removal's, refusing the Errand's close, leave, or abandon, so a held edit is resolved before the
-          claim goes; the primary keeps its projection. A throw from the slot — a failure it maps to no refusal —
-          returns from `settleTerminalOccupancy` as an `error` settlement, the claim kept.
-        - A promotion on the primary (`settlePromotedOccupancy`, `lib/errand/promote-runtime.ts`) clears the claim only
-          on the in-repo path, which holds no projection; from the flip it rewrites the claim as the work unit's
-          (`anchorPromotedMarker`), releasing nothing, and the primary's next command reprojects the new claim (1.8), so
-          it takes no release slot.
-        - Build `test-first` (one behavior at a time):
-            - each of the three compositions carries the projection's slots, not the passing defaults
-            - over the reference backend, an Errand on the primary holding a refused edit refuses its close with the
-              edit's remedy, and closes once it is resolved, the primary's projection kept
-            - an Errand on the primary whose release slot throws, through a fault double, ends its close as an error,
-              the claim kept
+        - Bound status sweep/recovery, all five Errand exit constructions, and locus release to their resolved Store
+          and identity. Primary Errands release their projection before restoring the branch or clearing the claim,
+          rechecking their exact generation after release. Native refusal, error, and repaired completion coverage is
+          recorded in `notes-projection-worktrees.md`.
 
     - `[ ]` **2.4.R Enforce the inert compositions' slot bindings — A5**
 

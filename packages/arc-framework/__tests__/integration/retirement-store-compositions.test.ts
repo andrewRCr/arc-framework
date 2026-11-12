@@ -81,6 +81,22 @@ it("retains an operand teardown's checkout and refused edit, then persists and r
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
+it("retains a locus release's refused edit and claim, then persists and removes after repair", async () => {
+  const h = await fixture(false), marker = await readWorktreeMarker(h.checkout);
+  const paused = await invoke(h, ["pause", "demo", "--reason", "Waiting for release"]);
+  expect(paused, paused.output).toMatchObject({ exitCode: 0 });
+  const refused = await invoke(h, ["locus", "release", "demo", "--json"]);
+  expect(refused, refused.output).toMatchObject({ exitCode: 1, output: expect.stringContaining("blair") });
+  expect(await readFile(h.held, "utf8")).toBe(h.authored);
+  expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  await rm(h.held);
+  const repaired = await invoke(h, ["locus", "release", "demo", "--json"]);
+  expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
+}, 30_000);
+
 it("retains a branch teardown's indexed checkout and refused edit, then removes after repair", async () => {
   const h = await fixture();
   await h.exec("git", ["switch", "-c", "chore/cleanup", "main"], { cwd: h.checkout });

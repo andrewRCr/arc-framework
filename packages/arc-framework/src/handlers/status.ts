@@ -1,5 +1,6 @@
 /** Status CLI validation and dispatch to lifecycle, view, and session handlers. */
 
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import * as p from "../lib/terminal.js";
 import { withPausedCurrentWuActions } from "../lib/session-init/paused-current-wu-actions.js";
 import { openDefaultStore } from "./lifecycle-shared.js";
@@ -234,6 +235,7 @@ export async function composeSessionInitStatus(
     readUserInbox,
   } = context;
   const store = context.store ?? openDefaultStore(cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const stateOffBranch = store.capabilities.stateOffBranch;
   const projectId = store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined;
   // A missing stdin-capable executor degrades object availability inside the remote
@@ -723,6 +725,7 @@ export async function composeSessionInitStatus(
         recentBranches: recent.branches,
         recentPendingBranchCount: recent.pendingBranchCount,
         baseEvidence,
+        projectionRemovalSlots,
         exec,
       });
     },
@@ -743,6 +746,7 @@ export async function composeSessionInitStatus(
         excludeWorktreePath: stateOffBranch ? cwd : worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
         readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
         derivedRoster, store, projectId,
+        projectionRemovalSlots,
       });
     },
     orphanBranchSweep: async (context, worktreeIdentity) => {

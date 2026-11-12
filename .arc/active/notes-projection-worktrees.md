@@ -1499,3 +1499,51 @@ continuation, so optional injection cannot select different Stores for creation 
 After restoring the binding, `6b0da08abc0143cd808f17bd5b7ad9b7` passes the five registered compositions, eight
 no-checkout decomposition unit cases, and 31 start unit cases. Both decomposition variants also require completed
 physical cleanup with no pending continuation. Focused lint passes for these final edits.
+
+## Task 2.4.c: sweeps, Errand exits, and release authority
+
+Status composes one slot set from its resolved Store and nullable command identity, passing it to both the stale sweep
+and branch-gone recovery. The stale sweep forwards it to its residue sweep. Errand leave, ordinary and partial close,
+and ordinary and partial abandon bind the factory at their handler constructions; their frame reads now reuse that
+same Store. Locus release defaults to the factory while retaining its explicit fault-injection port.
+
+A primary Errand runs `release(path, true)` before its branch is restored or its marker cleared. Refusal retains the
+claim and reports the edit's remedy; a thrown release returns an error settlement. After the awaited release, settlement
+rechecks marker generation, branch, HEAD, and primary dirtiness before clearing the claim. The primary keeps its
+projection. Promotion remains unchanged: its off-branch arm rewrites the claim and its in-repo arm holds no projection.
+
+The primary settlement unit cases first failed in `fea0e55716e34f04b42593828cf57463` (refusal and throw incorrectly
+applied); adding release passed in `3af6246ef3e14bd4883ee91ffa08aa5a`. Marker/branch/HEAD changes during release first
+failed in `fdfe8749ffb14f1c9bbc28ff4e4b3c03`; fresh inspection passed those cases in
+`b391822ec49d43dca0b5ea5b8ddd7d0a`. The same run passes the registered locus-release refusal/repair case, whose
+initial default binding omitted projection checks in `4e1b461dd4a041bfadcf4d2497550d3a`.
+
+Registered Errand coverage opens a real primary claim over the reference Store, edits its indexed personal record, and
+leaves a refused previous-identity edit. Full close, abandon and leave, and partial close and abandon, all wrongly ended
+the claim in `5e0680b2386f4fffa09115c0f5b776a1`. With handler bindings, all five retain the edit and marker, then
+persist the indexed prose and clear the claim after repair in `899ddbfdcd444e4d9d28ba7aca6f682f`. The retained header
+uses its actual `groups` shape; the intermediate run's stale `partitions` assertion was corrected.
+
+Native status composition initially recommended removal of a completed holder despite its refused edit in
+`302c0e24051942bdb7a7bde5488715a5`. Binding the sweep makes it blocked until repair in
+`899ddbfdcd444e4d9d28ba7aca6f682f`. Branch-gone recovery likewise keeps the held target as a switch destination and
+makes it removable after repair. A direct native full-close fault test keeps the primary claim and Store record when
+release throws, then closes after repair. Removing only the primary release and the recovery binding makes those two
+new cases fail behaviorally in `8e64b09494bf43bd83f3a6a0bf0a3473`; both controls were restored. All eight native Errand
+and status cases pass in `b50c21083c85489ea9e5af7f37956f64`.
+
+The broader run `2deef49d17d84b11bb0ccce3bd0522fb` passed 34 cases, including the two Errand E2E files, but failed
+11 older native cases because their projected holders had no indexes or ignore rules. The locus-release fixture now
+seeds an empty index and ignores projection-local scaffolding; the preservation fixture supplies the real personal
+ignore rules, allowing production materialization. No passing-slot override substitutes for their repaired fixtures.
+
+The repaired preservation fixture's four cases pass in `0ead65894e25453997dc8b3e38faeca1`; the same diagnostic run
+exposed a misplaced import in the status assertion refactor and missing scaffolding excludes in three locus fault
+cases. Both mechanical fixture/test corrections are applied. Final locus and status coverage passes all ten cases in
+`617c4d12aa354f90a058e93c58ac6935`. Source type checking passes in `fc1db7710f0444e98317c359d5be9ca8`.
+
+Astra's bounded completion consultation found no decisive missing composition or authority gap. Author inspection
+confirms both status paths and residue forwarding, all five Errand options and their downstream settlement slots, the
+leave authorization check, and locus release's default versus explicit slots. Reinspection follows the release await
+because projection success cannot establish the caller's checkout generation. This consultation is working advice,
+not a Candidate review or segment acceptance.

@@ -24,6 +24,9 @@ vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
 import { passingProjectionRemovalSlots } from "../../src/lib/git/worktree-removal.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 
+import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+
 async function fixture() {
   const cwd = await createTempRepo();
   onTestFinished(async () => cleanupTempDir(cwd));
@@ -33,6 +36,7 @@ async function fixture() {
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\nbranch.protection: full\nsession.remote_sync: disabled\n");
   await exec("git", ["config", "arc.identity", "andrew"]);
   await writeFile(join(cwd, "base"), "base\n");
+  await writeFile(join(cwd, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/completed/\n.arc/system/.local/\n");
   await exec("git", ["add", "base", ".arc"]);
   await exec("git", ["commit", "-m", "Base"]);
   const holder = join(cwd, "checkout");
@@ -40,6 +44,7 @@ async function fixture() {
   await ensureWorktreeMarkerIgnored(holder, exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeOwnershipMarker(holder, { createdByArc: true, createdFor: { kind: "work-unit", name: "missing" }, spawningIdentity: "andrew", now: 0 });
   const h = createLifecycleHarness();
+  await seedProjection({ checkout: holder, store: h.store, identity: SlugSchema.parse("andrew"), files: [] });
   return { ...h, cwd, holder, exec, context: { cwd, exec, store: h.store, identity: "andrew" } };
 }
 async function invoke(context: LocusReleaseHandlerContext, slug = "missing") {

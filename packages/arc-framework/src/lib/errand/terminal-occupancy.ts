@@ -2,7 +2,7 @@
 
 import { resolve } from "node:path";
 import { digestBytes } from "../kernel/index.js";
-import { removeWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots, type WorktreeRemovalResult } from "../git/worktree-removal.js";
+import { removeWorktreeCheckout, describeRemovalRefusal, passingProjectionRemovalSlots, type ProjectionRemovalSlots, type WorktreeRemovalResult } from "../git/worktree-removal.js";
 import { parseGitWorktreePorcelainZ } from "../git/worktree-porcelain.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -145,6 +145,10 @@ async function removeOccupancy(
   row: DerivedCheckoutRow,
 ): Promise<{ kind: "removed" | "absent" } | Extract<TerminalOccupancySettlement, { kind: "refused" | "error" }>> {
   if (row.checkout.primary) {
+    const released = await (options.projectionRemovalSlots ?? passingProjectionRemovalSlots).release(row.checkout.path, true);
+    if (released.kind === "refused") return refused("persist-would-refuse", released.remedy.text);
+    const changed = await inspectOccupancy(options, row);
+    if (changed !== null) return changed;
     const result = await options.io.removePrimary(row.checkout.path, options.authority.subject);
     return result === "changed"
       ? refused("generation-mismatch", "The Errand checkout generation changed during settlement.")
