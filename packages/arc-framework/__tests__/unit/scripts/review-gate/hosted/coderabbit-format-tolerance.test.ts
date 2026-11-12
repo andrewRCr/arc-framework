@@ -112,6 +112,28 @@ describe("CodeRabbit hosted review wording and layout changes", () => {
     });
   });
 
+  it.each([
+    { shape: "the captured banner", body: additionalCommentsBody },
+    { shape: "a renamed banner", body: additionalCommentsBody.replace("Unverified finding", "Verification unavailable") },
+    { shape: "a fenced example before the title", body: additionalCommentsBody.replace(
+      "**The local `kill` helper", "```md\n**Example heading**\n```\n\n**The local `kill` helper") },
+  ].flatMap(({ shape, body }) => [
+    { shape: `${shape}, LF`, body },
+    { shape: `${shape}, CRLF`, body: body.replaceAll("\n", "\r\n") },
+  ]))("labels the grouped finding by its title with $shape", ({ body }) => {
+    const parsed = parseCodeRabbitReviewBody(review(body));
+    if (parsed.kind !== "parsed") throw new Error(parsed.reason);
+
+    expect(parsed.findings).toHaveLength(1);
+    expect(parsed.findings[0]).toMatchObject({
+      sourceLabel: "**The local `kill` helper still sends an unchecked `SIGKILL` after the PID is registered.**",
+      body: body.slice(body.indexOf("`181-181`:"), body.indexOf("\n</dd>")).trim(),
+      severity: "minor",
+      settlement: "not-applicable",
+      locus: LOCUS,
+    });
+  });
+
   it("does not mark an unlabelled minor finding as a nit", () => {
     const parsed = parseCodeRabbitReviewBody(review());
     if (parsed.kind !== "parsed") throw new Error(parsed.reason);
