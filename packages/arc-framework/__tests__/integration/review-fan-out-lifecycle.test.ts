@@ -21,6 +21,7 @@ import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-stat
 import { canonicalDigest, type CanonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
+import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
 import { bindInitialDeliveryRef, deriveDeliveryMaterialization, materializeBoundDeliveryChain, publishDeliveryRequests } from "../../src/lib/delivery/materialization.js";
@@ -77,7 +78,7 @@ import { bindDeliveryReviewTerminusOffer, ReviewStatusCommandResultSchema, Revie
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import { deliveryStackPlanWithMemberTitlesFixture } from "../fixtures/delivery-plan.js";
 
-import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { cleanupTempDir, createTempRepo, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 
 const oid = (character: string): string => character.repeat(40);
 const materialPassesTimeoutMs = 120_000;
@@ -2365,10 +2366,26 @@ describe("hosted review fan-out lifecycle", () => {
     expect(currentHead).not.toBe(priorHead);
     const currentTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
     await rm(join(harness.root, ".arc", "system"), { recursive: true, force: true });
+    const slug = "review-response", claimId = "0123456789abcdef0123456789abcdef", branch = `chore/${slug}`;
+    await git(harness.root, ["switch", "-c", branch]);
+    const createdAt = "2026-09-10T12:00:00.000Z";
+    await git(harness.root, ["config", "arc.identity", "andrew"]);
+    await writeFile(join(harness.root, ".git", "info", "exclude"), ".arc/\n", "utf8");
+    const identity = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug, claimId, purpose: "errand", origin: "description",
+      originEntry: null, intent: "Respond after a performed prior fix", branch,
+      state: "open", savedHead: null, changeRequest: null, createdAt, updatedAt: createdAt,
+    });
+    const execInput = makeGitExecInput(harness.root);
+    const blob = await hashBlob(execInput, serializeTransientIdentityRecord(identity));
+    await writeTreeCommit({ exec: harness.exec, execInput, identity: "andrew" },
+      new Map([[slug, blob]]), "Seed review Errand", [], null);
+    await writeWorktreeMarker(harness.root, { spawnedByArc: false, spawningIdentity: "andrew", createdAt,
+      createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
     const lineage = (headSha: string) => ({
       kind: "head-bound" as const,
       vehicleKind: "errand",
-      vehicleIdentity: "review-response",
+      vehicleIdentity: claimId,
       headSha,
     });
     const projection = {
