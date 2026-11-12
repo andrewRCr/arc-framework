@@ -4,13 +4,20 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import { createRefStore } from "../../../src/lib/store/create.js";
-import { startProjection, endProjection } from "../../../src/lib/store/projection/engine.js";
+import { startProjection, endProjection, type ProjectionCommandInput } from "../../../src/lib/store/projection/engine.js";
+import { beginProjectionCommand } from "../../../src/lib/store/projection/process-state.js";
+import { locateProjection } from "../../../src/lib/store/projection/location.js";
+import { bindProjectionFanOut } from "../../../src/lib/store/projection/fan-out-binding.js";
+import { runProjectionFanOut } from "../../../src/lib/store/projection/fan-out.js";
+import type { ProjectionPersistHooks, ProjectionPersistResult } from "../../../src/lib/store/projection/removal-persist.js";
 import { createProjectionEnginePorts } from "../../../src/lib/store/projection/engine-ports.js";
 import { createProjectionReporter } from "../../../src/lib/store/projection/report.js";
 import { createProjectionFanOutDependencies } from "../../../src/lib/store/projection/fan-out-binding.js";
 import { withFanOut } from "../../../src/lib/store/projection/with-fan-out.js";
+import { observePersistSave } from "./projection-persist-observation.js";
 import { ProjectionProcessCommandSchema, ProjectionProcessJobSchema,
-  type ProjectionHook, type ProjectionProcessCommand, type ProjectionProcessMessage } from "./projection-process-protocol.js";
+  type ProjectionHook, type ProjectionProcessCommand, type ProjectionProcessMessage,
+  type ProjectionProcessReply } from "./projection-process-protocol.js";
 
 const job = ProjectionProcessJobSchema.parse(JSON.parse(process.argv[2] ?? ""));
 const native = createRefStore(createDefaultRefStorePorts({ checkoutRoot: job.root, backingRepository: async () => null }));
@@ -31,7 +38,7 @@ async function step(hook: ProjectionHook, root: string, path: string): Promise<v
   released = undefined;
 }
 
-async function run(command: Extract<ProjectionProcessCommand, { action: "run" }>): Promise<string> {
+async function run(command: Extract<ProjectionProcessCommand, { action: "run" }>): Promise<ProjectionProcessReply> {
   if (running) throw new Error("An engine operation is already running");
   running = true; selected = command.hook; seen.clear();
   const swapStep = (hook: ProjectionHook) => (path: string) => step(hook, job.root, path);
@@ -43,6 +50,16 @@ async function run(command: Extract<ProjectionProcessCommand, { action: "run" }>
   let report = "";
   const flush = createProjectionReporter(store, text => { report += text; });
   try {
+    if (command.operation === "persist") {
+      if (command.expectedSave === undefined) throw new Error("A persist needs its target's expected save");
+      const receipt = await runPersistence(input, command.expectedSave, {
+        beforeAsideCopy: (root, path) => step("beforeAsideCopy", root, path),
+        beforeLastCheck: root => step("beforeLastCheck", root, job.path),
+      });
+      await endProjection(input);
+      flush();
+      return { report, ...receipt };
+    }
     const start = await startProjection(input);
     if (start.kind !== "ready") throw new Error(`Projection start did not complete: ${JSON.stringify(start)}`);
     if (command.operation === "fan-out") {
@@ -55,13 +72,36 @@ async function run(command: Extract<ProjectionProcessCommand, { action: "run" }>
     }
     await endProjection(input);
     flush();
-    return report;
+    return { report };
   } finally { running = false; selected = null; }
 }
 
+async function runPersistence(input: ProjectionCommandInput, expectedSave: string, hooks: ProjectionPersistHooks):
+Promise<{ persist: ProjectionPersistResult; observedSave: boolean }> {
+  // Establish a fresh slot invocation without refreshing away the target's interrupted replacement.
+  beginProjectionCommand();
+  const observation = observePersistSave(store, job.reference, expectedSave);
+  const ports = input.ports?.() ?? createProjectionEnginePorts(job.root);
+  const location = await locateProjection(job.root, ports);
+  await bindProjectionFanOut({ checkout: job.root, location, ports,
+    run: ownWrites => runProjectionFanOut({ ...input, store: observation.store, location }, ownWrites) });
+  const [{ createUserIOContext }, { buildExecutorContext }, { createStoreTeardownContext }] = await Promise.all([
+    import("../../../src/lib/io-context.js"), import("../../../src/lib/work-unit/executor-context.js"),
+    import("../../../src/lib/work-unit/store-teardown-context.js"),
+  ]);
+  const io = createUserIOContext();
+  const executor = buildExecutorContext({ cwd: job.root, io, store: observation.store, identity: "andrew", teamMode: false,
+    internalTemplateDir: join(job.root, ".arc/reference/templates") });
+  const context = createStoreTeardownContext({ cwd: job.root, identity: "andrew", io }, executor, hooks);
+  if (context.projectionRemovalSlots === undefined) throw new Error("The teardown context has no projection slots");
+  const { projectionRemovalSlots } = context;
+  const receipt = await observation.during(() => projectionRemovalSlots.persist(job.root));
+  return { persist: receipt.result, observedSave: receipt.observedSave };
+}
+
 async function execute(command: ProjectionProcessCommand): Promise<void> {
-  let report: string | undefined;
-  if (command.action === "run") report = await run(command);
+  let reply: ProjectionProcessReply | undefined;
+  if (command.action === "run") reply = await run(command);
   else if (command.action === "open") {
     if (editor !== undefined) throw new Error("The editor already owns a handle");
     editor = await open(join(job.editorRoot, job.path), "r+");
@@ -85,7 +125,7 @@ async function execute(command: ProjectionProcessCommand): Promise<void> {
     if (running) throw new Error("Cannot close while an engine operation is running");
     await editor?.close(); editor = undefined;
   }
-  emit({ kind: "done", id: command.id, ...(report === undefined ? {} : { report }) });
+  emit({ kind: "done", id: command.id, ...reply });
 }
 
 const lines = createInterface({ input: process.stdin });

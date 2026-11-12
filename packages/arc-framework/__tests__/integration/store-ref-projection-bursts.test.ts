@@ -16,6 +16,7 @@ import { withProjectionEntry } from "../../src/lib/store/projection/index-memory
 import { observeAsideCopy } from "../../src/lib/store/projection/aside-copies.js";
 import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { canonicalLocalPath } from "../../src/lib/local-path-identity.js";
+import { interruptBurstReplacement, assertPersistedBurstSaves } from "../helpers/store/projection-persist-burst.js";
 
 type Fixture = Awaited<ReturnType<typeof projectionBurstFixture>>;
 
@@ -43,6 +44,25 @@ async function placedSaves(f: Fixture, hook: ProjectionHook, create = false): Pr
 }
 
 describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate"] as const)("native projection bursts (%s)", layout => {
+  for (const hook of ["beforeAsideCopy", "beforeLastCheck"] as const) it(`keeps twenty rotated saves during persist ${hook}`, async () => {
+    const f = await projectionBurstFixture(layout);
+    await Promise.all(f.writers.map(writer => writer.send({ action: "open" })));
+    if (hook === "beforeAsideCopy") {
+      await f.edit(burstContent(burstEntry(2, "A landed update interrupted after moving the original.")));
+      for (const root of f.roots) await interruptBurstReplacement(f, root);
+    }
+    const entries = f.writers.map((_, i) => burstEntry(100 + i, `Complete persist save ${hook} editor ${i}.`));
+    const runs = f.writers.map((writer, target) => writer.persist(hook,
+      entries[(target + f.writers.length - 1) % f.writers.length]!));
+    const arrivals = await Promise.all(f.writers.map((writer, i) => writer.hook(runs[i]!)));
+    for (const [i, arrival] of arrivals.entries()) expect(arrival).toMatchObject({ hook, root: f.roots[i], path: BURST_PATH });
+    await Promise.all(f.writers.map((writer, i) => writer.send({ action: "save", content: f.saved(entries[i]!),
+      mode: i % 2 === 0 ? "handle" : "truncate" })));
+    await Promise.all(f.writers.map((writer, i) => writer.send({ action: "release", sequence: arrivals[i]!.sequence })));
+    await assertPersistedBurstSaves(f, entries, await Promise.all(runs));
+    console.info(`projection persist bursts: ${hook}, ${f.roots.length} processes, ${entries.length} completed saves preserved`);
+  }, PROJECTION_BURST_TIMEOUT_MS);
+
   for (const hook of ["afterRecheck", "afterMove", "afterFirstCheck"] as const) it(`keeps twenty rotated saves during refresh ${hook}`, async () => {
     const f = await projectionBurstFixture(layout);
     await f.edit(burstContent(burstEntry(2, "A landed refresh update.")));

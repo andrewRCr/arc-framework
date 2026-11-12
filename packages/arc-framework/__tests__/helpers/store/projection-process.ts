@@ -4,7 +4,8 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { onTestFinished } from "vitest";
 import { ProjectionProcessJobSchema, ProjectionProcessMessageSchema, type ProjectionProcessJob,
-  type ProjectionProcessCommand, type ProjectionProcessMessage } from "../../fixtures/store/projection-process-protocol.js";
+  type ProjectionProcessCommand, type ProjectionProcessMessage, type ProjectionProcessReply,
+  type ProjectionHook } from "../../fixtures/store/projection-process-protocol.js";
 
 type HookArrival = Extract<ProjectionProcessMessage, { kind: "hook" }>;
 type Command = ProjectionProcessCommand extends infer T ? T extends ProjectionProcessCommand ? Omit<T, "id"> : never : never;
@@ -16,7 +17,7 @@ export function startProjectionWriter(input: ProjectionProcessJob, timeoutMs: nu
     fileURLToPath(new URL("../../fixtures/store/projection-process-writer.ts", import.meta.url)), JSON.stringify(job)],
   { stdio: ["pipe", "pipe", "pipe"], env });
   let errors = "", nextId = 0, lastSequence = 0, announced = false, closing = false, dead: Error | undefined;
-  const pending = new Map<number, { resolve: (report: string) => void; reject: (error: Error) => void }>();
+  const pending = new Map<number, { resolve: (reply: ProjectionProcessReply) => void; reject: (error: Error) => void }>();
   const arrivals: HookArrival[] = [], waiting: { resolve: (arrival: HookArrival) => void; reject: (error: Error) => void }[] = [];
   let announce: (pid: number) => void = () => {}, rejectReady: (error: Error) => void = () => {};
   const ready = new Promise<number>((resolve, reject) => { announce = resolve; rejectReady = reject; });
@@ -56,23 +57,31 @@ export function startProjectionWriter(input: ProjectionProcessJob, timeoutMs: nu
       const request = pending.get(message.id);
       if (!request) throw new Error(`Unexpected writer acknowledgment ${message.id}`);
       pending.delete(message.id);
-      if (message.kind === "error") request.reject(new Error(message.error)); else request.resolve(message.report ?? "");
+      if (message.kind === "error") request.reject(new Error(message.error));
+      else request.resolve({ report: message.report ?? "", ...(message.persist === undefined ? {} : { persist: message.persist }),
+        ...(message.observedSave === undefined ? {} : { observedSave: message.observedSave }) });
     } catch (error) { fail(error instanceof Error ? error : new Error(String(error))); child.kill(); }
   });
-  const send = (command: Command): Promise<string> => {
+  const request = (command: Command): Promise<ProjectionProcessReply> => {
     if (dead) return Promise.reject(dead);
     const id = ++nextId;
-    const result = new Promise<string>((resolve, reject) => { pending.set(id, { resolve, reject }); });
+    const result = new Promise<ProjectionProcessReply>((resolve, reject) => { pending.set(id, { resolve, reject }); });
     void result.catch(() => {});
     child.stdin.write(JSON.stringify({ ...command, id }) + "\n");
     return result;
   };
+  const send = async (command: Command): Promise<string> => (await request(command)).report;
   onTestFinished(async () => {
     if (child.exitCode === null) child.kill();
     await exit.catch(() => {});
   });
   return { ready, send,
-    hook: async (operation: Promise<string>): Promise<HookArrival> => {
+    persist: async (hook: ProjectionHook, expectedSave: string) => {
+      const reply = await request({ action: "run", operation: "persist", hook, expectedSave });
+      if (reply.persist === undefined) throw new Error("The persist operation returned no structured result");
+      return { report: reply.report, persist: reply.persist, observedSave: reply.observedSave ?? false };
+    },
+    hook: async (operation: Promise<unknown>): Promise<HookArrival> => {
       const arrival = arrivals.shift();
       if (arrival) return arrival;
       if (dead) throw dead;
