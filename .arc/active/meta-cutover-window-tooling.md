@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal] — split from `cutover-flip` at its create-spec entry (2026-11-10)
-- **Design:** `draft-cutover-window-tooling.md`
+- **Design:** `spec-cutover-window-tooling.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
