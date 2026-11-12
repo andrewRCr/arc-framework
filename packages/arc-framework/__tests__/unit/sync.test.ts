@@ -7,6 +7,7 @@
 
 import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { StoreImportedError, storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const mockIntro = vi.fn();
@@ -373,6 +374,20 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
+  });
+
+  it("renders the imported-store condition and remedy when the load direction refuses", async () => {
+    const errors: string[] = [];
+    mockLog.error.mockImplementation((message: string) => { errors.push(message); });
+    setSyncState("same", "different", { diskStatus: "stale", unsavedDirection: "modified" });
+    mockRunUserLoad.mockRejectedValue(new StoreImportedError());
+
+    await handleUserSync({}, makeTestContext());
+
+    const refusal = storeImportedRefusal();
+    expect(errors.join("\n")).toContain(refusal.condition);
+    expect(errors.join("\n")).toContain(refusal.remedy.text);
+    expect(process.exitCode).toBe(1);
   });
 
   it("chooses pull when remote is ahead and disk matches local state", async () => {

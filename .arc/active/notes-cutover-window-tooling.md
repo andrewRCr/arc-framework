@@ -246,4 +246,11 @@ specification holds every obligation; these notes hold where the code that meets
   (`lib/store/ref/import/entry.ts`).
 - A copied Errand that is `open`, not awaiting merge, passes copy safety and refuses under C12 until step 3 abandons it.
 
+## Deferred execution feedback
+
+The local E2E check reported an unexplained failure after the load-seal test's terminal-transport correction. Its
+failing assertion was not retained because the report write was refused. Subsequent direct and declared runs passed
+all fourteen cases, but the cause remains unestablished. Deferral accepted on 2026-11-12; those passes establish
+intermittency, not a fix.
+
 ---

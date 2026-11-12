@@ -23,30 +23,19 @@ fact the family reads arrives through one port that takes a supplied fact only w
   including stale and unselected copies and completed units' leftover branches; tree-only compositions omit it.
   All-stale groups remain absent, with their branches available through per-slug quality warnings.
 
-### `[ ]` **1.2 Seal `arc user load` — § 7**
+### `[x]` **1.2 Seal `arc user load` — § 7**
 
 - _Goal:_ Once the registry ref exists, every load path refuses before writing any file, ending with the
   store-imported refusal's condition and remedy and a non-zero exit; before it exists, load behaves exactly as today.
 
-- _Note:_ See `notes-cutover-window-tooling.md` § Load seal callers for both callers' traced error paths.
+    - `[x]` **1.2.a Guard `runUserLoad` first**
+        - `runUserLoad` checks the imported-store guard before resolving the current unit or user surfaces. The load
+          refuses without further Git or disk writes while imported, and restores its saved files after removal.
 
-    - `[ ]` **1.2.a Guard `runUserLoad` first**
-        - Call `refuseWriteIfStoreImported(cwd, io.exec)` as the first act of `runUserLoad`
-          (`commands/user/save-load.ts`), before the current-unit and resolver reads.
-        - Build `test-first` (one behavior at a time), in `__tests__/integration/store-imported-seal.test.ts`:
-            - `runUserLoad` runs no Git beyond the import lookup once the registry ref exists, beside the suite's other
-              sealed writers
-            - A load over its own saved note refuses once the registry ref exists, writing no file
-            - The same load restores the files once the registry ref is gone
-
-    - `[ ]` **1.2.b Pin both callers' refusal**
-        - `arc user load` rethrows the refusal to the CLI's error boundary, and the user-sync load direction logs it and
-          sets exit 1; where the logged message lacks the remedy, render it through `formatError` as the boundary does.
-        - Tests, passing once 1.2.a lands:
-            - In `__tests__/e2e/user.e2e.test.ts`, with the registry ref made by `git update-ref`, `arc user load` exits
-              1 with the condition and remedy on stderr and restores no file
-            - In `__tests__/unit/sync.test.ts`, with the mocked `runUserLoad` rejecting with `StoreImportedError`, the
-              sync's load direction logs the condition and remedy and sets exit 1
+    - `[x]` **1.2.b Pin both callers' refusal**
+        - The CLI E2E case uses real pipes to verify stderr, exit status, no restored file, and successful continuation
+          after registry removal. Sync's existing error rendering retains both condition and remedy without a handler
+          change; its unit test pins the load direction's message and exit status.
 
 ### `[ ]` **1.3 Family entry, results, lint boundary, and inertness — § 1.2, § 1.4**
 
