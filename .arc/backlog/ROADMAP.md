@@ -17,7 +17,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------- | ------------------ |
 | `Planning` | cutover-flip                    | P1       | andrew | projection-worktrees, projection-team-scale, cutover-window-tooling | storage-cutover    |
 | `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                                                        | storage-cutover    |
-| `Planning` | cutover-window-tooling          | P1       | andrew | —                                                                   | storage-cutover    |
+| `Active`   | cutover-window-tooling          | P1       | andrew | —                                                                   | storage-cutover    |
 | `Planning` | projection-team-scale           | P1       | andrew | projection-worktrees                                                | storage-projection |
 | `Active`   | projection-worktrees            | P1       | andrew | —                                                                   | storage-projection |
 | `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                     | —                  |
