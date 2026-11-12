@@ -2176,7 +2176,9 @@ async function resolveResponsePosition(
     if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
       return { kind: "refused" as const, envelope: source.errand === undefined
         ? staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget)
-        : staleErrandResponseEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget, source.errand) };
+        : staleErrandResponseEnvelope({ operationId: source.operationId, attemptedTarget: confirmation.attemptedTarget,
+          currentTarget: confirmation.currentTarget, errand: source.errand, result: source.result,
+          record: await dependencies.dispositionStore.readDispositionRecord(source.operationId) }) };
     }
     // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.
     // The managed Candidate subject, not the stale whole-repository target, is authoritative for whether

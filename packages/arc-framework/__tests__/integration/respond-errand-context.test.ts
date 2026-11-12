@@ -101,7 +101,8 @@ async function scenario(arm: "inRepo" | "native") {
     expect((await readRecord())?.errand).toEqual({ key: "repair", claimId, branch });
     return approval;
   };
-  return { git, cwd, target, branch, request, invoke, readRecord, approve, approvalRequest };
+  return { git, cwd, target, branch, request, invoke, readRecord, approve, approvalRequest,
+    currentTarget: () => createLocalPrepareDependencies(invocation).deriveTarget(projectId) };
 }
 
 it.each(["inRepo", "native"] as const)("refuses detached and foreign branches, then approves on the owning branch (%s)", async arm => {
@@ -148,4 +149,47 @@ it.each(["inRepo", "native"] as const)("refuses an approval when its owning bran
   expect(await s.readRecord()).toBeNull();
   await s.git("switch", s.branch);
   await s.approve(approval);
+}, 30_000);
+
+it.each(["inRepo", "native"] as const)("repairs base-only drift on the same Errand branch before initial approval (%s)", async arm => {
+  const s = await scenario(arm), approval = await s.approvalRequest();
+  await s.git("branch", "-f", "main", s.target.headSha);
+  const refused = await s.invoke(approval);
+  expect(refused.result).toMatchObject({ state: "stale-target", nextAction: "stop", payload: {
+    currentTarget: { headSha: s.target.headSha }, detail: expect.stringContaining("reviewed base context") } });
+  expect(refused.result.payload.detail).toContain("diffBaseSha");
+  expect(refused.result.payload.detail).toContain("diffBaseTree");
+  expect(refused.result.payload.detail).not.toContain("restore this same Errand branch");
+  expect(await s.readRecord()).toBeNull();
+  // Fixture-only authorization: restore the local base ref without moving the Errand's HEAD.
+  await s.git("branch", "-f", "main", s.target.diffBaseSha);
+  expect((await s.currentTarget()).targetId).toBe(s.target.targetId);
+  expect(await s.git("branch", "--show-current")).toBe(s.branch);
+  await s.approve(approval);
+}, 30_000);
+
+it.each(["inRepo", "native"] as const)("preserves an approved committed fix while repairing mixed base and head drift (%s)", async arm => {
+  const s = await scenario(arm), approval = await s.approve(), recorded = await s.readRecord();
+  await writeFile(join(s.cwd, "example.ts"), "export const value = 2;\n");
+  await s.git("commit", "-am", "Approved fix");
+  const fixedHead = await s.git("rev-parse", "HEAD");
+  await s.git("branch", "-f", "main", s.target.headSha);
+  const mixed = await s.invoke(approval);
+  expect(mixed.result).toMatchObject({ state: "stale-target", nextAction: "stop", payload: {
+    currentTarget: { headSha: fixedHead }, detail: expect.stringContaining("reviewed base context") } });
+  expect(mixed.result.payload.detail).toContain("diffBaseSha");
+  expect(mixed.result.payload.detail).toContain("headSha");
+  expect(mixed.result.payload.detail).toContain("already recorded");
+  expect(await s.readRecord()).toEqual(recorded);
+  await s.git("branch", "-f", "main", s.target.diffBaseSha);
+  const headOnly = await s.invoke(approval);
+  expect(headOnly.result.payload.detail).toContain("already recorded");
+  expect(headOnly.result.payload.detail).toContain("verifiedFix");
+  expect(headOnly.result.payload.detail).not.toContain("restore this same Errand branch");
+  expect(await s.readRecord()).toEqual(recorded);
+  expect(await s.git("rev-parse", "HEAD")).toBe(fixedHead);
+  expect(await s.git("branch", "--show-current")).toBe(s.branch);
+  const performed = await s.invoke({ ...approval, verifiedFix: { applicability: "full", verificationEvidenceRefs: ["test://full"] } });
+  expect(performed.exits, JSON.stringify(performed.result)).toEqual([]);
+  expect(performed.result.state).toBe("errand-advanced");
 }, 30_000);
