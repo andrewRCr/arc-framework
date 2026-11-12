@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** create-spec — `spec-cutover-window-tooling.md` finalized
-- **Next Task:** Begin Task 1.1 — Carry the composition's provenance on its result
+- **Last Completed:** generate-tasks — `tasks-cutover-window-tooling.md` finalized; work unit activated
+- **Next Task:** Task 1.1 — Carry the composition's provenance on its result (line ~17)
 - **Blockers:** [none]
 
 - **Next Action:** Start the task loop at Task 1.1 (process-task-loop)
