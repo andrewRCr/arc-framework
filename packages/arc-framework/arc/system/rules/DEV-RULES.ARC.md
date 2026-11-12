@@ -313,6 +313,12 @@ make; deferring, carrying, or bypassing a failure is never yours to decide.
 mechanism it removes and shows the change reaches it, such as a reproduction that fails reliably without the change
 and not with it; until then, report the cause as suspected.
 
+**A failed timing or performance bound gets one free look before the stop**, whether a gate, a success criterion, or
+an exit-criterion scenario reported it. First take any step that tells noise from a real miss at no added cost, such
+as a rerun at the same head locally or on CI capacity that needs no spending approval. Keep every raw result and leave
+the bound unchanged. A passing rerun is not the verdict unless a rule the user already gave decides it; otherwise stop
+with every result.
+
 **A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
 reported — including that it produced no result — is not that judgment.
 
