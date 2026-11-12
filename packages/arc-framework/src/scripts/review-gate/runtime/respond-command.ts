@@ -507,6 +507,7 @@ export class UnchangedVerifiedFixTargetError extends RespondCommandError {
 }
 
 interface ResolvedResponseSource {
+  /** Producer claim corroborated after acquiring this response's operation lock. */
   errand?: ErrandReviewBinding;
   result: ReviewResult;
   operationId: string;
@@ -1722,8 +1723,6 @@ export async function respondToReviewCommand(
       : request.source.kind === "frontline"
         ? await resolveFrontlineSource(request.source, dependencies)
         : await resolveHostedSource(request.source, dependencies);
-    const errand = await requireResponseErrand(source.result, () => dependencies.resolveActiveErrand());
-    if (errand !== null) source.errand = errand;
   } catch (error) {
     if (error instanceof RespondCommandError || isNativeTypedRefusal(error)
       || (typeof error === "object" && error !== null && "code" in error
@@ -2303,7 +2302,7 @@ async function settleNewApprovedResponse(
         source.responseBinding?.candidate.target ?? source.target,
       );
   const errand = lineage === null && deliveryMember === null
-    ? await dependencies.resolveActiveErrand()
+    ? source.errand ?? await dependencies.resolveActiveErrand()
     : null;
   const authoringResolution = await resolveCandidateMemberAuthoring(source, lineage, plan, dependencies);
   if (authoringResolution.kind === "refused") return authoringResolution.envelope;
@@ -2666,6 +2665,8 @@ async function respondToResolvedReviewCommand(
   source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const errand = await requireResponseErrand(source.result, () => dependencies.resolveActiveErrand());
+  if (errand !== null) source.errand = errand;
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
   const supersession = "supersedes" in request ? request.supersedes : undefined;

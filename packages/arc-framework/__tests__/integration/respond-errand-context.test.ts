@@ -11,6 +11,7 @@ import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/sc
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
+import { respondToReviewCommand } from "../../src/scripts/review-gate/runtime/respond-command.js";
 import { createRespondDependencies } from "../../src/scripts/review-gate/runtime/respond-composition.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
 import { bindReviewSourceReferenceForInvocation } from "../../src/scripts/review-gate/runtime/source-invocation.js";
@@ -69,28 +70,38 @@ async function scenario(arm: "inRepo" | "native") {
     severityGatingPolicy: { minorGating: "record-only" }, findings: [{ findingId: "finding-1", sourceVerification: "verified",
       verificationRefs: ["source:example.ts:1"], verifiedSeverity: "major", disposition: "fix", title: "Repair the value",
       issue: "The value needs repair.", rationale: "The source confirms this.", recommendation: "Correct the value.", openQuestions: [] }] } };
-  const invoke = async (body: unknown) => {
+  const invoke = async (body: unknown, beforeLock?: () => Promise<void>) => {
     let output = "";
     const exits: number[] = [];
-    await handleReviewRespond("-", { resolveRoot: () => cwd, readText: async () => JSON.stringify(withReviewReport(body)),
+    const scheduled = beforeLock === undefined ? {} : { respond: async (request: unknown) => {
+      const dependencies = createRespondDependencies(invocation);
+      return respondToReviewCommand(request, { ...dependencies, withOperationLock: async (operationId, action) => {
+        await beforeLock();
+        return dependencies.withOperationLock(operationId, action);
+      } });
+    } };
+    await handleReviewRespond("-", { ...scheduled, resolveRoot: () => cwd, readText: async () => JSON.stringify(withReviewReport(body)),
       write: text => { output += text; }, setExitCode: code => exits.push(code) }, undefined, invocation);
     return { result: JSON.parse(output), exits };
   };
   const readRecord = () => createRespondDependencies(invocation).dispositionStore.readDispositionRecord(operationId);
-  const approve = async () => {
+  const approvalRequest = async () => {
     const proposal = await invoke(request);
     expect(proposal.exits, JSON.stringify(proposal.result)).toEqual([]);
     expect(proposal.result.state).toBe("awaiting-approval");
     const dispositions = approveDispositionState({ proposed: proposal.result.payload.proposal, approvedBy: "andrew", approvedAt: createdAt });
-    const approval = { schemaVersion: 1, source, dispositions, policyRequest: responsePolicyRequestFixture({ headSha: target.headSha,
+    return { schemaVersion: 1, source, dispositions, policyRequest: responsePolicyRequestFixture({ headSha: target.headSha,
       lane: "frontline", sourceId: "coderabbit-cli", reviewOperationId: operationId }) };
+  };
+  const approve = async (supplied?: Awaited<ReturnType<typeof approvalRequest>>) => {
+    const approval = supplied ?? await approvalRequest();
     const response = await invoke(approval);
     expect(response.exits, JSON.stringify(response.result)).toEqual([]);
     expect(response.result.state).toBe("ready-to-fix");
     expect((await readRecord())?.errand).toEqual({ key: "repair", claimId, branch });
     return approval;
   };
-  return { git, cwd, target, branch, request, invoke, readRecord, approve };
+  return { git, cwd, target, branch, request, invoke, readRecord, approve, approvalRequest };
 }
 
 it.each(["inRepo", "native"] as const)("refuses detached and foreign branches, then approves on the owning branch (%s)", async arm => {
@@ -127,4 +138,14 @@ it.each(["inRepo", "native"] as const)("stops a commit-first response and contin
   const performed = await s.invoke({ ...approval, verifiedFix: { applicability: "full", verificationEvidenceRefs: ["test://full"] } });
   expect(performed.exits, JSON.stringify(performed.result)).toEqual([]);
   expect(performed.result.state).toBe("errand-advanced");
+}, 30_000);
+
+it.each(["inRepo", "native"] as const)("refuses an approval when its owning branch changes before the lock, then retries (%s)", async arm => {
+  const s = await scenario(arm), approval = await s.approvalRequest();
+  const refused = await s.invoke(approval, async () => { await s.git("switch", "-c", "chore/other", s.target.headSha); });
+  expect(refused.exits).toEqual([1]);
+  expect(refused.result).toMatchObject({ error: { code: "invalid-input" }, remedy: { argv: ["arc", "locus", "--json"] } });
+  expect(await s.readRecord()).toBeNull();
+  await s.git("switch", s.branch);
+  await s.approve(approval);
 }, 30_000);
