@@ -31,8 +31,13 @@ function boundIO(io: WindowHoldIO): WindowHoldIO {
   };
 }
 
+/** Named writes at which the check can be observed or interrupted. */
+export type WindowHoldStep = "check.record" | "check.complete";
+/** Before-write checkpoint; the normal source entry supplies none. */
+export type WindowHoldStepHook = (step: WindowHoldStep) => Promise<void>;
+
 /** Write one complete hold, returning the record commit. */
-export async function writeWindowHold(io: WindowHoldIO, record: WindowRecord): Promise<string> {
+export async function writeWindowHold(io: WindowHoldIO, record: WindowRecord, step?: WindowHoldStepHook): Promise<string> {
   const bound = boundIO(io);
   const checked = recordSchema.parse(record);
   const remote = Object.entries(checked.refs.origin);
@@ -55,7 +60,9 @@ export async function writeWindowHold(io: WindowHoldIO, record: WindowRecord): P
     })));
   }
   const blob = await hashBlob(bound.execInput, JSON.stringify(checked) + "\n");
+  await step?.("check.record");
   const tip = await writeTreeCommit(bound, "refs/arc-window/record", new Map([["window.json", blob]]), "Record cutover window", [], null);
+  await step?.("check.complete");
   await bound.exec("git", ["update-ref", "refs/arc-window/complete", tip, ""]);
   return tip;
 }
@@ -75,4 +82,17 @@ export async function readWindowHold(io: WindowHoldIO): Promise<{ tip: string; r
   const content = (await bound.exec("git", ["--no-replace-objects", "show", `${tip}:window.json`],
     { objectAccess: "local-only" })).stdout;
   return { tip, record: recordSchema.parse(JSON.parse(content)) };
+}
+
+/** Remove only an unfinished hold; a completed restore point must remain intact. */
+export async function discardUnfinishedWindowHold(io: WindowHoldIO): Promise<void> {
+  const refs = await listWindowRefs(io, ["refs/arc-window/"]);
+  if (refs.has("refs/arc-window/complete")) throw new WindowRefusal([{ subject: "cutover hold",
+    condition: "A completion marker is present; this is not partial acquisition.",
+    remedy: "Preserve the completed hold and inspect its restore or close route before retrying." }]);
+  if (refs.size === 0) return;
+  const outcome = await updateRefTransaction(io, [...refs].map(([ref, tip]) => ({ ref, delete: true as const, expected: tip })),
+    { cwd: io.repo });
+  if (outcome.status !== "committed") throw new WindowRefusal(outcome.refs.map(ref => ({ subject: ref.ref,
+    condition: "The held ref changed during partial acquisition cleanup.", remedy: "Preserve and inspect the remaining hold, then retry." })));
 }

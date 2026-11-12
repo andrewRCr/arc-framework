@@ -86,3 +86,18 @@ it("reports a host-boundary refusal as one typed entry result", async () => {
   expect(stderr.join("")).toContain("Supplied host facts");
   expect(stderr.join("")).not.toContain("Usage:");
 });
+
+
+it("loads supplied request facts after admitting the local rehearsal repository", async () => {
+  const exec = urls({ origin: { fetch: ["/mirror.git"] } });
+  expect(await readWindowHostFacts({ exec, host: noHostReads }, 7, { pullRequests: async () => listing }))
+    .toEqual({ hosted: false, pullRequests: listing });
+});
+
+
+it("does not load supplied facts in a repository with a host", async () => {
+  const exec = urls({ origin: { fetch: ["https://github.com/owner/repo.git"] } });
+  await expect(readWindowHostFacts({ exec, host: noHostReads }, 7, { pullRequests: async () => {
+    throw new Error("A forbidden supplied listing was read");
+  } })).rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("Supplied host facts") })] });
+});

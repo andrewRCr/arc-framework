@@ -91,12 +91,10 @@ claim, `check` records and holds, the import lands and publishes, and `restore` 
 sides, removes the store directories and the designation, lifts the guard, and deletes the hold, finishing when
 restarted after each of its steps.
 
-### `[ ]` **2.1 The record and the hold, with C9 — § 2.1, § 4**
+### `[x]` **2.1 The record and the hold, with C9 — § 2.1, § 4**
 
 - _Goal:_ A passing check writes the record and the hold with the completion marker last, and a refusing or killed run
   leaves no complete hold, so every later operation reads a restore point it can trust.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Hold, record, and stop points.
 
     - `[x]` **2.1.a The hold's layout, the record document, and the writer**
         - `writeWindowHold` retains local, origin, and tracking tips and writes the orphan record commit with its
@@ -113,17 +111,10 @@ restarted after each of its steps.
           state or working ref, and earlier hold without changing existing state. Other ARC refs pass; incomplete
           holds name removal, and completion markers name the conditional restore or Owner-settlement route.
 
-    - `[ ]` **2.1.d The run order and its stop points**
-        - The check takes the flip's branch and pull request, and, where the repository has no host, a supplied listing.
-          After C9, fetch `origin`'s `refs/arc/*` under `refs/arc-window/origin/`, evaluate every other condition, and
-          report all; on any failure delete everything written under `refs/arc-window/`; on a pass write the record and
-          the marker last. An injectable step hook names the record write and the marker write.
-        - Build `test-first` (one behavior at a time):
-            - The baseline passes the check, its record and marker written
-            - A refusing run leaves nothing under `refs/arc-window/`
-            - A run stopped between the record write and the marker leaves a hold without a completion marker
-        - The check evaluates only C9, and its record holds the flip, the refs, worktree paths and heads, and branch tips,
-          without digests, live-branch marks, or host tips.
+    - `[x]` **2.1.d The run order and its stop points**
+        - The source entry runs `check` against the named checkout, binds the flip branch to its main-targeting pull
+          request, admits supplied facts only without a host, and captures refs, branches, and worktrees. Record and
+          marker checkpoints leave interrupted holds incomplete; explicit refusals discard unfinished holds.
         - _Retired in:_ Phase 4
 
 ### `[ ]` **2.2 What the import consumed — § 3, § 6.1**
