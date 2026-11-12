@@ -16,7 +16,8 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** generate-tasks waits on `projection-worktrees` reaching verification (about 11-15 to 11-17); the PM
+  signals it, and the whole task list is generated then
 
 - **Next Action:** [begin current workflow]
 
