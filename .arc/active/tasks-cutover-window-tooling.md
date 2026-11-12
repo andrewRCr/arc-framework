@@ -14,32 +14,14 @@ _Mode:_ `layer` — closes on the shipped seams and the family's host boundary s
 _Exit criterion:_ both shipped changes pass their suites with no existing caller or constructor changed, and every host
 fact the family reads arrives through one port that takes a supplied fact only where the repository has no host.
 
-### `[ ]` **1.1 Carry the composition's provenance on its result — § 1.3**
+### `[x]` **1.1 Carry the composition's provenance on its result — § 1.3**
 
 - _Goal:_ The composition's result exposes, by slug, every copy of each in-flight work unit exactly as its in-flight
   entry records it, while no existing caller, constructor, test fixture, or serialized output changes.
 
-- _Approach:_ one optional, read-only, `Map`-keyed field on `ComposedLifecycleIndexResult`
-  (`lib/work-unit/composed-lifecycle-index.ts`), filled in `resolveComposedLifecycleIndex` from each work-unit entry's
-  `provenance` in the oracle's entries (`provenanceForGroup`, `lib/git/in-flight-derivation.ts`), unfiltered, and
-  absent when no oracle runs.
-
-- _Note:_ provenance exists only for copies on a branch other than the base, and a terminal unit's leftover branch keeps
-  its provenance, so later tasks read liveness from `recordsBySlug`, never from the field's presence. A unit whose every
-  branch copy is stale has no entry; its copies arrive as `stale-location-dropped` or `stale-location-shadow` warnings
-  in `qualityFacts.bySlug`.
-
-    - Build `test-first` (one behavior at a time), through `resolveCallerComposedLifecycleIndex`, and through
-      `resolveComposedLifecycleIndex` for the run with no oracle, since tests may not import the in-repo store (see
-      `notes-cutover-window-tooling.md` § Lint boundary and imports):
-        - A unit carried on its branch, a branch's local and fetched copies, and a stale copy each appear with branch,
-          ref, source, relation, and selected flag, keyed by slug
-        - A completed unit whose leftover branch still carries its meta keeps that branch's provenance while its
-          selected record stays completed
-        - A unit whose every branch copy is stale has no entry in the field, and each copy's branch appears in its
-          slug's stale-location warnings
-        - A composition run with no oracle carries no field
-        - Every existing constructor and fixture of the result compiles unchanged under both type checks
+- _Outcome:_ `ComposedLifecycleIndexResult.provenanceBySlug` retains every work-unit entry's native provenance,
+  including stale and unselected copies and completed units' leftover branches; tree-only compositions omit it.
+  All-stale groups remain absent, with their branches available through per-slug quality warnings.
 
 ### `[ ]` **1.2 Seal `arc user load` — § 7**
 
