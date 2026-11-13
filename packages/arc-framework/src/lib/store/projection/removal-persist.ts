@@ -67,9 +67,13 @@ export function retireProjectionRoot(root: ProjectionRootState): void {
   state.roots.delete(root.checkout);
 }
 
+/** The continuation run under the lease once persistence settles, given the remedy for any ignore rules that refuse. */
+export type ProjectionPersistCompletion = (root: ProjectionRootState, index: ProjectionIndex,
+  ignoreRefusal?: Remedy) => Promise<ProjectionPersistResult>;
+
 /** Keep a successful continuation within the persistence lease and bound root lifetime. */
 export async function withPersistedProjection(checkout: string, context: ProjectionPersistContext, disposition: "remove" | "release",
-  complete: (root: ProjectionRootState, index: ProjectionIndex) => Promise<ProjectionPersistResult>): Promise<ProjectionPersistResult> {
+  complete: ProjectionPersistCompletion): Promise<ProjectionPersistResult> {
   try {
     const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
     const location = await locateProjection(checkout, ports);
@@ -102,7 +106,7 @@ async function persistUnprojected(checkout: string, context: ProjectionPersistCo
 }
 
 async function persistUnderLease(input: ProjectionRootBindingInput, context: ProjectionPersistContext, disposition: "remove" | "release",
-  complete: (root: ProjectionRootState, index: ProjectionIndex) => Promise<ProjectionPersistResult>): Promise<ProjectionPersistResult> {
+  complete: ProjectionPersistCompletion): Promise<ProjectionPersistResult> {
   await input.session.step();
   const disk = await readProjectionIndex(input.location, true, { groups: "all" });
   if (disk.kind !== "index") return refuse(`Run arc save from ${input.checkout} to rebuild the projection index, then retry removal.`);
@@ -125,7 +129,7 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       if (checked.kind === "unobservable") return refuse(checked.detail);
       if (await changedProjectionFiles(root, index) || await changedProjectionAsides(root, index)) continue;
       await input.session.step();
-      return await complete(root, index);
+      return await complete(root, index, written.ignoreRefusal);
     }
     return refuse(`Files kept changing at ${root.checkout}. Let the saves finish, then retry removal.`);
   } finally { root.checkpoint = null; }

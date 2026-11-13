@@ -23,7 +23,8 @@ import { ASIDE_FILES_ROOT, createStagedFile, nameAsideFile, parseAsideFile } fro
 import { flatWorkItemArtifactPath } from "../../src/lib/store/lifecycle-storage.js";
 import { recordWriteBack } from "../../src/lib/store/projection/taken-in.js";
 import { createHistoryMemo } from "../../src/lib/store/projection/base-recovery.js";
-import { projectionEntryForRecord } from "../../src/lib/store/projection/materialization-file.js";
+import { projectionEntryForRecord, withheldProjectionMark } from "../../src/lib/store/projection/materialization-file.js";
+import { guardProjectionIgnores } from "../../src/lib/store/projection/ignore-guard.js";
 import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../src/lib/renewable-lease.js";
@@ -199,6 +200,24 @@ describe("projected checkout release", () => {
     await endProjection(command);
     expect(await readProjectionIndex(h.location, false)).toEqual({ kind: "no-projection" });
     expect(await withProjectionLock(h.location, () => Promise.resolve("free"), { maxWaitMs: 0 })).toEqual({ status: "done", value: "free" });
+  });
+
+  it("names the refusing ignore rules for a deleted withheld file, then releases after their repair", async () => {
+    const h = await anchoredRelease();
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+    if (disk.kind !== "index") throw new Error("No projection index");
+    await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
+      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark() } } });
+    await rm(join(h.checkout, h.path));
+    const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
+    await writeFile(excludes, ".arc/\n");
+    const ports = createProjectionEnginePorts(h.checkout);
+    const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
+    if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
+    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: guard.remedy } });
+    await writeFile(excludes, original);
+    expect(await h.release()).toEqual({ kind: "released" });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).version).toBe(h.record.version);
   });
 
   it("returns an unparseable removal edit to its path and releases after the metadata is repaired", async () => {

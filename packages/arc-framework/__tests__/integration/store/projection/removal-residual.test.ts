@@ -33,6 +33,18 @@ it("refuses a personal file arriving between feasibility and persistence", async
   expect(await readFile(join(h.personal, "late.md"), "utf8")).toBe("Late saved personal bytes.\n");
 });
 
+it("names every unindexed personal file across identity folders", async () => {
+  const h = await unindexed();
+  await mkdir(join(h.personal, "nested"), { recursive: true });
+  await mkdir(join(h.checkout, ".arc/user/test-user"), { recursive: true });
+  await writeFile(join(h.personal, "first.md"), "First residual.\n");
+  await writeFile(join(h.personal, "nested/second.md"), "Second residual.\n");
+  await writeFile(join(h.checkout, ".arc/user/test-user/third.md"), "Third residual.\n");
+  expect(await h.slots.check(h.checkout)).toEqual({ kind: "would-refuse", remedy: { text: "Unindexed personal files "
+    + ".arc/user/someone-else/first.md, .arc/user/someone-else/nested/second.md, .arc/user/test-user/third.md remain in "
+    + `${h.checkout}. Recover wanted bytes outside this checkout, remove the local residual, then retry.` } });
+});
+
 it("releases an unindexed checkout while retaining its personal files", async () => {
   const h = await unindexed();
   await writeFile(join(h.personal, "retained.md"), "Retain this checkout and its bytes.\n");

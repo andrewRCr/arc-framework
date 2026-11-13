@@ -40,28 +40,27 @@ async function personalRootsAvailable(checkout: string, fs: ProjectionResidualFs
 
 async function observeManagedPersonalFiles(checkout: string, fs: ProjectionResidualFs): Promise<Check> {
   if (!await personalRootsAvailable(checkout, fs)) return { kind: "passes" };
+  const files: string[] = [];
   for (const name of (await fs.readdir(join(checkout, ".arc/user"))).sort()) {
     const path = `.arc/user/${name}`;
     if (isMachineLocalProjectionPath(path)) continue;
     const stat = await fs.lstat(join(checkout, path));
     if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
-    const file = await firstPersonalFile(checkout, path, fs);
-    if (file !== null) return { kind: "would-refuse", remedy: { text:
-      `Unindexed personal file ${file} remains in ${checkout}. Recover wanted bytes outside this checkout, remove the local residual, then retry.` } };
+    await collectPersonalFiles(checkout, path, fs, files);
   }
-  return { kind: "passes" };
+  if (files.length === 0) return { kind: "passes" };
+  const named = files.length === 1 ? `Unindexed personal file ${files[0]} remains` : `Unindexed personal files ${files.join(", ")} remain`;
+  return { kind: "would-refuse", remedy: { text:
+    `${named} in ${checkout}. Recover wanted bytes outside this checkout, remove the local residual, then retry.` } };
 }
 
-async function firstPersonalFile(checkout: string, directory: string, fs: ProjectionResidualFs): Promise<string | null> {
+async function collectPersonalFiles(checkout: string, directory: string, fs: ProjectionResidualFs, files: string[]): Promise<void> {
   for (const name of (await fs.readdir(join(checkout, directory))).sort()) {
     const path = `${directory}/${name}`;
     if (isMachineLocalProjectionPath(path)) continue;
     const stat = await fs.lstat(join(checkout, path));
     if (stat.isSymbolicLink()) continue;
-    if (stat.isFile()) return path;
-    if (!stat.isDirectory()) continue;
-    const nested = await firstPersonalFile(checkout, path, fs);
-    if (nested !== null) return nested;
+    if (stat.isFile()) files.push(path);
+    else if (stat.isDirectory()) await collectPersonalFiles(checkout, path, fs, files);
   }
-  return null;
 }

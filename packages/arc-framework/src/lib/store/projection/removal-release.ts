@@ -26,14 +26,14 @@ import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
   context: ProjectionPersistContext): Promise<Awaited<ReturnType<ProjectionRemovalSlots["release"]>>> {
-  const result = await withPersistedProjection(checkout, context, "release", async (root, index) => {
+  const result = await withPersistedProjection(checkout, context, "release", async (root, index, ignoreRefusal) => {
     if (root.location.primary) return { kind: "persisted" };
-    return removeLinkedProjection(root, index);
+    return removeLinkedProjection(root, index, ignoreRefusal);
   });
   return result.kind === "persisted" ? { kind: "released" } : result;
 }
 
-async function removeLinkedProjection(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionPersistResult> {
+async function removeLinkedProjection(root: ProjectionRootState, index: ProjectionIndex, ignoreRefusal?: Remedy): Promise<ProjectionPersistResult> {
   const observed = observeRemovalSends(root);
   const blocked = await readProjectionLinkBoundary(root.checkout, Object.keys(index.entries), root.ports.linkFs);
   const files: SwapFile[] = [];
@@ -46,7 +46,7 @@ async function removeLinkedProjection(root: ProjectionRootState, index: Projecti
     index = withProjectionEntry(index, path, replace.entry);
     if (replace.kind !== "replace") {
       await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
-      return { kind: "refused", remedy: observed.refusal() ?? guardRefusal(root, path, replace) };
+      return { kind: "refused", remedy: observed.refusal() ?? await releaseRefusal(root, path, replace, ignoreRefusal) };
     }
     files.push({ path, replace });
   }
@@ -78,6 +78,14 @@ async function removeLinkedProjection(root: ProjectionRootState, index: Projecti
   await discardReleasedState(root);
   retireProjectionRoot(root);
   return { kind: "persisted" };
+}
+
+/** A deleted withheld file is released only where its root accepts writes, so the refusing ignore rules remain to repair. */
+async function releaseRefusal(root: ProjectionRootState, path: string, held: Extract<GuardResult, { kind: "unreplaced" }>,
+  ignoreRefusal: Remedy | undefined): Promise<Remedy> {
+  if (held.cause === "withheld" && ignoreRefusal !== undefined && !root.writable(path)
+    && await readStat(join(root.checkout, path)) === null) return ignoreRefusal;
+  return guardRefusal(root, path, held);
 }
 
 function guardRefusal(root: ProjectionRootState, path: string, held: Extract<GuardResult, { kind: "unreplaced" }>): Remedy {
