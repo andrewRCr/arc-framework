@@ -1,4 +1,5 @@
 /** Repository-only entry for cutover window operations on an explicitly named checkout. */
+import { recomputeWindow } from "./recompute.js";
 import { checkWindow } from "./check.js";
 import { restoreWindow } from "./restore-operation.js";
 import { lockWindow } from "./lock.js";
@@ -17,7 +18,7 @@ export interface WindowRequest { repo: string; args: readonly string[] }
 export type WindowHandlers = Readonly<Record<string, (request: WindowRequest) => Promise<WindowResult>>>;
 /** Run the family entry, returning the process exit status. */
 export async function runWindow(
-  args: readonly string[], handlers: WindowHandlers = { check: checkWindow, restore: restoreWindow, lock: lockWindow, copy: copyWindow },
+  args: readonly string[], handlers: WindowHandlers = { check: checkWindow, recompute: recomputeWindow, restore: restoreWindow, lock: lockWindow, copy: copyWindow },
   output: WindowOutput = { stdout: text => { process.stdout.write(text); }, stderr: text => { process.stderr.write(text); } },
 ): Promise<number> {
   let operationStarted = false;

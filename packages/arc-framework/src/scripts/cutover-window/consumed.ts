@@ -28,12 +28,19 @@ export async function compareWindowConsumption(io: WindowGitReadIO,
   }
   for (const identity of identities) identity.kept = kept.get(identity.ref) ?? null;
   if (kept.size === 0) {
-    const expected = await readWindowTransientRecords(io, held);
-    const actual = await readLandedWindowTransients(io);
-    const findings = [...expected.findings, ...compareRecords(identities, expected.records, actual, { rejectErrands: true })];
-    return { regime: "records", identities, findings };
+    return { regime: "records", ...await compareWindowLandedConsumption(io, held) };
   }
   return { regime: "kept", identities, findings: await compareKeptRecords(io, identities) };
+}
+
+/** Compare the published transient records directly with the identity inputs retained by the check. */
+export async function compareWindowLandedConsumption(io: WindowGitReadIO,
+  held: Readonly<Record<string, string>>): Promise<Pick<WindowConsumption, "identities" | "findings">> {
+  const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref))
+    .map(([ref, tip]) => ({ ref, held: tip, kept: null }));
+  const expected = await readWindowTransientRecords(io, held);
+  const actual = await readLandedWindowTransients(io);
+  return { identities, findings: [...expected.findings, ...compareRecords(identities, expected.records, actual, { rejectErrands: true })] };
 }
 
 function consumptionFinding(identity: WindowConsumedIdentity, detail: string): WindowFinding {

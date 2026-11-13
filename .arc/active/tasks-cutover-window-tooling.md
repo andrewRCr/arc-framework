@@ -373,22 +373,15 @@ _Purpose:_ the comparisons the window runs between the import and the merge.
 
 _Mode:_ `layer` through Phase 6 — closes on every comparison the window runs after the import settled.
 
-### `[ ]` **5.1 The recompute — § 5.1**
+### `[x]` **5.1 The recompute — § 5.1**
 
 - _Goal:_ After the import, `recompute` stops on any change since the record to an import input or to a place a
   recorded branch could move, naming it with both values, and passes on none.
-
-    - Read host tips and identity refs with one `git ls-remote origin 'refs/heads/*' 'refs/arc/user/*/errands'`, and
-      judge the landed transient records with Task 2.2's comparison. Expose the comparisons as one function taking an
-      exemption for the flip, which `last-read` supplies.
-    - Build `test-first` (one behavior at a time):
-        - A changed worktree set, worktree `HEAD`, personal digest, or review-gate digest stops it
-        - A dirty working tree, an ignored file under the tracked-state paths, or a stash entry changing one stops it
-        - A changed local, fetched, or host branch tip stops it, as do a new or deleted local or fetched branch and a
-          moved host `main`
-        - A landed `work-item/record`, or a landed claim the held identity refs do not give, stops it
-        - An identity ref remaining locally or on `origin` stops it
-        - With none of these, it passes
+- _Outcome:_ `recompute` compares checkout membership, heads, personal and review digests, complete local/fetched
+  inventories, and recorded host tips. One host listing also checks identity retirement. The shared comparison exposes
+  the flip exemption for the last read, while the landed-record comparison reuses the restore's canonical transient
+  rules. Differences name both values and the restore route; dirty reports include paths, and the source CLI exercises
+  recompute between a native import and restore.
 
 ### `[ ]` **5.2 The last read — § 5.2**
 

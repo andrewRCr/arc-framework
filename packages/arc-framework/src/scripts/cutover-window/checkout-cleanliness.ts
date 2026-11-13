@@ -15,7 +15,7 @@ export async function readWindowCheckoutStatusFindings(io: WindowGitReadIO, chec
     try {
       const status = await io.exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
         { cwd: checkout.path, objectAccess: "local-only", preserveOutput: true });
-      if (status.stdout.length > 0) findings.push({ subject, condition: "The checkout is dirty, including untracked files.",
+      if (status.stdout.length > 0) findings.push({ subject, condition: `The checkout is dirty, including untracked files: ${JSON.stringify(status.stdout)}.`,
         remedy: "Finish the work and commit and push it, or drop the changes, then retry check." });
     } catch (error) {
       findings.push({ subject, condition: `Cannot read checkout cleanliness: ${error instanceof Error ? error.message : String(error)}`,

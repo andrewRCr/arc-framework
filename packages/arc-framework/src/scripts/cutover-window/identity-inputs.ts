@@ -24,3 +24,11 @@ export function windowForeignClaimFindings(inputs: readonly WindowTransientInput
       condition: `${record.reference.kind} claim ${JSON.stringify(record.reference.key)} remains in ${input.side} ${record.ref}, outside configured identity ${identity ?? "(none)"}.`,
       remedy: `Have ${record.reference.owner.name} close this claim before the window, then retry check.` })));
 }
+
+/** Name identity inputs that survived or arrived after the import retired its source refs. */
+export function windowRemainingIdentityFindings(refs: Readonly<Record<string, string>>, side: "local" | "origin"): WindowFinding[] {
+  return Object.entries(refs).flatMap(([ref, tip]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref) ? [{
+    subject: `${side}:${ref}`, condition: `Identity ref was recorded for retirement: expected retired (null); observed ${tip}.`,
+    remedy: "Stop the window and use restore to reconcile the remaining identity input before a fresh check.",
+  }] : []);
+}

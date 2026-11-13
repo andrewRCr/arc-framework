@@ -41,8 +41,8 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
     openedBaseHead: head, protection: "partial", branch: null, state: "open", changeRequest: null }]);
   await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
-    "--repo", h.root, "--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest),
-    "--pull-requests", h.listingPath, "--json", ...(operation === "check" ? ["--path", ""] : [])],
+    "--repo", h.root, "--json", ...(operation === "recompute" ? [] : ["--flip-branch", h.flip.branch,
+      "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : [])],
   { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   expect((await run("check")).exitCode).toBe(0);
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
@@ -56,6 +56,11 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
     await expect(h.migrate()).rejects.toThrow("pause-before-publication");
   } else expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(await storeImported(h.root, h.git)).toBe(true);
+  if (!beforePublication) {
+    const recomputed = await run("recompute");
+    expect(recomputed.exitCode, recomputed.stderr).toBe(0);
+    expect(JSON.parse(recomputed.stdout)).toMatchObject({ operation: "recompute", status: "passed", findings: [] });
+  }
   const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
   const directories = ["store", "store-migrate-build", "store-migrate-old"].map(name => join(common, "arc", name));
   for (const directory of directories) await mkdir(directory, { recursive: true });
