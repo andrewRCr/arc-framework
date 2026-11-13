@@ -537,7 +537,8 @@ check's. A later rebuild in that checkout, over an index whose state version is 
 each held file at a path it lays a stored record at by the rule above — refreshing it where it holds no edit, otherwise
 withholding it under the ordinary mark — with no store write. Once a later rebuild's evidence is whole, or a full
 materialization's, a held file at a path it lays no stored record at takes the ordinary withheld mark and its remedy to
-delete it. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off leaves only
+delete it; `arc sync`'s, which lays only deleted files and takes no state version, leaves that to the next start's
+rebuild. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off leaves only
 that path to a later rebuild, each reported (A7). A file `spec-projection-write-back.md` § 9 never adopts and a path
 `MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as write-back leaves them. Status and each command's report name
 every withheld file, refresh and write-back skip it, removal leaves it at its path (`spec-projection-substrate.md`
@@ -1110,7 +1111,8 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   pending marks apply, and the index takes the current state version only once the rebuild's evidence is whole (A7).
   Write-back has already run, and a file holding an edit is handed to it as any refresh hands one, so the rebuild loses
   none. It costs one full materialization, paid by a worktree idle past Git's expiry or one whose state version names
-  history this clone lacks, and one more at each start there while the rebuild's evidence is not whole (§ 17 item 12).
+  history this clone lacks, and one more at each start there until a rebuild takes the current state version (§ 17 item
+  12).
 - **A listing that is not whole.** A full materialization and the rebuild write files only for the records a listing
   returns. A record it lists only as a diagnostic (`ListingDiagnosticSchema`, `lib/store/read.ts`) — malformed,
   oversized, unreadable, of a newer format, under a mismatched key, or of any other kind — projects no file and is
@@ -1387,8 +1389,8 @@ The withheld mark's lifetime in the glossary and § 5.6 is narrowed (A7). Both k
 over by nothing and sent nowhere, until the person deletes it. A held file (§ 2.5 here), one a rebuild with no usable
 index withholds because its evidence was not whole, is the exception. At a path the current projection lays a stored
 record at, a later rebuild in its checkout refreshes it where it holds no edit and otherwise gives it the ordinary
-withheld mark; at a path laid no stored record, the first later rebuild or full materialization whose evidence is whole
-gives it that mark. Under the ordinary mark it waits for the person as before.
+withheld mark; at a path laid no stored record, the first later rebuild or full materialization other than `arc sync`'s
+whose evidence is whole gives it that mark. Under the ordinary mark it waits for the person as before.
 
 #### 16.3 Write-back (`spec-projection-write-back.md`)
 
@@ -1507,7 +1509,7 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     the next fan-out, whichever comes first, rather than at the writer's fan-out. It needs a save timed into the swap's
     window (§ Spike 1b).
 12. **A worktree whose state version is unset or no longer resolves.** While a worktree's state version is unset, or no
-    longer resolves after a rebuild whose evidence was not whole, each start of its own commands rebuilds it in full,
+    longer resolves and no rebuild has yet taken the current one, each start of its own commands rebuilds it in full,
     one full materialization each, as does each fan-out round of those commands' own writes while it is unset; another
     worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather than at the
     writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
@@ -1807,8 +1809,8 @@ _These considerations cover the design the three members build together; § 1.1 
     the persist and release steps refuse over as over any withheld file, and publishes no state version; once the
     reported condition is resolved, the next rebuild settles each held file at a path it lays a stored record at by
     § 2.5's rule, with no store write, where no link at or above it blocks that path and the checkout can write it, and
-    the next rebuild or full materialization gives one still at a path it lays no stored record at the ordinary withheld
-    mark.
+    the next rebuild or full materialization other than `arc sync`'s gives one still at a path it lays no stored record
+    at the ordinary withheld mark.
 
 ## Open Questions
 

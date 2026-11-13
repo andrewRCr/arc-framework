@@ -64,7 +64,7 @@ export type GuardResult =
  * @returns Whether to replace it, and the entry to record.
  */
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
-  // The guard never writes over a withheld file or sends it; only its deletion, or a rebuild settling a held file, releases it.
+  // The guard never writes over a withheld file or sends it.
   if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
   if ((await readStat(join(input.checkout, input.path)))?.type === "other") {
     const remedy = notAFileRemedy(join(input.checkout, input.path));

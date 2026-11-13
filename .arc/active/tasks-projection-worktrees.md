@@ -499,7 +499,7 @@ No production composition sets the slots today, so every caller runs `passingPro
 - `[ ]` While its evidence is not whole, a rebuild with no usable index withholds every file at a path it lays no stored
         record at under the held mark, which removal, persist and release refuse over, and publishes no state version;
         once the reported condition is resolved, the next rebuild settles each held file by the rebuild rule with no
-        store write where nothing blocks its path, and the next rebuild or full materialization gives one still at an
-        unlaid path the ordinary withheld mark (A7; spec criterion 14).
+        store write where nothing blocks its path, and the next rebuild or full materialization other than `arc sync`'s
+        gives one still at an unlaid path the ordinary withheld mark (A7; spec criterion 14).
 
 - `[ ]` Ready for integration
