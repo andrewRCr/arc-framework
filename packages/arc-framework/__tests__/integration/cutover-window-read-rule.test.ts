@@ -65,6 +65,8 @@ it("rejects a pointer deleted by a branch cut from main after the park", async (
 
 it("accepts inherited content through either of several best merge bases", async () => {
   const h = await windowFixture(), path = ".arc/active/notes-alpha.md";
+  await writeFile(join(h.root, path), "# Notes: Alpha\n\nIndependent main-side base.\n");
+  await h.git("git", ["add", path]); await h.git("git", ["commit", "-m", "Advance the main merge base"]);
   const left = (await h.git("git", ["rev-parse", "main"])).stdout.trim();
   await h.git("git", ["checkout", "feat/alpha"]);
   await writeFile(join(h.root, path), "# Notes: Alpha\n\nOther-side source content.\n");

@@ -9,7 +9,11 @@ import { resolveImportBranchTip } from "../../lib/store/ref/import/branch-tip.js
 /** A path's comparison outcome and its read/main merge bases. */
 export interface WindowPathRule extends WindowPathRead { revision: string; passes: boolean; bases: string[] }
 /** One operation's cached immutable Git reads. */
-export interface WindowReadRule { inspect(path: string, revision: string, branchTip?: boolean): Promise<WindowPathRule> }
+export interface WindowReadRule {
+  inspect(path: string, revision: string, branchTip?: boolean): Promise<WindowPathRule>;
+  paths(revision: string): Promise<readonly string[]>;
+  mergeBases(left: string, right: string): Promise<readonly string[]>;
+}
 
 /** Bind native tree and ancestry reads to the map's acquired import coordinates. */
 export function createWindowReadRule(context: WindowImportContext, map: WindowReadMap): WindowReadRule {
@@ -34,7 +38,8 @@ export function createWindowReadRule(context: WindowImportContext, map: WindowRe
     }
     return false;
   }
-  return { inspect: async (path, revision, branchTip = false) => {
+  return { paths: async revision => [...(await tree(revision)).keys()], mergeBases: bases,
+    inspect: async (path, revision, branchTip = false) => {
     const mainBases = branchTip ? await bases(revision, map.main) : [];
     const discoveryBases = [...mainBases];
     for (const read of map.readRevisions) discoveryBases.push(...await bases(revision, read));

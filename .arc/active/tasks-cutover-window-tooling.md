@@ -302,31 +302,17 @@ failing for a reason outside § 2.2.
         - A parked pointer's inherited absence is checked against the branch it names; a deletion after branching from
           the parked `main` refuses. Unavailable ancestry evidence refuses and permits a fresh comparison after repair.
 
-### `[ ]` **4.2 Tracked state the import would not read — C7**
+### `[x]` **4.2 Tracked state the import would not read — C7**
 
 - _Goal:_ C7 refuses every tracked-state change the import would lose, at `main`'s `HEAD` and every live branch's local
   and fetched tips, the flip's included, and passes every change a branch only inherited, naming the revision, the
   work unit where one applies, and each path.
 
-    - Build each parked unit as the repository builds one: a stub on `main`, graduated on its branch, then parked.
-    - Build `test-first` (one behavior at a time):
-        - A branch that changes a work unit's records without being its read copy refuses
-        - A branch that only deletes another unit's record refuses
-        - A branch carrying a stale copy that changes that unit's records refuses
-        - A stale copy that changes its unit's records refuses where it is that unit's only branch copy, the unit merged
-          to `main` and its own branch gone
-        - A live unit's record `main` changed after its read copy forked refuses
-        - A live unit's file `main` deleted while its read copy still holds it refuses
-        - A branch cut from `main` after a park that deletes the pointer refuses
-        - A parked unit whose branch tip cannot be resolved refuses
-        - Each refused case passes once its named remedy is applied
-        - A stale-copy branch that only inherits its unit's changes passes
-        - A branch that merged `main` after that change on `main` passes
-        - A resumed unit's pointer deleted on `main` passes
-        - A unit parked after its branch forked passes at `main`, at its branch's local and fetched tips, and at a
-          branch forked from that branch after graduation
-        - A `main` edit to that unit's backlog draft after the fork refuses, then passes once `main` is merged into the
-          parked branch keeping the branch's side at the pointer path and the meta
+- _Outcome:_ `check` evaluates the read rule over main and both acquired tips of every live branch, including the
+  named flip, retaining unresolved parked-source findings and naming each affected revision, unit, path, and remedy.
+  Native cases cover edits, deletions, stale copies, inherited content, parking, resumption, and repaired continuation.
+  Shared fixtures graduate ownership after their base fork and move parked drafts with their metadata; map and rule
+  fixtures retain their deleted-companion and multiple-merge-base premises on that history.
 
 ### `[ ]` **4.3 Diverging copies and the flip's base — C8, C10**
 

@@ -27,6 +27,14 @@ export async function windowFixture(options: { sealed?: boolean } = {}) {
   await git("rm", ".arc/active/meta-alpha.md");
   await git("commit", "-m", "Keep active ownership on its work branch");
   await git("push", "--set-upstream", "origin", "main");
+  const activeMeta = ".arc/active/meta-alpha.md";
+  const alphaMeta = (await git("show", `feat/alpha:${activeMeta}`)).stdout;
+  await git("checkout", "feat/alpha");
+  await git("merge", "--ff-only", "main");
+  await writeFile(join(h.root, activeMeta), alphaMeta);
+  await git("add", activeMeta);
+  await git("commit", "-m", "Graduate active ownership after its base fork");
+  await git("checkout", "main");
   await git("push", "--set-upstream", "origin", "feat/alpha");
   const branch = "feat/window-flip";
   await git("checkout", "-b", branch);

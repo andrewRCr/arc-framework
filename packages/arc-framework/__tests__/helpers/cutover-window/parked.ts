@@ -13,11 +13,14 @@ export async function parkedWindowFixture() {
   const pointer = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug,
     placement: { kind: "backlog", commitment: "planned", cohort: [] } });
   const active = `.arc/active/meta-${slug}.md`;
+  const draft = join(dirname(pointer), "draft-parked.md").split("\\").join("/"), activeDraft = ".arc/active/draft-parked.md";
   await mkdir(dirname(join(h.root, pointer)), { recursive: true });
   await writeFile(join(h.root, pointer), makeMetaFixture(slug, { state: "Planning", owner: "andrew", branch: "plan/parked" }));
+  await writeFile(join(h.root, draft), "# Draft: Parked\n\n**Purpose:** Preserve the planned work.\n");
   await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Plan a parked unit"]);
   await h.git("git", ["checkout", "-b", branch]);
   await h.git("git", ["mv", pointer, active]);
+  await h.git("git", ["mv", draft, activeDraft]);
   await writeFile(join(h.root, active), makeMetaFixture(slug, { owner: "andrew", branch }));
   await writeFile(join(h.root, ".arc/active/notes-parked.md"), "# Notes: Parked\n\nPreserved branch work.\n");
   await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Graduate the planned unit"]);
@@ -28,5 +31,5 @@ export async function parkedWindowFixture() {
     renderFields: { owner: "andrew" } }));
   await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Park the graduated unit"]);
   const main = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
-  return { ...h, slug, branch, pointer, active, tip, main };
+  return { ...h, slug, branch, pointer, active, draft, activeDraft, tip, main };
 }

@@ -130,7 +130,7 @@ it("assigns a tracked file with no discovered record to main's head", async () =
 
 it("maps a deleted companion through a comparison base's discovered record", async () => {
   const h = await windowFixture(), path = ".arc/active/extra-alpha.md";
-  const base = (await h.git("git", ["merge-base", "main", "feat/alpha"])).stdout.trim();
+  const base = (await h.git("git", ["rev-parse", "feat/alpha"])).stdout.trim();
   await h.git("git", ["checkout", "feat/alpha"]);
   await h.git("git", ["rm", path]); await h.git("git", ["commit", "-m", "Remove a branch companion"]);
   const tip = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();

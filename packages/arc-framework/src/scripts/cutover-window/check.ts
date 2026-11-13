@@ -17,6 +17,7 @@ import { windowUnmarkedCheckoutFindings, readWindowEndedCheckoutFindings, window
 import { readWindowDecompositionBranchFindings, readWindowDecompositionDirectoryFindings } from "./decomposition.js";
 import { readWindowSealAnchor, readWindowCheckoutAncestryFindings, readWindowBuildFindings } from "./seals.js";
 import { readWindowExecutableFindings } from "./executables.js";
+import { readWindowTrackedRecordFindings } from "./tracked-records.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
 export interface WindowCheckOptions { host?: WindowHostPort; step?: WindowHoldStepHook }
@@ -52,7 +53,8 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),
       ...await readWindowDecompositionBranchFindings(io, state.record.branches), ...await readWindowDecompositionDirectoryFindings(request.repo),
       ...await readWindowCheckoutAncestryFindings(io, state.checkouts, anchor), ...await readWindowBuildFindings(state.checkouts),
-      ...await readWindowExecutableFindings(state.checkouts, input.path)];
+      ...await readWindowExecutableFindings(state.checkouts, input.path),
+      ...await readWindowTrackedRecordFindings(state.context, state.record, state.live.composition)];
     if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };
