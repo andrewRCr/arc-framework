@@ -129,7 +129,7 @@ function divergingCopyPlant(): WindowRehearsalPlant {
         writeRehearsalFile(scratch, meta, renderMetaFile(divergingSlug, { state: "Active", owner: identity ?? "rehearsal", branch })), "origin/main");
       await context.sync.plantInCopy(context.layout.repo, branch, "Move the local side");
       await commitRehearsalBranch(context, branch, "Move the mirror's side", scratch => appendRehearsalLine(scratch, "REHEARSAL.md", "mirror"));
-      return [{ subject: divergingSlug, condition: `Copy origin/${branch}` }];
+      return [{ subject: divergingSlug, condition: `is not an ancestor of selected read copy origin/${branch} (` }];
     },
     remove: async context => {
       const { sync } = context;
