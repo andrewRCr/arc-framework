@@ -23,7 +23,7 @@ move happens once per repository, in a quiesce, import, and flip window rehearse
 The machinery has landed dark. The contract has two implementations: the in-repo one over today's tracked files, and
 the ref backend. `createStore` (`lib/store/create.ts`) builds only the in-repo one, and it reports
 `capabilities.stateOffBranch` false; the ref factory, `createRefStore`, has one production caller, the hidden
-`arc store review-root-repair`. Every store-backed arm the storage program built — the lifecycle executor, locus
+`arc store repair-review-roots`. Every store-backed arm the storage program built — the lifecycle executor, locus
 derivation, session-init's rebuilt slots, review records, the projection and its write-back — selects itself on that
 capability, so none runs in operation. The one-time import (`importTrackedState`, `lib/store/ref/import/entry.ts`;
 `runStoreMigrate`) has run in trial form over this repository's real state, clean, but has never placed a store or
@@ -127,11 +127,17 @@ state is data, checked by the accounting case and CI over the post-deletion tree
 deletion pass that follows stays its own unit, since another branch and review would not shrink the subsystem a reviewer
 must check.
 
+At task generation the plan crossed the size marks again: seven phases and over a thousand lines, over a change set near
+ten thousand lines. The cut its seams suggest, its first two phases landing dark on `main` ahead of the flip as the
+window's machinery did, was declined (Owner, 2026-11-13): the bulk of the change is the switch's test changes and the
+workflow rewrite, neither of which can land before the flip, and one review reads the whole in the chunks above.
+
 #### 1.3 Prerequisites and their contracts
 
-Of the members this unit depends on, the three below have not landed. Each item this spec rests on an unlanded member
-is stated as that member's contract with the condition under which it holds, and re-checked when the member lands; a
-contract that does not hold when its member lands is a forward amendment to this spec.
+Of the members this spec rests on, the three below have not landed: two this unit depends on, and
+`projection-team-scale`, which may land before the flip or after it (Owner, 2026-11-13). Each item this spec rests on an
+unlanded member is stated as that member's contract with the condition under which it holds, and re-checked when the
+member lands; a contract that does not hold when its member lands is a forward amendment to this spec.
 
 - **`cutover-window-tooling`** lands on `main` before the window, its first rehearsal stage clean, inert until run. It
   provides:
@@ -193,15 +199,21 @@ contract that does not hold when its member lands is a forward amendment to this
   writes into any root, with any untracked installer copy deleted from every checkout first (§ 2.5); the rebuild of
   deleted files ahead of `arc sync`'s network steps in `handleSync` (`handlers/sync.ts`, § 2.4); and `arc save`
   clearing the changed mark without setting a cadence (§ 11.7).
-- **`projection-team-scale`** lands the read-only archive: from the flip, a file under `completed/` lays read-only with
-  a notice naming `arc edit`, unless its worktree has it opened. The read-only lay is how the archive is laid, not an
-  edit right: edit rights stay as `spec-projection-write-back.md` § 8.1 and § 8.4 set them, so the archived work unit's
-  owner may still edit and anyone may edit an archived cohort document, while another person's archived work stays
-  protected by those rights, its notice naming the owner. `arc edit <path>` opens one file in that worktree, changing no
-  content, and refuses wherever the edit itself would be refused; it opens a new path only inside an archived work
-  unit's folder, once the file exists there. `arc save` lands the edit and lays the file read-only again. The errata
-  convention (§ 8.12) is written against that contract. If the unit has not landed by the window, the convention is
-  written against write-back's in-place archived edit (`spec-projection-write-back.md` § 8.4) and amended when it lands.
+- **`projection-team-scale`** lands the read-only archive: from the flip, or from its own landing where that comes after
+  the flip, a file under `completed/` lays read-only with a notice naming `arc edit`, unless its worktree has it opened.
+  The read-only lay is how the archive is laid, not an edit right: edit rights stay as `spec-projection-write-back.md`
+  § 8.1 and § 8.4 set them, so the archived work unit's owner may still edit and anyone may edit an archived cohort
+  document, while another person's archived work stays protected by those rights, its notice naming the owner. `arc edit
+  <path>` opens one file in that worktree, changing no content, and refuses wherever the edit itself would be refused;
+  it opens a new path only inside an archived work unit's folder, once the file exists there. `arc save` lands the edit
+  and lays the file read-only again. The errata convention (§ 8.12) is written against that contract. Where the unit has
+  not landed when the convention is written, it is written against write-back's in-place archived edit
+  (`spec-projection-write-back.md` § 8.4); a landing after that and before the flip's head is fixed for the window
+  rewrites it onto `arc edit` before that head is fixed, and Stage 2 re-runs where it changed (§ 9.2). Where the unit
+  has not landed by then, the window runs on the in-place form, a residual § 17.3 names, once that unit's plan is
+  confirmed to carry two things at its own landing: the convention's rewrite onto `arc edit`, and the read-only lay over
+  an archive the flip's materialization laid writable (Owner, 2026-11-13; agreed with that unit's planning the same
+  day).
 
 `cohort-identity-verbs` has landed: `arc cohort close`, `arc cohort remove`, `arc rename <slug|uid>` for work units and
 cohorts, and UID operands for `arc errand close` and `arc errand abandon` (`spec-cohort-identity-verbs.md`), which
@@ -225,14 +237,18 @@ follows from it.
 
 `createStore` keeps its signature, so no caller changes, and composes the ref backend's ports from the caller's:
 
-- it carries over every port a caller supplies and the in-repo store honored — `exec`, `execInput`, `fs`, `clock`,
-  `checkoutRoot`, `identity`, and `remote` — so the callers that pass an identity today (among them `recover.ts`,
-  `session-context.ts`, `join.ts`, `errand-merge-composition.ts`, and `personal-command-store.ts`) keep it;
-- it takes the ports only the ref backend needs — `rawExec`, `sleep`, `random`, `actor`, and the byte-level file
-  access — from `createDefaultRefStorePorts` (`lib/store/default-ports.ts`), and `backingRepository` from the
-  checkout's tracked pointer (`readBackingRepository`), as `createStoreCommandPorts` (`commands/store-ports.ts`) does;
-- `locks` has no ref counterpart: the ref backend serializes its own writes (`withRefLocks`,
-  `lib/store/ref/write-locks.ts`), so a caller's notes-lock override (`personal-command-store.ts`) goes inert.
+- it builds them through `createDefaultRefStorePorts` (`lib/store/default-ports.ts`) from the caller's `exec`,
+  `execInput`, and `checkoutRoot`, so the caller's Git executors pass the Git floor gate that function wraps them in,
+  with `backingRepository` from the checkout's tracked pointer (`readBackingRepository`), as `createStoreCommandPorts`
+  (`commands/store-ports.ts`) does; that supplies the ports only the ref backend needs — `rawExec`, `sleep`, `random`,
+  `actor`, its `lock`, and the directory and byte-level file access;
+- over those it lays the caller's file access, `clock`, and `identity`, so the callers that pass an identity today
+  (among them `recover.ts`, `session-context.ts`, `join.ts`, `errand-merge-composition.ts`, and
+  `personal-command-store.ts`) keep it;
+- a caller's `remote` and `locks` have no place in the ref ports (`RefStorePorts`, `lib/store/ports.ts`): the ref
+  backend takes its remotes from their `arc-state` designation and serializes its writes through its own `lock` port
+  (`withRefLocks`, `lib/store/ref/write-locks.ts`), so a caller's notes-lock override (`personal-command-store.ts`)
+  goes inert.
 
 The override (§ 3.1) is the only other branch in `createStore`. `runStoreMigrate` builds the import's source through
 `createStore`, so a flip build never imports: over a tree that tracks state the tracked-state refusal stops it
@@ -298,30 +314,42 @@ create `<commonDir>/arc/store`, shared by every worktree on the machine (`writeR
 
 #### 3.1 The in-repo override
 
-An override read from the environment makes `createStore` build the in-repo implementation. The capability stays a
-fixed property of the store a command builds; nothing reads the repository to choose. Until its merge, the flip's
-checkout sets the override in the environment of every command it runs, `git` included, since a hook inherits the
-environment of the `git` process that runs it. Under the flip build, every `arc` command builds a store in
-write-back's root hook (`registerProjectionHooks`, `lib/store/projection/command-hooks.ts`), beside the store this
-repository's hook builds when a cohort record or a planned meta is staged (`validate-cohort-consistency.ts`). Under the
-override, `createStore` builds the in-repo implementation, whose capability leaves the projection off
-(`initializeProjection`, `lib/store/projection/engine.ts`), so no command in that checkout projects or builds a ref
-store before the merge. The flip's own lifecycle — review, verification, pre-publication — therefore runs on the
-in-repo implementation up to the import, and its deletion commit is made under the override after it (§ 10.5).
+An override, `ARC_IN_REPO_STORE` read from the environment and in force when set and non-empty, makes `createStore`
+build the in-repo implementation. The capability stays a fixed property of the store a command builds; nothing reads the
+repository to choose. Until its merge, the flip's checkout sets the override in the environment of every command it
+runs, `git` included, since a hook inherits the environment of the `git` process that runs it. Under the flip build,
+every `arc` command builds a store in write-back's root hook (`registerProjectionHooks`,
+`lib/store/projection/command-hooks.ts`), beside the store this repository's hook builds when a cohort record or a
+planned meta is staged (`validate-cohort-consistency.ts`). Under the override, `createStore` builds the in-repo
+implementation, whose capability leaves the projection off (`initializeProjection`, `lib/store/projection/engine.ts`),
+so no command in that checkout projects or builds a ref store before the merge. The flip's own lifecycle — review,
+verification, pre-publication — therefore runs on the in-repo implementation up to the import, and its deletion commit
+is made under the override after it (§ 10.5).
+
+The rewritten workflows (§ 8) sync into `.arc/` with each commit that rewrites them, so from the first such commit the
+flip's own sessions read text written for the store while their commands run the in-repo implementation. Where that text
+names a verb that refuses `unsupported` there — `arc task close` and `arc task defer` (`readTaskBasis`,
+`lib/work-unit/verbs/task-close.ts`), `arc save` (`projectionSaveResult`, `lib/store/projection/save.ts`), and the
+dormant commands, `arc handoff write`, `arc inbox`, and `arc route` among them (`runDormantStoreCommand`,
+`commands/store-command-support.ts`) — the session takes the pre-flip step the refusal's remedy names. Each such remedy
+names that step concretely, independent of any workflow's text: a remedy that points to "the existing" workflow, or to a
+command that does not carry the state the verb would have saved, is rewritten to name the pre-flip step itself.
 
 The override reaches no test. A check's command inherits its caller's environment apart from the four channels the check
 engine clears (`CHECK_EXECUTION_ENVIRONMENT`, `lib/checks/environment-policy.ts`), so the test setup clears the
 override, and no test, nor any CLI a test spawns, sees it from the flip's checkout. The routed checks — the type checks,
 `lint:ts`, and the test tiers — run no ARC command over the checkout, and a runner applies only a check's declared
 `environment_inputs` (`.arc/system/arc-checks.yml`), so none needs it. CI runs the CLI over its own checkout in two
-steps (`check gate merge --ci --dry-run` and `check run lint:md:underwrap`, `.github/workflows/ci.yml`); each sets the
-override in its own step environment only when the run's head branch is the flip's and its tree still tracks a file
-under § 3.2's paths. The head with the deletion commit applied, the one that merges, therefore runs without it, as the
-run on a branch of its own did ahead of the window (§ 10.1), and so does every later pull request, which still meets
-§ 3.2's refusal in CI if its tree tracks state. The lane-attestation workflow also runs the CLI
-(`.github/workflows/arc-lane-attestation.yml`), `review planning-lane` over a pull request's base and head, but from a
-build of the base's own checkout (`github.workflow_sha`), so it needs no override: before the merge it runs the pre-flip
-build, and after it the flip build over a tree that tracks no state.
+steps (`check gate merge --ci --dry-run` and `check run lint:md:underwrap`, `.github/workflows/ci.yml`); each exports
+the override in its own step script only when the run's branch is the flip's and the checked-out tree still tracks a
+file under § 3.2's paths. The step computes both itself rather than through a workflow expression, which sets an empty
+value when its condition is false: a pull-request run checks out the merge ref and names the branch in
+`GITHUB_HEAD_REF`, and a dispatched run has no head ref, so its branch is `GITHUB_REF_NAME`. The head with the deletion
+commit applied, the one that merges, therefore runs without it, as the run on a branch of its own did ahead of the
+window (§ 10.1), and so does every later pull request, which still meets § 3.2's refusal in CI if its tree tracks state.
+The lane-attestation workflow also runs the CLI (`.github/workflows/arc-lane-attestation.yml`), `review planning-lane`
+over a pull request's base and head, but from a build of the base's own checkout (`github.workflow_sha`), so it needs no
+override: before the merge it runs the pre-flip build, and after it the flip build over a tree that tracks no state.
 
 #### 3.2 The tracked-state refusal
 
@@ -335,15 +363,25 @@ fact that decides between them — the same steps where `origin`'s `main` no lon
 import from the pre-flip build. The remedy's commit, merge, and push run this repository's Git hooks, which call the CLI
 — `arc check pre-commit`, `commit-msg`, and `pre-push`, and the pre-commit hook's `hook-*` commands
 (`.arc/system/.internal/githooks/`) — and every command builds a store in write-back's root hook (§ 3.1). While the
-refusal's condition holds, those hook commands therefore run with the projection off and open no ref store, as a command
-with no identity runs under the skip switch (`spec-projection-worktrees.md` § 2.5); none needs a store on a commit that
-only deletes, since no gate check they select reads one and the pre-commit hook's cohort check
-(`validate-cohort-consistency.ts`) runs only over a staged cohort record or planned meta. Once the deletion is
-committed, `HEAD` tracks nothing and the checkout opens its store as a clone made after the flip does. The refusal reads
-`HEAD` rather than the index, so an abandoned commit leaves no projected checkout over a tree that still tracks state.
-It never names the override, which only the flip's own checkout sets (§ 3.1). Any other command run in such a checkout
-refuses rather than creating a store or projecting, so the flip's checkout cannot project before its deletion commit
-even if a command there runs without the override.
+refusal's condition holds, those hook commands therefore take the skip switch's path (`--skip-projection`,
+`startProjection`, `lib/store/projection/engine.ts`), which returns before any projection lock or store read, under a
+skip reason of their own whose mark names the refusal's remedy; none needs a store on a commit that only deletes, since
+no gate check they select reads one and the pre-commit hook's cohort check (`validate-cohort-consistency.ts`) runs only
+over a staged cohort record or planned meta. Once the deletion is committed, `HEAD` tracks nothing and the checkout
+opens its store as a clone made after the flip does. The refusal reads `HEAD` rather than the index, so an abandoned
+commit leaves no projected checkout over a tree that still tracks state. It never names the override, which only the
+flip's own checkout sets (§ 3.1). Any other command run in such a checkout refuses rather than creating a store or
+projecting, so the flip's checkout cannot project before its deletion commit even if a command there runs without the
+override.
+
+The refusal fires in two places, since `createStore` builds nothing until first use while a command's root hook starts
+the projection, taking its lock and reading the store, before the command runs (`startUnderLease`,
+`lib/store/projection/engine-start.ts`). The root hook evaluates the condition first, before the projection starts, and
+either routes a hook command to the skip or refuses the command. A store composed over such a tree also refuses at its
+first use, for a caller that composes one outside a command, such as the cohort check. The refusal is a recoverable
+`tracked-state` refusal in the local refusal union (`LocalRefusalSchema`, `lib/store/refusal.ts`), not one of the
+interim backend's `unsupported` cases. It reads the tree from the repository's top level, whatever the checkout root's
+depth, and an unborn `HEAD` tracks nothing.
 
 A clone made after the flip tracks no such file, so it opens its store and pulls. A checkout that merges `main` while
 its branch still tracks its own records refuses until it deletes them. A pre-flip clone that has not merged the flip
@@ -354,7 +392,8 @@ Both pieces leave with the in-repo implementation, the CI steps' condition, the 
 commands' exemption with them. Tests that target the in-repo backend build it explicitly through `createInRepoBackend`
 (`lib/store/in-repo/backend.ts`), mostly in the store test helpers (`__tests__/helpers/store/`); no suite-wide override
 is set, since one would hide the flipped default from the tests that should see it and would reach the CLI processes the
-end-to-end and integration tests spawn (§ 7).
+end-to-end and integration tests spawn (§ 7), apart from the spawn helpers' default, confined to the switch's staging
+and gone before its slice closes (§ 7.3).
 
 ### 4. Store paths the flip completes
 
@@ -365,7 +404,11 @@ Each item below is a path the switch would otherwise leave wrong, missing, or mi
 The contract's `sync()` became `push({ carry? })` beside `pull()`, while `arc sync` keeps its name and runs both,
 pulling then pushing (`spec-storage-ref-backend.md` § 2.1, § 6.1). The flip points `handleSync` (`handlers/sync.ts`)
 at `pull` then `push`, after `projection-worktrees`' rebuild of deleted files, reports the push's figures through the
-tripwire report (`spec-seam-locus.md` § 9.3), and drops the notes leg's call.
+tripwire report (`spec-seam-locus.md` § 9.3), and drops the notes leg's call. Off the branch neither the notes save leg
+nor the Errand reconcile leg runs: the save throws once the store is imported (`runUserSave`,
+`commands/user/save-load.ts`), and the Errand leg, which runs after every sync today (`reconcileErrandLeg`,
+`handlers/sync.ts`), fails once the registry ref exists (`reconcileErrandPush`, `lib/errand/merge.ts`). Sync's outcome
+and its audit entry carry a state leg in place of the notes leg.
 
 State publishes first and alone, whatever the branch push's outcome, and each leg is reported separately. The legs
 pair today only because notes are keyed to commits: `NOTES_BLOCK_WORKTREE_STATES` (`handlers/sync.ts`) holds the notes
@@ -376,8 +419,11 @@ derives captures from local tips (`importTaskCaptures`, `lib/store/ref/import/co
 key (`computeCopyKeys`, `lib/git/copy-key.ts`) survives a rebase that leaves the patch text unchanged, so publishing
 state ahead of the branch changes no reader. Sync still pushes the branch.
 
-On a clone with no designated state remote, the rewired sync refuses `designation-needed`, as `arc join` and session
-start's pull already do (`handlers/join.ts`, `lib/session-init/store-user-pull.ts`).
+Sync consumes its pull as session start does (`consumePull`, `lib/store/pull-consumption.ts`): a stopping pull pushes no
+state, and sync exits nonzero. On a clone with no designated state remote, it asks for the designation where the command
+may prompt, as `arc join` does (`pullJoinStore`, `handlers/join.ts`), and pushes state once one is made; otherwise it
+reports the question with its `arc store remote` remedy, pushes no state, and exits nonzero. The branch push runs either
+way.
 
 #### 4.2 The capture gates onto `arc inbox`
 
@@ -395,9 +441,10 @@ count. `arc user inbox-list` is inert from the flip.
 
 `GitDeliveryRenameTransitionSource` (`lib/delivery/plan-resolution.ts`) lists the transition records on a ref through
 raw `git`, and `ls-tree` on a missing path exits 0, so after the untrack (§ 5.4) it would read empty and resolve a plan
-stored under a former name as `no-match`. The flip makes it refuse when the transition folder is absent at the ref, so
-the missed reader fails loudly. Delivery is paused; moving its plan resolution onto store reads follows with the
-delivery rebuild.
+stored under a former name as `no-match`. The flip makes it refuse when the transition folder is absent at the ref on an
+off-branch store, so the missed reader fails loudly; it takes the store's capability for that, and before the flip a ref
+whose plans never recorded a transition resolves as today. Delivery is paused; moving its plan resolution onto store
+reads follows with the delivery rebuild.
 
 #### 4.4 The base-drift resolver onto the store
 
@@ -407,7 +454,10 @@ Once no completed meta lands on base, the drift report would lose which work uni
 or rebase project's checkpoint would refuse reconciliation (`analyzeIntegrationEvidence`,
 `lib/git/base-integration-evidence.ts`). From the flip, the resolver reads the store's completed records
 (`readStoreCompletedEvidence`, `lib/store/lifecycle-completed.ts`) and matches a pull request by the number in the
-archived meta's `PR URL`; two archived metas naming one pull request refuse rather than pick.
+archived meta's `PR URL`. Two archived metas naming one pull request name no work unit, as today (`uniqueRecordByPr`),
+rather than pick one, and a consumer that needs the name refuses as it does when no archived meta names the pull
+request. The store reaches the resolver through `createCurrentBaseDriftAdapters`, whose callers pass the store they
+hold.
 
 #### 4.5 The store archive records `PR URL` and `Completed`
 
@@ -425,30 +475,45 @@ The checkpoint persists each composition at `<workUnitRoot>/.internal/integratio
 and a record keyed by slug is orphaned by `arc rename`. On the store path the checkpoint writes and reads its records
 under the identity's `.internal/integration-checkpoints/<work-unit-uid>/`, as the contract's machine-local set
 places them (`spec-storage-contract.md`, machine-local state). The path stays machine-local, never stored, synced, or
-projected (`MACHINE_LOCAL_PATHS`, `lib/store/registry.ts`). No record crosses the window: a checkpoint handle is an
+projected (`MACHINE_LOCAL_PATHS`, `lib/store/registry.ts`). On the store path the reader and the ownership check match a
+record by its work-item UID rather than its slug (`readIntegrationCheckpointComposition`; `validateCheckpointOwnership`,
+`scripts/integration/merge-composition.ts`), so a renamed unit's checkpoint is found and admitted: a rename is a store
+write and leaves the approved head where it was. No record crosses the window: a checkpoint handle is an
 approval for one head and is retaken (§ 10.1).
 
 #### 4.7 `arc init`'s state remote and project ID
 
 From the flip, `arc init` designates the code remote as the state remote at creation, where one exists, and mints the
-project ID into the registry's create-only identity record, pulling first and adopting an ID it finds where a remote
-is already designated (`spec-storage-ref-backend.md` § 9.2, § 9.8). Today `commands/init.ts` does neither, and a fresh
-install after the flip needs both. This repository takes its project ID from the import, which adopts the review
-gate's repository ID (`importTrackedState`).
+project ID into the registry's create-only identity record, pulling first and adopting an ID it finds where a remote is
+already designated (`spec-storage-ref-backend.md` § 9.2, § 9.8). Today `commands/init.ts` does neither, and a fresh
+install after the flip needs both. Both run whatever the identity: designation is a `git config` write, and the mint is
+a project-owned store write, which needs none (`refWriteIdentityRefusal`, `lib/store/ref/write-resolution.ts`, refuses
+only person-owned writes without one); since only `arc init` mints, an install made with no identity would otherwise
+never get one. They run in init's own path, not in the personal setup `arc join` shares, since `join` never mints.
+Designation, and the pull where a remote is already designated, come before the first store read or write in init's own
+action, its personal identity setup (`preparePersonalIdentitySetup`, `runPostInitSetup`'s seed) among them: an
+undesignated first write creates a separate `<commonDir>/arc/store` (`writeRefRepository`,
+`lib/store/ref/repository.ts`), and a code remote designated beside it is the unfinished move the ref backend reports
+`move-incomplete` (`spec-storage-ref-backend.md` § 9.2); the root hook's read of the store's version before the action
+creates no repository (`readRefRepository`). This repository takes its project ID from the import, which adopts the
+review gate's repository ID (`importTrackedState`).
 
 #### 4.8 The Errand branch's UID suffix
 
 From the flip, `arc errand open` names the Errand's branch `<type>/<slug>-<suffix>`, its type one of
-`ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) and the suffix the first eight characters of the Errand's UID, and
-records its branch link with that ref. Today `lib/errand/open.ts` and `lib/session-init/errand-branch-cut.ts` build
+`ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) and the suffix eight lowercase hex characters it mints, and records
+its branch link with that ref. The store mints the Errand's UID only when it resolves the write (`resolveOwner`,
+`lib/store/ref/write-resolution.ts`), after the branch must be named, so open mints the suffix itself and keeps one
+write. The record's schema cannot see the store's capability, so it admits both forms; the store arm writes only the
+suffixed one. Today `lib/errand/open.ts` and `lib/session-init/errand-branch-cut.ts` build
 `<type>/<slug>`.
 
 Every reader that derives an Errand's slug from its branch name, or matches an Errand's branch exactly, changes with the
-builders and takes only the suffixed form, since no Errand record crosses the window (§ 13.3); under the store, an
-exact match compares the branch with the Errand record's branch link. Among them:
+builders: a slug is derived from the suffixed form, and under the store an exact match compares the branch with the
+Errand record's branch link rather than a rebuilt branch. Among them:
 
 - an Errand record's branch validation (`validateOrdinaryNamespace`, `lib/errand/identity-record.ts`), which the
-  record's schema applies at every read;
+  record's schema applies at every read and which admits both forms;
 - resume's recorded-branch check (`lib/errand/open.ts`);
 - review readiness's identity facts (`identityFacts`, `scripts/review-gate/readiness.ts`), which `arc errand merge`
   reaches when it releases the merge lock (`releaseMergeLock`, `scripts/review-gate/merge-lock.ts`): for an Errand
@@ -535,10 +600,12 @@ with them.
 The flip removes `verify-integrity.sh`'s presence test for `ROADMAP.md`, in both copies. With § 5.2 this is the first
 step of the two-step ROADMAP removal: each piece acts once no ROADMAP file exists — the installer writing the template
 into a projected root, `arc health` reporting the manifest entry missing, and the presence test failing
-(`spec-seam-status-roadmap.md` § 9.4). Status's and `arc view`'s store versions are built and select themselves from
-the flip. The in-repo arms, `DERIVED_VIEWS`, and the remaining ROADMAP paths stay, inert, for the deletion passes, and
-the layout's `project-document` address stays for the projection's rule that never adopts a file left from before the
-flip.
+(`spec-seam-status-roadmap.md` § 9.4). Status's and `arc view`'s store versions are built and select themselves from the
+flip. The in-repo arms, `DERIVED_VIEWS`, and the remaining ROADMAP paths stay, inert, for the deletion passes, and the
+layout's `project-document` address stays for the projection's rule that never adopts a file left from before the flip.
+`integration/scripts/verify-integrity.test.ts` does not change: its real installed tree case asserts only the File
+Structure section, and its fresh install cases only a clean report, which a fresh `arc-in-git` install still gives since
+the presence test goes in the same commit as the template.
 
 #### 5.4 The `.internal/` records untracked
 
@@ -574,12 +641,14 @@ commands that keep working but describe the retired substrate, all in `cli.ts`:
 #### 6.2 The Markdown notice
 
 The flip ships a notice telling a project how its Markdown checks change (`spec-projected-markdown-checks.md` § 1.4,
-§ 7.3): one listing through Git or reading the index stops seeing state, while one globbing from disk keeps reading
-the shared roots, which the projection excludes only through `.git/info/exclude`, conflict-marker files included, and
-a fixer among them rewrites projected files that write-back persists as hand edits. It tells the project to hand each
-Markdown tool exactly the paths it should read — Git's list for tracked files, and the selection through a `selection`
-check for state — and that link-target existence over state leaves the shipped hook, kept by declaring
-`validate-links.sh` as a `selection` check.
+§ 7.3). It is `strategy-quality-gates.md` § Check state where it is edited, which already ships most of it; no version
+has been published, so no changelog entry is due (`changelog/versions.json`). The notice says that one listing through
+Git or reading the index stops seeing state, while one globbing from disk keeps reading the shared roots, which the
+projection excludes only through `.git/info/exclude`, conflict-marker files included, and a fixer among them rewrites
+projected files that write-back persists as hand edits. It tells the project to hand each Markdown tool exactly the
+paths it should read — Git's list for tracked files, and the selection through a `selection` check for state — and that
+link-target existence over state leaves the shipped hook, kept by declaring `validate-links.sh` as a `selection` check.
+The flip adds to that section the fixer's hand edits and the link check's home, which it does not yet state.
 
 ### 7. Tests and checks
 
@@ -593,13 +662,12 @@ build it explicitly through `createInRepoBackend`; none sets the override suite-
   `lib/local-vitest-runner.ts`) and that tier's row in `unit/vitest-controller-logic.test.ts`: both cases read the
   transition records the flip untracks.
 - `integration/review-gate-legacy-sweep.test.ts`'s planned-work case reads `.arc/backlog/planned` from the tree
-  (`filesBelow`) and changes to read the backlog through the store or drops the planned-work arm.
-- `integration/scripts/verify-integrity.test.ts`'s real installed tree case changes with the presence test's removal
-  (§ 5.3).
-- `.arc/system/arc-checks.yml`'s Markdown inputs — `lint:md`, `lint:md:underwrap`, and `format:tables` over
-  `.arc/active/**/*.md` and `.arc/backlog/**/*.md` — would glob projected files from disk after the flip; this
-  repository applies the notice (§ 6.2) to itself, reading state through `selection` checks and tracked files through
-  Git's list.
+  (`filesBelow`) and drops the planned-work arm, since no CI workflow fetches `refs/arc/*` for a store read to find.
+- `.arc/system/arc-checks.yml`'s `format:tables` names `.arc/active/**/*.md` and `.arc/backlog/**/*.md`, with their
+  ROADMAP and README exclusions; its inputs come from Git's tree changes (`matchTreeInputs`, `lib/checks/matching.ts`),
+  so after the flip they match nothing, and they go. This repository already applies the notice (§ 6.2) to itself:
+  `lint:md` lists through Git (`enumerateTrackedMarkdownPaths`, `lib/markdown/selection.ts`), `lint:md:underwrap`
+  through the index, and `lint:md:selection`, `lint:md:underwrap:selection`, and `lint:arc:links:selection` read state.
 - `audit:coupling`'s corpus (`audits/coupling-blast-radius/manifest.json`) names the two deleted templates and drops
   them.
 
@@ -608,38 +676,57 @@ build it explicitly through `createInRepoBackend`; none sets the override suite-
 - **Helpers.** The store test helpers that build the default store build the in-repo backend explicitly:
   `tracked-write-fixture`, `in-repo-fixture`, `personal-fixture`, `sync-fixture`, `in-repo-remote`, and the two
   differential harnesses, `review-differential` and `import-comparison`, whose in-repo side stays in-repo;
-  `import-fixture` reaches the default through `runStoreMigrate`'s import source and sets its source explicitly; and
-  `repair-cli`'s mock, which falls through to the default factory when no store is bound, binds one. Fixing these covers
-  the test files that import them.
+  `import-fixture`, whose two import paths reach the default through `runStoreMigrate`'s import source, sets the source
+  explicitly on its injected-ports path and runs its production-command path, which builds its own ports, under the
+  override; and `repair-cli`'s mock, which falls through to the default factory when no store is bound, binds one.
+  Fixing these covers the test files that import them.
 - **Direct callers.** Each test that calls `createStore` itself either builds the in-repo backend explicitly, where its
   subject is the in-repo arm, or keeps the default and expects the ref backend, where its subject survives the flip.
 - **Through handlers and scripts.** Tests that reach the default through a handler or script change their expectation
-  from the in-repo arm to the store arm, among them `e2e/store-command-dormancy.e2e.test.ts`'s twelve `unsupported`
-  cases, which now exercise the commands, and the default-factory assertions in
-  `integration/errand-store-imported-cli.test.ts`, `integration/session-inbox-compatibility.test.ts`, and
-  `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts`. Readers of the Errand identity refs the
-  import retires, such as `readTransientInFlightIndexes` (`lib/errand/record.ts`), are asserted only over the in-repo
-  backend.
+  from the in-repo arm to the store arm. Those whose subject is the in-repo arm build it explicitly and pass it in:
+  `integration/errand-store-imported-cli.test.ts`, which asserts the sealing refusal from an in-repo build,
+  `integration/session-inbox-compatibility.test.ts`, which reads in-repo captures through the session context's store,
+  and `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts`, which asserts the in-repo refusal the
+  capability skips. Readers of the Errand identity refs the import retires, such as `readTransientInFlightIndexes`
+  (`lib/errand/record.ts`), are asserted only in the in-repo store suites.
 - **Tests run over this checkout.** `integration/handoff-write-store.test.ts` dispatches the CLI in process over the
-  live checkout; it binds a temporary repository.
+  live checkout; it binds a temporary repository. `e2e/run-cli.e2e.test.ts`'s bare `integrate` case spawns the CLI with
+  no `cwd`, so over this checkout (`helpers/run-cli.ts`), where the root hook composes the default; it runs from a
+  temporary directory.
 
 #### 7.3 Tests that spawn the built CLI
 
 The spawned built CLI opens the ref backend from the flip, and refuses over a fixture whose tree tracks state (§ 3.2); a
 fixture that imports and then runs the flip build deletes its tracked state first, as the window does. A spawned test
 whose subject survives the flip seeds its state through the store; one whose subject is the in-repo arm sets the
-override in its spawn environment and leaves with that arm. The shared seeders move first —
-`registerCandidateLineageSuite`, `positionFixture`, `prepareSessionEnvelopeFixture`, `importFixture`, `movementPaths`,
-and the review fan-out harness's `installCandidate` and `writeBoundary` — then the spawned tests that seed tracked state
-or assert in-repo behavior without seeding. Spawned tests that only run the root hook now project in their temporary
-repositories, and CI shows any that a materialization changes.
+override in its spawn environment and leaves with that arm, as does a spawned import (`store migrate --import`), which
+builds its source through `createStore`. `e2e/store-command-dormancy.e2e.test.ts` is such a test: its twelve cases
+assert the in-repo refusals and the pre-flip step each names (§ 3.1), so it keeps the override, and the commands' store
+arms are tested on their own; so is `e2e/review-cli-surfaces.e2e.test.ts`'s adversarial-recording case, which asserts
+that command's in-repo refusal and remedy. A test that spawns a script composing the default store, outside the spawn
+helpers, takes the same rule and sets the override itself until it moves:
+`integration/validate-cohort-consistency.test.ts` runs the cohort hook's script over a fixture that is not a Git
+repository, where the ref backend refuses.
+
+The spawned tests move in stages, each commit green. The installed files leave the projected roots first (§ 5.2, § 5.3),
+since an `arc-in-git` install that commits them would meet the tracked-state refusal. The spawn helpers then set the
+override by default, inert until the switch, so the switch's commit changes only the tests that reach the default in
+process; each family of spawned tests then seeds through the store and drops the default, and the default goes before
+the switch's slice closes. It is the one suite-wide override, confined to that staging. A test seeds through one helper
+that writes records in process through the ref backend's ports into its temporary repository's store, or through the
+verb it tests. The shared seeders move with their families: `registerCandidateLineageSuite`, `positionFixture`,
+`prepareSessionEnvelopeFixture`, `importFixture`, `movementPaths`, and the review fan-out harness's `installCandidate`
+and `writeBoundary`. `movementPaths`' regenerable and evidence-neutral kinds commit `ROADMAP.md` and a work unit's notes
+to exercise classifier arms that leave with the in-repo implementation, so their cases keep the override. Whether a
+spawned test that only runs the root hook projects in its temporary repository follows `projection-worktrees`' first
+materialization, and CI shows any that a materialization changes.
 
 #### 7.4 Tests over the deleted installed files
 
 `integration/store-project-inbox.test.ts`, `integration/init.test.ts` (the `arc-in-git` and `pm.mode=none` cases),
 `unit/init.test.ts`'s Scaffolded classification, `unit/manifest/plan.test.ts`,
-`unit/lib/store/kinds/entry-reference.test.ts`, `e2e/init.e2e.test.ts`, `e2e/reconfigure.e2e.test.ts`, and
-`integration/scripts/verify-integrity.test.ts` change with § 5.2 and § 5.3.
+`unit/lib/store/kinds/entry-reference.test.ts`, `e2e/init.e2e.test.ts`, and `e2e/reconfigure.e2e.test.ts` change with
+§ 5.2 and § 5.3.
 
 #### 7.5 The Markdown fix's end-to-end test
 
@@ -648,9 +735,10 @@ empty selection from the Markdown checks' one reader, `readProjectedSelection` (
 Inside a command it reads the start's index; from a script it reads the capability of the store `createStore` builds,
 returning an empty list over the in-repo implementation and otherwise running `npx arc selection --json`, mapping a
 refusal, a nonzero exit, bad output, or a throw to `unavailable`. Once the fixture's store answers true, the test, run
-with no projection and no start, would see the fixer refuse with `markdown.selection-unavailable`
-(`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`). Stage 2 runs it over the flipped store, and the flip either
-seeds a projection for its fixture or changes its expectation to what the connected reader reports there.
+with no identity, would see the projection skip, the selection report it, and the fixer refuse with
+`markdown.selection-unavailable` (`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`). The fixture sets an
+`arc.identity`, so the selection reaches the store and the test expects the corpus the connected reader reports there;
+Stage 2 runs it over the flipped store.
 
 #### 7.6 Tests and test setup the flip adds
 
@@ -678,9 +766,13 @@ seeds a projection for its fixture or changes its expectation to what the connec
 #### 7.7 Closure
 
 The test changes are complete when CI passes over the post-deletion tree, and a search of the test tree for
-`createStore(`, `openDefaultStore`, and spawned commands over a tracked-state fixture finds each caller either building
-the in-repo backend explicitly or expecting the ref backend. Task generation takes the file-level list from that search
-at its own head.
+`createStore(`, `openDefaultStore`, spawned commands over a tracked-state fixture, spawned commands given no `cwd`,
+which run over this checkout, processes spawned outside the spawn helpers that compose the default store, whatever their
+`cwd`, spawned commands asserting an in-repo `unsupported` refusal or its remedy, and the test entry points into
+production default sites — in-process dispatch, which runs the root hook, the import's source, the session context, the
+review invocation, the projected selection, and partial mocks of the default — finds each caller either building the
+in-repo backend explicitly or expecting the ref backend, and the spawn helpers set no override by default. Task
+generation takes the file-level list from that search at its own head.
 
 ### 8. The workflow rewrite
 
@@ -805,7 +897,9 @@ as kept, each with its reason: `git add`, `git commit`, `git rm`, `git mv`, `git
 `inbox-list`, `inbox-remove`, `planning-lane`, `planning-grooming`, `chore(arc)`, `Commit at Handoff`,
 `grooming branch`, `meta-{`, and paths into the three projected roots. Task generation takes the line-level sites from
 that search at its own head, since line positions move as `main` does before the window; the table above is the floor
-it must reach.
+it must reach. The shipped text is the package's `arc/` tree apart from its strategies (§ Non-Goals): the sweep's
+workflows, methods, skills, rules, templates, briefs, and quick reference, and also the READMEs and the configuration
+template, which the sweep's 112 files leave out.
 
 #### 8.2 The save cadence
 
@@ -898,14 +992,15 @@ retire (`spec-seam-lifecycle.md` § 8.1, § 8.9). The two workflows shrink to th
   `planning-review.md` § Findings and pass record, and the adversarial-review method's § Pass record.
 - Review reports — chunk reports, aggregate results, and evaluator reports — go to the work unit's scratch folder
   rather than its workspace, and the adversarial-review method's § Kept prompts and reports names the scratch folder.
-- The step that opens a work unit's pull request (`gh pr create`, `integrate-work-unit.md`) becomes a verb that writes
-  the work item's change-request link, its repository the project ID; today no verb writes that link, and archive
-  records the pull request only as the meta's `PR URL`.
-- A candidate-tail step deletes the review copy at `.arc/specs/<slug>/` through the export function `arc attest` and
-  `arc review respond` call. The copy is evidence-neutral in every direction, so its re-export rides its fix's review
-  without entering the subject, and the arm that keeps its delete from reopening review stays in lifecycle
-  classification (`classifyPathTreatment`): the copy is never in base, so its delete leaves no path in the
-  base-relative diff for subject construction to exempt.
+- The step that opens a work unit's pull request stays `gh pr create` (`integrate-work-unit.md`), and archive records
+  the pull request as the archived meta's `PR URL` (§ 4.5). No verb writes the work item's change-request link
+  (`LinksSchema`, `lib/store/links.ts`), and nothing at the flip reads it, so it stays unwritten until delivery's
+  rebuild.
+- A candidate-tail commit removes the review copy at `.arc/specs/<slug>/` (`git rm -r`), the tracked copy `arc attest`
+  and `arc review respond` export (`exportWorkUnitSpec`, `lib/work-unit/design-export.ts`). The copy is evidence-neutral
+  in every direction, so its re-export rides its fix's review without entering the subject, and the arm that keeps its
+  delete from reopening review stays in lifecycle classification (`classifyPathTreatment`): the copy is never in base,
+  so its delete leaves no path in the base-relative diff for subject construction to exempt.
 
 #### 8.8 The decomposition workflow
 
@@ -918,7 +1013,11 @@ distribution approval, and the terminal batch as the landing, with today's separ
 Session-init compiles every surface the flip retires in one module (`spec-session-init-agenda.md` § 7): the notes load
 (`commands/agenda/notes.ts`) and the in-place materialize before the flip (`commands/agenda/legacy-materialize.ts`).
 The rewrite deletes that module, moves the compiler's freshness anchor to the store's state version, and rewrites what
-§ 7.3 of that specification names, since session notes come from the meta's session context after the flip:
+§ 7.3 of that specification names, since session notes come from the meta's session context after the flip. The
+compiler's changes — its field reader, its freshness anchor on the meta's `State at Handoff`, its Session Type from the
+meta, and its `git log` render — select the store arm by the capability and land before the switch, since the switch
+drops SESSION-NOTES from the load set (`resolveLoadSetManifest`, `lib/load-set/projection.ts`); the module goes with the
+switch. The workflow text changes with the rewrite:
 
 - the spine's SESSION-NOTES authority boundary, which covers its thought-state lines and the Blockers line it withholds
   auto-proceed on;
@@ -970,8 +1069,9 @@ stays inside the verb at activation, since `git rm` fails on an untracked projec
 
 `archive-work-unit.md` § Post-`Shipped` errata convention says "git history is the lock", which misleads once a shipped
 meta is a stored record: a correction becomes a write to the completed item, and its history is the store's history of
-the archived meta (`spec-projection-write-back.md` § 8.4). The convention is written around `arc edit <path>` (§ 1.3):
-the errata flow is `arc edit` on the archived meta, the edit to its Release Notes Entry, then `arc save`. A substantial
+the archived meta (`spec-projection-write-back.md` § 8.4). The convention is written around `arc edit <path>` (§ 1.3,
+which states the in-place form the flip ships where `projection-team-scale` has not landed when its head is fixed): the
+errata flow is `arc edit` on the archived meta, the edit to its Release Notes Entry, then `arc save`. A substantial
 change is a new, origin-linked work unit, since no verb reopens archived work (`spec-seam-lifecycle.md` § 8.7).
 
 #### 8.13 The planning-lane prose
@@ -1051,9 +1151,10 @@ tracks state, and, over two runs, the abort after publication.
 
 Stage 2 runs at the flip branch's head once the flip change builds, on a fresh copy, the whole window in § 10's order:
 
-- Stage 1's steps on the copy's pre-flip build, the copy taken through the window tooling's copy driver;
-- the flip build's refusal of a ref store over the copy before its import, with no override set, and again in the
-  flip's checkout after the import and before its deletion commit (§ 3.2);
+- Stage 1's steps on the copy's pre-flip build, the copy taken through the window tooling's copy driver, with the
+  import's trial before the check as § 10.2 orders it;
+- the flip build's refusal of a ref store, run with no override set both times: over the copy before its import, and
+  again in the flip's checkout after the import and before its deletion commit (§ 3.2);
 - a live branch no checkout holds, and a branch carrying a Candidate record `main` lacks, each taking § 10.6's branch
   step and ending with nothing tracked under the deleted paths;
 - a checkout that merged `main` and rebuilt while its branch still tracked its records: the flip build's refusal, the
@@ -1063,8 +1164,8 @@ Stage 2 runs at the flip branch's head once the flip change builds, on a fresh c
   the host merge, the archive and register closures written through the store from the flip build without the
   override, and the flip checkout's workspace-folder removal and release;
 - each checkout's steps through its first materialization and its marker's carry (§ 10.6, § 9.6), the primary's identity
-  root left holding only ARC's surfaces and `scratch/`, its inbox and working memory laid from the store, and no
-  checkout reporting a withheld file when the window tooling's close passes (§ 10.7);
+  root left holding only ARC's surfaces and `scratch/`, its inbox and working memory laid from the store; then notes
+  retirement (§ 12); and last the window tooling's close, with no checkout reporting a withheld file (§ 10.7);
 - the perturbations (§ 9.3);
 - the parser check (§ 9.4), the end-to-end work unit (§ 9.5), store-backed cases 2 to 7 (§ 9.10), and the
   representative decomposition cut (§ 9.9);
@@ -1074,7 +1175,19 @@ Stage 2 runs at the flip branch's head once the flip change builds, on a fresh c
   the in-repo store reports none (`spec-seam-locus.md` § 9.3);
 - the Markdown fix's end-to-end test over the flipped store (§ 7.5);
 - a worktree spawned after the flip, holding `.arc/user/.npmignore` from the repository's tracked copy rather than one
-  the rehearsal supplies, through its first materialization (§ 1.3);
+  the rehearsal supplies, through its first materialization (§ 1.3).
+
+Stage 2 runs the window tooling's operations one at a time in § 10's order, not its `rehearse`, whose run creates a
+stand-in flip branch afresh and would replace the flip's own. The flip build is built in the copied flip checkout and
+rebuilt there after any change to it, and runs under the override until the copy's merge, as § 10 runs the live one,
+save the two refusal probes above, which drop it. The window's own commits on the copy, each deletion commit and each
+merge a branch step makes, are made in the copied checkout and pass its hooks; a perturbation's plant is made as the
+window tooling makes Stage 1's, in a scratch clone of the mirror with no hooks installed, reaching the copy by fetch.
+The copy's machine-local review records still name the live repository's materializations by absolute path
+(`materializationRef`), from which the review gate takes a Git working directory
+(`scripts/review-gate/hosts/local/review-materialization.ts`), so before any review runs on the copy, Stage 2 asserts
+that no record under the copy's `<commonDir>/arc/review-gate/` names a path outside the copy, or clears those records
+first.
 
 Alongside it, the destructive CLI matrix (§ 9.8) and the partial-protection start (§ 9.7) run in synthetic scratch
 repositories through the spawned built CLI. The window opens only after a clean Stage 2, re-run at the new head after
@@ -1083,7 +1196,9 @@ any later change to the flip change, the import, or the rewritten workflows.
 #### 9.3 Controlled perturbations
 
 Each perturbation asserts a refusal, then a legitimate repair, then a continuation that reaches the window's end; a
-normal-path pass alone discharges none of them.
+normal-path pass alone discharges none of them. They chain on one copy: the third and fourth at the check before the
+import; then the aborts, each of the first's three runs and the second's two restoring and re-running from the check;
+then the fifth and the sixth, the last carried through the window's end.
 
 1. **A record changed between the import and the merge.** After the import, Stage 2 commits a change to a tracked meta
    on a live work unit's branch. The recompute refuses before the flip change (§ 13.1); the abort restores the recorded
@@ -1091,7 +1206,7 @@ normal-path pass alone discharges none of them.
    commits the change after the recompute, once the deletion commit is made, and the last read before the merge refuses;
    a third edits a personal file in a checkout after the import, and the recompute's digest comparison refuses; each
    aborts, undoes the change, and re-runs the same way.
-2. **A pull request merged into `main` after the import.** The copy's mirror takes a merge into `main` after the
+2. **A pull request merged into `main` after the import.** A merge into `main` is pushed to the copy's mirror after the
    import. The recompute's read of `origin/main`'s tip refuses; the abort restores; the merge is taken into the flip's
    branch, its head fixed again; the window re-runs and continues. A second run lands the merge after the deletion
    commit instead, and the last read before the merge refuses (§ 13.2).
@@ -1103,8 +1218,9 @@ normal-path pass alone discharges none of them.
    both locally and in its fetched copy, so neither is an ancestor of the other. The quiesce check refuses naming the
    work unit and both refs; the check's remedy is applied, the passed-over copy merged into the selected one and
    pushed; the check passes and the window continues (§ 13.4).
-5. **A store change between preparation and admission.** The fence harness (§ 14.3) runs inside Stage 2's flipped store
-   over each prepared write the window makes.
+5. **A store change between preparation and admission.** The fence harness (§ 14.3) runs over a copy of Stage 2's
+   flipped store, through its entry that takes a repository path, since the built CLI admits no injection, over each
+   prepared write the window makes.
 6. **A late change after the merge.** After the merge into the copy's mirror and before § 10.6's steps, Stage 2 commits
    on a live work unit's branch a change to its meta's `Blockers` field and a task's close, and edits a personal file in
    that unit's checkout. The branch's comparison records the moved range and its step goes on; the checkout's digest
@@ -1118,13 +1234,15 @@ normal-path pass alone discharges none of them.
 
 #### 9.4 The parser check
 
-The projection's write-back is an ordinary contract `write`, so a kind whose parser slot is empty
-(`createKindRegistry`, `lib/store/registry.ts`) writes unvalidated, and nothing fails visibly. The commit-time content
-checks follow after the flip, and the parser takes their place for content rules. The check takes the inventory
-write-back hands the rehearsal (`spec-projection-write-back.md` § 7.6, its A3): every kind with a writable projected
-path must have a registered parser in `PRODUCTION_REGISTRATIONS`, save the three free-prose kinds that inventory names
-as intentional exceptions — `work-item/notes`, `personal/document`, and `personal/session-context`; and every entry
-kind must declare an entry grammar (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`), so entry merge
+The projection's write-back is an ordinary contract `write`, so a kind whose parser slot is empty (`createKindRegistry`,
+`lib/store/registry.ts`) writes unvalidated, and nothing fails visibly. The commit-time content checks follow after the
+flip, and the parser takes their place for content rules. The check derives its kinds from source: the projecting kinds
+as `RECORD_LINK_KINDS` selects them (`lib/store/kinds/in-repo-registrations.ts`), and the entry kinds as those whose
+mechanism declares `merge: "entry"` (`KIND_MECHANISMS`), with the inventory write-back hands the rehearsal
+(`spec-projection-write-back.md` § 7.6, its A3) as its cross-check. Every kind with a writable projected path must have
+a registered parser in `PRODUCTION_REGISTRATIONS` (`lib/store/kinds/registrations.ts`), save the three free-prose kinds
+that inventory names as intentional exceptions — `work-item/notes`, `personal/document`, and `personal/session-context`;
+and every entry kind must declare an entry grammar (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`), so entry merge
 (`mergeEntryText`, `lib/store/concurrency/entry-merge.ts`) has one for every hand edit. The check slot, not the parser,
 refuses edits to verb-owned fields. The check refuses the flip while either half fails; both hold today, and the check
 catches a kind added before the flip without one.
@@ -1143,6 +1261,12 @@ companion; a task closed through the close verb; handoff; and pre-publication wi
 - a reopen followed by session-init;
 - a work unit started under an archived unit's slug;
 - an earlier member's readiness once the representative cut closes its cohort.
+
+The reopen reads its pull request's state from the host (`resolvePrMerged`, `handlers/lifecycle.ts`) and withdraws it
+(the `withdraw-pr` side effect, `lib/work-unit/lifecycle-transitions.ts`), and refuses unless the pull request is
+confirmed unmerged (`pr-unmerged`, `lib/work-unit/lifecycle-executor.ts`). The copy has no host, so Stage 2 puts on
+`PATH` a `gh` stub that answers for one stand-in pull request, open and unmerged, on the work unit's branch and fails
+every other call, and labels what it answers stubbed host evidence.
 
 Integration's candidate tail lies past the host boundary, with the work-unit canary.
 
@@ -1180,7 +1304,7 @@ through the flipped built CLI is unproven. Every group in `notes-seam-locus.md` 
 flip release checks runs in scratch repositories through a spawned built CLI selecting the ref backend and production
 ports:
 
-- cold and named start with the default lifecycle ports; graduate, materialize, rename, and teardown;
+- cold and named start with the default bound lifecycle ports; graduate, materialize, rename, and teardown;
 - locus release, anchored and spawned;
 - inbox and route insertion, move, and carry; the Errand queue and queue set;
 - full and partial Errand open with link; Errand leave and rematerialize; abandon and failed-open rollback; close and
@@ -1189,6 +1313,12 @@ ports:
 - identity add, init, and join;
 - session-init, handoff status, recovery, and Candidate orientation, with the orphan-branch sweep's store-backed
   outcome (`orphanWorkLanded`, `lib/session-init/orphan-branch-sweep.ts`).
+
+Session entry and recovery over a work unit whose primary record a store abandonment or a cut removed, its terminal
+lineage kept (`readTerminalWorkUnitLineage`, `lib/locus/store-terminal-work-unit.ts`), run with them
+(`notes-seam-locus.md` § A26). The Errand close's changed-code landing reads its merged pull request from the host
+(`observeExactChangeRequest`, `lib/errand/change-request-lifecycle.ts`), so its run takes a `gh` stub like § 9.5's,
+answering for one merged stand-in pull request on the Errand's branch, its evidence labeled stubbed host evidence.
 
 Each covers success, each material refusal, and successful continuation after repair, retaining command results and
 the observable record, UID, marker, checkout, code-ref, and personal-byte outcomes. Handler or provider success
@@ -1226,9 +1356,12 @@ reason, or deferred and since landed.
 6. Reopen and readiness publish with the Candidate version.
 7. Specification export refuses or contains a linked destination.
 
+Case 6's reopen runs through § 9.5's `gh` stub.
+
 #### 9.11 The canaries
 
-The copies have no host, so no pull request, hosted review, CI, or Candidate tail runs in either stage. Publication and
+The copies have no host, so no pull request, hosted review, CI, or Candidate tail runs in either stage; a `gh` stub
+answering for one stand-in pull request (§ 9.5, § 9.8) is not a host. Publication and
 its readiness still run in Stage 2, since `arc publish` is a store write before the pull request opens. Three groups of
 paths run only past the host boundary: the integration checkpoint and its landing write; hosted review's approval and
 settlement; and native delivery's hosted member admission.
@@ -1263,12 +1396,12 @@ the abort's restore, and each checkout's steps cover all of it; its abort point 
   Errand's. The import reads those records only at `main`'s `HEAD`.
 - Every pull request into `main` but the flip's own is merged or closed, since the repository allows auto-merge and
   `main`'s ruleset requires only the `ci-ok` check, so an armed pull request would merge with no session running.
-- Every Errand is closed or abandoned, since a record carrying its branch from before the suffix would be malformed from
-  the flip (§ 4.8), and each Errand identity ref has one tip locally and on `origin`, or is absent on both, any unpushed
-  identity write pushed first, since the import reads only the local refs and retires `origin`'s only at an equal tip
-  (`heldIdentities`, `lib/store/ref/import/transient.ts`; `retireOriginRefs`), and no identity other than the configured
-  one holds a claim, since publication pushes only the configured identity's claims and the import's retirement would
-  refuse after publication over another's (`unpublishedImportClaims`, `lib/store/ref/import/transient-publication.ts`).
+- Every Errand is closed or abandoned, since the quiesce check refuses an Errand record in any state (§ 13.3), and each
+  Errand identity ref has one tip locally and on `origin`, or is absent on both, any unpushed identity write pushed
+  first, since the import reads only the local refs and retires `origin`'s only at an equal tip (`heldIdentities`,
+  `lib/store/ref/import/transient.ts`; `retireOriginRefs`), and no identity other than the configured one holds a claim,
+  since publication pushes only the configured identity's claims and the import's retirement would refuse after
+  publication over another's (`unpublishedImportClaims`, `lib/store/ref/import/transient-publication.ts`).
 - Every live work unit the import reads from a branch's copy has merged `main` since `main` last changed that unit's
   records, and pushed, since the import reads the branch's copy and would drop the change `main` made. A parked unit's
   pointer is exempt: the import reads it on `main`, taking the pause's reason and first parking time from it
@@ -1315,8 +1448,16 @@ forward (`spec-storage-contract.md` D14). Then, in order:
 3. the worktree lock step runs (§ 1.3);
 4. every branch is fetched from `origin`, so the check compares each checkout's branch with its upstream as `origin`
    holds it and the import picks each live work unit's latest pushed copy (`spec-storage-ref-backend.md` § 10.8);
-5. the quiesce check runs and records (§ 1.3);
-6. every checkout saves its personal state (`arc user save`), immediately before the import, since live sessions edit
+5. every checkout saves its personal state as step 7 does, and the import's trial runs from `main`'s pre-flip build
+   (`arc store migrate --import --trial`), about eleven minutes and near 2.3 GB at its peak on this repository; any
+   blocking notice or refused record stops the window here, before the check takes its hold, and the cleanup is worked
+   and the trial re-run. Run last, with every other session stopped, it sees every record a session could have added
+   after § 10.1's earlier trial, as an inbound-buffer entry landed on `main` after that trial would
+   (`lib/store/ref/import/inbound-entries.ts`), and a refusal here costs no restore. The save comes first because the
+   import refuses where personal files differ from their saved notes (`appendImportPersonal`,
+   `lib/store/ref/import/personal.ts`);
+6. the quiesce check runs and records (§ 1.3);
+7. every checkout saves its personal state (`arc user save`), immediately before the import, since live sessions edit
    the identity-global files and each live work unit's session notes continuously and an early save goes stale. A
    checkout with no built CLI, which the quiesce check passes, runs no ARC command through its launcher, which only
    imports the built bundle (`packages/arc-framework/bin/arc.js`). It saves through the importing checkout's build
@@ -1592,9 +1733,8 @@ check that proves it, each check a refusal followed by a legitimate repair and c
   whose `origin` tip the local ref does not equal, an `origin`-only ref included, while one held only locally passes,
   since the retirement skips it on `origin`; the import's landing lease on the identity ref tip it read, so one that
   advanced refuses the landing; `retireImportRemote`'s lease on the kept tip; the window tooling's recompute after the
-  import, which refuses a landed Errand record (`work-item/record`) and an identity ref left on either side (§ 1.3); the
-  restore's comparison of what the import consumed of each identity ref with its held tip (§ 1.3); and from the flip the
-  record schema's suffixed-branch check (§ 4.8), so a record that crossed would read as malformed rather than misroute.
+  import, which refuses a landed Errand record (`work-item/record`) and an identity ref left on either side (§ 1.3); and
+  the restore's comparison of what the import consumed of each identity ref with its held tip (§ 1.3).
 - **Residual:** none the window leaves open. An Errand opened between the check and the import's read of the identity
   ref lands a record the recompute after the import refuses, so the window stops through the abort (§ 1.3, § 11). An
   abort that stops before the recompute, at the accounting case or the chain comparison, meets the restore's own
@@ -1663,8 +1803,9 @@ not at preparation, so it does not close the gap.
 
 One harness, on the ref backend and the reference backend, injects a store change between preparation and the batch,
 seeded per read family each writer above takes. Each case asserts either refusal with nothing written and then a
-correct fresh retry, or admission equal to fresh preparation; an unrelated write must admit. Stage 2 runs the harness
-inside its flipped store (§ 9.3).
+correct fresh retry, or admission equal to fresh preparation; an unrelated write must admit. The harness also takes a
+repository path and runs over a copy of that repository's store, which is how Stage 2 runs it over its flipped store
+(§ 9.3).
 
 ### 15. Tracked state the import does not claim
 
@@ -1738,9 +1879,9 @@ stands, so neither is a supersession:
 
 **`none`, temporary** — one-time window machinery, done or deleted once the window closes: the rehearsal's stages,
 perturbations, and canaries; the quiesce and its steps; the window's order, the flip's landing by an Owner-directed
-merge, and its abort and fix-forward rules; the override, with its CI condition and test-setup clearing, and the
-tracked-state refusal, deleted with the in-repo implementation; CI over the post-deletion tree ahead of the window; and
-the pre-meta backfill.
+merge, and its abort and fix-forward rules; the override, with its CI condition and test-setup clearing, the
+tracked-state refusal, and the pre-flip steps the in-repo refusals name (§ 3.1), deleted with the in-repo
+implementation; CI over the post-deletion tree ahead of the window; and the pre-meta backfill.
 
 **`none`, not this unit's decision** — text and code that apply a decision a shipped specification or the register's
 fate settled, whose own disposition stands: the task loop, pause and resume, the lifecycle and identity verbs, the
@@ -1860,6 +2001,10 @@ None closes by being listed here.
 - **Another machine's clone** (§ 10.1, § 13.1): the window's checks see only the importing machine, so the other clone's
   removal before the quiesce holds by the Owner's confirmation alone, its notes and personal files staying off the
   store.
+- **The archive before `projection-team-scale` lands** (§ 1.3, § 8.12): where that unit has not landed when the flip's
+  head is fixed, the flip ships the errata convention's in-place form, the archive lays writable, and `arc save` reads
+  every archived file; that unit's landing rewrites the convention onto `arc edit` and lays the archive read-only. The
+  residual is disclosed at the window.
 
 ## Alternatives & Rationale
 
@@ -1962,6 +2107,11 @@ each canary has (§ 9.11).
 
 ## Success Criteria
 
+Criteria 2, 9, 10, and 12 can be seen only after the merge, while the flip's verification precedes the window
+(§ 10.1). Verification records each as deferred to the window, naming the step that proves it: the window tooling's
+close (§ 10.7) for criterion 2, the register closures written through the store (§ 10.5) for criterion 9, notes
+retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for criterion 12.
+
 1. **Stage 2 is clean at the head that lands.** Every § 9.2 step passes at the flip branch's reviewed head, which the
    merged head differs from only by the deletion commit, re-run after any later change to the flip change, the import,
    or the rewritten workflows; each § 9.3 perturbation shows its refusal, repair, and continuation; and the destructive
@@ -1975,14 +2125,13 @@ each canary has (§ 9.11).
 4. **No tracked state remains.** Once the flip merges, no tracked file sits under `.arc/active/`, `.arc/backlog/`, or
    `.arc/completed/`, or in `.arc/system/.internal/candidates/` and `.arc/system/.internal/transitions/`, and no
    installed file is written into a projected root by `arc init` or `arc update`.
-5. **Each store path behaves as § 4 states,** each with a test: sync publishes state first and reports each leg;
-   the capture gates read `arc inbox`; the rename source refuses a missing folder; base drift names integrations from
-   stored completed records; the store archive records `PR URL` and `Completed`; checkpoint records live under the
-   identity's `.internal/` by work-unit UID; `arc init` designates and mints; an Errand's branch carries its UID
-   suffix; `arc store` shows in help; and a hand edit of a cohort record refuses a member section naming no member.
+5. **Each store path behaves as § 4 states,** each with a test: sync publishes state first and reports each leg; the
+   capture gates read `arc inbox`; the rename source refuses a missing folder; base drift names integrations from stored
+   completed records; the store archive records `PR URL` and `Completed`; checkpoint records live under the identity's
+   `.internal/` by work-unit UID; `arc init` designates and mints; an Errand's branch carries its suffix; `arc store`
+   shows in help; and a hand edit of a cohort record refuses a member section naming no member.
 6. **The process text is rewritten.** Every site in § 8's site list is rewritten in the package source and synced, and
-   a search of the shipped workflow, method, skill, rule, and always-loaded text for the retired forms finds only the
-   sites § 8 keeps.
+   a search of the shipped text (§ 8.1) for the retired forms finds only the sites § 8 keeps.
 7. **The tests change with the flip,** each § 7 entry changed, and CI passes over the post-deletion tree.
 8. **The fence holds.** The § 14.3 harness passes on both backends for the take-in, the archive, and the register
    closures.
