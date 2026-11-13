@@ -20,7 +20,7 @@ import { missingRegistrationActions } from "../../session-init/missing-worktree-
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
-import { createStoreSelfTeardownHusk } from "../store-self-teardown-husk.js";
+import { createStoreSelfTeardownHusk, releaseStoreTerminalHusk } from "../store-self-teardown-husk.js";
 import { unlockTerminalHusk } from "../terminal-husk-unlock.js";
 
 type RetirementLink = StoreRetirementEvidence["branches"][number];
@@ -46,6 +46,7 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
+    if (selected !== undefined) await releaseSelectedHusk(bound, selected);
     let worktreeRemoved = selected === undefined ? await retireHolder(bound, ctx.cwd) : null;
     const { branchDeleted, remoteBranchDeleted } = await reapRetirementLinks(bound, links, retiring, generation);
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
@@ -102,7 +103,9 @@ async function retainSelfHusk(ctx: Bound, path: string, invokingPath: string, ma
   if (selected === undefined) {
     const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
     ctx.husk = retained.husk;
-    if (retained.notice !== null) ctx.notices.push(retained.notice);
+    await releaseStoreTerminalHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence, stamp: retained.stamp });
+    const notice = await unlockTerminalHusk(ctx, path, retained.stamp);
+    if (notice !== null) ctx.notices.push(notice);
   } else {
     await selected.revalidate();
     const stamp = marker.husk;
@@ -113,6 +116,14 @@ async function retainSelfHusk(ctx: Bound, path: string, invokingPath: string, ma
   }
   if (windowsFallback) ctx.notices.push("Windows cannot remove the invoking shell's occupied directory; left a stamped husk instead.");
   return true;
+}
+
+async function releaseSelectedHusk(ctx: Bound, selected: SelectedStoreRetirementHusk): Promise<void> {
+  await selected.revalidate();
+  const marker = await (ctx.readMarker ?? readWorktreeMarker)(selected.path);
+  if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("The selected terminal stamp changed before projection release.");
+  await releaseStoreTerminalHusk({ ctx, path: selected.path, primaryPath: ctx.primaryPath,
+    evidence: ctx.evidence, stamp: marker.marker.husk, revalidateSelection: selected.revalidate });
 }
 
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {

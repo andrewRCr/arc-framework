@@ -497,7 +497,7 @@ async function inspectCurrentHuskEvidence(context: {
     return "unavailable";
   }
   const valid = await (options.revalidateEvidence !== undefined ? options.revalidateEvidence(stamp, decoded, exactBaseOid)
-    : options.store?.capabilities.stateOffBranch ? validateStoreHuskEvidence({ store: options.store, exec: options.exec,
+    : options.store?.capabilities.stateOffBranch && stamp.subject.kind === "work-unit" ? validateStoreHuskEvidence({ store: options.store, exec: options.exec,
       marker: context.marker.marker, baseOid: exactBaseOid })
       : revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob));
   return valid ? "valid" : "invalid";

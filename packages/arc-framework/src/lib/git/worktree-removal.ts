@@ -15,7 +15,9 @@ export const PROJECTION_LOCK_REASON = "arc: remove with 'arc teardown' (work uni
 /** Projection hooks; dormant until the projection binds them. */
 export interface ProjectionRemovalSlots {
   check: (checkout: string) => Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy } | { kind: "unobservable"; detail: string }>;
+  /** Repeat safely for the same checkout, including a terminal retry after release. */
   persist: (checkout: string) => Promise<{ kind: "persisted" } | { kind: "refused"; remedy: Remedy }>;
+  /** Accept a stamped detached checkout; repeat safely after success or an ambiguous failure. */
   release: (checkout: string, isPrimary: boolean) => Promise<{ kind: "released" } | { kind: "refused"; remedy: Remedy }>;
 }
 /** Default hooks preserve behavior before projection installation. */

@@ -17,6 +17,9 @@ export async function handleTeardownHuskSweep(ctx: TeardownContext,
   }
   for (const path of result.removed) p.log.info(`Removed: ${path}`);
   for (const item of result.left) p.log.warn(`Left: ${item.path} — ${item.reason}`);
+  for (const item of result.warnings) p.log.warn(`${item.path} — ${item.reason}`);
+  const failed = result.left.filter(item => item.failed).length;
   p.outro(result.removed.length === 0 && result.left.length === 0 ? "No stamped husks to remove."
-    : `Husk sweep finished: ${result.removed.length} removed, ${result.left.length} left.`);
+    : `Husk sweep finished: ${result.removed.length} removed, ${result.left.length} left${failed === 0 ? "" : `, ${failed} failed`}.`);
+  if (failed > 0) process.exitCode = 1;
 }

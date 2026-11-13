@@ -11,7 +11,7 @@ import type { TeardownContext } from "./verbs/teardown.js";
 import type { GitExec } from "../git/exec.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences, OwnerIdentitySchema } from "../store/identity.js";
-import { readStoreRetirementEvidence } from "./store-retirement-evidence.js";
+import { NonTerminalRetirementError, readStoreRetirementEvidence } from "./store-retirement-evidence.js";
 /** Captured exact selection rechecked while the existing physical lock is held. */
 export interface SelectedStoreRetirementHusk { path: string; revalidate: () => Promise<void> }
 interface HuskInput { ctx: Pick<TeardownContext, "exec" | "readMarker" | "scanWorktrees">; evidence: StoreRetirementEvidence; baseOid: string; path: string }
@@ -22,15 +22,22 @@ export async function validateStoreHuskEvidence(input: { store: Store; exec: Git
   const stamp = input.marker.husk;
   if (stamp?.subject.kind !== "work-unit" || stamp.subject.uid === undefined
     || decodeWorktreeHuskStamp(stamp, { stateOffBranch: true }).kind !== "current") return false;
-  const evidence = await readStoreRetirementEvidence(input.store,
-    recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: stamp.subject.name, uid: stamp.subject.uid })), input.baseOid);
+  let evidence: StoreRetirementEvidence;
+  try {
+    evidence = await readStoreRetirementEvidence(input.store,
+      recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: stamp.subject.name, uid: stamp.subject.uid })), input.baseOid);
+  } catch (error) {
+    if (error instanceof NonTerminalRetirementError) return false;
+    throw error;
+  }
   if (!nativeHuskOwnerMatches(input.marker, evidence)) return false;
   const context: EvidenceInput = { ctx: { exec: input.exec }, evidence, baseOid: input.baseOid };
   return await huskEvidenceMatches(context, stamp.evidence)
     && (evidence.rule !== "landed" || await stampedHeadPreserved(context, stamp.sha, stamp.branch));
 }
 
-function nativeHuskOwnerMatches(marker: WorktreeMarker, evidence: StoreRetirementEvidence): boolean {
+/** Match the marker and terminal stamp to the exact native retirement owner. */
+export function nativeHuskOwnerMatches(marker: WorktreeMarker, evidence: StoreRetirementEvidence): boolean {
   const stamp = marker.husk, owner = evidence.record.reference.owner;
   return marker.spawnedByArc && owner.type === "work-item" && owner.uid !== undefined
     && marker.createdFor?.kind === "work-unit" && marker.createdFor.uid === owner.uid

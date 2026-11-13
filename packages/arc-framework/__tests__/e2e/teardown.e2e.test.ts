@@ -1,12 +1,28 @@
 /** Real CLI teardown refusals, self-teardown, and exact husk replay over temporary Git repositories. */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile, readFile, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+
+async function removalFailureEnvironment(dir: string): Promise<NodeJS.ProcessEnv> {
+  await mkdir(dir);
+  const script = ["#!/usr/bin/env node", 'const { spawnSync } = require("node:child_process");',
+    'const { delimiter, resolve } = require("node:path");', "const args = process.argv.slice(2);",
+    'if (args[0] === "worktree" && args[1] === "remove") {',
+    '  process.stderr.write("injected physical removal failure\\n"); process.exit(97);', "}",
+    'const path = (process.env.PATH ?? "").split(delimiter).filter(entry => resolve(entry) !== resolve(__dirname)).join(delimiter);',
+    'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
+    "process.exit(result.status ?? 1);", ""].join("\n");
+  const driver = join(dir, process.platform === "win32" ? "git-shim.cjs" : "git");
+  await writeFile(driver, script);
+  if (process.platform === "win32") await writeFile(join(dir, "git.cmd"), '@node "%~dp0git-shim.cjs" %*\r\n');
+  else await chmod(driver, 0o755);
+  return { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` };
+}
 
 /** Build the linked teardown fixture from an initialized repository. */
 async function prepareSelfTeardown(
@@ -181,6 +197,21 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.stdout + result.stderr).toContain("--yes");
     expect(await stat(worktree)).toMatchObject({});
   });
+
+  it("fails a sweep on physical cleanup failure and completes the same sweep after repair", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-failure-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    const env = await removalFailureEnvironment(join(worktreeParent, "bin"));
+    const failed = await runArc(["teardown", "--yes"], tmpDir, { env });
+    expect(failed.stdout + failed.stderr).toContain("injected physical removal failure");
+    expect(failed.exitCode).toBe(1);
+    expect(await stat(worktree)).toMatchObject({});
+    const repaired = await runArc(["teardown", "--yes"], tmpDir);
+    expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+    await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+  }, 30_000);
 
   it("sweeps stamped husks from outside and leaves live and unstamped checkouts alone", async () => {
     tmpDir = await initializedRepository("initialized");

@@ -8,14 +8,14 @@ import { decideHuskCleanup } from "../git/worktree-cleanup.js";
 import { isSelfTeardown } from "./mutators/reconcile-work-unit-worktree.js";
 import { runBranchTeardown, runTeardown, type TeardownContext, type TeardownParams } from "./verbs/teardown.js";
 
-interface LeftHusk { path: string; reason: string }
+interface LeftHusk { path: string; reason: string; failed?: true }
 interface Candidate { path: string; head: string; marker: WorktreeMarker }
 type Selection = { status: "selected"; candidates: Candidate[]; left: LeftHusk[] } | { status: "rejected"; reason: string };
 /** A preview cannot mutate; a completed sweep names every admitted removal and retained candidate. */
 export type TeardownHuskSweepResult =
   | { status: "rejected"; reason: string }
   | { status: "confirmation-required"; candidates: string[]; left: LeftHusk[] }
-  | { status: "swept"; removed: string[]; left: LeftHusk[] };
+  | { status: "swept"; removed: string[]; left: LeftHusk[]; warnings: { path: string; reason: string }[] };
 
 /** Remove eligible husks one at a time, preserving live checkouts and all unproven generations. */
 export async function runTeardownHuskSweep(ctx: TeardownContext,
@@ -24,15 +24,15 @@ export async function runTeardownHuskSweep(ctx: TeardownContext,
   if (selected.status === "rejected") return selected;
   if (!options.confirmed && selected.candidates.length > 0) return { status: "confirmation-required",
     candidates: selected.candidates.map(candidate => candidate.path), left: selected.left };
-  const removed: string[] = [], left = [...selected.left];
+  const removed: string[] = [], left = [...selected.left], warnings: { path: string; reason: string }[] = [];
   for (const candidate of selected.candidates) {
     try {
-      const reason = await removeHusk(ctx, options, candidate);
+      const reason = await removeHusk(ctx, options, candidate, warnings);
       if (reason === null) removed.push(candidate.path);
       else left.push({ path: candidate.path, reason });
-    } catch (error) { left.push({ path: candidate.path, reason: error instanceof Error ? error.message : String(error) }); }
+    } catch (error) { left.push({ path: candidate.path, reason: error instanceof Error ? error.message : String(error), failed: true }); }
   }
-  return { status: "swept", removed, left };
+  return { status: "swept", removed, left, warnings };
 }
 
 async function selectHusks(ctx: TeardownContext): Promise<Selection> {
@@ -55,7 +55,7 @@ async function selectHusks(ctx: TeardownContext): Promise<Selection> {
 }
 
 async function removeHusk(ctx: TeardownContext, options: Pick<TeardownParams, "base" | "protection">,
-  candidate: Candidate): Promise<string | null> {
+  candidate: Candidate, warnings: { path: string; reason: string }[]): Promise<string | null> {
   const current = await (ctx.readMarker ?? readWorktreeMarker)(candidate.path);
   if (current.kind !== "present" || !isDeepStrictEqual(current.marker, candidate.marker)) {
     return "husk marker changed; inspect it and retry the sweep";
@@ -76,7 +76,9 @@ async function removeHusk(ctx: TeardownContext, options: Pick<TeardownParams, "b
     : await runTeardown(ctx, { ...options, huskPath: candidate.path,
       subject: subject.uid === undefined ? { kind: "slug", slug: subject.name }
         : { kind: "owner", owner: OwnerIdentitySchema.parse({ type: "work-item", name: subject.name, uid: subject.uid }) } });
-  if (result.status === "rejected") return result.reason;
-  return result.worktreeRemoved === candidate.path ? null
-    : result.notices.join(" ") || "Branch obligations remain unresolved; retry its exact outside teardown.";
+  if (result.status === "rejected") throw new Error(result.reason);
+  if (result.worktreeRemoved !== candidate.path) return result.notices.join(" ")
+    || "Branch obligations remain unresolved; retry its exact outside teardown.";
+  warnings.push(...result.notices.map(reason => ({ path: candidate.path, reason })));
+  return null;
 }
