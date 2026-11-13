@@ -7,8 +7,8 @@ Command patterns and environment context for the ARC framework.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `ARC CLI Commands`,
-`npm Publishing` — load on demand when workflow steps reference them.
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands`, `Platform Commands`, `npm Publishing` — load on
+demand when workflow steps reference them.
 
 ### Critical Path Reference
 
