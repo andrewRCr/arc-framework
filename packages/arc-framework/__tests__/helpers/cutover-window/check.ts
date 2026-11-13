@@ -13,3 +13,11 @@ export async function checkFixture(h: Awaited<ReturnType<typeof windowFixture>>,
   });
   return { exit, result: JSON.parse(stdout.join("")) as unknown, report: stderr.join("") };
 }
+
+/** Carry a fixture's main advancement to its stand-in flip before expecting full quiescence. */
+export async function mergeMainIntoFixtureFlip(h: Awaited<ReturnType<typeof windowFixture>>): Promise<void> {
+  await h.git("git", ["checkout", h.flip.branch]);
+  await h.git("git", ["merge", "--no-edit", "main"]);
+  await h.git("git", ["push", "origin", h.flip.branch]);
+  await h.git("git", ["checkout", "main"]);
+}

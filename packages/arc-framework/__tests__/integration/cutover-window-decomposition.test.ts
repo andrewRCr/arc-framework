@@ -1,6 +1,6 @@
 /** Native candidate branches and staging residue cannot cross the cutover boundary. */
 import { expect, it } from "vitest";
-import { checkFixture } from "../helpers/cutover-window/check.js";
+import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -19,6 +19,7 @@ it("refuses unlanded local and fetched candidates and passes once main contains 
   ]) } });
   await h.git("git", ["merge", "--no-ff", branch, "-m", "Land the staged cut"]);
   await h.git("git", ["push", "origin", "main"]);
+  await mergeMainIntoFixtureFlip(h);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

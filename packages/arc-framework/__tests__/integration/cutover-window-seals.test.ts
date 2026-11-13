@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { readWindowSealAnchor } from "../../src/scripts/cutover-window/seals.js";
-import { checkFixture } from "../helpers/cutover-window/check.js";
+import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 
 it("derives the source-adding merge on main's first-parent history", async () => {
   const h = await windowFixture({ sealed: false });
@@ -45,6 +45,7 @@ it("refuses a checkout older than the sealing anchor and passes once it returns 
       remedy: expect.stringMatching(/merge main.*build:fast/iu) }),
   ]) } });
   await h.git("git", ["checkout", "main"]);
+  await mergeMainIntoFixtureFlip(h);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
-import { checkFixture } from "../helpers/cutover-window/check.js";
+import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { readStatusCheckoutRoster } from "../../src/handlers/status/checkout-roster.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { ordinaryErrand, seedTransients } from "../helpers/store/import-transients.js";
@@ -40,6 +40,7 @@ it("refuses the primary's unresolved status role and passes after its topology i
   await h.git("git", ["rm", ".arc/active/meta-alpha.md"]);
   await h.git("git", ["commit", "-m", "Restore the free launchpad"]);
   await h.git("git", ["push", "origin", "main"]);
+  await mergeMainIntoFixtureFlip(h);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

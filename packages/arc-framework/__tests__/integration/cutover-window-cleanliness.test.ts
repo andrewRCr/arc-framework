@@ -3,7 +3,7 @@ import { writeFile, rm, mkdir, appendFile, rename, symlink } from "node:fs/promi
 import { join, dirname, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
-import { checkFixture } from "../helpers/cutover-window/check.js";
+import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 
 it("refuses an untracked checkout file despite a configuration that hides it and passes after removal", async () => {
   const h = await windowFixture();
@@ -54,6 +54,7 @@ it.each(["ahead", "behind", "detached", "without an upstream"] as const)(
     expect((await h.git("git", ["rev-parse", "refs/remotes/origin/main"])).stdout.trim()).toBe(fetched);
     expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
     await repair();
+    if (state === "ahead" || state === "behind") await mergeMainIntoFixtureFlip(h);
     const repaired = await checkFixture(h);
     expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
   }, 30_000,

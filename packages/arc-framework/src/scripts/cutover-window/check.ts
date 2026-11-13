@@ -19,6 +19,7 @@ import { readWindowSealAnchor, readWindowCheckoutAncestryFindings, readWindowBui
 import { readWindowExecutableFindings } from "./executables.js";
 import { readWindowTrackedRecordFindings } from "./tracked-records.js";
 import { readWindowDivergingCopyFindings } from "./diverging-copies.js";
+import { readWindowFlipAncestryFindings } from "./flip-ancestry.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
 export interface WindowCheckOptions { host?: WindowHostPort; step?: WindowHoldStepHook }
@@ -56,7 +57,8 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       ...await readWindowCheckoutAncestryFindings(io, state.checkouts, anchor), ...await readWindowBuildFindings(state.checkouts),
       ...await readWindowExecutableFindings(state.checkouts, input.path),
       ...await readWindowTrackedRecordFindings(state.context, state.record, state.live.composition),
-      ...await readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition)];
+      ...await readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition),
+      ...await readWindowFlipAncestryFindings(io, state.record)];
     if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };

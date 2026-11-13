@@ -314,7 +314,7 @@ failing for a reason outside § 2.2.
   Shared fixtures graduate ownership after their base fork and move parked drafts with their metadata; map and rule
   fixtures retain their deleted-companion and multiple-merge-base premises on that history.
 
-### `[ ]` **4.3 Diverging copies and the flip's base — C8, C10**
+### `[x]` **4.3 Diverging copies and the flip's base — C8, C10**
 
 - _Goal:_ No live work unit has a copy the import would pass over that diverges from the one it reads, and `main` is a
   proper ancestor of the flip's branch.
@@ -325,10 +325,10 @@ failing for a reason outside § 2.2.
         - Refusals name the unit and both refs, including divergent local/fetched mirror pairs without shadow warnings.
           Merge-and-push continuation passes; unavailable ancestry retains a restore-readable-commits remedy.
 
-    - `[ ]` **4.3.b C10 — `main` not a proper ancestor of the flip's branch**
-        - Build `test-first` (one behavior at a time):
-            - A flip branch equal to `main` refuses, and passes once it takes a commit
-            - A flip branch `main` is not an ancestor of refuses, and passes once `main` is merged into it
+    - `[x]` **4.3.b C10 — `main` not a proper ancestor of the flip's branch**
+        - `check` refuses equal tips and any flip that lacks captured main's ancestry, using strict Git reads and
+          retaining actionable read failures. An advancing commit or merge into the flip permits continuation.
+        - Native repaired-state fixtures explicitly carry their main advancement into the stand-in flip.
 
 ### `[ ]` **4.4 Pull requests, Errand records, and the host — C11, C12, C13**
 
