@@ -18,10 +18,12 @@ export interface WindowPathRead {
   readRevision: string | null; readCopyRef: string | null;
   pointerBranch?: string | null;
 }
+/** A parked unit's committed pointer on main and the branch it names. */
+export interface WindowParkedPointer { slug: string; path: string; branch: string | null }
 /** Operation-owned discovery, including explicit unavailable import sources. */
 export interface WindowReadMap {
   main: string; findings: WindowFinding[];
-  readRevisions: readonly string[];
+  readRevisions: readonly string[]; parked: readonly WindowParkedPointer[];
   records(revision: string): Promise<ReadonlyMap<string, RecordReference>>;
   at(path: string, revision: string, comparisonBases?: readonly string[]): Promise<WindowPathRead>;
 }
@@ -31,7 +33,7 @@ export async function createWindowReadMap(context: WindowImportContext, main: st
   composition?: ComposedLifecycleIndexResult): Promise<WindowReadMap> {
   const internal = createInRepoContext(context.importSource.ports);
   const selectedComposition = composition ?? await composedMetas(internal);
-  const { sources, pointers, findings } = await readSources(context, internal, selectedComposition, main);
+  const { sources, pointers, parked, findings } = await readSources(context, internal, selectedComposition, main);
   const readRevisions = [...new Set([...sources.values()].flatMap(source => source.readRevision === null ? [] : [source.readRevision]))];
   const inventories = new Map<string, Promise<Map<string, RecordReference>>>();
   const inventory = (revision: string) => {
@@ -39,7 +41,7 @@ export async function createWindowReadMap(context: WindowImportContext, main: st
     if (!found) { found = discoverWindowPaths(internal, revision); inventories.set(revision, found); }
     return found;
   };
-  return { main, findings, readRevisions, records: inventory, at: async (path, revision, bases = []) => {
+  return { main, findings, readRevisions, parked, records: inventory, at: async (path, revision, bases = []) => {
     let reference: RecordReference | null = null;
     for (const candidate of [revision, ...bases, ...readRevisions]) {
       reference = (await inventory(candidate)).get(path) ?? null;
@@ -64,17 +66,19 @@ export function resolveWindowPathRead(input: { path: string; reference: RecordRe
 
 async function readSources(context: WindowImportContext, internal: InRepoContext,
   selectedComposition: ComposedLifecycleIndexResult, main: string): Promise<{
-    sources: Map<string, ReadCoordinate>; pointers: Map<string, string | null>; findings: WindowFinding[];
+    sources: Map<string, ReadCoordinate>; pointers: Map<string, string | null>; parked: WindowParkedPointer[]; findings: WindowFinding[];
   }> {
   const sources = await readComposedSources(context, internal, selectedComposition, main);
   const report: MigrateReport = { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
   const parked = await readImportParkedSources(context, internal, report, main);
   for (const slug of parked.names) sources.set(slug, { readRevision: null, readCopyRef: null });
   const pointers = new Map<string, string | null>(), pointerBranches = new Map<string, string | null>();
+  const parkedPointers: WindowParkedPointer[] = [];
   for (const meta of await heldMetaSources(internal, main)) {
     if (!parked.names.has(meta.slug) || meta.content === null) continue;
     const branch = parseMetaRecord(meta.content).branch;
     pointers.set(meta.path, branch); pointerBranches.set(meta.slug, branch);
+    parkedPointers.push({ slug: meta.slug, path: meta.path, branch });
   }
   for (const entry of parked.available) {
     const branch = pointerBranches.get(entry.meta.reference.owner.name);
@@ -88,7 +92,7 @@ async function readSources(context: WindowImportContext, internal: InRepoContext
   }
   const findings = report.notices.map(notice => ({ subject: "parked import source", condition: notice.condition,
     remedy: notice.remedy?.text ?? "Restore the readable committed parking pointer and branch, then retry." }));
-  return { sources, pointers, findings };
+  return { sources, pointers, parked: parkedPointers, findings };
 }
 
 async function readComposedSources(context: WindowImportContext, internal: InRepoContext,
