@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "narrowed-views-routed-from",
+  "claimId": "0c10187e0863511037420d1a804e8812",
+  "createdAt": "2026-11-13T16:22:41.246Z",
+  "updatedAt": "2026-11-13T16:22:41.246Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add the dated Routed from field to the narrowed-views inbound buffer entry so the store import reads it",
+  "branch": "chore/narrowed-views-routed-from",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
