@@ -1,4 +1,4 @@
-/** Capture the importing repository's immutable code and ref coordinates for the window record. */
+/** Capture the importing repository's coordinates and acquired source digests for the window record. */
 import { listWindowRefs, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
 import type { WindowFlipInput } from "./input.js";
@@ -6,6 +6,7 @@ import { WindowRefusal } from "./result.js";
 import { readWindowCheckouts } from "./checkouts.js";
 import { createWindowImportContext } from "./import-context.js";
 import { readWindowLiveState } from "./live-state.js";
+import { readWindowPersonalState, readWindowReviewDigest } from "./digests.js";
 
 function select(refs: ReadonlyMap<string, string>, prefix: string, branches = false): Record<string, string> {
   return Object.fromEntries<string>([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
@@ -23,9 +24,16 @@ export async function captureWindowRecord(io: WindowGitReadIO, input: WindowFlip
   const head = local[input.branch] ?? fetched[input.branch];
   if (head === undefined) throw new WindowRefusal([{ subject: input.branch, condition: "The named flip branch cannot be resolved.",
     remedy: "Fetch or restore the intended flip branch, then retry check." }]);
-  const worktrees = checkouts.map(({ path, head, branch }) => ({ path, head, branch }));
-  const live = await readWindowLiveState(context, checkouts, { local, origin: fetched });
-  return { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees,
+  const [live, personal, reviewGateDigest] = await Promise.all([
+    readWindowLiveState(context, checkouts, { local, origin: fetched }),
+    readWindowPersonalState(context, checkouts), readWindowReviewDigest(context),
+  ]);
+  const worktrees = checkouts.map(({ path, head, branch }) => {
+    const personalDigest = personal.digests[path];
+    if (personalDigest === undefined) throw new Error(`No acquired personal digest for checkout ${path}`);
+    return { path, head, branch, personalDigest };
+  });
+  return { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
     branches: { local, origin: fetched, live: live.branches }, refs: { local: select(refs, "refs/arc/"), origin: { ...origin },
       tracking: select(refs, "refs/arc-remotes/origin/") } };
 }

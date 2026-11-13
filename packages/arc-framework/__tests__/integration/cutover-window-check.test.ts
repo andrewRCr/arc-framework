@@ -19,8 +19,8 @@ it("records the flip, registered checkout, branch tips, and all three ref invent
   await h.git("git", ["update-ref", trackingRef, identity]);
   expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
   const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
-  expect(held.record).toEqual({ version: 1, flip: h.flip,
-    worktrees: [{ path: expect.any(String), head, branch: "main" }],
+  expect(held.record).toEqual({ version: 1, reviewGateDigest: expect.stringMatching(/^[a-f0-9]{64}$/u), flip: h.flip,
+    worktrees: [{ path: expect.any(String), head, branch: "main", personalDigest: expect.stringMatching(/^[a-f0-9]{64}$/u) }],
     branches: { live: expect.objectContaining({ main: { local: head, origin: head, reasons: expect.any(Array) },
       "feat/alpha": { local: head, origin: null, reasons: expect.any(Array) } }), local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
       origin: { main: head, [h.flip.branch]: h.flip.head } },

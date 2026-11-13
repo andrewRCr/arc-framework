@@ -203,26 +203,20 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
         - Origin acquisition precedes capture, reuses exact held tips, and refuses replacement. An invalid identity
           refuses and removes the partial hold; repairing the input permits a fresh check.
 
-### `[ ]` **3.2 The personal and review-gate digests — § 4.2**
+### `[x]` **3.2 The personal and review-gate digests — § 4.2**
 
 - _Goal:_ Each worktree's personal digest and the review gate's digest change exactly when what the import would read
   changes, computed from the import's own acquisition so the two cannot drift.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Digests.
 
     - `[x]` **3.2.a The personal digest**
         - `readWindowPersonalState` retains one import acquisition and hashes sorted file paths/content and link
           paths per physical checkout. Nested registrations belong to their deepest checkout; notes saves preserve
           the digests, while personal edits and newly created links change only their owner's digest.
 
-    - `[ ]` **3.2.b The review-gate digest**
-        - Computed from `readImportReviewGate`'s read, without `arc/review-gate/identity/repository-identity.json`;
-          a read that adds a notice stops rather than digesting as empty.
-        - Build `test-first` (one behavior at a time):
-            - A review record written after the check changes it
-            - Minting the repository identity file leaves it unchanged
-            - An unreadable review gate stops
-        - The record holds each worktree's personal digest and the review gate's digest.
+    - `[x]` **3.2.b The review-gate digest**
+        - `readWindowReviewDigest` fingerprints the import's raw review-gate files, excluding its repository identity;
+          inventory notices refuse with a check-specific access remedy. Capture binds both digest readers to the same
+          import context and persists required `personalDigest` and `reviewGateDigest` fields in the strict record.
 
 ### `[ ]` **3.3 The lock step — § 8, C3**
 

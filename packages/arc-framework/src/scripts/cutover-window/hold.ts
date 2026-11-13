@@ -9,13 +9,15 @@ import { hashBlob, writeTreeCommit } from "../../lib/git/ref-tree.js";
 import { WindowLiveBranchSchema } from "./live-branches.js";
 
 const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
+const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const names = z.string().min(1).regex(/^[^\s\0]+$/u);
 const branchTips = z.record(names, oid);
 const refTips = (prefix: string) => z.record(names.startsWith(prefix), oid);
 const recordSchema = z.strictObject({
   version: z.literal(1),
   flip: z.strictObject({ branch: names, pullRequest: z.number().int().positive(), head: oid }),
-  worktrees: z.array(z.strictObject({ path: z.string().min(1), head: oid, branch: names.nullable() })),
+  worktrees: z.array(z.strictObject({ path: z.string().min(1), head: oid, branch: names.nullable(), personalDigest: digest })),
+  reviewGateDigest: digest,
   branches: z.strictObject({ local: branchTips, origin: branchTips, live: z.record(names, WindowLiveBranchSchema) }),
   refs: z.strictObject({ local: refTips("refs/arc/"), origin: refTips("refs/arc/"), tracking: refTips("refs/arc-remotes/origin/") }),
 });
