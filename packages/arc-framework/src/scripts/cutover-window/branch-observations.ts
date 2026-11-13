@@ -20,12 +20,12 @@ export async function readWindowBranchObservations(io: WindowHoldIO, record: Win
   const local = await readWindowRefTip(io, `refs/heads/${branch}`);
   const origin = (await createWindowHost(io).refs([`refs/heads/${branch}`]))[`refs/heads/${branch}`] ?? null;
   if (origin !== null) await acquireWindowHostCommit(io, branch, origin);
-  const recorded = record.branches.live[branch];
+  const recorded = Object.hasOwn(record.branches.live, branch) ? record.branches.live[branch] : undefined;
   if (recorded === undefined && !await stateBearing(io, [local, origin])) return [];
   const marks: WindowComparisonMark[] = [];
   for (const side of ["local", "origin"] as const) {
     const baseline = recorded?.[side] ?? null, current = side === "local" ? local : origin;
-    if (recorded !== undefined && baseline === null || baseline === null && current === null) continue;
+    if (baseline === null && (recorded !== undefined || current === null)) continue;
     const tip = current ?? baseline;
     if (tip === null) continue;
     const base = baseline ?? await readWindowUnrecordedBase(io, record, tip);

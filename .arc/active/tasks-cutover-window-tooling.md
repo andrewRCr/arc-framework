@@ -411,8 +411,9 @@ _Mode:_ `layer` through Phase 6 — closes on every comparison the window runs a
   over the imported store agreeing link for link, and stops on any difference the import's report does not list.
 
 - _Outcome:_ `chain --report` compares native repository and UID-owned store walks, their current and linked records,
-  and the complete accepted singleton history. Report-listed omissions and broken source chains remain visible;
-  store-only refusals and unlisted record or history differences stop the run. Native replay retains whole transitions.
+  and the complete accepted singleton history. Report-listed omissions and broken source chains remain visible; store-
+  only refusals and unlisted record or history differences stop the run. Native replay retains whole transitions; the
+  explicit-entry caller contract names both repository-only ref readers.
 
 ## **Phase 6:** After the merge
 
@@ -439,19 +440,15 @@ _Exit criterion:_ `compare`, `confirm`, and `close` hold every late change in a 
   atomically verifies each current mark while writing its confirmation. Unknown or unchanged branches and stale,
   missing, or extra side operands refuse without partial confirmations; fresh exact tips permit retry.
 
-### `[ ]` **6.3 The close — § 5.4**
+### `[x]` **6.3 The close — § 5.4**
 
 - _Goal:_ `close` lists every mark and range, then deletes the whole hold only once the merged-flip test answers merged
   and every refusal clears.
 
-    - Build `test-first` (one behavior at a time):
-        - It refuses before the merge, and recognizes a host merge whose commit is not local
-        - A registered checkout whose `HEAD` tree tracks a file under the tracked-state paths refuses
-        - An unmarked recorded live branch refuses, as does an unmarked branch missing from the record that tracks
-          state
-        - An unconfirmed range refuses, as does a range moved after its confirmation
-        - Once all clear, it deletes the completion marker first and then the whole hold
-        - Run again over the incomplete hold a stopped close leaves, it deletes what remains and tests nothing else
+- _Outcome:_ `close` lists held marks and ranges, checks merged-flip evidence and every registered HEAD tree, and
+  refuses missing marks or exact confirmations, including unrecorded host branches. It removes the completion marker
+  before the remaining hold and resumes incomplete cleanup without re-testing the window. Own-key branch lookup
+  preserves valid names such as `constructor`.
 
 ## **Phase 7:** Stage 1
 
