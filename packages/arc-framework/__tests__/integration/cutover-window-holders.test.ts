@@ -5,6 +5,7 @@ import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { readStatusCheckoutRoster } from "../../src/handlers/status/checkout-roster.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { retireFixtureErrand } from "../helpers/cutover-window/identity-inputs.js";
 import { ordinaryErrand, seedTransients } from "../helpers/store/import-transients.js";
 
 it("refuses an unmarked linked checkout and passes after it is removed", async () => {
@@ -62,7 +63,7 @@ it("refuses a husked marked checkout and passes after its registration is remove
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
 
-it("refuses an Errand marker without an exact identity record and passes after its record is restored", async () => {
+it("refuses an Errand marker without its exact record and requires retirement after it is restored", async () => {
   const h = await windowFixture();
   const path = join(h.root, ".arc-fixture/errand");
   await h.git("git", ["branch", "chore/example"]);
@@ -79,12 +80,19 @@ it("refuses an Errand marker without an exact identity record and passes after i
   await h.git("git", ["worktree", "unlock", path]);
   await h.git("git", ["worktree", "remove", path]);
   await h.git("git", ["branch", "-d", "chore/example"]);
-  await seedTransients(h, [ordinaryErrand]);
+  const identityTip = await seedTransients(h, [ordinaryErrand]);
   await h.git("git", ["worktree", "add", path, "chore/example"]);
   await h.git("git", ["worktree", "lock", path]);
   await h.git("git", ["branch", "--set-upstream-to=origin/chore/example", "chore/example"]);
   await writeWorktreeMarker(path, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
     createdFor: { kind: "errand", slug: "example", claimId: "1".repeat(32) }, provisioning: "ready" });
+  const restored = await checkFixture(h);
+  expect(restored, restored.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
+    expect.objectContaining({ subject: "Errand example" }),
+  ]) } });
+  expect(restored.report).not.toContain("no matching acquired identity record");
+  await h.git("git", ["worktree", "unlock", path]); await h.git("git", ["worktree", "remove", path]);
+  await retireFixtureErrand(h, identityTip);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

@@ -9,6 +9,8 @@ import type { WindowFinding } from "./result.js";
 
 /** One logical record, retaining the identity ref whose input supplied it. */
 export interface WindowTransientRecord { ref: string; reference: RecordReference; content: string }
+/** One acquired side of the identity inventory. */
+export interface WindowTransientInput { side: "local" | "origin"; records: readonly WindowTransientRecord[] }
 /** A complete projection or explicit differences that prohibit treating it as empty. */
 export interface WindowTransientRecords { records: WindowTransientRecord[]; findings: WindowFinding[] }
 

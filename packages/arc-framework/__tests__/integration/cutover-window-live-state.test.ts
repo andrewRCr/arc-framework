@@ -12,7 +12,8 @@ import { readWindowCheckouts } from "../../src/scripts/cutover-window/checkouts.
 import { seedTransients, ordinaryErrand } from "../helpers/store/import-transients.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
-import { readWindowHold } from "../../src/scripts/cutover-window/hold.js";
+import { acquireWindowOriginRefs } from "../../src/scripts/cutover-window/hold.js";
+import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
 
@@ -83,13 +84,13 @@ it("reads every identity's held origin Errands without substituting a later remo
   const ref = "refs/arc/user/alex/errands";
   await h.git("git", ["push", "origin", "refs/arc/user/andrew/errands", ref]);
   await h.git("git", ["update-ref", "-d", ref, held]);
-  const checked = await checkFixture(h);
-  expect(checked, checked.report).toMatchObject({ exit: 0, result: { status: "passed" } });
-  const saved = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
-  expect(saved.record.branches).toMatchObject({ live: {
+  const ioRead = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
+  await acquireWindowOriginRefs(ioRead, await createWindowHost(ioRead).refs(["refs/arc/*"]));
+  const acquired = await inspectLive(h);
+  expect(acquired, acquired.report).toMatchObject({ exit: 0, result: { data: { branches: {
     "chore/other": { local: expect.any(String), origin: null,
       reasons: expect.arrayContaining(["Errand other (origin refs/arc/user/alex/errands)"]) },
-  } });
+  } } } });
   const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "alex" };
   const late = TransientIdentityRecordSchema.parse({ ...other, slug: "late", branch: "chore/late" });
   const blob = await hashBlob(io.execInput, serializeTransientIdentityRecord(late));
@@ -113,9 +114,8 @@ it("refuses an invalid held identity and removes its partial hold before a repai
     expect.objectContaining({ subject: ref, condition: expect.stringContaining("incomplete snapshot") }),
   ]) } });
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
-  const valid = await seedTransients(h, [ordinaryErrand], "alex");
+  await seedTransients(h, [], "alex");
   await h.git("git", ["push", "--force", "origin", ref]);
-  await h.git("git", ["update-ref", "-d", ref, valid]);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

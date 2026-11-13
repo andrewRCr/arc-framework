@@ -21,6 +21,7 @@ import { readWindowTrackedRecordFindings } from "./tracked-records.js";
 import { readWindowDivergingCopyFindings } from "./diverging-copies.js";
 import { readWindowFlipAncestryFindings } from "./flip-ancestry.js";
 import { windowPullRequestFindings, windowMergeSettingFindings } from "./pull-requests.js";
+import { windowErrandInputFindings, windowIdentityTipFindings, windowForeignClaimFindings } from "./identity-inputs.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
 export interface WindowCheckOptions { host?: WindowHostPort; step?: WindowHoldStepHook }
@@ -50,7 +51,7 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     const state = await captureWindowState(io, input, origin);
     const anchor = await readWindowSealAnchor(io, facts.anchor);
     const checkoutFindings = [...windowUnmarkedCheckoutFindings(state.checkouts), ...await readWindowEndedCheckoutFindings(io, state.checkouts),
-      ...windowErrandHolderFindings(state.checkouts, state.live.transients),
+      ...windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)),
       ...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
       ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),
@@ -61,7 +62,9 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       ...await readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition),
       ...await readWindowFlipAncestryFindings(io, state.record),
       ...windowPullRequestFindings(facts.pullRequests, Object.keys(state.record.branches.live), state.record.flip.branch),
-      ...facts.hosted ? windowMergeSettingFindings(await host.mergeSettings()) : []];
+      ...facts.hosted ? windowMergeSettingFindings(await host.mergeSettings()) : [],
+      ...windowErrandInputFindings(state.live.transientInputs), ...windowIdentityTipFindings(state.record.refs),
+      ...windowForeignClaimFindings(state.live.transientInputs, await state.context.importSource.ports.identity())];
     if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };

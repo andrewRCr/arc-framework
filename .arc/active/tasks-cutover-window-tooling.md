@@ -342,16 +342,11 @@ failing for a reason outside § 2.2.
         - Hostless supplied facts remain distinct from hosted reads; unreadable listings and supplied replacements on a
           hosted repository refuse through the complete check and permit retry after repair.
 
-    - `[ ]` **4.4.b C12 — Errand records and identity refs**
-        - Read `origin`'s records from the refs fetched under `refs/arc-window/origin/`; an Errand record is one whose
-          `transientKind` is `work-item/record`, since housekeep routing records also carry `kind: "errand"`; a snapshot
-          that reads errored or with diagnostics refuses; the configured identity is the ports' `identity`.
-        - Build `test-first` (one behavior at a time):
-            - An open, paused, or awaiting-merge Errand's record refuses, locally or on `origin`, and passes once the
-              Errand is closed or abandoned, while grooming and housekeep claims pass
-            - An identity ref whose local and `origin` tips differ refuses, as does one only on `origin`, each passing
-              once fetched or pushed into agreement, and one held only locally passes
-            - A claim held by an identity other than the configured one refuses on either side
+    - `[x]` **4.4.b C12 — Errand records and identity refs**
+        - Quiescence retains local/origin transient provenance, refuses ordinary Errands and foreign claims, and requires
+          origin identity refs to match their local tips while permitting local-only refs. Identity comes from import ports.
+        - Native acquisition and holder fixtures preserve their assertions without admitting Errands as quiescent:
+          held-source reads use the acquisition phase, and successful retries retire or align identity records.
 
     - `[ ]` **4.4.c C13 — off the host**
         - Read every branch's host tip with one `git ls-remote origin 'refs/heads/*'` through the host port.
