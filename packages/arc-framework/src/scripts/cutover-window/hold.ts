@@ -6,6 +6,7 @@ import { WindowRefusal } from "./result.js";
 import { updateRefTransaction, type RefChange } from "../../lib/git/ref-transaction.js";
 import { refFetchArgs } from "../../lib/store/ref/fetch-target.js";
 import { hashBlob, writeTreeCommit } from "../../lib/git/ref-tree.js";
+import { WindowLiveBranchSchema } from "./live-branches.js";
 
 const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
 const names = z.string().min(1).regex(/^[^\s\0]+$/u);
@@ -15,7 +16,7 @@ const recordSchema = z.strictObject({
   version: z.literal(1),
   flip: z.strictObject({ branch: names, pullRequest: z.number().int().positive(), head: oid }),
   worktrees: z.array(z.strictObject({ path: z.string().min(1), head: oid, branch: names.nullable() })),
-  branches: z.strictObject({ local: branchTips, origin: branchTips }),
+  branches: z.strictObject({ local: branchTips, origin: branchTips, live: z.record(names, WindowLiveBranchSchema) }),
   refs: z.strictObject({ local: refTips("refs/arc/"), origin: refTips("refs/arc/"), tracking: refTips("refs/arc-remotes/origin/") }),
 });
 
@@ -36,16 +37,33 @@ export type WindowHoldStep = "check.record" | "check.complete";
 /** Before-write checkpoint; the normal source entry supplies none. */
 export type WindowHoldStepHook = (step: WindowHoldStep) => Promise<void>;
 
+/** Acquire immutable origin objects and pin absent hold refs without replacing an existing observation. */
+export async function acquireWindowOriginRefs(io: WindowHoldIO, origin: Readonly<Record<string, string>>): Promise<void> {
+  const bound = boundIO(io);
+  const held = await listWindowRefs(bound, ["refs/arc-window/origin/"]);
+  const missing: { ref: string; next: string; expected: null }[] = [];
+  for (const [ref, tip] of Object.entries(origin)) {
+    const target = `refs/arc-window/origin/${ref}`;
+    const existing = held.get(target);
+    if (existing !== undefined && existing !== tip) throw new WindowRefusal([{ subject: target,
+      condition: "The held origin tip differs from the requested observation.",
+      remedy: "Preserve and inspect the existing hold; remove an incomplete hold before retrying check." }]);
+    if (existing === undefined) missing.push({ ref: target, next: tip, expected: null });
+  }
+  if (missing.length === 0) return;
+  await bound.execInput(refFetchArgs("origin", [], "origin"),
+    missing.map(change => `${change.next}\n`).join(""), { signal: AbortSignal.timeout(30_000) });
+  const outcome = await updateRefTransaction(bound, missing, { cwd: io.repo });
+  if (outcome.status !== "committed") throw new WindowRefusal(outcome.refs.map(ref => ({ subject: ref.ref,
+    condition: "The origin hold changed during acquisition.",
+    remedy: "Preserve and inspect the incomplete hold, then remove it before retrying check." })));
+}
+
 /** Write one complete hold, returning the record commit. */
 export async function writeWindowHold(io: WindowHoldIO, record: WindowRecord, step?: WindowHoldStepHook): Promise<string> {
   const bound = boundIO(io);
   const checked = recordSchema.parse(record);
-  const remote = Object.entries(checked.refs.origin);
-  if (remote.length > 0) {
-    await bound.execInput(refFetchArgs("origin", [], "origin"),
-      remote.map(([ref, tip]) => `${tip}:refs/arc-window/origin/${ref}\n`).join(""),
-      { signal: AbortSignal.timeout(30_000) });
-  }
+  await acquireWindowOriginRefs(bound, checked.refs.origin);
   const changes: RefChange[] = [];
   for (const side of ["local", "tracking"] as const) {
     for (const [ref, tip] of Object.entries(checked.refs[side])) {

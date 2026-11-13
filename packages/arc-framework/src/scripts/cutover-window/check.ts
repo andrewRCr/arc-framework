@@ -7,7 +7,7 @@ import { readWindowHostFacts, type WindowHostPort } from "./host.js";
 import { readSuppliedWindowRequests } from "./supplied.js";
 import { createWindowHost } from "./native-host.js";
 import { captureWindowRecord } from "./capture.js";
-import { writeWindowHold, discardUnfinishedWindowHold, type WindowHoldStepHook } from "./hold.js";
+import { acquireWindowOriginRefs, writeWindowHold, discardUnfinishedWindowHold, type WindowHoldStepHook } from "./hold.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
@@ -33,8 +33,9 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
   const origin = await host.refs(["refs/arc/*"]);
   const originFindings = windowPreexistingStoreRefFindings(new Map(Object.entries(origin)), "origin");
   if (originFindings.length > 0) return { operation: "check", status: "refused", findings: originFindings };
-  const record = await captureWindowRecord(io, input, origin);
   try {
+    await acquireWindowOriginRefs(io, origin);
+    const record = await captureWindowRecord(io, input, origin);
     const tip = await writeWindowHold(io, record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {

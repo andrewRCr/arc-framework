@@ -21,7 +21,8 @@ it("records the flip, registered checkout, branch tips, and all three ref invent
   const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
   expect(held.record).toEqual({ version: 1, flip: h.flip,
     worktrees: [{ path: expect.any(String), head, branch: "main" }],
-    branches: { local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
+    branches: { live: expect.objectContaining({ main: { local: head, origin: head, reasons: expect.any(Array) },
+      "feat/alpha": { local: head, origin: null, reasons: expect.any(Array) } }), local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
       origin: { main: head, [h.flip.branch]: h.flip.head } },
     refs: { local: { [transientSourceRef]: identity }, origin: { [transientSourceRef]: identity }, tracking: { [trackingRef]: identity } },
   });

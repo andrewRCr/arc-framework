@@ -7,7 +7,7 @@ import type { WindowRecord } from "../../../../src/scripts/cutover-window/hold.j
 const windowTip = "a".repeat(40), held = "b".repeat(40), head = "c".repeat(40), flip = "d".repeat(40), changed = "e".repeat(40);
 const ref = "refs/arc/user/andrew/errands";
 const record: WindowRecord = { version: 1, flip: { branch: "feat/flip", pullRequest: 7, head: flip },
-  worktrees: [{ path: resolve("target"), head, branch: "main" }], branches: { local: { main: head, "feat/flip": flip }, origin: { main: head, "feat/flip": flip } },
+  worktrees: [{ path: resolve("target"), head, branch: "main" }], branches: { live: {}, local: { main: head, "feat/flip": flip }, origin: { main: head, "feat/flip": flip } },
   refs: { local: { [ref]: held }, origin: { [ref]: held }, tracking: {} } };
 const window = { tip: windowTip, record };
 const difference = { subject: ref, condition: "Consumed identity input changed.", remedy: "Settle and accept the consumed value before retrying." };

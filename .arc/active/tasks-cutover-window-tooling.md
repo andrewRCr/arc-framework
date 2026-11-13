@@ -185,31 +185,23 @@ complete check can run over a copy of this repository at the segment's close.
 
 _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run over a copy of this repository.
 
-### `[ ]` **3.1 Marked checkouts and live branches — § 1.1, § 1.3**
+### `[x]` **3.1 Marked checkouts and live branches — § 1.1, § 1.3**
 
 - _Goal:_ The family classifies every registered checkout as marked or names its kind, and derives the live work units
   and live branches from the same composition call the import makes.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
 
     - `[x]` **3.1.a Marked checkouts**
         - `readWindowCheckouts` acquires native registrations and validated markers in the named repository;
           `classifyWindowCheckout` uses the ownership and husk decoders to distinguish marked checkouts from each
           excluded kind. Husk evidence remains separate for C4, and unreadable registration inventories name a retry.
 
-    - `[ ]` **3.1.b Live work units and live branches**
-        - Take the composition from `composedMetas` over the ports the import's source binding builds
-          (`runStoreMigrate`, `lib/store/create.ts`), reading Task 1.1's provenance field and, for a live unit with
-          none, the branches its stale-location warnings name in `qualityFacts.bySlug`, at their local and fetched tips;
-          a unit is live when its selected record's location is not `completed`, and abandoned and cut units are absent.
-        - Read open, paused, and awaiting-merge Errands from every identity's local ref and those under
-          `refs/arc-window/origin/`, with Task 2.2.a's reader.
-        - Build `test-first` (one behavior at a time):
-            - A unit merged but not archived is live, and a completed one is not
-            - A unit present only through a leftover branch's active meta is live, as the import reads it
-            - Live branches are those a registered checkout holds, those on which the composition finds a copy of a live
-              unit's meta, the branches an all-stale unit's warnings name among them, and live Errands' branches
-        - The record lists each live branch with its local and fetched tips and why it is live.
+    - `[x]` **3.1.b Live work units and live branches**
+        - `readWindowLiveState` uses the import's native source binding and one composition, retaining live-unit
+          provenance or all-stale warning branches alongside registered and ordinary Errand branches. Every local
+          identity and pinned origin identity contributes; `branches.live` records local/fetched tips and reasons.
+          Tip lookups ignore inherited object properties.
+        - Origin acquisition precedes capture, reuses exact held tips, and refuses replacement. An invalid identity
+          refuses and removes the partial hold; repairing the input permits a fresh check.
 
 ### `[ ]` **3.2 The personal and review-gate digests — § 4.2**
 

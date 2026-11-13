@@ -7,7 +7,7 @@ import type { WindowRestoreDecision } from "../../../../src/scripts/cutover-wind
 const held = "a".repeat(40), published = "b".repeat(40), moved = "c".repeat(40), windowTip = "d".repeat(40);
 const ref = "refs/arc/delivery-candidates/example";
 const record: WindowRecord = { version: 1, flip: { branch: "feat/flip", pullRequest: 7, head: held }, worktrees: [],
-  branches: { local: {}, origin: {} }, refs: { local: {}, origin: { [ref]: held }, tracking: {} } };
+  branches: { live: {}, local: {}, origin: {} }, refs: { local: {}, origin: { [ref]: held }, tracking: {} } };
 const decision: WindowRestoreDecision = { version: 1, windowTip, regime: "unconsumed", identities: [], accepted: [], differences: [] };
 const snapshot: WindowRestoreSnapshot = { local: {}, origin: {}, tracking: {}, identity: "andrew" };
 

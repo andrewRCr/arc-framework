@@ -11,7 +11,7 @@ async function fixture() {
   await exec("git", ["commit", "--allow-empty", "-m", "base"]);
   const head = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   const record: WindowRecord = { version: 1, flip: { branch: "feat/flip", pullRequest: 7, head },
-    worktrees: [{ path: repo, head, branch: "main" }], branches: { local: { main: head }, origin: { main: head } },
+    worktrees: [{ path: repo, head, branch: "main" }], branches: { live: {}, local: { main: head }, origin: { main: head } },
     refs: { local: {}, origin: {}, tracking: {} } };
   return { repo, exec, execInput, record, head };
 }
@@ -90,5 +90,23 @@ it("preserves a hold with a mismatched completion marker and reads it after repa
   })] });
   expect((await h.exec("git", ["rev-parse", "refs/arc-window/record"])).stdout.trim()).toBe(tip);
   await h.exec("git", ["update-ref", "refs/arc-window/complete", tip, h.head]);
+  expect((await readWindowHold(h)).record).toEqual(h.record);
+}, 15_000);
+
+it("preserves a different acquired origin tip and completes after the observation is repaired", async () => {
+  const h = await fixture();
+  const ref = "refs/arc/user/andrew/errands";
+  const heldRef = `refs/arc-window/origin/${ref}`;
+  await h.exec("git", ["commit", "--allow-empty", "-m", "New source observation"]);
+  const next = (await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  h.record.refs.origin = { [ref]: next };
+  await h.exec("git", ["update-ref", heldRef, h.head]);
+  await expect(writeWindowHold(h, h.record)).rejects.toMatchObject({ findings: [expect.objectContaining({
+    subject: heldRef, condition: expect.stringContaining("differs"), remedy: expect.stringContaining("Preserve"),
+  })] });
+  expect((await h.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc-window/"])).stdout.trim())
+    .toBe(`${heldRef} ${h.head}`);
+  await h.exec("git", ["update-ref", heldRef, next, h.head]);
+  await writeWindowHold(h, h.record);
   expect((await readWindowHold(h)).record).toEqual(h.record);
 }, 15_000);

@@ -9,7 +9,7 @@ it("reports an unreadable hold as a retryable stop, then reads it after access i
   const tip = "a".repeat(40);
   const repo = resolve("target");
   const record: WindowRecord = { version: 1, flip: { branch: "feat/flip", pullRequest: 7, head: tip },
-    worktrees: [{ path: repo, head: tip, branch: "main" }], branches: { local: { main: tip }, origin: { main: tip } },
+    worktrees: [{ path: repo, head: tip, branch: "main" }], branches: { live: {}, local: { main: tip }, origin: { main: tip } },
     refs: { local: {}, origin: {}, tracking: {} } };
   const { exec } = scriptGitExec([
     { match: ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc-window/"], responses: [
