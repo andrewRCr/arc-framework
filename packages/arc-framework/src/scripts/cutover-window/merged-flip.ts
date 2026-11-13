@@ -16,7 +16,7 @@ function completedOne(error: unknown): boolean {
   return isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1 && error.signal === undefined;
 }
 
-async function resolveCommit(io: MergeIO, revision: string): Promise<string | null> {
+async function resolveCommit(io: Pick<MergeIO, "exec" | "repo">, revision: string): Promise<string | null> {
   try {
     const value = (await io.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${revision}^{commit}`],
       { cwd: io.repo, objectAccess: "local-only" })).stdout.trim();
@@ -28,14 +28,15 @@ async function resolveCommit(io: MergeIO, revision: string): Promise<string | nu
   }
 }
 
-async function acquireMain(io: MergeIO, tip: string): Promise<void> {
+/** Fetch an observed host branch tip only when its commit is absent, preserving strict local object reads. */
+export async function acquireWindowHostCommit(io: Pick<MergeIO, "exec" | "repo">, branch: string, tip: string): Promise<void> {
   if (await resolveCommit(io, tip) === tip) return;
   const scratch = `refs/arc-window-scratch/${randomUUID()}`;
   try {
-    await io.exec("git", ["fetch", "--refmap=", "origin", `refs/heads/main:${scratch}`],
+    await io.exec("git", ["fetch", "--refmap=", "origin", `refs/heads/${branch}:${scratch}`],
       { cwd: io.repo, signal: AbortSignal.timeout(30_000) });
-    if (await resolveCommit(io, scratch) !== tip) refuse("Origin's main tip changed after it was read.");
-    if (await resolveCommit(io, tip) !== tip) refuse("Origin's main tip still cannot be resolved after fetching it.");
+    if (await resolveCommit(io, scratch) !== tip) refuse(`Origin's ${branch} tip changed after it was read.`);
+    if (await resolveCommit(io, tip) !== tip) refuse(`Origin's ${branch} tip still cannot be resolved after fetching it.`);
   } finally {
     const fetched = await resolveCommit(io, scratch);
     if (fetched !== null) await io.exec("git", ["update-ref", "-d", scratch, fetched], { cwd: io.repo });
@@ -54,7 +55,7 @@ export async function isWindowFlipMerged(io: MergeIO, recordedHead: string): Pro
     }
     const tip = (await io.host.refs(["refs/heads/main"]))["refs/heads/main"];
     if (tip === undefined || !oidPattern.test(tip)) refuse("Origin has no readable main tip.");
-    await acquireMain(io, tip);
+    await acquireWindowHostCommit(io, "main", tip);
     try {
       await io.exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", recordedHead, tip],
         { cwd: io.repo, objectAccess: "local-only" });

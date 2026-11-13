@@ -1,4 +1,5 @@
 /** Repository-only entry for cutover window operations on an explicitly named checkout. */
+import { compareWindow } from "./compare.js";
 import { chainWindow } from "./chain.js";
 import { accountWindow } from "./account.js";
 import { lastReadWindow } from "./last-read.js";
@@ -21,7 +22,7 @@ export interface WindowRequest { repo: string; args: readonly string[] }
 export type WindowHandlers = Readonly<Record<string, (request: WindowRequest) => Promise<WindowResult>>>;
 /** Run the family entry, returning the process exit status. */
 export async function runWindow(
-  args: readonly string[], handlers: WindowHandlers = { check: checkWindow, account: accountWindow, chain: chainWindow, recompute: recomputeWindow, "last-read": lastReadWindow, restore: restoreWindow, lock: lockWindow, copy: copyWindow },
+  args: readonly string[], handlers: WindowHandlers = { compare: compareWindow, check: checkWindow, account: accountWindow, chain: chainWindow, recompute: recomputeWindow, "last-read": lastReadWindow, restore: restoreWindow, lock: lockWindow, copy: copyWindow },
   output: WindowOutput = { stdout: text => { process.stdout.write(text); }, stderr: text => { process.stderr.write(text); } },
 ): Promise<number> {
   let operationStarted = false;

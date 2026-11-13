@@ -43,8 +43,8 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
   const reportPath = join(h.root, ".arc-fixture/import-report.json");
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
-    "--repo", h.root, "--json", ...(["recompute", "account", "chain"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
-      "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : []), ...(operation === "chain" ? ["--report", reportPath] : [])],
+    "--repo", h.root, "--json", ...(["recompute", "account", "chain", "compare"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
+      "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : []), ...(operation === "chain" ? ["--report", reportPath] : []), ...(operation === "compare" ? ["--branch", "feat/alpha"] : [])],
   { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   expect((await run("check")).exitCode).toBe(0);
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
@@ -63,6 +63,9 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   }
   expect(await storeImported(h.root, h.git)).toBe(true);
   if (!beforePublication) {
+    const compared = await run("compare");
+    expect(compared.exitCode, compared.stderr).toBe(0);
+    expect(JSON.parse(compared.stdout)).toMatchObject({ operation: "compare", status: "reported", findings: [] });
     const chained = await run("chain");
     expect(chained.exitCode, chained.stderr).toBe(0);
     expect(JSON.parse(chained.stdout)).toMatchObject({ operation: "chain", status: "passed", findings: [] });

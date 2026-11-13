@@ -421,21 +421,14 @@ _Purpose:_ the comparisons, confirmation, and close the window runs once no abor
 _Exit criterion:_ `compare`, `confirm`, and `close` hold every late change in a marked range until its confirmation, and
 `close` deletes the whole hold only once every refusal clears.
 
-### `[ ]` **6.1 The after-merge comparisons — § 5.3**
+### `[x]` **6.1 The after-merge comparisons — § 5.3**
 
 - _Goal:_ For each named branch and checkout after the merge, `compare` marks what it found, records moved, gone, and
   unrecorded ranges, and reports a changed digest, never stopping.
 
-    - `compare` takes one branch or one checkout; a branch the record does not hold is compared as unrecorded.
-    - Build `test-first` (one behavior at a time):
-        - Every recorded side of a live branch other than `main` and the flip's is marked under
-          `refs/arc-window/compared/`
-        - A host tip whose commit is not local is fetched, and its moved range runs from the recorded tip to the mark
-        - A deleted recorded side is marked under `refs/arc-window/gone/` at its recorded tip and reported as gone
-        - A branch missing from the record that tracks state is marked and reported from its merge base with `main`'s
-          recorded tip
-        - A changed personal digest is reported, and nothing stops
-        - Running it again for a branch replaces its marks
+- _Outcome:_ `compare --branch` retains local and host observations, fetching missing host commits, and reports moved,
+  gone, and unrecorded ranges. Repeated comparisons replace marks while preserving earlier confirmations. The
+  `--checkout` form reports its exact personal digest change without changing refs or blocking the checkout step.
 
 ### `[ ]` **6.2 Confirmation — § 5.4**
 
