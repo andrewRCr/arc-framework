@@ -14,6 +14,7 @@ import type { WindowResult } from "./result.js";
 import { expectWindowRehearsalResult, settleWindowOperation, type WindowRehearsalExpectation } from "./rehearse-expect.js";
 import { runWindowRehearsalCommand, type WindowRehearsalCommand } from "./rehearse-launch.js";
 import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run.js";
+import { observeRehearsalPublication } from "./rehearse-publication.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { storeImportedRefusal } from "../../lib/store/store-imported.js";
@@ -88,7 +89,8 @@ export async function importRehearsal(context: WindowRehearsalContext,
   const peak = JSON.parse(await readFile(memory, "utf8")) as { maxRssKiB: number };
   const measurement = { wallMs: result.wallMs, peakRssMiB: Math.round(peak.maxRssKiB / 1024) };
   record(measurement);
-  return `Imported in ${measurement.wallMs} ms at ${measurement.peakRssMiB} MiB peak resident memory.`;
+  const published = await observeRehearsalPublication(context);
+  return `Imported in ${measurement.wallMs} ms at ${measurement.peakRssMiB} MiB peak resident memory; the mirror holds all ${published} published store refs.`;
 }
 
 /** Run the import from the primary copy under the run's bounds, recording its peak memory to the named file. */

@@ -59,18 +59,18 @@ npm run -s cutover-window -- rehearse --repo /path/to/copy/primary --anchor <com
   --cap-wrapper '["bash", "-c", "exec \"$@\"", "cap"]' --json
 ```
 
-It first repeats copy safety, so a target that is not such a copy refuses before anything is written. It then
-prepares the copy as the cleanup before a window prepares the live repository, and runs the window's steps: `lock`,
-`check`, the save in every copied checkout, the state-remote designation, the import with publication to the mirror,
-a refused sealed write in each checkout with its own build, the identity-ref retirement, `account`, `chain`, and
-`recompute`. Every commit, merge, and push it makes runs in a hookless scratch clone of the mirror under
-`<copy>/rehearsal/` and reaches the copy by fetch; a plant that must stay apart from the mirror is written in the copy
-with `git commit-tree` and `git update-ref`. ARC commands run through each checkout's own built CLI, or the primary
-copy's from that checkout where it has none, under a search path holding no other `arc`. `--path` names the search
-path `check` judges, `--anchor` the sealing commit of a copy that predates the tooling, `--plan` a run plan
-(`abort` or `merge`), `--cap-wrapper` a JSON argv prefix that bounds the import's memory, and `--heap-mb` the
-import's heap ceiling, set below that bound. Each step's outcome is reported in order; the run stops at the first
-unexpected one, naming the step, and reports the import's wall time and peak resident memory.
+It first repeats copy safety, so a target that is not such a copy refuses before anything is written. It then prepares
+the copy as the cleanup before a window prepares the live repository, and runs the window's steps: `lock`, `check`, the
+save in every copied checkout, the state-remote designation, the import with publication to the mirror, which must then
+hold every store ref the push publishes at the copy's object, a refused sealed write in each checkout with its own
+build, the identity-ref retirement, `account`, `chain`, and `recompute`. Every commit, merge, and push it makes runs in
+a hookless scratch clone of the mirror under `<copy>/rehearsal/` and reaches the copy by fetch; a plant that must stay
+apart from the mirror is written in the copy with `git commit-tree` and `git update-ref`. ARC commands run through each
+checkout's own built CLI, or the primary copy's from that checkout where it has none, under a search path holding no
+other `arc`. `--path` names the search path `check` judges, `--anchor` the sealing commit of a copy that predates the
+tooling, `--plan` a run plan (`abort` or `merge`), `--cap-wrapper` a JSON argv prefix that bounds the import's memory,
+and `--heap-mb` the import's heap ceiling, set below that bound. Each step's outcome is reported in order; the run stops
+at the first unexpected one, naming the step, and reports the import's wall time and peak resident memory.
 
 Add `--json` for one result on stdout and the human report on stderr. Refusals and stops exit nonzero and include
 recovery instructions. The `-s` keeps npm's own banners off stdout.

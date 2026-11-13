@@ -71,11 +71,12 @@ it("passes a run whose every step meets its expected outcome, a plant refusing a
   const { exit, result, report } = await invokeWindow(copy.repo, "rehearse", ["--path", ""],
     { rehearse: request => rehearseWindow(request, { host: rehearsalHost, launcher: builtCliLauncher, plan }) });
   expect({ exit, result }, report).toMatchObject({ exit: 0, result: { status: "passed", findings: [] } });
-  const data = result?.data as { steps: { step: string; outcome: string }[]; import: { wallMs: number; peakRssMiB: number } };
+  const data = result?.data as { steps: { step: string; outcome: string; detail: string }[]; import: { wallMs: number; peakRssMiB: number } };
   expect(data.steps.map(step => step.step).slice(data.steps.findIndex(step => step.step === "lock"))).toEqual(["lock",
     "plant after lock", "check with plants", "remove plants", "lock again", "check", "save personal state",
     "designate the state remote", "import", "refuse sealed writes", "retire identity refs", "account", "chain", "recompute"]);
   expect(data.steps.every(step => step.outcome === "passed")).toBe(true);
+  expect(data.steps.find(step => step.step === "import")?.detail).toMatch(/; the mirror holds all \d+ published store refs\.$/u);
   expect(data.import.wallMs).toBeGreaterThan(0);
   expect(data.import.peakRssMiB).toBeGreaterThan(0);
   expect(JSON.parse(await readFile(join(copy.destination, "rehearsal", "import-report.json"), "utf8"))).toMatchObject({ status: "ok" });
