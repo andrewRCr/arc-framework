@@ -499,34 +499,21 @@ refusing and then passing after its remedy, with the import's cost recorded from
   runs preparation and the window's steps in order, reporting each outcome and stopping at the first unexpected one with
   the step named.
 
-### `[ ]` **7.2 The first run — § 9.3**
+### `[x]` **7.2 The first run — § 9.3**
 
 - _Goal:_ Stage 1's first run, at the head that lands, shows each planted condition refusing and passing after its
   remedy, store-backed case 1 refusing with nothing landed, the import publishing to the mirror, the accounting case
   reporting exactly the backfill's files, and the abort restoring the copy and its mirror.
 
-- _Note:_ the host's memory gate must report runs allowed; when it reports them blocked, stop and ask. Raw evidence
-  stays in the work unit's runs folder outside the repository; the completion note states each conclusion and its
-  commit. Any later change to the tools runs this again. See `notes-cutover-window-tooling.md` § Stage 1 driver.
-
-    - Copy with the pre-meta backfill (`68bddbb526`) reverted on the copy's `main`, pushed to the mirror.
-    - At step 5, plant and remedy the five conditions of § 9.3: a shared tracked-state change, an open pull request, an
-      Errand, an unlocked marked checkout, and a diverging copy of an unheld live unit's branch, its mirror side fetched
-      before the check. Every live unit's branch is held on today's repository, so the plant makes one: a new unit's
-      meta committed on a new branch in the scratch clone, pushed to the mirror with its local copy set, then moved on
-      both sides, the local side with `git commit-tree` and `git update-ref` and left in place by the sync after a
-      fetch; Task 7.1.c's run plan lists any collateral pairs it causes.
-    - Between steps 6 and 7, run store-backed case 1: a schema-valid `<A>.boundary.json` whose work unit names unit B,
-      committed on live unit A's branch in the scratch clone and reaching A's holding checkout by the sync, since that
-      checkout's local tip is A's read copy; expect the import to refuse with no `refs/arc/` ref differing from the
-      hold, then reset the branch to its recorded tip on the mirror and in the copy, A's checkout included.
-    - After step 7, confirm the store's refs reached the mirror. At step 10, expect the accounting case to report
-      exactly the twenty pre-meta folders' files and `.arc/completed/2026-q1/completed-atomic-2026-q1.md`, listing
-      `main`'s superseded copies apart.
-    - After step 10, expect `close` to refuse; plant a commit in a copied checkout with `git commit-tree` and
-      `git update-ref`, expect `recompute` to refuse naming it, run `restore`, and verify every recorded ref back on the
-      copy and the mirror, every other `refs/arc/*` ref and unrecorded tracking ref gone, the registry ref absent in every
-      copied checkout, and the hold deleted; then drop the planted commit.
+- _Outcome:_ The run at `0a154a4a4d` on a fresh copy, with the backfill reverted on `main`, passed every step. The five
+  plants refused with their eight findings and passed after their remedies. Case 1 refused the import with no
+  `refs/arc/` ref changed. After the import the mirror held all 341 published store refs at the copy's objects. `account`
+  reported exactly the 73 files of the twenty pre-meta folders and the split record. `close` refused, `recompute`
+  refused naming the moved checkout, and `restore` returned every recorded ref on the copy and the mirror and deleted
+  the hold. The import took 896 s at 2,439 MiB peak resident memory. The driver itself peaked at 2.9 GiB resident in
+  its in-process steps after the import. Earlier runs led to the run-plan and driver fixes in `ce11e44a19`,
+  `c5377feed2`, `a1dda8b383`, `05f6f1e8c2` and `546c1d0f5b`, the copy's refusal of a checkout registered while it runs
+  (`1c2ea010e1`), and the mirror observation (`0a154a4a4d`).
 
 ### `[ ]` **7.3 The second run — § 9.4**
 
