@@ -1,7 +1,8 @@
 /** Command-wide discovery across projected roots, excluding machine-local state and links. */
-import { lstat, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
-import { readdirSync } from "node:fs";
+import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
+import { lstatSync, readdirSync, rmdirSync, unlinkSync } from "node:fs";
 import { walkProjectionRoots } from "../../../../src/lib/store/projection/engine-walk.js";
+import { readRemovalProjectionRoots } from "../../../../src/lib/store/projection/removal-files.js";
 import { dirname, join, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -29,7 +30,7 @@ describe("the command's projected-root walk", () => {
     await symlink(join(h.checkout, ".arc/user/andrew/scratch"), join(folder, "link"), "junction");
     let lstatCalls = 0, first = true, yielded = false, laterFolderYielded = false;
     const fs = {
-      lstat: async (path: string) => { lstatCalls++; return lstat(path); },
+      lstat: (path: string) => { lstatCalls++; return lstatSync(path); },
       readdir: (path: string) => {
         if (first) { first = false; setImmediate(() => { yielded = true; }); }
         else laterFolderYielded ||= yielded;
@@ -41,6 +42,40 @@ describe("the command's projected-root walk", () => {
       files: [`${root}/a/deep/two.md`, `${root}/a/one.md`], links: [`${root}/link`],
     }, lstatCalls: 0 });
     expect(laterFolderYielded).toBe(true);
+  });
+
+  it("keeps a folder's other files when one entry vanishes while an untyped read types it", async () => {
+    const h = await createEngineFixture(directories);
+    const root = ".arc/backlog", folder = join(h.checkout, root);
+    await mkdir(join(folder, "a"), { recursive: true });
+    await writeFile(join(folder, "a/kept.md"), "kept\n");
+    await writeFile(join(folder, "a/vanishing.md"), "renamed away by an editor\n");
+    let typed = 0;
+    const result = await walkProjectionRoots(h.checkout, [root], { readdir: (path: string) => {
+      if (path === join(folder, "a") && typed++ === 0) {
+        unlinkSync(join(folder, "a/vanishing.md"));
+        throw Object.assign(new Error("lstat of an untyped entry failed"), { code: "ENOENT" });
+      }
+      return readdirSync(path, { withFileTypes: true });
+    } });
+    expect(result).toEqual({ files: [`${root}/a/kept.md`], links: [] });
+    expect(await walkProjectionRoots(h.checkout, [`${root}/missing`])).toEqual({ files: [], links: [] });
+  });
+
+  it("keeps every other identity's personal tree in a removal's roots when one identity folder vanishes", async () => {
+    const h = await createEngineFixture(directories);
+    const personal = join(h.checkout, ".arc/user");
+    await mkdir(join(personal, "other/scratch"), { recursive: true });
+    await mkdir(join(personal, "leaving"), { recursive: true });
+    let typed = 0;
+    const roots = await readRemovalProjectionRoots(h.checkout, [".arc/active"], { walkFs: { readdir: (path: string) => {
+      if (path === personal && typed++ === 0) {
+        rmdirSync(join(personal, "leaving"));
+        throw Object.assign(new Error("lstat of an untyped entry failed"), { code: "ENOENT" });
+      }
+      return readdirSync(path, { withFileTypes: true });
+    } } });
+    expect([...roots].sort()).toEqual([".arc/active", ".arc/user/andrew", ".arc/user/other"]);
   });
 
   it("surfaces a folder observation failure and takes in the edit after a repaired retry", async () => {
