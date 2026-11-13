@@ -8,6 +8,7 @@ import { WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run
 import type { WindowRehearsalExpectedFinding } from "./rehearse-expect.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { storeImported } from "../../lib/store/store-imported.js";
+import { WINDOW_TRACKED_STATE_ROOTS } from "./tracked-state.js";
 
 /** The copy's marked linked checkouts that hold a branch, in branch order; a plan needs at least `count`. */
 export async function markedRehearsalCheckouts(context: WindowRehearsalContext, count: number): Promise<(WindowCheckout & { branch: string })[]> {
@@ -96,6 +97,25 @@ export function unmarkedSides(record: WindowRecord): WindowRehearsalExpectedFind
     if (branch === "main" || branch === record.flip.branch) continue;
     for (const side of ["local", "origin"] as const) {
       if (tips[side] !== null) findings.push({ subject: `${side}/${branch}`, condition: "has no comparison mark" });
+    }
+  }
+  return findings;
+}
+
+/** The `close` finding for each present side of a branch the hold does not record whose tip on either side tracks state. */
+export async function unrecordedStateSides(context: WindowRehearsalContext, record: WindowRecord): Promise<WindowRehearsalExpectedFinding[]> {
+  const { repo, mirror } = context.layout;
+  const heads = async (where: string) => new Map(Object.entries(await readRehearsalRefs(context, where, "refs/heads/"))
+    .map(([ref, tip]) => [ref.slice("refs/heads/".length), tip]));
+  const local = await heads(repo), origin = await heads(mirror);
+  const tracks = async (where: string, tip: string | undefined) => tip !== undefined
+    && (await context.sync.copy(where, ["ls-tree", "-r", "--name-only", tip, "--", ...WINDOW_TRACKED_STATE_ROOTS])).stdout.trim() !== "";
+  const findings: WindowRehearsalExpectedFinding[] = [];
+  for (const branch of [...new Set([...local.keys(), ...origin.keys()])].sort()) {
+    if (branch === "main" || branch === record.flip.branch || Object.hasOwn(record.branches.live, branch)) continue;
+    if (!await tracks(repo, local.get(branch)) && !await tracks(mirror, origin.get(branch))) continue;
+    for (const [side, tips] of [["local", local], ["origin", origin]] as const) {
+      if (tips.has(branch)) findings.push({ subject: `${side}/${branch}`, condition: "has no comparison mark" });
     }
   }
   return findings;

@@ -9,7 +9,7 @@ import { settleWindowOperation } from "./rehearse-expect.js";
 import { expectRehearsalOperation, rehearsalFlipArgs } from "./rehearse-window.js";
 import { WindowRehearsalStop, type WindowRehearsalContext, type WindowRehearsalPlan } from "./rehearse-run.js";
 import { appendRehearsalLine, commitRehearsalBranch, markedRehearsalCheckouts, readRehearsalRecord, rehearsalCheckoutUnit,
-  trackingCheckouts } from "./rehearse-plan-tools.js";
+  trackingCheckouts, unrecordedStateSides } from "./rehearse-plan-tools.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { PRE_META_BACKFILL } from "./rehearse-plan-abort.js";
@@ -32,7 +32,7 @@ export const mergeRehearsalPlan: WindowRehearsalPlan = {
   after: async context => {
     const record = await readRehearsalRecord(context);
     const lines = [await guardTheMerge(context, record), await mergeTheStandIn(context)];
-    lines.push(await compareAfterTheMerge(context, record), await refuseTheClose(context));
+    lines.push(await compareAfterTheMerge(context, record), await refuseTheClose(context, record));
     return lines.join(" ");
   },
 };
@@ -98,10 +98,11 @@ async function compareAfterTheMerge(context: WindowRehearsalContext, record: Win
   return `compare recorded ${ranges.join(", ")} and the personal-state change in ${edited.path}.`;
 }
 
-async function refuseTheClose(context: WindowRehearsalContext): Promise<string> {
+async function refuseTheClose(context: WindowRehearsalContext, record: WindowRecord): Promise<string> {
   const [moved] = await markedRehearsalCheckouts(context, 1);
   if (!moved) throw new WindowRehearsalStop("No marked checkout holds a branch.");
   const unconfirmed = ["local", "origin"].map(side => ({ subject: `${side}/${moved.branch}`, condition: "has confirmation (missing)" }));
-  await expectRehearsalOperation(context, "close", closeWindow, [], { status: "refused", findings: [...await trackingCheckouts(context), ...unconfirmed] });
+  await expectRehearsalOperation(context, "close", closeWindow, [], { status: "refused", findings: [...await trackingCheckouts(context),
+    ...await unrecordedStateSides(context, record), ...unconfirmed] });
   return "close refused, naming every checkout still tracking state and the unconfirmed range.";
 }

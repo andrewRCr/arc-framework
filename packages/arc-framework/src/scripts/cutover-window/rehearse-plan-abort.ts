@@ -10,7 +10,7 @@ import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext
   type WindowRehearsalPlant } from "./rehearse-run.js";
 import type { WindowRehearsalExpectation, WindowRehearsalExpectedFinding } from "./rehearse-expect.js";
 import { appendRehearsalLine, commitRehearsalBranch, writeRehearsalFile, expectRehearsalRefs, markedRehearsalCheckouts, readRehearsalRecord,
-  readRehearsalRefs, rehearsalCheckoutUnit, trackingCheckouts, unmarkedSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
+  readRehearsalRefs, rehearsalCheckoutUnit, trackingCheckouts, unmarkedSides, unrecordedStateSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
 import { listWindowRefs } from "./git.js";
 import { readWindowTransientRecords } from "./transients.js";
 import { readWindowCheckouts } from "./checkouts.js";
@@ -198,7 +198,8 @@ async function expectBackfillOmission(context: WindowRehearsalContext): Promise<
 async function abortThroughRestore(context: WindowRehearsalContext): Promise<string> {
   const record = await readRehearsalRecord(context);
   await expectRehearsalOperation(context, "close", closeWindow, [], { status: "refused", findings: [
-    { subject: "merged flip", condition: "The recorded flip is not merged." }, ...unmarkedSides(record), ...await trackingCheckouts(context)] });
+    { subject: "merged flip", condition: "The recorded flip is not merged." }, ...unmarkedSides(record),
+    ...await unrecordedStateSides(context, record), ...await trackingCheckouts(context)] });
   const [checkout] = await markedRehearsalCheckouts(context, 1);
   if (!checkout) throw new WindowRehearsalStop("No marked checkout holds a branch.");
   const planted = await context.sync.plantInCopy(checkout.path, checkout.branch, "Move a checkout after the import");
