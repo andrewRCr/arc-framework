@@ -515,22 +515,18 @@ refusing and then passing after its remedy, with the import's cost recorded from
   `c5377feed2`, `a1dda8b383`, `05f6f1e8c2` and `546c1d0f5b`, the copy's refusal of a checkout registered while it runs
   (`1c2ea010e1`), and the mirror observation (`0a154a4a4d`).
 
-### `[ ]` **7.3 The second run — § 9.4**
+### `[x]` **7.3 The second run — § 9.4**
 
 - _Goal:_ Stage 1's second run, at the head that lands, shows the aborted copy importing again with nothing unplaced,
   the last read guarding the merge, the restore refusing a merged flip, and the after-merge comparisons and close
   holding late changes.
 
-- _Note:_ the import runs again under Task 7.2's memory-gate and evidence rules.
-
-    - Use the aborted copy with the backfill restored on its `main`, pushed to the mirror; steps 1 to 10 pass.
-    - Add a stand-in deletion commit and push it to the mirror; a commit planted on the mirror's `main` makes
-      `last-read` refuse, and it passes once that `main` is put back.
-    - Merge the stand-in branch into the mirror's `main` with `git merge --no-ff` from a separate clone; `restore`
-      refuses, naming the merge.
-    - Run `compare` for every live branch and copied checkout, with a commit planted on a live branch and a personal
-      file edited in a copied checkout; then `close` refuses, naming each checkout that still tracks state and listing
-      the range unconfirmed.
+- _Outcome:_ The merge plan ran on Task 7.2's aborted copy with tools unchanged since `0a154a4a4d`, and passed every
+  step. With the backfill restored on `main`, the import placed everything, the mirror held all 363 published store
+  refs, and `account` passed. `last-read` refused the mirror's moved `main` and passed once it was put back. `restore`
+  refused the merged stand-in. `compare` ran over every live branch and copied checkout, recorded both sides of the
+  moved branch and the edited personal file, and `close` refused, naming each checkout still tracking state and the
+  unconfirmed range. The import took 1,108 s at 2,350 MiB peak resident memory, and the driver again peaked at 2.9 GiB.
 
 ### `[ ]` **7.4 Stage 1 at the landing head** — validate exit criterion at segment scope
 
