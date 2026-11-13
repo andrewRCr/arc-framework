@@ -210,12 +210,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Digests.
 
-    - `[ ]` **3.2.a The personal digest**
-        - Computed from one `readImportPersonalDisk` acquisition, its import source bound, split per worktree by
-          physical path: each file's path and content in sorted path order, and each recorded link's path.
-        - Build `test-first` (one behavior at a time):
-            - A real `runUserSave` leaves every digest unchanged
-            - An edited personal file and a link made after the check each change their worktree's digest
+    - `[x]` **3.2.a The personal digest**
+        - `readWindowPersonalState` retains one import acquisition and hashes sorted file paths/content and link
+          paths per physical checkout. Nested registrations belong to their deepest checkout; notes saves preserve
+          the digests, while personal edits and newly created links change only their owner's digest.
 
     - `[ ]` **3.2.b The review-gate digest**
         - Computed from `readImportReviewGate`'s read, without `arc/review-gate/identity/repository-identity.json`;
