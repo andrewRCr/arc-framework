@@ -6,8 +6,8 @@ import { importFixture } from "../store/import-fixture.js";
 import type { WindowPullRequests } from "../../../src/scripts/cutover-window/host.js";
 
 /** Build the clean pre-designation source used by the window's condition tests. */
-export async function windowFixture(options: { sealed?: boolean } = {}) {
-  const h = await importFixture();
+export async function windowFixture(options: { sealed?: boolean; completed?: boolean; lineage?: boolean } = {}) {
+  const h = await importFixture("default", options);
   const git = (...args: string[]) => h.git("git", args);
   if (options.sealed !== false) {
     const source = "packages/arc-framework/src/scripts/cutover-window/check.ts";

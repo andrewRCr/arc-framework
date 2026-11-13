@@ -2,10 +2,8 @@
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { windowFixture } from "./fixture.js";
-import { checkFixture } from "./check.js";
+import { importWindowFixture } from "./import.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
-import { saveImportPersonal } from "../store/import-fixture.js";
-import { invokeStoreRemote } from "../store/remote-command.js";
 
 /** Check and import a flip with all, no checkout, or only fetched/host coordinates. */
 export async function lastReadFixture(mode: "checkout" | "no-checkout" | "no-local" = "checkout") {
@@ -22,13 +20,7 @@ export async function lastReadFixture(mode: "checkout" | "no-checkout" | "no-loc
       createdFor: { kind: "work-unit", name: "alpha" } });
   }
   if (mode === "no-local") await h.git("git", ["branch", "-D", branch]);
-  const checked = await checkFixture(h);
-  if (checked.exit !== 0) throw new Error(checked.report);
-  await saveImportPersonal(h.root, false);
-  const published = await invokeStoreRemote(["origin", "push"], { cwd: h.root });
-  if (published.result.status !== "ok") throw new Error(JSON.stringify(published));
-  const imported = await h.migrate();
-  if (imported.status !== "ok") throw new Error(JSON.stringify(imported));
+  await importWindowFixture(h);
   return { ...h, checkout, mode };
 }
 

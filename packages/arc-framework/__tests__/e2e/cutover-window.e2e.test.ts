@@ -42,7 +42,7 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
     openedBaseHead: head, protection: "partial", branch: null, state: "open", changeRequest: null }]);
   await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
-    "--repo", h.root, "--json", ...(operation === "recompute" ? [] : ["--flip-branch", h.flip.branch,
+    "--repo", h.root, "--json", ...(["recompute", "account"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
       "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : [])],
   { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   expect((await run("check")).exitCode).toBe(0);
@@ -61,6 +61,9 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
     const recomputed = await run("recompute");
     expect(recomputed.exitCode, recomputed.stderr).toBe(0);
     expect(JSON.parse(recomputed.stdout)).toMatchObject({ operation: "recompute", status: "passed", findings: [] });
+    const accounted = await run("account");
+    expect(accounted.exitCode, accounted.stderr).toBe(0);
+    expect(JSON.parse(accounted.stdout)).toMatchObject({ operation: "account", status: "passed", findings: [] });
   }
   const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
   const directories = ["store", "store-migrate-build", "store-migrate-old"].map(name => join(common, "arc", name));

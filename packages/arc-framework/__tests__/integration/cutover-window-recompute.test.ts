@@ -5,6 +5,7 @@ import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { expect, it } from "vitest";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
+import { importWindowFixture } from "../helpers/cutover-window/import.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { windowClaims } from "../helpers/cutover-window/identity-inputs.js";
@@ -13,11 +14,7 @@ import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 
 async function importedFixture() {
   const h = await windowFixture();
-  const checked = await checkFixture(h);
-  expect(checked, checked.report).toMatchObject({ exit: 0 });
-  await saveImportPersonal(h.root, false);
-  expect(await invokeStoreRemote(["origin", "push"], { cwd: h.root })).toMatchObject({ result: { status: "ok" } });
-  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  await importWindowFixture(h);
   return h;
 }
 

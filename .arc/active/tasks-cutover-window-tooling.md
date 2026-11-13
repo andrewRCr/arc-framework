@@ -394,28 +394,16 @@ _Mode:_ `layer` through Phase 6 — closes on every comparison the window runs a
   refuses. Auto-merge, supplied facts on a hosted repository, and unreadable host evidence refuse with repaired retries;
   the source CLI exercises the complete path.
 
-### `[ ]` **5.3 The accounting case — § 10.2**
+### `[x]` **5.3 The accounting case — § 10.2**
 
 - _Goal:_ `account` places every tracked file under the tracked-state paths at `main`'s `HEAD`, and every live unit's
   records at a read copy that is not `main`'s, as imported, superseded, deliberately left, or reported, finding source
   paths only through the in-repo store's own discovery, and exits non-zero on any reported file.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Accounting and chain.
-
-    - Take records and read revisions from Task 4.1's read map, adding the cohort listing (`cohortPaths`) and the
-      project inbox (`recordPath` over the `project-inbox/inbox` reference); a record is held when a read of the landed
-      store returns it.
-    - Build `test-first` (one behavior at a time):
-        - A file at its read revision whose record the landed store holds counts as imported, a parked unit's pointer
-          with its meta
-        - A rename transition counts as imported when its landed successor carries the origin's name among its former
-          names
-        - An abandon or decompose transition counts as imported when the landed registry holds its lineage record
-        - A file that discovery claims but whose record the landed store lacks counts as reported
-        - A file unchanged since the fork whose read copy is a branch's counts as superseded, listed with its read copy
-        - `.arc/backlog/ROADMAP.md` and `.arc/completed/README.md` count as deliberately left, each with its reason
-        - A tracked file no record claims, and a file failing the read rule, count as reported and exit non-zero
-        - A closed cohort's folder counts as imported
+- _Outcome:_ `account` uses the read map's native discovery and actual Git files to classify main and live read-copy
+  sources. Point reads establish landed coverage without listing manifests; rename chains use successor former names,
+  terminal origins use registry identities, and parked pointers count with their preserved meta. Only the two named
+  guides are deliberately left. Unclaimed files, failed read rules, and missing counterparts report nonzero with repaired
+  retries; absent optional document paths are excluded from the tally.
 
 ### `[ ]` **5.4 The chain comparison — § 10.3**
 

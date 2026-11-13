@@ -22,6 +22,7 @@ export interface WindowPathRead {
 export interface WindowReadMap {
   main: string; findings: WindowFinding[];
   readRevisions: readonly string[];
+  records(revision: string): Promise<ReadonlyMap<string, RecordReference>>;
   at(path: string, revision: string, comparisonBases?: readonly string[]): Promise<WindowPathRead>;
 }
 
@@ -38,7 +39,7 @@ export async function createWindowReadMap(context: WindowImportContext, main: st
     if (!found) { found = discoverWindowPaths(internal, revision); inventories.set(revision, found); }
     return found;
   };
-  return { main, findings, readRevisions, at: async (path, revision, bases = []) => {
+  return { main, findings, readRevisions, records: inventory, at: async (path, revision, bases = []) => {
     let reference: RecordReference | null = null;
     for (const candidate of [revision, ...bases, ...readRevisions]) {
       reference = (await inventory(candidate)).get(path) ?? null;
