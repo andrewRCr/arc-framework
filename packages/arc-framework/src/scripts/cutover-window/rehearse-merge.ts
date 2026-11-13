@@ -1,6 +1,6 @@
 /** Merge the copy's main into a branch in the scratch clone, concluding only the conflicts the window's remedies conclude. */
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { applyRoadmapConflictAutoRemedy } from "../../lib/status/roadmap-conflict-auto-remedy.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -63,7 +63,7 @@ async function concludeMerge(context: WindowRehearsalContext, branch: string, br
   if (remaining.length > 0) {
     const remedy = await applyRoadmapConflictAutoRemedy({ cwd: sync.layout.scratch, baseBranch: "main",
       exec: (command, args, options) => context.exec(command, args, { ...options, cwd: sync.layout.scratch }),
-      writeFile: (path, content) => writeFile(join(sync.layout.scratch, path), content) });
+      writeFile: (path, content) => writeFile(resolve(sync.layout.scratch, path), content) });
     if (remedy.status !== "applied") {
       await sync.scratch(["merge", "--abort"]);
       throw new WindowRehearsalStop(`The ROADMAP remedy did not conclude merging main into ${branch}: ${JSON.stringify(remedy)}.`);
