@@ -151,21 +151,11 @@ restarted after each of its steps.
           reads. Named checkpoints and the repeatable strict merge guard establish the mutation sequence's admission
           boundary.
 
-    - `[ ]` **2.3.b The consumed comparison and its record**
-        - Before the first write, where the import has landed, apply Task 2.2's comparison; refuse on a difference,
-          printing each differing record in full; take `--accept <ref>=<kept tip>` or `<ref>=absent`; and record each
-          held identity ref's regime, outcome, and accepted value at `refs/arc-window/restore`, which a restarted restore
-          reads in place of comparing again and from which steps 1 and 2 take every identity-ref lease.
-        - Build `test-first` (one behavior at a time):
-            - An identity ref advanced and pushed after the check, where the window stopped at `account` after the
-              import dropped its kept tips, refuses printing each differing record until `<ref>=absent` is accepted
-            - The same ref where the import stopped after landing, before retiring `origin`'s copy, refuses until
-              `<ref>=<kept tip>` is accepted
-            - With kept tips and no landing, a ref at its held tip passes, and one advanced or deleted refuses until its
-              value is accepted
-            - With no kept tips and no landing, an identity ref holding a claim at its held tip passes with no
-              comparison
-            - Restarted after its first write, the restore finishes on its recorded comparison without comparing again
+    - `[x]` **2.3.b The consumed comparison and its record**
+        - `recordWindowRestoreDecision` reports complete consumed differences, requires exact observed --accept values,
+          and persists the regime, outcomes, and accepted pairs against the complete hold. Retries read the saved
+          comparison after import evidence is gone; new observed acceptances append by compare-and-swap without
+          recomputing it.
 
     - `[ ]` **2.3.c Leases checked before the first push**
         - Before step 1's first push, test every `origin` ref against the value the window left — its held tip, the
