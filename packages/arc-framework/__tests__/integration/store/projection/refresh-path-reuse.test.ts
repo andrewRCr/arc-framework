@@ -28,6 +28,7 @@ import { checkProjectionRemoval } from "../../../../src/lib/store/projection/rem
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -261,6 +262,22 @@ it("keeps the captured old basis while canonical naming is rechecked at atomic a
     type: "cohort", name: "group", uid: "00000000-0000-4000-8000-000000000099",
   })) : entry.reference;
   expect(success(await h.f.store.read({ reference: arriving })).content).toBe(h.arrived);
+});
+
+it("reports two live units claiming an unbound checkout's slug, with a rename remedy, when a rebuild cannot tell its own", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(h.f.root);
+  await writeWorktreeMarker(h.f.root, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "alpha" },
+    spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+  await plantRefPrimary(h.f, { kind: "work-item/meta", name: "alpha", uid: "00000000-0000-4000-8000-0000000000aa",
+    content: makeMetaFixture("alpha", { owner: "bob", state: "Active", workClass: "Light", priority: "P2", currentWorkflow: "process-task-loop" }) });
+  await rm(join(h.projected.location.stateDir, "index"));
+  const command = { checkout: h.f.root, store: h.f.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  const clash = projectionProcessState().diagnostics.find(each => each.mark.reason.startsWith("ambiguous-claim:"));
+  await endProjection(command);
+  expect(clash?.mark.reason).toContain("`alpha`");
+  expect(clash?.mark.remedy.text).toContain("arc rename 00000000-0000-4000-8000-0000000000aa <new-slug>");
 });
 
 it("never lays another live unit that shares the checkout's slug at the checkout's own path", async () => {

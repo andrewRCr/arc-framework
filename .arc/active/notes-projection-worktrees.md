@@ -1811,10 +1811,10 @@ lays a record (`settleHeldFile`), and once its evidence is whole turns a held ma
 the ordinary withheld mark (`settleHeldMarks`), as a full materialization over the held index does once its own evidence
 is whole, since its end can publish the state version, after which no rebuild follows. `arc sync`'s, which lays only
 deleted files (`onlyDeleted`), publishes no state version and converts no mark, leaving both to the next start's
-rebuild. One predicate, `isEvidenceHeldEntry`, keys both, and `hold()` keeps the held mark at a laid path through a
-materialization over the held index, so only that mark lets a rebuild write over a withheld file: an ordinarily withheld
-file stays as the substrate leaves it, until the person deletes it. A file withheld because its bytes differ from the
-record at its path keeps the ordinary outcome.
+rebuild. One predicate, `isEvidenceHeldEntry`, which reads the reason's `evidence-held:` code rather than its prose,
+keys both, and `hold()` keeps the held mark at a laid path through a materialization over the held index, so only that
+mark lets a rebuild write over a withheld file: an ordinarily withheld file stays as the substrate leaves it, until the
+person deletes it. A file withheld because its bytes differ from the record at its path keeps the ordinary outcome.
 
 An unset state version lasts while any condition § 17's twelfth residual names holds, and each start in that worktree
 rebuilds it in full. The fan-out leaves such a worktree, other than the writer's own, to that start, as it leaves one

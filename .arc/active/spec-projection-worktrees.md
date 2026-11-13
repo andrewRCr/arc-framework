@@ -531,26 +531,26 @@ is one the current projection lays no stored record at only on § 15.2's positiv
 a read refuses, or a placement cannot be established, the rebuild holds every file at a path it lays no stored record
 at: it withholds the file as above, under a held mark whose remedy is to resolve the condition reported with it and then
 run any command from the checkout holding the file, or to copy out what is wanted and delete it, and the index takes no
-state version (§ 15.2). A held file is a withheld file in every rule below, only its mark and remedy differing; the
-removal check answers `persist-would-refuse` for it (§ 12.2), since the read that failed was the rebuild's, not the
-check's. A later rebuild in that checkout, over an index whose state version is unset or no longer resolves, settles
-each held file at a path it lays a stored record at by the rule above — refreshing it where it holds no edit, otherwise
-withholding it under the ordinary mark — with no store write. Once a later rebuild's evidence is whole, or a full
-materialization's, a held file at a path it lays no stored record at takes the ordinary withheld mark and its remedy to
-delete it; `arc sync`'s, which lays only deleted files and takes no state version, leaves that to the next start's
-rebuild. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off leaves only
-that path to a later rebuild, each reported (A7). A file `spec-projection-write-back.md` § 9 never adopts and a path
-`MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as write-back leaves them. Status and each command's report name
-every withheld file, refresh and write-back skip it, removal leaves it at its path (`spec-projection-substrate.md`
-§ 5.6), and the removal check and the persist and release steps refuse over it (§ 12.2); the sweep before it withholds
-aside copies the same way (`spec-projection-substrate.md` § 5.4). Deleting a withheld file, after copying out what is
-wanted, releases it: where the current projection lays a stored record at its path its mark turns pending, so the next
-command's refresh writes it from the store (§ 15.2), and otherwise its entry goes, nothing written there; the person
-re-applies their edit as an ordinary one (residual, § 17). A linked checkout whose marker is released loses its
-projection once the release step has persisted its edits (§ 12.3). A checkout this section gives no projection that
-still holds an index — its marker changed under it — is checked and persisted as one it gives a projection (§ 12.2,
-§ 12.3), so no index outlives edits not yet persisted, and its start rebuilds an index it cannot use as in a checkout
-this section gives one (§ 3.1).
+state version (§ 15.2). A held file is a withheld file in every rule below, differing in its mark, its remedy, and the
+settlement below; the removal check answers `persist-would-refuse` for it (§ 12.2), since the read that failed was the
+rebuild's, not the check's. A later rebuild in that checkout, over an index whose state version is unset or no longer
+resolves, settles each held file at a path it lays a stored record at by the rule above — refreshing it where it holds
+no edit, otherwise withholding it under the ordinary mark — with no store write. Once a later rebuild's evidence is
+whole, or a full materialization's, a held file at a path it lays no stored record at takes the ordinary withheld mark
+and its remedy to delete it; `arc sync`'s, which lays only deleted files and takes no state version, leaves that to the
+next start's rebuild. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off
+leaves only that path to a later rebuild, each reported (A7). A file `spec-projection-write-back.md` § 9 never adopts
+and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as write-back leaves them. Status and each command's
+report name every withheld file, refresh and write-back skip it, but for a held file's settlement above, removal leaves
+it at its path (`spec-projection-substrate.md` § 5.6), and the removal check and the persist and release steps refuse
+over it (§ 12.2); the sweep before it withholds aside copies the same way (`spec-projection-substrate.md` § 5.4).
+Deleting a withheld file, after copying out what is wanted, releases it: where the current projection lays a stored
+record at its path its mark turns pending, so the next command's refresh writes it from the store (§ 15.2), and
+otherwise its entry goes, nothing written there; the person re-applies their edit as an ordinary one (residual, § 17). A
+linked checkout whose marker is released loses its projection once the release step has persisted its edits (§ 12.3). A
+checkout this section gives no projection that still holds an index — its marker changed under it — is checked and
+persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives edits not yet persisted, and its start
+rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
 
 ### 3. State and change detection
 

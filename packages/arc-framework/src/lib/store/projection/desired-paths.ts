@@ -12,6 +12,8 @@ import { WorkUnitReadPlacementSchema, ErrandReadPlacementSchema } from "../place
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionInventory } from "./inventory.js";
 import { selectProjectionView, type ProjectionViewSelection } from "./view-selection.js";
+import { clashRepair } from "../clash-repair.js";
+import type { RefusedMark } from "./index-schema.js";
 
 const artifacts: Partial<Record<KindId, WorkUnitArtifactKind>> = {
   "work-item/meta": "meta", "work-item/task-list": "tasks", "work-item/draft": "draft", "work-item/spec": "spec", "work-item/notes": "notes",
@@ -39,6 +41,7 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
   const primaries = inventory.records.filter(record => record.reference.kind === "work-item/meta" || isErrand(record));
   const matches = primaries.filter(record => isClaimedProjectionOwner(root, record.reference.owner) && record.placement?.kind === "active");
   const own = matches.length === 1 ? matches[0]?.reference.owner ?? null : null;
+  if (matches.length > 1) root.context.report?.({ path: root.checkout, copy: null, mark: claimClashMark(root.claim, matches) });
   const selection = await selectProjectionView({ store: inventory.source, identity: root.identity, view: root.view, own });
   if (selection.kind === "unavailable") for (const mark of selection.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const files = new Map<string, StoreRecord>();
@@ -61,6 +64,12 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
   };
   for (const [path, record] of files) if (!placementKnown(path, record.reference)) files.delete(path);
   return { files, own, placementKnown, unresolved: unknownOwn || unknownView || unavailableCohorts.size > 0 };
+}
+
+/** Live work items that all match the checkout's claim: name them and the store's repair for a live clash. */
+function claimClashMark(claim: string | null, matches: readonly StoreRecord[]): RefusedMark {
+  return { reason: `ambiguous-claim: ${matches.length} live work items claim this checkout's slug \`${claim ?? ""}\`, so the `
+    + "projection cannot tell which is its own.", remedy: clashRepair(matches.map(record => record.reference), { liveness: "live" }) };
 }
 
 /** Bind logical lifecycle placement to this checkout's own and in-flight folders. */

@@ -94,9 +94,12 @@ function hold(input: MaterializationFileInput, entry: ProjectionIndex["entries"]
   return { index: withProjectionEntry(input.index, input.path, { ...entry, refused: mark }) };
 }
 
+/** The code a held mark's reason starts with: rewording its prose never changes which entries are held. */
+const EVIDENCE_HELD_CODE = "evidence-held:";
+
 /** A rebuild could not yet tell whether a stored record lays this path; a later rebuild with whole evidence settles it. */
 export function evidenceHeldProjectionMark(): RefusedMark {
-  return { reason: "withheld: The projection could not yet tell whether a stored record lays this path.",
+  return { reason: `${EVIDENCE_HELD_CODE} The projection could not yet tell whether a stored record lays this path.`,
     remedy: { text: "Resolve the condition reported with it, then run any arc command from the checkout holding this file; "
       + "its rebuild settles the file, refreshing it where unedited. Or copy out anything wanted and delete the file." } };
 }
@@ -104,7 +107,7 @@ export function evidenceHeldProjectionMark(): RefusedMark {
 /** A file a rebuild withheld under the held mark, never one awaiting a minted stub; only this mark lets a rebuild settle it. */
 export function isEvidenceHeldEntry(entry: ProjectionIndex["entries"][string]): boolean {
   return entry.kind === "ownerless" && entry.withheld === true && entry.minted === undefined
-    && entry.refused.reason === evidenceHeldProjectionMark().reason;
+    && entry.refused.reason.startsWith(EVIDENCE_HELD_CODE);
 }
 
 /** Once evidence is whole, a file held for that evidence at a path no record lays takes the ordinary withheld mark. */
