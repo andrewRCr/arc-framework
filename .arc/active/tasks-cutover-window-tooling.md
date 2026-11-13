@@ -405,25 +405,14 @@ _Mode:_ `layer` through Phase 6 — closes on every comparison the window runs a
   guides are deliberately left. Unclaimed files, failed read rules, and missing counterparts report nonzero with repaired
   retries; absent optional document paths are excluded from the tally.
 
-### `[ ]` **5.4 The chain comparison — § 10.3**
+### `[x]` **5.4 The chain comparison — § 10.3**
 
 - _Goal:_ `chain` shows every Candidate record's supersession chain read through today's reader over the repository and
   over the imported store agreeing link for link, and stops on any difference the import's report does not list.
 
-- _Note:_ See `notes-cutover-window-tooling.md` § Accounting and chain for the walk's inputs on each side.
-
-    - Read each chain twice with `readRepositoryCandidateSupersessionChain`: over the repository at the read revision
-      Task 4.1's map gives, and over the store from `createRefStore` with each owner passed as its `workItem`; read the
-      current record and each link's record on both sides, and compare every field but `recordRevision`, each record as
-      canonical parsed JSON.
-    - Build `test-first` (one behavior at a time):
-        - Equal chains and equal current records pass
-        - A version listed in the report's `reviewMapping`, and a chain listed in `brokenChains`, are listed and stop
-          nothing
-        - A store walk that refuses where the repository walk passes is a difference and stops it, as does any other
-          unlisted difference
-        - A live unit's replayed versions arrive mapped with their transitions whole, and a unit no longer live
-          arrives as found
+- _Outcome:_ `chain --report` compares native repository and UID-owned store walks, their current and linked records,
+  and the complete accepted singleton history. Report-listed omissions and broken source chains remain visible;
+  store-only refusals and unlisted record or history differences stop the run. Native replay retains whole transitions.
 
 ## **Phase 6:** After the merge
 

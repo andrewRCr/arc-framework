@@ -1,6 +1,6 @@
 /** The repository-only source command records a window and restores its native import without moving code checkouts. */
 import { resolve, join } from "node:path";
-import { mkdir, lstat } from "node:fs/promises";
+import { mkdir, lstat, writeFile } from "node:fs/promises";
 import { execa } from "execa";
 import { expect, it } from "vitest";
 import { lastReadFixture, deleteWindowFile } from "../helpers/cutover-window/last-read.js";
@@ -41,9 +41,10 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   await seedTransients(h, [{ ...transientCommon, kind: "groom", slug: "groom-alpha", anchorStub: "alpha", members: ["alpha"],
     openedBaseHead: head, protection: "partial", branch: null, state: "open", changeRequest: null }]);
   await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const reportPath = join(h.root, ".arc-fixture/import-report.json");
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
-    "--repo", h.root, "--json", ...(["recompute", "account"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
-      "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : [])],
+    "--repo", h.root, "--json", ...(["recompute", "account", "chain"].includes(operation) ? [] : ["--flip-branch", h.flip.branch,
+      "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath]), ...(operation === "check" ? ["--path", ""] : []), ...(operation === "chain" ? ["--report", reportPath] : [])],
   { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   expect((await run("check")).exitCode).toBe(0);
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
@@ -55,9 +56,16 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   if (beforePublication) {
     h.ports.migrateStep = step => step === "import.publish" ? Promise.reject(new Error("pause-before-publication")) : Promise.resolve();
     await expect(h.migrate()).rejects.toThrow("pause-before-publication");
-  } else expect(await h.migrate()).toMatchObject({ status: "ok" });
+  } else {
+    const imported = await h.migrate();
+    expect(imported).toMatchObject({ status: "ok" });
+    await writeFile(reportPath, JSON.stringify(imported));
+  }
   expect(await storeImported(h.root, h.git)).toBe(true);
   if (!beforePublication) {
+    const chained = await run("chain");
+    expect(chained.exitCode, chained.stderr).toBe(0);
+    expect(JSON.parse(chained.stdout)).toMatchObject({ operation: "chain", status: "passed", findings: [] });
     const recomputed = await run("recompute");
     expect(recomputed.exitCode, recomputed.stderr).toBe(0);
     expect(JSON.parse(recomputed.stdout)).toMatchObject({ operation: "recompute", status: "passed", findings: [] });
