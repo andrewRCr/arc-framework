@@ -1,5 +1,5 @@
 /** The run that ends in the abort: the backfill reverted, five planted conditions, a refused import, and the restore. */
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { join, posix } from "node:path";
 import { closeWindow } from "./close.js";
 import { recomputeWindow } from "./recompute.js";
@@ -161,16 +161,30 @@ async function refuseMiskeyedBoundary(context: WindowRehearsalContext): Promise<
     await writeFile(join(scratch, target), JSON.stringify({ ...boundary, workUnit: foreign }));
     return [target];
   });
-  const imported = await runRehearsalImport(context, join(context.layout.workspace, "refused-import-peak-memory.json"));
+  const memory = join(context.layout.workspace, "refused-import-peak-memory.json");
+  await rm(memory, { force: true });
+  const imported = await runRehearsalImport(context, memory);
   await writeFile(join(context.layout.workspace, "refused-import-report.json"), imported.stdout);
-  if (imported.exitCode === 0 && importStatus(imported.stdout) === "ok") throw new WindowRehearsalStop("The import took the mis-keyed boundary.");
+  const mismatch = `Stored record names ${foreign} instead of ${unit}`;
+  if (imported.exitCode === 0 || !await exists(memory) || !importRefusedFor(imported.stdout, mismatch)) {
+    throw new WindowRehearsalStop(`The import did not refuse the mis-keyed boundary with "${mismatch}" (exit ${imported.exitCode}): ${imported.stderr.trim() || imported.stdout.trim()}`);
+  }
   expectRehearsalRefs("After the refused import, refs/arc/", await readRehearsalRefs(context, context.layout.repo, "refs/arc/"), record.refs.local);
   await context.sync.reset(held.branch, recorded);
   return `The import refused ${target} naming ${foreign}, with no refs/arc/ ref changed; ${held.branch} is back at ${recorded}.`;
 }
 
-function importStatus(stdout: string): unknown {
-  try { return (JSON.parse(stdout) as { status?: unknown }).status; } catch { return undefined; }
+/** Whether the import's own JSON refusal reports the planted key mismatch, rather than any other failure to run. */
+function importRefusedFor(stdout: string, mismatch: string): boolean {
+  try {
+    const result = JSON.parse(stdout) as { status?: unknown; refusal?: { code?: unknown; report?: { notices?: { condition?: unknown }[] } } };
+    return result.status === "refused" && result.refusal?.code === "import-refused"
+      && (result.refusal.report?.notices ?? []).some(notice => typeof notice.condition === "string" && notice.condition.includes(mismatch));
+  } catch { return false; }
+}
+
+async function exists(path: string): Promise<boolean> {
+  return access(path).then(() => true, () => false);
 }
 
 async function expectBackfillOmission(context: WindowRehearsalContext): Promise<WindowRehearsalExpectation> {
