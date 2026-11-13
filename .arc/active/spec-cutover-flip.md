@@ -143,16 +143,16 @@ member lands; a contract that does not hold when its member lands is a forward a
   provides:
     - **the quiesce check,** run from the importing checkout on `main`'s pre-flip build immediately before the import,
       refusing with each failing checkout named on the conditions its specification enumerates, among them a dirty
-      checkout or one off its upstream, an unlocked marked linked checkout, an ended holder or husk, a staged
-      decomposition cut, a checkout not descending from the window tooling's own merge, which carries the sealing guard
-      and its seal on `arc user load`, a live branch changing tracked state outside its own work item's records, `main`
-      not a proper ancestor of the flip's branch, a host that squashes or rebases, an open pull request into `main`
-      other than the flip's, any Errand record in any state or Errand identity ref whose `origin` tip the local ref does
-      not equal, an `origin`-only ref included, a claim held by an identity other than the configured one, a live work
-      unit whose records `main` changed after the branch copy the import reads forked, other than a parked unit's
-      pointer, which the import reads on `main`, and a live work unit with a copy, other than a stale one, that the
-      lifecycle composition passes over and that is not an ancestor of the copy it selects, the same branch's local and
-      fetched copies included (§ 13.4);
+      checkout or one off its upstream, an unmarked linked checkout, an unlocked marked linked checkout, an ended holder
+      or husk, a staged decomposition cut, a checkout not descending from the window tooling's own merge, which carries
+      the sealing guard and its seal on `arc user load`, a live branch changing tracked state outside its own work
+      item's records, `main` not a proper ancestor of the flip's branch, a host that squashes or rebases, an open pull
+      request into `main` other than the flip's, any Errand record in any state or Errand identity ref whose `origin`
+      tip the local ref does not equal, an `origin`-only ref included, a claim held by an identity other than the
+      configured one, a live work unit whose records `main` changed after the branch copy the import reads forked, other
+      than a parked unit's pointer, which the import reads on `main`, and a live work unit with a copy, other than a
+      stale one, that the lifecycle composition passes over and that is not an ancestor of the copy it selects, the same
+      branch's local and fetched copies included (§ 13.4);
     - **the record and hold:** what its specification enumerates, held under `refs/arc-window/`, among them each
       worktree's `HEAD`, a digest of its personal files, each branch's local and fetched tips and each live branch's tip
       on the host, `origin/main`'s tip read from the host and required to equal the importing checkout's `HEAD`, and
@@ -190,6 +190,9 @@ member lands; a contract that does not hold when its member lands is a forward a
     - **the seal on `arc user load`:** the sealing guard added to `runUserLoad` (`commands/user/save-load.ts`), so every
       pre-flip build refuses a load once the registry ref exists (§ 12), with a test in the sealing guard's suite
       (`__tests__/integration/store-imported-seal.test.ts`);
+    - **the launch under a memory limit:** the family's npm script (`npm run -s cutover-window -- <operation>`) bounds
+      each WebAssembly memory the TypeScript loader reserves, so an operation launched through it runs under an
+      address-space limit, which the unbounded reservations would otherwise fill before any work starts;
     - **Stage 1** (§ 9.1), with the copy driver, copy safety, the accounting case, and the chain comparison that
       Stage 2 reuses.
 - **`projection-worktrees`** lands its checkout isolation and fan-out: each checkout's first materialization
@@ -1382,8 +1385,11 @@ the Owner releases the fix's draft on the host (`gh pr ready`) as part of that m
 
 The window runs as ordered steps. The importing checkout runs the quiesce check, the designation, and the import on
 `main`'s pre-flip build, as both rehearsal stages do. Until the flip has merged, its own checkout runs its build under
-the override (§ 3.1), and no other checkout runs that build. Each step names what it changes, so the check's record,
-the abort's restore, and each checkout's steps cover all of it; its abort point is in § 11.
+the override (§ 3.1), and no other checkout runs that build. Each step names what it changes, so the check's record, the
+abort's restore, and each checkout's steps cover all of it; its abort point is in § 11. On this repository the import
+peaks near 2.4 GiB resident and the window tooling's operations after it near 2.9 GiB, so where the importing machine
+holds processes that large to a memory limit, the import's trial, the import, and each operation launch under it, the
+operations through the family's npm script (§ 1.3).
 
 #### 10.1 Ahead of the window
 
@@ -1438,7 +1444,10 @@ files to; its session supplies them as prior findings by hand and carries the pa
 forward (`spec-storage-contract.md` D14). Then, in order:
 
 1. every review attempt in flight on the importing machine finishes, since an attempt's in-flight state is not mapped
-   and the import refuses one;
+   and the import refuses one, and a running frontline review's temporary checkout, added detached with no marker until
+   the review releases it (`prepareFrontlineTargetMaterialization`,
+   `scripts/review-gate/hosts/local/frontline-materialization.ts`), is an unmarked linked checkout the quiesce check
+   refuses;
 2. ended holders' checkouts and work-unit husks are torn down, since neither takes a teardown after the flip: a husk's
    in-repo evidence never passes the store teardown's husk selection (`huskEvidenceMatches`,
    `lib/work-unit/store-retirement-husk.ts`); each first has the disk-only personal files it keeps copied out, or
@@ -1449,13 +1458,12 @@ forward (`spec-storage-contract.md` D14). Then, in order:
 4. every branch is fetched from `origin`, so the check compares each checkout's branch with its upstream as `origin`
    holds it and the import picks each live work unit's latest pushed copy (`spec-storage-ref-backend.md` § 10.8);
 5. every checkout saves its personal state as step 7 does, and the import's trial runs from `main`'s pre-flip build
-   (`arc store migrate --import --trial`), about eleven minutes and near 2.3 GB at its peak on this repository; any
-   blocking notice or refused record stops the window here, before the check takes its hold, and the cleanup is worked
-   and the trial re-run. Run last, with every other session stopped, it sees every record a session could have added
-   after § 10.1's earlier trial, as an inbound-buffer entry landed on `main` after that trial would
-   (`lib/store/ref/import/inbound-entries.ts`), and a refusal here costs no restore. The save comes first because the
-   import refuses where personal files differ from their saved notes (`appendImportPersonal`,
-   `lib/store/ref/import/personal.ts`);
+   (`arc store migrate --import --trial`), as long as the import itself (§ 10.4); any blocking notice or refused record
+   stops the window here, before the check takes its hold, and the cleanup is worked and the trial re-run. Run last,
+   with every other session stopped, it sees every record a session could have added after § 10.1's earlier trial, as an
+   inbound-buffer entry landed on `main` after that trial would (`lib/store/ref/import/inbound-entries.ts`), and a
+   refusal here costs no restore. The save comes first because the import refuses where personal files differ from their
+   saved notes (`appendImportPersonal`, `lib/store/ref/import/personal.ts`);
 6. the quiesce check runs and records (§ 1.3);
 7. every checkout saves its personal state (`arc user save`), immediately before the import, since live sessions edit
    the identity-global files and each live work unit's session notes continuously and an early save goes stale. A
@@ -1475,16 +1483,16 @@ build a separate store directory and publish nothing (`writeRefRepository`, `lib
 
 #### 10.4 The import
 
-`arc store migrate --import` runs from the pre-flip build, its publication included. It converts every draft's inbound
-buffer and every held capture into inbound lists, so none is left behind. The same run retires the transient-identity
-refs: it deletes `refs/arc/user/<id>/errands` as it lands, keeping the tip it re-homed under
-`refs/arc/tmp/migrate/import/kept/`, and once its push succeeds deletes `origin`'s copy, leased on that tip, and drops
-the kept tips (`publishImport`, `lib/store/ref/import/finish.ts`; `retireImportRemote`,
-`lib/store/ref/import/transient-cleanup.ts`). Running it again only finishes a run that stopped part-way. It writes no
-selector between competing approval roots: its legacy inputs carry no selector source (`mappingTerminusPassCount`),
-finishing review on every other machine (§ 10.1) leaves no competing root, and choosing between roots two clones each
-approved is recovery after the flip. The accounting case and the chain comparison run over it, and then the recompute
-(§ 1.3).
+`arc store migrate --import` runs from the pre-flip build, its publication included. It takes 11 to 18.5 minutes on this
+repository, as its trial does. It converts every draft's inbound buffer and every held capture into inbound lists, so
+none is left behind. The same run retires the transient-identity refs: it deletes `refs/arc/user/<id>/errands` as it
+lands, keeping the tip it re-homed under `refs/arc/tmp/migrate/import/kept/`, and once its push succeeds deletes
+`origin`'s copy, leased on that tip, and drops the kept tips (`publishImport`, `lib/store/ref/import/finish.ts`;
+`retireImportRemote`, `lib/store/ref/import/transient-cleanup.ts`). Running it again only finishes a run that stopped
+part-way. It writes no selector between competing approval roots: its legacy inputs carry no selector source
+(`mappingTerminusPassCount`), finishing review on every other machine (§ 10.1) leaves no competing root, and choosing
+between roots two clones each approved is recovery after the flip. The accounting case and the chain comparison run over
+it, and then the recompute (§ 1.3).
 
 #### 10.5 The flip lands
 

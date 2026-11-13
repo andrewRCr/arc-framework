@@ -1089,8 +1089,8 @@ rewritten workflows (§ 9.2).
 
 - _Goal:_ Each contract item § 1.3 states for the window tooling holds at `main` once it lands — the quiesce check and
   its conditions, the record and hold, the recompute and its last read, the auto-merge refusal, the close, the abort's
-  restore and its accept and consumed-ref comparisons, the worktree lock step, the seal on `arc user load`, and Stage 1
-  — or the spec takes a forward amendment before Stage 2 runs.
+  restore and its accept and consumed-ref comparisons, the worktree lock step, the seal on `arc user load`, the launch
+  under a memory limit, and Stage 1 — or the spec takes a forward amendment before Stage 2 runs.
 
 ### `[ ]` **6.2 The parser check — § 9.4**
 
@@ -1144,8 +1144,9 @@ rewritten workflows (§ 9.2).
         - Stage 2 runs the window tooling's operations (`copy`, `lock`, `check`, `account`, `chain`, `recompute`,
           `last-read`, `compare`, `confirm`, `close`, and `restore`) one at a time, each where § 10 places it and
           `restore` only within § 11's abort, with the import's trial (`arc store migrate --import --trial`) after the
-          saves and before `check` (§ 10.2). It does not run `rehearse`, whose fresh stand-in flip branch would replace
-          the flip's own.
+          saves and before `check` (§ 10.2). Each operation launches through the family's npm script, and the
+          operations, the trial, and the import run under the importing machine's memory limit where it sets one, as
+          § 10 launches them. It does not run `rehearse`, whose fresh stand-in flip branch would replace the flip's own.
         - The flip build is built in the copied flip checkout and rebuilt there after any change to it; that checkout
           runs it under `ARC_IN_REPO_STORE=1` until the copy's merge, as § 10 runs the live one, save Task 6.4.b's two
           refusal probes, which drop it; every other command on the copy drops the session's override
