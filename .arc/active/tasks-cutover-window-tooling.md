@@ -252,13 +252,11 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
           and present built CLI, and resolves every executable `arc` on the supplied/default PATH, excluding directory
           links. Foreign targets refuse; the source checkout remains allowed. `--path` leaves Git's environment intact.
 
-### `[ ]` **3.5 The copy driver and copy safety — § 9.1**
+### `[x]` **3.5 The copy driver and copy safety — § 9.1**
 
 - _Goal:_ `copy` produces a full copy of this machine's repository with its mirror, neither able to reach the host or a
   live checkout, leaves the live repository untouched, and stops before any `arc` command runs in a copy that fails an
   assertion.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Copy.
 
     - `[x]` **3.5.a The copy**
         - Copies the primary, its Git directory, and every linked checkout into an absent destination outside all
@@ -267,15 +265,13 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
         - Native coverage preserves live registration metadata and gitfiles byte-for-byte across nested, detached,
           and locked checkouts. Shared containment now recognizes child names beginning with two dots correctly.
 
-    - `[ ]` **3.5.b Copy safety**
-        - Build `test-first` (one behavior at a time), each violation below stopping the stage:
-            - A copy meeting every assertion passes, its discovery read answering none
-            - An effective remote URL or push URL other than the mirror
-            - A registration or a copied checkout's `.git` file naming a path outside the copy
-            - A `storage.backing_repository` naming a repository
-            - A copy with a host, or one from which `gh` finds a repository, read through the host port's discovery
-              read
-            - A copied Errand awaiting its merge
+    - `[x]` **3.5.b Copy safety**
+        - The public `copy` operation establishes physical containment of registrations and Git directories before
+          reading copied repository state, requires every effective remote URL to name the mirror, and checks every
+          checkout's backing pointer and host discovery through the host port. Both copied identity inventories must
+          be complete and contain no Errand awaiting merge; violations refuse with a repair route.
+        - Native scenarios cover every isolation refusal and repaired continuation; the source CLI exercises host
+          discovery and exposes a successful copy only after the assertions pass.
 
 ## **Phase 4:** Tracked state and the host
 

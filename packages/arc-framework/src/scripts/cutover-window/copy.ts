@@ -9,11 +9,20 @@ import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
 import { readGitDirectories } from "../../lib/git/directories.js";
 import { localPathContains } from "../../lib/local-path-identity.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { assertWindowCopySafety, type WindowCopySafetyOptions } from "./copy-safety.js";
+import type { WindowResult } from "./result.js";
 
 /** Coordinates of one copied repository and its independent local mirror. */
 export interface WindowCopyLayout {
   destination: string; repo: string; mirror: string;
   worktrees: { source: string; path: string; primary: boolean }[];
+}
+
+/** Acquire a complete repository copy and establish its isolation before exposing it to a rehearsal. */
+export async function copyWindow(request: WindowRequest, options: WindowCopySafetyOptions = {}): Promise<WindowResult> {
+  const layout = await prepareWindowCopy(request);
+  await assertWindowCopySafety(layout, options);
+  return { operation: "copy", status: "passed", findings: [], data: layout };
 }
 
 /** Construct the requested copy without running an ARC command in it. */
