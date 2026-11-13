@@ -16,7 +16,9 @@ import { createStoreTeardownContext } from "../../src/lib/work-unit/store-teardo
 import { nodeReconcileWorkUnitWorktreeFs } from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { runStoreAbandon } from "../../src/lib/work-unit/verbs/abandon-store.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
-import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
+import { selectStoreRetirementHusk, validateStoreHuskEvidence } from "../../src/lib/work-unit/store-retirement-husk.js";
+import { resolveCurrentHuskAdvisory } from "../../src/lib/session-init/current-husk-advisory.js";
+import { runTeardownHuskSweep } from "../../src/lib/work-unit/teardown-husk-sweep.js";
 import { readStoreRetirementEvidence, type TeardownSubject } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { TeardownCommandInputSchema, AbandonCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runTeardownForOperand } from "../../src/handlers/teardown-operand.js";
@@ -24,6 +26,10 @@ import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
+import { createNodeTeardownSelectionReader } from "../../src/lib/work-unit/teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "../../src/lib/work-unit/teardown-worktree-transaction.js";
+import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { resolveSelfTeardownMode } from "../../src/lib/config/self-teardown-mode.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
@@ -59,6 +65,61 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
     local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
 }
 describe("store retirement real Git", () => {
+  it("sweeps native husks by exact UID, retains a dirty sibling, and completes after repair", async () => {
+    const h = await huskFixture(), [clean, dirty] = h.paths;
+    await writeFile(join(dirty, "personal.txt"), "keep\n");
+    const input = TeardownCommandInputSchema.parse({ yes: true });
+    const sweep = () => runTeardownHuskSweep(h.ctx, { base: "main", confirmed: input.yes === true });
+    expect(await sweep()).toMatchObject({ status: "swept", removed: [clean],
+      left: [{ path: dirty, reason: expect.stringMatching(/dirty|uncommitted/u) }] });
+    expect(await readFile(join(dirty, "personal.txt"), "utf8")).toBe("keep\n");
+    await rm(join(dirty, "personal.txt"));
+    expect(await sweep()).toMatchObject({ status: "swept", removed: [dirty], left: [] });
+  }, 30_000);
+  it("recognizes a native husk from Store lineage and rejects a changed owner or evidence", async () => {
+    const h = await huskFixture(), path = h.paths[0];
+    const resolve = (marker: WorktreeMarker) => resolveCurrentHuskAdvisory({ worktreePath: path,
+      branch: null, head: h.workOid, marker: { kind: "present", marker }, stateOffBranch: true },
+    () => validateStoreHuskEvidence({ store: h.store, exec: h.exec, marker, baseOid: h.baseOid }));
+    expect(await resolve(h.huskMarker)).toMatchObject({ subject: boundWorkUnitSubject(h.meta), stamp: { kind: "current" } });
+    expect(await resolve({ ...h.huskMarker, createdFor: { ...boundWorkUnitSubject(h.meta),
+      uid: "11111111-1111-4111-8111-111111111111" } })).toBeNull();
+    expect(await resolve({ ...h.huskMarker, husk: { ...h.huskMarker.husk!,
+      evidence: { ...h.terminal.evidence, resultDigest: `sha256:${"0".repeat(64)}` } } })).toBeNull();
+  });
+  it.each(["archive", "abandon"] as const)("leaves an unlocked self husk by default after native %s and removes it from outside", async end => {
+    const h = await fixture(end === "archive" ? { end } : {}), path = join(h.root, "checkout-self");
+    await h.exec("git", ["switch", "main"]);
+    await h.exec("git", ["worktree", "add", path, "feat/demo"]);
+    h.marker.spawnedByArc = true; h.setHolder(path);
+    await ensureWorktreeMarkerIgnored(path, h.exec, nodeWorktreeMarkerIgnoreFs);
+    await writeWorktreeMarker(path, h.marker);
+    await h.exec("git", ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, path]);
+    h.ctx.cwd = path;
+    h.ctx.selfTeardownMode = (await resolveSelfTeardownMode({ cwd: path, exec: h.exec,
+      readFile: file => readFile(file, "utf8") })).value;
+    h.ctx.readMarker = readWorktreeMarker;
+    h.ctx.chdir = () => {};
+    h.ctx.readTeardownSelection = createNodeTeardownSelectionReader({ exec: h.exec, identity: "test-user" });
+    h.ctx.teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec: h.exec, cwd: h.root, identity: "test-user" });
+    const input = TeardownCommandInputSchema.parse({ name: "demo" });
+    const result = await runTeardownForOperand(h.ctx, { name: input.name!, base: "main" });
+    expect(result.status, JSON.stringify(result)).toBe("torn-down");
+    expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: null,
+      husk: { worktreePath: path, stamped: true, outcome: "created" } });
+    expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: {
+      husk: { sha: h.workOid, subject: boundWorkUnitSubject(h.meta) } } });
+    const registration = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout
+      .split("\n\n").find(entry => entry.includes(`worktree ${path}\n`));
+    expect(registration).toContain("detached");
+    expect(registration).not.toMatch(/^locked/mu);
+    h.ctx.cwd = h.root;
+    const replay = TeardownCommandInputSchema.parse({ name: "demo", husk: path });
+    expect(await runTeardownForOperand(h.ctx, { name: replay.name!, base: "main", huskPath: replay.husk }))
+      .toMatchObject({ status: "torn-down", worktreeRemoved: path });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+  }, 30_000);
+
   it("refuses the selected repository's operator lock through an ambient executor and abandons after unlock", async () => {
     const h = await fixture({ ended: false });
     const ambient = await createTempRepo(); roots.push(ambient);
@@ -167,6 +228,17 @@ describe("store retirement real Git", () => {
     const roster = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout;
     expect(roster).not.toContain(h.paths[0]); expect(roster).toContain(h.paths[1]);
   });
+  it.each(["foreign", "absent"] as const)("refuses a native terminal stamp whose owner UID is %s", async fault => {
+    const h = await huskFixture(), path = h.paths[0];
+    const subject = { kind: "work-unit" as const, name: "demo",
+      ...(fault === "foreign" ? { uid: "00000000-0000-4000-8000-000000000001" } : {}) };
+    await writeWorktreeMarker(path, { ...h.huskMarker, husk: { ...h.huskMarker.husk!, subject } });
+    const before = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout;
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: path }))
+      .toMatchObject({ status: "rejected" });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toBe(before);
+    expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
+  });
   it.each(["wrong-path", "evidence-mismatch", "head-moved", "dirty"] as const)("refuses %s husk selection before checkout/ref mutations", async (fault) => {
     const h = await huskFixture(); const path = h.paths[0];
     if (fault === "evidence-mismatch") await writeWorktreeMarker(path, { ...h.huskMarker, husk: { ...h.huskMarker.husk!, evidence: { kind: "lineage", transition: "abandon",
@@ -215,7 +287,7 @@ describe("store retirement real Git", () => {
     const huskPath = join(h.root, "checkout-husk"), extraPath = join(h.root, "checkout-extra");
     await h.exec("git", ["worktree", "add", "--detach", huskPath, h.workOid]);
     await writeWorktreeMarker(huskPath, { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid,
-      at: "2026-10-14T00:00:00Z", subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo",
+      at: "2026-10-14T00:00:00Z", subject: boundWorkUnitSubject(h.meta), branch: "feat/demo",
       authorization: "discard-confirmed", remoteRef: null, evidence: terminal.evidence } });
     await h.exec("git", ["worktree", "add", extraPath, "chore/demo"]);
     await writeFile(join(extraPath, "personal.txt"), "preserve\n"); h.ctx.readMarker = readWorktreeMarker;
@@ -280,7 +352,7 @@ async function huskFixture(options: { end?: "archive" | "decompose" } = {}) {
   const h = await fixture(options); await h.exec("git", ["switch", "main"]);
   const terminal = await readStoreRetirementEvidence(h.store, h.meta.reference, h.baseOid);
   const paths = [join(h.root, "checkout-one"), join(h.root, "checkout-two")] as const;
-  const huskMarker: WorktreeMarker = { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid, at: "2026-10-14T00:00:00Z", subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo",
+  const huskMarker: WorktreeMarker = { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid, at: "2026-10-14T00:00:00Z", subject: boundWorkUnitSubject(h.meta), branch: "feat/demo",
     authorization: terminal.rule === "discard" ? "discard-confirmed" : "merged-preserved", remoteRef: null, evidence: terminal.evidence } };
   for (const path of paths) { await h.exec("git", ["worktree", "add", "--detach", path, h.workOid]); await writeWorktreeMarker(path, huskMarker); }
   h.ctx.readMarker = readWorktreeMarker;

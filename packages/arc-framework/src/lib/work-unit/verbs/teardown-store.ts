@@ -20,14 +20,17 @@ import { missingRegistrationActions } from "../../session-init/missing-worktree-
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
+import { createStoreSelfTeardownHusk } from "../store-self-teardown-husk.js";
 
 type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
-type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
+type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string;
+  husk?: NonNullable<Extract<TeardownResult, { status: "torn-down" }>["husk"]> };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Teardown requires its operational store." };
   let cleanupStarted = false;
+  let bound: Bound | undefined;
   try {
     const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
     if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
@@ -38,7 +41,7 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
-    const bound: Bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
+    bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
     const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
@@ -46,8 +49,9 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const { branchDeleted, remoteBranchDeleted } = await reapRetirementLinks(bound, links, retiring, generation);
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
     return { status: "torn-down", mode: evidence.rule === "discard" ? "abandoned" : "shipped", branch: retiring,
-      branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
-  } catch (error) { return teardownRejection(error, cleanupStarted, params); }
+      branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: bound.husk ?? null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
+  } catch (error) { return teardownRejection(error, cleanupStarted,
+    bound?.husk === undefined ? params : { ...params, huskPath: bound.husk.worktreePath }); }
 }
 function teardownRejection(error: unknown, cleanupStarted: boolean, params: TeardownParams): Extract<TeardownResult, { status: "rejected" }> {
   return { status: "rejected", reason: error instanceof Error ? error.message : String(error),
@@ -95,6 +99,15 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
   const marker = await (ctx.readMarker ?? readWorktreeMarker)(path);
   if (marker.kind !== "present") throw new Error("The selected checkout claim changed before retirement.");
   const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
+  const windowsFallback = ctx.selfTeardownMode === "remove" && (ctx.platform ?? process.platform) === "win32";
+  if (selected === undefined && marker.marker.spawnedByArc && resolve(path) !== resolve(ctx.primaryPath)
+    && (ctx.selfTeardownMode === "husk" || windowsFallback) && await isSelfTeardown(path, invokingPath)) {
+    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
+    ctx.husk = retained.husk;
+    if (retained.notice !== null) ctx.notices.push(retained.notice);
+    if (windowsFallback) ctx.notices.push("Windows cannot remove the invoking shell's occupied directory; left an unlocked stamped husk instead.");
+    return null;
+  }
   const revalidate = async () => { await ctx.evidence.revalidate(); await selected?.revalidate(); };
   const operation = async () => {
     if (!marker.marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)) {
@@ -105,10 +118,12 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       return null;
     }
     if (await fs.directoryExists(path)) await reconcileUserSurfacesForRemoval({ exec: ctx.exec, fs, chdir: ctx.chdir }, path);
-    if (await isSelfTeardown(path, invokingPath)) ctx.chdir(ctx.primaryPath);
+    const self = await isSelfTeardown(path, invokingPath);
+    if (self) ctx.chdir(ctx.primaryPath);
     const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots, folderExists: (target) => fs.directoryExists(target) });
     if (removed.kind === "refused") throw new Error(describeRemovalRefusal(removed.check));
     if (removed.kind === "failed") throw new Error(`Checkout removal failed at ${removed.step}: ${removed.detail}`);
+    if (self) ctx.notices.push(`The invoking shell or agent session is now in a deleted directory; start any next command from ${ctx.primaryPath}.`);
     return path;
   };
   if (ctx.readTeardownSelection !== undefined && ctx.teardownWorktree !== undefined) {

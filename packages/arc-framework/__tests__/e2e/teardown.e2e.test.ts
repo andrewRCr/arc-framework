@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
+import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 
 /** Build the linked teardown fixture from an initialized repository. */
 async function prepareSelfTeardown(
@@ -122,13 +123,76 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(tmpDir, ["branch", "--list", branch])).toBe("");
   });
 
-  it("refuses without a work-unit name", async () => {
+  it("reports an empty stamped-husk sweep without requiring confirmation", async () => {
     tmpDir = await initializedRepository("initialized");
 
     const result = await runArc(["teardown"], tmpDir);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/requires the work-unit name/i);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout + result.stderr).toMatch(/no stamped husks/iu);
+  });
+
+  it("previews the stamped husk sweep and requires confirmation before removing it", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-sweep-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    const result = await runArc(["teardown"], tmpDir);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(unwrapPresentationOutput(result.stdout + result.stderr)).toContain(worktree);
+    expect(result.stdout + result.stderr).toContain("--yes");
+    expect(await stat(worktree)).toMatchObject({});
+  });
+
+  it("sweeps stamped husks from outside and leaves live and unstamped checkouts alone", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-sweep-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    const external = join(worktreeParent, "external"), live = join(worktreeParent, "live");
+    const branch = "chore/extra-husk", branchHusk = join(worktreeParent, "branch");
+    await git(tmpDir, ["worktree", "add", "-b", branch, branchHusk, "main"]);
+    const markerPath = join(branchHusk, ".arc/system/.internal/worktree-marker.json");
+    await mkdir(join(branchHusk, ".arc/system/.internal"), { recursive: true });
+    await writeFile(markerPath, JSON.stringify({ spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" }));
+    const branchResult = await runArc(["teardown", "--branch", branch], branchHusk);
+    expect(branchResult.exitCode, branchResult.stdout + branchResult.stderr).toBe(0);
+    await git(tmpDir, ["worktree", "add", "--detach", external, "main"]);
+    await git(tmpDir, ["worktree", "add", "-b", "feat/live", live, "main"]);
+    const result = await runArc(["teardown", "--yes"], tmpDir);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(branchHusk)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await stat(external)).toMatchObject({}); expect(await stat(live)).toMatchObject({});
+    expect(await git(live, ["branch", "--show-current"])).toBe("feat/live");
+  });
+
+  it("refuses the husk sweep from inside a husk and names the outside continuation", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-sweep-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    const result = await runArc(["teardown", "--yes"], worktree);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/outside.*husk|primary/iu);
+    expect(await stat(worktree)).toMatchObject({});
+  });
+
+  it.each(["dirty", "head-moved", "operator-lock"] as const)("leaves a %s husk in the sweep with its reason", async fault => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-sweep-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    if (fault === "dirty") await writeFile(join(worktree, "keep.txt"), "keep\n");
+    if (fault === "head-moved") await git(worktree, ["commit", "--allow-empty", "-m", "feat: keep"]);
+    if (fault === "operator-lock") await git(tmpDir, ["worktree", "lock", "--reason", "operator", worktree]);
+    const result = await runArc(["teardown", "--yes"], tmpDir);
+    const output = unwrapPresentationOutput(result.stdout + result.stderr);
+    expect(result.exitCode, output).toBe(0);
+    expect(output).toContain(worktree);
+    expect(output).toMatch(fault === "dirty" ? /uncommitted|dirty/iu : fault === "head-moved" ? /head-moved/iu : /locked/iu);
+    expect(await stat(worktree)).toMatchObject({});
   });
 
   it("refuses a nonexistent receipt-backed target without a branch or detached husk", async () => {
@@ -221,7 +285,53 @@ describe("arc teardown (CLI surface)", () => {
     expect(output).toMatch(/physical removal deferred/iu);
     expect(output).toMatch(/Marker:\s+stamped/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
-    expect(output).toMatch(/stale-worktree sweep/iu);
+    expect(output).toMatch(/folder remains/iu);
+  });
+
+  it("states that a self-teardown folder remains and names its exact outside removal", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = unwrapPresentationOutput(result.stdout + result.stderr);
+    expect(result.exitCode, output).toBe(0);
+    expect(output).toMatch(/folder remains/iu);
+    expect(output).toContain("arc teardown demo");
+    expect(output).toContain(tmpDir);
+    expect(await stat(worktree)).toMatchObject({});
+  });
+
+  it("unlocks an ARC-locked worktree when self-teardown leaves its stamped husk", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    await git(tmpDir, ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, worktree]);
+    const result = await runArc(["teardown", "demo"], worktree);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    const registration = (await git(tmpDir, ["worktree", "list", "--porcelain"]))
+      .split("\n\n").find(entry => entry.includes(`worktree ${worktree}\n`));
+    expect(registration).toContain("detached");
+    expect(registration).not.toMatch(/^locked/mu);
+    const marker = JSON.parse(await readFile(join(worktree, ".arc/system/.internal/worktree-marker.json"), "utf8"));
+    expect(marker).toMatchObject({ husk: { subject: { kind: "work-unit", name: "demo" } } });
+  });
+
+  it("honors the personal remove preference and reports an occupied Windows fallback", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    await git(tmpDir, ["config", "arc.selfTeardownMode", "remove"]);
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(0);
+    if (process.platform === "win32") {
+      expect(output).toMatch(/Windows.*husk|husk.*Windows/iu);
+      expect(await stat(worktree)).toMatchObject({});
+    } else {
+      await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+      expect(output).toMatch(/session.*deleted directory|shell.*deleted directory/iu);
+      expect(await git(tmpDir, ["worktree", "list", "--porcelain"])).not.toContain(`worktree ${worktree}\n`);
+    }
   });
 
   it("refuses markerless linked self-teardown as externally managed", async () => {

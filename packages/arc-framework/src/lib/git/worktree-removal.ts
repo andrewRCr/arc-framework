@@ -147,6 +147,16 @@ export async function lockSpawnedCheckout(exec: GitExec, checkoutPath: string): 
     return { kind: "locked" };
   } catch (error) { return { kind: "failed", detail: message(error) }; }
 }
+
+/** Release only ARC's projection lock after the caller has proved a terminal husk. */
+export async function unlockProjectionCheckout(exec: GitExec, checkoutPath: string): Promise<void> {
+  const registration = await readRegistration(exec, checkoutPath);
+  if (registration?.locked === undefined) return;
+  if (registration.locked !== PROJECTION_LOCK_REASON) {
+    throw new Error(`The husk is locked by another tool; its owner may run git worktree unlock ${quoteShellArgument(checkoutPath)}`);
+  }
+  await exec("git", ["worktree", "unlock", checkoutPath]);
+}
 /** The warning a spawn prints where its checkout lacks the projection's lock, or null where it carries it. */
 export function describeSpawnLock(checkoutPath: string, lock: SpawnLock): string | null {
   switch (lock.kind) {

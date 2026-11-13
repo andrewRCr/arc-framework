@@ -675,12 +675,13 @@ program
   .description("Clean up a retired work unit by slug or UID: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
+  .option("-y, --yes", "Confirm removal of eligible stamped husks when no name or branch is supplied")
   .option(
     "--force",
     "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
-    {},
+    { yes: "authority" },
     async (context, name: string | undefined, opts: TeardownOptions) => {
       await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
     },
