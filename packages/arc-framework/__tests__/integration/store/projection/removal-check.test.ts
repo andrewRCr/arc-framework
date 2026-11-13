@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, onTestFinished } from "vitest";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -350,6 +351,26 @@ it("holds a file withheld by a real index rebuild until its bytes are copied out
   await rm(join(target.checkout, target.h.path));
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
+
+it("holds a file a no-index rebuild could not place under its held remedy and passes once a repaired start settles it", async () => {
+  const target = await targetCheckout();
+  await rm(join(target.location.stateDir, PROJECTION_INDEX_FILE));
+  const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/personal/andrew",
+    condition: "Personal inventory unavailable.", remedy: { text: "Repair the inventory and retry." } });
+  const held = { checkout: target.checkout, ports: target.h.ports, store: overrideEngineStore(target.h.store, {
+    list: input => input.family === "personal" ? Promise.resolve({ status: "refused", refusal }) : target.h.store.list(input) }) };
+  expect(await startProjection(held)).toMatchObject({ kind: "ready" });
+  await endProjection(held);
+  expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
+    state: null, entries: { [target.h.path]: { kind: "ownerless", withheld: true } } } });
+  const remedy = { text: expect.stringContaining("run any arc command from the checkout holding this file") };
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse", remedy });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "refused" });
+  const repaired = { checkout: target.checkout, store: target.h.store, ports: target.h.ports };
+  expect(await startProjection(repaired)).toMatchObject({ kind: "ready" });
+  await endProjection(repaired);
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+}, 60_000);
 
 it("holds unfinished accepted-input recording locally until a save-mode command finishes it", async () => {
   const { target, command, repair } = await unfinishedRecording();

@@ -19,6 +19,8 @@ export interface ProjectionRefreshPlan {
   readonly paths: Map<string, RecordReference>;
   readonly unresolved: boolean;
   readonly removals: Set<string>;
+  /** A rebuild plan, which settles files an earlier rebuild held by the rebuild rule. */
+  readonly rebuild?: true;
 }
 /** Source window and destination evidence already held by the caller. */
 export interface ProjectionRefreshPlanInput {

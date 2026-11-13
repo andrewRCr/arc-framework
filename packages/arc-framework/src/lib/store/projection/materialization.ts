@@ -14,7 +14,7 @@ import { desiredProjectionPaths } from "./desired-paths.js";
 import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createRecordRenderer } from "./record-render.js";
-import { prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
+import { evidenceHeldProjectionMark, prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
 import { walkProjectionRoots } from "./engine-walk.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
@@ -60,7 +60,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
   if (!excluded.ok) throw excluded.error;
-  let index: ProjectionIndex = input.index ?? { format: 2, state: input.version, entries: {}, withheldCopies: [], tripwires: {},
+  let index: ProjectionIndex = input.index ?? { format: 2, state: null, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
@@ -84,7 +84,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
-  if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files);
+  if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files,
+    !desired.unresolved && inventory.diagnostics.length === 0);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
@@ -135,11 +136,11 @@ async function reconcileBeforeInventory(input: ProjectionMaterializationInput, i
 }
 
 async function recordUnknownFiles(root: ProjectionRootState, initial: ProjectionIndex, paths: readonly string[],
-  desired: ReadonlyMap<string, unknown>): Promise<ProjectionIndex> {
+  desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
   let index = initial;
   for (const path of paths) {
     if (desired.has(path)) continue;
-    const refused = withheldProjectionMark();
+    const refused = whole ? withheldProjectionMark() : evidenceHeldProjectionMark();
     index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat: await readStat(join(root.checkout, path)), refused });
     root.context.report?.({ path, copy: null, mark: refused });
   }

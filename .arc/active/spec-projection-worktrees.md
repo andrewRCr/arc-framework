@@ -524,18 +524,29 @@ hold an edit, since without the index's marker map and stale-buffer state no rul
 current projection lays a stored record at is refreshed where its blob id, its stamp set aside, equals its stamp's, or,
 with no stamp, the stored content's. Every other file under a projected root — one holding markers or an edit, an empty
 one, one mid-save, or one at a path the current projection lays no stored record at — is left as it is, written over by
-nothing and sent nowhere, and the new index it writes marks it withheld (`spec-projection-substrate.md` § 3.1); a file
-`spec-projection-write-back.md` § 9 never adopts and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as
-write-back leaves them. Status and each command's report name every withheld file, refresh and write-back skip it,
-removal leaves it at its path (`spec-projection-substrate.md` § 5.6), and the removal check and the persist and release
-steps refuse over it (§ 12.2); the sweep before it withholds aside copies the same way (`spec-projection-substrate.md`
-§ 5.4). Deleting a withheld file, after copying out what is wanted, releases it: where the current projection lays a
-stored record at its path its mark turns pending, so the next command's refresh writes it from the store (§ 15.2), and
-otherwise its entry goes, nothing written there; the person re-applies their edit as an ordinary one (residual, § 17). A
-linked checkout whose marker is released loses its projection once the release step has persisted its edits (§ 12.3). A
-checkout this section gives no projection that still holds an index — its marker changed under it — is checked and
-persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives edits not yet persisted, and its start
-rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
+nothing and sent nowhere, and the new index it writes marks it withheld (`spec-projection-substrate.md` § 3.1). A path
+is one the current projection lays no stored record at only on § 15.2's positive evidence. Where a listing is not whole,
+a read refuses, or a placement cannot be established, the rebuild holds every file at a path it lays no stored record
+at: it withholds the file as above, under a held mark whose remedy is to resolve the condition reported with it and then
+run any command from the checkout holding the file, or to copy out what is wanted and delete it, and the index takes no
+state version (§ 15.2). A held file is a withheld file in every rule below, only its mark and remedy differing; the
+removal check answers `persist-would-refuse` for it (§ 12.2), since the read that failed was the rebuild's, not the
+check's. A later rebuild in that checkout, over an index whose state version is unset or no longer resolves, settles
+each held file at a path it lays a stored record at by the rule above — refreshing it where it holds no edit, otherwise
+withholding it under the ordinary mark — with no store write. Once that rebuild's evidence is whole, a held file at a
+path it lays no stored record at takes the ordinary withheld mark and its remedy to delete it. A link at or above a laid
+path, a path the checkout cannot write, or an arrival still handing off leaves only that path to a later rebuild, each
+reported (A7). A file `spec-projection-write-back.md` § 9 never adopts and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9)
+are left alone, as write-back leaves them. Status and each command's report name every withheld file, refresh and
+write-back skip it, removal leaves it at its path (`spec-projection-substrate.md` § 5.6), and the removal check and the
+persist and release steps refuse over it (§ 12.2); the sweep before it withholds aside copies the same way
+(`spec-projection-substrate.md` § 5.4). Deleting a withheld file, after copying out what is wanted, releases it: where
+the current projection lays a stored record at its path its mark turns pending, so the next command's refresh writes it
+from the store (§ 15.2), and otherwise its entry goes, nothing written there; the person re-applies their edit as an
+ordinary one (residual, § 17). A linked checkout whose marker is released loses its projection once the release step has
+persisted its edits (§ 12.3). A checkout this section gives no projection that still holds an index — its marker changed
+under it — is checked and persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives edits not yet
+persisted, and its start rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
 
 ### 3. State and change detection
 
@@ -1093,16 +1104,19 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   current state rather than pulling any history ref the refusal names, so no refresh waits on the network. Every
   projected record is refreshed by the same rules as a changed one, every index entry the current state no longer holds,
   every partition read for it, is handled as a removal (`spec-projection-substrate.md` § 5.6), the replace guard and
-  pending marks apply, and the index takes the current state version. Write-back has already run, and a file holding an
-  edit is handed to it as any refresh hands one, so the rebuild loses none. It costs one full materialization, paid by a
-  worktree idle past Git's expiry or one whose state version names history this clone lacks.
+  pending marks apply, and the index takes the current state version only once the rebuild's evidence is whole (A7).
+  Write-back has already run, and a file holding an edit is handed to it as any refresh hands one, so the rebuild loses
+  none. It costs one full materialization, paid by a worktree idle past Git's expiry or one whose state version names
+  history this clone lacks.
 - **A listing that is not whole.** A full materialization and the rebuild write files only for the records a listing
   returns. A record it lists only as a diagnostic (`ListingDiagnosticSchema`, `lib/store/read.ts`) — malformed,
   oversized, unreadable, of a newer format, under a mismatched key, or of any other kind — projects no file and is
-  reported, and a listing that reports `missed` or returns `unreadable` removes nothing. A file is removed only on
-  positive evidence: a complete listing, with nothing missed and no diagnostic, that no longer holds its record, or a
-  listing that returns `absent`, which the ref backend answers for a complete live listing that finds nothing
-  (`liveListingOutcome`, `lib/store/ref/read.ts`) — as a primary entry's re-lay meets once an owner's last record ends.
+  reported, and a listing that reports `missed` or returns `unreadable` removes nothing. A rebuild whose evidence is not
+  whole takes no new state version — one with no usable index publishes none, neither in its batch's intent nor at its
+  end — so the next start rebuilds and settles what it held (§ 2.5, A7). A file is removed only on positive evidence: a
+  complete listing, with nothing missed and no diagnostic, that no longer holds its record, or a listing that returns
+  `absent`, which the ref backend answers for a complete live listing that finds nothing (`liveListingOutcome`,
+  `lib/store/ref/read.ts`) — as a primary entry's re-lay meets once an owner's last record ends.
 
 #### 15.3 The no-change budget
 
@@ -1479,6 +1493,14 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     (§ 2.2): the save reaches the store then, and every other worktree's copy at that worktree's next command start or
     the next fan-out, whichever comes first, rather than at the writer's fan-out. It needs a save timed into the swap's
     window (§ Spike 1b).
+12. **A worktree whose state version is unset.** While a worktree's state version is unset, each start of its own
+    commands rebuilds it in full, one full materialization each, and another worktree's fan-out leaves it to that next
+    start (§ 2.2), so a write reaches its copies there rather than at the writer's fan-out. It lasts while a rebuild's
+    evidence is not whole — a listing that reports `missed`, returns `unreadable`, or lists a diagnostic, such as a
+    record of a newer format another build wrote (§ 3.1); an ambiguous cohort match; two live claimed primaries; a
+    placement that cannot be established — or while a path it lays holds no installed record: a link at or above it, a
+    path the checkout cannot write, an arrival still handing off, or a file withheld with no record basis at a path a
+    record has since arrived at, until that file is deleted. Each is reported with its remedy (§ 2.5, § 15.2, A7).
 
 ### 18. Expected contracts
 
@@ -1765,6 +1787,13 @@ _These considerations cover the design the three members build together; § 1.1 
     failure retains checkout, branch, marker and claim with recovery detail; repaired setup resumes that same claim,
     while empty/machine-local-only and capability-off compensation retain their cleanup behavior.
 
+14. **A rebuild converges once its evidence returns (A7).** While its evidence is not whole, a rebuild with no usable
+    index withholds every file at a path it lays no stored record at under the held mark, which the removal check and
+    the persist and release steps refuse over as over any withheld file, and publishes no state version; once the
+    reported condition is resolved, the next rebuild settles each held file at a path it lays a stored record at by
+    § 2.5's rule, with no store write, where no link, write right or handoff blocks that path, and gives one still at a
+    path it lays no stored record at the ordinary withheld mark.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1786,6 +1815,9 @@ this design open.
 
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
   _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
+
+- **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place until evidence returns.
+  _Supersedes:_ § 15.2 ¶5. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

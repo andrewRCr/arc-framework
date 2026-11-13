@@ -89,9 +89,22 @@ async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry)
 }
 
 function hold(input: MaterializationFileInput, entry: ProjectionIndex["entries"][string]): MaterializationFileResult {
-  const mark = withheldProjectionMark();
+  const mark = isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark() : withheldProjectionMark();
   input.root.context.report?.({ path: input.path, copy: null, mark });
   return { index: withProjectionEntry(input.index, input.path, { ...entry, refused: mark }) };
+}
+
+/** A rebuild could not yet tell whether a stored record lays this path; a later rebuild with whole evidence settles it. */
+export function evidenceHeldProjectionMark(): RefusedMark {
+  return { reason: "withheld: The projection could not yet tell whether a stored record lays this path.",
+    remedy: { text: "Resolve the condition reported with it, then run any arc command from the checkout holding this file; "
+      + "its rebuild settles the file, refreshing it where unedited. Or copy out anything wanted and delete the file." } };
+}
+
+/** A file a rebuild withheld under the held mark, never one awaiting a minted stub; only this mark lets a rebuild settle it. */
+export function isEvidenceHeldEntry(entry: ProjectionIndex["entries"][string]): boolean {
+  return entry.kind === "ownerless" && entry.withheld === true && entry.minted === undefined
+    && entry.refused.reason === evidenceHeldProjectionMark().reason;
 }
 
 /** A rebuild cannot establish that these bytes contain no hand edit. */

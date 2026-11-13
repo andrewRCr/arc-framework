@@ -17,7 +17,7 @@ import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "
 import { createProjectionProtection } from "./protection.js";
 import type { ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
-import { prepareMaterializationFile, projectionEntryForRecord } from "./materialization-file.js";
+import { isEvidenceHeldEntry, prepareMaterializationFile, projectionEntryForRecord, withheldProjectionMark } from "./materialization-file.js";
 import { readReference } from "./change-detection.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -77,14 +77,13 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   index = await removeObsoleteProjectionPaths({ root, index, plan: planned, renderer, reference });
   let unresolved = planned.unresolved;
   for (const [path, target] of planned.paths) {
-    const prepared = await prepareIndexedFile({ root, source, renderer, renderContext, reference, index, path, target });
+    const prepared = markMovedPath(await prepareIndexedFile({ root, source, renderer, renderContext, reference, index, path,
+      target, rebuilding: planned.rebuild === true }), path, moved);
     index = prepared.index;
-    const entry = index.entries[path];
-    if (entry?.kind === "record" && moved.has(path)) index = withProjectionEntry(index, path, { ...entry, changed: true });
     unresolved ||= prepared.unresolved;
-    if (prepared.file !== undefined) files.push(moved.has(path) ? { ...prepared.file,
-      replace: { ...prepared.file.replace, entry: { ...prepared.file.replace.entry, changed: true } } } : prepared.file);
+    if (prepared.file !== undefined) files.push(prepared.file);
   }
+  if (planned.rebuild === true && !planned.unresolved) index = settleHeldMarks(index, planned.paths);
   if (files.length > 0) {
     const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false, settlementPublication: "caller",
       writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn, hooks: root.context.hooks });
@@ -99,6 +98,15 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   return { index, complete };
 }
 
+/** A path the plan moves is the checkout's change: its entry and any file laid there are marked changed. */
+function markMovedPath(prepared: IndexedFileResult, path: string, moved: ReadonlySet<string>): IndexedFileResult {
+  if (!moved.has(path)) return prepared;
+  const entry = prepared.index.entries[path];
+  const index = entry?.kind === "record" ? withProjectionEntry(prepared.index, path, { ...entry, changed: true }) : prepared.index;
+  if (prepared.file === undefined) return { ...prepared, index };
+  const { replace } = prepared.file;
+  return { ...prepared, index, file: { ...prepared.file, replace: { ...replace, entry: { ...replace.entry, changed: true } } } };
+}
 
 interface IndexedFileInput {
   readonly root: ProjectionRootState;
@@ -109,13 +117,16 @@ interface IndexedFileInput {
   readonly index: ProjectionIndex;
   readonly path: string;
   readonly target: RecordReference;
+  readonly rebuilding: boolean;
 }
 
-async function prepareIndexedFile(input: IndexedFileInput): Promise<{ index: ProjectionIndex; file?: SwapFile; unresolved: boolean }> {
+type IndexedFileResult = { index: ProjectionIndex; file?: SwapFile; unresolved: boolean };
+
+async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileResult> {
   const { root, index, path } = input;
   if ((await readProjectionLinkBoundary(root.checkout, [path]))(path) !== null) return { index, unresolved: true };
   const prior = index.entries[path];
-  if (prior !== undefined && prior.kind !== "record") return { index, unresolved: false };
+  if (prior !== undefined && prior.kind !== "record") return input.rebuilding && isEvidenceHeldEntry(prior) ? settleHeldFile(input) : { index, unresolved: false };
   const read = await input.source.read({ reference: input.target });
   if (prior === undefined && read.status !== "ok") return { index, unresolved: true };
   const entry = prior ?? projectionEntryForRecord((read as Extract<typeof read, { status: "ok" }>).result, path, root.context.format);
@@ -133,6 +144,29 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<{ index: Pro
   if (root.unsent.has(path)) return { index: withProjectionEntry(index, path,
     { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) }), unresolved: false };
   return prepareCurrentFile(input, entry, read.result);
+}
+
+/** Settle a held file by the rebuild rule now that the rebuild lays a record at its path: unedited bytes refresh. */
+async function settleHeldFile(input: IndexedFileInput): Promise<IndexedFileResult> {
+  const { root, index, path } = input;
+  if (!root.writable(path)) return { index, unresolved: true };
+  const read = await input.source.read({ reference: input.target });
+  if (read.status !== "ok") {
+    root.context.report?.({ path, copy: null, mark: markStoreRefusal(read.refusal) });
+    return { index, unresolved: true };
+  }
+  return { ...await prepareMaterializationFile({ root, index: withProjectionEntry(index, path, undefined), path, record: read.result,
+    renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: false };
+}
+
+/** Once a rebuild's evidence is whole, a file held for that evidence at a path no record lays keeps the ordinary mark. */
+function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string, RecordReference>): ProjectionIndex {
+  let settled = index;
+  for (const [path, entry] of Object.entries(index.entries)) {
+    if (entry.kind !== "ownerless" || !isEvidenceHeldEntry(entry) || laid.has(path)) continue;
+    settled = withProjectionEntry(settled, path, { ...entry, refused: withheldProjectionMark() });
+  }
+  return settled;
 }
 
 async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, record: StoreRecord): Promise<{ index: ProjectionIndex; file?: SwapFile; unresolved: boolean }> {

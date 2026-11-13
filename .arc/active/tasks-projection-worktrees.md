@@ -103,6 +103,8 @@ that chunk.
 
 - _Amended in:_ 1.6.R (A2)
 
+- _Amended in:_ review-fix (A7)
+
 - _Outcome:_ Full inventories render canonical lifecycle and personal paths, cohort copies, and Errand descriptions
   through shared protection evidence. First commands rebuild missing or unusable indexes, retaining edits and aside
   copies as withheld until deletion; their changed marks remain until save. Spawn hooks materialize under the target's
@@ -115,6 +117,8 @@ that chunk.
 - _Goal:_ Each command's start brings its worktree up from the state version its index last projected, rewriting only
   the records `changes` names and the files marked pending, moving every file a primary record's change relocates, and
   rebuilding when that state version no longer resolves.
+
+- _Amended in:_ review-fix (A7)
 
     - `[x]` **1.6.R Retain ownership during path reuse — A2**
 
@@ -487,5 +491,11 @@ No production composition sets the slots today, so every caller runs `passingPro
         targets without identity, missing folders, disabled capability, unreadability, and symbolic links follow A6's
         defined behavior; failed setup compensation preserves pending recovery state and permits same-claim retry
         after recovery and setup repair (spec criterion 13).
+
+- `[ ]` While its evidence is not whole, a rebuild with no usable index withholds every file at a path it lays no stored
+        record at under the held mark, which removal, persist and release refuse over, and publishes no state version;
+        once the reported condition is resolved, the next rebuild settles each held file by the rebuild rule with no
+        store write where nothing blocks its path, giving one still at an unlaid path the ordinary withheld mark (A7;
+        spec criterion 14).
 
 - `[ ]` Ready for integration

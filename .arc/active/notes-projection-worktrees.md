@@ -27,6 +27,7 @@
 - [Persist burst evidence](#persist-burst-evidence)
 - [Native Windows fixture fidelity](#native-windows-fixture-fidelity)
 - [Removal segment qualification](#removal-segment-qualification)
+- [A7 — files a no-index rebuild cannot place](#a7--files-a-no-index-rebuild-cannot-place)
 
 ## Spike evidence
 
@@ -1790,3 +1791,35 @@ compositions, projection and provisioning code are unchanged from the prior insp
 recovery and compensation cases passed in the fresh native scenario and hosted qualification, retaining the bounded
 observation-error evidence limit recorded above. A5 and A6 revalidate at Task 2.8. Success Criteria remain for the
 separate verification phase.
+
+## A7 — files a no-index rebuild cannot place
+
+Approved with criteria-verification pass 2's disposition set on 2026-11-13, for findings F2 and F8. A rebuild with no
+usable index recorded every walked file outside its desired paths as withheld, though § 2.5 withholds only a file at a
+path the projection lays no stored record at. A refused or partial listing, or a placement the rebuild could not
+establish, is not that evidence, and the withheld mark's one remedy, deleting the file, stranded unedited files whose
+record exists even after the read was repaired. The rebuild also published its state version in its batch's intent
+before deciding whether its evidence was whole (F8); its end already published no version then, so only a stop between
+that intent and the end left the next start refreshing from that version instead of rebuilding.
+
+Leaving such a file unindexed was rejected: adoption would then take it in as a new file and send its stale bytes.
+`materializeProjectionRoot` instead holds it as it holds a withheld file, written over by nothing and sent nowhere,
+under `evidenceHeldProjectionMark`, a withheld entry with its own mark, whose remedy names resolving the reported
+condition and then running any command from the holding checkout, and its index takes no state version until the
+evidence is whole. The next rebuild there (`planProjectionRebuild`) applies § 2.5's rule to each held file where it now
+lays a record (`settleHeldFile`), and once its evidence is whole turns a held mark at a path still laid no record into
+the ordinary withheld mark (`settleHeldMarks`). One predicate, `isEvidenceHeldEntry`, keys both, and `hold()` keeps the
+held mark through a materialization over the held index, so only that mark lets a rebuild write over a withheld file: an
+ordinarily withheld file stays as the substrate leaves it, until the person deletes it. A file withheld because its
+bytes differ from the record at its path keeps the ordinary outcome.
+
+An unset state version lasts while any condition § 17's twelfth residual names holds, and each start in that worktree
+rebuilds it in full. The fan-out leaves such a worktree, other than the writer's own, to that start, as it leaves one
+whose version no longer resolves, so one stuck worktree charges no other worktree's writes a full materialization; the
+writer's own is still refreshed so its write shows. Deleting an ordinarily withheld file at a path a record has since
+arrived at needs no new binding: the arrival is not installed while the file stands, so the state version stays back and
+the next command after the deletion lays the record.
+
+The footprint is § 2.2, § 2.5, § 15.2, § 17's twelfth residual and criterion 14, with no new task or segment; a bounded
+set of decisions makes it a medium-depth amendment. Its implementation lands as its own review-fix commit and
+revalidates at Task 3.1.

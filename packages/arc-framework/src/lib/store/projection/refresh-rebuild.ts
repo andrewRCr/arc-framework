@@ -22,5 +22,5 @@ export async function planProjectionRebuild(input: Omit<ProjectionRefreshPlanInp
     removals.add(path);
   }
   retainUncertainProjectionPaths(index, desired, { paths, removals });
-  return { paths, removals, unresolved: inventory.diagnostics.length > 0 || desired.unresolved };
+  return { paths, removals, unresolved: inventory.diagnostics.length > 0 || desired.unresolved, rebuild: true };
 }
