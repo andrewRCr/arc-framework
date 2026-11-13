@@ -330,7 +330,7 @@ failing for a reason outside § 2.2.
           retaining actionable read failures. An advancing commit or merge into the flip permits continuation.
         - Native repaired-state fixtures explicitly carry their main advancement into the stand-in flip.
 
-### `[ ]` **4.4 Pull requests, Errand records, and the host — C11, C12, C13**
+### `[x]` **4.4 Pull requests, Errand records, and the host — C11, C12, C13**
 
 - _Goal:_ The check refuses anything that could move `main` or a live branch on the host unseen, any Errand record or
   identity-ref mismatch the import would carry across or strand, and an importing checkout off the host, and its
@@ -354,13 +354,10 @@ failing for a reason outside § 2.2.
           as absence. The hold persists these observations alongside local and fetched tips.
         - Detached and pre-seal native fixtures exercise marked linked checkouts while preserving the importing primary.
 
-    - `[ ]` **4.4.d The complete check and record**
-        - The check evaluates all thirteen conditions, and its record holds everything § 4.1 lists, the live branches'
-          and `main`'s host tips among them.
-        - Build `test-first` (one behavior at a time):
-            - Every field § 4.1 lists round-trips through the record
-            - One run with several failing conditions reports every one of them
-        - Task 2.1.b's baseline passes the full check, and Task 2.4's round trip runs over it.
+    - `[x]` **4.4.d The complete check and record**
+        - The full check reports independent checkout, decomposition, and pull-request failures together, removes its
+          unfinished hold, and passes after all repairs. The complete recorded coordinates and host tips round-trip
+          through the hold; the source CLI restores the admitted baseline before and after publication.
 
 ### `[ ]` **4.5 The check over a copy of this repository** — validate exit criterion at segment scope
 

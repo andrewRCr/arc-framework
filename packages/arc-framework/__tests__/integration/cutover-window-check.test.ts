@@ -1,6 +1,6 @@
 /** A passing check acquires the complete restore point from the explicit importing checkout. */
-import { realpath, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { realpath, readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type { WindowHostPort } from "../../src/scripts/cutover-window/host.js";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
@@ -125,3 +125,23 @@ it("refuses supplied facts on a hosted remote before reading their file or any h
   await h.git("git", ["remote", "set-url", "origin", h.origin]);
   expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
+
+it("reports independent checkout, decomposition, and request failures together and passes after all repairs", async () => {
+  const h = await windowFixture(), unfinished = join(h.root, "unfinished.txt");
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  const directory = join(common, "arc/decompose-worktrees"), staged = join(directory, "pending");
+  await writeFile(unfinished, "Work still in progress.\n");
+  await mkdir(directory, { recursive: true }); await writeFile(staged, "A staged decomposition.\n");
+  await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests,
+    open: [...h.pullRequests.open, { number: 8, headBranch: "feat/other", baseBranch: "main" }] }));
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
+    expect.objectContaining({ subject: expect.stringContaining(h.root), condition: expect.stringContaining("dirty") }),
+    expect.objectContaining({ subject: staged, condition: expect.stringContaining("decomposition") }),
+    expect.objectContaining({ subject: "pull request #8" }),
+  ]) } });
+  expect(await listWindowRefs({ repo: h.root, exec: h.git }, ["refs/arc-window/"])).toEqual(new Map());
+  await rm(unfinished); await rm(staged); await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
