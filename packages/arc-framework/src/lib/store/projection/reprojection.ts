@@ -1,7 +1,5 @@
 /** Reconcile current layout settings under a durable retry flag independent of source-version equality. */
 import { needsProjectionReprojection, projectionSettings } from "./settings.js";
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { sameReference } from "../identity.js";
 import { createProjectionReadMemo } from "./record-source.js";
 import { readProjectionInventory } from "./inventory.js";
@@ -12,7 +10,7 @@ import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { applyProjectionRefresh, type ProjectionRefreshInput } from "./refresh.js";
 import { commitProjectionIndex } from "./index-file.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { ensureProjectionScratch } from "./scratch-folder.js";
 import { projectionArrivalsInstalled, reconcileProjectionHandoffs } from "./ownership-handoff.js";
 
 /** Retry toward fresh settings, acknowledging them only after every desired arrival is confirmed. */
@@ -27,7 +25,7 @@ export async function reprojectProjectionRoot(input: ProjectionRefreshInput): Pr
   const plan = await planReprojection({ ...input, index, source });
   const applied = await applyProjectionRefresh({ ...input, index, source }, plan, { advanceState: false });
   index = applied.index;
-  await ensureScratch(input);
+  await ensureProjectionScratch(root);
   if (!applied.complete || !projectionArrivalsInstalled(index, plan.paths)) return index;
   const acknowledged = { ...index, projectedUnder: target };
   delete acknowledged.reprojectionPending;
@@ -56,13 +54,4 @@ async function planReprojection(input: ProjectionRefreshInput): Promise<Projecti
 function governedPath(input: ProjectionRefreshInput, path: string): boolean {
   if (path.startsWith(".arc/completed/")) return false;
   return !path.startsWith(".arc/user/") || path.startsWith(`.arc/user/${input.root.identity}/`);
-}
-
-async function ensureScratch(input: ProjectionRefreshInput): Promise<void> {
-  const { root } = input;
-  if (root.claim === null) return;
-  const path = `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`;
-  if (!root.writable(`${path}/`) || (await readProjectionLinkBoundary(root.checkout, [path]))(path) !== null) return;
-  await root.context.checkpoint?.();
-  await mkdir(join(root.checkout, path), { recursive: true });
 }

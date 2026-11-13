@@ -133,3 +133,21 @@ it("treats inherited property names as absent paths without reading a fabricated
     expect(Object.getOwnPropertyDescriptor(read.entries, path)).toBeUndefined();
   }
 });
+
+it("reads back every group its writer forms, including dot folders and unslugged user folders", async () => {
+  const written: ProjectionIndex = { ...index(), entries: {
+    ".arc/completed/.hidden/a.md": held, ".arc/user/Blair/notes.md": held, ".arc/user/andrew/USER-INBOX.md": held } };
+  await writeProjectionIndex(location, written);
+  const disk = await readProjectionIndex(location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error(`The written index read back as ${disk.kind === "unusable" ? disk.cause : disk.kind}`);
+  expect(Object.keys(disk.index.entries).sort()).toEqual(Object.keys(written.entries).sort());
+});
+
+it.each([".arc/active/current", ".arc/completed/..", ".arc/user/.", ".arc/system"])("refuses a header naming the group %s", async group => {
+  await writeProjectionIndex(location, index());
+  const path = join(location.stateDir, "index");
+  const header = JSON.parse(await readFile(path, "utf8")) as { groups: Record<string, unknown> };
+  header.groups[group] = header.groups[".arc/active"];
+  await writeFile(path, JSON.stringify(header));
+  expect(await readProjectionIndex(location, true, { groups: "all" })).toMatchObject({ kind: "unusable" });
+});

@@ -34,6 +34,16 @@ export function projectionIndexGroup(path: string): string {
   return parts.slice(0, 2).join("/");
 }
 
+const GROUPED_ROOTS = new Set(["active", "backlog", "completed", "user"]);
+
+/** Whether a header names a group this grouping forms for a path under a projected root; the reader holds it to that. */
+export function isProjectionIndexGroup(group: string): boolean {
+  const parts = group.split("/");
+  return parts[0] === ".arc" && GROUPED_ROOTS.has(parts[1] ?? "")
+    && parts.slice(1).every(part => part !== "" && part !== "." && part !== "..")
+    && projectionIndexGroup(`${group}/file`) === group;
+}
+
 /** Plain JSON with only filesystem stat fields restored to bigint. */
 export function parseProjectionJson(bytes: string): unknown {
   return JSON.parse(bytes, (key, value: unknown) =>

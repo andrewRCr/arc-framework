@@ -7,7 +7,7 @@ import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/regist
 import { Command } from "commander";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
-import { mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -114,6 +114,15 @@ it("materializes a fresh linked worktree's stamped own files and scratch folder 
     expect(result.value.index.entries[path]).toMatchObject({ kind: "record", reference: record.reference, changed: false, pending: false });
   }
   expect((await stat(join(target.checkout, ".arc/user/andrew/scratch/work-unit/work-item-one"))).isDirectory()).toBe(true);
+});
+
+it("never creates the scratch folder through a linked ancestor", async () => {
+  const target = await fixture();
+  const outside = await mkdtemp(join(tmpdir(), "arc-scratch-outside-")); directories.push(outside);
+  await mkdir(join(target.checkout, ".arc/user/andrew"), { recursive: true });
+  await symlink(outside, join(target.checkout, ".arc/user/andrew/scratch"));
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
+  expect(await readdir(outside)).toEqual([]);
 });
 
 
@@ -627,6 +636,16 @@ it("advances an existing index's state after laying a full newer inventory", asy
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/notes-work-item-one.md"), "utf8")).content).toBe(changed);
 });
 
+
+it("advances its state past a stored record whose path names an excluded side file it never lays", async () => {
+  const target = await fixture();
+  const side = await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
+    owner: { type: "person", name: "andrew" }, key: "scratch/notes.md~" }), "An editor backup stored as a record.\n");
+  const version = success(await target.h.store.version());
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { index: { state: version } } });
+  await expect(access(join(target.checkout, ".arc/user/andrew/scratch/notes.md~"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await target.h.store.read({ reference: side.reference })).content).toBe(side.content);
+});
 
 it("settles copies from both materializations when a spawn binds its root twice", async () => {
   const target = await fixture();

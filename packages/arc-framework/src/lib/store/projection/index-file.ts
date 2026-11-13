@@ -7,7 +7,7 @@ import { PROJECTION_INDEX_FORMAT, type ProjectionIndex } from "./index-schema.js
 import { readReference, smudgeRacyEntries, writeReference } from "./change-detection.js";
 import { gitBlobId } from "./blob-id.js";
 import {
-  loadProjectionGroups, parseProjectionJson, partitionedProjectionEntries, projectionIndexBacking, projectionIndexGroup,
+  isProjectionIndexGroup, loadProjectionGroups, parseProjectionJson, partitionedProjectionEntries, projectionIndexBacking, projectionIndexGroup,
   ProjectionPartitionMismatch, stringifyProjectionJson, type ProjectionEntries, type ProjectionGroup,
 } from "./index-memory.js";
 import type { ProjectionLocation } from "./location.js";
@@ -162,7 +162,7 @@ function headerFields(header: Record<string, unknown>): boolean {
 }
 
 function validGroup([group, descriptor]: [string, unknown]): boolean {
-  return /^\.arc\/(?:active|backlog|completed(?:\/[^/.][^/]*)?|user\/[a-z0-9-]+)$/u.test(group)
+  return isProjectionIndexGroup(group)
     && object(descriptor) && typeof descriptor.name === "string" && /^index-[a-f0-9]{40}$/u.test(descriptor.name)
     && typeof descriptor.unsettled === "boolean";
 }

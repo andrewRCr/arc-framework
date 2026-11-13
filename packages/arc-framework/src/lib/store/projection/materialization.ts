@@ -4,7 +4,6 @@ import { recordProjectionSweep } from "./end-work.js";
 import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
 import { projectionSettings } from "./settings.js";
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ensureGitExcludePatterns } from "../../git/exclude.js";
 import { nodeWorktreeMarkerIgnoreFs } from "../../git/worktree-marker.js";
@@ -37,6 +36,7 @@ import type { ProjectionSource } from "./record-source.js";
 import type { ProjectionConfiguration } from "./configuration.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
+import { ensureProjectionScratch } from "./scratch-folder.js";
 
 /** Inputs observed by the lease-owning caller. */
 export interface ProjectionMaterializationInput {
@@ -94,7 +94,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     return previous?.kind === "record" && !sameReference(previous.reference, reference);
   }).map(([path]) => path));
   retainUncertainProjectionPaths(index, desired, { paths, removals: collisions });
-  const arrivals = findProjectionArrivals(index, paths);
+  // An excluded path is never laid, so a record stored there is no arrival this materialization owes.
+  const arrivals = findProjectionArrivals(index, new Map([...paths].filter(([path]) => !isExcludedProjectionPath(path))));
   index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference });
   for (const [path, record] of selected) {
     if (!paths.has(path) || !root.writable(path) || isExcludedProjectionPath(path)) continue;
@@ -109,10 +110,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
-  if (root.claim !== null && root.writable(`.arc/user/${root.identity}/scratch/work-unit/${root.claim}/`)) {
-    await root.context.checkpoint?.();
-    await mkdir(join(root.checkout, `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`), { recursive: true });
-  }
+  await ensureProjectionScratch(root);
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: materializationTimings(input, { ...index, state: !input.onlyDeleted && !desired.unresolved && inventory.diagnostics.length === 0
       && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
