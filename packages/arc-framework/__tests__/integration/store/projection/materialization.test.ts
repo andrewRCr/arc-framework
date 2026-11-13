@@ -188,17 +188,20 @@ it("rebuilds an unedited file but withholds hand edits and unknown files until t
 const HELD = { notes: ".arc/active/current/notes-work-item-one.md", meta: ".arc/active/current/meta-work-item-one.md",
   unknown: ".arc/active/current/unclaimed.md", scratch: ".arc/user/andrew/scratch", arriving: ".arc/user/andrew/scratch/arriving.md" };
 
-/** Rebuild a materialized worktree with no index while the work-item listing is refused, after an optional preparation. */
-async function heldRebuild(target: Awaited<ReturnType<typeof fixture>>, prepare?: () => Promise<void>) {
+/** Rebuild a materialized worktree with no index while one family's listing is refused, after an optional preparation. */
+async function heldRebuild(target: Awaited<ReturnType<typeof fixture>>,
+  options: { prepare?: () => Promise<void>; family?: "work-item" | "personal" } = {}) {
+  const family = options.family ?? "work-item";
   expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
   await writeFile(join(target.checkout, HELD.unknown), "Unclaimed hand-written prose.\n");
-  await prepare?.();
+  await options.prepare?.();
   const personal = await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
     owner: { type: "person", name: "andrew" }, key: "scratch/arriving.md" }), "Arriving personal note.\n");
   const version = success(await target.h.store.version());
-  const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/work-items",
-    condition: "Work-item inventory unavailable.", remedy: { text: "Repair the inventory and retry." } });
-  const source = overrideEngineStore(target.h.store, { list: input => input.family === "work-item"
+  const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal",
+    namespace: family === "work-item" ? "refs/arc/project/work-items" : "refs/arc/user/andrew/personal",
+    condition: "The inventory is unavailable.", remedy: { text: "Repair the inventory and retry." } });
+  const source = overrideEngineStore(target.h.store, { list: input => input.family === family
     ? Promise.resolve({ status: "refused", refusal }) : target.h.store.list(input) });
   const published: (string | null)[] = [];
   const hooks = { afterRecheck: async () => {
@@ -252,16 +255,28 @@ it("keeps the held mark through a materialization over the held index and settle
 it("gives held files at unplaced paths the ordinary mark once evidence is whole, though a link blocks a laid path", async () => {
   const target = await fixture();
   const outside = await mkdtemp(join(tmpdir(), "arc-scratch-outside-")); directories.push(outside);
-  await heldRebuild(target, async () => {
+  await heldRebuild(target, { prepare: async () => {
     await rm(join(target.checkout, HELD.scratch), { recursive: true, force: true });
     await symlink(outside, join(target.checkout, HELD.scratch));
-  });
+  } });
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
   const settled = await settledIndex(target);
   expect(settled.entries[HELD.notes]).toMatchObject({ kind: "record", withheld: false });
   expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark() });
   expect(settled.state).toBeNull();
   expect(await readdir(outside)).toEqual([]);
+}, 60_000);
+
+it("gives a held file the ordinary mark when a materialization over its index finds evidence whole", async () => {
+  const target = await fixture();
+  const { index, personal } = await heldRebuild(target, { family: "personal" });
+  expect(index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark() });
+  const respawned = await materialize(target, { index });
+  if (respawned.status !== "done") throw new Error("Materialization did not run");
+  expect(respawned.value.index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true,
+    refused: withheldProjectionMark() });
+  expect(respawned.value.index.state).toBe(success(await target.h.store.version()));
+  expect(parseStampedFile(await readFile(join(target.checkout, HELD.arriving), "utf8")).content).toBe(personal.content);
 }, 60_000);
 
 it("leaves an ordinarily withheld file untouched when a later rebuild lays a record at its path", async () => {

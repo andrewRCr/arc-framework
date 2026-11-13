@@ -107,6 +107,16 @@ export function isEvidenceHeldEntry(entry: ProjectionIndex["entries"][string]): 
     && entry.refused.reason === evidenceHeldProjectionMark().reason;
 }
 
+/** Once evidence is whole, a file held for that evidence at a path no record lays takes the ordinary withheld mark. */
+export function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string, unknown>): ProjectionIndex {
+  let settled = index;
+  for (const [path, entry] of Object.entries(index.entries)) {
+    if (!isEvidenceHeldEntry(entry) || laid.has(path)) continue;
+    settled = withProjectionEntry(settled, path, { ...entry, refused: withheldProjectionMark() });
+  }
+  return settled;
+}
+
 /** A rebuild cannot establish that these bytes contain no hand edit. */
 export function withheldProjectionMark(): RefusedMark {
   return { reason: "withheld: The projection has no trustworthy basis for this file.",

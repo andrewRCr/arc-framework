@@ -17,7 +17,7 @@ import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "
 import { createProjectionProtection } from "./protection.js";
 import type { ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
-import { isEvidenceHeldEntry, prepareMaterializationFile, projectionEntryForRecord, withheldProjectionMark } from "./materialization-file.js";
+import { isEvidenceHeldEntry, prepareMaterializationFile, projectionEntryForRecord, settleHeldMarks } from "./materialization-file.js";
 import { readReference } from "./change-detection.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -157,16 +157,6 @@ async function settleHeldFile(input: IndexedFileInput): Promise<IndexedFileResul
   }
   return { ...await prepareMaterializationFile({ root, index: withProjectionEntry(index, path, undefined), path, record: read.result,
     renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: false };
-}
-
-/** Once a rebuild's evidence is whole, a file held for that evidence at a path no record lays keeps the ordinary mark. */
-function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string, RecordReference>): ProjectionIndex {
-  let settled = index;
-  for (const [path, entry] of Object.entries(index.entries)) {
-    if (entry.kind !== "ownerless" || !isEvidenceHeldEntry(entry) || laid.has(path)) continue;
-    settled = withProjectionEntry(settled, path, { ...entry, refused: withheldProjectionMark() });
-  }
-  return settled;
 }
 
 async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, record: StoreRecord): Promise<{ index: ProjectionIndex; file?: SwapFile; unresolved: boolean }> {

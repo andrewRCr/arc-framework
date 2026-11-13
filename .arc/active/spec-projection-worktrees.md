@@ -95,8 +95,9 @@ and no ARC code locks a worktree. Two facts about today shape the pieces that la
   § 5.1).
 - **Pending, refused, withheld, and changed marks** — the index's per-file marks (`spec-projection-substrate.md` § 3.1):
   a refresh or write-back still owed; the last write-back's refusal, with its typed reason and remedy; a file or aside
-  copy a rebuild with no usable index left as it was, which nothing writes over or sends until the person deletes it
-  (§ 2.5); and an edit made in this checkout since its last `arc save` (§ 11.7).
+  copy a rebuild with no usable index left as it was, which nothing writes over or sends until the person deletes it,
+  but for a held file, which a later rebuild settles (§ 2.5, A7); and an edit made in this checkout since its last `arc
+  save` (§ 11.7).
 - **Full materialization** — writing every projected record into a worktree under the replace guard and adoption rules:
   at spawn, into a worktree that has none, and at `arc sync`; into a worktree with no usable index it refreshes only
   files that cannot hold an edit and withholds the rest (§ 2.5).
@@ -534,20 +535,21 @@ state version (§ 15.2). A held file is a withheld file in every rule below, onl
 removal check answers `persist-would-refuse` for it (§ 12.2), since the read that failed was the rebuild's, not the
 check's. A later rebuild in that checkout, over an index whose state version is unset or no longer resolves, settles
 each held file at a path it lays a stored record at by the rule above — refreshing it where it holds no edit, otherwise
-withholding it under the ordinary mark — with no store write. Once that rebuild's evidence is whole, a held file at a
-path it lays no stored record at takes the ordinary withheld mark and its remedy to delete it. A link at or above a laid
-path, a path the checkout cannot write, or an arrival still handing off leaves only that path to a later rebuild, each
-reported (A7). A file `spec-projection-write-back.md` § 9 never adopts and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9)
-are left alone, as write-back leaves them. Status and each command's report name every withheld file, refresh and
-write-back skip it, removal leaves it at its path (`spec-projection-substrate.md` § 5.6), and the removal check and the
-persist and release steps refuse over it (§ 12.2); the sweep before it withholds aside copies the same way
-(`spec-projection-substrate.md` § 5.4). Deleting a withheld file, after copying out what is wanted, releases it: where
-the current projection lays a stored record at its path its mark turns pending, so the next command's refresh writes it
-from the store (§ 15.2), and otherwise its entry goes, nothing written there; the person re-applies their edit as an
-ordinary one (residual, § 17). A linked checkout whose marker is released loses its projection once the release step has
-persisted its edits (§ 12.3). A checkout this section gives no projection that still holds an index — its marker changed
-under it — is checked and persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives edits not yet
-persisted, and its start rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
+withholding it under the ordinary mark — with no store write. Once a later rebuild's evidence is whole, or a full
+materialization's, a held file at a path it lays no stored record at takes the ordinary withheld mark and its remedy to
+delete it. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off leaves only
+that path to a later rebuild, each reported (A7). A file `spec-projection-write-back.md` § 9 never adopts and a path
+`MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as write-back leaves them. Status and each command's report name
+every withheld file, refresh and write-back skip it, removal leaves it at its path (`spec-projection-substrate.md`
+§ 5.6), and the removal check and the persist and release steps refuse over it (§ 12.2); the sweep before it withholds
+aside copies the same way (`spec-projection-substrate.md` § 5.4). Deleting a withheld file, after copying out what is
+wanted, releases it: where the current projection lays a stored record at its path its mark turns pending, so the next
+command's refresh writes it from the store (§ 15.2), and otherwise its entry goes, nothing written there; the person
+re-applies their edit as an ordinary one (residual, § 17). A linked checkout whose marker is released loses its
+projection once the release step has persisted its edits (§ 12.3). A checkout this section gives no projection that
+still holds an index — its marker changed under it — is checked and persisted as one it gives a projection (§ 12.2,
+§ 12.3), so no index outlives edits not yet persisted, and its start rebuilds an index it cannot use as in a checkout
+this section gives one (§ 3.1).
 
 ### 3. State and change detection
 
@@ -572,31 +574,31 @@ another process holds the file, leaves files the next write deletes. A reader re
 holding the entries it reads or writes. A pass over every entry — the sweep's for the aside copies entries record, the
 end's for the kept copies they name, the start's for adoptions to retry, and the status report — reads the partitions of
 the roots its command walks and every partition marked as holding an unsettled entry, so a settled archive costs it
-nothing; `arc save` and the rebuild a state version that no longer resolves takes (§ 15.2) read every partition, and the
-selection every one outside `completed/`, which it never lists. A write sets each written partition's mark from its
-entries, and a partition is written only where an entry in it differs in value from what was read. To a reader holding
-the worktree's projection lock, a partition that is missing, or whose bytes do not hash to its name, makes the index
-unusable, as an unreadable index is (below), so a start that finds either rebuilds; a mismatch found only when a command
-reaches the partition in its own worktree after its start's read — in the start's refresh, at its end, or in `arc
-sync`'s materialization (§ 2.4) — ends that command's use of that index, as a lost lease does, and deletes that
-partition, never the header, so the header goes on naming a missing partition: the next start rebuilds, the removal
-check answers `unobservable`, and the header's withheld aside copies stay recorded, while a fan-out's visit that finds
-one, to the writer's own worktree too, and the end in another worktree the fan-out visited skip that worktree and delete
-nothing, leaving it to that worktree's own next command; one holding no lock, as the fan-out's first read, the removal
-check, the status report, the selection, and the overlap advisory do (§ 2.2, § 12.2), first reads the header again and
-starts over once when it changed, since a write it raced may have deleted what the old header named; a second miss takes
-the reader's own answer to an unusable index and deletes nothing, the fan-out skipping the worktree, the removal check
-answering `unobservable`, and the others answering as they answer an unreadable index. Every partition a write writes
-takes that write's reference for racy stats (`smudgeRacyEntries`, `lib/store/projection/change-detection.ts`); one it
-leaves keeps what its own write smudged, which stays correct against a later reference. Every racy stat in a written
-partition is smudged, including a staged file awaiting installation (A1): its next command hashes once rather than
-allowing a later reference advance to conceal a same-tick save. A copy-mark-only publication smudges its changed
-partition against the existing reference without advancing that reference. The codec is plain JSON: the schema
-(`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), split into the header's and a partition's, stays the
-writer's contract and the tests' check, which hold every header and partition a write writes against it, and neither a
-read nor a write runs an entry through it, since the blob ids and the format version already refuse what a stopped write
-or another build left; the schema's decode and encode are about three quarters of the codec's cost on Linux
-(`notes-projection-worktrees.md` § Spike 4).
+nothing; `arc save` and the rebuild a state version that is unset or no longer resolves takes (§ 15.2, A7) read every
+partition, and the selection every one outside `completed/`, which it never lists. A write sets each written partition's
+mark from its entries, and a partition is written only where an entry in it differs in value from what was read. To a
+reader holding the worktree's projection lock, a partition that is missing, or whose bytes do not hash to its name,
+makes the index unusable, as an unreadable index is (below), so a start that finds either rebuilds; a mismatch found
+only when a command reaches the partition in its own worktree after its start's read — in the start's refresh, at its
+end, or in `arc sync`'s materialization (§ 2.4) — ends that command's use of that index, as a lost lease does, and
+deletes that partition, never the header, so the header goes on naming a missing partition: the next start rebuilds, the
+removal check answers `unobservable`, and the header's withheld aside copies stay recorded, while a fan-out's visit that
+finds one, to the writer's own worktree too, and the end in another worktree the fan-out visited skip that worktree and
+delete nothing, leaving it to that worktree's own next command; one holding no lock, as the fan-out's first read, the
+removal check, the status report, the selection, and the overlap advisory do (§ 2.2, § 12.2), first reads the header
+again and starts over once when it changed, since a write it raced may have deleted what the old header named; a second
+miss takes the reader's own answer to an unusable index and deletes nothing, the fan-out skipping the worktree, the
+removal check answering `unobservable`, and the others answering as they answer an unreadable index. Every partition a
+write writes takes that write's reference for racy stats (`smudgeRacyEntries`,
+`lib/store/projection/change-detection.ts`); one it leaves keeps what its own write smudged, which stays correct against
+a later reference. Every racy stat in a written partition is smudged, including a staged file awaiting installation
+(A1): its next command hashes once rather than allowing a later reference advance to conceal a same-tick save. A
+copy-mark-only publication smudges its changed partition against the existing reference without advancing that
+reference. The codec is plain JSON: the schema (`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), split
+into the header's and a partition's, stays the writer's contract and the tests' check, which hold every header and
+partition a write writes against it, and neither a read nor a write runs an entry through it, since the blob ids and the
+format version already refuse what a stopped write or another build left; the schema's decode and encode are about three
+quarters of the codec's cost on Linux (`notes-projection-worktrees.md` § Spike 4).
 
 An entry whose path changes record identity retains the leaving entry and a non-nested arriving entry in its optional
 `handoff` (A2, § 15.2). It stays pending and withheld until reconciliation confirms installation, so its partition is
@@ -1108,7 +1110,7 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   pending marks apply, and the index takes the current state version only once the rebuild's evidence is whole (A7).
   Write-back has already run, and a file holding an edit is handed to it as any refresh hands one, so the rebuild loses
   none. It costs one full materialization, paid by a worktree idle past Git's expiry or one whose state version names
-  history this clone lacks.
+  history this clone lacks, and one more at each start there while the rebuild's evidence is not whole (§ 17 item 12).
 - **A listing that is not whole.** A full materialization and the rebuild write files only for the records a listing
   returns. A record it lists only as a diagnostic (`ListingDiagnosticSchema`, `lib/store/read.ts`) — malformed,
   oversized, unreadable, of a newer format, under a mismatched key, or of any other kind — projects no file and is
@@ -1333,7 +1335,8 @@ Two change D13's own wording:
   state to read an edit by, so its rebuild refreshes only a file that cannot hold one, at a path the current projection
   lays its record at, and withholds every other file write-back would read, written over by nothing, sent nowhere, and
   reported, the removal check and the persist and release steps refusing over it, until the person deletes it after
-  copying out what they want and re-applies the edit as an ordinary one.
+  copying out what they want and re-applies the edit as an ordinary one. A file it holds only because its evidence was
+  not whole is the exception: a later rebuild settles it by § 2.5's rule (A7).
 
 One adds to D13 without contradicting it:
 
@@ -1379,6 +1382,13 @@ The reused-path rule in § 5.6's final paragraph is superseded (A2). `swapBatch`
 neither records both record identities. Rather than switch to the arrival with no leaving basis, § 15.2's durable
 handoff preserves both until installation is confirmed. The arriving entry's stat is evidence for that handoff's
 inode-and-blob check, never a shortcut around the check; the ordinary partition smudging rule stays unchanged.
+
+The withheld mark's lifetime in the glossary and § 5.6 is narrowed (A7). Both keep a withheld file at its path, written
+over by nothing and sent nowhere, until the person deletes it. A held file (§ 2.5 here), one a rebuild with no usable
+index withholds because its evidence was not whole, is the exception. At a path the current projection lays a stored
+record at, a later rebuild in its checkout refreshes it where it holds no edit and otherwise gives it the ordinary
+withheld mark; at a path laid no stored record, the first later rebuild or full materialization whose evidence is whole
+gives it that mark. Under the ordinary mark it waits for the person as before.
 
 #### 16.3 Write-back (`spec-projection-write-back.md`)
 
@@ -1462,10 +1472,11 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
    lays (§ 16.3), so a marker that moves during it shows at the next.
 8. **An index rebuild.** A file or aside copy the projection cannot read without its index stays as it was after a
    rebuild, withheld and reported, until the person deletes it, after copying out what they want, and re-applies their
-   edit as an ordinary one; ARC writes nothing over it and sends nothing from it (§ 2.5). A buffer an editor kept open
-   across the rebuild and saved afterwards over a refreshed file merges against its stamp's version without the content
-   its last write-back took in (`spec-projection-substrate.md` § 3.6), so it can undo any change it makes back toward
-   that version: putting back text a persisted edit added and the save removed, or removing again text a persisted edit
+   edit as an ordinary one; ARC writes nothing over it and sends nothing from it (§ 2.5), but for a file held only
+   because the rebuild's evidence was not whole, which a later rebuild settles (A7). A buffer an editor kept open across
+   the rebuild and saved afterwards over a refreshed file merges against its stamp's version without the content its
+   last write-back took in (`spec-projection-substrate.md` § 3.6), so it can undo any change it makes back toward that
+   version: putting back text a persisted edit added and the save removed, or removing again text a persisted edit
    removed and the save restored.
 9. **Another process scope.** Where two process scopes share a checkout — WSL and Windows, a container's bind mount, or
    a Linux process that cannot read its PID namespace, whose scope is its own (`resolveProcessVisibilityScope`) — an
@@ -1495,14 +1506,16 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     (§ 2.2): the save reaches the store then, and every other worktree's copy at that worktree's next command start or
     the next fan-out, whichever comes first, rather than at the writer's fan-out. It needs a save timed into the swap's
     window (§ Spike 1b).
-12. **A worktree whose state version is unset.** While a worktree's state version is unset, each start of its own
-    commands rebuilds it in full, one full materialization each, and another worktree's fan-out leaves it to that next
-    start (§ 2.2), so a write reaches its copies there rather than at the writer's fan-out. It lasts while a rebuild's
-    evidence is not whole — a listing that reports `missed`, returns `unreadable`, or lists a diagnostic, such as a
-    record of a newer format another build wrote (§ 3.1); an ambiguous cohort match; two live claimed primaries; a
-    placement that cannot be established — or while a path it lays holds no installed record: a link at or above it, a
-    path the checkout cannot write, an arrival still handing off, or a file withheld with no record basis at a path a
-    record has since arrived at, until that file is deleted. Each is reported with its remedy (§ 2.5, § 15.2, A7).
+12. **A worktree whose state version is unset or no longer resolves.** While a worktree's state version is unset, or no
+    longer resolves after a rebuild whose evidence was not whole, each start of its own commands rebuilds it in full,
+    one full materialization each, as does each fan-out round of those commands' own writes while it is unset; another
+    worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather than at the
+    writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
+    `unreadable`, or lists a diagnostic, such as a record of a newer format another build wrote (§ 3.1); an ambiguous
+    cohort match; two live claimed primaries; a placement that cannot be established — or while a path it lays holds no
+    installed record: a link at or above it, a path the checkout cannot write, an arrival still handing off, or a file
+    withheld with no record basis at a path a record has since arrived at, until that file is deleted. Each is reported
+    with its remedy (§ 2.5, § 15.2, A7).
 
 ### 18. Expected contracts
 
@@ -1793,8 +1806,9 @@ _These considerations cover the design the three members build together; § 1.1 
     index withholds every file at a path it lays no stored record at under the held mark, which the removal check and
     the persist and release steps refuse over as over any withheld file, and publishes no state version; once the
     reported condition is resolved, the next rebuild settles each held file at a path it lays a stored record at by
-    § 2.5's rule, with no store write, where no link, write right or handoff blocks that path, and gives one still at a
-    path it lays no stored record at the ordinary withheld mark.
+    § 2.5's rule, with no store write, where no link at or above it blocks that path and the checkout can write it, and
+    the next rebuild or full materialization gives one still at a path it lays no stored record at the ordinary withheld
+    mark.
 
 ## Open Questions
 
@@ -1818,8 +1832,8 @@ this design open.
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
   _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
 
-- **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place until evidence returns.
-  _Supersedes:_ § 15.2 ¶5. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
+- **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ § 15.2 ¶5; § 16.1 ¶3;
+  § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

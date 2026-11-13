@@ -49,7 +49,7 @@ export type GuardResult =
   | { readonly kind: "replace"; readonly entry: RecordEntry; readonly staged: StagedFile | null; readonly moving: string }
   /** Leave the file in place, its entry marked pending, and refused where the take-in refused its edit. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: TakeInHeld | "unsettled" }
-  /** Leave a withheld file as it is, its entry unchanged: nothing writes over it or sends it until the person deletes it. */
+  /** Leave a withheld file as it is, its entry unchanged: the guard never writes over it or sends it. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "withheld" }
   /** A directory or other nonregular object stays in place, with its contents and a repair route. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "not-a-file"; readonly remedy: Remedy }
@@ -64,7 +64,7 @@ export type GuardResult =
  * @returns Whether to replace it, and the entry to record.
  */
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
-  // Nothing writes over a withheld file or sends it until the person deletes it.
+  // The guard never writes over a withheld file or sends it; only its deletion, or a rebuild settling a held file, releases it.
   if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
   if ((await readStat(join(input.checkout, input.path)))?.type === "other") {
     const remedy = notAFileRemedy(join(input.checkout, input.path));

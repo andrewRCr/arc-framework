@@ -13,7 +13,7 @@ import { desiredProjectionPaths } from "./desired-paths.js";
 import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createRecordRenderer } from "./record-render.js";
-import { evidenceHeldProjectionMark, prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
+import { evidenceHeldProjectionMark, prepareMaterializationFile, settleHeldMarks, withheldProjectionMark } from "./materialization-file.js";
 import { walkProjectionRoots } from "./engine-walk.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
@@ -74,6 +74,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const inventory = await readProjectionInventory(input.source, root.identity, input.version);
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
+  const whole = !desired.unresolved && inventory.diagnostics.length === 0;
   const evidence = createProjectionProtectionEvidence({ source: inventory.source, checkout: root.checkout, exec: root.ports.exec });
   const renderer = createRecordRenderer({ store: inventory.source, memo: root.context.memo ?? createHistoryMemo(root.store), protection: createProjectionProtection({
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
@@ -84,8 +85,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
-  if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files,
-    !desired.unresolved && inventory.diagnostics.length === 0);
+  if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files, whole);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
@@ -111,8 +111,9 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     index = swapped.index;
   }
   await ensureProjectionScratch(root);
+  if (whole && !input.onlyDeleted) index = settleHeldMarks(index, desired.files);
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && !desired.unresolved && inventory.diagnostics.length === 0
+    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && whole
       && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
     checkpoint: root.context.checkpoint });
   reportProjectionTripwires(root, index);

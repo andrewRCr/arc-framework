@@ -1803,15 +1803,17 @@ before deciding whether its evidence was whole (F8); its end already published n
 that intent and the end left the next start refreshing from that version instead of rebuilding.
 
 Leaving such a file unindexed was rejected: adoption would then take it in as a new file and send its stale bytes.
-`materializeProjectionRoot` instead holds it as it holds a withheld file, written over by nothing and sent nowhere,
-under `evidenceHeldProjectionMark`, a withheld entry with its own mark, whose remedy names resolving the reported
+`materializeProjectionRoot` instead withholds it, sent nowhere and written over by nothing until a later rebuild settles
+it, under `evidenceHeldProjectionMark`, a withheld entry with its own mark, whose remedy names resolving the reported
 condition and then running any command from the holding checkout, and its index takes no state version until the
 evidence is whole. The next rebuild there (`planProjectionRebuild`) applies § 2.5's rule to each held file where it now
 lays a record (`settleHeldFile`), and once its evidence is whole turns a held mark at a path still laid no record into
-the ordinary withheld mark (`settleHeldMarks`). One predicate, `isEvidenceHeldEntry`, keys both, and `hold()` keeps the
-held mark through a materialization over the held index, so only that mark lets a rebuild write over a withheld file: an
-ordinarily withheld file stays as the substrate leaves it, until the person deletes it. A file withheld because its
-bytes differ from the record at its path keeps the ordinary outcome.
+the ordinary withheld mark (`settleHeldMarks`), as a full materialization over the held index does once its own evidence
+is whole, since its end can publish the state version, after which no rebuild follows. One predicate,
+`isEvidenceHeldEntry`, keys both, and `hold()` keeps the held mark at a laid path through a materialization over the
+held index, so only that mark lets a rebuild write over a withheld file: an ordinarily withheld file stays as the
+substrate leaves it, until the person deletes it. A file withheld because its bytes differ from the record at its path
+keeps the ordinary outcome.
 
 An unset state version lasts while any condition § 17's twelfth residual names holds, and each start in that worktree
 rebuilds it in full. The fan-out leaves such a worktree, other than the writer's own, to that start, as it leaves one
@@ -1820,6 +1822,8 @@ writer's own is still refreshed so its write shows. Deleting an ordinarily withh
 arrived at needs no new binding: the arrival is not installed while the file stands, so the state version stays back and
 the next command after the deletion lays the record.
 
-The footprint is § 2.2, § 2.5, § 15.2, § 17's twelfth residual and criterion 14, with no new task or segment; a bounded
-set of decisions makes it a medium-depth amendment. Its implementation lands as its own review-fix commit and
-revalidates at Task 3.1.
+The footprint is the withheld term, § 2.2, § 2.5, § 3.1's readers of every partition, § 15.2, § 16.1's third paragraph,
+§ 16.2's narrowing of the substrate's withheld lifetime, § 17's eighth and twelfth residuals and criterion 14, with no
+new task or segment; a bounded set of decisions makes it a medium-depth amendment. Its implementation landed in
+review-fix commits: most of it in `c3f43d3534`, and the fan-out's skip in `4490aa6c2a`, beside the writer's-marks fix
+whose gate it extends, with a fix-check round's corrections after them. It revalidates at Task 3.1.
