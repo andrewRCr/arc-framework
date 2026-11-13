@@ -244,11 +244,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
           status's roster at the primary as its configured identity, preserving unresolved diagnostics and refusing
           retired or husked holders. Errand markers require an exact slug/claim in the acquired local/origin records.
 
-    - `[ ]` **3.4.c C5 — a staged decomposition cut**
-        - Build `test-first` (one behavior at a time):
-            - A local or fetched decomposition-candidate branch (`isDecomposeCandidateBranch`, given the short name)
-              whose tip `main` does not contain refuses, and one `main` contains passes
-            - An entry under `<commonDir>/arc/decompose-worktrees/` refuses
+    - `[x]` **3.4.c C5 — a staged decomposition cut**
+        - Local/fetched candidates use the canonical short-name classifier and strict ancestry against captured
+          `main`. Uncontained tips and every decomposition staging entry refuse; unavailable ancestry or inventory
+          reports a repair route. A landed candidate and repaired staging directory pass.
 
     - `[ ]` **3.4.d C6 — a checkout without the seals**
         - The anchor is the commit on `main`'s first-parent history that added
