@@ -431,6 +431,7 @@ describe("arc teardown (CLI surface)", () => {
 
   it.each(["linux", "xterm-256color"])("reports outside husk replay as physical removal under %s", async term => {
     tmpDir = await initializedRepository("initialized");
+    if (process.platform === "win32") await git(tmpDir, ["config", "core.longpaths", "true"]);
     worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-e2e-wt-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
