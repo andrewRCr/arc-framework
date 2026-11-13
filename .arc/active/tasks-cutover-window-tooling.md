@@ -290,21 +290,12 @@ failing for a reason outside § 2.2.
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Read map.
 
-    - `[ ]` **4.1.a The read map**
-        - At each revision compared, run the store's discovery (`heldMetaSources` at that revision, then `recordPath`,
-          `companionNames`, and `internalReferences`) and map each path to its record; find a path absent there at the
-          comparison bases. A live unit reads at `composedMetaSource`'s copy; a parked unit at the branch tip its pointer
-          names (`readImportParkedSources`), or nowhere when that tip cannot be resolved; its pointer and every other
-          record at `main`'s `HEAD`; a stale copy is never a read copy.
-        - `account` (Task 5.3) reuses this map.
-        - Build `test-first` (one behavior at a time):
-            - A unit's meta, draft, spec, task list, notes, and `<word>-<slug>.md` companions map to its records
-            - Candidate and `.boundary.json` records map to their unit's records
-            - A transition record under `.arc/system/.internal/transitions/` maps to its lineage record
-            - A parked unit's pointer reads at `main`'s `HEAD` and its meta at its branch tip
-            - A stale copy is never a read copy
-            - A file whose path names no record reads at `main`'s `HEAD`
-            - A path deleted at the revision maps through its comparison base
+    - `[x]` **4.1.a The read map**
+        - `createWindowReadMap` discovers logical records through the store's meta, companion, internal-record, cohort,
+          and inbox helpers, caching compared revisions, comparison bases, and selected read-copy inventories.
+        - Operational composition selects live sources; the import's parked-source reader pins preserved work,
+          retains unavailable sources explicitly, and keeps pointers at `main`. Parked ref names come from the
+          committed pointer even when preserved metadata declares a different branch; stale copies never select a read.
 
     - `[ ]` **4.1.b The read rule**
         - A path passes when its content, absence included, equals its content at its read revision, at the merge base
