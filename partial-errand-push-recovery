@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "partial-errand-push-recovery",
+  "claimId": "94229cafca47faeb4cad4d41d0c7029c",
+  "createdAt": "2026-11-13T13:20:17.736Z",
+  "updatedAt": "2026-11-13T13:20:17.736Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep partial Errand push preservation and explain a safe recovery route when the push gate is already red.",
+  "branch": "chore/partial-errand-push-recovery",
+  "origin": "inbox",
+  "originEntry": "Keep a partial-protection Errand from deadlocking behind a push gate that already fails on base",
+  "originEntrySourceDigest": "sha256:ebacb5eb242700f41f9dcc7183029e7886008165ee8aca952cf4db43bf8e651e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
