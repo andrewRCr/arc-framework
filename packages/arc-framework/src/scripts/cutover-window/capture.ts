@@ -5,11 +5,11 @@ import type { WindowFlipInput } from "./input.js";
 import { WindowRefusal } from "./result.js";
 import { readWindowCheckouts, type WindowCheckout } from "./checkouts.js";
 import { createWindowImportContext } from "./import-context.js";
-import { readWindowLiveState } from "./live-state.js";
+import { readWindowLiveState, type WindowLiveState } from "./live-state.js";
 import { readWindowPersonalState, readWindowReviewDigest, type WindowPersonalState } from "./digests.js";
 
 /** One source acquisition retained for admission alongside its serializable restore record. */
-export interface WindowCapturedState { record: WindowRecord; checkouts: WindowCheckout[]; personal: WindowPersonalState }
+export interface WindowCapturedState { record: WindowRecord; checkouts: WindowCheckout[]; personal: WindowPersonalState; live: WindowLiveState }
 
 function select(refs: ReadonlyMap<string, string>, prefix: string, branches = false): Record<string, string> {
   return Object.fromEntries<string>([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
@@ -36,7 +36,7 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
     if (personalDigest === undefined) throw new Error(`No acquired personal digest for checkout ${path}`);
     return { path, head, branch, personalDigest };
   });
-  return { checkouts, personal, record: { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
+  return { checkouts, personal, live, record: { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
     branches: { local, origin: fetched, live: live.branches }, refs: { local: select(refs, "refs/arc/"), origin: { ...origin },
       tracking: select(refs, "refs/arc-remotes/origin/") } } };
 }

@@ -6,11 +6,13 @@ import type { ComposedLifecycleIndexResult } from "../../lib/work-unit/composed-
 import { createInRepoContext } from "../../lib/store/in-repo/context.js";
 import { composedMetas } from "../../lib/store/in-repo/meta.js";
 import { listWindowRefs } from "./git.js";
-import { readWindowTransientRecords } from "./transients.js";
+import { readWindowTransientRecords, type WindowTransientRecord } from "./transients.js";
 import { WindowRefusal } from "./result.js";
 
 /** One composition retained alongside its derived branch observations. */
-export interface WindowLiveState { composition: ComposedLifecycleIndexResult; branches: Record<string, WindowLiveBranch> }
+export interface WindowLiveState {
+  composition: ComposedLifecycleIndexResult; branches: Record<string, WindowLiveBranch>; transients: WindowTransientRecord[];
+}
 
 /** Read composition once and derive membership from its selection and acquired local/origin identity records. */
 export async function readWindowLiveState(context: WindowImportContext, checkouts: readonly WindowCheckout[],
@@ -26,6 +28,6 @@ export async function readWindowLiveState(context: WindowImportContext, checkout
   const [localInput, originInput] = await Promise.all([readWindowTransientRecords(io, local), readWindowTransientRecords(io, origin)]);
   const findings = [...localInput.findings, ...originInput.findings];
   if (findings.length > 0) throw new WindowRefusal(findings);
-  return { composition, branches: deriveWindowLiveBranches({ composition, checkouts, ...branches,
+  return { composition, transients: [...localInput.records, ...originInput.records], branches: deriveWindowLiveBranches({ composition, checkouts, ...branches,
     identities: [{ side: "local", records: localInput.records }, { side: "origin", records: originInput.records }] }) };
 }

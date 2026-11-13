@@ -16,6 +16,8 @@ export async function windowFixture() {
   await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
   await writeFile(join(h.root, ".arc/user/andrew/WORKING-MEMORY.md"), "# Working Memory\n\n## Memories\n");
   await git("checkout", "main");
+  await git("rm", ".arc/active/meta-alpha.md");
+  await git("commit", "-m", "Keep active ownership on its work branch");
   await git("push", "--set-upstream", "origin", "main");
   await git("push", "--set-upstream", "origin", "feat/alpha");
   const branch = "feat/window-flip";

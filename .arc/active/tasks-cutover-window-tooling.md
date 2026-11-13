@@ -239,15 +239,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
           personal links from the import's acquired disk state. Shared stash inspection checks every entry's
           working-tree, index, and untracked snapshots by position/message; incomplete inventories name a repair route.
 
-    - `[ ]` **3.4.b C2 and C4 — unmarked, ended, husked, or unresolved checkouts**
-        - C4 reads the roster `arc status` shows, `readStatusCheckoutRoster` (`handlers/status/checkout-roster.ts`), at
-          the primary as the configured identity; an Errand marker must match a record in some identity's local or
-          fetched ref by slug and claim.
-        - Build `test-first` (one behavior at a time):
-            - Each unmarked kind refuses under C2 with its remedy, a locked missing folder's unlock before its prune
-              included
-            - A checkout the roster derives as `retired` or `unresolved-checkout` refuses under C4, as do a husk-stamped
-              marker and an Errand marker no record holds
+    - `[x]` **3.4.b C2 and C4 — unmarked, ended, husked, or unresolved checkouts**
+        - Unmarked linked kinds name removal remedies, including unlock before pruning a missing folder. C4 reads
+          status's roster at the primary as its configured identity, preserving unresolved diagnostics and refusing
+          retired or husked holders. Errand markers require an exact slug/claim in the acquired local/origin records.
 
     - `[ ]` **3.4.c C5 — a staged decomposition cut**
         - Build `test-first` (one behavior at a time):
