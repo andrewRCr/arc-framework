@@ -26,8 +26,9 @@ export async function createFanOutFixture(directories: string[], options: { cont
     registryOverrides: { "work-item/task-list": { parser: TASK_LIST_REGISTRATION.parser } } } : {}) });
   await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
   const parent = await mkdtemp(join(tmpdir(), "arc-fan-out-")); directories.push(parent);
-  const checkout = join(parent, "linked");
-  await h.exec("git", ["worktree", "add", "--detach", checkout], { cwd: h.checkout });
+  const requestedCheckout = join(parent, "linked");
+  await h.exec("git", ["worktree", "add", "--detach", requestedCheckout], { cwd: h.checkout });
+  const checkout = (await h.exec("git", ["rev-parse", "--show-toplevel"], { cwd: requestedCheckout })).stdout.trim();
   const siblingPath = options.workItem ? resolveArcPath({ kind: "work-unit-artifact", slug: h.record.reference.owner.name,
     artifact: "tasks", placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } }) : h.path;
   const sibling = await seedProjection({ store: h.store, checkout, files: [{ path: siblingPath, reference: h.record.reference }],

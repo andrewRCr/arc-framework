@@ -1732,3 +1732,19 @@ imported user projections before command dispatch, preserving existing Store rec
 selection returned no evidence, since these integration-only helpers reach no unit tests; it is not a passing unit
 result. The segment verifier's fresh full CI run must include this follow-up; the eight-file persist implementation
 and its fixture closure are unchanged from the qualified head.
+
+## Native Windows fixture fidelity
+
+Full portability run `43336944284` at `c787a4f150` exposed native Windows setup mismatches in the fan-out and view
+scenarios. The shared fan-out fixture now takes its linked checkout spelling from Git's `--show-toplevel` before
+binding its index. This preserves exact diagnostic and command-root assertions when Windows supplies separators or
+short names differently. Forced editor-save scenarios explicitly clear the advisory read-only mode before replacing
+the protected file, matching the existing forced-edit coverage. All original content, refusal, retry, lease, and Store
+version assertions remain. These are fixture corrections on the amendment entry gate's minor-deviation path; the
+projection and removal contracts remain unchanged.
+
+The native Windows reproduction failed all five path assertions before the setup correction. Once those assertions
+passed, a protected atomic save exposed Windows' read-only replacement refusal; that and the equivalent view-change
+case now model the explicit permission override. All eighteen focused cases pass on Windows and Linux, and all
+seventy-two cases across the twelve affected fixture consumers pass on Linux. The earlier hosted run remains red;
+these local results neither complete Task 2.8 nor replace fresh hosted qualification of the corrected engine tree.

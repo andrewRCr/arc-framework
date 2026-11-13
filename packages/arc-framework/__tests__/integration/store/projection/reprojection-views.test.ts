@@ -1,5 +1,5 @@
 /** View changes use the normal guarded removal path and preserve a protected editor save. */
-import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
@@ -36,6 +36,7 @@ it.each([false, true])("adds the all view and safely removes it again with a pro
     if (rendered.stamp === null) throw new Error("The view lacks a base stamp");
     authored = renderStampedFile({ content: `${rendered.content}\nA protected editor save.\n`, stamp: rendered.stamp });
     await writeFile(join(h.f.root, `${path}.editor-save`), authored);
+    await chmod(join(h.f.root, path), 0o644);
     await rename(join(h.f.root, `${path}.editor-save`), join(h.f.root, path));
   }
   await h.f.ports.exec("git", ["config", "arc.inflightView", "mine"], { cwd: h.f.root });

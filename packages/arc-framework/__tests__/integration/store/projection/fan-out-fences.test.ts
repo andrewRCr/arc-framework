@@ -1,6 +1,6 @@
 /** Native lease and index observations fence each visit without changing the landed operation. */
 import { readFileSync } from "node:fs";
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createFanOutFixture } from "../../../helpers/store/projection/fan-out-fixture.js";
@@ -99,6 +99,7 @@ it.each([false, true])("recovers a lost sibling lease while preserving a save du
         const temporary = join(h.sibling.checkout, `${path}.editor-save`);
         await writeFile(temporary, renderStampedFile({ stamp: parsed.stamp,
           content: parsed.content.replace("base", "A late hand edit") }));
+        await chmod(join(h.sibling.checkout, path), 0o644);
         await rename(temporary, join(h.sibling.checkout, path));
       } } }) })).toMatchObject({ kind: "ready" });
   expect(save).toBe(false);
