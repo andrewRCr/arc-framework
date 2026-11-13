@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "checkout-holder-path-identity",
+  "claimId": "e24e288764a6f81944b860955a22012c",
+  "createdAt": "2026-11-13T01:04:33.627Z",
+  "updatedAt": "2026-11-13T01:04:33.627Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Compare lifecycle checkout holders by physical path identity when excluding the requesting checkout, while retaining other-holder refusals.",
+  "branch": "fix/checkout-holder-path-identity",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
