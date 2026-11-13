@@ -144,15 +144,11 @@ restarted after each of its steps.
   through Task 2.1.a's writer, create all three store directories themselves, and stop the import at its own steps to
   reach each state.
 
-    - `[ ]` **2.3.a Refusals before any write — § 6.3**
-        - An injectable step hook names the comparison record, each of the five steps, and each merged-flip test.
-        - Build `test-first` (one behavior at a time):
-            - An incomplete hold refuses with its delete remedy
-            - A merged flip refuses, a merge commit that is not local included
-            - Auto-merge armed on the flip's pull request refuses
-            - A host that allows squash or rebase merging refuses
-            - An unreadable host refuses with a retry
-            - A supplied pull-request listing where a remote URL names a host refuses before any host read
+    - `[x]` **2.3.a Refusals before any write — § 6.3**
+        - `admitWindowRestore` binds the named flip to its complete hold and request, rejects armed auto-merge and
+          unsafe or unreadable merge evidence, and rejects supplied listings on hosted remotes before file or host
+          reads. Named checkpoints and the repeatable strict merge guard establish the mutation sequence's admission
+          boundary.
 
     - `[ ]` **2.3.b The consumed comparison and its record**
         - Before the first write, where the import has landed, apply Task 2.2's comparison; refuse on a difference,

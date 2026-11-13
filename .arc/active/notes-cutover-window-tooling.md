@@ -120,6 +120,16 @@ specification holds every obligation; these notes hold where the code that meets
   or nothing consumed), the outcome, and any accepted value. Steps 1 and 2 take every identity-ref lease from that
   record, so a restart never leases an absence the comparison did not pass or accept.
 
+## Restore restart interpretation
+
+The explicit incomplete-hold refusal in § 6.2–§ 6.3 and Task 2.3.a governs the final deletion boundary. Steps 1–4 and
+an interruption before step 5 resume from the complete hold. Once step 5 deletes the completion marker, an interrupted
+restore refuses with the incomplete-hold cleanup remedy; after all held refs are deleted, another invocation refuses
+because no hold remains. The restart wording in Tasks 2.3.e and 2.4 covers the restore-and-cleanup workflow across that
+boundary, without inferring a retrospective success receipt from absent authority. Ordinary step checkpoints run
+before their steps, and tests also exercise interruption immediately after marker deletion and invocation after full
+deletion. This applies the specified exception without changing the pre-committed outcomes.
+
 ## Test fixtures
 
 - `importFixture` (`__tests__/helpers/store/import-fixture.ts`) sets `remote.origin.arc-state` and gives its bare

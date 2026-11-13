@@ -1,6 +1,6 @@
 /** Supplied host facts carry complete request identities and an explicit auto-merge state. */
 import { expect, it } from "vitest";
-import { parseWindowCheckInput } from "../../../../src/scripts/cutover-window/input.js";
+import { parseWindowFlipInput } from "../../../../src/scripts/cutover-window/input.js";
 import { parseWindowPullRequests } from "../../../../src/scripts/cutover-window/host.js";
 
 const request = { number: 7, headBranch: "feat/flip", baseBranch: "main" };
@@ -25,10 +25,10 @@ it.each([
 
 
 it("parses explicit flip identity and optional rehearsal inputs alongside common flags", () => {
-  expect(parseWindowCheckInput(["--repo", "/target", "--flip-branch", "feat/flip", "--flip-pr", "7",
+  expect(parseWindowFlipInput(["--repo", "/target", "--flip-branch", "feat/flip", "--flip-pr", "7",
     "--pull-requests", "prs.json", "--anchor", "a".repeat(40), "--json"]))
     .toEqual({ branch: "feat/flip", pullRequest: 7, listing: "prs.json", anchor: "a".repeat(40) });
-  expect(parseWindowCheckInput(["--flip-branch", "feat/flip", "--flip-pr", "7"]))
+  expect(parseWindowFlipInput(["--flip-branch", "feat/flip", "--flip-pr", "7"]))
     .toEqual({ branch: "feat/flip", pullRequest: 7 });
 });
 
@@ -37,7 +37,12 @@ it.each([
   ...["0", "-1", "1.5", "abc", "9007199254740992"].map(value => ["--flip-branch", "feat/flip", "--flip-pr", value]),
   ["--flip-branch", "feat/flip", "--flip-pr", "7", "--unknown"],
 ].map(args => ({ args })))("refuses unusable flip options $args", ({ args }) => {
-  expect(() => parseWindowCheckInput(args)).toThrow(expect.objectContaining({ findings: [expect.objectContaining({
+  expect(() => parseWindowFlipInput(args)).toThrow(expect.objectContaining({ findings: [expect.objectContaining({
     subject: "check options", remedy: expect.stringContaining("retry"),
   })] }));
+});
+
+it("refuses a check-only anchor in restore options with the operation's own recovery context", () => {
+  expect(() => parseWindowFlipInput(["--flip-branch", "feat/flip", "--flip-pr", "7", "--anchor", "a".repeat(40)], "restore"))
+    .toThrow(expect.objectContaining({ findings: [expect.objectContaining({ subject: "restore options", remedy: expect.stringContaining("retry") })] }));
 });

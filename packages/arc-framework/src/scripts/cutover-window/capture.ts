@@ -1,7 +1,7 @@
 /** Capture the importing repository's immutable code and ref coordinates for the window record. */
 import { listWindowRefs, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
-import type { WindowCheckInput } from "./input.js";
+import type { WindowFlipInput } from "./input.js";
 import { WindowRefusal } from "./result.js";
 import { parseGitWorktreePorcelainZ } from "../../lib/git/worktree-porcelain.js";
 
@@ -11,7 +11,7 @@ function select(refs: ReadonlyMap<string, string>, prefix: string, branches = fa
 }
 
 /** Read every registered checkout, local/fetched branch, and local/tracking ARC ref without moving any ref. */
-export async function captureWindowRecord(io: WindowGitReadIO, input: WindowCheckInput,
+export async function captureWindowRecord(io: WindowGitReadIO, input: WindowFlipInput,
   origin: Readonly<Record<string, string>>): Promise<WindowRecord> {
   const [refs, output] = await Promise.all([
     listWindowRefs(io, ["refs/heads/", "refs/remotes/origin/", "refs/arc/", "refs/arc-remotes/origin/"]),
