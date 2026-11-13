@@ -407,19 +407,15 @@ No production composition sets the slots today, so every caller runs `passingPro
   recovery evidence. Implementation `33c3c309cc` passed CI run `43327625683` on Windows (`131564473396`), macOS
   (`131564473414`), and Linux portability (`131564906747`); see `notes-projection-worktrees.md` § Persist burst evidence.
 
-### `[ ]` **2.8 Removal after persist** — validate exit criterion at segment scope
+### `[x]` **2.8 Removal after persist** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base, the slots bound behind the live lock.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Delete any untracked `.arc/user/.npmignore` the installer has left since 1.5 from every checkout of this
-      repository on this machine — each worktree `git worktree list` names, and any other clone — so no merge of the
-      committed file is refused.
-    - Over the reference backend, run the removal check, the persist step, and the release over each held state and its
-      repair, then teardown through its store-backed context; confirm 2.7's recorded runs.
-    - On the branch head, dispatch the portability pair with `run_portability_pair: true` and the Linux `portability`
-      job, and record both runs in this task's completion note, so the final engine has Windows and macOS evidence.
-      Request `arc check segment`.
+- _Outcome:_ After append-only base merge `9534b4ceb1`, the reference-backend scenario covers held states and repair,
+  persistence, release and Store-backed teardown. Full CI `43361738519` passed at that engine, including Linux
+  portability (`131677209242`) and all Windows/macOS pair shards; Windows `131676871143` and macOS `131676871194`
+  confirm 2.7's twenty-process saves at every persist seam/layout. A5 and A6 revalidate here. Installer-residue cleanup
+  found no untracked blocker. Full evidence and retained earlier failures are in `notes-projection-worktrees.md`.
 
 ## **Phase 3:** Verification
 

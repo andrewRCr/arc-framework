@@ -1782,10 +1782,10 @@ this design open.
   _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
 - **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ Task 2.4.b tests.
-  _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.8.
+  _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
 
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
-  _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ pending → 2.8.
+  _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

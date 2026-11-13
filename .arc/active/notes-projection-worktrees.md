@@ -1748,3 +1748,34 @@ passed, a protected atomic save exposed Windows' read-only replacement refusal; 
 case now model the explicit permission override. All eighteen focused cases pass on Windows and Linux, and all
 seventy-two cases across the twelve affected fixture consumers pass on Linux. The earlier hosted run remains red;
 these local results neither complete Task 2.8 nor replace fresh hosted qualification of the corrected engine tree.
+
+## Removal segment qualification
+
+The removal segment was qualified at engine `9534b4ceb177fa8f6db411f52c3ce1c73af20f91`, the append-only merge
+of `84a6472408` with base through `95a466cd91`. Its lockfile change was followed by a clean install and build.
+The installer-residue check found no untracked `.arc/user/.npmignore` in registered checkouts; existing copies were
+tracked. The reference-backend scenario passed 279 cases in thirteen files (run
+`226d104e2caa4bdd91339463e9f8b83a`), covering removal refusal and repair, persistence, release, Store-backed teardown,
+unindexed personal-file recovery, failed setup compensation, and the static binding guard.
+
+The prior full run `43336944284` remains a failure at `c787a4f150`. Fixture correction `84a6472408` fixes native
+root spelling and explicit forced replacement. Independently merged PRs #1339 and #1340 correct physical-path holder
+identity and native separators at virtual rename lookups; the merged engine retains both those corrections and shared
+listing observation.
+
+Full CI run `43361738519` completed successfully at the exact engine head above. It was dispatched with
+`run_portability_pair: true`, no named-file selection and no diagnostic inputs. Linux portability and all twelve
+Windows/macOS pair shards passed, along with build, lint, both type checks, unit, integration, Store and E2E jobs.
+This qualifies the segment's final engine and fixture follow-up; it does not complete whole-work-unit verification.
+
+Linux portability job `131677209242` passed 3,703 cases in 277 files, with 65 skipped. Windows burst job
+`131676871143` and macOS burst job `131676871194` each passed all 26 cases. All three logs explicitly confirm each
+of the four persist seam/layout combinations preserved twenty completed saves from twenty processes, confirming
+Task 2.7's recorded runs on the merged engine. Windows job `131676871183` also passes the previously failing rights,
+fan-out refusal and creation files.
+
+A5's slot-presence guard and its separate Store/identity inspection were rechecked over the merged engine; the owning
+compositions, projection and provisioning code are unchanged from the prior inspected head. A6's residual protection,
+recovery and compensation cases passed in the fresh native scenario and hosted qualification, retaining the bounded
+observation-error evidence limit recorded above. A5 and A6 revalidate at Task 2.8. Success Criteria remain for the
+separate verification phase.
