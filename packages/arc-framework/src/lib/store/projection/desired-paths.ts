@@ -4,7 +4,7 @@ import { cohortDocumentPath } from "../lifecycle-record-path.js";
 import { addCurrentCohortCopies } from "./desired-cohorts.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
-import { identifyArcFileAddress, resolveArcPath, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
+import { identifyArcFileAddress, resolveArcPath, type ActiveLayoutContext, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
 import type { KindId } from "../catalog.js";
 import { recordReferences, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreRecord } from "../read.js";
@@ -21,7 +21,7 @@ export interface DesiredProjection {
   readonly files: ReadonlyMap<string, StoreRecord>;
   readonly own: OwnerIdentity | null;
   readonly unresolved: boolean;
-  readonly placementKnown: (path: string, reference: RecordReference) => boolean;
+  readonly placementKnown: (path: string, reference: RecordReference, active?: ActiveLayoutContext) => boolean;
 }
 
 /** Project visible records through the same semantic layout addresses commands use. */
@@ -41,8 +41,9 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
   const unknownOwn = ownUnavailable ?? (matches.length > 1 || root.claim !== null && own === null && !inventory.complete(
     recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: root.claim }))));
   const unknownView = selection.kind === "unavailable" || unknownOwn && root.view.mode === "cohort";
-  const placementKnown = (path: string, reference: RecordReference): boolean => {
-    const address = identifyArcFileAddress(path, { active: { claim: root.claim, layoutActive: root.layoutActive } });
+  const placementKnown = (path: string, reference: RecordReference,
+    active: ActiveLayoutContext = { claim: root.claim, layoutActive: root.layoutActive }): boolean => {
+    const address = identifyArcFileAddress(path, { active });
     if (address?.kind === "cohort-copy") return !unknownOwn && !unavailableCohorts.has(address.cohort);
     return !unknownView || !path.startsWith(`${resolveArcPath({ kind: "placement-root", tier: "active" })}/`) || reference.owner.type !== "work-item"
       || own !== null && sameOwner(reference.owner, own)

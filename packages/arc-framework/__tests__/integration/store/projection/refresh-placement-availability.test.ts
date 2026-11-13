@@ -1,5 +1,5 @@
 /** Partial placement evidence cannot erase current cohort copies or visible owners. */
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
@@ -24,8 +24,8 @@ const peerPath = ".arc/active/in-flight/beta/meta-beta.md";
 const personalPath = ".arc/user/andrew/scratch/independent.md";
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
-async function fixture() {
-  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+async function fixture(ownLayout: "nested" | "flat" = "nested") {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout });
   directories.push(h.f.root);
   const cohort = await seed(h.f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })), cohortDoc().content);
   success(await h.f.store.write(update(h.f, h.primary, makeMetaFixture("alpha", { state: "Active", owner: "andrew",
@@ -51,6 +51,38 @@ async function fixture() {
     return read.index;
   };
   return { ...h, primary, peer, personal, cohort, cycle, disk, exec };
+}
+
+for (const previous of ["nested", "flat"] as const) {
+  it(`preserves an unreadable cohort copy while changing from ${previous} layout and retries after repair`, async () => {
+    const h = await fixture(previous), target = previous === "nested" ? "flat" : "nested";
+    const oldFolder = previous === "nested" ? ".arc/active/current" : ".arc/active";
+    const targetFolder = target === "nested" ? ".arc/active/current" : ".arc/active";
+    const oldPath = join(h.f.root, oldFolder, "cohort-group.md"), targetPath = join(h.f.root, targetFolder, "cohort-group.md");
+    const original = await readFile(oldPath, "utf8"), before = await h.disk();
+    const version = success(await h.f.store.version());
+    await writeFile(join(h.f.root, ".arc/system/arc-config.yml"), `layout.active: ${target}\n`);
+    let failed = true;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/cohorts",
+      condition: "Named cohort lookup unavailable.", remedy: { text: "Repair the cohort read and refresh again." } });
+    const store = overrideEngineStore(h.f.store, { read: input => failed && input.reference.kind === "cohort/document" && input.reference.owner.type === "cohort"
+      && input.reference.owner.uid === undefined ? Promise.resolve({ status: "refused", refusal }) : h.f.store.read(input) });
+    await h.cycle(store);
+    expect(projectionProcessState().diagnostics.some(each => each.mark.reason === refusal.condition)).toBe(true);
+    expect(await h.disk()).toMatchObject({ reprojectionPending: true, projectedUnder: before.projectedUnder });
+    expect(await readFile(oldPath, "utf8")).toBe(original);
+    await expect(readFile(targetPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(parseStampedFile(await readFile(join(h.f.root, targetFolder, "meta-alpha.md"), "utf8")).content).toBe(h.primary.content);
+    failed = false;
+    await h.cycle(store);
+    expect(parseStampedFile(await readFile(targetPath, "utf8")).content).toBe(h.cohort.content);
+    await expect(readFile(oldPath)).rejects.toMatchObject({ code: "ENOENT" });
+    const current = await h.disk();
+    expect(current.projectedUnder.layoutActive).toBe(target);
+    expect(current.reprojectionPending).toBeUndefined();
+    expect(current.state).toBe(version);
+    expect(success(await h.f.store.version())).toBe(version);
+  }, AVAILABILITY_TIMEOUT_MS);
 }
 
 for (const fault of ["own-primary", "cohort", "view", "rebuild"] as const) {
