@@ -282,13 +282,11 @@ _Exit criterion:_ on a copy of this repository taken by `copy`, with a stand-in 
 supplied listing and anchor evaluate all thirteen conditions, each refusal naming its subject and remedy, and none
 failing for a reason outside § 2.2.
 
-### `[ ]` **4.1 The read map and the read rule — § 1.1**
+### `[x]` **4.1 The read map and the read rule — § 1.1**
 
 - _Goal:_ For any path under the tracked-state paths at `main`'s `HEAD` or a live branch's tip, the family names its
   record or none, the record's unit, its read revision, and the read copy's ref, and whether its content there passes
   the read rule, finding records only through the in-repo store's own discovery.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Read map.
 
     - `[x]` **4.1.a The read map**
         - `createWindowReadMap` discovers logical records through the store's meta, companion, internal-record, cohort,
@@ -297,17 +295,12 @@ failing for a reason outside § 2.2.
           retains unavailable sources explicitly, and keeps pointers at `main`. Parked ref names come from the
           committed pointer even when preserved metadata declares a different branch; stale copies never select a read.
 
-    - `[ ]` **4.1.b The read rule**
-        - A path passes when its content, absence included, equals its content at its read revision, at the merge base
-          of the revision and its read revision, or, at a branch tip, at the tip's merge base with `main`'s `HEAD`;
-          where there are several merge bases, any one of them; `.arc/backlog/ROADMAP.md` is exempt; a parked unit's
-          pointer passes at a branch tip where it is absent both there and at the tip's merge base with the branch the
-          pointer names.
-        - Build `test-first` (one behavior at a time):
-            - Content equal to the read revision's or to either merge base's passes, and other content fails
-            - Absence is compared as content
-            - With several merge bases, equality with any one passes
-            - `.arc/backlog/ROADMAP.md` passes whatever its content
+    - `[x]` **4.1.b The read rule**
+        - `createWindowReadRule` caches immutable tracked-tree content identities and every best merge base, admitting
+          content equal to the read copy or an allowed inherited version, with absence compared as content and ROADMAP
+          exempt. Discovery considers read-copy bases before choosing a path's logical owner.
+        - A parked pointer's inherited absence is checked against the branch it names; a deletion after branching from
+          the parked `main` refuses. Unavailable ancestry evidence refuses and permits a fresh comparison after repair.
 
 ### `[ ]` **4.2 Tracked state the import would not read — C7**
 
