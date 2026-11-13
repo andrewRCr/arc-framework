@@ -1,4 +1,5 @@
 /** Production ports for exact ordinary-v3 Errand completion. */
+import { describeErrandBranchOccupant, findErrandBranchOccupant } from "./branch-occupancy.js";
 import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { RawGitExec } from "../git/exec.js";
@@ -385,10 +386,10 @@ export async function cleanupOrdinaryErrandRefs(
       if (!roster.ok) {
         return { kind: "refused" as const, message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
       }
-      const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+      const occupied = findErrandBranchOccupant(roster.worktrees, target.record.branch);
       return occupied === undefined
         ? { kind: "authorized" as const }
-        : { kind: "refused" as const, message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.` };
+        : { kind: "refused" as const, message: describeErrandBranchOccupant(occupied) };
     },
     acquireLocalDelete,
     ...(guard === null ? {} : {
@@ -425,13 +426,13 @@ function createPostSettlementCloseGuard(
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
     const roster = await scanRegisteredWorktrees(exec);
     if (!roster.ok) return { kind: "error", message: roster.message };
-    const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+    const occupied = findErrandBranchOccupant(roster.worktrees, target.record.branch);
     return occupied === undefined
       ? { kind: "valid" }
       : {
           kind: "refused",
           reason: "role-conflict",
-          message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+          message: describeErrandBranchOccupant(occupied),
         };
   };
   return {

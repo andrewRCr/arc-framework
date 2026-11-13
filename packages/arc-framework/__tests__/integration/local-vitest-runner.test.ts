@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it.each([undefined])("bootstraps config, setup, and workers with NODE_ENV=%s", async (nodeEnv) => {
   const fixture = await makeVitestControllerFixture();
@@ -23,4 +24,4 @@ it("worker environment", () => appendFileSync(${JSON.stringify(fixture.events)},
     expect(events).not.toContain("integration-setup");
     expect(events.split("\n").filter((event) => event === "initialized")).toHaveLength(1);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));

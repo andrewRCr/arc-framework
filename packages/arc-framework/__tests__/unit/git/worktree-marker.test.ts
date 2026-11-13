@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 /**
  * Unit tests for the worktree-ownership marker lib.
  *
@@ -129,9 +130,8 @@ describe("worktree-marker", () => {
     await expect(removeWorktreeMarkerGeneration(cwd, replaced.bytes)).resolves.toEqual({ kind: "removed" });
   });
 
-  it.each<WorktreeSubject>([
+  it.each<Exclude<WorktreeSubject, { kind: "errand" }>>([
     { kind: "work-unit", name: "worktree-foundation" },
-    { kind: "errand", slug: "refresh-fixtures" },
     { kind: "branch", ref: "chore/refresh-fixtures" },
   ])("round-trips neutral $kind ownership without deriving it from a branch", async (createdFor) => {
     const marker: WorktreeMarker = {
@@ -258,16 +258,6 @@ describe("worktree-marker", () => {
       path: "/work/marker.json",
       message: "invalid marker",
     })).toEqual({ kind: "malformed", message: "invalid marker" });
-    const legacy = { kind: "errand", slug: "refresh-fixtures" } as const;
-    expect(classifyTransientWorktreeProvenance({
-      kind: "present",
-      marker: {
-        spawnedByArc: true,
-        createdFor: legacy,
-        spawningIdentity: "andrew",
-        createdAt: "2026-05-25T00:00:00.000Z",
-      },
-    })).toEqual({ kind: "legacy", subject: legacy });
     expect(classifyTransientWorktreeProvenance({
       kind: "present",
       marker: {
@@ -339,12 +329,12 @@ describe("worktree-marker", () => {
   });
 
   it("round-trips a complete husk stamp without changing its terminal identity or projection", async () => {
-    const husk: WorktreeHuskStamp = {
+    const husk: WorktreeHuskStamp = makeHuskStamp({
       sha: "0123456789abcdef0123456789abcdef01234567",
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "worktree-foundation" },
       branch: "feat/worktree-foundation",
-    };
+    });
     const marker: WorktreeMarker = { ...sampleMarker, husk };
 
     await writeWorktreeMarker(cwd, marker);
@@ -409,11 +399,9 @@ describe("decodeWorktreeHuskStamp", () => {
     at: "2026-07-14T20:00:00.000Z",
     subject: { kind: "work-unit", name: "demo" },
     branch: "feat/demo",
+    authorization: "discard-confirmed", remoteRef: null,
+    evidence: { kind: "git-transition", transition: "abandon", resultDigest: canonicalDigest({ retirement: "fixture" }) },
   };
-
-  it("decodes the all-absent legacy shape without remote-delete authority", () => {
-    expect(decodeWorktreeHuskStamp(base)).toEqual({ kind: "legacy", authorization: "merged-preserved" });
-  });
 
   it("decodes an all-present current stamp", () => {
     const stamp: WorktreeHuskStamp = {
@@ -565,11 +553,7 @@ describe("decodeWorktreeHuskStamp", () => {
     })).toEqual({ kind: "manual-only", reason: "unknown-evidence" });
   });
 
-  it("makes mixed and unknown future shapes manual-only", () => {
-    expect(decodeWorktreeHuskStamp({ ...base, authorization: "merged-preserved" })).toEqual({
-      kind: "manual-only",
-      reason: "mixed-presence",
-    });
+  it("makes unknown future shapes manual-only", () => {
     expect(decodeWorktreeHuskStamp({
       ...base,
       authorization: "future-proof",
@@ -643,7 +627,7 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
   it("writes neutral non-WU ownership without fabricating a legacy WU name", async () => {
     await writeWorktreeOwnershipMarker(cwd, {
       createdByArc: true,
-      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      createdFor: { kind: "branch", ref: "chore/refresh-fixtures" },
       spawningIdentity: "andrew",
       now: Date.parse("2026-05-27T12:00:00.000Z"),
     });
@@ -652,7 +636,7 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
       kind: "present",
       marker: {
         spawnedByArc: true,
-        createdFor: { kind: "errand", slug: "refresh-fixtures" },
+        createdFor: { kind: "branch", ref: "chore/refresh-fixtures" },
         spawningIdentity: "andrew",
         createdAt: "2026-05-27T12:00:00.000Z",
       },
@@ -662,12 +646,12 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
 
 describe("stampWorktreeHusk", () => {
   let cwd: string;
-  const husk: WorktreeHuskStamp = {
+  const husk: WorktreeHuskStamp = makeHuskStamp({
     sha: "0123456789abcdef0123456789abcdef01234567",
     at: "2026-07-14T20:00:00.000Z",
     subject: { kind: "work-unit", name: "worktree-foundation" },
     branch: "feat/worktree-foundation",
-  };
+  });
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "arc-worktree-husk-stamp-"));
@@ -686,7 +670,8 @@ describe("stampWorktreeHusk", () => {
     },
     {
       spawnedByArc: true,
-      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      createdFor: { kind: "errand", slug: "refresh-fixtures", claimId: "a".repeat(32) },
+      provisioning: "ready",
       spawningIdentity: "andrew",
       createdAt: "2026-05-25T00:00:00.000Z",
     },
@@ -837,10 +822,11 @@ describe("ensureWorktreeMarkerIgnored", () => {
 
 describe("work-unit husks after state moves off branch", () => {
   const common: WorktreeHuskStamp = { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z",
-    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" };
+    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo",
+    authorization: "discard-confirmed", remoteRef: null,
+    evidence: { kind: "git-transition", transition: "abandon", resultDigest: canonicalDigest({ retirement: "fixture" }) } };
   const digest = `sha256:${"a".repeat(64)}` as const;
   it.each([
-    { name: "legacy", stamp: common },
     { name: "shipped", stamp: { ...common, authorization: "merged-preserved", remoteRef: null,
       evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: digest, baseProofOid: common.sha } } },
     { name: "Git transition", stamp: { ...common, authorization: "discard-confirmed", remoteRef: null,
@@ -849,6 +835,6 @@ describe("work-unit husks after state moves off branch", () => {
     expect(decodeWorktreeHuskStamp(stamp, { stateOffBranch: true }))
       .toEqual({ kind: "manual-only", reason: "pre-store-husk" });
     expect(decodeWorktreeHuskStamp(stamp, { stateOffBranch: false })).toEqual(decodeWorktreeHuskStamp(stamp));
-    expect(decodeWorktreeHuskStamp(stamp).kind).toBe(stamp.authorization === undefined ? "legacy" : "current");
+    expect(decodeWorktreeHuskStamp(stamp).kind).toBe("current");
   });
 });

@@ -275,7 +275,15 @@ manual fresh-session pass; never a primary-context self-pass presented as indepe
 
 **Verify every review finding against source with your own judgment** · `[invariant]`; reviewer or delegated output
 remains advisory. Present the complete proposed disposition set and obtain approval before applying any finding-driven
-fix · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
+fix from a formal review pass — a review obligation's lanes, the author check, an adversarial or design pass, or hosted
+review · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
+
+**Your own review of unfinished work** — one you run on an increment before it reaches its approval gate, such as an
+advisory pass you request from another model or a self-review mid-task — takes the in-scope path instead. Reproduce a
+behavioral finding with a test that fails without the fix. A confirmed finding whose fix meets § Quality gate failure's
+in-scope test is an in-scope fix: make it, note it on the task it serves, and name it in the completion report. Any
+other finding goes to the increment's approval gate with its proposed disposition, and declining or dismissing a
+finding from any review is never yours to decide · `[invariant]`.
 
 ### Task granularity
 
@@ -304,6 +312,14 @@ make; deferring, carrying, or bypassing a failure is never yours to decide.
 **A green rerun after an intermittent failure shows only that the failure is intermittent.** A fix names the
 mechanism it removes and shows the change reaches it, such as a reproduction that fails reliably without the change
 and not with it; until then, report the cause as suspected.
+
+**A failed timing or performance bound gets one free look before the stop it would cause**, whether a gate, a
+success criterion, or an exit-criterion scenario reported it; a gate failure with a known cause and an in-scope fix
+takes the in-scope path above instead. First take any step that tells noise from a real miss at no added cost, such
+as a rerun at the same head locally or on CI capacity that needs no spending approval. Keep every raw result and leave
+the bound unchanged. A passing rerun is not the verdict unless a rule the user already gave decides it; that rule is
+the gate holder's decision, and the report still names the failed run beside the pass, so no red result is reported
+green. Otherwise the stop carries every result.
 
 **A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
 reported — including that it produced no result — is not that judgment.

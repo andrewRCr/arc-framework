@@ -29,9 +29,8 @@ function currentHuskSurface(input: AgendaCompileInput): OrientationSurface | nul
     text: `**Husk:** ${stamp.reason}. ${manualHuskCleanup(worktreePath)}` }] };
   const argv = ["arc", "teardown", subject.name, "--husk", worktreePath];
   const command = `${workUnitTeardownAction(subject.name).text} --husk ${quoteShellArgument(worktreePath)}`;
-  const authorization = stamp.kind === "legacy"
-    ? "merged-preserved (legacy stamp; remote absence revalidated by teardown)" : stamp.authorization;
-  const remote = stamp.kind === "current" ? stamp.remoteRef?.disposition ?? "absent" : "absent";
+  const authorization = stamp.authorization;
+  const remote = stamp.remoteRef?.disposition ?? "absent";
   const steps: AgendaStep[] = [{ type: "render", surface: "husk",
     text: `**Husk:** \`${subject.name}\` (\`${branch}\`) — ${authorization}; remote \`${remote}\`; pending physical teardown. From outside this worktree run \`${command}\`.` }];
   const frame = input.envelope.derivedLocusState;
@@ -222,7 +221,7 @@ function orphanReportLine(report: OrphanBranchReport): string {
 function huskProof(report: Extract<WorktreeReport, { kind: "husk" }>): string {
   const stamp = report.stamp;
   if (stamp.kind === "manual-only") return stamp.reason;
-  const remote = stamp.kind === "current" ? stamp.remoteRef?.disposition ?? "absent" : "absent";
+  const remote = stamp.remoteRef?.disposition ?? "absent";
   return `${stamp.authorization}; remote ${remote}`;
 }
 

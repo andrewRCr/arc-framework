@@ -750,6 +750,7 @@ export function hostedResponseFixture(
   origin: "review-thread" | "review-body",
   vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle,
   reportedNit = false,
+  admittedLineage?: LaneSubjectLineage,
 ) {
   const records = fixture(vehicle);
   const operationId = "lane-progress/hosted-1";
@@ -780,14 +781,14 @@ export function hostedResponseFixture(
         body: "Finding body.",
         sourceOrdinal: 1,
       };
-  const lineage = LaneSubjectLineageSchema.parse(vehicle.kind === "delivery-member"
+  const lineage = LaneSubjectLineageSchema.parse(admittedLineage ?? (vehicle.kind === "delivery-member"
     ? {
         kind: "delivery-member" as const,
         planId: "123e4567-e89b-42d3-a456-426614174000",
         deliverableId: vehicle.identity,
         workUnitId: "example" as const,
       }
-    : { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: records.target.targetId }) });
+    : { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: records.target.targetId }) }));
   const deliveryVehicle = vehicle.kind !== "delivery-member"
     ? undefined
     : DeliveryReviewMemberVehicleSchema.parse({
@@ -898,7 +899,7 @@ export function hostedResult(input: ReturnType<typeof hostedResponseFixture>): R
 }
 
 /** A frontline findings outcome for one fixture's finding, with the operation that produced it. */
-export function frontlineFixture(records: ReturnType<typeof fixture>, maxPasses = 2) {
+export function frontlineFixture(records: ReturnType<typeof fixture>, maxPasses = 2, admittedLineage?: LaneSubjectLineage) {
   const source = {
     sourceId: "coderabbit-cli",
     kind: "command" as const,
@@ -939,7 +940,7 @@ export function frontlineFixture(records: ReturnType<typeof fixture>, maxPasses 
     repositoryId: records.target.repositoryId,
     targetId: records.target.targetId,
     sourceIdentity: source.sourceId,
-    lineage: {
+    lineage: admittedLineage ?? {
       kind: "candidate",
       candidateId: digest("frontline-candidate"),
     },

@@ -1,4 +1,5 @@
 /** Marker-selected work-unit authority comes from the operational store. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { parseTaskListRecord } from "../../../src/lib/store/kinds/task-list/parser.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -537,7 +538,7 @@ async function huskFixture(bound = false) {
     const read = await readMarker(path);
     if (read.kind !== "present") throw new Error("Expected work-unit marker");
     const marker: WorktreeMarker = { ...read.marker, spawnedByArc: true,
-      husk: { sha: checkout.head, at: "2026-10-24T00:00:00Z", subject: { kind: "work-unit", name: h.reference.owner.name }, branch: "feat/example" } };
+      husk: makeHuskStamp({ sha: checkout.head, at: "2026-10-24T00:00:00Z", subject: { kind: "work-unit", name: h.reference.owner.name }, branch: "feat/example" }) };
     return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
   };
   return h;
