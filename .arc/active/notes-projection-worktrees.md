@@ -10,6 +10,23 @@
 - [Tripwire timings](#tripwire-timings)
 - [Grounding basis](#grounding-basis)
 - [Removal callers](#removal-callers)
+- [A1 — installed stats and shared reference advances](#a1--installed-stats-and-shared-reference-advances)
+- [A2 — ownership while a path is reused](#a2--ownership-while-a-path-is-reused)
+- [Implementation timing feedback](#implementation-timing-feedback)
+- [A4 — Full-round performance calibration](#a4--full-round-performance-calibration)
+- [Removal persistence](#removal-persistence)
+- [Release under the persistence lease](#release-under-the-persistence-lease)
+- [Removal compositions](#removal-compositions)
+- [A5 — verify executable and inert removal compositions](#a5--verify-executable-and-inert-removal-compositions)
+- [Lifecycle removal authority](#lifecycle-removal-authority)
+- [Sweeps, Errand exits, and release authority](#sweeps-errand-exits-and-release-authority)
+- [Explicit policy at inert compositions](#explicit-policy-at-inert-compositions)
+- [Checkout-local personal surfaces](#checkout-local-personal-surfaces)
+- [A6 — residual personal files in unindexed retirement](#a6--residual-personal-files-in-unindexed-retirement)
+- [Unindexed personal-data preservation](#unindexed-personal-data-preservation)
+- [Persist burst evidence](#persist-burst-evidence)
+- [Native Windows fixture fidelity](#native-windows-fixture-fidelity)
+- [Removal segment qualification](#removal-segment-qualification)
 
 ## Spike evidence
 
@@ -426,7 +443,7 @@ Raw times remain usable, but the original Windows adjustment is invalid: the obs
 requests as process starts, overstating its startup discount. Corrected counting distinguishes both; native feedback
 run `edb438ad5c9847728fcbd7d9dcd7baa3` counted 13 starts for 27 requests in one-file fan-out and 67 starts for 162
 requests in ten-file fan-out. Its Linux medians were 20.07 ms start, 272.84 ms one-file fan-out, 710.32 ms ten-file
-fan-out, and 1058.04 ms materialization. Hosted qualification with corrected counts remains open, as do the bounds.
+fan-out, and 1058.04 ms materialization. A4 below records the qualified bounds.
 
 Native phase tracing in run `e1d4cee7fec24af3a3f11c5565999f20` kept the same fixture and eleven samples. The
 19.74 ms start spent 7.56 ms at its parallel-read barrier and 7.56 ms sweeping aside scaffolding; write-back took
@@ -476,7 +493,7 @@ The new single-Git, concurrent-pair, and beneath-Git medians were 2.62, 4.44, an
 already above the raw 10 ms budget. A Linux host-cost adjustment should use a measured Linux reference, not the
 Windows 42 ms allowance, retain raw measurements, and protect the projection's own work beneath Git. This is a
 recommendation, not an amendment to the criterion. The reference runner still exceeds the start budget with its
-4.44 ms Git pair, so Git attribution does not close that gap. A3 remains held and all performance bounds remain open.
+4.44 ms Git pair, so Git attribution does not close that gap. A3 remains held; A4 below records the qualified bounds.
 
 `readChangeEnds` also treated every live-tip edit as a lifecycle move and enumerated unchanged archive endpoints.
 Its membership check now leaves those snapshots cold when both live endpoints exist; changed end records, changed
@@ -968,7 +985,7 @@ Real accepted writes, a later read-back version, and `recordWriteBack` produce r
 plain-text cases. The first repair fixture accidentally combined adjacent conflicting edits; the corrected fixture
 uses a refreshed current basis and an independent edit. Both repaired cases pass in
 `d9ab670772f243ab8f609a1628324c47`; classifying their missing local copies as failed Store observations fails in
-`1ab51323b52941b18986fcc732729f03`. Task 2.1 remains open while its remaining states are exercised.
+`1ab51323b52941b18986fcc732729f03`.
 
 Restored retained-base classification passes in `695c030a112a4c1abcd4addfc0b2d439`. Native adoption scenarios compare
 removal's refusal remedy with the adopter's actual indexed refusal, then check repaired feasibility before adoption.
@@ -994,7 +1011,7 @@ without a claim and the no-index, no-identity fast path.
 An unchanged conflict drawing exposed two requirements in `516b946a74484667a53104af1d84c651`: conflict evidence must
 still reach preparation, and a ready preparation may preserve existing stored conflicts. Reading the file alone
 remained insufficient in `9cb398c6c6fd49f196cd1b0bd213226d`; the correction compares the proposed mutation's
-resolutions with its sealed subject-conflict observations. Qualification remains in progress.
+resolutions with its sealed subject-conflict observations.
 
 The conflict correction passes with all 34 then-current cases in `de81d048699e468784096deae2eb557b`, and native Windows
 feedback `2aea02221dcd48c69b33f5dc1d8fa4cb` passes the same cases. The cold-partition tests were strengthened by
@@ -1016,8 +1033,7 @@ no history pull. It passes refusal and repair in `07264ace77bb481c9cdfb45867ad9b
 local edit refusals rejects it alongside the other native-failure boundaries in
 `b0f2f6a8941d48bf9d22b76e7f1db4db`. Source type feedback `58c756a2488944678822b502d0359dff` and focused lint
 `5b6b2a6f342c44848bfb9f10a5646f24` passed their then-current inputs. Test type feedback
-`8da42e69f426475ab71fd550706c37be` found the marker test's nullable stamp; an explicit fixture assertion now narrows
-it. Fresh types remain due before completion.
+`8da42e69f426475ab71fd550706c37be` found the marker test's nullable stamp; an explicit fixture assertion now narrows it.
 
 Aside feasibility preserves marker, native metadata-parse, and retained-base checkout-clash refusals. Omitting the
 feasibility verdict fails all three in `7287d1c948d841f7b436885230ecdd61`; restoration passes in
@@ -1048,8 +1064,7 @@ with the read-path mutation's resolutions holds it, and an explicit stored resol
 The completion consultation with Astra identified one remaining provenance gap: `pendingRead` retains only a
 diagnostic, so the global observer cannot identify `readStamplessFile`'s synthesized `state-unresolvable` when a
 successful history listing contains neither interrupted-replacement version. Task 2.1 explicitly requires a separate
-pending-read refusal field that the ordinary send does not interpret as a send refusal. Its disposition and production
-correction await review-mutation approval; task 2.1 remains open and uncommitted.
+pending-read refusal field that the ordinary send does not interpret as a send refusal.
 
 Run `aef81d9277d14f3c95e76056a29acca4` reproduces that gap: the ordinary preparation remains pending, but removal
 returns `would-refuse` instead of `unobservable` when history listing succeeds with both interrupted versions'
@@ -1061,7 +1076,7 @@ Broader feedback `4f72cc4d911e4c5aa85c4bbe059fd8df` passes 81 files and 750 case
 changed native adoption/metadata files, native write-back and adoption continuations, and the real save-command E2E
 file. This precedes the new failing provenance regression. Focused lint found the swap test's obsolete writer
 constant after the narrowed read interface removed its sole use; removing that constant and import leaves all changed
-TypeScript files lint-clean. Increment quality and task completion remain due after the finding is settled.
+TypeScript files lint-clean.
 
 The Owner approved the provenance correction, its checks, and batch continuation on 2026-11-12. `readRefusal` now
 travels separately through `pendingRead`, the held base decision, and held preparation; removal classifies it as
@@ -1102,7 +1117,7 @@ older pending flag, so a changed accepted-input receipt plus that flag is not su
 installation. `writeBackProjectionFiles` now reports the actual file outcome and whether local installation was
 authorized. The persist step consumes that observation, while its final check reuses unchanged-input recognition for
 previously accepted bytes. `d62b2da400024f97a919618205e97c5d` passes 79 teardown and engine cases, including the
-ignore-repair continuation and both conflict retries. Task 2.2 remains open.
+ignore-repair continuation and both conflict retries.
 
 Direct settlement takes over live writers' copies in swap order. Omitting settlement loses an edited copy in
 `841d8616f38b4dd596b9d556ce5c7588`; restored settlement passes 83 retirement, aside, and swap cases in
@@ -1216,11 +1231,10 @@ replacement, and `ebfc6070728b47498ca472cb1f6182dc` passes the hold, move into s
 Treating a symbolic link as a discovered file instead of an opaque link wrongly holds an unindexed link in
 `6a51f3d12b1a4921a570c99c22949a71`; the restored walker is included in the broader regression request.
 
-Before completion advice, broad regression `122fb0b1f8e341819b1cddcb43815601` passed 82 files and 842 cases,
-including retirement, the projection directory, native adoption/write-back, and save E2E. Source and all five test
-type-check shards passed in `e6c92979e2b6492a808e44938e75486c`; focused TypeScript lint passed for all seven changed
-TypeScript files. The restored symbolic-link case passes in that broad run. These checks precede the two diagnostic
-cases below; task 2.2 remains open and uncommitted, with no completion or Phase 3 attestation.
+Before completion advice, broad regression `122fb0b1f8e341819b1cddcb43815601` passed 82 files and 842 cases, including
+retirement, the projection directory, native adoption/write-back, and save E2E. Source and all five test type-check
+shards passed in `e6c92979e2b6492a808e44938e75486c`; focused TypeScript lint passed for all seven changed TypeScript
+files. The restored symbolic-link case passes in that broad run. These checks precede the two diagnostic cases below.
 
 ### Completion advice: final observation race
 
@@ -1249,7 +1263,7 @@ all test type-check shards in `80bd353fef344b93b66d1a660b989b5d`, related unit f
 `c17d63a308d2483e87ec6b3002e6020d`, and the increment and commit gates. Commit `27e8f1d5e1` closes persistence under the
 authorized atomic-commit batch.
 
-## Task 2.3: release under the persistence lease
+## Release under the persistence lease
 
 The release reuses persistence's target configuration, history retry and memo invalidation, unregistered binding,
 write-back, copy takeover, and final observations. `withPersistedProjection` runs a successful continuation before that
@@ -1327,10 +1341,7 @@ changed TypeScript files.
 Proposed complete disposition: accept F1 and establish copy-ancestor authority before any second-check copy read or
 deletion, retaining opaque-link behavior; accept F2 and observe actual remaining recovery files after the removal swaps
 and second check, preserving and refusing an edited unrecorded copy with its recovery route before recursive cleanup.
-Keep both regressions, verify repaired continuations, run appropriate checks and an independent fix check, then close
-task 2.3 and continue the authorized batch. These production corrections await the Owner's complete-set disposition
-approval under the review finding mutation guard. Task 2.3 remains unchecked and uncommitted; no task 2.4
-implementation, Phase 3 verification, or new A3 work has begun.
+Keep both regressions, verify repaired continuations, and run appropriate checks and an independent fix check.
 
 The Owner approved both corrections, their independent fix check, and continuation of the deferred batch on 2026-11-12.
 F1 now includes actual copy locations in the fresh second-check boundary and leaves copies behind links outside
@@ -1356,7 +1367,7 @@ randomized save-loss cases account for 3,000 Linux saves across the three save m
 observation-helper refactor is covered by the 120-case focused run above and passing focused lint. Task 2.3's completion
 edit preserves its Goal; the final increment and commit gates close the atomic release change.
 
-## Task 2.4: removal compositions
+## Removal compositions
 
 The caller inventory at `a6ea395780` matches the task-generation families in § Removal callers. No new production
 family lies outside tasks 2.4.b and 2.4.c, and no production composition yet supplies concrete projection slots. The
@@ -1429,7 +1440,7 @@ planning history, and the revision task follows the bindings it checks. No produ
 performance criterion, or segment boundary changes. The affected-element grounding and task audit found no further
 change required. The independent offer is omitted at low depth; the final reread keeps this footprint bounded.
 
-## Task 2.4.b: lifecycle removal authority
+## Lifecycle removal authority
 
 `createProjectionRemovalSlots` binds check, persistence, and release over one resolved Store. Capability-off returns
 passing slots before identity parsing or target I/O. Enabled contexts normalize an unavailable or invalid command
@@ -1485,8 +1496,8 @@ seventeen changed TypeScript files without suppression.
 Author inspection confirms the inert compositions receive the factory output with their original command Store and
 identity. Start uses its resolved Store and parameter identity; legacy park/abandon uses the executor Store and base
 identity. In-repo rename closes both directions over one Store/slot pair; Store rename retains that pair through the
-checkout adapter and inverse move closure. A5's static enforcement remains the separate 2.4.R task. The segment
-acceptance and A5 revalidation remain open at 2.8.
+checkout adapter and inverse move closure. A5's static enforcement is recorded under Explicit policy at inert
+compositions; Removal segment qualification records its revalidation.
 
 The first related-unit request, `b4b353fcb15244afb9725cf06bb4a3a5`, ran 1,002 files and failed one held-checkout case in
 `decompose-store.test.ts`. Its scripted Git boundary could not support the newly bound native projection reader. The
@@ -1500,7 +1511,7 @@ After restoring the binding, `6b0da08abc0143cd808f17bd5b7ad9b7` passes the five 
 no-checkout decomposition unit cases, and 31 start unit cases. Both decomposition variants also require completed
 physical cleanup with no pending continuation. Focused lint passes for these final edits.
 
-## Task 2.4.c: sweeps, Errand exits, and release authority
+## Sweeps, Errand exits, and release authority
 
 Status composes one slot set from its resolved Store and nullable command identity, passing it to both the stale sweep
 and branch-gone recovery. The stale sweep forwards it to its residue sweep. Errand leave, ordinary and partial close,
@@ -1548,7 +1559,7 @@ leave authorization check, and locus release's default versus explicit slots. Re
 because projection success cannot establish the caller's checkout generation. This consultation is working advice,
 not a Candidate review or segment acceptance.
 
-## Task 2.4.R: explicit policy at inert compositions
+## Explicit policy at inert compositions
 
 A focused ESLint rule enforces explicit projection policy at the direct start reconcile, both in-repo rename directions,
 the Store-rename adapter and its nested reconcile, and legacy park/abandon removal checks. It accepts an explicit
@@ -1579,7 +1590,7 @@ the listed authority forwarding and confirmed that the private move type and exp
 existing binding. The rule does not establish aliases, overwrite behavior, factory origin, or runtime values; these
 are not claimed as lint evidence. No temporary control remains.
 
-## Task 2.5: checkout-local personal surfaces
+## Checkout-local personal surfaces
 
 Store teardown no longer merges a linked checkout's personal files into the primary. Reconcile removal resolves its
 primary destination as before but skips the legacy merge when its Store keeps state off branch. Cheap-branch husking
@@ -1626,17 +1637,17 @@ migration was the remaining protection for that admitted state.
 
 Source inspection and Astra's bounded follow-up confirm this is a preservation gap, not proof that the old husk fixture
 is invalid. The old automatic merge after deleting the primary conflict also conflicts with the new no-primary-write
-rule, so the preservation outcome and explicit recovery route need disposition together. No extra guard or change to
-the failing regression has been applied; Task 2.5 remains open. Projection-folder and changed-file lint pass in
-`437096ace28147bc85ac46af239fa79f`; source types pass in `b707926fac654e4099b65bb17cc0f16b` and all five test type
-shards pass in `e789616491264905ae7d02a97384d7d5`. These passing checks do not settle the regression.
+rule, so the preservation outcome and explicit recovery route need disposition together. Projection-folder and
+changed-file lint pass in `437096ace28147bc85ac46af239fa79f`; source types pass in `b707926fac654e4099b65bb17cc0f16b`
+and all five test type shards pass in `e789616491264905ae7d02a97384d7d5`. These passing checks do not settle the
+regression.
 
 ## A6 — residual personal files in unindexed retirement
 
 Owner direction, 2026-11-12: protect non-machine-local files under `.arc/user/*/` before destructive removal of an
 ARC-managed unprojected/unindexed checkout; require explicit recovery, retain identity-free empty-husk success, and
 never compare with or write primary. The subsequent direction requests the planning review, including its independent
-pass. Task 2.5's implementation remains uncommitted; no A6 corrective code is applied before capture.
+pass.
 
 Superseded check text: “`passes`, as a checkout § 2.5 gives no projection and that holds no index does before the
 identity is consulted”. Superseded persist text: “On a checkout § 2.5 gives no projection and that holds no index it
@@ -1667,7 +1678,7 @@ pending-marker/marker-residue evidence, and pending setup recovery can resume af
 repair. Exact generation/receipt authority, borrowed-marker retention, empty cleanup and capability-off behavior stay.
 The Owner approved this correction, an independent fix check, and conditional complete pass 2 after the repair settles.
 
-## Task 2.5.R: unindexed personal-data preservation
+## Unindexed personal-data preservation
 
 A6's captured contract (`7ddc86563d`) is implemented by `observeUnprojectedPersonalFiles`. It reads current marker
 ownership, then actual personal directories without resolving identities, following observed links, or inspecting a

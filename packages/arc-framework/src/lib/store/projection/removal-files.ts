@@ -97,4 +97,3 @@ export async function readRemovalProjectionRoots(checkout: string, roots: readon
     throw error;
   }
 }
-

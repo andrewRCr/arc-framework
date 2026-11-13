@@ -195,4 +195,3 @@ export async function interruptedRetirementReplacement(h: Awaited<ReturnType<typ
   if (disk.kind !== "index") throw new Error("No interrupted replacement index");
   return { ...h, index: disk.index, entry, copy, staged };
 }
-
