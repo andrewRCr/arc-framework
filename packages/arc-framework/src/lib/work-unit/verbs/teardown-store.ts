@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { assessReapSafety, isLandedInBase, isContainedIn } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
-import { decodeWorktreeMarkerOwnership, readWorktreeMarker, removeWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker, removeWorktreeMarker, resolveWorktreeMarkerPath, type WorktreeMarker } from "../../git/worktree-marker.js";
 import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
 import { sameOwner, type OwnerIdentity } from "../../store/identity.js";
 import type { Store } from "../../store/contract.js";
@@ -21,6 +21,7 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 import { createStoreSelfTeardownHusk } from "../store-self-teardown-husk.js";
+import { unlockTerminalHusk } from "../terminal-husk-unlock.js";
 
 type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
@@ -93,21 +94,34 @@ async function retirementHolder(ctx: Bound, path: string, request: ReturnType<ty
   return { kind: "unbound", path, exits: classified.exits, reason: classified.reason };
 }
 
+async function retainSelfHusk(ctx: Bound, path: string, invokingPath: string, marker: WorktreeMarker,
+  selected?: SelectedStoreRetirementHusk): Promise<boolean> {
+  const windowsFallback = ctx.selfTeardownMode === "remove" && (ctx.platform ?? process.platform) === "win32";
+  if (!marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)
+    || !(ctx.selfTeardownMode === "husk" || windowsFallback) || !await isSelfTeardown(path, invokingPath)) return false;
+  if (selected === undefined) {
+    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
+    ctx.husk = retained.husk;
+    if (retained.notice !== null) ctx.notices.push(retained.notice);
+  } else {
+    await selected.revalidate();
+    const stamp = marker.husk;
+    if (stamp === undefined) throw new Error("The selected terminal stamp changed; inspect it and retry teardown.");
+    ctx.husk = { worktreePath: path, subject: stamp.subject, branch: stamp.branch, stamped: true, outcome: "already-husked" };
+    const notice = await unlockTerminalHusk(ctx, path, stamp);
+    if (notice !== null) ctx.notices.push(notice);
+  }
+  if (windowsFallback) ctx.notices.push("Windows cannot remove the invoking shell's occupied directory; left a stamped husk instead.");
+  return true;
+}
+
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {
   const path = selected?.path ?? await holdingCheckout(ctx);
   if (path === null) return null;
   const marker = await (ctx.readMarker ?? readWorktreeMarker)(path);
   if (marker.kind !== "present") throw new Error("The selected checkout claim changed before retirement.");
   const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
-  const windowsFallback = ctx.selfTeardownMode === "remove" && (ctx.platform ?? process.platform) === "win32";
-  if (selected === undefined && marker.marker.spawnedByArc && resolve(path) !== resolve(ctx.primaryPath)
-    && (ctx.selfTeardownMode === "husk" || windowsFallback) && await isSelfTeardown(path, invokingPath)) {
-    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
-    ctx.husk = retained.husk;
-    if (retained.notice !== null) ctx.notices.push(retained.notice);
-    if (windowsFallback) ctx.notices.push("Windows cannot remove the invoking shell's occupied directory; left an unlocked stamped husk instead.");
-    return null;
-  }
+  if (await retainSelfHusk(ctx, path, invokingPath, marker.marker, selected)) return null;
   const revalidate = async () => { await ctx.evidence.revalidate(); await selected?.revalidate(); };
   const operation = async () => {
     if (!marker.marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)) {

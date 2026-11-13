@@ -1212,6 +1212,8 @@ async function tryCleanupDecomposeCandidate(
   const registration = registrations[0];
   const primary = scan.worktrees.find((entry) => entry.primary);
   if (registrations.length !== 1 || registration === undefined || primary === undefined) return null;
+  const self = await isSelfTeardown(registration.path, ctx.cwd);
+  if (self && (ctx.selfTeardownMode !== "remove" || (ctx.platform ?? process.platform) === "win32")) return null;
   const branchHead = await readRefTip(ctx.exec, `refs/heads/${params.branch}`);
   if (branchHead === null || registration.head !== branchHead) return null;
 
@@ -1267,6 +1269,9 @@ async function tryCleanupDecomposeCandidate(
   }
   let pruned = true;
   const notices: string[] = [];
+  if (self && cleanup.worktreeOutcome === "removed") {
+    notices.push(`The invoking shell or agent session is now in a deleted directory; start any next command from ${primary.path}.`);
+  }
   try {
     await fetchPrune({ exec: ctx.exec }, { remote: params.remote });
   } catch (error) {

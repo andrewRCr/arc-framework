@@ -11,7 +11,7 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
-import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import type { WorktreeMarkerReadResult, WorktreeSubject } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
@@ -162,7 +162,7 @@ const presentMarker: WorktreeMarkerReadResult = {
 };
 
 function stampedMarker(
-  subject: { kind: "work-unit"; name: string } | { kind: "errand"; slug: string } | { kind: "branch"; ref: string },
+  subject: WorktreeSubject,
   options: { identity?: string; sha?: string; branch?: string } = {},
 ): WorktreeMarkerReadResult {
   const branch = options.branch
@@ -957,6 +957,23 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
 
 describe("husk session actions", () => {
   const baseOid = "b".repeat(40);
+  it("quotes a spaced native husk path in display text while preserving argv", async () => {
+    const path = "/wt/husk with spaces", uid = "10000000-0000-4000-8000-000000000001";
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true,
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "retired", uid }),
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { folderPresent: true, path, head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } }, history: { kind: "complete" } },
+    });
+    const action = result.worktrees[0]?.actions?.[0];
+    expect(action?.argv).toEqual(["arc", "teardown", uid, "--husk", path]);
+    expect(action?.text).toContain("'" + path + "'");
+  });
   it.each([
     ["work-unit", "primary", ["arc", "teardown", "retired"]],
     ["work-unit", "linked", ["arc", "teardown", "retired", "--husk", "/wt/husk"]],

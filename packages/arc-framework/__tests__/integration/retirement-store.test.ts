@@ -65,6 +65,21 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
     local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
 }
 describe("store retirement real Git", () => {
+  it.each(["husk", "windows-remove"] as const)("retains an explicitly selected self husk under %s until supported removal", async mode => {
+    const h = await huskFixture(), path = h.paths[0], uid = boundWorkUnitSubject(h.meta).uid;
+    h.ctx.cwd = path; h.ctx.chdir = () => {};
+    h.ctx.selfTeardownMode = mode === "husk" ? "husk" : "remove";
+    h.ctx.platform = mode === "husk" ? "linux" : "win32";
+    const input = TeardownCommandInputSchema.parse({ name: uid, husk: path });
+    const teardown = () => runTeardownForOperand(h.ctx, { name: input.name!, base: "main", huskPath: input.husk });
+    expect(await teardown()).toMatchObject({ status: "torn-down", worktreeRemoved: null,
+      husk: { worktreePath: path, stamped: true, outcome: "already-husked" } });
+    expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: h.huskMarker });
+    h.ctx.selfTeardownMode = "remove"; h.ctx.platform = "linux";
+    expect(await teardown()).toMatchObject({ status: "torn-down", worktreeRemoved: path,
+      notices: expect.arrayContaining([expect.stringContaining("deleted directory")]) });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+  }, 30_000);
   it("sweeps native husks by exact UID, retains a dirty sibling, and completes after repair", async () => {
     const h = await huskFixture(), [clean, dirty] = h.paths;
     await writeFile(join(dirty, "personal.txt"), "keep\n");

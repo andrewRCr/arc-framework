@@ -25,6 +25,7 @@ import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import { validateStoreHuskEvidence } from "../work-unit/store-retirement-husk.js";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
@@ -514,7 +515,7 @@ function withHuskActions(
   if (subject.kind === "work-unit") {
     const argv = ["arc", "teardown", subject.uid ?? subject.name,
       ...(locus.kind === "linked" || subject.uid !== undefined ? ["--husk", report.worktreePath] : [])];
-    return { ...report, actions: [{ text: argv.join(" "), argv }] };
+    return { ...report, actions: [{ text: ["arc teardown", ...argv.slice(2).map(quoteShellArgument)].join(" "), argv }] };
   }
   if (subject.kind === "branch" && locus.kind === "primary") {
     return { ...report, actions: [{ text: `arc teardown --branch ${subject.ref}`,

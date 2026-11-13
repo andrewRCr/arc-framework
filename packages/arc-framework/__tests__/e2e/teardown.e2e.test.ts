@@ -132,6 +132,44 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.stdout + result.stderr).toMatch(/no stamped husks/iu);
   });
 
+  it.each([
+    { mode: "husk", staged: false }, { mode: "remove", staged: false }, { mode: "husk", staged: true },
+  ])("honors self disposition for a decomposition candidate: $mode, staged=$staged", async ({ mode, staged }) => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-candidate-self-"));
+    await git(tmpDir, ["add", "."]);
+    await git(tmpDir, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
+    await git(tmpDir, ["init", "--bare", join(worktreeParent, "origin.git")]);
+    await git(tmpDir, ["remote", "add", "origin", join(worktreeParent, "origin.git")]);
+    await git(tmpDir, ["push", "-u", "origin", "main"]);
+    await git(tmpDir, ["config", "arc.selfTeardownMode", mode]);
+    const branch = "chore/decompose-demo", worktree = join(worktreeParent, "candidate");
+    await git(tmpDir, ["worktree", "add", "-b", branch, worktree, "main"]);
+    await writeFile(join(tmpDir, ".git/info/exclude"), "\n.arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    const markerPath = join(worktree, ".arc/system/.internal/worktree-marker.json");
+    await mkdir(join(worktree, ".arc/system/.internal"), { recursive: true });
+    await writeFile(markerPath, JSON.stringify({ spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" }));
+    if (staged) {
+      await writeFile(join(worktree, "generated.txt"), "preserve\n");
+      await git(worktree, ["add", "generated.txt"]);
+    }
+    const result = await runArc(["teardown", "--branch", branch], worktree);
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(staged ? 1 : 0);
+    if (staged) {
+      expect(await readFile(join(worktree, "generated.txt"), "utf8")).toBe("preserve\n");
+      expect(await git(worktree, ["branch", "--show-current"])).toBe(branch);
+    } else if (mode === "husk" || process.platform === "win32") {
+      expect(await stat(worktree)).toMatchObject({});
+      expect(await git(worktree, ["branch", "--show-current"])).toBe("");
+      expect(output).toMatch(/folder remains/iu);
+    } else {
+      await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+      expect(output).toMatch(/session.*deleted directory|shell.*deleted directory/iu);
+    }
+  }, 30_000);
+
   it("previews the stamped husk sweep and requires confirmation before removing it", async () => {
     tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-sweep-"));
