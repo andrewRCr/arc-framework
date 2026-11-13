@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Decide which checkouts hold a projection (§ 2.5)
-- **Blockers:** [none]
+- **Last Completed:** Task 2.8 — Removal after persist; Phases 1–2 deferred batch complete
+- **Next Task:** Task 3.1 — Complete verification (line ~422 in `tasks-projection-worktrees.md`)
+- **Blockers:** Phase 3 held pending explicit Owner authorization
 
-- **Next Action:** Start Task 1.1 under the task loop
+- **Next Action:** Await Owner direction on Phase 3; the completed deferred batch does not authorize Task 3.1
 
 - **PR URL:** [none]
 - **Completed:** [none]
