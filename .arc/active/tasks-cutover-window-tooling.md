@@ -336,13 +336,11 @@ failing for a reason outside § 2.2.
   identity-ref mismatch the import would carry across or strand, and an importing checkout off the host, and its
   record is complete.
 
-    - `[ ]` **4.4.a C11 — open pull requests, auto-merge, and merge settings**
-        - Build `test-first` (one behavior at a time):
-            - An open pull request into `main` other than the flip's refuses, as does one into a live branch, and each
-              passes once closed
-            - Auto-merge armed on the flip's own pull request refuses, and passes once disarmed
-            - A host that allows squash or rebase merging refuses
-            - A supplied listing refuses where a remote URL names a host, and an unreadable host refuses
+    - `[x]` **4.4.a C11 — open pull requests, auto-merge, and merge settings**
+        - The check names open requests targeting main or any live branch, the flip included, armed flip auto-merge,
+          and each incompatible host merge mode. Its remedies close or land requests, disarm auto-merge, or disable modes.
+        - Hostless supplied facts remain distinct from hosted reads; unreadable listings and supplied replacements on a
+          hosted repository refuse through the complete check and permit retry after repair.
 
     - `[ ]` **4.4.b C12 — Errand records and identity refs**
         - Read `origin`'s records from the refs fetched under `refs/arc-window/origin/`; an Errand record is one whose
