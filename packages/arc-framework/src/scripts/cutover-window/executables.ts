@@ -16,6 +16,17 @@ export async function readWindowExecutableFindings(checkouts: readonly Pick<Wind
   return findings;
 }
 
+/** Drop every search-path directory holding an ARC executable, keeping the rest in order. */
+export async function withoutWindowArcDirectories(path: string): Promise<string> {
+  const kept: string[] = [];
+  for (const directory of path.split(delimiter)) {
+    let holdsArc = false;
+    for (const name of executableNames()) holdsArc ||= await resolveExecutable(resolve(directory, name)) !== null;
+    if (!holdsArc) kept.push(directory);
+  }
+  return kept.join(delimiter);
+}
+
 function executableNames(): string[] {
   if (process.platform !== "win32") return ["arc"];
   const extensions = (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);

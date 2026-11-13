@@ -459,71 +459,45 @@ _Mode:_ `slice` — closes on Stage 1 run clean at the head that lands.
 _Exit criterion:_ Stage 1's first and second runs pass every step at the head that lands, each planted condition
 refusing and then passing after its remedy, with the import's cost recorded from both runs.
 
-### `[ ]` **7.1 The rehearsal driver — § 9.2**
+### `[x]` **7.1 The rehearsal driver — § 9.2**
 
 - _Goal:_ `rehearse` runs the ten steps of § 9.2 on a copy, reporting each step's outcome and stopping at the first
   unexpected one, writing nothing outside the copy and its mirror.
 
-- _Note:_ See `notes-cutover-window-tooling.md` § Stage 1 driver.
+    - `[x]` **7.1.a Steps 1 to 4 — preparing the copy**
+        - `WindowRehearsalSync` makes every commit, merge, and push in a scratch clone of the mirror under
+          `<copy>/rehearsal/`, given an empty hook directory and its own unsigned identity, and carries each change into
+          the copy by fetch: fast-forwarding a holding checkout, setting other local copies, removing a moved or stale
+          linked checkout's `dist`, and rebuilding a stale primary copy. Plants that stay apart from the mirror use
+          `commit-tree` and `update-ref`. Preparation drops each checkout's changes and publishes branches ahead of
+          their upstream, merges main into each read copy the read rule fails at main (ROADMAP-only and parked-unit
+          conflicts concluded, any other stopping on its branch), returns each remaining branch path to its merge base,
+          merges main where the anchor is missing, abandons Errands from their checkouts, drops tracked-state stash
+          entries, creates the stand-in flip and its listing, and plants an inbox entry when the identity holds none.
+        - The read map and the tracked-state inspection now expose each failing path and the parked pointers beside
+          their findings, so the remedies act on the check's own readers.
 
-    - `[ ]` **7.1.a Steps 1 to 4 — preparing the copy**
-        - Fetch from the mirror. Make every commit, merge, and push in a scratch clone of the mirror, which has no hooks
-          installed, plants included, except a plant that must leave a copied checkout's `HEAD` or a branch's local copy
-          apart from the mirror, written in the copy with `git commit-tree` and `git update-ref`. First apply C1's
-          remedy: drop each copied checkout's changes, untracked files included and ignored files kept, and push each
-          branch ahead of its upstream to the mirror, the scratch clone fetching it from the copy; then fetch. Then C7's
-          remedies (merge the copy's `main` into each failing read copy's branch, then return each still-failing path to
-          its merge-base content) and C6's merge of `main`, each pushed to the mirror. After each fetch, fast-forward
-          each copied checkout holding a changed branch to the mirror's tip and set every other changed branch's local
-          copy to it, except where a plant written in the copy holds it apart; remove `dist` from each copied linked
-          checkout whose source moved or whose built CLI C6 judges stale, and rebuild the primary copy when stale (see
-          `notes-cutover-window-tooling.md` § Stage 1 driver).
-        - Conclude a merge whose only conflict is `.arc/backlog/ROADMAP.md` with `applyRoadmapConflictAutoRemedy` and a
-          commit, resolve a parked unit's branch as C7's remedy does, and stop on any other conflict, naming the branch.
-        - Push each copied Errand's branch to the mirror and abandon it from its own copied checkout; drop each stash
-          entry C1 refuses; create the stand-in flip branch afresh from the copy's `main` plus one commit that changes
-          no file under the tracked-state paths, pushed to the mirror, with a supplied listing holding its pull request
-          as the flip's.
-        - When the copied identity's `USER-INBOX.md` holds no entry, plant one before step 5, whose check records
-          personal digests, since step 8 needs an entry to remove and a removal over an absent entry writes nothing.
-          Write `### **<title>**` under `## Errand`, adding that section when it is missing, since only an H3 bold title
-          under `## Errand` or `## Work Unit` counts as an entry, and confirm through `listInboxEntryTitles`
-          (`lib/user-sync/inbox-writer.ts`) that the title reads back.
+    - `[x]` **7.1.b Steps 5 to 10 — the window's mechanics**
+        - The driver runs `lock`, `check`, `account`, `chain`, and `recompute` in process on the copy and holds each
+          result to an exact (subject, condition-phrase) set. ARC commands run through a launcher that marks whether a
+          build is the checkout's own, under the process search path with every `arc` directory removed; `--path`
+          names the one `check` judges. The import runs under a `--cap-wrapper` argv prefix with `--heap-mb` as Node's
+          heap ceiling, and a preload records its peak resident memory beside its wall time. The sealed write matches
+          the store-imported refusal's condition and compares status, refs, and the inbox bytes around it.
 
-    - `[ ]` **7.1.b Steps 5 to 10 — the window's mechanics**
-        - Run `lock` and `check` with `--repo` at the copy, the supplied listing, the anchor, and the `PATH` C6 judges,
-          a driver parameter defaulting to the process's own; run each ARC command through the launcher the driver takes
-          as a parameter, by default that copied checkout's own build, or the primary copy's with that checkout as its
-          working directory where it has none, under a `PATH` with no other `arc`: `arc user save` in every copied
-          checkout, then `arc store remote origin push`.
-        - Run `arc store migrate --import --json` under a 6 GB address-space cap through a cap wrapper the driver takes
-          as a parameter, Node's heap ceiling set below it, keeping its report and recording its wall time and peak
-          resident memory.
-        - In every copied checkout with its own launcher (its own built CLI by default, or the one the driver is given
-          for it), `arc user inbox-remove --inbox-title-file <file>`, naming an entry the copied identity's
-          `USER-INBOX.md` holds by its inner bold title read from that file, reaches the in-repo store's `write` and
-          refuses with the store-imported refusal, while `git status --porcelain`, `git for-each-ref`, and the inbox
-          file stay byte-identical; report each checkout without one; check the identity refs are gone from the copy and
-          the mirror with the kept tips dropped; then run `account`, `chain`, and `recompute`.
+    - `[x]` **7.1.c Run plans and the driver's test**
+        - A run plan names plants with their point before or after `lock`, each returning the pairs it causes, plus
+          collateral pairs, a setup after the checkout cleanup, a hook between the save and the import, the accounting
+          expectation, and an after-the-last-step hook. The `abort` plan carries § 9.3 and the `merge` plan § 9.4,
+          selected by `--plan`; their expectations are first exercised by Tasks 7.2 and 7.3.
+        - `__tests__/e2e/cutover-window-rehearse.e2e.test.ts` covers the four listed behaviors over a copy taken from a
+          dirty, ahead, read-rule-failing marked checkout, with an unlock plant in the passing run. Errand abandonment,
+          stash drops, anchor merges, and the ROADMAP and parked conflict paths are not in that fixture; the runs on
+          this repository's copy exercise them.
 
-    - `[ ]` **7.1.c Run plans and the driver's test**
-        - A run plan names each plant's point within a step, the C3 unlock between `lock` and `check` among them; its
-          route, through the scratch clone and the sync or, where it must stay apart from the mirror, written in the
-          copy; how its removal reaches the copy, any reset applied on the mirror and in the copy, a checkout holding
-          the branch included; and the exact set of (condition, subject) pairs each `check` run expects, collateral
-          pairs listed.
-        - The test supplies the package's built CLI as every copied checkout's launcher, since a small temporary copy
-          holds no package or build, and a `PATH` for `check` with no other `arc`; its checkouts have no `dist`, so the
-          build rule changes nothing. It builds its copy with `copy`, the host port replaced by one whose discovery read
-          answers none, so no test reads the host. Its identity's inbox starts with no file, so the run exercises the
-          driver's plant, section included.
-        - Build `test-first` (one behavior at a time), in the end-to-end tier over a small temporary copy with no host,
-          as `__tests__/e2e/store-import-errands.e2e.test.ts` runs the real import:
-            - A run whose steps all meet their expected outcomes passes
-            - Preparation leaves every copied checkout clean and at its upstream, and every branch the driver changed
-              equal locally and on the mirror
-            - The first unexpected outcome stops the run, naming its step
-            - A target outside the copy refuses
+- _Outcome:_ `npm run -s cutover-window -- rehearse --repo <copy>/primary` re-asserts copy safety before writing, then
+  runs preparation and the window's steps in order, reporting each outcome and stopping at the first unexpected one with
+  the step named.
 
 ### `[ ]` **7.2 The first run — § 9.3**
 

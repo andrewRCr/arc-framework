@@ -16,9 +16,11 @@ import { TransientIdentityRecordSchema } from "../../lib/errand/identity-record.
 
 /** The host discovery boundary used to prove the copy has no repository on a host. */
 export interface WindowCopySafetyOptions { host?: Pick<WindowHostPort, "discoverRepository"> }
+/** The copy coordinates the isolation assertions read. */
+export type WindowCopyBounds = Pick<WindowCopyLayout, "destination" | "repo" | "mirror">;
 
 /** Refuse a copy until every isolation assertion is established. */
-export async function assertWindowCopySafety(layout: WindowCopyLayout, options: WindowCopySafetyOptions = {}): Promise<void> {
+export async function assertWindowCopySafety(layout: WindowCopyBounds, options: WindowCopySafetyOptions = {}): Promise<void> {
   const ports = createDefaultStorePorts({ checkoutRoot: layout.repo });
   const checkouts = await assertCopiedPointers(layout, ports.exec);
   for (const repo of [...checkouts, layout.mirror]) {
@@ -47,7 +49,7 @@ async function assertNoAwaitingErrands(repo: string, exec: GitExec): Promise<voi
   }
 }
 
-async function assertCopiedPointers(layout: WindowCopyLayout, boundary: GitExec): Promise<string[]> {
+async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec): Promise<string[]> {
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
   const inside = async (path: string) => {
     if (!await localPathContains(layout.destination, path)) refuse(path, "A Git pointer names a path outside the copy.");
