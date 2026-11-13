@@ -227,12 +227,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
   reasons and unmarked checkouts remain unchanged. Each new lock is reported, individual failures preserve a zero exit
   and permit retry, and C3 uses the same captured checkout inventory to refuse any marked checkout still unlocked.
 
-### `[ ]` **3.4 Checkout refusals — C1, C2, C4, C5, C6**
+### `[x]` **3.4 Checkout refusals — C1, C2, C4, C5, C6**
 
 - _Goal:_ The check refuses each checkout condition of § 2.2 exactly, naming the checkout, branch, stash entry, or
   `arc` executable concerned with its remedy, and passes once the remedy is applied.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
 
     - `[x]` **3.4.a C1 — dirty, off its upstream, a personal link, or tracked state stashed**
         - C1 names dirty/untracked status, missing or unequal fetched upstreams, ignored tracked-state files, and
@@ -249,19 +247,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
           `main`. Uncontained tips and every decomposition staging entry refuse; unavailable ancestry or inventory
           reports a repair route. A landed candidate and repaired staging directory pass.
 
-    - `[ ]` **3.4.d C6 — a checkout without the seals**
-        - The anchor is the commit on `main`'s first-parent history that added
-          `packages/arc-framework/src/scripts/cutover-window/check.ts`. A checkout with no
-          `packages/arc-framework/dist/cli.js` has no built CLI; one with it is judged by `checkDevBuildStaleness`.
-        - C6 takes the `PATH` it judges as an input, the process's own by default, and resolves every `arc` on it, not
-          only the first; the checkout it runs from is the one holding `check.ts`. Task 2.1.b's baseline supplies one.
-        - Build `test-first` (one behavior at a time):
-            - The anchor derives from `main`'s history, and a checkout whose `HEAD` does not descend from it refuses
-            - A supplied anchor is accepted where the repository has no host and refused anywhere else
-            - A built CLI stale against its source refuses, and an absent one passes
-            - An `arc` on `PATH` resolving outside every registered checkout and the checkout C6 runs from refuses, even
-              behind an earlier `arc` that passes
-            - The `arc` link in the running checkout's `node_modules/.bin` passes
+    - `[x]` **3.4.d C6 — a checkout without the seals**
+        - C6 resolves the first-parent sealing anchor or an admitted rehearsal anchor, checks every registered head
+          and present built CLI, and resolves every executable `arc` on the supplied/default PATH, excluding directory
+          links. Foreign targets refuse; the source checkout remains allowed. `--path` leaves Git's environment intact.
 
 ### `[ ]` **3.5 The copy driver and copy safety — § 9.1**
 

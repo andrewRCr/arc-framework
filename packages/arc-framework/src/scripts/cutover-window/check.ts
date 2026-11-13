@@ -15,6 +15,8 @@ import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { readWindowStashFindings } from "./stashes.js";
 import { windowUnmarkedCheckoutFindings, readWindowEndedCheckoutFindings, windowErrandHolderFindings } from "./checkout-holders.js";
 import { readWindowDecompositionBranchFindings, readWindowDecompositionDirectoryFindings } from "./decomposition.js";
+import { readWindowSealAnchor, readWindowCheckoutAncestryFindings, readWindowBuildFindings } from "./seals.js";
+import { readWindowExecutableFindings } from "./executables.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
 export interface WindowCheckOptions { host?: WindowHostPort; step?: WindowHoldStepHook }
@@ -42,12 +44,15 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
   try {
     await acquireWindowOriginRefs(io, origin);
     const state = await captureWindowState(io, input, origin);
+    const anchor = await readWindowSealAnchor(io, facts.anchor);
     const checkoutFindings = [...windowUnmarkedCheckoutFindings(state.checkouts), ...await readWindowEndedCheckoutFindings(io, state.checkouts),
       ...windowErrandHolderFindings(state.checkouts, state.live.transients),
       ...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
       ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),
-      ...await readWindowDecompositionBranchFindings(io, state.record.branches), ...await readWindowDecompositionDirectoryFindings(request.repo)];
+      ...await readWindowDecompositionBranchFindings(io, state.record.branches), ...await readWindowDecompositionDirectoryFindings(request.repo),
+      ...await readWindowCheckoutAncestryFindings(io, state.checkouts, anchor), ...await readWindowBuildFindings(state.checkouts),
+      ...await readWindowExecutableFindings(state.checkouts, input.path)];
     if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };

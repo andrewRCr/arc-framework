@@ -18,6 +18,14 @@ and run `lock` again before checking.
 points at that record. An interrupted acquisition without the marker is incomplete and must be removed before
 another check. A complete earlier hold is preserved for its restore or close route.
 
+Every registered checkout must descend from the sealing commit on `main`. Each present built CLI must pass the
+repository's build-freshness check; a checkout without a built CLI is allowed.
+
+Use `--path "$PATH"` to inspect the committing shell's search path explicitly. Without it, `check` inspects its own
+process's `PATH`. Every `arc` executable is resolved, including entries after an allowed one; each target must belong
+to a registered checkout or the checkout running these source tools. Uninstall a foreign executable or remove its
+directory from the committing shell's `PATH` for the window.
+
 The flip request must name the supplied branch into `main`. When every effective remote fetch and push URL is local,
 add `--pull-requests /path/to/requests.json` with complete rehearsal facts:
 
@@ -30,6 +38,9 @@ add `--pull-requests /path/to/requests.json` with complete rehearsal facts:
 
 Relative supplied-file paths resolve within the named checkout. A hosted repository refuses supplied host facts
 before reading the file or contacting the host.
+
+A hostless rehearsal that predates the tooling's landing may also supply `--anchor <commit>`. Hosted repositories
+derive the anchor from `main` and refuse a supplied one.
 
 Add `--json` for one result on stdout and the human report on stderr. Refusals and stops exit nonzero and include
 recovery instructions. The `-s` keeps npm's own banners off stdout.

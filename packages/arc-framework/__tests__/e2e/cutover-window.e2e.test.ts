@@ -17,7 +17,7 @@ const entry = resolve(import.meta.dirname, "../../src/scripts/cutover-window/mai
 it("records through the native source entry and refuses to overwrite the completed hold", async () => {
   const h = await windowFixture();
   const args = ["--import", "tsx", entry, "check", "--repo", h.root, "--flip-branch", h.flip.branch,
-    "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath, "--json"];
+    "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath, "--json", "--path", ""];
   const run = () => execa(process.execPath, args, { cwd: repository, reject: false,
     env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   const result = await run();
@@ -42,7 +42,8 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
   const run = (operation: string) => execa(process.execPath, ["--import", "tsx", entry, operation,
     "--repo", h.root, "--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest),
-    "--pull-requests", h.listingPath, "--json"], { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
+    "--pull-requests", h.listingPath, "--json", ...(operation === "check" ? ["--path", ""] : [])],
+  { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
   expect((await run("check")).exitCode).toBe(0);
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
   const { record } = await readWindowHold(io);

@@ -1,14 +1,22 @@
 /** Shared importing checkout with a local mirror and a supplied flip request. */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../../src/lib/git/worktree-marker.js";
 import { importFixture } from "../store/import-fixture.js";
 import type { WindowPullRequests } from "../../../src/scripts/cutover-window/host.js";
 
 /** Build the clean pre-designation source used by the window's condition tests. */
-export async function windowFixture() {
+export async function windowFixture(options: { sealed?: boolean } = {}) {
   const h = await importFixture();
   const git = (...args: string[]) => h.git("git", args);
+  if (options.sealed !== false) {
+    const source = "packages/arc-framework/src/scripts/cutover-window/check.ts";
+    await mkdir(dirname(join(h.root, source)), { recursive: true });
+    await writeFile(join(h.root, source), "/** Window tooling sealing boundary. */\n");
+    await git("add", source);
+    await git("commit", "-m", "Land the window tooling seal");
+    await git("branch", "-f", "feat/alpha", "HEAD");
+  }
   await git("config", "--unset", "remote.origin.arc-state");
   const exclude = resolve(h.root, (await git("rev-parse", "--git-path", "info/exclude")).stdout.trim());
   await appendFile(exclude, "\n.arc-fixture/\n.arc/user/\n");
