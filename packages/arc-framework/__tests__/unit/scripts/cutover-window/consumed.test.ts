@@ -8,8 +8,12 @@ const prefix = "refs/arc/tmp/migrate/import/kept/";
 const keptRef = prefix + "user/andrew/errands";
 function io(kept: string, landed = true) {
   return { repo: "/importing", ...scriptGitExec([
-    { match: { predicate: args => args.includes("rev-parse") }, responses: [landed ? { stdout: registry } : { failure: { exitCode: 1 } }] },
-    { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: kept }] },
+    { match: { predicate: args => args.includes("rev-parse") && args.at(-1) === "refs/arc/project/registry" }, responses: [landed ? { stdout: registry } : { failure: { exitCode: 1 } }] },
+    { match: { predicate: args => args[0] === "for-each-ref" && args.at(-1) === prefix }, responses: [{ stdout: kept }] },
+    { match: { predicate: args => args[0] === "for-each-ref" && args.includes("refs/arc/work/") }, responses: [{ stdout: "" }] },
+    { match: { predicate: args => args.includes("rev-parse") && (args.at(-1)?.endsWith("^{commit}") ?? false) },
+      responses: [({ args }) => ({ stdout: args.at(-1)?.replace("^{commit}", "") ?? "" })] },
+    { match: { prefix: ["ls-tree"] }, responses: [{ stdout: "" }] },
   ]) };
 }
 

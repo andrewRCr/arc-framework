@@ -2,6 +2,8 @@
 import { expect, it } from "vitest";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { seedTransients, transientCommon, transientSourceRef, ordinaryErrand } from "../helpers/store/import-transients.js";
+import { hashBlob, writeTreeCommit } from "../../src/lib/git/ref-tree.js";
+import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { compareWindowConsumption } from "../../src/scripts/cutover-window/consumed.js";
 
 it.each(["same", "different", "missing", "extra"] as const)("compares complete landed claim and Errand content after a real import (%s)", async mode => {
@@ -59,4 +61,32 @@ it("follows an interrupted real import from unconsumed input through retained ti
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(await compareWindowConsumption({ repo: h.root, exec: h.git }, { [transientSourceRef]: held }))
     .toMatchObject({ regime: "records", findings: [] });
+}, 60_000);
+
+it("prints the complete changed records as well as both tips while the import retains its consumed source", async () => {
+  const h = await importFixture();
+  const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const claim = { ...transientCommon, kind: "groom" as const, slug: "groom-alpha", anchorStub: "alpha", members: ["alpha"],
+    openedBaseHead: head, protection: "partial" as const, branch: null, state: "open" as const, changeRequest: null };
+  const held = await seedTransients(h, [claim]);
+  await h.git("git", ["update-ref", "refs/arc-window/local/" + transientSourceRef, held]);
+  const changed = serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse({ ...claim, members: ["alpha", "beta"] }));
+  const blob = await hashBlob(h.ports.execInput, changed);
+  const errand = TransientIdentityRecordSchema.parse(ordinaryErrand);
+  if (errand.kind !== "errand" || errand.purpose !== "errand") throw new Error("Expected the ordinary Errand fixture");
+  await h.git("git", ["branch", errand.branch]);
+  const errandBlob = await hashBlob(h.ports.execInput, serializeTransientIdentityRecord(errand));
+  const kept = await writeTreeCommit({ exec: h.git, execInput: h.ports.execInput }, transientSourceRef,
+    new Map([[claim.slug, blob], [errand.slug, errandBlob]]), "Advance the source", [held], held);
+  h.ports.migrateStep = step => step === "import.publish" ? Promise.reject(new Error("pause-import")) : Promise.resolve();
+  await expect(h.migrate()).rejects.toThrow("pause-import");
+  const before = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  const compared = await compareWindowConsumption({ repo: h.root, exec: h.git }, { [transientSourceRef]: held });
+  expect(compared.regime).toBe("kept");
+  expect(compared.findings).toHaveLength(1);
+  const report = compared.findings[0]?.condition;
+  for (const text of [transientSourceRef, held, kept, "claims/groom", "groom-alpha", "alpha", "beta", "openedBaseHead", head, "work-item/record", "work-item/description", "Keep this intent"])
+    expect(report).toContain(text);
+  expect(report).toMatch(/"uid":"[a-f0-9-]{36}"/u);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(before);
 }, 60_000);

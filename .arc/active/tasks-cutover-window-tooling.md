@@ -130,8 +130,9 @@ restarted after each of its steps.
 
     - `[x]` **2.2.b The three regimes**
         - `compareWindowConsumption` distinguishes unlanded input, retained source tips, and landed records using strict
-          registry and plain Git reads. It compares the complete claim set and canonical content, reports full record
-          differences and unexpected Errands, and retains identity coordinates for the restore's decision record.
+          registry and plain Git reads. It compares the complete claim set and canonical content, prints full changed
+          records behind mismatched kept tips and landed records, and retains identity coordinates for the restore's
+          decision record.
 
 ### `[ ]` **2.3 The restore — § 6**
 

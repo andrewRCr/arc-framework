@@ -30,12 +30,10 @@ export async function compareWindowConsumption(io: WindowGitReadIO,
   if (kept.size === 0) {
     const expected = await readWindowTransientRecords(io, held);
     const actual = await readLandedWindowTransients(io);
-    const findings = [...expected.findings, ...compareRecords(identities, expected.records, actual)];
+    const findings = [...expected.findings, ...compareRecords(identities, expected.records, actual, { rejectErrands: true })];
     return { regime: "records", identities, findings };
   }
-  const findings = kept.size > 0 ? identities.filter(identity => identity.held !== identity.kept)
-    .map(identity => consumptionFinding(identity, "The import retained a different identity input.")) : [];
-  return { regime: kept.size > 0 ? "kept" : "records", identities, findings };
+  return { regime: "kept", identities, findings: await compareKeptRecords(io, identities) };
 }
 
 function consumptionFinding(identity: WindowConsumedIdentity, detail: string): WindowFinding {
@@ -45,16 +43,33 @@ function consumptionFinding(identity: WindowConsumedIdentity, detail: string): W
 }
 
 function compareRecords(identities: WindowConsumedIdentity[], expected: readonly WindowTransientRecord[],
-  actual: readonly WindowTransientRecord[]): WindowFinding[] {
+  actual: readonly WindowTransientRecord[], options: { rejectErrands: boolean }): WindowFinding[] {
   const byReference = (records: readonly WindowTransientRecord[]) => new Map(records.map(record => [canonicalize(record.reference), record]));
   const before = byReference(expected), after = byReference(actual);
   const findings: WindowFinding[] = [];
   for (const key of new Set([...before.keys(), ...after.keys()])) {
     const left = before.get(key), right = after.get(key), record = right ?? left;
-    if (!record || left?.content === right?.content && !record.reference.kind.startsWith("work-item/")) continue;
+    if (!record || left?.content === right?.content && !(options.rejectErrands && record.reference.kind.startsWith("work-item/"))) continue;
     let identity = identities.find(item => item.ref === record.ref);
     if (!identity) { identity = { ref: record.ref, held: null, kept: null }; identities.push(identity); }
-    findings.push(consumptionFinding(identity, `Expected record ${JSON.stringify(left ?? null)}; landed record ${JSON.stringify(right ?? null)}.`));
+    findings.push(consumptionFinding(identity, `Expected record ${JSON.stringify(left ?? null)}; consumed record ${JSON.stringify(right ?? null)}.`));
+  }
+  return findings;
+}
+
+async function compareKeptRecords(io: WindowGitReadIO, identities: readonly WindowConsumedIdentity[]): Promise<WindowFinding[]> {
+  const findings: WindowFinding[] = [];
+  const changed = identities.filter(identity => identity.held !== identity.kept);
+  const landed = changed.length > 0 ? await readLandedWindowTransients(io) : [];
+  for (const identity of changed) {
+    const read = (tip: string | null) => tip === null ? Promise.resolve({ records: [], findings: [] })
+      : readWindowTransientRecords(io, { [identity.ref]: tip });
+    const [expected, actual] = await Promise.all([read(identity.held), read(identity.kept)]);
+    const differences = [...expected.findings, ...actual.findings,
+      ...compareRecords([identity], expected.records, actual.records, { rejectErrands: false }),
+      ...compareRecords([identity], expected.records, landed.filter(record => record.ref === identity.ref), { rejectErrands: true })];
+    findings.push(consumptionFinding(identity, ["The import retained a different identity input.",
+      ...new Set(differences.map(finding => finding.condition))].join("\n")));
   }
   return findings;
 }
