@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.3 — The close; Phase 6 complete
-- **Next Task:** Task 7.1.a — Steps 1 to 4 — preparing the copy (line ~469)
+- **Last Completed:** Task 7.4 — Stage 1 at the landing head; Phase 7 complete
+- **Next Task:** Task 8.1 — Complete verification (line ~543)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1.a — prepare the rehearsal copy (process-task-loop)
+- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
