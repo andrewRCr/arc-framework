@@ -619,6 +619,14 @@ function groupItems(
   }) };
 }
 
+/** Prefer a standalone bold title outside fenced code, retaining the first-line fallback for titleless items. */
+function groupedSourceLabel(body: string): ReturnType<typeof captureReviewFindingSourceLabel> {
+  const fencedRanges = fencedMarkdownRanges(body);
+  const title = [...body.matchAll(/^[\t ]*(\*\*[^\r\n]+\*\*)[\t ]*\r?$/gmu)]
+    .find((match) => !fencedRanges.some((range) => range.start <= match.index && match.index < range.end))?.[1];
+  return captureReviewFindingSourceLabel({ title, body });
+}
+
 /** Read one grouped item's locus, severity and body. An unmarked item's fingerprint is a digest of its locus and body. */
 function groupFinding(
   review: HostedGitHubReview,
@@ -664,7 +672,7 @@ function groupFinding(
     locus,
     url: review.url,
     body: findingBody,
-    ...captureReviewFindingSourceLabel({ body: substantiveBody }),
+    ...groupedSourceLabel(substantiveBody),
   } };
 }
 

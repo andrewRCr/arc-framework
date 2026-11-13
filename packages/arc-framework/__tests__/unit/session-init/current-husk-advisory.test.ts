@@ -1,3 +1,5 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { describe, expect, it } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
@@ -15,12 +17,12 @@ const stampedMarker: WorktreeMarkerReadResult = {
     wuName: "shipped-widget",
     spawningIdentity: "andrew",
     createdAt: "2026-07-14T00:00:00.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: "abc123",
       at: "2026-07-14T01:00:00.000Z",
       subject: { kind: "work-unit", name: "shipped-widget" },
       branch: "feat/shipped-widget",
-    },
+    }),
   },
 };
 
@@ -38,12 +40,6 @@ function derive(overrides: {
 }
 
 describe("deriveCurrentHuskAdvisory", () => {
-  it("parses the legacy advisory emitted by the producer", () => {
-    const result = derive();
-    expect(result).not.toBeNull();
-    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
-  });
-
   it("parses a current Git-transition advisory emitted by the producer", () => {
     const result = derive({ marker: {
       kind: "present",
@@ -105,7 +101,7 @@ describe("deriveCurrentHuskAdvisory", () => {
       worktreePath: "/wt/shipped-widget",
       subject: { kind: "work-unit", name: "shipped-widget" },
       branch: "feat/shipped-widget",
-      stamp: { kind: "legacy", authorization: "merged-preserved" },
+      stamp: fixtureHuskProof,
     });
   });
 
@@ -235,12 +231,12 @@ describe("deriveCurrentHuskAdvisory", () => {
           createdFor: { kind: "branch", ref: "review/orphan" },
           spawningIdentity: "andrew",
           createdAt: "2026-07-14T00:00:00.000Z",
-          husk: {
+          husk: makeHuskStamp({
             sha: "abc123",
             at: "2026-07-14T01:00:00.000Z",
             subject: { kind: "branch", ref: "review/orphan" },
             branch: "review/orphan",
-          },
+          }),
         },
       },
     })).toBeNull();

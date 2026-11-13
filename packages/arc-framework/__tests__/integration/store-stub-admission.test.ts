@@ -85,3 +85,13 @@ it("settles a stub's completed dependency in the batch creating the reused name"
   expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference }))).toMatchObject({ fields: { dependsOn: [] } });
   expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 }, 30_000);
+
+it("mints a narrative internal Origin from the registered command without losing its Markdown", async () => {
+  const h = await fixture(), origin = "[internal] — split the `catalog` entry after **review**";
+  const result = await repairCli(h, [...argv, "--origin", origin], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const selected = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+  const record = lifecycleSuccess(await h.store.read({ reference: selected.reference }));
+  expect(record.content).toContain(`- **Origin:** ${origin}\n`);
+  expect(record.fields).toMatchObject({ origin });
+}, 30_000);

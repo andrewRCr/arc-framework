@@ -45,8 +45,8 @@ async function stampedHeadPreserved(input: HuskInput, sha: string, branch: strin
 }
 async function huskEvidenceMatches(input: HuskInput, stamp: NonNullable<WorktreeMarker["husk"]>["evidence"]): Promise<boolean> {
   const selected = input.evidence.evidence;
-  if (stamp?.kind === "lineage") return isDeepStrictEqual(stamp, selected);
-  if (stamp?.kind !== "shipped" || selected.kind !== "shipped") return false;
+  if (stamp.kind === "lineage") return isDeepStrictEqual(stamp, selected);
+  if (stamp.kind !== "shipped" || selected.kind !== "shipped") return false;
   return stamp.expectedLifecycle === "completed" && stamp.resultDigest === selected.resultDigest
     && typeof stamp.baseProofOid === "string" && await isContainedIn(input.ctx.exec, stamp.baseProofOid, input.baseOid);
 }

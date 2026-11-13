@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 /** Occupancy distinguishes an unbound name from a bound owner whose records are gone. */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -87,7 +88,7 @@ it("keeps a uniquely selected Integrating holder's slug in its occupancy remedy"
 it("names the branch-scoped teardown command for a branch husk", async () => {
   const h = await fixture(), branch = "chore/leftover";
   await writeWorktreeMarker(h.cwd, { ...h.marker, spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
-    husk: { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z", subject: { kind: "branch", ref: branch }, branch } });
+    husk: makeHuskStamp({ sha: "a".repeat(40), at: "2026-10-24T00:00:00Z", subject: { kind: "branch", ref: branch }, branch }) });
   expect(await inspectCheckoutMarker({ cwd: h.cwd, store: h.store }))
     .toMatchObject({ kind: "occupied", reason: `Checkout ${h.cwd} holds a husk; run arc teardown --branch ${branch}.` });
 });

@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../helpers/worktree-husk-fixture.js";
 import { SessionInitProbeResultSchema } from "../../src/commands/status/schema.js";
 import { teardownOperand } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
@@ -274,8 +275,8 @@ it.each([false, true])("session init reports the same pre-store husk manually, e
   const h = await fixture(), livePath = await checkout(h, "live", h.live);
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.archivedPath })).stdout.trim();
   await writeWorktreeMarker(h.archivedPath, { spawnedByArc: true, createdFor: { kind: "work-unit", name: "example" },
-    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z", husk: { sha: head, at: "2026-10-24T01:00:00Z",
-      subject: { kind: "work-unit", name: "example" }, branch: "feat/example" } });
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z", husk: makeHuskStamp({ sha: head, at: "2026-10-24T01:00:00Z",
+      subject: { kind: "work-unit", name: "example" }, branch: "feat/example" }) });
   const marker = await readFile(resolveWorktreeMarkerPath(h.archivedPath)), liveMarker = await readFile(resolveWorktreeMarkerPath(livePath));
   const before = lifecycleSuccess(await h.store.version());
   const result = await repairCli({ ...h, cwd: ownCheckout ? h.archivedPath : h.cwd }, ["status", "--session-init", "--json"], { store: h.store });

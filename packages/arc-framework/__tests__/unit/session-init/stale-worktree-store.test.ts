@@ -1,4 +1,5 @@
 /** Cleanup selection follows store placement, preserving exact remote removal admission. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { runStoreAbandon } from "../../../src/lib/work-unit/verbs/abandon-store.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
@@ -343,8 +344,8 @@ it.each([false, true])("reports a pre-store work-unit husk blocked for manual cl
   const input = await withDerivedRows({ ...original, readMarker: async path => {
     const read = await readMarker(path);
     if (read.kind !== "present") throw new Error("Expected marker");
-    return { kind: "present", marker: { ...read.marker, spawningIdentity: "test-user", husk: { sha: head, at: "2026-10-24T00:00:00Z",
-      subject: { kind: "work-unit", name: "done" }, branch: "feat/done" } } };
+    return { kind: "present", marker: { ...read.marker, spawningIdentity: "test-user", husk: makeHuskStamp({ sha: head, at: "2026-10-24T00:00:00Z",
+      subject: { kind: "work-unit", name: "done" }, branch: "feat/done" }) } };
   } });
   const result = await runStaleWorktreeSweep(input);
   expect(result.warnings).toEqual([]);

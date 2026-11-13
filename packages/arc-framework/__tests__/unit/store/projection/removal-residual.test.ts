@@ -54,8 +54,8 @@ it.each(["readdir", "lstat", "disappeared-file"])("keeps %s failures unobservabl
 it.each(["absent", "manual-only"])("adds no policy for an %s marker", async marker => {
   const h = await fixture(); await h.put(".arc/user/anyone/note.md");
   if (marker === "absent") await rm(resolveWorktreeMarkerPath(h.root));
-  else await writeWorktreeMarker(h.root, { spawnedByArc: true, createdFor: { kind: "errand", slug: "legacy" },
-    spawningIdentity: "test-user", createdAt: "2026-11-12T00:00:00Z" });
+  else await writeWorktreeMarker(h.root, { spawnedByArc: true, createdFor: { kind: "errand", slug: "unknown", claimId: "a".repeat(32) },
+    provisioning: "future", spawningIdentity: "test-user", createdAt: "2026-11-12T00:00:00Z" });
   const unexpected = async (): Promise<never> => { throw new Error("Unexpected personal scan"); };
   expect(await observeUnprojectedPersonalFiles(h.root, { readdir: unexpected, lstat: unexpected })).toEqual({ kind: "passes" });
 });

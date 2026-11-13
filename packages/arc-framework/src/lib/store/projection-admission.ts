@@ -22,7 +22,7 @@ const subject = z.discriminatedUnion("kind", [
 ]);
 const marker = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("current"), subject, provisioning: z.enum(["pending", "ready"]).nullable(), husk: z.boolean() }),
-  z.strictObject({ kind: z.literal("manual-only"), reason: z.enum(["legacy-transient", "unknown-provisioning", "malformed-ownership"]), husk: z.boolean() }),
+  z.strictObject({ kind: z.literal("manual-only"), reason: z.enum(["unknown-provisioning", "malformed-ownership"]), husk: z.boolean() }),
 ]);
 const adoption = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("write-back"), stub: z.literal(true).optional() }),

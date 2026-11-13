@@ -17,6 +17,8 @@ import { LocalTargetDerivationError } from "../hosts/local/repository-target.js"
 import { ReviewReportInputError } from "../core/review-report-inputs.js";
 import { UnchangedVerifiedFixTargetError } from "./respond-command.js";
 
+import { ErrandResponseContextError } from "./respond-errand-context.js";
+
 const RESPOND_ARGV = ["arc", "review", "respond", "-"] as const;
 
 const INVARIANT = "A verified fix is recorded only against the clean committed head that contains it.";
@@ -45,6 +47,7 @@ function replayRequest(request: object): object {
  */
 export function reviewRespondRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
   if (typeof request !== "object" || request === null) return undefined;
+  if (error instanceof ErrandResponseContextError) return error.remedy;
   if (error instanceof ReviewReportInputError) {
     return spineRemedy("Advisory report notes must match the canonical finding identities.",
       error.correction, RESPOND_ARGV, request);

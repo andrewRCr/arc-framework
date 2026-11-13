@@ -507,33 +507,22 @@ async function teardownBranchProjection(
     if (decoded.kind === "manual-only") {
       return { status: "rejected", reason: `refusing detached husk removal: ${decoded.reason}` };
     }
-    if (decoded.kind === "current") {
-      directionalAuthorization = {
-        status: "authorized",
-        authorization: decoded.authorization,
-        authorityVersion: "persisted-husk",
-        evidence: decoded.evidence,
-        refs: { localOid: stamp.sha, remote: decoded.remoteRef },
-      };
-      const evidenceValid = await revalidateHuskRetirementEvidence(
-        exec,
-        stamp,
-        directionalAuthorization,
-        evidenceBaseRef,
-        ctx.readBlob,
-      );
-      if (!evidenceValid) {
-        return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
-      }
-    } else {
-      try {
-        const { stdout } = await exec("git", ["ls-remote", "--heads", remote ?? "origin", `refs/heads/${stamp.branch}`]);
-        if (stdout.trim() !== "") {
-          return { status: "rejected", reason: "legacy husk has no remote-delete authority" };
-        }
-      } catch {
-        return { status: "rejected", reason: "legacy husk remote state is unavailable" };
-      }
+    directionalAuthorization = {
+      status: "authorized",
+      authorization: decoded.authorization,
+      authorityVersion: "persisted-husk",
+      evidence: decoded.evidence,
+      refs: { localOid: stamp.sha, remote: decoded.remoteRef },
+    };
+    const evidenceValid = await revalidateHuskRetirementEvidence(
+      exec,
+      stamp,
+      directionalAuthorization,
+      evidenceBaseRef,
+      ctx.readBlob,
+    );
+    if (!evidenceValid) {
+      return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
     }
     const selectionRefusal = await revalidateSelection(detachedCandidate.path);
     if (selectionRefusal !== null) return selectionRefusal;

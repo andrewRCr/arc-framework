@@ -1,3 +1,4 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Strict top-level and conditional-presence coverage for session-init envelopes. */
 
 import { readFileSync } from "node:fs";
@@ -797,7 +798,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "unknown" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "removable" },
       },
       "sweep.value.worktrees.0.subject.kind",
@@ -817,7 +818,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "unknown" },
       },
       "sweep.value.worktrees.0.decision.action",
@@ -827,7 +828,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "blocked", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
@@ -837,7 +838,7 @@ describe("session-init envelope schema", () => {
       {
         kind: "husk",
         subject: { kind: "work-unit" },
-        stamp: { kind: "legacy" },
+        stamp: fixtureHuskProof,
         decision: { action: "outside", reason: "unknown" },
       },
       "sweep.value.worktrees.0.decision.reason",
@@ -846,7 +847,7 @@ describe("session-init envelope schema", () => {
     const value = fixture("orient");
     const complete = report.kind === "husk"
       ? { worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
-          ...report, subject: { name: "alpha", ...report.subject }, stamp: { authorization: "merged-preserved", ...report.stamp } }
+          ...report, subject: { name: "alpha", ...report.subject }, stamp: { ...fixtureHuskProof, ...report.stamp } }
       : { worktreePath: "/tmp/alpha", branch: "feat/alpha", ...report };
     setPath(value, ["sweep", "value", "worktrees"], [complete]);
     expectContractFailure(value, expectedPath);
