@@ -359,17 +359,13 @@ failing for a reason outside § 2.2.
           unfinished hold, and passes after all repairs. The complete recorded coordinates and host tips round-trip
           through the hold; the source CLI restores the admitted baseline before and after publication.
 
-### `[ ]` **4.5 The check over a copy of this repository** — validate exit criterion at segment scope
+### `[x]` **4.5 The check over a copy of this repository** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a copy of this repository.
-
-    - Take a copy with `copy`, then create the stand-in flip branch from the copy's `main` with one commit that changes
-      no file under the tracked-state paths, pushed to the mirror, and a supplied listing holding its pull request as
-      the flip's.
-    - From this unit's source, run `lock` and `check` with `--repo` at the copy's primary, the supplied listing, and the
-      sealing guard's merge (`a61e24716a`) as the anchor, since this unit has not landed.
-    - Confirm every refusal names its subject and remedy, and that no condition fails for a reason outside § 2.2.
-    - Run `arc check segment` and record the scenario and its result; raw output stays outside the repository.
+- _Outcome:_ The full repository copy passed isolation, and `lock` preserved existing locks while adding missing ones.
+  With a stand-in flip from copied main, a supplied listing, and the sealing merge anchor, the check evaluated all
+  thirteen conditions and returned only C1, C6, C7, C12, and C13 refusals, each with its subject and remedy. No hold
+  remained after refusal.
 
 ## **Phase 5:** After the import, before the merge
 
