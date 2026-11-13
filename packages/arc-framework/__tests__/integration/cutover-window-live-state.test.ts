@@ -63,6 +63,8 @@ it("keeps a contained but unarchived unit and a branch-only active meta live whi
 it("keeps an all-stale unit's branch through the composition's named warnings", async () => {
   const h = await windowFixture();
   await h.git("git", ["branch", "-m", "feat/alpha", "feat/stale"]);
+  await h.git("git", ["push", "origin", ":refs/heads/feat/alpha"]);
+  await h.git("git", ["update-ref", "-d", "refs/remotes/origin/feat/alpha"]);
   const tip = (await h.git("git", ["rev-parse", "feat/stale"])).stdout.trim();
   const observed = await inspectLive(h);
   expect(observed, observed.report).toMatchObject({ exit: 0, result: { status: "reported", data: {

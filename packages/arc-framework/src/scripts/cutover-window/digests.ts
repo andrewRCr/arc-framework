@@ -22,17 +22,26 @@ export function deriveWindowPersonalDigests(disk: Pick<ImportPersonalDisk, "file
   checkouts: readonly Pick<WindowCheckout, "path">[]): Record<string, string> {
   const inputs = [...disk.files.map(file => ({ physicalPath: file.physicalPath, bytes: Buffer.from(file.content) })),
     ...disk.links.map(link => ({ physicalPath: link.physicalPath, bytes: null }))];
-  const roots = [...checkouts].sort((left, right) => right.path.length - left.path.length);
   const digests = Object.fromEntries(checkouts.map(checkout => {
     const entries = inputs.flatMap(input => {
-      const owner = roots.find(root => checkoutRelativePath(root.path, input.physicalPath) !== null);
-      if (owner?.path !== checkout.path) return [];
+      if (windowPersonalCheckoutPath(checkouts, input.physicalPath) !== checkout.path) return [];
       const path = relative(checkout.path, input.physicalPath);
       return [{ path: path.split(sep).join("/"), bytes: input.bytes }];
     });
     return [checkout.path, digestEntries(entries)];
   }));
   return digests;
+}
+
+/** Return the deepest registered checkout physically containing an acquired personal path. */
+export function windowPersonalCheckoutPath(checkouts: readonly Pick<WindowCheckout, "path">[], physicalPath: string): string | undefined {
+  let owner: string | undefined;
+  for (const checkout of checkouts) {
+    if ((owner === undefined || checkout.path.length > owner.length) && checkoutRelativePath(checkout.path, physicalPath) !== null) {
+      owner = checkout.path;
+    }
+  }
+  return owner;
 }
 
 function checkoutRelativePath(root: string, physicalPath: string): string | null {

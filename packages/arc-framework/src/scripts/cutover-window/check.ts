@@ -8,8 +8,11 @@ import { readSuppliedWindowRequests } from "./supplied.js";
 import { createWindowHost } from "./native-host.js";
 import { captureWindowState } from "./capture.js";
 import { windowCheckoutLockFindings } from "./lock.js";
+import { readWindowCheckoutStatusFindings, readWindowCheckoutUpstreamFindings, readWindowIgnoredStateFindings,
+  windowPersonalLinkFindings } from "./checkout-cleanliness.js";
 import { acquireWindowOriginRefs, writeWindowHold, discardUnfinishedWindowHold, type WindowHoldStepHook } from "./hold.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { readWindowStashFindings } from "./stashes.js";
 
 /** External host boundary and named write checkpoints, replaceable in native scenarios. */
 export interface WindowCheckOptions { host?: WindowHostPort; step?: WindowHoldStepHook }
@@ -37,8 +40,10 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
   try {
     await acquireWindowOriginRefs(io, origin);
     const state = await captureWindowState(io, input, origin);
-    const lockFindings = windowCheckoutLockFindings(state.checkouts);
-    if (lockFindings.length > 0) throw new WindowRefusal(lockFindings);
+    const checkoutFindings = [...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
+      ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
+      ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io)];
+    if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {

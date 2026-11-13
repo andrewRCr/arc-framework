@@ -234,14 +234,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
 
-    - `[ ]` **3.4.a C1 — dirty, off its upstream, a personal link, or tracked state stashed**
-        - Build `test-first` (one behavior at a time):
-            - A dirty checkout refuses, untracked files included, as do one ahead, behind, detached, or without an
-              upstream
-            - An ignored file under the tracked-state paths refuses
-            - A personal link refuses, a nested one included
-            - A stash entry changing a file under the tracked-state paths refuses in its index, working-tree, and
-              untracked parts, named by position and message
+    - `[x]` **3.4.a C1 — dirty, off its upstream, a personal link, or tracked state stashed**
+        - C1 names dirty/untracked status, missing or unequal fetched upstreams, ignored tracked-state files, and
+          personal links from the import's acquired disk state. Shared stash inspection checks every entry's
+          working-tree, index, and untracked snapshots by position/message; incomplete inventories name a repair route.
 
     - `[ ]` **3.4.b C2 and C4 — unmarked, ended, husked, or unresolved checkouts**
         - C4 reads the roster `arc status` shows, `readStatusCheckoutRoster` (`handlers/status/checkout-roster.ts`), at

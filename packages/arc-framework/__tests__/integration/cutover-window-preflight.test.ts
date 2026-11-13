@@ -134,7 +134,7 @@ it("keeps a complete earlier hold intact and names its restore route", async () 
   const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   const record: WindowRecord = { version: 1, reviewGateDigest: "c".repeat(64), flip: h.flip, worktrees: [{ path: h.root, head, personalDigest: "c".repeat(64), branch: "main" }],
     branches: { live: {}, local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
-      origin: { main: head, [h.flip.branch]: h.flip.head } }, refs: { local: {}, origin: {}, tracking: {} } };
+      origin: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head } }, refs: { local: {}, origin: {}, tracking: {} } };
   await writeWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput }, record);
   const before = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
   expect(await checkFixture(h)).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([

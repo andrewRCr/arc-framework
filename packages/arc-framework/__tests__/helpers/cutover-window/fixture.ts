@@ -1,6 +1,7 @@
 /** Shared importing checkout with a local mirror and a supplied flip request. */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../../src/lib/git/worktree-marker.js";
 import { importFixture } from "../store/import-fixture.js";
 import type { WindowPullRequests } from "../../../src/scripts/cutover-window/host.js";
 
@@ -11,10 +12,12 @@ export async function windowFixture() {
   await git("config", "--unset", "remote.origin.arc-state");
   const exclude = resolve(h.root, (await git("rev-parse", "--git-path", "info/exclude")).stdout.trim());
   await appendFile(exclude, "\n.arc-fixture/\n.arc/user/\n");
+  await ensureWorktreeMarkerIgnored(h.root, h.git, nodeWorktreeMarkerIgnoreFs);
   await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
   await writeFile(join(h.root, ".arc/user/andrew/WORKING-MEMORY.md"), "# Working Memory\n\n## Memories\n");
   await git("checkout", "main");
   await git("push", "--set-upstream", "origin", "main");
+  await git("push", "--set-upstream", "origin", "feat/alpha");
   const branch = "feat/window-flip";
   await git("checkout", "-b", branch);
   await git("commit", "--allow-empty", "-m", "Window flip stand-in");

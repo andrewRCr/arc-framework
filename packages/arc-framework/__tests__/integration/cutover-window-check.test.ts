@@ -22,8 +22,8 @@ it("records the flip, registered checkout, branch tips, and all three ref invent
   expect(held.record).toEqual({ version: 1, reviewGateDigest: expect.stringMatching(/^[a-f0-9]{64}$/u), flip: h.flip,
     worktrees: [{ path: expect.any(String), head, branch: "main", personalDigest: expect.stringMatching(/^[a-f0-9]{64}$/u) }],
     branches: { live: expect.objectContaining({ main: { local: head, origin: head, reasons: expect.any(Array) },
-      "feat/alpha": { local: head, origin: null, reasons: expect.any(Array) } }), local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
-      origin: { main: head, [h.flip.branch]: h.flip.head } },
+      "feat/alpha": { local: head, origin: head, reasons: expect.any(Array) } }), local: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head },
+      origin: { main: head, "feat/alpha": head, [h.flip.branch]: h.flip.head } },
     refs: { local: { [transientSourceRef]: identity }, origin: { [transientSourceRef]: identity }, tracking: { [trackingRef]: identity } },
   });
   expect(await Promise.all(held.record.worktrees.map(row => realpath(row.path)))).toEqual([await realpath(h.root)]);
