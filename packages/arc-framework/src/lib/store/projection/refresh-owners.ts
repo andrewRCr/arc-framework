@@ -5,7 +5,7 @@ import type { StoreRecord } from "../read.js";
 import { desiredProjectionPaths, projectionRecordPath, type DesiredProjection } from "./desired-paths.js";
 import { projectionListingComplete, projectionListingDiagnostics, type ProjectionInventory } from "./inventory.js";
 import { loadProjectionPathGroup } from "./index-memory.js";
-import type { ProjectionSource } from "./record-source.js";
+import { retainUncertainProjectionPaths } from "./placement-evidence.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import type { ProjectionRefreshPlanInput, ProjectionRefreshPlan } from "./refresh-plan.js";
 
@@ -13,19 +13,20 @@ import type { ProjectionRefreshPlanInput, ProjectionRefreshPlan } from "./refres
 export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[],
   plan: ProjectionRefreshPlan): Promise<boolean> {
   const { records, complete, unresolved } = await readOwners(input, owners);
-  const own = await readOwnPrimary(input, records);
+  const located = await readOwnPrimary(input, records);
+  const own = located.primary;
   if (own !== null && !records.some(record => sameReference(record.reference, own.reference))) records.push(own);
-  const ambiguous = new Set<string>();
-  const inventory: ProjectionInventory = { records, source: watchAmbiguousNames(input.source, ambiguous), diagnostics: [],
+  const inventory: ProjectionInventory = { records, source: input.source, diagnostics: [],
     complete: reference => complete.some(owner => sameOwner(reference.owner, owner)) };
-  const desired = await desiredProjectionPaths(input.root, inventory);
+  const desired = await desiredProjectionPaths(input.root, inventory, located.unavailable);
   const membership = ownMembershipChanged(input, complete, own);
-  applyOwnerPaths({ input, owners, complete, plan, desired, membership, ambiguous });
-  return unresolved;
+  applyOwnerPaths({ input, owners, complete, plan, desired, membership });
+  retainUncertainProjectionPaths(input.index, desired, plan);
+  return unresolved || desired.unresolved;
 }
 
 function applyOwnerPaths(scope: { input: ProjectionRefreshPlanInput; owners: readonly OwnerIdentity[]; complete: readonly OwnerIdentity[];
-  plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean; ambiguous: ReadonlySet<string> }): void {
+  plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean }): void {
   const { input, owners, plan, desired, membership } = scope;
   for (const [path, record] of desired.files) {
     if (owners.some(owner => sameOwner(record.reference.owner, owner)) || membership && isOwnCohortCopy(input, path)) plan.paths.set(path, record.reference);
@@ -34,26 +35,14 @@ function applyOwnerPaths(scope: { input: ProjectionRefreshPlanInput; owners: rea
 }
 
 function removeOwnerPaths(scope: Parameters<typeof applyOwnerPaths>[0]): void {
-  const { input, complete, plan, desired, membership, ambiguous } = scope;
+  const { input, complete, plan, desired, membership } = scope;
   for (const [path, entry] of Object.entries(input.index.entries)) {
     if (entry.kind !== "record") continue;
     const arriving = desired.files.get(path);
     if (arriving !== undefined && sameReference(arriving.reference, entry.reference)) continue;
-    const address = identifyArcFileAddress(path, { active: { claim: input.root.claim, layoutActive: input.root.layoutActive } });
-    if (address?.kind === "cohort-copy" && ambiguous.has(address.cohort)) { plan.paths.delete(path); continue; }
     const affected = complete.some(owner => sameOwner(entry.reference.owner, owner)) || membership && isOwnCohortCopy(input, path);
     if (affected) { if (arriving === undefined) plan.paths.delete(path); plan.removals.add(path); }
   }
-}
-
-function watchAmbiguousNames(source: ProjectionSource, ambiguous: Set<string>): ProjectionSource {
-  return { ...source, read: async request => {
-    const read = await source.read(request);
-    if (read.status === "refused" && read.refusal.code === "ambiguous-match" && request.reference.kind === "cohort/document") {
-      ambiguous.add(request.reference.owner.name);
-    }
-    return read;
-  } };
 }
 
 function ownMembershipChanged(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[], own: StoreRecord | null): boolean {
@@ -84,14 +73,17 @@ async function readOwners(input: ProjectionRefreshPlanInput, owners: readonly Ow
   return { records, complete, unresolved };
 }
 
-async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<StoreRecord | null> {
-  if (input.root.claim === null) return null;
+async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<{ primary: StoreRecord | null; unavailable: boolean }> {
+  if (input.root.claim === null) return { primary: null, unavailable: false };
   const listed = records.find(record => (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record")
     && record.reference.owner.name === input.root.claim && record.placement?.kind === "active");
-  if (listed !== undefined) return listed;
+  if (listed !== undefined) return { primary: listed, unavailable: false };
   const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: input.root.claim }));
   const read = await input.source.read({ reference });
-  return read.status === "ok" && read.result.placement?.kind === "active" ? read.result : null;
+  if (read.status === "ok") return { primary: read.result.placement?.kind === "active" ? read.result : null, unavailable: false };
+  const unavailable = read.refusal.code !== "not-found";
+  if (unavailable) input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+  return { primary: null, unavailable };
 }
 
 /** Load only the partition identified by the owner’s primary at the saved anchor. */

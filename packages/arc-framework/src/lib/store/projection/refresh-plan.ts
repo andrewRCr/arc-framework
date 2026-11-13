@@ -12,6 +12,7 @@ import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionSource } from "./record-source.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import type { StoreResult } from "../refusal.js";
 
 /** Paths selected by deltas and by unsettled entries, with their logical source references. */
 export interface ProjectionRefreshPlan {
@@ -44,26 +45,32 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
   const primaries = [...reduced.map(change => change.reference), ...retries, ...subjects.references]
     .filter(reference => ["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind));
   const owners = primaries.map(reference => reference.owner).filter((owner, at, all) => all.findIndex(other => sameOwner(owner, other)) === at);
-  let unresolved = owners.length > 0 && await planOwnerRefresh(input, owners, plan);
-  unresolved ||= subjects.unresolved;
-  const references = [...subjects.references, ...retries, ...paths.values()]
+  let unresolved = subjects.unresolved;
+  const uncertain: RecordReference[] = [];
+  const references = [...subjects.references, ...retries]
     .filter((reference, at, all) => all.findIndex(other => sameReference(reference, other)) === at);
   for (const reference of references.filter(reference => !owners.some(owner => sameOwner(owner, reference.owner)))) {
     const added = await planChangedRecord(input, plan, reference);
+    if (added) uncertain.push(reference);
     unresolved ||= added;
   }
+  if (owners.length > 0) {
+    const ownersUnresolved = await planOwnerRefresh(input, owners, plan);
+    unresolved ||= ownersUnresolved;
+  }
+  for (const reference of uncertain) retainReferencePaths(index, plan, reference);
   return { ...plan, unresolved };
 }
 
-async function currentPrimary(source: ProjectionSource, record: StoreRecord): Promise<StoreRecord | null> {
-  if (record.reference.owner.type !== "work-item") return null;
-  if (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") return record;
+async function currentPrimary(source: ProjectionSource, record: StoreRecord): Promise<StoreResult<StoreRecord | null>> {
+  if (record.reference.owner.type !== "work-item") return { status: "ok", result: null };
+  if (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") return { status: "ok", result: record };
   for (const reference of [recordReferences["work-item/meta"](record.reference.owner), recordReferences["work-item/record"](record.reference.owner)]) {
     const read = await source.read({ reference });
-    if (read.status === "ok") return read.result;
-    if (read.refusal.code !== "not-found") return null;
+    if (read.status === "ok") return read;
+    if (read.refusal.code !== "not-found") return read;
   }
-  return null;
+  return { status: "ok", result: null };
 }
 
 function report(input: ProjectionRefreshPlanInput, refusal: Parameters<typeof markStoreRefusal>[0]): void {
@@ -79,7 +86,13 @@ async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: Projec
     if (!held) report(input, read.refusal);
     return true;
   }
-  const primary = await currentPrimary(input.source, read.result);
+  const located = await currentPrimary(input.source, read.result);
+  if (located.status === "refused") {
+    report(input, located.refusal);
+    retainReferencePaths(input.index, plan, reference);
+    return true;
+  }
+  const primary = located.result;
   const own = primary?.placement?.kind === "active" && primary.reference.owner.name === input.root.claim ? primary.reference.owner : null;
   const visible = primary !== null && Object.values(input.index.entries).some(entry => entry.kind === "record"
     && sameOwner(entry.reference.owner, primary.reference.owner));
@@ -113,4 +126,12 @@ async function planMissingRecord(input: ProjectionRefreshPlanInput, plan: Projec
     if (entry.kind === "record" && sameReference(entry.reference, reference)) { plan.paths.delete(path); plan.removals.add(path); }
   }
   return false;
+}
+
+function retainReferencePaths(index: ProjectionIndex, plan: ProjectionRefreshPlan, reference: RecordReference): void {
+  for (const [path, entry] of Object.entries(index.entries)) {
+    if (entry.kind !== "record" || !sameReference(entry.reference, reference)) continue;
+    plan.paths.delete(path);
+    plan.removals.delete(path);
+  }
 }

@@ -38,6 +38,7 @@ import { projectionSelectionResult } from "../../../../src/lib/store/projection/
 import { saveProjectionChanges } from "../../../../src/lib/store/projection/save-changed.js";
 import { endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -70,6 +71,30 @@ async function materialize(target: Awaited<ReturnType<typeof fixture>>, options:
     finally { root.checkpoint = null; }
   });
 }
+
+it("keeps incomplete materialization retryable while installing unrelated records", async () => {
+  const target = await fixture();
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Initial materialization did not run");
+  const personal = await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
+    owner: { type: "person", name: "andrew" }, key: "scratch/independent.md" }), "Independent arrival.\n");
+  const revised = target.h.record.content + "\nUpdated stored notes.\n";
+  success(await target.h.store.write(update(target.h, target.h.record, revised)));
+  const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/work-items",
+    condition: "Work-item inventory unavailable.", remedy: { text: "Repair the inventory and retry." } });
+  const source = overrideEngineStore(target.h.store, { list: input => input.family === "work-item"
+    ? Promise.resolve({ status: "refused", refusal }) : target.h.store.list(input) });
+  const held = await materialize(target, { index: first.value.index, source });
+  expect(held).toMatchObject({ status: "done", value: { index: { state: first.value.index.state } } });
+  const notes = join(target.checkout, ".arc/active/current/notes-work-item-one.md");
+  expect(parseStampedFile(await readFile(notes, "utf8")).content).toBe(target.h.record.content);
+  expect(parseStampedFile(await readFile(join(target.checkout, ".arc/user/andrew/scratch/independent.md"), "utf8")).content).toBe(personal.content);
+  if (held.status !== "done") throw new Error("Partial materialization did not run");
+  const version = success(await target.h.store.version());
+  expect(await materialize(target, { index: held.value.index })).toMatchObject({ status: "done", value: { index: { state: version } } });
+  expect(parseStampedFile(await readFile(notes, "utf8")).content).toBe(revised);
+  expect(success(await target.h.store.version())).toBe(version);
+}, 60_000);
 
 it("materializes a fresh linked worktree's stamped own files and scratch folder without changed marks", async () => {
   const target = await fixture();

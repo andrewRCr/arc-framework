@@ -12,18 +12,20 @@ import { markStoreRefusal } from "./refusal-mark.js";
 
 /** Resolve each membership name through the store's current/former-name authority. */
 export async function addCurrentCohortCopies(root: ProjectionRootState, inventory: ProjectionInventory, own: OwnerIdentity | null,
-  files: Map<string, StoreRecord>): Promise<void> {
-  if (own === null || root.claim === null) return;
+  files: Map<string, StoreRecord>): Promise<ReadonlySet<string>> {
+  const unavailable = new Set<string>();
+  if (own === null || root.claim === null) return unavailable;
   const primary = inventory.records.find(record => record.reference.kind === "work-item/meta" && sameOwner(record.reference.owner, own));
-  if (primary === undefined) return;
+  if (primary === undefined) return unavailable;
   const membership = ParsedMetaRecordSchema.parse(primary.fields).cohort;
-  if (membership === null || validateCohortPath(membership) !== null) return;
+  if (membership === null || validateCohortPath(membership) !== null) return unavailable;
   const names = membership.split("/");
   for (const [level, name] of names.entries()) {
     const cohort = SlugSchema.parse(name);
     const read = await inventory.source.read({ reference: recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: cohort })) });
     if (read.status === "refused") {
       root.context.report?.({ path: root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+      if (read.refusal.code !== "not-found") unavailable.add(name);
       continue;
     }
     if (read.result.placement !== undefined || ParsedCohortDocumentSchema.parse(read.result.fields).parent !== (names[level - 1] ?? null)) {
@@ -33,4 +35,5 @@ export async function addCurrentCohortCopies(root: ProjectionRootState, inventor
     }
     files.set(resolveArcPath({ kind: "cohort-copy", cohort, location: { kind: "own", claim: root.claim, layoutActive: root.layoutActive } }), read.result);
   }
+  return unavailable;
 }

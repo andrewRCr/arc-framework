@@ -2,10 +2,10 @@
 import { needsProjectionReprojection, projectionSettings } from "./settings.js";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { identifyArcFileAddress } from "../../layout/index.js";
 import { sameReference } from "../identity.js";
 import { createProjectionReadMemo } from "./record-source.js";
-import { readProjectionInventory, type ProjectionInventory } from "./inventory.js";
+import { readProjectionInventory } from "./inventory.js";
+import { retainUncertainProjectionPaths } from "./placement-evidence.js";
 import { desiredProjectionPaths } from "./desired-paths.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import type { ProjectionIndex } from "./index-schema.js";
@@ -40,35 +40,22 @@ async function planReprojection(input: ProjectionRefreshInput): Promise<Projecti
   loadProjectionGroups(index, [`.arc/user/${root.identity}`]);
   const inventory = await readProjectionInventory(input.source, root.identity, input.version, { includeCompleted: false });
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
-  const blockedNames = new Set<string>();
-  const observed = watchCohortReads(inventory, blockedNames);
-  const desired = await desiredProjectionPaths(root, observed);
+  const desired = await desiredProjectionPaths(root, inventory);
   const paths = new Map([...desired.files].filter(([path]) => governedPath(input, path)).map(([path, record]) => [path, record.reference]));
   const removals = new Set<string>();
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind !== "record" || !governedPath(input, path) || !inventory.complete(entry.reference)) continue;
     const wanted = paths.get(path);
     if (wanted !== undefined && sameReference(wanted, entry.reference)) continue;
-    const address = identifyArcFileAddress(path, { active: { claim: root.claim, layoutActive: root.layoutActive } });
-    if (address?.kind === "cohort-copy" && blockedNames.has(address.cohort)) continue;
     removals.add(path);
   }
-  return { paths, removals, unresolved: inventory.diagnostics.length > 0 || blockedNames.size > 0 };
+  retainUncertainProjectionPaths(index, desired, { paths, removals });
+  return { paths, removals, unresolved: inventory.diagnostics.length > 0 || desired.unresolved };
 }
 
 function governedPath(input: ProjectionRefreshInput, path: string): boolean {
   if (path.startsWith(".arc/completed/")) return false;
   return !path.startsWith(".arc/user/") || path.startsWith(`.arc/user/${input.root.identity}/`);
-}
-
-function watchCohortReads(inventory: ProjectionInventory, blocked: Set<string>): ProjectionInventory {
-  return { ...inventory, source: { ...inventory.source, read: async request => {
-    const read = await inventory.source.read(request);
-    if (read.status === "refused" && read.refusal.code !== "not-found" && request.reference.kind === "cohort/document") {
-      blocked.add(request.reference.owner.name);
-    }
-    return read;
-  } } };
 }
 
 async function ensureScratch(input: ProjectionRefreshInput): Promise<void> {

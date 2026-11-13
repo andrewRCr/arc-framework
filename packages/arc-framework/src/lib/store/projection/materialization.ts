@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { ensureGitExcludePatterns } from "../../git/exclude.js";
 import { nodeWorktreeMarkerIgnoreFs } from "../../git/worktree-marker.js";
 import { readProjectionInventory } from "./inventory.js";
+import { retainUncertainProjectionPaths } from "./placement-evidence.js";
 import { desiredProjectionPaths } from "./desired-paths.js";
 import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
@@ -87,14 +88,15 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
-  const arrivals = findProjectionArrivals(index, paths);
   const collisions = new Set([...paths].filter(([path, reference]) => {
     const previous = index.entries[path];
     return previous?.kind === "record" && !sameReference(previous.reference, reference);
   }).map(([path]) => path));
+  retainUncertainProjectionPaths(index, desired, { paths, removals: collisions });
+  const arrivals = findProjectionArrivals(index, paths);
   index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference });
   for (const [path, record] of selected) {
-    if (!root.writable(path) || isExcludedProjectionPath(path)) continue;
+    if (!paths.has(path) || !root.writable(path) || isExcludedProjectionPath(path)) continue;
     const prepared = await prepareMaterializationFile({ root, index, path, record, renderer, rebuilding: input.index === null,
       reference, blocked: selection.boundary(path) !== null });
     index = prepared.index;
@@ -111,7 +113,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     await mkdir(join(root.checkout, `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`), { recursive: true });
   }
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
+    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && !desired.unresolved && inventory.diagnostics.length === 0
+      && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
     checkpoint: root.context.checkpoint });
   reportProjectionTripwires(root, index);
   await refreshMaterializationLinks(root, selection.links);

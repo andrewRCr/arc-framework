@@ -4,9 +4,9 @@ import { cohortDocumentPath } from "../lifecycle-record-path.js";
 import { addCurrentCohortCopies } from "./desired-cohorts.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
-import { resolveArcPath, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
+import { identifyArcFileAddress, resolveArcPath, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
 import type { KindId } from "../catalog.js";
-import { sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
+import { recordReferences, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import { WorkUnitReadPlacementSchema, ErrandReadPlacementSchema } from "../placement.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -17,10 +17,16 @@ const artifacts: Partial<Record<KindId, WorkUnitArtifactKind>> = {
   "work-item/meta": "meta", "work-item/task-list": "tasks", "work-item/draft": "draft", "work-item/spec": "spec", "work-item/notes": "notes",
 };
 /** Positive files selected from a materialization's inventory. */
-export interface DesiredProjection { readonly files: ReadonlyMap<string, StoreRecord>; readonly own: OwnerIdentity | null }
+export interface DesiredProjection {
+  readonly files: ReadonlyMap<string, StoreRecord>;
+  readonly own: OwnerIdentity | null;
+  readonly unresolved: boolean;
+  readonly placementKnown: (path: string, reference: RecordReference) => boolean;
+}
 
 /** Project visible records through the same semantic layout addresses commands use. */
-export async function desiredProjectionPaths(root: ProjectionRootState, inventory: ProjectionInventory): Promise<DesiredProjection> {
+export async function desiredProjectionPaths(root: ProjectionRootState, inventory: ProjectionInventory,
+  ownUnavailable?: boolean): Promise<DesiredProjection> {
   const primaries = inventory.records.filter(record => record.reference.kind === "work-item/meta" || isErrand(record));
   const matches = primaries.filter(record => record.reference.owner.name === root.claim && record.placement?.kind === "active");
   const own = matches.length === 1 ? matches[0]?.reference.owner ?? null : null;
@@ -31,8 +37,19 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
     const path = projectionRecordPath(root, record, primaries, own, selection);
     if (path !== null) files.set(path, record);
   }
-  await addCurrentCohortCopies(root, inventory, own, files);
-  return { files, own };
+  const unavailableCohorts = await addCurrentCohortCopies(root, inventory, own, files);
+  const unknownOwn = ownUnavailable ?? (matches.length > 1 || root.claim !== null && own === null && !inventory.complete(
+    recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: root.claim }))));
+  const unknownView = selection.kind === "unavailable" || unknownOwn && root.view.mode === "cohort";
+  const placementKnown = (path: string, reference: RecordReference): boolean => {
+    const address = identifyArcFileAddress(path, { active: { claim: root.claim, layoutActive: root.layoutActive } });
+    if (address?.kind === "cohort-copy") return !unknownOwn && !unavailableCohorts.has(address.cohort);
+    return !unknownView || !path.startsWith(`${resolveArcPath({ kind: "placement-root", tier: "active" })}/`) || reference.owner.type !== "work-item"
+      || own !== null && sameOwner(reference.owner, own)
+      || !unknownOwn && selection.references.some(selected => sameOwner(selected.owner, reference.owner));
+  };
+  for (const [path, record] of files) if (!placementKnown(path, record.reference)) files.delete(path);
+  return { files, own, placementKnown, unresolved: unknownOwn || unknownView || unavailableCohorts.size > 0 };
 }
 
 /** Bind logical lifecycle placement to this checkout's own and in-flight folders. */
