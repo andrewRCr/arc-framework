@@ -169,16 +169,13 @@ restarted after each of its steps.
           Ordinary checkpoints restart from the saved decision; marker-deletion interruption takes the explicit cleanup
           route in `notes-cutover-window-tooling.md` § Restore restart interpretation.
 
-### `[ ]` **2.4 Hold, import, and restore round trip** — validate exit criterion at segment scope
+### `[x]` **2.4 Hold, import, and restore round trip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over a real import.
 
-- _Note:_ See `notes-cutover-window-tooling.md` § Test fixtures.
-
-    - Over Task 2.1.b's baseline, with a grooming claim in the configured identity's ref: `check` with a supplied
-      listing, then the save, the designation, and the import with publication, then `restore`, checking every recorded
-      ref on both sides, the store directories, the designation, the guard, and the hold.
-    - Repeat with the restore stopped after each step and re-run.
+- _Outcome:_ The source CLI round trip in `51bd814982` returns both ref inventories after a real import before or after
+  publication, removes the installation and hold, and lifts the seal without moving code checkouts. Interrupted
+  ordinary steps finish on retry; interruption after marker deletion reaches the same target through explicit cleanup.
     - Run `arc check segment` and record the scenario and its result.
 
 ## **Phase 3:** Checkouts, the lock step, and the rehearsal copy
