@@ -528,13 +528,14 @@ refusing and then passing after its remedy, with the import's cost recorded from
   moved branch and the edited personal file, and `close` refused, naming each checkout still tracking state and the
   unconfirmed range. The import took 1,108 s at 2,350 MiB peak resident memory, and the driver again peaked at 2.9 GiB.
 
-### `[ ]` **7.4 Stage 1 at the landing head** — validate exit criterion at segment scope
+### `[x]` **7.4 Stage 1 at the landing head** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds at the head that lands.
 
-    - Confirm both runs ran at the current head, or run them again.
-    - Record the import's wall time and peak resident memory from both runs.
-    - Run `arc check segment` and record the scenario and its result.
+- _Outcome:_ Both runs used the tools as of `0a154a4a4d`; every later commit changes only this task list and the
+  notes, so the runs stand for the landing head unless the tools change again. Scenario: Tasks 7.2 and 7.3 passed
+  every step, each planted condition refusing and then passing after its remedy. The import took 896 s at 2,439 MiB
+  peak resident memory in the first run and 1,108 s at 2,350 MiB in the second. `arc check segment` passed.
 
 ## **Phase 8:** Verification
 

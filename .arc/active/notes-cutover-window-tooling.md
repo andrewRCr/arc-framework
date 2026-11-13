@@ -254,7 +254,13 @@ deletion. This applies the specified exception without changing the pre-committe
   and pushes there.
 - `applyRoadmapConflictAutoRemedy` (`lib/status/roadmap-conflict-auto-remedy.ts`) regenerates and stages only; the
   driver commits the merge in its scratch clone.
-- The memory gate is machine-local, so the driver takes the cap wrapper as a parameter and never names it.
+- The memory gate is machine-local, so the driver takes the cap wrapper as a parameter and never names it. On this
+  repository the driver itself holds about 2.9 GiB resident in `account`, `chain`, and `recompute`, so the whole driver
+  runs under one address-space limit, and the import inherits that limit through an empty cap wrapper. Under such a
+  limit, tsx's module lexer instantiates WebAssembly twice, and V8 reserves address space for each memory sized to what
+  the limit leaves, up to 4 GiB each. That exhausted an 8 GiB limit at under 0.5 GiB resident. Launching
+  `node --wasm-max-mem-pages=4096 --import tsx` on the family's `main.ts` directly, rather than through the npm
+  script, bounds each reservation; with it, the driver peaked at about 5.0 GiB of address space.
 - Store-backed case 1: a key mismatch between a boundary record's file name and its `workUnit` becomes an import notice
   (`read-codec.ts`; `listedRecord`, `lib/store/in-repo/list.ts`), and the import refuses before keeping any tips
   (`lib/store/ref/import/entry.ts`).
