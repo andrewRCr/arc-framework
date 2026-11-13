@@ -78,3 +78,20 @@ it("refuses a future destination under a symlink into a live checkout before cre
     result: { status: "refused", findings: [{ condition: expect.stringContaining("inside live checkout") }] } });
   await expect(readFile(join(h.root, ".arc-fixture", "..copy", "primary", ".git", "config"))).rejects.toMatchObject({ code: "ENOENT" });
 }, 60_000);
+
+it("refuses a checkout registered while the copy runs, leaving its live pointer untouched", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-race-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const late = join(container, "late"), destination = join(container, "copy");
+  const stdout: string[] = [];
+  const exit = await runWindow(["copy", "--repo", h.root, "--destination", destination, "--json"], {
+    copy: async request => ({ operation: "copy", status: "reported", findings: [], data: await prepareWindowCopy(request, {
+      afterCheckouts: async () => { await h.git("git", ["worktree", "add", "--detach", late]); },
+    }) }),
+  }, { stdout: value => { stdout.push(value); }, stderr: () => undefined });
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  expect(await readFile(join(late, ".git"), "utf8")).toBe(`gitdir: ${join(common, "worktrees", "late")}\n`);
+  expect((await h.git("git", ["rev-parse", "--git-common-dir"], { cwd: late })).stdout.trim()).toBe(common);
+  expect({ exit, result: JSON.parse(stdout.join("")) as unknown }).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [{ subject: late, condition: expect.stringContaining("registered while the copy ran") }] } });
+}, 60_000);

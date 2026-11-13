@@ -187,6 +187,10 @@ deletion. This applies the specified exception without changing the pre-committe
   in `parentCheckoutPath`; no writer that uses them was found.
 - `git worktree repair` runs in the copy only; the live repository's `.git/worktrees/*/gitdir` files and each live
   checkout's `.git` file are the evidence that it reached nothing else.
+- A checkout registered after `copy` reads the roster, and before it copies the Git directory, arrives in the copy as a
+  registration without its folder. `git worktree repair` visits every registration whatever paths it is given, so on
+  Stage 1's fifth run it rewrote that live checkout's `.git` to point into the copy. `copy` now refuses any copied
+  registration that names a path outside the copy, before the mirror and the repair.
 
 ## Read map
 

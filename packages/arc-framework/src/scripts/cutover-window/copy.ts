@@ -1,7 +1,7 @@
 /** Construct isolated repository copies with rewritten native worktree registrations. */
 import type { WindowRequest } from "./main.js";
 import { WindowRefusal } from "./result.js";
-import { cp, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
@@ -25,8 +25,11 @@ export async function copyWindow(request: WindowRequest, options: WindowCopySafe
   return { operation: "copy", status: "passed", findings: [], data: layout };
 }
 
+/** A point inside the copy where a caller may act, as a concurrent session would. */
+export interface WindowCopyHooks { afterCheckouts?: () => Promise<void> }
+
 /** Construct the requested copy without running an ARC command in it. */
-export async function prepareWindowCopy(request: WindowRequest): Promise<WindowCopyLayout> {
+export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCopyHooks = {}): Promise<WindowCopyLayout> {
   const { values } = parseArgs({ args: [...request.args], options: {
     repo: { type: "string" }, json: { type: "boolean" }, destination: { type: "string" },
   } });
@@ -56,6 +59,7 @@ export async function prepareWindowCopy(request: WindowRequest): Promise<WindowC
       filter: path => path !== join(row.source, ".git") &&
         !layout.worktrees.some(other => other.source !== row.source && path === other.source) });
   }
+  await hooks.afterCheckouts?.();
   const copiedCommon = join(layout.repo, ".git");
   await cp(commonDir, copiedCommon, { recursive: true, verbatimSymlinks: true });
   for (const row of layout.worktrees.filter(row => !row.primary)) {
@@ -66,11 +70,29 @@ export async function prepareWindowCopy(request: WindowRequest): Promise<WindowC
     await writeFile(join(copiedGit, "gitdir"), `${join(row.path, ".git")}\n`);
     await writeFile(join(copiedGit, "commondir"), `${relative(copiedGit, copiedCommon)}\n`);
   }
+  await refuseLateRegistrations(copiedCommon, destination);
   await exec("git", ["clone", "--mirror", "--no-hardlinks", "--", origin, layout.mirror]);
   await rewriteRemotes(exec, layout.repo, layout.mirror);
   await rewriteRemotes(exec, layout.mirror, layout.mirror);
   await exec("git", ["worktree", "repair", ...layout.worktrees.filter(row => !row.primary).map(row => row.path)], { cwd: layout.repo });
   return layout;
+}
+
+/** Every registration the copy holds must name a copied checkout, or a repair would rewrite a live checkout's pointer. */
+async function refuseLateRegistrations(copiedCommon: string, destination: string): Promise<void> {
+  const registrations = join(copiedCommon, "worktrees");
+  let entries: string[] = [];
+  try { entries = await readdir(registrations); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  for (const entry of entries.sort()) {
+    const admin = join(registrations, entry);
+    let checkout: string;
+    try { checkout = dirname(resolve(admin, (await readFile(join(admin, "gitdir"), "utf8")).trim())); }
+    catch { refuse(admin, "A checkout registered while the copy ran has no readable gitdir in the copy."); }
+    if (!await localPathContains(destination, checkout)) {
+      refuse(checkout, "This checkout was registered while the copy ran, so the copy holds its registration without its folder; repairing the copy would rewrite the live checkout's pointer.");
+    }
+  }
 }
 
 function refuse(subject: string, condition: string): never {

@@ -15,7 +15,9 @@ locked; the operation exits zero, and `check` refuses a marked checkout left unl
 and run `lock` again before checking.
 
 `copy` requires an absent destination outside every live checkout. It copies the primary and all registered linked
-checkouts, repairs their copied Git registrations, and creates an independent bare mirror of `origin`. All effective
+checkouts, repairs their copied Git registrations, and creates an independent bare mirror of `origin`. A checkout
+registered while the copy runs refuses it before any repair, since the copy would hold that registration without its
+folder and a repair would rewrite the live checkout's pointer; retry once no checkout is being added. All effective
 fetch and push URLs in the copy and mirror must name that mirror. Before reporting success it checks every copied
 Git pointer, backing-repository setting, host discovery result, and Errand identity snapshot. A copied Errand awaiting
 merge refuses because abandoning it would contact its host. The JSON result names the primary, mirror, and copied
