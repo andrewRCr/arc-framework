@@ -2,6 +2,7 @@
 import { dirname, join, resolve } from "node:path";
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { readWindowSealAnchor } from "../../src/scripts/cutover-window/seals.js";
@@ -28,24 +29,26 @@ it("derives the source-adding merge on main's first-parent history", async () =>
     .toMatchObject({ exit: 0, result: { data: { anchor: merged } } });
 }, 30_000);
 
-it("refuses a checkout older than the sealing anchor and passes once it returns to main", async () => {
+it("refuses a checkout older than the sealing anchor and passes once main is merged into it", async () => {
   const h = await windowFixture({ sealed: false });
-  const before = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   const source = "packages/arc-framework/src/scripts/cutover-window/check.ts";
   await mkdir(dirname(join(h.root, source)), { recursive: true });
   await writeFile(join(h.root, source), "/** Sealed window source. */\n");
   await h.git("git", ["add", source]);
   await h.git("git", ["commit", "-m", "Land the sealing boundary"]);
   await h.git("git", ["push", "origin", "main"]);
-  await h.git("git", ["checkout", "-b", "case/preseal", before]);
-  await h.git("git", ["push", "--set-upstream", "origin", "case/preseal"]);
+  await mergeMainIntoFixtureFlip(h);
+  const child = join(h.root, ".arc-fixture/preseal-alpha");
+  await h.git("git", ["worktree", "add", child, "feat/alpha"]); await h.git("git", ["worktree", "lock", child]);
+  await writeWorktreeMarker(child, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
+    createdFor: { kind: "work-unit", name: "alpha" } });
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
-    expect.objectContaining({ subject: h.root, condition: expect.stringContaining("does not descend"),
+    expect.objectContaining({ subject: child, condition: expect.stringContaining("does not descend"),
       remedy: expect.stringMatching(/merge main.*build:fast/iu) }),
   ]) } });
-  await h.git("git", ["checkout", "main"]);
-  await mergeMainIntoFixtureFlip(h);
+  await h.git("git", ["merge", "--no-edit", "main"], { cwd: child });
+  await h.git("git", ["push", "origin", "feat/alpha"], { cwd: child });
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

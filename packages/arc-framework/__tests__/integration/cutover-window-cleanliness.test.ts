@@ -2,6 +2,7 @@
 import { writeFile, rm, mkdir, appendFile, rename, symlink } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { expect, it } from "vitest";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 
@@ -37,8 +38,12 @@ it.each(["ahead", "behind", "detached", "without an upstream"] as const)(
       await h.git("git", ["fetch", "origin", "main"]);
       repair = () => h.git("git", ["merge", "--ff-only", "origin/main"]);
     } else if (state === "detached") {
-      await h.git("git", ["checkout", "--detach"]);
-      repair = () => h.git("git", ["checkout", "main"]);
+      const child = join(h.root, ".arc-fixture/detached-alpha");
+      await h.git("git", ["worktree", "add", child, "feat/alpha"]); await h.git("git", ["worktree", "lock", child]);
+      await writeWorktreeMarker(child, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
+        createdFor: { kind: "work-unit", name: "alpha" } });
+      await h.git("git", ["checkout", "--detach"], { cwd: child });
+      repair = () => h.git("git", ["checkout", "feat/alpha"], { cwd: child });
     } else {
       await h.git("git", ["branch", "--unset-upstream", "main"]);
       repair = () => h.git("git", ["branch", "--set-upstream-to=origin/main", "main"]);

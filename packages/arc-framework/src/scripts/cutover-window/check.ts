@@ -1,4 +1,5 @@
 /** Quiescence admission and restore-point acquisition for an explicitly named importing checkout. */
+import { windowHostTipFindings } from "./off-host.js";
 import type { WindowRequest } from "./main.js";
 import { WindowRefusal, type WindowResult } from "./result.js";
 import { readWindowPreconditions, windowPreexistingStoreRefFindings } from "./preflight.js";
@@ -48,7 +49,7 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
   if (originFindings.length > 0) return { operation: "check", status: "refused", findings: originFindings };
   try {
     await acquireWindowOriginRefs(io, origin);
-    const state = await captureWindowState(io, input, origin);
+    const state = await captureWindowState(io, input, { refs: origin, branches: await host.refs(["refs/heads/*"]) });
     const anchor = await readWindowSealAnchor(io, facts.anchor);
     const checkoutFindings = [...windowUnmarkedCheckoutFindings(state.checkouts), ...await readWindowEndedCheckoutFindings(io, state.checkouts),
       ...windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)),
@@ -64,7 +65,8 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       ...windowPullRequestFindings(facts.pullRequests, Object.keys(state.record.branches.live), state.record.flip.branch),
       ...facts.hosted ? windowMergeSettingFindings(await host.mergeSettings()) : [],
       ...windowErrandInputFindings(state.live.transientInputs), ...windowIdentityTipFindings(state.record.refs),
-      ...windowForeignClaimFindings(state.live.transientInputs, await state.context.importSource.ports.identity())];
+      ...windowForeignClaimFindings(state.live.transientInputs, await state.context.importSource.ports.identity()),
+      ...windowHostTipFindings(state.record.branches, state.checkouts.find(row => row.primary)?.head)];
     if (checkoutFindings.length > 0) throw new WindowRefusal(checkoutFindings);
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };

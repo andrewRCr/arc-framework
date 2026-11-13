@@ -18,7 +18,7 @@ const recordSchema = z.strictObject({
   flip: z.strictObject({ branch: names, pullRequest: z.number().int().positive(), head: oid }),
   worktrees: z.array(z.strictObject({ path: z.string().min(1), head: oid, branch: names.nullable(), personalDigest: digest })),
   reviewGateDigest: digest,
-  branches: z.strictObject({ local: branchTips, origin: branchTips, live: z.record(names, WindowLiveBranchSchema) }),
+  branches: z.strictObject({ local: branchTips, origin: branchTips, host: z.record(names, oid.nullable()), live: z.record(names, WindowLiveBranchSchema) }),
   refs: z.strictObject({ local: refTips("refs/arc/"), origin: refTips("refs/arc/"), tracking: refTips("refs/arc-remotes/origin/") }),
 });
 

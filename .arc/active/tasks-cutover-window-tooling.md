@@ -348,12 +348,11 @@ failing for a reason outside § 2.2.
         - Native acquisition and holder fixtures preserve their assertions without admitting Errands as quiescent:
           held-source reads use the acquisition phase, and successful retries retire or align identity records.
 
-    - `[ ]` **4.4.c C13 — off the host**
-        - Read every branch's host tip with one `git ls-remote origin 'refs/heads/*'` through the host port.
-        - Build `test-first` (one behavior at a time):
-            - An importing checkout that is not the primary, or not on `main`, refuses
-            - `main`'s host tip differing from its `HEAD` refuses, and passes once `main` is pulled
-            - A live branch whose fetched tip differs from its tip on the host refuses, and passes once fetched again
+    - `[x]` **4.4.c C13 — off the host**
+        - Import composition requires the physical primary on main. One host branch read records main and every live
+          branch, including the named flip; mismatched or unavailable observations refuse, and explicit absence compares
+          as absence. The hold persists these observations alongside local and fetched tips.
+        - Detached and pre-seal native fixtures exercise marked linked checkouts while preserving the importing primary.
 
     - `[ ]` **4.4.d The complete check and record**
         - The check evaluates all thirteen conditions, and its record holds everything § 4.1 lists, the live branches'

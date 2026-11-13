@@ -11,7 +11,7 @@ async function fixture() {
   await exec("git", ["commit", "--allow-empty", "-m", "base"]);
   const head = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   const record: WindowRecord = { version: 1, reviewGateDigest: "c".repeat(64), flip: { branch: "feat/flip", pullRequest: 7, head },
-    worktrees: [{ path: repo, head, personalDigest: "c".repeat(64), branch: "main" }], branches: { live: {}, local: { main: head }, origin: { main: head } },
+    worktrees: [{ path: repo, head, personalDigest: "c".repeat(64), branch: "main" }], branches: { live: {}, host: { main: head }, local: { main: head }, origin: { main: head } },
     refs: { local: {}, origin: {}, tracking: {} } };
   return { repo, exec, execInput, record, head };
 }
