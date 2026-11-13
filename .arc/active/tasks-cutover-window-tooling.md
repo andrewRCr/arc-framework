@@ -192,16 +192,10 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Checkout classification.
 
-    - `[ ]` **3.1.a Marked checkouts**
-        - Marked: a linked checkout whose marker's ownership decodes as `current` (`decodeWorktreeMarkerOwnership`),
-          whose subject is a work unit with no provisioning or a transient claim whose provisioning is `ready`, and
-          which carries no husk stamp (`decodeWorktreeHuskStamp`). Every other linked checkout takes one kind: no marker
-          (naming its path, machinery and hand-made checkouts alike), a branch subject, a partial Errand,
-          `manual-only`, `pending`, a malformed marker, or a missing folder; a husk-stamped marker goes to C4.
-        - Build `test-first` (one behavior at a time):
-            - A work-unit checkout, a hand-made checkout that ran `arc start`, and a ready Errand checkout are marked
-            - Each other kind is classified as that kind
-            - A husk-stamped marker is classified for C4, not C2
+    - `[x]` **3.1.a Marked checkouts**
+        - `readWindowCheckouts` acquires native registrations and validated markers in the named repository;
+          `classifyWindowCheckout` uses the ownership and husk decoders to distinguish marked checkouts from each
+          excluded kind. Husk evidence remains separate for C4, and unreadable registration inventories name a retry.
 
     - `[ ]` **3.1.b Live work units and live branches**
         - Take the composition from `composedMetas` over the ports the import's source binding builds
