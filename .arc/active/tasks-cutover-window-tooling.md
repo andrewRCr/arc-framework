@@ -108,7 +108,7 @@ restarted after each of its steps.
 
     - `[x]` **2.1.c C9 — a store, designation, or earlier hold**
         - The check's admission reports every prior designation, backing pointer, wrong code remote, store directory,
-          state or working ref, and earlier hold without changing existing state. Other ARC refs pass; incomplete
+          local or origin state or working ref, and earlier hold without changing existing state. Other ARC refs pass; incomplete
           holds name removal, and completion markers name the conditional restore or Owner-settlement route.
 
     - `[x]` **2.1.d The run order and its stop points**

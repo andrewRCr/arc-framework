@@ -97,6 +97,22 @@ it("permits pre-existing non-store ARC refs and unrelated temporary refs", async
   expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(before);
 }, 30_000);
 
+it.each(["refs/arc/project/registry", "refs/arc/tmp/migrate/import"])(
+  "refuses an origin-only store ref %s without acquiring a hold and passes after repair", async ref => {
+    const h = await windowFixture();
+    await h.git("git", ["push", "origin", `HEAD:${ref}`]);
+    const local = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+    const origin = (await h.git("git", ["ls-remote", "origin"])).stdout;
+    expect(await checkFixture(h)).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+      expect.objectContaining({ subject: `origin:${ref}`, remedy: expect.stringContaining("Owner") }),
+    ]) } });
+    expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(local);
+    expect((await h.git("git", ["ls-remote", "origin"])).stdout).toBe(origin);
+    await h.git("git", ["push", "origin", `:${ref}`]);
+    expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+  }, 30_000,
+);
+
 
 it("keeps an incomplete earlier hold intact and passes after that hold is removed", async () => {
   const h = await windowFixture();

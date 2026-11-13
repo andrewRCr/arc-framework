@@ -55,10 +55,11 @@ async function directoryFindings(context: RefBackendContext, commonDir: string):
   return findings;
 }
 
-function refFindings(refs: ReadonlyMap<string, string>): WindowFinding[] {
+/** Identify pre-existing store namespaces on either side before acquiring a window hold. */
+export function windowPreexistingStoreRefFindings(refs: ReadonlyMap<string, string>, side: "local" | "origin" = "local"): WindowFinding[] {
   return [...refs.keys()].filter(ref => isStateRef(ref) || isWindowStoreWorkingRef(ref)).map(ref => ({
-    subject: ref, condition: "A store ref or reserved working ref already exists.",
-    remedy: "Have the Owner settle the pre-window store and remove this ref before retrying check.",
+    subject: side === "origin" ? `origin:${ref}` : ref, condition: "A store ref or reserved working ref already exists.",
+    remedy: `Have the Owner settle the pre-window store and remove this ${side} ref before retrying check.`,
   }));
 }
 
@@ -79,5 +80,5 @@ export async function readWindowPreconditions(repo: string): Promise<WindowFindi
     configurationFindings(context, commonDir), directoryFindings(context, commonDir),
     listWindowRefs({ repo, exec: context.exec }, ["refs/arc/", "refs/arc-window/"]),
   ]);
-  return [...config, ...directories, ...refFindings(refs), ...holdFindings(refs)];
+  return [...config, ...directories, ...windowPreexistingStoreRefFindings(refs), ...holdFindings(refs)];
 }

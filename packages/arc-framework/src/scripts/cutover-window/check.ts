@@ -1,7 +1,7 @@
 /** Quiescence admission and restore-point acquisition for an explicitly named importing checkout. */
 import type { WindowRequest } from "./main.js";
 import { WindowRefusal, type WindowResult } from "./result.js";
-import { readWindowPreconditions } from "./preflight.js";
+import { readWindowPreconditions, windowPreexistingStoreRefFindings } from "./preflight.js";
 import { parseWindowFlipInput } from "./input.js";
 import { readWindowHostFacts, type WindowHostPort } from "./host.js";
 import { readSuppliedWindowRequests } from "./supplied.js";
@@ -31,6 +31,8 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       remedy: "Name the matching flip branch and main-targeting pull request, or repair the request target, then retry." }]);
   }
   const origin = await host.refs(["refs/arc/*"]);
+  const originFindings = windowPreexistingStoreRefFindings(new Map(Object.entries(origin)), "origin");
+  if (originFindings.length > 0) return { operation: "check", status: "refused", findings: originFindings };
   const record = await captureWindowRecord(io, input, origin);
   try {
     const tip = await writeWindowHold(io, record, options.step);
