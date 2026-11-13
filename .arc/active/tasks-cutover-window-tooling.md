@@ -319,15 +319,11 @@ failing for a reason outside § 2.2.
 - _Goal:_ No live work unit has a copy the import would pass over that diverges from the one it reads, and `main` is a
   proper ancestor of the flip's branch.
 
-    - `[ ]` **4.3.a C8 — a diverging copy**
-        - Compare every non-stale copy in the provenance field with the composed record's selected copy, by strict
-          ancestry; leave parked units to the import (`readImportParkedSources`, `resolveImportBranchTip`).
-        - Build `test-first` (one behavior at a time):
-            - A passed-over copy whose commit is not an ancestor of the selected copy refuses, naming the unit and both
-              refs
-            - A branch's local and fetched copies that both moved refuse, though the composition withholds
-              `candidate-shadowed` for them
-            - The refusal clears once the passed-over copy is merged into the selected one and pushed
+    - `[x]` **4.3.a C8 — a diverging copy**
+        - `readWindowDivergingCopyFindings` compares every non-stale provenance copy with the operational import
+          source by strict ancestry, excluding parked units through the import's parked-source reader.
+        - Refusals name the unit and both refs, including divergent local/fetched mirror pairs without shadow warnings.
+          Merge-and-push continuation passes; unavailable ancestry retains a restore-readable-commits remedy.
 
     - `[ ]` **4.3.b C10 — `main` not a proper ancestor of the flip's branch**
         - Build `test-first` (one behavior at a time):
