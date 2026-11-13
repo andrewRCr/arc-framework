@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** generate-tasks — `tasks-cutover-window-tooling.md` finalized; work unit activated
-- **Next Task:** Task 1.1 — Carry the composition's provenance on its result (line ~17)
+- **Last Completed:** Task 6.3 — The close; Phase 6 complete
+- **Next Task:** Task 7.1.a — Steps 1 to 4 — preparing the copy (line ~469)
 - **Blockers:** [none]
 
-- **Next Action:** Start the task loop at Task 1.1 (process-task-loop)
+- **Next Action:** Start Task 7.1.a — prepare the rehearsal copy (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
