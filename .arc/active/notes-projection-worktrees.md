@@ -1703,3 +1703,32 @@ passed. Astra's bounded completion advice found no decisive loss or recovery gap
 it is advice, not independent implementation verification. Same-claim retry is native for residual refusal;
 observation-error retention is covered by filesystem/slot observations and provisioning dependency cases, with no
 native same-claim retry after an injected observation error. A6's criterion and amendment revalidation remain at 2.8.
+
+## Persist burst evidence
+
+Implementation `33c3c309cc` extends the native twenty-process suite through teardown's Store-backed persist slot at
+`beforeAsideCopy` and `beforeLastCheck`, in both layouts. An interrupted native replacement supplies the indexed aside
+copy and open editor handles. Each successful slot must have read its own complete, current-record save before it
+returns; another process's later fan-out cannot supply that receipt. Final Store conservation remains mandatory unless
+the target's own refusal retains the actual original bytes or a current indexed aside copy with its recovery report.
+Historical reads, another reference, a proposed write, and reads outside that invocation cannot grant the receipt.
+
+The omission control originally exposed a false success after later fan-out rescued the save. The corrected receipt
+fails that control at both seams in both layouts. Five observation tests distinguish actual Store class delegation,
+current content and reference identity, and the invocation boundary. The complete local regression passed all 26 burst
+cases and five observation cases. The independent fix check and full second implementation pass returned no findings;
+these working reviews discharge no later Candidate review obligation.
+
+Dispatched CI run `43327625683` tested exact implementation head `33c3c309cc14658c4e90043a341820ccf21c063d`.
+Its named-file portability pair passed on Windows job `131564473396` and macOS job `131564473414`, each with all 26
+cases. Linux portability job `131564906747` passed 3,706 cases in 277 files, with 65 skipped. All three logs explicitly
+confirm each of the four persist combinations used 20 processes and preserved 20 completed saves. This diagnostic
+run supplies the task's platform evidence; it is not whole-work-unit verification evidence.
+
+The overall run failed five unrelated lifecycle/Store fixture jobs because their legacy setups omitted projection
+prerequisites now enforced by the bound retirement slots. Fixture-only correction `fe70e332b3` constructs native
+imported user projections before command dispatch, preserving existing Store records and failure evidence. Its
+51-file affected integration regression passed 668 cases, and both source and test types passed. Related unit
+selection returned no evidence, since these integration-only helpers reach no unit tests; it is not a passing unit
+result. The segment verifier's fresh full CI run must include this follow-up; the eight-file persist implementation
+and its fixture closure are unchanged from the qualified head.

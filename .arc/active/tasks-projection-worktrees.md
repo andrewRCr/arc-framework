@@ -397,19 +397,15 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Outcome:_ `MACHINE_LOCAL_PATHS` names the checkout's marker, pristine metadata and generated schema subtree.
   Projection discovery excludes those paths while a neighboring project-owned file under `.internal/` remains eligible.
 
-### `[ ]` **2.7 Hold saves through bursts into a removal's persist step — § 1.5**
+### `[x]` **2.7 Hold saves through bursts into a removal's persist step — § 1.5**
 
 - _Goal:_ Twenty worktrees of one clone, each a separate process over the ref backend, saving while their checkouts are
   persisted for removal, lose no save.
 
-    - 1.13's suite gains the persist step (2.2), bound through teardown's store-backed context (2.4.b): its processes
-      save into another's persist step, lined up by the same stdout and stdin protocol at 1.13's hooks and at 2.2's,
-      before it takes over an aside copy and before its last check. Every save placed before the target's last check
-      reaches the store, or stays in its file or in an aside copy — pending, refusing with a retry, or kept because its
-      path moved on, reported with its path — and refuses the removal; the suite places none at the target's own fan-out
-      visit after its persist step, where a save goes with the checkout (§ 17).
-    - Passes in one dispatched run of the portability pair and one of the Linux `portability` job, each recorded in this
-      task's completion note.
+- _Outcome:_ Native teardown persist bursts cover both hook seams and layouts; each successful persist proves its
+  actual Store read observed its completed save before returning, and the final conservation oracle retains refusals'
+  recovery evidence. Implementation `33c3c309cc` passed CI run `43327625683` on Windows (`131564473396`), macOS
+  (`131564473414`), and Linux portability (`131564906747`); see `notes-projection-worktrees.md` § Persist burst evidence.
 
 ### `[ ]` **2.8 Removal after persist** — validate exit criterion at segment scope
 
