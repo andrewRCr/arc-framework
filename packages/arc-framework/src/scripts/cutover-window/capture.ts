@@ -3,10 +3,13 @@ import { listWindowRefs, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
 import type { WindowFlipInput } from "./input.js";
 import { WindowRefusal } from "./result.js";
-import { readWindowCheckouts } from "./checkouts.js";
+import { readWindowCheckouts, type WindowCheckout } from "./checkouts.js";
 import { createWindowImportContext } from "./import-context.js";
 import { readWindowLiveState } from "./live-state.js";
 import { readWindowPersonalState, readWindowReviewDigest } from "./digests.js";
+
+/** One source acquisition retained for admission alongside its serializable restore record. */
+export interface WindowCapturedState { record: WindowRecord; checkouts: WindowCheckout[] }
 
 function select(refs: ReadonlyMap<string, string>, prefix: string, branches = false): Record<string, string> {
   return Object.fromEntries<string>([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
@@ -14,8 +17,8 @@ function select(refs: ReadonlyMap<string, string>, prefix: string, branches = fa
 }
 
 /** Read every registered checkout, local/fetched branch, and local/tracking ARC ref without moving any ref. */
-export async function captureWindowRecord(io: WindowGitReadIO, input: WindowFlipInput,
-  origin: Readonly<Record<string, string>>): Promise<WindowRecord> {
+export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipInput,
+  origin: Readonly<Record<string, string>>): Promise<WindowCapturedState> {
   const [refs, checkouts, context] = await Promise.all([
     listWindowRefs(io, ["refs/heads/", "refs/remotes/origin/", "refs/arc/", "refs/arc-remotes/origin/"]),
     readWindowCheckouts(io), createWindowImportContext(io.repo),
@@ -33,7 +36,7 @@ export async function captureWindowRecord(io: WindowGitReadIO, input: WindowFlip
     if (personalDigest === undefined) throw new Error(`No acquired personal digest for checkout ${path}`);
     return { path, head, branch, personalDigest };
   });
-  return { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
+  return { checkouts, record: { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
     branches: { local, origin: fetched, live: live.branches }, refs: { local: select(refs, "refs/arc/"), origin: { ...origin },
-      tracking: select(refs, "refs/arc-remotes/origin/") } };
+      tracking: select(refs, "refs/arc-remotes/origin/") } } };
 }

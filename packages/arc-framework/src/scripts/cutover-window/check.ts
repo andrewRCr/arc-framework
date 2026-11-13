@@ -6,7 +6,8 @@ import { parseWindowFlipInput } from "./input.js";
 import { readWindowHostFacts, type WindowHostPort } from "./host.js";
 import { readSuppliedWindowRequests } from "./supplied.js";
 import { createWindowHost } from "./native-host.js";
-import { captureWindowRecord } from "./capture.js";
+import { captureWindowState } from "./capture.js";
+import { windowCheckoutLockFindings } from "./lock.js";
 import { acquireWindowOriginRefs, writeWindowHold, discardUnfinishedWindowHold, type WindowHoldStepHook } from "./hold.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 
@@ -35,8 +36,10 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
   if (originFindings.length > 0) return { operation: "check", status: "refused", findings: originFindings };
   try {
     await acquireWindowOriginRefs(io, origin);
-    const record = await captureWindowRecord(io, input, origin);
-    const tip = await writeWindowHold(io, record, options.step);
+    const state = await captureWindowState(io, input, origin);
+    const lockFindings = windowCheckoutLockFindings(state.checkouts);
+    if (lockFindings.length > 0) throw new WindowRefusal(lockFindings);
+    const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {
     if (error instanceof WindowRefusal) await discardUnfinishedWindowHold(io);

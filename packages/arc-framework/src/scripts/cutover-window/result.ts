@@ -6,6 +6,7 @@ export interface WindowResult {
   operation: string;
   status: "passed" | "refused" | "stopped" | "findings" | "reported";
   findings: readonly WindowFinding[];
+  messages?: readonly string[];
   data?: unknown;
 }
 /** Text boundaries shared by the entry and its tests. */
@@ -16,6 +17,7 @@ export interface WindowOutput { stdout(text: string): void; stderr(text: string)
 export function emitWindowResult(result: WindowResult, json: boolean, output: WindowOutput): number {
   const report = [
     `${result.operation}: ${result.status}`,
+    ...(result.messages ?? []),
     ...result.findings.map(finding => `${finding.subject}: ${finding.condition}\n  Remedy: ${finding.remedy}`),
   ].join("\n") + "\n";
   if (json) {

@@ -218,21 +218,14 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
           inventory notices refuse with a check-specific access remedy. Capture binds both digest readers to the same
           import context and persists required `personalDigest` and `reviewGateDigest` fields in the strict record.
 
-### `[ ]` **3.3 The lock step — § 8, C3**
+### `[x]` **3.3 The lock step — § 8, C3**
 
 - _Goal:_ After `lock`, every marked linked checkout carries a Git worktree lock, so C3 passes, while existing locks and
   every other checkout are untouched.
 
-    - Select the marked linked checkouts whose registration carries no lock, as C3 reads them, then lock each through
-      `lockSpawnedCheckout` (`lib/git/worktree-removal.ts`), which uses `PROJECTION_LOCK_REASON`. Its `locked` result
-      also covers a checkout already locked with that reason, so the report comes from the selection. A `failed` result
-      is reported with the checkout and its detail while the rest are still locked, and `lock` still exits zero, since
-      it refuses nothing; C3 refuses that checkout, and running `lock` again retries it.
-    - Build `test-first` (one behavior at a time):
-        - C3 refuses an unlocked marked checkout, naming it, and passes after `lock`
-        - `lock` locks each unlocked marked checkout and reports each one, and none it did not lock
-        - An existing lock and its reason are left alone, and unmarked checkouts stay unlocked
-        - A checkout whose lock fails is reported with its detail, the others are still locked, and C3 refuses it
+- _Outcome:_ `lockWindow` selects marked, unlocked linked checkouts and uses the shared spawn lock helper; existing
+  reasons and unmarked checkouts remain unchanged. Each new lock is reported, individual failures preserve a zero exit
+  and permit retry, and C3 uses the same captured checkout inventory to refuse any marked checkout still unlocked.
 
 ### `[ ]` **3.4 Checkout refusals — C1, C2, C4, C5, C6**
 
