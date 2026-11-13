@@ -113,7 +113,6 @@ describe("nodeReconcileWorkUnitWorktreeFs.copyDirectory", () => {
     root = await mkdtemp(join(tmpdir(), "arc-copy-harness-dir-"));
   });
   afterEach(async () => {
-    beginProjectionCommand();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -151,6 +150,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     root = await mkdtemp(join(tmpdir(), "arc-reconcile-work-unit-worktree-"));
   });
   afterEach(async () => {
+    beginProjectionCommand();
     await rm(root, { recursive: true, force: true });
   });
 
