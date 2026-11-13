@@ -11,9 +11,9 @@ import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { applyProjectionRefresh, type ProjectionRefreshInput } from "./refresh.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
-import { projectionArrivalsInstalled, reconcileProjectionHandoffs } from "./ownership-handoff.js";
+import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 
-/** Retry toward fresh settings, acknowledging them only after every desired arrival is confirmed. */
+/** Retry toward fresh settings, acknowledging them only after every arrival they bring is confirmed. */
 export async function reprojectProjectionRoot(input: ProjectionRefreshInput): Promise<ProjectionIndex> {
   const { root } = input;
   const target = projectionSettings(root);
@@ -26,7 +26,8 @@ export async function reprojectProjectionRoot(input: ProjectionRefreshInput): Pr
   const applied = await applyProjectionRefresh({ ...input, index, source }, plan, { advanceState: false });
   index = applied.index;
   await ensureProjectionScratch(root);
-  if (!applied.complete || !projectionArrivalsInstalled(index, plan.paths)) return index;
+  // The applied plan is complete once its own arrivals are installed; a held file it did not move does not hold the setting.
+  if (!applied.complete) return index;
   const acknowledged = { ...index, projectedUnder: target };
   delete acknowledged.reprojectionPending;
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, index: acknowledged, checkpoint: root.context.checkpoint });

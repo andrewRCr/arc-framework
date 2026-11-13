@@ -27,6 +27,7 @@ import { prepareIndexedProjectionSubmission } from "../../../../src/lib/store/pr
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -260,4 +261,26 @@ it("keeps the captured old basis while canonical naming is rechecked at atomic a
     type: "cohort", name: "group", uid: "00000000-0000-4000-8000-000000000099",
   })) : entry.reference;
   expect(success(await h.f.store.read({ reference: arriving })).content).toBe(h.arrived);
+});
+
+it("never lays another live unit that shares the checkout's slug at the checkout's own path", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(h.f.root);
+  const command = { checkout: h.f.root, store: h.f.store }, [path] = Object.keys(h.projected.index.entries);
+  if (path === undefined) throw new Error("Missing own metadata path");
+  await rm(join(h.projected.location.stateDir, "index"));
+  await startProjection(command);
+  await endProjection(command);
+  const own = await readFile(join(h.f.root, path), "utf8");
+  await plantRefPrimary(h.f, { kind: "work-item/meta", name: "alpha", uid: "00000000-0000-4000-8000-0000000000aa",
+    content: makeMetaFixture("alpha", { owner: "bob", state: "Active", workClass: "Light", priority: "P2", currentWorkflow: "process-task-loop" }) });
+  for (let round = 0; round < 2; round += 1) {
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await endProjection(command);
+    expect(await readFile(join(h.f.root, path), "utf8")).toBe(own);
+  }
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  const owner = h.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("The own primary lacks a UID");
+  expect(disk.kind === "index" ? disk.index.entries[path] : "unread").toMatchObject({ reference: { owner: { uid: owner.uid } } });
 });

@@ -4,7 +4,7 @@ import { loadFormerProjectionOwner, planOwnerRefresh } from "./refresh-owners.js
 import type { HistoryEntry } from "../contract.js";
 import { recordReferences, sameOwner, sameReference, type RecordReference, type StateVersion } from "../identity.js";
 import type { StoreRecord } from "../read.js";
-import { projectionRecordPath } from "./desired-paths.js";
+import { isClaimedProjectionOwner, projectionRecordPath } from "./desired-paths.js";
 import { familyOf } from "../catalog.js";
 import { projectionListingComplete, projectionListingDiagnostics } from "./inventory.js";
 import { planProjectionRebuild } from "./refresh-rebuild.js";
@@ -46,7 +46,11 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
   const subjects = await refreshSubjectReferences(input, reduced);
   const primaries = [...reduced.map(change => change.reference), ...retries, ...subjects.references]
     .filter(reference => ["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind));
-  const owners = primaries.map(reference => reference.owner).filter((owner, at, all) => all.findIndex(other => sameOwner(owner, other)) === at);
+  // A held entry proves nothing about its owner's place in the view, so a work item's held record is planned from the view.
+  const held = Object.values(index.entries).flatMap(entry => entry.kind === "record" && entry.pending
+    && entry.reference.owner.type === "work-item" ? [entry.reference] : []);
+  const owners = [...primaries, ...held].map(reference => reference.owner)
+    .filter((owner, at, all) => all.findIndex(other => sameOwner(owner, other)) === at);
   let unresolved = subjects.unresolved;
   const uncertain: RecordReference[] = [];
   const references = [...subjects.references, ...retries]
@@ -95,7 +99,7 @@ async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: Projec
     return true;
   }
   const primary = located.result;
-  const own = primary?.placement?.kind === "active" && primary.reference.owner.name === input.root.claim ? primary.reference.owner : null;
+  const own = primary?.placement?.kind === "active" && isClaimedProjectionOwner(input.root, primary.reference.owner) ? primary.reference.owner : null;
   const visible = primary !== null && Object.values(input.index.entries).some(entry => entry.kind === "record"
     && sameOwner(entry.reference.owner, primary.reference.owner));
   const path = projectionRecordPath(input.root, read.result, primary === null ? [] : [primary], own,

@@ -24,11 +24,20 @@ export interface DesiredProjection {
   readonly placementKnown: (path: string, reference: RecordReference, active?: ActiveLayoutContext) => boolean;
 }
 
+/** The checkout's claim: its slug, with the marker's UID wherever the marker records one. */
+export interface ProjectionClaim { readonly claim: string | null; readonly claimUid?: string }
+
+/** Whether an owner is the claimed work unit, never another live unit that shares its slug. */
+export function isClaimedProjectionOwner(claim: ProjectionClaim, owner: OwnerIdentity): boolean {
+  if (owner.type !== "work-item" || claim.claim === null || owner.name !== claim.claim) return false;
+  return claim.claimUid === undefined || owner.uid === undefined || owner.uid === claim.claimUid;
+}
+
 /** Project visible records through the same semantic layout addresses commands use. */
 export async function desiredProjectionPaths(root: ProjectionRootState, inventory: ProjectionInventory,
   ownUnavailable?: boolean): Promise<DesiredProjection> {
   const primaries = inventory.records.filter(record => record.reference.kind === "work-item/meta" || isErrand(record));
-  const matches = primaries.filter(record => record.reference.owner.name === root.claim && record.placement?.kind === "active");
+  const matches = primaries.filter(record => isClaimedProjectionOwner(root, record.reference.owner) && record.placement?.kind === "active");
   const own = matches.length === 1 ? matches[0]?.reference.owner ?? null : null;
   const selection = await selectProjectionView({ store: inventory.source, identity: root.identity, view: root.view, own });
   if (selection.kind === "unavailable") for (const mark of selection.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
@@ -38,8 +47,9 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
     if (path !== null) files.set(path, record);
   }
   const unavailableCohorts = await addCurrentCohortCopies(root, inventory, own, files);
-  const unknownOwn = ownUnavailable ?? (matches.length > 1 || root.claim !== null && own === null && !inventory.complete(
-    recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: root.claim }))));
+  // Two live claimed primaries leave the own unit unknown whatever the caller learned of its own read.
+  const unknownOwn = matches.length > 1 || (ownUnavailable ?? (root.claim !== null && own === null && !inventory.complete(
+    recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: root.claim })))));
   const unknownView = selection.kind === "unavailable" || unknownOwn && root.view.mode === "cohort";
   const placementKnown = (path: string, reference: RecordReference,
     active: ActiveLayoutContext = { claim: root.claim, layoutActive: root.layoutActive }): boolean => {

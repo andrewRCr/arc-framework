@@ -2,7 +2,7 @@
 import { OwnerIdentitySchema, recordReferences, sameOwner, sameReference, type OwnerIdentity } from "../identity.js";
 import { identifyArcFileAddress } from "../../layout/index.js";
 import type { StoreRecord } from "../read.js";
-import { desiredProjectionPaths, projectionRecordPath, type DesiredProjection } from "./desired-paths.js";
+import { desiredProjectionPaths, isClaimedProjectionOwner, projectionRecordPath, type DesiredProjection } from "./desired-paths.js";
 import { projectionListingComplete, projectionListingDiagnostics, type ProjectionInventory } from "./inventory.js";
 import { loadProjectionPathGroup } from "./index-memory.js";
 import { retainUncertainProjectionPaths } from "./placement-evidence.js";
@@ -47,7 +47,7 @@ function removeOwnerPaths(scope: Parameters<typeof applyOwnerPaths>[0]): void {
 
 function ownMembershipChanged(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[], own: StoreRecord | null): boolean {
   const prior = Object.values(input.index.entries).find(entry => entry.kind === "record"
-    && entry.reference.kind === "work-item/meta" && entry.reference.owner.name === input.index.projectedUnder.claim);
+    && entry.reference.kind === "work-item/meta" && isClaimedProjectionOwner(input.index.projectedUnder, entry.reference.owner));
   const reference = own?.reference ?? (prior?.kind === "record" ? prior.reference : null);
   return reference !== null && owners.some(owner => sameOwner(owner, reference.owner));
 }
@@ -76,11 +76,12 @@ async function readOwners(input: ProjectionRefreshPlanInput, owners: readonly Ow
 async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<{ primary: StoreRecord | null; unavailable: boolean }> {
   if (input.root.claim === null) return { primary: null, unavailable: false };
   const listed = records.find(record => (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record")
-    && record.reference.owner.name === input.root.claim && record.placement?.kind === "active");
+    && isClaimedProjectionOwner(input.root, record.reference.owner) && record.placement?.kind === "active");
   if (listed !== undefined) return { primary: listed, unavailable: false };
   const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: input.root.claim }));
   const read = await input.source.read({ reference });
-  if (read.status === "ok") return { primary: read.result.placement?.kind === "active" ? read.result : null, unavailable: false };
+  if (read.status === "ok") return { primary: read.result.placement?.kind === "active"
+    && isClaimedProjectionOwner(input.root, read.result.reference.owner) ? read.result : null, unavailable: false };
   const unavailable = read.refusal.code !== "not-found";
   if (unavailable) input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
   return { primary: null, unavailable };
@@ -98,7 +99,7 @@ export async function loadFormerProjectionOwner(input: ProjectionRefreshPlanInpu
     return false;
   }
   const old = read.result;
-  const own = old.placement?.kind === "active" && old.reference.owner.name === input.index.projectedUnder.claim ? old.reference.owner : null;
+  const own = old.placement?.kind === "active" && isClaimedProjectionOwner(input.index.projectedUnder, old.reference.owner) ? old.reference.owner : null;
   const path = projectionRecordPath(input.root, old, [old], own, { kind: "selected", references: [old.reference], missingPins: [] });
   if (path !== null) loadProjectionPathGroup(input.index.entries, path);
   return true;
