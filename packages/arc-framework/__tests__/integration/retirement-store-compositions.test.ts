@@ -128,6 +128,22 @@ it("retains a Store abandonment's primary, claim, and refused edit, then abandon
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
+it("retains a Store abandonment's primary and claim while its ignore guard refuses an edit's root, then abandons after repair", async () => {
+  const h = await fixture(false), marker = await readWorktreeMarker(h.checkout);
+  await rm(h.held);
+  const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
+  await writeFile(excludes, ".arc/\n");
+  const refused = await invoke(h, ["abandon", "demo", "--yes"]);
+  expect(refused, refused.output).toMatchObject({ exitCode: 1 });
+  expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
+  expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "ok", result: { version: h.meta.version } });
+  await writeFile(excludes, original);
+  const repaired = await invoke(h, ["abandon", "demo", "--yes"]);
+  expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
+  expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
+}, 30_000);
+
 it.each([false, true])("retains a Store decomposition's origin and refused edit, then finishes after repair, primary=%s", async isPrimary => {
   const h = await fixture(false, isPrimary), marker = await readWorktreeMarker(h.checkout);
   if (isPrimary) await writeFile(join(h.root, "personal.txt"), "Retained personal content.");

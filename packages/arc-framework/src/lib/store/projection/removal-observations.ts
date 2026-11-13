@@ -44,11 +44,25 @@ export async function readRemovalHandoffs(input: ProjectionRemovalObservationInp
     blockedByLink: () => null }, input.index, paths);
 }
 
+/** Answers whether persistence could install a file it sends at a path, as its own ignore check would decide. */
+export type ProjectionRemovalGuard = (path: string) => Promise<ProjectionRemovalCheck>;
+
+/** Read the ignore proof once, on the first file persistence would send, and answer for each such path. */
+export function createRemovalGuard(input: ProjectionRemovalObservationInput): ProjectionRemovalGuard {
+  let read: Promise<IgnoreCheck> | undefined;
+  return async path => {
+    const ignores = await (read ??= readRemovalIgnoreCheck(input));
+    if (ignores.kind !== "refused") return { kind: "passes" };
+    if (ignores.reason === "guard-failed") return { kind: "unobservable", detail: `${ignores.failure}; ${ignores.remedy}` };
+    const writable = writableUnder(ignores, guardedProjectionRoots(input.root.identity).map(root => root.path));
+    return writable(path) ? { kind: "passes" } : { kind: "would-refuse", remedy: { text: ignores.remedy } };
+  };
+}
+
 /** An accepted adoption stays held until a command installs it, including after its recording has finished. */
-export async function checkPendingProjectionReadBack(input: ProjectionRemovalObservationInput, path: string): Promise<ProjectionRemovalCheck> {
-  const ignores = await readRemovalIgnoreCheck(input);
-  if (ignores.kind === "refused" && ignores.reason === "guard-failed") return { kind: "unobservable", detail: `${ignores.failure}; ${ignores.remedy}` };
-  const writable = writableUnder(ignores, guardedProjectionRoots(input.root.identity).map(root => root.path));
-  if (!writable(path) && ignores.kind === "refused") return { kind: "would-refuse", remedy: { text: ignores.remedy } };
+export async function checkPendingProjectionReadBack(input: ProjectionRemovalObservationInput, path: string,
+  guard: ProjectionRemovalGuard = createRemovalGuard(input)): Promise<ProjectionRemovalCheck> {
+  const guarded = await guard(path);
+  if (guarded.kind !== "passes") return guarded;
   return { kind: "would-refuse", remedy: { text: `Run arc save from ${input.root.checkout} to finish installing the accepted adoption at ${path}, then retry removal.` } };
 }

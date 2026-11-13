@@ -16,6 +16,7 @@ import { refuseProjectionEdit } from "./rights-binding.js";
 import { adoptProjectionFile } from "./adoption.js";
 import { resumeAdoptionReadBack } from "./adoption-read-back.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
+import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 /** Preserve a file's actual send/read-back outcome independently of pending flags carried through a successful swap. */
@@ -47,7 +48,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   for (const path of pending) {
     const entry = index.entries[path];
     if (entry?.kind !== "record") continue;
-    const request: TakeInRequest = { ...pendingFileRequest(root, path, entry),
+    const request: TakeInRequest = { ...pendingFileRequest(root.checkout, path, entry),
       ...(selected !== path || target?.accepted ? {} : { resolution: target?.target?.resolution }) };
     const sent = await sendFile(root, index, request);
     index = sent.index;
@@ -69,13 +70,6 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
 function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | null {
   const intent = checkoutResolution(checkout);
   return intent?.accepted || !intent?.target?.aliases?.includes(path) ? null : intent.refusal;
-}
-
-function pendingFileRequest(root: ProjectionRootState, path: string, entry: RecordEntry): TakeInRequest {
-  const adopting = entry.adoption?.kind === "write-back";
-  return { checkout: root.checkout, path, copy: null, entry: adopting ? { ...entry, pending: false } : entry,
-    base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
-    ...(adopting ? { adopting: true as const, observedEdit: true } : {}) };
 }
 
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
@@ -115,7 +109,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
     return { index: recordCleanFile(index, path, entry, changed), edited: false };
   }
   if (!resolving && changed.status === "changed"
-    && await readUnchangedProjectionFile(root.context, pendingFileRequest(root, path, entry)) !== null) {
+    && await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry)) !== null) {
     root.unsent.delete(path);
     return { index, edited: false };
   }

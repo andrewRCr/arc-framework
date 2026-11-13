@@ -1,7 +1,8 @@
 /** Read an unindexed file's adoption feasibility without minting, attaching, or sending it. */
 import { join } from "node:path";
 import { checkSerializationRules } from "../serialization.js";
-import type { MintedStubReceipt, ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { FileStat, MintedStubReceipt, ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ProjectionRemovalGuard } from "./removal-observations.js";
 import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionRemovalCheck } from "./removal-verdict.js";
 import { projectionFeasibilityRefusal, unresolvedRemovalConflicts } from "./removal-verdict.js";
@@ -10,13 +11,18 @@ import { classifyBacklogAdoption, resolveOwnedAdoptionReference, resolveProjecti
 import { inspectProjectionAdoption, missingMintedMetadataMark } from "./adoption-verdict.js";
 import { existingProjectionEntry } from "./adoption-existing.js";
 import { prepareWriteBack } from "./write-back.js";
+import { pendingFileRequest } from "./pending-request.js";
 import { prepareAdoptedProjectionSubmission } from "./submission.js";
 import type { AdoptionReference } from "./adoption-target.js";
 import { readProjectionStubMetadata, readMintedProjectionBasis, mintedProjectionEntry } from "./stub-mint.js";
 import { readProjectionProtection } from "./protection.js";
 
-/** Apply adoption's own verdict, then only the preparation the adopter would reach. */
-export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, index: ProjectionIndex, path: string): Promise<ProjectionRemovalCheck> {
+/**
+ * Apply adoption's own verdict, then only the preparation the adopter would reach; a file adoption would go on to send
+ * also answers the guard, since persistence cannot install it where the ignore check refuses its root.
+ */
+export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, index: ProjectionIndex, path: string,
+  guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
   if (gate.kind === "absent") {
     const entry = index.entries[path];
@@ -25,9 +31,15 @@ export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, inde
   }
   if (gate.kind === "no-edit") return { kind: "passes" };
   if (gate.kind === "pending") return { kind: "would-refuse", remedy: { text: `Let ${path} finish saving, then retry adoption and removal.` } };
+  const checked = await checkReadableAdoption(root, index, path, gate.stat);
+  return checked.kind === "passes" ? guard(path) : checked;
+}
+
+async function checkReadableAdoption(root: ReadOnlyProjectionRoot, index: ProjectionIndex, path: string,
+  stat: FileStat): Promise<ProjectionRemovalCheck> {
   const target = await readRemovalAdoptionTarget(root, index, path);
   if (target.kind !== "reference") return target;
-  const verdict = await inspectProjectionAdoption(root, path, target.reference, gate.stat);
+  const verdict = await inspectProjectionAdoption(root, path, target.reference, stat);
   if (verdict.kind === "refused") return { kind: "would-refuse", remedy: verdict.mark.remedy };
   if (verdict.kind === "existing") return checkExistingProjectionAdoption(root, path,
     existingProjectionEntry(verdict.record, verdict.read, root.context.format));
@@ -58,9 +70,7 @@ async function readRemovalAdoptionTarget(root: ReadOnlyProjectionRoot, index: Pr
 }
 
 async function checkExistingProjectionAdoption(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry): Promise<ProjectionRemovalCheck> {
-  const prepared = await prepareWriteBack(root.context, { checkout: root.checkout, path, copy: null,
-      entry: { ...entry, pending: false }, adopting: true, observedEdit: true,
-      base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob } });
+  const prepared = await prepareWriteBack(root.context, pendingFileRequest(root.checkout, path, entry));
   if (prepared.kind !== "ready") return projectionFeasibilityRefusal(prepared, path) ?? { kind: "passes" };
   const conflict = unresolvedRemovalConflicts(path, entry.unshown, prepared.write.resolves ?? []);
   if (conflict !== null) return conflict;

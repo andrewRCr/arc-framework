@@ -52,7 +52,7 @@ describe("files other than Markdown", () => {
     expect(await readStamplessFile({ entry, text: "older\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
       .toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
     expect(await readStamplessFile({ entry, text: "newer\r\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
-      .toEqual({ status: "ok", result: { kind: "unedited" } });
+      .toEqual({ status: "ok", result: { kind: "unedited", current: true } });
   });
 
   it("reads the old content a stopped replacement left as unedited, so the replacing version is laid again", async () => {
@@ -60,7 +60,7 @@ describe("files other than Markdown", () => {
       replaces: { blob: gitBlobId("older\n", "sha1"), version: v("v1") }, copy: ASIDE_COPY,
     });
     expect(await readStamplessFile({ entry: replacing, text: "older\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
-      .toEqual({ status: "ok", result: { kind: "unedited" } });
+      .toEqual({ status: "ok", result: { kind: "unedited", current: false } });
   });
 
   it("reads the indexed content as a revert when the last persisted write-back recorded that base", async () => {
@@ -87,7 +87,7 @@ describe("files other than Markdown", () => {
       takenIn: { kind: "landed" as const, version: source.replacingVersion } } };
     const readOf = (text: string) => readStamplessFile({ entry, text, mtimeNs: LONG_AGO, format: "sha1", memo: source.memo });
     expect(await readOf("a\nb\nc\n")).toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: entry.inProgress?.replaces } });
-    expect(await readOf("x\ny\nz\n")).toEqual({ status: "ok", result: { kind: "unedited" } });
+    expect(await readOf("x\ny\nz\n")).toEqual({ status: "ok", result: { kind: "unedited", current: true } });
   });
 
   it("keeps unreadable replacement versions pending and accepts repaired recorded versions", async () => {

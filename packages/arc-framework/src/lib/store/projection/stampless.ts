@@ -15,8 +15,11 @@ import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 export type StamplessRead =
   /** Empty and younger than the settle time: the next command reads it. */
   | { readonly kind: "wait" }
-  /** It holds what the projection wrote, or a version a replacement in progress names. */
-  | { readonly kind: "unedited" }
+  /**
+   * It holds what the projection wrote (`current`), up to line endings, or the version a replacement in progress
+   * replaces.
+   */
+  | { readonly kind: "unedited"; readonly current: boolean }
   /** An edit, retaining both possible bases while a replacement is in progress. */
   | { readonly kind: "edit"; readonly base: RecordEntry["base"]; readonly replaces: RecordEntry["base"] | null }
   /**
@@ -49,11 +52,11 @@ export async function readStamplessFile(input: StamplessReadInput): Promise<Stor
   const now = input.now ?? wallClockNs;
   if (input.text === "" && now() - input.mtimeNs < SETTLE_WINDOW_NS) return read({ kind: "wait" });
   const blob = storedBlobId(input.text, { format: input.format, markdown: false });
-  if (blob === entry.written && entry.persisted?.stamp !== entry.base.blob) return read({ kind: "unedited" });
+  if (blob === entry.written && entry.persisted?.stamp !== entry.base.blob) return read({ kind: "unedited", current: true });
   const { inProgress } = entry;
   if (inProgress === null) return read({ kind: "edit", base: entry.base, replaces: null });
   // A recorded take-in distinguishes the person's revert from old bytes left by an interrupted replacement.
-  if (blob === inProgress.replaces.blob && entry.persisted?.stamp !== inProgress.replaces.blob) return read({ kind: "unedited" });
+  if (blob === inProgress.replaces.blob && entry.persisted?.stamp !== inProgress.replaces.blob) return read({ kind: "unedited", current: false });
   const history = await input.memo.read(entry.reference);
   if (history.status === "refused") {
     // Taking either version unread could write old content over the newer one.

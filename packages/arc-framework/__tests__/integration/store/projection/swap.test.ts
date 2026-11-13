@@ -191,7 +191,7 @@ describe("the swap", () => {
       entry: record, text: await readFile(other.file, "utf8"), mtimeNs: stat.mtimeNs, format: "sha1",
       memo: createHistoryMemo(other.fixture.store),
     });
-    expect(read).toEqual({ status: "ok", result: { kind: "unedited" } });
+    expect(read).toEqual({ status: "ok", result: { kind: "unedited", current: false } });
   });
 
   it("leaves a file pending after a stop between the move and the link, its aside copy holding no edit", async () => {

@@ -286,9 +286,11 @@ async function stamplessVerdict(
   if (read.result.kind === "pending") return pendingRead(context, request, read.result.refusal);
   if (read.result.kind === "edit") return null;
   if (read.result.kind === "unedited" && request.observedEdit) return null;
-  const pending = read.result.kind === "wait";
-  return { kind: "held", result: { answer: pending ? "pending" : "no-edit",
-    entry: pending ? { ...request.entry, pending: true } : request.entry } };
+  if (read.result.kind === "wait") return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } } };
+  // Bytes holding what the projection wrote, up to line endings, hold no edit: their stat is re-recorded, as a hashed-clean
+  // check's is, so a later check matches it rather than reading the file as changed again.
+  return { kind: "held", result: { answer: "no-edit",
+    entry: read.result.current ? { ...request.entry, stat } : request.entry } };
 }
 
 function pendingRead(context: WriteBackContext, request: TakeInRequest, refusal: StoreRefusal): HeldWriteBack {

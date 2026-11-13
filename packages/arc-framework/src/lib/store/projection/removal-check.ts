@@ -39,7 +39,8 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     const targetIdentity = configuration.identity.identity;
     if (targetIdentity !== context.identity) return { kind: "unobservable", detail:
       `The target ${checkout} uses identity ${targetIdentity}, while this command ${context.identity === null ? "has no resolved identity" : `uses ${context.identity}`}. Run removal or release from that checkout under its identity.` };
-    const observed = observeProjectionReads(context.store);
+    // Adoption answers an ambiguous name lookup as its own refusal, never as a failed read.
+    const observed = observeProjectionReads(context.store, { answeredLookups: ["ambiguous-match"] });
     const root = await bindReadOnlyProjectionRoot({ checkout, store: observed.store, ports, location, configuration,
       history: createHistoryMemo(observed.store) });
     const index = await readRemovalHandoffs({ root, index: disk.index, ports, configuration });

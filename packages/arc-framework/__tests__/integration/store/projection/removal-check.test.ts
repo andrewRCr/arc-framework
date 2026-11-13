@@ -28,6 +28,7 @@ import { createKindRegistry } from "../../../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/registrations.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import { checkSerializationRules } from "../../../../src/lib/store/serialization.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
@@ -442,11 +443,21 @@ it("refuses an unindexed file in another identity's personal root until it is re
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
 
+/** A command records the ignore proof every live checkout carries, so a check's guard read needs no fresh pass. */
+async function recordIgnoreProof(target: Awaited<ReturnType<typeof targetCheckout>>): Promise<ProjectionIndex> {
+  const command = { checkout: target.checkout, store: target.h.store, ports: target.h.ports, mode: "save" as const };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  const disk = await readProjectionIndex(target.location, true, { groups: "all" });
+  if (disk.kind !== "index" || disk.index.ignoreGuard === null) throw new Error("No recorded ignore proof");
+  return disk.index;
+}
+
 it("checks an unindexed existing record through its read path without capturing an unpublished attachment", async () => {
   const target = await targetCheckout();
   const entry = target.index.entries[target.h.path];
   if (entry?.kind !== "record") throw new Error("Missing fixture entry");
-  await writeProjectionIndex(target.location, { ...target.index, entries: {} });
+  await writeProjectionIndex(target.location, { ...await recordIgnoreProof(target), entries: {} });
   const bytes = renderStampedFile({ content: "A valid edit to an existing unindexed record.\n", stamp: entry.base.blob });
   await writeFile(join(target.checkout, target.h.path), bytes);
   const index = await readFile(join(target.location.stateDir, PROJECTION_INDEX_FILE));
@@ -467,6 +478,7 @@ it("checks an unindexed existing record through its read path without capturing 
 
 it("validates a prospective stub without minting or running adoption preparation", async () => {
   const target = await targetCheckout();
+  await recordIgnoreProof(target);
   const folder = join(target.checkout, ".arc/backlog/planned/prospective");
   await mkdir(folder, { recursive: true });
   const metadata = makeMetaFixture("prospective", { owner: "andrew", state: "Planning", workClass: "Light", priority: "P1", currentWorkflow: null });
@@ -903,4 +915,75 @@ it.each(["both", "earlier"] as const)("keeps %s unreadable interrupted versions 
     detail: expect.stringContaining(missing === "both" ? "Restore readable record history" : "Recover the projected file's base") });
   unavailable = false;
   expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
+});
+
+it("holds an attached adoption whose send was refused, as persistence does, and persists it once repaired", async () => {
+  const target = await targetCheckout();
+  const entry = target.index.entries[target.h.path];
+  if (entry?.kind !== "record") throw new Error("Missing fixture entry");
+  // The ref backend refuses content that breaks the serialization rules; the in-memory fixture store does not.
+  const store = overrideEngineStore(target.h.store, { batch: async input => {
+    for (const write of input.writes) {
+      const refusal = write.action === "put" ? checkSerializationRules(write.reference, write.content) : undefined;
+      if (refusal !== undefined) return { status: "refused", refusal };
+    }
+    return target.h.store.batch(input);
+  } });
+  const context = { ...target.context, store };
+  await writeProjectionIndex(target.location, { ...target.index, entries: {} });
+  const file = join(target.checkout, target.h.path);
+  await writeFile(file, renderStampedFile({ content: "An edit holding a NUL \u0000 byte.\n", stamp: entry.base.blob }));
+  const command = { checkout: target.checkout, store, ports: target.h.ports, mode: "save" as const };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
+    entries: { [target.h.path]: { kind: "record", adoption: { kind: "write-back" } } } } });
+  const refused = { kind: "would-refuse", remedy: { text: expect.stringContaining("Replace binary content") } };
+  expect(await checkProjectionRemoval(target.checkout, context)).toMatchObject(refused);
+  expect(await persistProjectionRemoval(target.checkout, context)).toMatchObject({ ...refused, kind: "refused" });
+  await writeFile(file, renderStampedFile({ content: "A repaired edit.\n", stamp: entry.base.blob }));
+  expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(target.checkout, context)).toEqual({ kind: "persisted" });
+  expect(success(await target.h.store.read({ reference: target.h.record.reference })).content).toBe("A repaired edit.\n");
+});
+
+it.each(["txt", "md"] as const)("passes and persists a .%s file re-saved with only its line endings changed", async extension => {
+  const target = await targetCheckout(`.arc/user/andrew/scratch/one.${extension}`);
+  const file = join(target.checkout, target.h.path);
+  await writeFile(file, (await readFile(file, "utf8")).replaceAll("\n", "\r\n"));
+  const version = success(await target.h.store.version());
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
+  expect(success(await target.h.store.read({ reference: target.h.record.reference })).content).toBe(target.h.record.content);
+  if (extension === "txt") expect(success(await target.h.store.version())).toBe(version);
+});
+
+it("holds an edit in a root its ignore guard refuses, as persistence does, and passes once the rule is restored", async () => {
+  const target = await targetCheckout();
+  const entry = target.index.entries[target.h.path];
+  if (entry?.kind !== "record") throw new Error("Missing fixture entry");
+  await writeFile(join(target.checkout, target.h.path), renderStampedFile({ content: "An edit persistence cannot install.\n", stamp: entry.base.blob }));
+  const ignores = await readFile(join(target.checkout, ".gitignore"));
+  await writeFile(join(target.checkout, ".gitignore"), "");
+  const checked = await checkProjectionRemoval(target.checkout, target.context);
+  expect(checked).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(".arc/user/") } });
+  if (checked.kind !== "would-refuse") throw new Error("The guard refusal was not predicted");
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy: checked.remedy });
+  await writeFile(join(target.checkout, ".gitignore"), ignores);
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
+  expect(success(await target.h.store.read({ reference: target.h.record.reference })).content).toBe("An edit persistence cannot install.\n");
+});
+
+it("holds a new file in a root its ignore guard refuses until the rule is restored", async () => {
+  const target = await targetCheckout();
+  const path = join(target.checkout, ".arc/user/andrew/scratch/unadopted.md");
+  await writeFile(path, "A new file persistence cannot install.\n");
+  const ignores = await readFile(join(target.checkout, ".gitignore"));
+  await writeFile(join(target.checkout, ".gitignore"), "");
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse" });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "refused" });
+  await writeFile(join(target.checkout, ".gitignore"), ignores);
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
