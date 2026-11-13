@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { afterEach, expect, it } from "vitest";
 import { createMarkerFixture } from "../../../helpers/store/projection/marker-fixture.js";
-import { initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
+import { createEngineFixture, initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { success } from "../../../helpers/store/suite-tools.js";
@@ -11,9 +11,32 @@ import { readProjectionIndex } from "../../../../src/lib/store/projection/index-
 import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
 import { sameReference } from "../../../../src/lib/store/identity.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+
+it("advances past a conflict created and resolved entirely after the saved anchor", async () => {
+  const h = await createEngineFixture(directories);
+  const command = { store: h.store, checkout: h.checkout, ports: h.ports };
+  await startProjection(command);
+  await endProjection(command);
+  const put = (content: string) => h.store.write({ action: "put", reference: h.record.reference,
+    expected: h.record.version, content, provenance: { verb: "edit", lifecycleAction: "edit" } });
+  success(await put("opening\nstored side\nclosing\n"));
+  const incoming = success(await put("opening\nincoming side\nclosing\n"));
+  const reference = incoming.conflicts[0];
+  if (reference === undefined) throw new Error("Expected a stored text conflict");
+  const conflict = success(await h.store.read({ reference }));
+  success(await h.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  const version = success(await h.store.version());
+  await startProjection(command);
+  await endProjection(command);
+  expect(parseStampedFile(await h.file()).content).toBe((await h.stored()).content);
+  expect((await h.disk()).state).toBe(version);
+  expect(projectionProcessState().diagnostics).toEqual([]);
+}, 60_000);
 
 it("refreshes a settled subject when its stored conflict is removed", async () => {
   const h = await createMarkerFixture({ path: ".arc/user/andrew/scratch/document.md" });

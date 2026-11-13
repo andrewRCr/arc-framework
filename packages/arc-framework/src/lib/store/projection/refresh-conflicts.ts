@@ -1,5 +1,6 @@
 /** Map conflict deltas back to their projected subjects, including conflicts removed from the store. */
 import { ConflictRecordSchema } from "../conflict.js";
+import type { StoreResult } from "../refusal.js";
 import type { HistoryEntry } from "../contract.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { RecordEntry } from "./index-schema.js";
@@ -18,15 +19,14 @@ export async function refreshSubjectReferences(input: ProjectionRefreshPlanInput
     const known = Object.values(input.index.entries).filter((entry): entry is RecordEntry => entry.kind === "record"
       && conflictReferences(entry).some(reference => sameReference(reference, change.reference)));
     if (known.length > 0) { references.push(...known.map(entry => entry.reference)); continue; }
-    const read = await input.source.read({ reference: change.reference,
-      ...(change.content === null && input.index.state !== null ? { asOf: input.index.state } : {}) });
+    const read = await conflictPayload(input, change);
     if (read.status === "refused") {
       input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
       unresolved = true;
       continue;
     }
     let value: unknown;
-    try { value = JSON.parse(read.result.content); } catch { value = null; }
+    try { value = JSON.parse(read.result); } catch { value = null; }
     const parsed = ConflictRecordSchema.safeParse(value);
     if (parsed.success) references.push(parsed.data.record);
     else {
@@ -40,4 +40,15 @@ export async function refreshSubjectReferences(input: ProjectionRefreshPlanInput
 
 function conflictReferences(entry: RecordEntry): readonly RecordReference[] {
   return [...entry.notices, ...entry.unshown, ...(entry.markers?.sets.flatMap(set => set.shows === "stored" ? [set.conflict] : []) ?? [])];
+}
+
+async function conflictPayload(input: ProjectionRefreshPlanInput, change: HistoryEntry): Promise<StoreResult<string>> {
+  if (change.content === null) {
+    const previous = [...input.changes].reverse().find(candidate => candidate.content !== null
+      && sameReference(candidate.reference, change.reference));
+    if (previous?.content !== undefined && previous.content !== null) return { status: "ok", result: previous.content };
+  }
+  const read = await input.source.read({ reference: change.reference,
+    ...(change.content === null && input.index.state !== null ? { asOf: input.index.state } : {}) });
+  return read.status === "refused" ? read : { status: "ok", result: read.result.content };
 }
