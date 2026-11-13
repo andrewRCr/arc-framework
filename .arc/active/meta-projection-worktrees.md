@@ -15,9 +15,9 @@
 - **Current Workflow:** `process-task-loop`
 - **Last Completed:** Task 2.8 — Removal after persist; Phases 1–2 deferred batch complete
 - **Next Task:** Task 3.1 — Complete verification (line ~422 in `tasks-projection-worktrees.md`)
-- **Blockers:** Phase 3 held pending explicit Owner authorization
+- **Blockers:** Criteria pass 2 paused for handoff; final current-head qualification remains pending
 
-- **Next Action:** Await Owner direction on Phase 3; the completed deferred batch does not authorize Task 3.1
+- **Next Action:** Await Owner resume before criteria-verification pass 2; use the settled twelve-leaf review split
 
 - **PR URL:** [none]
 - **Completed:** [none]
