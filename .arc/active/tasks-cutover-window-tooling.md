@@ -157,17 +157,10 @@ restarted after each of its steps.
           comparison after import evidence is gone; new observed acceptances append by compare-and-swap without
           recomputing it.
 
-    - `[ ]` **2.3.c Leases checked before the first push**
-        - Before step 1's first push, test every `origin` ref against the value the window left — its held tip, the
-          tracking or same-named local tip for a ref the store's publication pushes (restating the publishable-ref
-          rule), or absence for a retired identity ref the comparison passed or accepted, or for an unheld ref — and
-          every local identity ref and every local ref the window never writes against its held tip or absence.
-        - Build `test-first` (one behavior at a time):
-            - An `origin` ref another writer moved or deleted refuses, a non-store ref among them whose tip equals the
-              local one, and the restore finishes once `<ref>=<tip>` or `<ref>=absent` is accepted
-            - A local Errand identity ref or a ref the window never writes, an Errand's temporary ref among them, that
-              another writer moved refuses naming it, and finishes once its value is accepted
-            - Each refusal leaves `origin` unchanged
+    - `[x]` **2.3.c Leases checked before the first push**
+        - `prepareWindowRestoreRefs` captures both sides, tracking, and the configured identity; its pure planner
+          checks every protected value before allowing a push. Publication leases apply only to eligible store refs,
+          retired identity absence follows the saved comparison, and exact accepted pairs authorize either side.
 
     - `[ ]` **2.3.d Steps 1 and 2 — `origin` and local refs**
         - Step 1 sets each `origin` `refs/arc/*` ref back to its held tip from `refs/arc-window/origin/` and deletes every

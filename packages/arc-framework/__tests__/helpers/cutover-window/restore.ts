@@ -1,5 +1,6 @@
 /** Drive restore admission through the family's actual argument parser and result boundary. */
 import { recordWindowRestoreDecision } from "../../../src/scripts/cutover-window/restore-decision.js";
+import { prepareWindowRestoreRefs } from "../../../src/scripts/cutover-window/restore-ref-plan.js";
 import { runWindow } from "../../../src/scripts/cutover-window/main.js";
 import { admitWindowRestore, type WindowRestoreOptions } from "../../../src/scripts/cutover-window/restore.js";
 import type { windowFixture } from "./fixture.js";
@@ -23,6 +24,19 @@ export async function recordRestoreFixture(h: Awaited<ReturnType<typeof windowFi
     "--pull-requests", h.listingPath, ...accepted.flatMap(value => ["--accept", value]), "--json"], { restore: async request => {
     const context = await admitWindowRestore(request, options);
     const data = await recordWindowRestoreDecision(context);
+    return { operation: "restore", status: "reported", findings: [], data };
+  } }, { stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); } });
+  return { exit, result: JSON.parse(stdout.join("")) as unknown, report: stderr.join("") };
+}
+
+/** Check the complete ref plan through parsed inputs without entering the mutation sequence. */
+export async function planRestoreFixture(h: Awaited<ReturnType<typeof windowFixture>>, accepted: readonly string[] = []) {
+  const stdout: string[] = [], stderr: string[] = [];
+  const exit = await runWindow(["restore", "--repo", h.root, "--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest),
+    "--pull-requests", h.listingPath, ...accepted.flatMap(value => ["--accept", value]), "--json"], { restore: async request => {
+    const context = await admitWindowRestore(request);
+    const decision = await recordWindowRestoreDecision(context);
+    const data = await prepareWindowRestoreRefs(context, decision);
     return { operation: "restore", status: "reported", findings: [], data };
   } }, { stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); } });
   return { exit, result: JSON.parse(stdout.join("")) as unknown, report: stderr.join("") };
