@@ -28,7 +28,7 @@ export async function readWindowBranchObservations(io: WindowHoldIO, record: Win
     if (recorded !== undefined && baseline === null || baseline === null && current === null) continue;
     const tip = current ?? baseline;
     if (tip === null) continue;
-    const base = baseline ?? await unrecordedBase(io, record, tip);
+    const base = baseline ?? await readWindowUnrecordedBase(io, record, tip);
     marks.push({ branch, side, tip, recorded: baseline, base, kind: current === null ? "gone" : "compared" });
   }
   return marks;
@@ -39,7 +39,8 @@ async function stateBearing(io: WindowHoldIO, tips: readonly (string | null)[]):
   return false;
 }
 
-async function unrecordedBase(io: WindowHoldIO, record: WindowRecord, tip: string): Promise<string> {
+/** Recover an unrecorded range's base from the held main observation and its immutable mark. */
+export async function readWindowUnrecordedBase(io: WindowHoldIO, record: WindowRecord, tip: string): Promise<string> {
   const main = record.branches.local.main;
   if (main === undefined) throw new Error("The hold has no recorded main tip. Preserve and repair the hold before retrying.");
   const base = (await io.exec("git", ["--no-replace-objects", "merge-base", main, tip], { cwd: io.repo, objectAccess: "local-only" })).stdout.trim();

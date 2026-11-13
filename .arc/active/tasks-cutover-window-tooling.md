@@ -430,16 +430,14 @@ _Exit criterion:_ `compare`, `confirm`, and `close` hold every late change in a 
   gone, and unrecorded ranges. Repeated comparisons replace marks while preserving earlier confirmations. The
   `--checkout` form reports its exact personal digest change without changing refs or blocking the checkout step.
 
-### `[ ]` **6.2 Confirmation — § 5.4**
+### `[x]` **6.2 Confirmation — § 5.4**
 
 - _Goal:_ `confirm <branch>` records the Owner's confirmation at exactly each side's current mark and refuses anything
   else.
 
-    - Build `test-first` (one behavior at a time):
-        - A confirmation is written under `refs/arc-window/confirmed/` at the side's current mark, for a moved, gone, or
-          unrecorded range
-        - An unknown branch, and a branch with no range, refuse
-        - A tip that differs from the side's current mark refuses
+- _Outcome:_ `confirm <branch> --local-tip <tip> --origin-tip <tip>` requires exactly the sides with ranges and
+  atomically verifies each current mark while writing its confirmation. Unknown or unchanged branches and stale,
+  missing, or extra side operands refuse without partial confirmations; fresh exact tips permit retry.
 
 ### `[ ]` **6.3 The close — § 5.4**
 
