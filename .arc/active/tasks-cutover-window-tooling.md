@@ -260,13 +260,12 @@ _Mode:_ `slice` through Phase 4 — closes on the complete quiesce check run ove
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Copy.
 
-    - `[ ]` **3.5.a The copy**
-        - Take a destination outside every live checkout; copy the primary with its Git directory and every registered
-          linked checkout; create the mirror as a bare mirror clone of `origin`; rewrite every remote URL and push URL
-          to the mirror; repair each registration in the copy (`git worktree repair`).
-        - Build `test-first` (one behavior at a time):
-            - The live repository's registrations and each live checkout's `.git` file are byte-identical after `copy`
-            - Every copied registration names its copied checkout
+    - `[x]` **3.5.a The copy**
+        - Copies the primary, its Git directory, and every linked checkout into an absent destination outside all
+          live checkouts, resolving existing symlink parents before acquisition. Rewrites copied Git pointers before
+          repair and routes every remote and push URL, including the mirror's, to the independent bare mirror.
+        - Native coverage preserves live registration metadata and gitfiles byte-for-byte across nested, detached,
+          and locked checkouts. Shared containment now recognizes child names beginning with two dots correctly.
 
     - `[ ]` **3.5.b Copy safety**
         - Build `test-first` (one behavior at a time), each violation below stopping the stage:

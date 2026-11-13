@@ -11,7 +11,7 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 /** Filesystem boundary used to resolve one existing path to its physical spelling. */
 export type RealpathFn = (path: string) => Promise<string>;
@@ -80,5 +80,5 @@ export async function localPathContains(
     canonicalLocalPath(candidate, resolveRealpath),
   ]);
   const rel = relative(rootIdentity, candidateIdentity);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { join, resolve } from "node:path";
 
 import {
   canonicalLocalPath,
@@ -31,6 +32,12 @@ describe("local path identity", () => {
       "/var/folders/project-sibling",
       aliasRealpath,
     )).resolves.toBe(false);
+  });
+
+  it("keeps a child whose name starts with two dots inside its parent", async () => {
+    const root = resolve("checkout"), identity: RealpathFn = async path => path;
+    await expect(localPathContains(root, join(root, "..copy"), identity)).resolves.toBe(true);
+    await expect(localPathContains(root, resolve(root, "..", "outside"), identity)).resolves.toBe(false);
   });
 
   it("falls back to lexical identity when a destination does not exist yet", async () => {
