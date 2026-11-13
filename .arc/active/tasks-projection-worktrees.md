@@ -151,6 +151,8 @@ that chunk.
   up from that worktree's own state version, taking each one's projection lock in turn — and whatever fan-out misses,
   the next command's start refreshes.
 
+- _Amended in:_ review-fix (A7)
+
     - `[x]` **1.7.a The wrapper**
 
         - Added an invocation-bound, clone-scoped store facade, deferred rounds through a common projection-lock

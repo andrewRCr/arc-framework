@@ -8,9 +8,7 @@ export async function requestProjectionFanOut(checkout: string, references: read
   const state = projectionProcessState();
   if (state.fanOut === undefined || state.fanOutSuppressed > 0 || disabled(state.skip)) return;
   state.fanOutRounds.add(checkout);
-  if (!state.lockHeld) for (const reference of references) {
-    if (!state.fanOutOwnWrites.some(previous => sameReference(previous, reference))) state.fanOutOwnWrites.push(reference);
-  }
+  if (!state.lockHeld) for (const reference of references) retainOwnWrite(state.fanOutOwnWrites, reference);
   await flushProjectionFanOut();
 }
 
@@ -23,7 +21,8 @@ export async function flushProjectionFanOut(): Promise<void> {
     return;
   }
   if (state.lockHeld || state.fanOutHolds > 0 || state.fanOutRunning) return;
-  if (state.fanOutRounds.size === 0) { state.fanOutOwnWrites = []; return; }
+  // Own writes a round could not mark wait for this command's next round rather than being dropped.
+  if (state.fanOutRounds.size === 0) return;
   const checkout = state.command?.checkout ?? [...state.fanOutRounds][0] ?? ".";
   const writer = state.roots.get(checkout);
   const startedAt = writer === undefined ? undefined : projectionTimingNow(writer.ports);
@@ -32,16 +31,22 @@ export async function flushProjectionFanOut(): Promise<void> {
   try {
     while (state.fanOutRounds.size > 0) {
       state.fanOutRounds.clear();
-      await state.fanOut([...state.fanOutOwnWrites], round++);
+      const writes = [...state.fanOutOwnWrites];
+      state.fanOutOwnWrites = [];
+      const unmarked = await state.fanOut(writes, round++) ?? [];
+      for (const reference of unmarked) retainOwnWrite(state.fanOutOwnWrites, reference);
     }
   } catch (cause) {
     state.fanOutRounds.clear();
     reportProjectionFanOutFailure(checkout, cause);
   } finally {
     state.fanOutRunning = false;
-    state.fanOutOwnWrites = [];
     finishFanOutTiming(checkout, startedAt);
   }
+}
+
+function retainOwnWrite(writes: RecordReference[], reference: RecordReference): void {
+  if (!writes.some(previous => sameReference(previous, reference))) writes.push(reference);
 }
 
 function finishFanOutTiming(checkout: string, startedAt: number | undefined): void {

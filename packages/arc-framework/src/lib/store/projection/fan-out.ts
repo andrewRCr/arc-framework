@@ -40,24 +40,29 @@ interface FanOutRound {
 }
 interface FanOutTarget { readonly checkout: string; readonly location: ProjectionLocation; readonly index: ProjectionIndex }
 
-/** Visit the writer's native root and registered siblings using one source read memo per round. */
-export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrites: readonly RecordReference[]): Promise<void> {
-  if (input.location === undefined || input.ports === undefined) return;
+/**
+ * Visit the writer's native root and registered siblings using one source read memo per round.
+ * @returns The writer's own writes its checkout could not mark this round, for the next round to mark.
+ */
+export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrites: readonly RecordReference[]): Promise<readonly RecordReference[]> {
+  if (input.location === undefined || input.ports === undefined) return [];
   const ports = input.ports();
   const configuration = await observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
-  if (configuration.identity.status !== "identified") return;
+  if (configuration.identity.status !== "identified") return [];
   const source = createProjectionReadMemo(input.store), version = await source.version();
-  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return; }
+  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return ownWrites; }
   const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, { cwd: input.checkout, ...options });
   const checkouts = createCheckoutObservation(exec), roster = await checkouts.scan();
   const evidence = createProjectionProtectionEvidence({ source, checkout: input.checkout, exec: ports.exec, checkouts });
   const round: FanOutRound = { input, ports, configuration, source, version: version.result, ownWrites, evidence };
-  await visitTarget(round, input.checkout, input.location);
-  if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return; }
+  const unmarked = await visitTarget(round, input.checkout, input.location) ? [] : ownWrites;
+  if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return unmarked; }
   let ownGitDir: Promise<string> | undefined;
   for (const checkout of roster.worktrees) {
     if (!checkout.folderPresent || checkout.path === input.checkout) continue;
     try {
+      // Git lists a primary whose `.git` is a `gitdir:` file at its Git directory, where no projection was laid.
+      if (!await holdsGitMarker(checkout.path, ports.fs)) continue;
       const directories = await readGitDirectories(checkout.path, ports.fs);
       if (directories.gitDir === input.location.gitDir
         || await ports.fs.realpath(directories.gitDir) === await (ownGitDir ??= ports.fs.realpath(input.location.gitDir))
@@ -67,36 +72,63 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
       await visitTarget(round, checkout.path, location);
     } catch (cause) { reportProjectionFanOutFailure(checkout.path, cause); }
   }
+  return unmarked;
 }
 
-async function visitTarget(round: FanOutRound, checkout: string, location: ProjectionLocation): Promise<void> {
-  if (projectionProcessState().retiring.has(checkout)) return;
+async function holdsGitMarker(path: string, fs: ProjectionEnginePorts["fs"]): Promise<boolean> {
+  try {
+    await fs.lstat(join(path, ".git"));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/** Visit one checkout, answering whether it held its index under the lease, where the writer's own marks are recorded. */
+async function visitTarget(round: FanOutRound, checkout: string, location: ProjectionLocation): Promise<boolean> {
+  const state = projectionProcessState();
+  if (state.retiring.has(checkout) || state.faulted.has(checkout)) return true;
   try {
     await round.ports.beforeFanOutTarget?.(checkout);
     const disk = await readProjectionIndex(location, false, { retry: true });
-    if (disk.kind !== "index") return;
+    if (disk.kind !== "index") return false;
     const target: FanOutTarget = { checkout, location, index: disk.index };
     const result = await withProjectionFanOutLock(location, session => refreshTarget(round, target, session),
       { maxWaitMs: SIBLING_LOCK_WAIT_MS }, round.ports.lock);
-    if (result.status !== "done") reportProjectionFanOutFailure(checkout,
+    if (result.status === "done") return result.value;
+    reportProjectionFanOutFailure(checkout,
       `Projection lease ${result.status}${result.status === "lost" || result.status === "mismatch" ? `: ${result.report}` : ""}`);
   } catch (cause) { reportProjectionFanOutFailure(checkout, cause); }
+  return false;
 }
 
-async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: ProjectionLockSession): Promise<void> {
+/** Another refresh reached the worktree first, or its unset state waits for its own next command's rebuild. */
+function leftToOwnCommand(held: ProjectionIndex, observed: ProjectionIndex, own: boolean): boolean {
+  return held.state !== observed.state || (held.state === null && !own);
+}
+
+async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: ProjectionLockSession): Promise<boolean> {
   await session.step();
   const disk = await readProjectionIndex(target.location, true);
-  if (disk.kind !== "index" || disk.index.state !== target.index.state) return;
+  if (disk.kind !== "index") return false;
+  const own = target.checkout === round.input.checkout;
+  // The writer's own marks never wait on its refresh: a fenced or unreadable round still records them under this lease.
+  const marked = own ? markOwnWrites(disk.index, round.ownWrites) : disk.index;
+  const keepMarks = async (): Promise<true> => {
+    if (marked !== disk.index) await commitProjectionIndex({ location: target.location, checkout: target.checkout, index: marked, checkpoint: session.step });
+    return true;
+  };
+  if (leftToOwnCommand(disk.index, target.index, own)) return keepMarks();
   const root = await targetRoot(round, target, session);
   try {
-    let index = disk.index;
-    const own = target.checkout === round.input.checkout;
-    if (!eligibleTarget(round, root, index, own)) return;
+    let index = marked;
+    if (!eligibleTarget(round, root, index, own)) return true;
     const needsReprojection = needsProjectionReprojection(root, index);
-    if (index.state === round.version && !needsReprojection && (!own || round.ownWrites.length === 0)) return;
+    if (index.state === round.version && !needsReprojection && (!own || round.ownWrites.length === 0)) return true;
     if (index.state !== null && index.state !== round.version) {
       const changes = await round.source.changes({ from: index.state, to: round.version });
-      if (changes.status !== "ok") return;
+      if (changes.status !== "ok") return await keepMarks();
     }
     const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity,
       exec: root.ports.execInput, fs: root.ports.fs }, records: index.ignoreFiles, reference: await readReference(root.checkout),
@@ -113,6 +145,7 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     await commitProjectionIndex({ location: root.location, checkout: root.checkout, index, checkpoint: session.step });
     await session.step();
     root.ready = true;
+    return true;
   } finally { root.checkpoint = null; }
 }
 
@@ -149,7 +182,8 @@ function markOwnWrites(index: ProjectionIndex, references: readonly RecordRefere
   if (references.length === 0) return index;
   loadProjectionGroups(index, "walked");
   for (const [path, entry] of Object.entries(index.entries)) {
-    if (entry.kind === "record" && !entry.changed && references.some(reference => sameReference(reference, entry.reference))) {
+    if (entry.kind === "record" && !entry.changed && references.some(reference => sameReference(reference, entry.reference)
+      || entry.handoff !== undefined && sameReference(reference, entry.handoff.reference))) {
       index = withProjectionEntry(index, path, { ...entry, changed: true });
     }
   }

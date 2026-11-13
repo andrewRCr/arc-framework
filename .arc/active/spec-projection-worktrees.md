@@ -399,31 +399,32 @@ at its next command.
   newer, and state versions carry no order to tell (`StateVersionSchema`, `lib/store/identity.ts`). Before skipping an
   already-current writer's worktree or one a spawn materialized earlier in this command, a set `reprojectionPending`
   flag runs its reprojection comparison instead (A2). Other already-current worktrees are skipped, as is one whose state
-  version no longer resolves, which that worktree's own next command rebuilds (§ 15.2). Under the same lock it reads the
-  worktree's claim and effective `layout.active` fresh; a worktree the command already holds a root for — its own, a
-  sibling an earlier round or fan-out visited, or a worktree a spawn materialized earlier in the command — is not bound
-  again, its claim and layout re-read into that root, whose aside copies the command's end still checks, and the
-  comparisons below use the command's values whatever read bound it. The persist and release steps hold no root of their
-  own, so the end never checks a checkout they retire and neither replaces a root the command holds; a copy either
-  leaves, on a refusal or from its last check, is settled by the target's next sweep or the retry's takeover (§ 12.2, §
-  12.3). A checkout the command moves while it holds a root there — `arc rename` moving a work unit's folder from
-  another checkout, since it defers a move of the checkout it runs in and prints the move to run from outside it — has
-  that root dropped and reported, since its bound reads and ports name the old path: the end checks nothing there, the
-  copies the command left in it are settled by its next command's sweep like any copy a command leaves, and a later
-  round binds it afresh at its new path. It skips a sibling where they, or the command's view setting and identity,
-  differ from what its index records it was projected under (`ProjectionIndexSchema.projectedUnder`), or whose header
-  carries `reprojectionPending` (A2), leaving either to its own next command, or where its index records no guard pass,
-  or one under another ignore configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding this
-  before any guard runs there, so no file is laid from a recorded claim and no guard runs on another worktree's basis;
-  that worktree's own next command reprojects it (§ 10.4). The writer's own worktree is never skipped for a difference:
-  a verb run there may have changed its claim, so it is reprojected in place before its refresh (§ 10.4), and the verb's
-  changed marks land (§ 11.7). Nor is a worktree a spawn materialized earlier in the command skipped for a difference in
-  its claim or `layout.active` alone, as the creation's stamp makes one by binding the UID (the creation batch above):
-  it is reprojected in place before its refresh as the writer's own is, under the claim re-read into its root, and marks
-  nothing changed (§ 11.7); a difference in its view setting, identity, or ignore configuration still skips it. A
-  checkout this command's persist step is removing, or whose projection its release step removes, is skipped; the
-  primary, whose release keeps its projection, is not (§ 12.3). A primary entry's re-lay lists its owner's records once
-  per round of a fan-out, shared by every worktree (§ 15.2).
+  version no longer resolves or, other than the writer's, is unset, which that worktree's own next command rebuilds
+  (§ 15.2, A7). Under the same lock it reads the worktree's claim and effective `layout.active` fresh; a worktree the
+  command already holds a root for — its own, a sibling an earlier round or fan-out visited, or a worktree a spawn
+  materialized earlier in the command — is not bound again, its claim and layout re-read into that root, whose aside
+  copies the command's end still checks, and the comparisons below use the command's values whatever read bound it. The
+  persist and release steps hold no root of their own, so the end never checks a checkout they retire and neither
+  replaces a root the command holds; a copy either leaves, on a refusal or from its last check, is settled by the
+  target's next sweep or the retry's takeover (§ 12.2, § 12.3). A checkout the command moves while it holds a root there
+  — `arc rename` moving a work unit's folder from another checkout, since it defers a move of the checkout it runs in
+  and prints the move to run from outside it — has that root dropped and reported, since its bound reads and ports name
+  the old path: the end checks nothing there, the copies the command left in it are settled by its next command's sweep
+  like any copy a command leaves, and a later round binds it afresh at its new path. It skips a sibling where they, or
+  the command's view setting and identity, differ from what its index records it was projected under
+  (`ProjectionIndexSchema.projectedUnder`), or whose header carries `reprojectionPending` (A2), leaving either to its
+  own next command, or where its index records no guard pass, or one under another ignore configuration than the
+  command's (`ProjectionIndexSchema.ignoreGuard`), deciding this before any guard runs there, so no file is laid from a
+  recorded claim and no guard runs on another worktree's basis; that worktree's own next command reprojects it (§ 10.4).
+  The writer's own worktree is never skipped for a difference: a verb run there may have changed its claim, so it is
+  reprojected in place before its refresh (§ 10.4), and the verb's changed marks land (§ 11.7). Nor is a worktree a
+  spawn materialized earlier in the command skipped for a difference in its claim or `layout.active` alone, as the
+  creation's stamp makes one by binding the UID (the creation batch above): it is reprojected in place before its
+  refresh as the writer's own is, under the claim re-read into its root, and marks nothing changed (§ 11.7); a
+  difference in its view setting, identity, or ignore configuration still skips it. A checkout this command's persist
+  step is removing, or whose projection its release step removes, is skipped; the primary, whose release keeps its
+  projection, is not (§ 12.3). A primary entry's re-lay lists its owner's records once per round of a fan-out, shared by
+  every worktree (§ 15.2).
 
 - **Fan-out keeps copies fresh and carries no correctness:** whatever it misses — a write through another tool, a
   process that stopped — each worktree's next command start refreshes, and an edit made to a stale copy merges through

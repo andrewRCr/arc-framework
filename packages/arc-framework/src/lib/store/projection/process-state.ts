@@ -73,7 +73,8 @@ export interface ProjectionProcessState {
   resolution: ProjectionResolution | null;
   skip: ProjectionSkip | null;
   lockHeld: boolean;
-  fanOut?: (ownWrites: readonly RecordReference[], round: number) => Promise<void>;
+  /** Runs one fan-out round, answering the own writes the writer's checkout could not mark. */
+  fanOut?: (ownWrites: readonly RecordReference[], round: number) => Promise<readonly RecordReference[] | undefined>;
   fanOutBinding?: ProjectionFanOutBinding;
   fanOutRunning: boolean;
   fanOutHolds: number;
@@ -83,6 +84,8 @@ export interface ProjectionProcessState {
   materializeSpawn: ((checkout: string) => Promise<void>) | null;
   readonly roots: Map<string, ProjectionRootState>;
   readonly retiring: Set<string>;
+  /** Checkouts whose marker this command's start could not read; its fan-out leaves them for their next command. */
+  readonly faulted: Set<string>;
   readonly actors: Map<string, Promise<string>>;
   readonly capabilities: Map<string, boolean>;
   readonly composedCapabilities: Map<string, boolean>;
@@ -98,7 +101,7 @@ export interface ProjectionProcessState {
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
   return { command: null, start: null, resolution: null, skip: null, lockHeld: false, fanOutRunning: false,
     fanOutHolds: 0, fanOutSuppressed: 0, fanOutOwnWrites: [],
-    history: null, materializeSpawn: null, roots: new Map(), retiring: new Set(), actors: new Map(),
+    history: null, materializeSpawn: null, roots: new Map(), retiring: new Set(), faulted: new Set(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };

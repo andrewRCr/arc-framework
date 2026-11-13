@@ -13,7 +13,7 @@ export interface ProjectionFanOutBindingInput {
   readonly checkout: string;
   readonly location: ProjectionLocation;
   readonly ports: Pick<ProjectionEnginePorts, "fs">;
-  readonly run: (ownWrites: readonly RecordReference[], round: number) => Promise<void>;
+  readonly run: (ownWrites: readonly RecordReference[], round: number) => Promise<readonly RecordReference[] | undefined>;
 }
 
 /** Ephemeral command authority; stores capture the object rather than a later command's current runner. */

@@ -1,10 +1,13 @@
 /** Store operations refresh real linked checkouts through command-owned projection ports. */
-import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
+import { configureEngineCheckout, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { locateProjection } from "../../../../src/lib/store/projection/location.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
-import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
@@ -21,7 +24,7 @@ const directories: string[] = [];
 beforeEach(() => { beginProjectionCommand(); });
 afterEach(async () => { beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
 
-it.each(["marker", "configuration"] as const)("contains corrupt entering %s, suspends fan-out, and resumes after repair", async fault => {
+it.each(["marker", "configuration"] as const)("contains corrupt entering %s, keeps the writer's own copy, and resumes after repair", async fault => {
   const { h, input, store, file } = await createFanOutFixture(directories);
   await endProjection(input);
   const marker = fault === "marker" ? resolveWorktreeMarkerPath(h.checkout) : join(h.checkout, ".arc/system/arc-config.yml");
@@ -37,7 +40,10 @@ it.each(["marker", "configuration"] as const)("contains corrupt entering %s, sus
   success(await store.write({ action: "put", reference: current.reference, expected: current.version,
     content: "Written while the marker needs repair.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
   expect(await h.file()).toBe(own);
-  expect(await file()).toBe(sibling);
+  // A marker fault is the writer's own; its siblings still refresh. Layout configuration closes the whole fan-out.
+  if (fault === "marker") expect(await file()).toContain("Written while the marker needs repair.");
+  else expect(await file()).toBe(sibling);
+  expect(projectionProcessState().diagnostics.filter(each => each.mark.reason.startsWith("Fan-out failed"))).toEqual([]);
   await endProjection(input);
   if (original === null) await rm(marker);
   else await writeFile(marker, original);
@@ -62,6 +68,55 @@ it("fans a landed verb write into both checkouts and marks only the writer's rec
   expect((await disk()).entries[h.path]).toMatchObject({ changed: false });
   expect((await disk()).state).toBe(success(await store.version()));
   expect(projectionProcessState().roots.get(sibling.checkout)?.ready).toBe(true);
+  expect(projectionProcessState().diagnostics).toEqual([]);
+});
+
+it("leaves a sibling whose state version is unset to its own next command's rebuild", async () => {
+  const { h, sibling, store, file, disk } = await createFanOutFixture(directories);
+  const before = await file();
+  const unset = { ...await disk(), state: null };
+  await withProjectionLock(sibling.location, async session => {
+    await commitProjectionIndex({ location: sibling.location, checkout: sibling.checkout, index: unset, checkpoint: session.step });
+  });
+  const current = await h.stored();
+  expect((await store.write({ action: "put", reference: current.reference, content: "A write the unset sibling waits for.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  expect(await h.file()).toContain("A write the unset sibling waits for.");
+  expect(await file()).toBe(before);
+  expect((await disk()).state).toBeNull();
+  const siblingInput = { store: h.store, checkout: sibling.checkout, location: sibling.location,
+    ports: () => createProjectionEnginePorts(sibling.checkout) };
+  expect(await startProjection(siblingInput)).toMatchObject({ kind: "ready" });
+  await endProjection(siblingInput);
+  expect(await file()).toContain("A write the unset sibling waits for.");
+  expect((await disk()).state).toBe(success(await h.store.version()));
+});
+
+it("records the writer's own verb mark when its refresh cannot read the store's changes", async () => {
+  let refused = false;
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The change window is unreadable.", remedy: { text: "Restore the store's history, then retry." } });
+  const { h, store } = await createFanOutFixture(directories, { store: source => overrideEngineStore(source, {
+    changes: input => refused ? Promise.resolve({ status: "refused", refusal }) : source.changes(input) }) });
+  const current = await h.stored();
+  refused = true;
+  expect((await store.write({ action: "put", reference: current.reference, content: "A verb write the refresh cannot follow.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  expect((await h.disk()).entries[h.path]).toMatchObject({ changed: true });
+});
+
+it("skips a listed primary that holds no .git without reporting a failed fan-out", async () => {
+  const listed = await mkdtemp(join(tmpdir(), "arc-listed-git-directory-")); directories.push(listed);
+  const { h, store, file } = await createFanOutFixture(directories, { ports: ports => ({ ...ports,
+    exec: async (command, args, options) => {
+      const result = await ports.exec(command, args, options);
+      return args[0] === "worktree" && args[1] === "list"
+        ? { ...result, stdout: `${result.stdout}worktree ${listed}\0HEAD ${"0".repeat(40)}\0branch refs/heads/separate\0\0` } : result;
+    } }) });
+  const current = await h.stored();
+  expect((await store.write({ action: "put", reference: current.reference, content: "Fanned past a Git directory listing.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  expect(await file()).toContain("Fanned past a Git directory listing.");
   expect(projectionProcessState().diagnostics).toEqual([]);
 });
 

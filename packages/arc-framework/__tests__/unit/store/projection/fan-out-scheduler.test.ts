@@ -136,3 +136,18 @@ for (const reason of ["switch", "no-identity"] as const) {
     expect(await destination.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 }
+
+it("carries own writes a round could not mark into the command's next round", async () => {
+  const source = createReferenceFixture(), state = projectionProcessState();
+  const first = source.reference("personal/document"), second = { ...first, key: "scratch/second.md" };
+  const received: (readonly unknown[])[] = [];
+  let marking = false;
+  state.fanOut = ownWrites => { received.push(ownWrites); return Promise.resolve(marking ? [] : ownWrites); };
+  await requestProjectionFanOut("test-checkout", [first]);
+  await flushProjectionFanOut();
+  marking = true;
+  await requestProjectionFanOut("test-checkout", [second]);
+  expect(received).toEqual([[first], [first, second]]);
+  await requestProjectionFanOut("test-checkout", []);
+  expect(received.at(-1)).toEqual([]);
+});
