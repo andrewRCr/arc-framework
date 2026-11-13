@@ -72,6 +72,10 @@ tooling, `--plan` a run plan (`abort` or `merge`), `--cap-wrapper` a JSON argv p
 and `--heap-mb` the import's heap ceiling, set below that bound. Each step's outcome is reported in order; the run stops
 at the first unexpected one, naming the step, and reports the import's wall time and peak resident memory.
 
+The npm script bounds each WebAssembly memory's address-space reservation, so the family also runs under an
+address-space limit: unbounded, the TypeScript loader's two reservations can fill most of such a limit before any work
+starts. A run under a limit launches through the script, or passes the same `--wasm-max-mem-pages` flag to `node`.
+
 Add `--json` for one result on stdout and the human report on stderr. Refusals and stops exit nonzero and include
 recovery instructions. The `-s` keeps npm's own banners off stdout.
 

@@ -8,7 +8,7 @@
     "packages/arc-framework"
   ],
   "scripts": {
-    "cutover-window": "node --import tsx packages/arc-framework/src/scripts/cutover-window/main.ts",
+    "cutover-window": "node --wasm-max-mem-pages=4096 --import tsx packages/arc-framework/src/scripts/cutover-window/main.ts",
     "lint:md": "node --import tsx packages/arc-framework/src/scripts/lint-markdown.ts",
     "lint:md:staged": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
     "lint:md:underwrap": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-underwrap.ts",

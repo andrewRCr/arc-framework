@@ -532,8 +532,9 @@ refusing and then passing after its remedy, with the import's cost recorded from
 
 - _Goal:_ The segment's exit criterion holds at the head that lands.
 
-- _Outcome:_ Both runs used the tools as of `0a154a4a4d`; every later commit changes only this task list and the
-  notes, so the runs stand for the landing head unless the tools change again. Scenario: Tasks 7.2 and 7.3 passed
+- _Outcome:_ Both runs used the tools as of `0a154a4a4d`. Every later commit changes only this task list, the notes,
+  and the npm script's `--wasm-max-mem-pages` flag, which both runs already launched with, so the runs stand for the
+  landing head unless the tools change again. Scenario: Tasks 7.2 and 7.3 passed
   every step, each planted condition refusing and then passing after its remedy. The import took 896 s at 2,439 MiB
   peak resident memory in the first run and 1,108 s at 2,350 MiB in the second. `arc check segment` passed.
 
