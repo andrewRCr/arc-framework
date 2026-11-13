@@ -9,14 +9,14 @@ function refuseOptions(condition: string, operation: string): never {
     remedy: "Supply --flip-branch and a positive --flip-pr, with valid option values, then retry." }]);
 }
 
-function validateOperationOptions(operation: "check" | "restore", values: Pick<WindowFlipInput, "anchor" | "path" | "accept">): void {
+function validateOperationOptions(operation: "check" | "restore" | "last-read", values: Pick<WindowFlipInput, "anchor" | "path" | "accept">): void {
   if (operation !== "restore" && values.accept !== undefined) refuseOptions("Only restore accepts ref-value acceptance operands.", operation);
   if (operation !== "check" && values.anchor !== undefined) refuseOptions("Only check accepts a supplied anchor.", operation);
   if (operation !== "check" && values.path !== undefined) refuseOptions("Only check accepts a command search path.", operation);
 }
 
 /** Parse flip-identifying options without reading any repository or supplied file. */
-export function parseWindowFlipInput(args: readonly string[], operation: "check" | "restore" = "check"): WindowFlipInput {
+export function parseWindowFlipInput(args: readonly string[], operation: "check" | "restore" | "last-read" = "check"): WindowFlipInput {
   try {
     const { values } = parseArgs({ args: [...args], options: {
       repo: { type: "string" }, json: { type: "boolean" }, "flip-branch": { type: "string" },

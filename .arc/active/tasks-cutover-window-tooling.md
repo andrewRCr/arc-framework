@@ -383,28 +383,16 @@ _Mode:_ `layer` through Phase 6 — closes on every comparison the window runs a
   rules. Differences name both values and the restore route; dirty reports include paths, and the source CLI exercises
   recompute between a native import and restore.
 
-### `[ ]` **5.2 The last read — § 5.2**
+### `[x]` **5.2 The last read — § 5.2**
 
 - _Goal:_ As the last act before the merge, `last-read` admits only the recorded flip head plus exactly one commit that
   only deletes files under the tracked-state paths, on the flip's branch, in its checkout, and on the host, with every
   other recompute comparison passing and no auto-merge armed.
-
-- _Approach:_ the flip's local, fetched, and host tips and its checkout's `HEAD` are exempt from equality with the
-  record; instead they must be one commit whose only parent is the recorded head and whose diff holds only deletions
-  under the tracked-state paths. Only the sides the record holds are compared: with no checkout holding the flip, or
-  no local flip branch, at the check, that side is left out. Every other comparison runs unchanged.
-
-    - Build `test-first` (one behavior at a time):
-        - The flip's head plus one deletion-only commit, on its branch, in its checkout, and on the host, passes
-        - A host tip still at the recorded head stops it, as do a branch and a checkout that disagree
-        - With no checkout holding the flip at the check, its other sides alone decide; likewise with no local flip
-          branch
-        - A merge commit, a second commit, a modification, an addition, or a deletion outside the tracked-state paths
-          stops it
-        - A moved host `main` stops it
-        - Auto-merge armed on the flip's pull request stops it
-        - A supplied listing where a remote URL names a host refuses before any host read, and an unreadable host
-          refuses
+- _Outcome:_ `last-read` retains recompute's other comparisons while binding the recorded flip sides and checkout
+  to one published deletion head. That commit must have only the held head as parent and a nonempty diff of deletions
+  under the tracked-state roots. Omitted admission sides stay omitted; a lost recorded side or wrong checkout branch
+  refuses. Auto-merge, supplied facts on a hosted repository, and unreadable host evidence refuse with repaired retries;
+  the source CLI exercises the complete path.
 
 ### `[ ]` **5.3 The accounting case — § 10.2**
 

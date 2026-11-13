@@ -3,6 +3,7 @@ import { resolve, join } from "node:path";
 import { mkdir, lstat } from "node:fs/promises";
 import { execa } from "execa";
 import { expect, it } from "vitest";
+import { lastReadFixture, deleteWindowFile } from "../helpers/cutover-window/last-read.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { readWindowHold } from "../../src/scripts/cutover-window/hold.js";
 import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
@@ -83,4 +84,14 @@ it.each([false, true])("restores through the source CLI and permits a fresh wind
   expect(repeated.exitCode).toBe(1);
   expect(JSON.parse(repeated.stdout)).toMatchObject({ status: "refused", findings: [expect.objectContaining({ subject: "cutover hold" })] });
   expect((await run("check")).exitCode).toBe(0);
+}, 60_000);
+
+it("admits the published flip deletion through the source CLI", async () => {
+  const h = await lastReadFixture();
+  await deleteWindowFile(h);
+  const result = await execa(process.execPath, ["--import", "tsx", entry, "last-read", "--repo", h.root,
+    "--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath, "--json"],
+  { cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" } });
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ operation: "last-read", status: "passed", findings: [] });
 }, 60_000);
