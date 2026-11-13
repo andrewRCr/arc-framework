@@ -75,7 +75,7 @@
     "typescript": "^6.0.3",
     "typescript-7": "npm:typescript@^7.0.2",
     "typescript-eslint": "^8.57.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "files": [
     "bin",
