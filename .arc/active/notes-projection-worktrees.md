@@ -1827,4 +1827,5 @@ The footprint is the withheld term, § 2.2, § 2.5, § 3.1's readers of every pa
 § 16.2's narrowing of the substrate's withheld lifetime, § 17's eighth and twelfth residuals and criterion 14, with no
 new task or segment; a bounded set of decisions makes it a medium-depth amendment. Its implementation landed in
 review-fix commits: most of it in `c3f43d3534`, and the fan-out's skip in `4490aa6c2a`, beside the writer's-marks fix
-whose gate it extends, with a fix-check round's corrections after them. It revalidates at Task 3.1.
+whose gate it extends, with the corrections of its later review rounds in `5e8caa8d77`, `23868a1c05` and `422d54f7f2`.
+It revalidates at Task 3.1.
