@@ -1229,8 +1229,8 @@ every kind of write fits the companion-write reference.
 Materialization times the complete `materializeSpawnedProjection` call over the 800-file reference dataset, including
 source inventory, protection, rendering, staging, replacement, and its publication. It runs at spawn and full rebuild,
 rather than on every command. All reference bounds are calibrated from the full native implementation with roughly
-one-third headroom, not from Spike 4's smaller file-only operation. A same-build measurement on one platform does not
-qualify another.
+one-third headroom, not from the smaller file-only prototype (`notes-projection-worktrees.md` § Tripwire timings). A
+same-build measurement on one platform does not qualify another.
 
 | Complete external-operation acceptance     | Linux   | Windows | macOS   |
 | ------------------------------------------ | ------- | ------- | ------- |
@@ -1250,8 +1250,9 @@ none of these budgets depends on adopting it (A4).
 
 #### 15.5 Fan-out and full materialization
 
-Spike 4's file-only prototype took 3.3 ms for one file and 13.4 ms for ten into twenty Linux siblings, including its end
-check, with Store reads outside the timer, a simple exclusive-create lock, and one index publication. Those figures do
+The file-only tripwire prototype (`notes-projection-worktrees.md` § Tripwire timings) took 3.3 ms for one file and
+13.4 ms for ten into twenty Linux siblings, including its end check, with Store reads outside the timer,
+a simple exclusive-create lock, and one index publication. Those figures do
 not calibrate a full native round (A4). The native `runProjectionFanOut` shares source reads but also processes the
 writer's root, validates each destination, and commits recovery intent before replacement and final settlement
 afterward. `commitProjectionIndex` publishes only affected partitions under the header commit point; a normal reference

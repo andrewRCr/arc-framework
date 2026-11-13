@@ -7,7 +7,8 @@ engine and the files it writes.
 before resolving engine dependencies. With state off branch, start takes the projection lease before launching the
 configuration, state-version read, and shared-root walk together; personal discovery waits for the identity. It sweeps
 before scanning edits, rereads recovered paths, and sends an ignore-refused root's edits without replacing its files.
-Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks use `lstat`,
+Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks type entries from
+each folder listing without following links, `lstat` each survivor of a listing whose untyped entry vanished mid-read,
 skip machine-local folders, and return newly discovered files unsent.
 
 `process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
@@ -28,8 +29,10 @@ inventories come from the source; claim lookups use the writable store. `record-
 read, list, version, and changes answer within a round, including refusals. Take-ins use fresh record and checkout
 evidence on each attempt, so a notice can name an earlier holder while a later refusal names its current location.
 
-`engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
-index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
+`engine-end.ts` takes a ready root's lease again only for end work the command left it — a send, even a refused one, a
+copy or removal to check, an aside folder its sweep could not prove empty, or fan-out measurements to record — and reads
+its current index before the second check. After another index read under that lease, it removes retained take-in copies
+no entry names. An unusable index preserves its files.
 
 `paths.ts` names the checkout's machine-local folder, `.arc/system/.local/`, and the aside folder inside it.
 
@@ -94,11 +97,14 @@ remedy of running the command again. A refusal stands as the call read it.
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
 folder that exists, so a worktree whose Git directory was removed reads as gone and is never recreated. A lost lease
 ends only the guarded operation, at its next step, with the report the caller names. The operation awaits each
-`session.step()`, which confirms ownership through the renewable lease before proceeding, even when a queued heartbeat
-has not run. Failed confirmation stops the operation with a retry report. A wait that times out names the holder it
-last saw. It is not reentrant. The engine forwards its ownership checkpoint through store sends, staging, moves,
-index publication, and cleanup, including retry attempts. A lost lease prevents subsequent mutations; the command's
-unsent set stays outside the leased operation for reporting, without publishing unlocked pending marks.
+`session.step()`, which proceeds on the heartbeat's renewals while the last confirmed deadline is more than one renewal
+interval away, and otherwise renews to confirm ownership before proceeding. Failed confirmation stops the operation with
+a retry report. A partition that disagrees with its header ends the operation with a `mismatch` result naming it; where
+the caller asks and the partition is this worktree's, the lock first deletes it under the lease, so the next command's
+start finds the index unusable and rebuilds it. A wait that times out names the holder it last saw. It is not reentrant.
+The engine forwards its ownership checkpoint through store sends, staging, moves, index publication, and cleanup,
+including retry attempts. A lost lease prevents subsequent mutations; the command's unsent set stays outside the leased
+operation for reporting, without publishing unlocked pending marks.
 
 `blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
@@ -365,8 +371,9 @@ whose path is absent is linked back, a symbolic link or a file equal to its base
 returned for the rebuilt index to record as withheld. The sweep returns the replacements a swap back made, for the
 command's second check.
 
-`index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
-partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,
-writes it, and then rewrites the reference. Reading it returns the index, no projection where a checkout holding none
-has no index, or why it cannot be used — missing, unreadable, or of another format version — and each caller applies its
-own policy to that.
+`index-file.ts` writes each changed partition and then the header by temp-and-rename into that folder, never creating
+it. The header is the commit point, so a write that stops partway leaves the previous index, and no write recreates a
+removed worktree's Git directory. A commit smudges each partition whose entries changed, writes those partitions and the
+header, rewrites the reference, and then collects the partitions the header no longer names. Reading it returns the
+index, no projection where a checkout holding none has no index, or why it cannot be used — missing, unreadable, or of
+another format version — and each caller applies its own policy to that.

@@ -21,6 +21,8 @@ a one-file fan-out of a record that is not a primary each stay within their boun
 bound but on Windows, where § 15.4 expects it to reach the bound, each Windows median read as Success Criterion 4 reads
 it.
 
+_Amended in:_ 1.12.R (A4)
+
 _Design decisions:_ This list is the third of three members' that build one design (spec § 1.1, § 1.3), over
 `projection-substrate`'s engine and `projection-write-back`'s write path, both on base
 (`notes-projection-worktrees.md` § Grounding basis); tests run as theirs do (§ 1.5). The rebuild

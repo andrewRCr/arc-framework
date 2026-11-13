@@ -109,9 +109,9 @@ What it settles:
 - **The projection's own no-change cost is small beside the command it runs in.** At the writable set's size — its own
   work item, the personal surfaces, and the owner's in-flight prose, well under 1,000 files — the stat walk is about 2
   ms on Linux and under 7 ms on Windows. The one Git read for the state version is the largest part on Windows, and it
-  can start together with the walk and overlap it. In the engine, the store read reaches its Git process only after the
-  synchronous folder walk, and the stat walk follows that read (`startUnderLease`; `spec-projection-worktrees.md`
-  § 15.3), so neither overlaps the Git call there.
+  can start together with the walk and overlap it. The engine's start launches its configuration and state-version Git
+  reads before the index read and the yielding root walks, each walk followed by its stats, so that work runs while the
+  Git calls do (`launchProjectionStart`; `spec-projection-worktrees.md` § 15.3).
 
 ## Spike 3 — protection's reads per render
 
@@ -509,12 +509,12 @@ The expanded-start difference remains unresolved; its own baselines also changed
 archive-growth independence. The runner reported one active job, no memory pressure or swap traffic, and low I/O
 pressure; no cause is assigned to the variation. No budget is closed by these measurements.
 
-The Spike 4 tripwire prototype timed the file work alone, with the Store read outside the timer. Its 20 siblings used a
-simple exclusive-create lock, an index publication, staged 4 KB files, replacement, and a separate end check: 3.3 ms for
-one file and 13.4 ms for ten. The native measurement includes the writer as a twenty-first root and the full propagation
-round: Store version and changes, configuration and roster, protection and layout validation, recovery intent, partition
-encoding and publication, and file replacement. The difference is therefore partly a measurement-boundary and protocol
-difference; it is not evidence that serial scheduling alone explains the gap.
+The tripwire prototype (§ Tripwire timings) timed the file work alone, with the Store read outside the timer. Its 20
+siblings used a simple exclusive-create lock, an index publication, staged 4 KB files, replacement, and a separate end
+check: 3.3 ms for one file and 13.4 ms for ten. The native measurement includes the writer as a twenty-first root and
+the full propagation round: Store version and changes, configuration and roster, protection and layout validation,
+recovery intent, partition encoding and publication, and file replacement. The difference is therefore partly a
+measurement-boundary and protocol difference; it is not evidence that serial scheduling alone explains the gap.
 
 A diagnostic attribution run, `8d12426922ea4e3da5c2c9dbff1e095b`, kept roots sequential and compared one root with 21
 roots, at one and ten files, eleven samples each. Wrappers time real phases and filesystem calls, so these absolute
