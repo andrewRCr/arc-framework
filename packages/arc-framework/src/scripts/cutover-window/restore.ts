@@ -11,7 +11,7 @@ import { parseWindowFlipInput, type WindowFlipInput } from "./input.js";
 
 /** Before-write and before-merge-test checkpoints for observing an interrupted restore. */
 export type WindowRestoreStep = "restore.compare-record" | "restore.origin" | "restore.local" | "restore.configuration"
-  | "restore.verify" | "restore.hold" | "restore.merged.initial" | "restore.merged.push" | "restore.merged.registry";
+  | "restore.verify" | "restore.hold" | "restore.hold.marker-deleted" | "restore.merged.initial" | "restore.merged.push" | "restore.merged.registry";
 /** Optional host boundary and named checkpoints; the source entry supplies native defaults. */
 export interface WindowRestoreOptions { host?: WindowHostPort; step?: (step: WindowRestoreStep) => Promise<void> }
 /** Admitted restore authority and dependencies, bound to one explicit checkout and complete hold. */

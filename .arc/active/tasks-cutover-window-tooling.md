@@ -134,16 +134,12 @@ restarted after each of its steps.
           records behind mismatched kept tips and landed records, and retains identity coordinates for the restore's
           decision record.
 
-### `[ ]` **2.3 The restore — § 6**
+### `[x]` **2.3 The restore — § 6**
 
 - _Goal:_ From a complete hold whose flip has not merged, `restore` returns every recorded ref on both sides, deletes
   what the window added, removes the store directories and the designation, lifts the guard, and deletes the hold;
   it changes no ref another writer moved until the Owner accepts that value, and finishes when re-run after stopping
   at any step.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Restore leases and § Hold, record, and stop points. Tests build holds
-  through Task 2.1.a's writer, create all three store directories themselves, and stop the import at its own steps to
-  reach each state.
 
     - `[x]` **2.3.a Refusals before any write — § 6.3**
         - `admitWindowRestore` binds the named flip to its complete hold and request, rejects armed auto-merge and
@@ -162,26 +158,16 @@ restarted after each of its steps.
           checks every protected value before allowing a push. Publication leases apply only to eligible store refs,
           retired identity absence follows the saved comparison, and exact accepted pairs authorize either side.
 
-    - `[ ]` **2.3.d Steps 1 and 2 — `origin` and local refs**
-        - Step 1 sets each `origin` `refs/arc/*` ref back to its held tip from `refs/arc-window/origin/` and deletes every
-          ref the record does not hold, the registry ref last, each push leased as Task 2.3.c settled; it re-runs the
-          merged-flip test before the first push and before deleting the registry ref. Step 2 sets back or deletes the
-          store's refs and working namespaces under `refs/arc/tmp/`, each `refs/arc-remotes/origin/*` ref, and each
-          Errand identity ref.
-        - Build `test-first` (one behavior at a time):
-            - Before publication step 1 changes nothing; after it, every recorded ref returns on both sides and every
-              other `refs/arc/*` ref and unrecorded tracking ref is gone
-            - A merge landed on `origin` after the first test refuses before the registry ref is deleted, leaving the
-              local store whole
+    - `[x]` **2.3.d Steps 1 and 2 — `origin` and local refs**
+        - `restoreWindowRefs` restores origin from verified held tips with exact push leases and its registry last,
+          rechecking merge evidence before the first push and registry deletion. Local refs reset atomically on their
+          observed values; a race preserves the changed value and permits retry after exact acceptance.
 
-    - `[ ]` **2.3.e Steps 3 to 5 and re-running — § 6.2**
-        - Remove the store directories; unset `remote.origin.arc-state`; verify both sides equal the record and the
-          registry ref is absent on both, by a strict read; delete the completion marker, then the rest of the hold.
-        - Build `test-first` (one behavior at a time):
-            - Run before publication, with the import stopped at `import.publish`, the restore returns every local ref,
-              removes the directories, unsets the designation, and deletes the hold
-            - Run after publication, it does the same on both sides and lifts the guard
-            - Stopped after each step and run again, it finishes
+    - `[x]` **2.3.e Steps 3 to 5 and re-running — § 6.2**
+        - The source entry runs the complete restore before or after publication, removing directories and designation,
+          strictly verifying both ref inventories, and deleting the completion marker before the remaining hold.
+          Ordinary checkpoints restart from the saved decision; marker-deletion interruption takes the explicit cleanup
+          route in `notes-cutover-window-tooling.md` § Restore restart interpretation.
 
 ### `[ ]` **2.4 Hold, import, and restore round trip** — validate exit criterion at segment scope
 
