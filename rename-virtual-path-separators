@@ -3,14 +3,20 @@
   "slug": "rename-virtual-path-separators",
   "claimId": "df77732ecc4605c184f3f12c08ea2c46",
   "createdAt": "2026-11-13T01:05:37.634Z",
-  "updatedAt": "2026-11-13T01:05:37.634Z",
+  "updatedAt": "2026-11-13T03:27:25.654Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Normalize native path separators only at the POSIX-keyed virtual Store rename adapter boundary, preserving record and reference rewrites on Windows.",
   "branch": "fix/rename-virtual-path-separators",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/rename-virtual-path-separators",
+    "headSha": "39ffdaed6bda0ba9746fd36087bcf6709d765153"
+  }
 }
