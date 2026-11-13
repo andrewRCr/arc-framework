@@ -4,6 +4,7 @@ import type { StoreResult } from "../store/refusal.js";
 import type { ListingOutcome } from "../store/read.js";
 import { markerMatchesWorkUnitOwner } from "./holder-match.js";
 import { resolve } from "node:path";
+import { localPathsEqual } from "../local-path-identity.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
@@ -105,6 +106,7 @@ interface HolderObservation { holder: MarkerHolder; result: Exclude<HoldingCheck
 async function observeMatches(store: Store, inventory: readonly MarkerHolder[], request: HolderLookupRequest, listing?: () => Promise<StoreResult<ListingOutcome>>): Promise<HolderObservation[]> {
   const observations: HolderObservation[] = [];
   for (const holder of matchingHolders(inventory, request, store.capabilities.stateOffBranch)) {
+    if (request.checkoutPath !== undefined && await localPathsEqual(holder.path, request.checkoutPath)) continue;
     if (store.capabilities.stateOffBranch && holder.uid === undefined) {
       const classified = await classifyUnboundMarker({ store, cwd: holder.path, marker: holder.marker, listing: await listing?.() });
       if (classified.kind === "unreadable") throw new Error(classified.reason);

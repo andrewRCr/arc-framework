@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { CapturedBinding } from "../environment-inputs.js";
 import type { CheckContentContext } from "../environment-policy.js";
+import { environmentRecord } from "../environment-record.js";
 import { EnvironmentInputsSchema } from "../environment-declaration.js";
 import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
 import { isWellFormedUnicode } from "../../kernel/canonical/unicode.js";
@@ -31,15 +32,8 @@ const FileBindingSchema = z.discriminatedUnion("state", [
 /** One captured caller binding, independent of worker ambient values. */
 export const CapturedBindingSchema: z.ZodType<CapturedBinding> = z.union([ValueBindingSchema, FileBindingSchema]);
 
-// Zod records discard __proto__; validate its value before retaining the authored own property.
-const AuthoredBindingsSchema = z.unknown().superRefine((input, context) => {
-  if (typeof input !== "object" || input === null || !Object.hasOwn(input, "__proto__")) return;
-  const parsed = CapturedBindingSchema.safeParse(Reflect.get(input, "__proto__"));
-  if (!parsed.success) context.addIssue({ code: "custom", path: ["__proto__"], message: "Invalid captured binding" });
-});
-
 /** Exact captured bindings keyed by portable environment names. */
-export const CapturedEnvironmentSchema = z.intersection(z.record(z.string(), CapturedBindingSchema), AuthoredBindingsSchema)
+export const CapturedEnvironmentSchema = environmentRecord(z.record(z.string(), CapturedBindingSchema))
   .superRefine((bindings, context) => {
     const declarations = Object.fromEntries(Object.entries(bindings).map(([name, binding]) => [name, binding.kind]));
     const parsed = EnvironmentInputsSchema.safeParse(declarations);

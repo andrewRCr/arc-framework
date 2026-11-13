@@ -112,8 +112,8 @@ Precise meanings — assume the technical sense.
 ```text
 ├── active/      — Current work (meta files, task lists)
 ├── backlog/     — Future work pipeline (arc-in-git PM only)
-├── reference/   — Constitution, strategies, ADRs
-├── system/      — Agent config, workflows, settings
+├── reference/   — Briefs, strategies, ADRs, templates
+├── system/      — Rules, workflows, methods, settings
 └── user/        — Per-developer session state
 ```
 
