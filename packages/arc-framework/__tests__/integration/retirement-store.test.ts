@@ -4,9 +4,9 @@ import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { posix } from "node:path";
+import { createTempRepo as createTempRepoCore, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { createRetirementHarness, retirementLink } from "../helpers/store/retirement-harness.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
@@ -33,6 +33,12 @@ import { resolveSelfTeardownMode } from "../../src/lib/config/self-teardown-mode
 import { releaseStoreTerminalHusk } from "../../src/lib/work-unit/store-self-teardown-husk.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 const roots: string[] = [];
+const { join } = posix;
+async function createTempRepo(): Promise<string> {
+  // Git reports long absolute paths with forward slashes on Windows.
+  const root = await realpath(await createTempRepoCore());
+  return process.platform === "win32" ? root.replaceAll("\\", "/") : root;
+}
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
 async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose" } = {}) {
   const root = await createTempRepo(); roots.push(root);

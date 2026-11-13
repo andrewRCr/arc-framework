@@ -1,12 +1,25 @@
 /** Real CLI teardown refusals, self-teardown, and exact husk replay over temporary Git repositories. */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { chmod, mkdir, mkdtemp, rm, writeFile, readFile, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp as createTempDirectory, realpath, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, posix } from "node:path";
 import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
-import { initializedRepository } from "../helpers/initialized-repository.js";
+import { initializedRepository as initializedRepositoryCore } from "../helpers/initialized-repository.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+
+const { join } = posix;
+async function fixturePath(path: string): Promise<string> {
+  // Match Git's long absolute spelling before constructing operands or exact output assertions.
+  const root = await realpath(path);
+  return process.platform === "win32" ? root.replaceAll("\\", "/") : root;
+}
+async function mkdtemp(prefix: string): Promise<string> {
+  return fixturePath(await createTempDirectory(prefix));
+}
+async function initializedRepository(start: Parameters<typeof initializedRepositoryCore>[0]): Promise<string> {
+  return fixturePath(await initializedRepositoryCore(start));
+}
 
 async function removalFailureEnvironment(dir: string): Promise<NodeJS.ProcessEnv> {
   await mkdir(dir);
