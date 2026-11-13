@@ -1,5 +1,5 @@
 /** What the repository's run plans share: the copy's marked checkouts, branch plants, the hold, and the restore checks. */
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readWindowCheckouts, type WindowCheckout } from "./checkouts.js";
 import { readWindowHold, type WindowRecord } from "./hold.js";
@@ -37,6 +37,13 @@ export async function commitRehearsalBranch(context: WindowRehearsalContext, bra
   await sync.publish(branch, "HEAD");
   await sync.sync();
   return { previous, tip: (await sync.scratch(["rev-parse", "HEAD"])).stdout.trim() };
+}
+
+/** Write a file in the scratch clone, creating its folder where the branch holds none; returns the path for staging. */
+export async function writeRehearsalFile(scratch: string, path: string, content: string): Promise<readonly string[]> {
+  await mkdir(dirname(join(scratch, path)), { recursive: true });
+  await writeFile(join(scratch, path), content);
+  return [path];
 }
 
 /** Append a line to a file in the scratch clone, creating it where absent; returns the path for staging. */

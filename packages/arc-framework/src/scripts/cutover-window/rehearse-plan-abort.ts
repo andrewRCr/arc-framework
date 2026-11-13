@@ -9,7 +9,7 @@ import { expectRehearsalOperation, rehearsalFlipArgs, runRehearsalImport } from 
 import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext, type WindowRehearsalPlan,
   type WindowRehearsalPlant } from "./rehearse-run.js";
 import type { WindowRehearsalExpectation, WindowRehearsalExpectedFinding } from "./rehearse-expect.js";
-import { appendRehearsalLine, commitRehearsalBranch, expectRehearsalRefs, markedRehearsalCheckouts, readRehearsalRecord,
+import { appendRehearsalLine, commitRehearsalBranch, writeRehearsalFile, expectRehearsalRefs, markedRehearsalCheckouts, readRehearsalRecord,
   readRehearsalRefs, rehearsalCheckoutUnit, trackingCheckouts, unmarkedSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
 import { listWindowRefs } from "./git.js";
 import { readWindowTransientRecords } from "./transients.js";
@@ -125,10 +125,8 @@ function divergingCopyPlant(): WindowRehearsalPlant {
       const identity = await createDefaultStorePorts({ checkoutRoot: context.layout.repo }).identity();
       const meta = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse(divergingSlug),
         placement: { kind: "active", scope: { kind: "project" } } });
-      await commitRehearsalBranch(context, branch, "Start a live unit no checkout holds", async scratch => {
-        await writeFile(join(scratch, meta), renderMetaFile(divergingSlug, { state: "Active", owner: identity ?? "rehearsal", branch }));
-        return [meta];
-      }, "origin/main");
+      await commitRehearsalBranch(context, branch, "Start a live unit no checkout holds", scratch =>
+        writeRehearsalFile(scratch, meta, renderMetaFile(divergingSlug, { state: "Active", owner: identity ?? "rehearsal", branch })), "origin/main");
       await context.sync.plantInCopy(context.layout.repo, branch, "Move the local side");
       await commitRehearsalBranch(context, branch, "Move the mirror's side", scratch => appendRehearsalLine(scratch, "REHEARSAL.md", "mirror"));
       return [{ subject: divergingSlug, condition: `Copy origin/${branch}` }];
@@ -158,8 +156,7 @@ async function refuseMiskeyedBoundary(context: WindowRehearsalContext): Promise<
   if (!source) throw new WindowRehearsalStop("Main holds no review boundary to plant from.");
   await commitRehearsalBranch(context, held.branch, "Plant a review boundary filed under another work unit", async scratch => {
     const boundary = JSON.parse((await context.sync.scratch(["show", `origin/main:${source}`])).stdout) as Record<string, unknown>;
-    await writeFile(join(scratch, target), JSON.stringify({ ...boundary, workUnit: foreign }));
-    return [target];
+    return writeRehearsalFile(scratch, target, JSON.stringify({ ...boundary, workUnit: foreign }));
   });
   const memory = join(context.layout.workspace, "refused-import-peak-memory.json");
   await rm(memory, { force: true });
