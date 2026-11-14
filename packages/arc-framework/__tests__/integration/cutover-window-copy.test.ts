@@ -171,19 +171,24 @@ it("copies a checkout registered inside the common Git directory once, with its 
     { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
-it("refuses linked checkout metadata outside the common Git directory and copies once its pointer is restored", async () => {
+it("refuses every linked checkout whose metadata lies outside the common Git directory before copying, and copies once restored", async () => {
   const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-metadata-"));
   onTestFinished(() => rm(container, { recursive: true, force: true }));
-  const linked = join(container, "linked"), outside = join(container, "outside-admin");
-  await h.git("git", ["worktree", "add", "--detach", linked]);
-  const gitfile = await readFile(join(linked, ".git"), "utf8"), admin = gitfile.trim().slice("gitdir: ".length);
-  await cp(admin, outside, { recursive: true });
-  await writeFile(join(outside, "commondir"), `${resolve(admin, (await readFile(join(admin, "commondir"), "utf8")).trim())}\n`);
-  await writeFile(join(linked, ".git"), `gitdir: ${outside}\n`);
-  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused", findings: [{ subject: linked,
-    condition: expect.stringContaining("outside the common Git directory"),
-    remedy: expect.stringMatching(/^Remove the partial copy at .*copy, which holds no worktree registrations, then repair the condition and retry with a new, absent destination\.$/u) }] } });
-  await writeFile(join(linked, ".git"), gitfile);
+  const moved: { linked: string; gitfile: string }[] = [];
+  for (const name of ["first", "second"]) {
+    const linked = join(container, name), outside = join(container, `${name}-admin`);
+    await h.git("git", ["worktree", "add", "--detach", linked]);
+    const gitfile = await readFile(join(linked, ".git"), "utf8"), admin = gitfile.trim().slice("gitdir: ".length);
+    await cp(admin, outside, { recursive: true });
+    await writeFile(join(outside, "commondir"), `${resolve(admin, (await readFile(join(admin, "commondir"), "utf8")).trim())}\n`);
+    await writeFile(join(linked, ".git"), `gitdir: ${outside}\n`);
+    moved.push({ linked, gitfile });
+  }
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: moved.map(({ linked }) => ({ subject: linked, condition: expect.stringContaining("outside the common Git directory"),
+      remedy: "Repair the condition and retry with a new, absent destination." })) } });
+  await expect(lstat(join(container, "copy"))).rejects.toMatchObject({ code: "ENOENT" });
+  for (const { linked, gitfile } of moved) await writeFile(join(linked, ".git"), gitfile);
   expect(await runCopy(h.root, join(container, "retry"))).toMatchObject({ exit: 0 });
 }, 60_000);
 

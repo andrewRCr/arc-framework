@@ -50,6 +50,7 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   if (!primary) refuse("copy", "No primary checkout is registered.");
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
   const { commonDir } = await readGitDirectories(primary.path, fs);
+  const gitDirs = await readLinkedGitDirectories(roster.worktrees, commonDir, fs);
   const layout: WindowCopyLayout = { destination, repo: join(destination, "primary"), mirror: join(destination, "mirror.git"),
     worktrees: roster.worktrees.map((row, index) => ({ source: row.path, primary: row.primary,
       path: row.primary ? join(destination, "primary") : join(destination, "worktrees", String(index)) })) };
@@ -58,7 +59,7 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   try { await mkdir(destination); }
   catch (error) { refuse(destination, `Cannot acquire a new copy destination: ${String(error)}`); }
   try {
-    await fillWindowCopy(layout, { commonDir, origin, exec, fs }, hooks);
+    await fillWindowCopy(layout, { commonDir, gitDirs, origin, exec }, hooks);
   } catch (error) {
     await rm(join(layout.repo, ".git", "worktrees"), { recursive: true, force: true });
     throw partialCopyRefusal(destination, error);
@@ -66,10 +67,23 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   return layout;
 }
 
-interface WindowCopySource { commonDir: string; origin: string; exec: GitExec; fs: GitDirectoryFileAccess }
+interface WindowCopySource { commonDir: string; gitDirs: ReadonlyMap<string, string>; origin: string; exec: GitExec }
+
+/** Each linked checkout's metadata directory, refusing together every one outside the common Git directory before anything is copied. */
+async function readLinkedGitDirectories(rows: readonly { path: string; primary: boolean }[], commonDir: string,
+  fs: GitDirectoryFileAccess): Promise<Map<string, string>> {
+  const gitDirs = new Map<string, string>(), findings: WindowFinding[] = [];
+  for (const row of rows.filter(row => !row.primary)) {
+    const { gitDir } = await readGitDirectories(row.path, fs);
+    if (await windowPathContains(commonDir, gitDir)) gitDirs.set(row.path, gitDir);
+    else findings.push(finding(row.path, "The linked checkout metadata is outside the common Git directory."));
+  }
+  if (findings.length > 0) throw new WindowRefusal(findings);
+  return gitDirs;
+}
 
 async function fillWindowCopy(layout: WindowCopyLayout, source: WindowCopySource, hooks: WindowCopyHooks): Promise<void> {
-  const { commonDir, origin, exec, fs } = source, destination = layout.destination;
+  const { commonDir, gitDirs, origin, exec } = source, destination = layout.destination;
   for (const row of layout.worktrees) {
     await cp(row.source, row.path, { recursive: true, verbatimSymlinks: true,
       filter: path => path !== join(row.source, ".git") &&
@@ -79,8 +93,8 @@ async function fillWindowCopy(layout: WindowCopyLayout, source: WindowCopySource
   const copiedCommon = join(layout.repo, ".git"), nested = await checkoutsInside(commonDir, layout.worktrees);
   await cp(commonDir, copiedCommon, { recursive: true, verbatimSymlinks: true, filter: path => !nested.includes(path) });
   for (const row of layout.worktrees.filter(row => !row.primary)) {
-    const { gitDir } = await readGitDirectories(row.source, fs);
-    if (!await windowPathContains(commonDir, gitDir)) refuse(row.source, "The linked checkout metadata is outside the common Git directory.");
+    const gitDir = gitDirs.get(row.source);
+    if (gitDir === undefined) throw new Error(`No metadata directory was read for linked checkout ${row.source}`);
     const copiedGit = join(copiedCommon, relative(commonDir, gitDir));
     await writeFile(join(row.path, ".git"), `gitdir: ${copiedGit}\n`);
     await writeFile(join(copiedGit, "gitdir"), `${join(row.path, ".git")}\n`);

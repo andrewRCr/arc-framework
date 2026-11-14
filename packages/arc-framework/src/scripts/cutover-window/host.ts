@@ -50,18 +50,33 @@ export async function hasWindowHost(exec: GitExec, platform: NodeJS.Platform = p
 export async function readWindowHostFacts(
   io: { exec: GitExec; host: WindowHostPort }, flip: number, supplied: SuppliedHostFacts = {},
 ): Promise<WindowHostFacts> {
-  const hosted = await hasWindowHost(io.exec);
+  return readAdmittedWindowHostFacts(io.host, flip, supplied, await admitWindowHostFacts(io.exec, supplied));
+}
+
+/**
+ * Establish whether the repository has a host, refusing supplied facts where it has one. Nothing reads the host before
+ * this passes, so a caller that reports other unreadable facts beside its comparisons still stops here.
+ */
+export async function admitWindowHostFacts(exec: GitExec, supplied: SuppliedHostFacts = {}): Promise<boolean> {
+  const hosted = await hasWindowHost(exec);
   if (hosted && (supplied.anchor !== undefined || supplied.pullRequests !== undefined)) {
     throw new WindowRefusal([{ subject: "host facts", condition: "Supplied host facts are allowed only when every effective remote URL is local.",
       remedy: "Remove the supplied anchor and pull-request listing, then retry against origin's host." }]);
   }
+  return hosted;
+}
+
+/** Read request facts for a repository whose host boundary the admission has already established. */
+export async function readAdmittedWindowHostFacts(
+  host: WindowHostPort, flip: number, supplied: SuppliedHostFacts, hosted: boolean,
+): Promise<WindowHostFacts> {
   if (!hosted && supplied.pullRequests === undefined) {
     throw new WindowRefusal([{ subject: "pull-request listing", condition: "A supplied pull-request listing is required without a host.",
       remedy: "Supply the rehearsal's pull-request listing and retry." }]);
   }
   const suppliedRequests = supplied.pullRequests;
   const pullRequests = typeof suppliedRequests === "function"
-    ? await suppliedRequests() : suppliedRequests ?? await io.host.pullRequests(flip);
+    ? await suppliedRequests() : suppliedRequests ?? await host.pullRequests(flip);
   return { hosted, pullRequests, ...(supplied.anchor !== undefined ? { anchor: supplied.anchor } : {}) };
 }
 

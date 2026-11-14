@@ -32,6 +32,16 @@ it("runs and refuses when the entry is invoked through a symlinked directory", a
   expect(result.stderr).toContain("Unsupported operation: unknown");
 }, 15_000);
 
+it("runs and refuses when the entry is invoked without its extension", async () => {
+  const target = await createTempRepo();
+  onTestFinished(() => cleanupTempDir(target));
+  const result = await execa(process.execPath, ["--import", "tsx", entry.replace(/\.ts$/u, ""), "unknown", "--repo", target], {
+    cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" },
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("Unsupported operation: unknown");
+}, 15_000);
+
 it("refuses an operation's unknown option with an options remedy and its usage", async () => {
   const { runWindow } = await import("../../src/scripts/cutover-window/main.js");
   const { closeWindow } = await import("../../src/scripts/cutover-window/close.js");

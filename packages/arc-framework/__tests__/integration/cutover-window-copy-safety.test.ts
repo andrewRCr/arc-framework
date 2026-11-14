@@ -77,10 +77,30 @@ it.each(["gitfile", "registration"] as const)("refuses every pointer a copied %s
   const path = kind === "gitfile" ? join(linked.path, ".git") : join(copiedGit, "gitdir");
   const before = await readFile(path, "utf8");
   await writeFile(path, kind === "gitfile" ? `gitdir: ${sourceGit}\n` : `${join(linked.source, ".git")}\n`);
-  const outside = [...kind === "registration" ? [linked.source] : [], sourceGit, resolve(sourceGit, "../..")];
+  // A registration leading out of the copy is reported without reading through to its pointers.
+  const outside = kind === "registration" ? [linked.source] : [sourceGit, resolve(sourceGit, "../..")];
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
     .rejects.toMatchObject({ findings: outside.map(subject => expect.objectContaining({ subject, condition: expect.stringContaining("outside the copy") })) });
   await writeFile(path, before);
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("refuses a registration outside the copy whose folder is gone, without reading through it, and admits its repair", async () => {
+  const h = await copiedFixture(), linked = h.layout.worktrees.find(row => !row.primary);
+  if (!linked) throw new Error("Missing linked copy");
+  const registration = join((await readFile(join(linked.path, ".git"), "utf8")).trim().slice(8), "gitdir");
+  const before = await readFile(registration, "utf8"), gone = join(resolve(h.layout.destination, ".."), "gone-checkout");
+  await writeFile(registration, `${join(gone, ".git")}\n`);
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
+    .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: gone, condition: expect.stringContaining("outside the copy") })] });
+  await writeFile(registration, before);
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("refuses a live linked checkout named as the copy's primary by its pointers, not by a read error", async () => {
+  const h = await copiedFixture(), live = join(h.root, ".arc-fixture/linked");
+  await expect(assertWindowCopySafety({ ...h.layout, repo: live }, { host: { discoverRepository: async () => null } }))
+    .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: live, condition: expect.stringContaining("outside the copy") })] });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 

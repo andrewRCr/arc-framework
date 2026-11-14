@@ -63,16 +63,20 @@ async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec)
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
   const findings: WindowFinding[] = [];
   const inside = async (path: string) => {
-    if (!await windowPathContains(layout.destination, path)) findings.push(finding(path, "A Git pointer names a path outside the copy."));
+    if (await windowPathContains(layout.destination, path)) return true;
+    findings.push(finding(path, "A Git pointer names a path outside the copy."));
+    return false;
   };
+  // A checkout outside the copy is not read through: its folder may be gone, and its pointers lead further out.
   const checkout = async (path: string) => {
-    await inside(path);
+    if (!await inside(path)) return null;
     const dirs = await readGitDirectories(path, fs);
-    await inside(dirs.gitDir); await inside(dirs.commonDir);
+    const contained = [await inside(dirs.gitDir), await inside(dirs.commonDir)];
+    return contained.every(Boolean) ? dirs.commonDir : null;
   };
   await inside(layout.mirror);
-  await checkout(layout.repo);
-  findings.push(...await commonGitfileFindings(join(layout.repo, ".git"), layout.destination));
+  const commonDir = await checkout(layout.repo);
+  if (commonDir !== null) findings.push(...await commonGitfileFindings(commonDir, layout.destination));
   refuseAll(findings);
   const roster = await scanRegisteredWorktrees((command, args, options) => boundary(command, args, { ...options, cwd: layout.repo }));
   if (!roster.ok) throw new WindowRefusal([finding(layout.repo, `Cannot establish copied registrations: ${roster.message}`)]);

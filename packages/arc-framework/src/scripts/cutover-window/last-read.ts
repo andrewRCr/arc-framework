@@ -5,7 +5,7 @@ import { parseWindowFlipInput } from "./input.js";
 import { readWindowHold } from "./hold.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { createWindowHost } from "./native-host.js";
-import { readWindowHostFacts, type WindowHostPort } from "./host.js";
+import { admitWindowHostFacts, readAdmittedWindowHostFacts, type WindowHostPort } from "./host.js";
 import { readSuppliedWindowRequests } from "./supplied.js";
 import { windowFlipCommitBasis, readWindowFlipCommitFindings } from "./flip-commit.js";
 import { compareWindowRecompute } from "./recompute.js";
@@ -24,8 +24,10 @@ export async function lastReadWindow(request: WindowRequest, options: WindowLast
     remedy: "Name the branch and request recorded in the hold, then retry last-read.",
   }]);
   const host = options.host ?? createWindowHost(io), listing = input.listing;
-  const facts = await windowRead(() => readWindowHostFacts({ exec: io.exec, host }, input.pullRequest,
-    listing === undefined ? {} : { pullRequests: () => readSuppliedWindowRequests(request.repo, listing, input.pullRequest) }));
+  const supplied = listing === undefined ? {} : { pullRequests: () => readSuppliedWindowRequests(request.repo, listing, input.pullRequest) };
+  // Supplied facts on a hosted repository stop here, before the comparisons read the host.
+  const hosted = await admitWindowHostFacts(io.exec, supplied);
+  const facts = await windowRead(() => readAdmittedWindowHostFacts(host, input.pullRequest, supplied, hosted));
   const flip = "value" in facts ? facts.value.pullRequests.flip : null;
   const findings: WindowFinding[] = "findings" in facts ? facts.findings : [];
   if (flip !== null && (flip.headBranch !== record.flip.branch || flip.baseBranch !== "main")) findings.push({

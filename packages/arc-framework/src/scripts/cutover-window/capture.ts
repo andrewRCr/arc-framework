@@ -1,6 +1,6 @@
 /** Capture the importing repository's coordinates and acquired source digests for the window record. */
 import { readWindowImportPlacementFindings } from "./off-host.js";
-import { listWindowRefs, selectWindowRefs, type WindowGitReadIO } from "./git.js";
+import { listWindowRefs, selectWindowRefs, windowBranchValue, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
 import type { WindowFlipInput } from "./input.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
@@ -29,7 +29,8 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
   const placement = await readWindowImportPlacementFindings(io.repo, checkouts);
   if (placement.length > 0) throw new WindowRefusal(placement);
   const local = selectWindowRefs(refs, "refs/heads/", true); const fetched = selectWindowRefs(refs, "refs/remotes/origin/", true);
-  const head = fetched[input.branch] ?? local[input.branch];
+  const localTip = windowBranchValue(local, input.branch), fetchedTip = windowBranchValue(fetched, input.branch);
+  const head = fetchedTip ?? localTip;
   if (head === undefined) throw new WindowRefusal([{ subject: input.branch, condition: "The named flip branch cannot be resolved.",
     remedy: "Fetch or restore the intended flip branch, then retry check." }]);
   const [live, personal, review] = await Promise.all([
@@ -37,8 +38,8 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
     readWindowPersonalState(context, checkouts), readReviewDigest(context),
   ]);
   const reviewGateDigest = review.digest;
-  const flip = live.branches[input.branch];
-  live.branches[input.branch] = { local: local[input.branch] ?? null, origin: fetched[input.branch] ?? null,
+  const flip = windowBranchValue(live.branches, input.branch);
+  live.branches[input.branch] = { local: localTip ?? null, origin: fetchedTip ?? null,
     reasons: [...flip?.reasons ?? [], "Window flip"] };
   const host = Object.fromEntries<string | null>([...new Set(["main", ...Object.keys(live.branches)])]
     .map((branch): [string, string | null] => [branch, origin.branches[`refs/heads/${branch}`] ?? null]));

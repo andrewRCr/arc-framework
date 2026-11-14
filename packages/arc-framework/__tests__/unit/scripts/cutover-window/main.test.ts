@@ -1,7 +1,7 @@
 /** The repository tool refuses unsupported operations and requires an explicit checkout. */
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runWindow, type WindowOutput } from "../../../../src/scripts/cutover-window/main.js";
+import { runWindow, windowEntryState, type WindowOutput } from "../../../../src/scripts/cutover-window/main.js";
 
 function capture(): { output: WindowOutput; stdout: string[]; stderr: string[] } {
   const stdout: string[] = []; const stderr: string[] = [];
@@ -87,4 +87,22 @@ it.each([false, true])("reports unexpected operation failures as typed stops and
   const repaired = capture();
   expect(await runWindow(args, handlers, repaired.output)).toBe(0);
   expect((json ? repaired.stderr : repaired.stdout).join("")).toContain("check: passed");
+});
+
+describe("window entry recognition", () => {
+  const module = resolve(import.meta.dirname, "../../../../src/scripts/cutover-window/main.ts");
+
+  it.each([[true, "entry"], [false, "imported"]] as const)("takes the runtime's answer %s as %s", async (main, state) => {
+    expect(await windowEntryState(main, "/not/this/module", module)).toBe(state);
+  });
+
+  it("compares real paths where the runtime gives no answer", async () => {
+    expect(await windowEntryState(undefined, module, module)).toBe("entry");
+    expect(await windowEntryState(undefined, import.meta.filename, module)).toBe("imported");
+    expect(await windowEntryState(undefined, undefined, module)).toBe("imported");
+  });
+
+  it("reports an entry path it cannot resolve instead of skipping it", async () => {
+    expect(await windowEntryState(undefined, module.replace(/\.ts$/u, ""), module)).toBe("unrecognized");
+  });
 });

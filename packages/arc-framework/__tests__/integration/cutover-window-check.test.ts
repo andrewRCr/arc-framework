@@ -142,6 +142,14 @@ it.each([{ headBranch: "feat/other", baseBranch: "main" }, { headBranch: "feat/w
   }, 30_000,
 );
 
+it("refuses a flip branch named like an inherited property that has no ref, and passes naming the real branch", async () => {
+  const h = await windowFixture();
+  expect(await checkFixture({ ...h, flip: { ...h.flip, branch: "constructor" } })).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [expect.objectContaining({ subject: "constructor", condition: "The named flip branch cannot be resolved." })] } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
 it("refuses supplied facts on a hosted remote before reading their file or any host facts", async () => {
   const h = await windowFixture();
   await h.git("git", ["remote", "set-url", "origin", "https://host.invalid/owner/repo.git"]);

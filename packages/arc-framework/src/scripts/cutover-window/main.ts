@@ -71,16 +71,24 @@ function isOptionParseError(error: unknown): error is Error {
   return error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("ERR_PARSE_ARGS");
 }
 
-/** Whether the process entry is this module, compared by real path so a symlinked invocation still runs. */
-async function isWindowEntry(argv1: string | undefined): Promise<boolean> {
-  if (argv1 === undefined) return false;
-  try {
-    return await realpath(argv1) === await realpath(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
+/**
+ * Whether the module at `module` is the process entry. The runtime's own answer decides wherever it gives one, so no
+ * spelling of the entry path matters. Older runtimes give none: the entry path is compared by real path then, and one
+ * that cannot be resolved is reported rather than read as some other entry.
+ */
+export async function windowEntryState(main: boolean | undefined, argv1: string | undefined,
+  module: string): Promise<"entry" | "imported" | "unrecognized"> {
+  if (main !== undefined) return main ? "entry" : "imported";
+  if (argv1 === undefined) return "imported";
+  const entry = await realpath(argv1).catch(() => null);
+  if (entry === null) return "unrecognized";
+  return entry === await realpath(module) ? "entry" : "imported";
 }
 
-if (await isWindowEntry(process.argv[1])) {
-  process.exitCode = await runWindow(process.argv.slice(2));
+const runtimeMain: boolean | undefined = import.meta.main;
+const entryState = await windowEntryState(runtimeMain, process.argv[1], fileURLToPath(import.meta.url));
+if (entryState === "entry") process.exitCode = await runWindow(process.argv.slice(2));
+if (entryState === "unrecognized") {
+  process.stderr.write(`cutover-window: cannot tell whether ${process.argv[1] ?? ""} is this entry; invoke it by its file path.\n`);
+  process.exitCode = 1;
 }

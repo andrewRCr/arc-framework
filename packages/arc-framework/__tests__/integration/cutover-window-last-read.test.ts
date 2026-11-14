@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import { lastReadWindow, type WindowLastReadOptions } from "../../src/scripts/cutover-window/last-read.js";
 import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import type { WindowHostPort } from "../../src/scripts/cutover-window/host.js";
 import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { lastReadFixture, deleteWindowFile } from "../helpers/cutover-window/last-read.js";
 
@@ -180,10 +181,13 @@ async function hostedLastRead() {
 
 it("refuses supplied facts on a hosted repository before any host read and passes with host facts", async () => {
   const { h, host, state } = await hostedLastRead();
-  const refused = await lastRead(h, { host });
-  expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: [
+  const unexpected = async (): Promise<never> => { throw new Error("Unexpected host read"); };
+  const noHost: WindowHostPort = { refs: unexpected, pullRequests: unexpected, mergeSettings: unexpected, discoverRepository: unexpected };
+  const refused = await lastRead(h, { host: noHost });
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: [
     expect.objectContaining({ subject: "host facts", condition: expect.stringContaining("Supplied host facts") }),
   ] } });
+  expect(refused.result?.findings).toHaveLength(1);
   state.readable = true;
   expect(await lastRead(h, { host }, false)).toMatchObject({ exit: 0 });
 }, 60_000);
