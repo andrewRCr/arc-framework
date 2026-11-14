@@ -1421,11 +1421,23 @@ describe("CI verified-tree record", () => {
     const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
     const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
       + "packages/arc-framework/.test-cost-runs/duration-input";
+    // The forecast keeps the in-repo store on the storage cutover's own branch while its tree still tracks state.
+    const cutoverStoreOverride = [
+      "# The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.",
+      'case "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" in',
+      "  */cutover-flip)",
+      '    if [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \\',
+      '      .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then',
+      "      export ARC_IN_REPO_STORE=1",
+      "    fi ;;",
+      "esac",
+    ].join("\n");
     const preparationCommands = new Set([
       "npm ci", "npm run setup", durationPreparationCommand,
       "git show-ref --verify --quiet refs/heads/main || git branch main origin/main",
       "node --import tsx scripts/run-ci-checks.mjs validate",
-      'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
+      `${cutoverStoreOverride}\n`
+        + 'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
         + 'mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json',
     ]);
     const preparationAction = /^actions\/(?:checkout|setup-node|cache(?:\/restore)?|upload-artifact)@/u;
