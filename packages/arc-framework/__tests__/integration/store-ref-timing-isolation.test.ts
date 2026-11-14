@@ -1,6 +1,6 @@
 /** The store check's invocation keeps operation measurements and contention workloads outside parallel test execution. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -18,6 +18,10 @@ it("runs timing and bursts once without overlap while ordinary store suites stil
     const directory = join(fixture.packageRoot, "__tests__/integration");
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, "global-setup.ts"), "export function setup() {}\n");
+    // The integration project's setup file guards real index writes, which these synthetic suites never make.
+    const guard = join(fixture.packageRoot, "__tests__/helpers/store/projection/index-schema-guard.ts");
+    await mkdir(dirname(guard), { recursive: true });
+    await writeFile(guard, "export {};\n");
     for (const name of selectedSuites) {
       const isolated = isolatedSuites.includes(name);
       await writeFile(join(directory, `${name}.test.ts`), `
