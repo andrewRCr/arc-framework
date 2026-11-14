@@ -10,6 +10,8 @@ export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["
 export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, path: string): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
   if (prepared.kind === "ready") {
     const plan = prepared.submission.plan;
+    // Write-back lands an edit that keeps a retained mark and then refuses it, so persistence would refuse it too.
+    if (plan.prepared.retained !== null) return { kind: "would-refuse", remedy: plan.prepared.retained.remedy };
     const current = plan.observations.find(observation => sameReference(observation.reference, plan.mutation.reference));
     return unresolvedRemovalConflicts(path, current?.expected?.conflicts ?? [], plan.mutation.resolves ?? []);
   }

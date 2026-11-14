@@ -1023,3 +1023,25 @@ it("releases past an unedited aside copy in a root its ignore guard refuses, as 
   expect(await releaseProjectionRemoval(target.checkout, false, target.context)).toEqual({ kind: "released" });
   expect(await readFile(at).then(() => "present", () => "absent")).toBe("absent");
 });
+
+it("holds an edit that resolves its conflict beside a damaged marker set, as persistence does, and persists once repaired", async () => {
+  const base = "# Inbox\n\n## Errand\n\n### [ ] **First**\n\n- _Id:_ `11111111`\n\nbase first\n\n"
+    + "### [ ] **Second**\n\n- _Id:_ `22222222`\n\nbase second\n";
+  const h = await createMarkerFixture({ kind: "personal/inbox", base, current: base.replace("base first", "stored first"),
+    incoming: base.replace("base first", "incoming first") });
+  onTestFinished(h.dispose);
+  await initializeEngineCheckout(h.checkout);
+  const context = { store: h.store, identity: SlugSchema.parse("andrew") };
+  const third = "### [ ] **Third**\n\nnew third\n";
+  await h.edit(`${h.record.content.replace("stored first", "resolved first")}\n<<<<<<< local [arc-conflict: "personal/person/stranger/unindexed"]\n`
+    + `${third}=======\n${third.replace("new third", "other third")}>>>>>>> incoming\n`);
+  const checked = await checkProjectionRemoval(h.checkout, context);
+  expect(checked).toMatchObject({ kind: "would-refuse", remedy: { text: expect.any(String) } });
+  if (checked.kind !== "would-refuse") throw new Error("The retained mark was not predicted");
+  expect(await persistProjectionRemoval(h.checkout, context)).toEqual({ kind: "refused", remedy: checked.remedy });
+  const landed = success(await h.store.read({ reference: h.entry.reference })).content;
+  await h.edit(`${landed}\n${third}`);
+  expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(h.checkout, context)).toEqual({ kind: "persisted" });
+  expect(success(await h.store.read({ reference: h.entry.reference })).content).toContain("new third");
+});
