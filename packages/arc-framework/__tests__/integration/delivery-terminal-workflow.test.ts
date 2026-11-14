@@ -24,19 +24,17 @@ describe("delivery terminal integration handoff", () => {
     const interlock = indexOfSoftWrappedProse(packaged, "`integration-interlock`: Stop after the ready evidence", checkpoint);
     const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
-    const close = packaged.indexOf("arc user close {name}", merge);
-    const deliveryCloseout = packaged.indexOf("arc delivery closeout -", close);
+    const deliveryCloseout = packaged.indexOf("arc delivery closeout -", resume);
     const teardown = packaged.indexOf("arc teardown <wu-name>", deliveryCloseout);
-    for (const position of [checkpoint, interlock, merge, resume, close, deliveryCloseout, teardown]) {
+    for (const position of [checkpoint, interlock, merge, resume, deliveryCloseout, teardown]) {
       expect(position).toBeGreaterThan(-1);
     }
     expect(checkpoint).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(merge);
     expect(merge).toBeLessThan(resume);
-    expect(merge).toBeLessThan(close);
-    expect(resume).toBeLessThan(close);
-    expect(close).toBeLessThan(deliveryCloseout);
-    expect(packaged.slice(close, teardown)).toContain(
+    expect(resume).toBeLessThan(deliveryCloseout);
+    expect(packaged).not.toContain("arc user close");
+    expect(packaged.slice(resume, teardown)).toContain(
       '{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}',
     );
     expect(packaged.slice(deliveryCloseout, teardown)).toMatch(
@@ -72,7 +70,7 @@ describe("delivery terminal integration handoff", () => {
     const prePublication = preparation.indexOf("arc review pre-publication <wu>");
     const reservation = indexOfSoftWrappedProse(preparation, "hosted-first reservation", prePublication);
     const publication = preparation.indexOf("arc publish {name} --json", reservation);
-    const integrationHandoff = indexOfSoftWrappedProse(preparation, "After the transition commit", publication);
+    const integrationHandoff = indexOfSoftWrappedProse(preparation, "Then load [`integrate-work-unit.md`]", publication);
     const status = packaged.indexOf("arc status {name} --json");
     const inspect = packaged.indexOf("arc delivery entry inspect -");
     const singletonResolution = packaged.indexOf("arc review change-request resolve --head-ref");

@@ -356,14 +356,14 @@ Obtain the Owner's typed choice and submit the returned `selectionAction` unchan
 arc candidate applicability resolve {workUnitId} -
 ```
 
-Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
-attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns,
-check failures, and `base-moved / rerun-checkpoint` return to their typed checkpoint; `upgrade` and every `stop`
-remain stops. Classified base movement on an exact pre-terminal member follows the returned ordinary review or
-discharge action; unavailable or mismatched member movement stops. After any concluded attempt, invoke status again
-for the arm-selected exact member target. A `member-discharged / continue-reconcile`
-result permits that member's landing when `selectedMember.vehicle.deliverableId` matches the arm selection and its
-target matches the resolved `targetRef`; later members may still need review. `settled / continue-reconcile` also
+`continue` retains the earlier attempt and re-enters through `arc review status`; `request-review` re-enters status
+and receives the ordinary hosted request action. Applicability reruns, check failures, and
+`base-moved / rerun-checkpoint` return to their typed checkpoint; `upgrade` and every `stop` remain stops.
+Classified base movement on an exact pre-terminal member follows the returned ordinary review or discharge action;
+unavailable or mismatched member movement stops. After any concluded attempt, invoke status again for the
+arm-selected exact member target. A `member-discharged / continue-reconcile` result permits that member's landing
+when `selectedMember.vehicle.deliverableId` matches the arm selection and its target matches the resolved
+`targetRef`; later members may still need review. `settled / continue-reconcile` also
 permits landing when a returned typed discharge conjunction is `discharged`; the typed settled variant without a
 conjunction is also authoritative because no delivery-member conjunction remains to discharge. No other review-status
 result permits landing preparation.

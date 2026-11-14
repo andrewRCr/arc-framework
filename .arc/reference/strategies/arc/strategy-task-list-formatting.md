@@ -243,8 +243,9 @@ the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
 [verify-work-unit.md][verify-work-unit]) carries two required completion-note categories
-at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in lieu of `_Outcome:_`. All three (Goal + two
-categories) protected post-completion.
+at root — `_Quality gates:_`, `_Success criteria:_` — and a third, `_Captures:_`, when verification rejected or
+dismissed a capture, peers to Goal in lieu of `_Outcome:_`. Goal and every category present are protected
+post-completion.
 
 ### Revision Numbering (R Scheme)
 

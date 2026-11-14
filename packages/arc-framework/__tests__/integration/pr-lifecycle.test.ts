@@ -94,14 +94,15 @@ describe("PR lifecycle and review contracts", () => {
       );
       const publicationStep = prepare.indexOf("## 3) Schedule publication");
       const submit = prepare.indexOf("arc publish {name}", publicationStep);
-      const commitInterlock = prepare.indexOf("`commit-interlock`", submit);
+      const handoff = prepare.indexOf("Then load [`integrate-work-unit.md`]", submit);
       const pushInterlock = integrate.indexOf("`push-interlock`");
       const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
 
-      expect([publicationStep, submit, commitInterlock, pushInterlock, push]
+      expect([publicationStep, submit, handoff, pushInterlock, push]
         .every((index) => index >= 0)).toBe(true);
       expect(publicationStep).toBeLessThan(submit);
-      expect(submit).toBeLessThan(commitInterlock);
+      expect(submit).toBeLessThan(handoff);
+      expect(prepare.slice(publicationStep)).not.toContain("`commit-interlock`");
       expect(pushInterlock).toBeLessThan(push);
       expect(prepare).not.toContain("#pre-push-review");
       const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -477,7 +478,8 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("disposition approval alone authorizes no additional pass");
 
       expect(normalized).toContain("the caller's advisory evidence");
-      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
+      expect(normalized).toContain("record each approved pass with `arc review adversarial record`");
+      expect(normalized).not.toContain("adversarial-passes.md");
       expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
       expect(normalized).toContain("withdrawal or supersession invalidates it");
       expect(normalized).toContain("consumes that permission");

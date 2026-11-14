@@ -874,47 +874,46 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   `integration/commit-check-corpus.test.ts` counts 13 commit subjects where it counted 26. Kept sites are in
   `notes-cutover-flip.md` § Kept sites.
 
-### `[ ]` **5.6 Delivery, review, and archive, with the errata convention — § 8.7, § 8.12**
+### `[x]` **5.6 Delivery, review, and archive, with the errata convention — § 8.7, § 8.12**
 
 - _Goal:_ Verification, pre-publication, integration, and archival make no record-only commit, record passes and reports
   in the store and scratch, and archive through the store in both cadences.
 
-- _Note:_ From Task 5.4, `commit-footer` lists no `(archival)` footer, since archival is a store write; the archive
-  commit block naming it goes.
+    - `[x]` **5.6.a `verify-work-unit.md` and the verification record**
+        - Step 1 reads `arc inbox personal --target` and the inbound list (§ 4.2), halts on a refused or named listing
+          or a pending inbound entry, and removes by ID and version; rejections and dismissals go to the verification
+          record's `_Captures:_`, which § Verification Record and `strategy-task-list-formatting.md`'s exception now
+          name. Step 3 saves the record, closes the task (`arc task close`, or `arc release commit --close` over a
+          tracked change), then attests; attest's commit carries the review copy alone, when its result names a
+          `designExport`.
 
-    - `[ ]` **5.6.a `verify-work-unit.md` and the verification record**
-        - Save the verification task's edits, close it with `arc task close` or `arc release commit --close`, then `arc
-          attest`; Step 1's rejected or dismissed captures go into a `_Captures:_` category of the verification record;
-          § Verification Record and `strategy-task-list-formatting.md`'s verification-task exception, which today
-          protects exactly two categories, change together; the capture gate removes by ID and version.
+    - `[x]` **5.6.b `prepare-work-unit.md`, `integrate-work-unit.md`, and `deliver-stack.md`**
+        - Every `commit-selection`, `commit-boundary`, reconcile, publish, and composition commit goes: over the store
+          none of those actions is returned (`handlers/candidate.ts`, `handlers/review.ts`,
+          `checkpoint-composition.ts`), and a fix's re-exported review copy commits with it on `design-exported`.
+          Composition saves into the meta, a candidate-tail commit removes `.arc/specs/{name}/`, Step 8 keeps both
+          cadence arms over the store archive, Step 9 pushes the tail, `arc user close` goes, and the merged-tail
+          repair saves rather than opening a change request; `deliver-stack.md`'s `commit-selection` goes.
+          `.arc/system/arc-config.yml` drops `archive.cadence: manual` and runs `with-integration`.
 
-    - `[ ]` **5.6.b `prepare-work-unit.md`, `integrate-work-unit.md`, and `deliver-stack.md`**
-        - Record-commit and keep-staged steps go, attest's commit staying for the review copy; the archive commit and
-          its push go while step 8's dispatch keeps both cadence arms; `arc user close` goes; the pull request still
-          opens through `gh pr create` and archive records it through `--pr-url` (Task 2.7); a candidate-tail commit
-          removes the review copy (`git rm -r .arc/specs/<slug>/`); `deliver-stack.md`'s `commit-selection` step goes.
-        - This repository's `archive.cadence: manual` (`.arc/system/arc-config.yml`) goes by a targeted edit, so it runs
-          the default `with-integration` and the work-unit canary exercises archival before the merge (§ 8.7); the flip
-          itself takes no ordinary archive (`notes-cutover-flip.md` § The landing after verification).
-        - Tests that change with it: `integration/review-gate-workflows.test.ts`'s `arc user close` case, and
-          `integration/prepublication-workflow.test.ts`'s record-commit cases.
+    - `[x]` **5.6.c `archive-work-unit.md` and the errata convention**
+        - The archive is one published write with no commit, ROADMAP step, or `git mv`, closing the cohort in the same
+          batch; the final member's Closeout section is authored at the reported path and saved. `projection-team-scale`
+          had not landed (`arc status`: planning, generate-tasks), so the errata convention is the in-place edit of the
+          archived meta's Release Notes Entry, then `arc save`.
 
-    - `[ ]` **5.6.c `archive-work-unit.md` and the errata convention**
-        - The sidecar cohort sweep goes, the final member's Closeout section staying. The post-`Shipped` errata
-          convention is written by whether `projection-team-scale` has landed when this subtask writes it (§ 1.3): where
-          it has, around `arc edit`, the Release Notes Entry edit, and `arc save`, its contract re-checked first as Task
-          5.1 does where the landing came after that task; where it has not, around write-back's in-place archived edit,
-          rewritten onto `arc edit` if the unit lands before the head is fixed for the window, and otherwise shipped in
-          that form, the unit's landing rewriting it (§ 1.3; `notes-cutover-flip.md` § The landing after verification,
-          step 3).
+    - `[x]` **5.6.d The review methods**
+        - `adversarial-review`'s pass record moves onto `arc review adversarial record` (its fields, the verb's
+          artifact versions and code head, and `report` for the rest), the pre-start stub with it; kept prompts and
+          reports go to `scratch/work-unit/{slug}/adversarial-review/`, and the kept versions' notes-sync clause goes.
+          `pull-request-format`'s record-only exclusion goes and its design link names the review copy, its manifest
+          hash moving; `review-model` and `validate-criteria` hold only kept forms.
 
-    - `[ ]` **5.6.d The review methods**
-        - `adversarial-review`'s § Pass record and § Kept prompts and reports name `arc review adversarial record` and
-          the scratch folder; `pull-request-format`, `review-model`, and `validate-criteria` where the search names
-          them.
-        - Tests that change with it: `integration/pr-lifecycle.test.ts`'s personal-workspace cases, and
-          `framework-sync.test.ts`, whose manifest hash for `pull-request-format.md` moves with it
-          (`.arc/system/.internal/manifest.json`).
+- _Outcome:_ The delivery, review, and archive text commits tracked content alone: the review copy's export at attest
+  or with a fix, its removal in the candidate tail, and a composition correction to tracked files. Eight
+  identity-bearing workflow subjects remain, so `commit-check-corpus`' floor drops to four, the count outside the
+  decomposition workflow. The in-repo arms that still stage or return `commit-*` record their pre-flip step in
+  `notes-cutover-flip.md` § Pre-flip steps, and the kept sites in § Kept sites.
 
 ### `[ ]` **5.7 The decomposition workflow's end state — § 8.8**
 

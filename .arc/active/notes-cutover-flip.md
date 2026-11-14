@@ -63,7 +63,8 @@ tip and the store archives it only after the merge (§ 10.5). After Task 7.1, in
 
 1. Pre-publication review through `prepare-work-unit.md`, then `integrate-work-unit.md` through its review iteration
    and completion content (Steps 1 to 7), with Step 9's push; neither Step 8's archive nor the integration checkpoint
-   runs, and the window takes the place of Steps 8, 10, and 11.
+   runs, and the window takes the place of Steps 8, 10, and 11. These run in-repo, so each staged record or
+   `commit-*` result the rewritten text no longer names takes its pre-flip commit (§ Pre-flip steps).
 2. The flip's changes to shared tracked state, its cohort record's planning edits among them, land on `main` by their
    own pull request (§ 10.1).
 3. Where `projection-team-scale` has landed since Task 5.6.c wrote the convention, its § 1.3 contract is re-checked at
@@ -271,6 +272,13 @@ today's text takes:
   `arc materialize` were not run: a search of their source found no capability-gated `unsupported` refusal. The
   in-repo store's own `unsupported` refusals (`lib/store/in-repo/**`) answer its internal callers; each verb above
   refuses before it writes through one.
+- **Staged records and `commit-*` actions:** in-repo, `arc attest`, `arc publish`, `arc wu reconcile --apply`,
+  `arc archive`, and a Candidate response stage their records, and `arc candidate applicability resolve`,
+  `arc review terminus accept`, and the checkpoint's shipped-delivery boundary return `commit-selection` or
+  `commit-boundary`, none of which the rewritten delivery workflows name (Task 5.6; over the store each returns
+  `continue` or `none`, `handlers/candidate.ts`, `handlers/review.ts`, `checkpoint-composition.ts`). They refuse
+  nothing, so no remedy names a step: the step is the pre-flip text's commit for that result, in
+  `prepare-work-unit.md`, `integrate-work-unit.md`, `archive-work-unit.md`, and `deliver-stack.md` as of `ca34f785b2`.
 
 ## Errand branch readers
 
@@ -501,3 +509,17 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   and the pause's resume notes, not Git notes.
 - `- [x] 4.3.3` in `clean-work-unit.md`: an example of a closed task line the pass keeps verbatim, not a close.
 - `park-work-unit` in `resume-work-unit.md`: the pause workflow's filename, which the rewrite keeps.
+
+**Delivery, review, and archive (Task 5.6):**
+
+- `chore(arc): export the review copy of spec-{name}` in `verify-work-unit.md`, and `git rm -r .arc/specs/{name}/`
+  with `chore(arc): remove the review copy of spec-{name}` in `integrate-work-unit.md`: commits of the tracked review
+  copy alone; `meta-{name}.md` in their footers names the meta record by its filename.
+- `arc user inbox-remove --id <id> --expected-version <version>` in `verify-work-unit.md`: the removal verb the flip
+  keeps, by ID and version.
+- `[x]` and `[~]` in `verify-work-unit.md`'s three-state model and `validate-criteria`: Success Criteria dispositions,
+  and in `adversarial-review`'s prompt the task markings a reviewer must not take as evidence; none closes a task.
+- `notes-{name}.md` and "Notes File Consolidation" in `verify-work-unit.md`, "notes" in `adversarial-review`,
+  `pull-request-format`, and `review-model`, and "release notes" in `integrate-work-unit.md` and `archive-work-unit.md`:
+  the notes companion, reviewer notes, advisory notes, and release notes, not Git notes.
+- `plan/state` in `deliver-stack.md`: the delivery plan and state, not a planning branch.

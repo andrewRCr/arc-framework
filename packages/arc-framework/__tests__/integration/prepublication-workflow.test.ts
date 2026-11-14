@@ -21,7 +21,7 @@ describe("prepublication workflow boundary", () => {
       );
 
       expect(integrate).not.toContain("arc review pre-publication <wu>");
-      expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
+      expect(integrate).toContain("**When to use:** `arc view meta` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
       const reviewIteration = integrate.indexOf("### 2) Review iteration");
       const memberLocalFallback = integrate.indexOf("arc review local prepare -");
@@ -371,9 +371,12 @@ describe("prepublication workflow boundary", () => {
       expect(author).toContain("Do not invoke the producer-backed response command");
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
-      expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
-      expect(attest)
-        .toBeGreaterThan(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`"));
+      expect(verification).toMatch(
+        softWrappedProse("verification record](#verification-record), closes the task, and attests the Candidate"),
+      );
+      const close = verification.indexOf("arc task close <id>");
+      expect(close).toBeGreaterThan(mergeChecks);
+      expect(attest).toBeGreaterThan(close);
       expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
       expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
       expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));
@@ -381,7 +384,7 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
-  it("restarts checkpointing after reconcile and returns inline archival to the final push", async () => {
+  it("continues to the checkpoint after reconcile and returns inline archival to the final push", async () => {
     for (const root of ROOTS) {
       const [integrate, archive] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
@@ -389,11 +392,11 @@ describe("prepublication workflow boundary", () => {
       ]);
 
       const cleanContinuation = indexOfSoftWrappedProse(integrate, "`clean` continues to the checkpoint below");
-      const appliedRestart = indexOfSoftWrappedProse(integrate, "Restart this step. The correction changed the head");
+      const appliedContinuation = indexOfSoftWrappedProse(integrate, "and so does `applied`");
       const readyCheckpoint = indexOfSoftWrappedProse(integrate, "On `ready / request-approval`");
       expect(cleanContinuation).toBeGreaterThan(-1);
-      expect(appliedRestart).toBeGreaterThan(cleanContinuation);
-      expect(readyCheckpoint).toBeGreaterThan(appliedRestart);
+      expect(appliedContinuation).toBeGreaterThan(cleanContinuation);
+      expect(readyCheckpoint).toBeGreaterThan(appliedContinuation);
       expect(integrate).toContain("Context: meta-{name}.md (integration)");
       expect(integrate).not.toContain("Context: meta-{name}.md (integration reconcile)");
       expect(archive).toMatch(softWrappedProse("per `integrate-work-unit.md` Steps 5–7"));
@@ -418,9 +421,9 @@ describe("prepublication workflow boundary", () => {
       expect(route).toContain("`applicability.resolutionSelector`");
       for (const key of ["selectedBy", "choice", "targetedEvidenceRef"]) expect(route).toContain(`\`${key}\``);
       expect(route).toContain("arc candidate applicability resolve {name} -");
-      expect(route).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release/iu));
-      expect(route).toContain("chore(arc): record Candidate applicability for {name}");
-      expect(route).toContain("Context: meta-{name}.md (prepublication)");
+      expect(route).toMatch(softWrappedProse("mean the selection is recorded; re-enter pre-publication"));
+      expect(route).not.toContain("commit-selection");
+      expect(route).not.toContain("chore(arc): record Candidate applicability");
       expect(route).toMatch(softWrappedPattern(/explicit\s+`changed`\s+choice[\s\S]*--new-root/iu));
       expect(route).toMatch(softWrappedProse("Do not infer a selection from the recommendation."));
     }

@@ -150,7 +150,7 @@ describe("shared code-review workflow contracts", () => {
     const fixCommit = round.indexOf("Commit the verified fixes atomically");
     const replay = round.indexOf("Once the fix is committed");
     const verifiedResponse = compactResponse.indexOf("The shared committed `verifiedFix` replay");
-    const responseCommit = compactResponse.indexOf("Commit its staged Candidate response");
+    const responseCommit = compactResponse.indexOf("When it reports `design-exported`, commit the re-exported review copy");
     const candidateReroot = compactResponse.indexOf("rerun Step 1");
     expect(fixCommit).toBeGreaterThanOrEqual(0);
     expect(replay).toBeGreaterThan(fixCommit);
@@ -162,7 +162,7 @@ describe("shared code-review workflow contracts", () => {
     );
   });
 
-  it("keeps convergence projections staged through returned prepublication re-entry", async () => {
+  it("commits nothing for convergence through returned prepublication re-entry", async () => {
     const preparePath = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
     const verifyPath = "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
     const [packagedPrepare, projectPrepare, packagedVerify, projectVerify] = await Promise.all([
@@ -180,7 +180,8 @@ describe("shared code-review workflow contracts", () => {
       "Proceed only from `candidate-publish-ready`",
     );
     expect(convergence).toMatch(/run-convergence-verification[\s\S]*nextAction\.attestArgv/iu);
-    expect(convergence).toMatch(softWrappedPattern(/keep\s+(?:every\s+)?projection\s+staged[\s\S]*`candidate-publish-ready`/iu));
+    expect(convergence).toMatch(softWrappedProse("Complete the final forced merge check without an intervening commit."));
+    expect(convergence).not.toMatch(softWrappedPattern(/projection\s+staged/iu));
     expect(convergence).not.toMatch(softWrappedPattern(/commit\s+(?:the\s+)?convergence/iu));
     expect(packagedVerify).toMatch(softWrappedPattern(/initial\s+Candidate\s+attestation[\s\S]*convergence\s+attestation/iu));
   });

@@ -340,9 +340,7 @@ sync.auto_pull: false
 #   with-integration - Run archive ops with integration follow-through as a
 #                      separate commit in the integration PR. (default)
 #   manual           - Defer archival until explicitly invoked.
-# This project uses manual: a work unit merges while still Integrating under
-# .arc/active, and archival follows as its own post-merge change.
-archive.cadence: manual
+archive.cadence: with-integration
 
 # --- Design export ---
 

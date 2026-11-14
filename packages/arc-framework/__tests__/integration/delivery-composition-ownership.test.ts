@@ -34,6 +34,7 @@ describe("delivery lifecycle composition ownership", () => {
     expect(integrate).not.toContain("arc delivery terminal attach");
     const checkpoint = integrate.indexOf("arc integrate checkpoint {name}");
     expect(checkpoint).toBeGreaterThan(phaseTwo);
-    expect(checkpoint).toBeLessThan(integrate.indexOf("arc user close", checkpoint));
+    expect(checkpoint).toBeLessThan(integrate.indexOf("arc delivery closeout -", checkpoint));
+    expect(integrate).not.toContain("arc user close");
   });
 });

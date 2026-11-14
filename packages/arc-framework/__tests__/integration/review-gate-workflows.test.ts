@@ -357,7 +357,7 @@ describe("trusted review-gate workflows", () => {
 
     const candidate = sectionBetween(
       packaged,
-      "## Phase 2: Compose, sweep, ship",
+      "## Phase 2: Compose, archive, ship",
       "### 10) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
@@ -396,7 +396,7 @@ describe("trusted review-gate workflows", () => {
     const completionNotes = sectionBetween(
       packaged,
       "### 6) Compose Completion Notes",
-      "### 7) Commit completion content",
+      "### 7) Save completion content and remove the review copy",
     );
     expect(completionNotes).toMatch(softWrappedPattern(/delivered\s+scope[\s\S]*material\s+deviations\s+or\s+supersessions/u));
     expect(completionNotes).toMatch(softWrappedProse("verified evidence"));
@@ -747,7 +747,7 @@ describe("trusted review-gate workflows", () => {
     expect(approval).toBeLessThan(merge);
   });
 
-  it("resumes swept candidates and refires after append-only corrections", async () => {
+  it("resumes archived candidates and refires after saved or appended corrections", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
@@ -780,9 +780,10 @@ describe("trusted review-gate workflows", () => {
       "### 10) Behind-base reconcile gate and merge",
       "### 11) Post-merge worktree cleanup",
     );
-    expect(gate).toMatch(softWrappedProse("requested composition correction"));
-    expect(gate).toMatch(softWrappedPattern(/Append[\s\S]*never\s+amend/u));
-    expect(gate).toMatch(softWrappedPattern(/rerun\s+affected\s+gates\s+and\s+routing[\s\S]*push[\s\S]*rebuild\s+the\s+checkpoint/u));
+    expect(gate).toMatch(softWrappedProse("requests a composition correction instead of merge authorization"));
+    expect(gate).toMatch(softWrappedPattern(/correction\s+into\s+the\s+meta[\s\S]*save\s+it\s+with\s+`arc save`/u));
+    expect(gate).toMatch(softWrappedPattern(/appends\s+a\s+commit[\s\S]*never\s+amend/u));
+    expect(gate).toMatch(softWrappedPattern(/reruns\s+affected\s+gates\s+and\s+routing[\s\S]*pushes[\s\S]*Rebuild\s+the\s+checkpoint/u));
     expect(gate).toMatch(softWrappedProse("`invalidated / checkpoint` returns to the checkpoint"));
     expect(gate).not.toMatch(softWrappedProse("Any candidate mutation or review action invalidates the checkpoint"));
     expect(gate).not.toMatch(softWrappedProse("authorizes merge only if"));
@@ -845,8 +846,11 @@ describe("trusted review-gate workflows", () => {
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
     expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
     expect(resumeEntry).toMatch(softWrappedPattern(/under\s+`with-integration`,\s+the\s+resolver\s+reports\s+`shipped`\s+in\s+`completed`/iu));
-    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close`\s+or\s+`arc teardown`/u));
-    expect(resumeEntry).toMatch(softWrappedProse("lifecycle-only repair change request"));
+    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc teardown`/u));
+    expect(resumeEntry).not.toContain("arc user close");
+    expect(resumeEntry).toMatch(softWrappedPattern(/missing\s+composition\s+into\s+the\s+meta\s+and\s+save\s+it\s+with\s+`arc save`/u));
+    expect(resumeEntry).toMatch(softWrappedPattern(/archive-work-unit\.md[\s\S]*when\s+the\s+archive\s+has\s+not\s+run/u));
+    expect(resumeEntry).not.toMatch(softWrappedProse("repair change request"));
   });
 
   it("attests the lane only from trusted pull-request-target code", async () => {

@@ -28,9 +28,8 @@ override-active: false
 
 ## pull-request-format.default
 
-Applies to every Errand pull request, including planning-only Errands, and every other pull request except those
-carrying only planning or lifecycle records from grooming sets, housekeep sweeps, or the stub, park, resume,
-deactivate, decompose, and archive verbs. Those excluded requests follow their workflow's guidance.
+Applies to every pull request, an Errand's and a work unit's alike. Planning and lifecycle records are saved rather
+than committed, so no pull request carries them.
 
 ### Surface boundary and project prescriptions
 
@@ -132,7 +131,7 @@ without the Markdown descriptor.
 #### Design link
 
 When the pull request's diff contains a design document, close Notes for Reviewers with one line using a
-commit-pinned permalink and neutral link text such as "full design". Link the tracked spec on the branch; a
+commit-pinned permalink and neutral link text such as "full design". Link the spec's review copy the branch tracks; a
 layered `spec-{name}-prd.md` and `spec-{name}-rfc.md` pair is one design, so link both on that line. With no design
 in the diff, omit the line; decisions carry the review context and an issue reference carries origin.
 

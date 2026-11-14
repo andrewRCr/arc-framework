@@ -159,7 +159,8 @@ You are performing one fresh adversarial-review pass.
 
 Use only the context supplied in this prompt plus source files you inspect directly.
 Do not rely on the primary agent's intent, unstated assumptions, or prior session context.
-Personal files under `.arc/user/` carry that context; read them only at paths this prompt names.
+Personal files under `.arc/user/` and a meta's session context carry that context; read them only where this prompt
+names them.
 
 Rubric:
 {rubric}
@@ -506,31 +507,29 @@ residual once rounds converge or the Owner stops them with that residual named.
 **Kept reviewed versions.** At each pass's launch and each round's launch, copy every present planning artifact of
 the work unit — draft, spec, task list, notes — since folds can extend beyond the reviewed set. Keep the copies under
 `.arc/user/{identity}/.internal/reviewed-versions/{slug}/{sha256}.md`, keyed by work-unit or stub slug and content hash.
-`getUserInternalDir` resolves the identity's internal directory per checkout, including for a stub groomed before
-start; the user-notes `serialize` walk skips dot-prefixed paths, and `classifyUserSyncPath` classifies them
-`never-synced`. The copies stay local.
+The identity's internal directory is per checkout, a stub groomed before start included, and the store holds no
+record under it, so the copies stay local.
 
-Record each artifact's filename and hash in the pass entry for the pass and each round. Remove the copies once the
+Record each artifact's filename and hash in the pass's record for the pass and each round. Remove the copies once the
 loop has ended, its stop reason is recorded, and no round is offered or running. Moving to another machine or
 checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
 
 **Kept prompts and reports.** Whether fold verification is on or off, save each look's exact prompts before sending
-and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Planning and
-criteria callers keep them in an `adversarial-review/` folder in the work unit's personal workspace, beside
-`ADVERSARIAL-PASSES.md` when present, until that workspace is swept at archive, not just until the loop ends. Name
-each file `{sha256}.md` from its exact content; reuse a name only for identical content and never replace it with
-different bytes. For a stub groomed before it starts, keep these files beside its kept reviewed versions under
-`.arc/user/{identity}/.internal/reviewed-versions/{slug}/`; they stay machine-local and are removed with those
-versions when the loop ends.
+and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Keep them in an
+`adversarial-review/` folder in the work unit's scratch folder, `.arc/user/{identity}/scratch/work-unit/{slug}/`, a
+stub groomed before it starts included; they outlast the loop. Name each file `{sha256}.md` from its exact content;
+reuse a name only for identical content and never replace it with different bytes.
 
 ### Pass record
 
-Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
-consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
-the criteria report. This creates no lane-progress record, stored review-gate operation, Candidate, policy binding,
-or receipt.
+Record each approved pass with `arc review adversarial record`, naming its activity and the work unit, a stub groomed
+before it starts included. The request carries the rubric, the pass number and its cap, the approval and any over-cap
+approval, the stop reason, and each finding's action and account; the verb adds the versions of the work unit's
+stored artifacts, and for a `verification` or `criteria` pass the checkout's code head. The request's `report` carries
+the rest of the entry below. This creates no lane-progress record, stored review-gate operation, Candidate, policy
+binding, or receipt.
 
-Both callers record each kept look file's filename, content hash, and role (`prompt` or `report`) with that record,
+Each record's `report` names each kept look file's filename, content hash, and role (`prompt` or `report`),
 identifying its pass and any fix-check round, chunk, seam, or aggregate call.
 
 A planning pass entry carries:
@@ -547,9 +546,7 @@ A planning pass entry carries:
 - the response-performance check and the consumption fact;
 - the stop reason, any conditional next-pass decision, and any re-entry or boundary offer with the Owner's settlement.
 
-Attach every round's set to the entry of the pass whose fixes it checks; it creates no new record kind. A stub
-groomed before it starts has no workspace yet: its commit-body summary line remains its only record, and it does
-not keep the new entry fields. Its kept versions still serve the fix check's diff.
+Attach every round's set to the record of the pass whose fixes it checks; it creates no new record kind.
 
 ### Bounded orchestration and reuse
 

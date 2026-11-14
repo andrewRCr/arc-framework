@@ -66,7 +66,7 @@ describe("canonical commit-message corpus", () => {
       }
     }
 
-    expect(templateCount).toBeGreaterThanOrEqual(10);
+    expect(templateCount).toBeGreaterThanOrEqual(4);
     expect(templates).toContain("chore(arc): create spec-{name}");
     expect(templates).toContain("chore(errand): checkpoint <slug>");
   });

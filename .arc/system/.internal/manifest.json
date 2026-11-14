@@ -690,7 +690,7 @@
     "system/methods/pull-request-format.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "bd896cf560ff8d40e9e4404d56563cdea0094499f6c473260a5beb78d90805dd"
+      "pristine_hash": "1176776974a7046a2dd833be7b94d81d0f29a16f782aae9378cccb6af54f97fe"
     },
     "system/methods/review-model.md": {
       "classification": "Configurable",
