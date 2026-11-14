@@ -2,7 +2,7 @@
 import { refreshSubjectReferences } from "./refresh-conflicts.js";
 import { loadFormerProjectionOwner, planOwnerRefresh } from "./refresh-owners.js";
 import type { HistoryEntry } from "../contract.js";
-import { recordReferences, sameOwner, sameReference, type RecordReference, type StateVersion } from "../identity.js";
+import { recordReferences, sameOwner, sameReference, type OwnerIdentity, type RecordReference, type StateVersion } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import { isClaimedProjectionOwner, projectionRecordPath } from "./desired-paths.js";
 import { familyOf } from "../catalog.js";
@@ -56,7 +56,7 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
   const references = [...subjects.references, ...retries]
     .filter((reference, at, all) => all.findIndex(other => sameReference(reference, other)) === at);
   for (const reference of references.filter(reference => !owners.some(owner => sameOwner(owner, reference.owner)))) {
-    const added = await planChangedRecord(input, plan, reference);
+    const added = await planChangedRecord(input, plan, reference, owners);
     if (added) uncertain.push(reference);
     unresolved ||= added;
   }
@@ -83,7 +83,8 @@ function report(input: ProjectionRefreshPlanInput, refusal: Parameters<typeof ma
   input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(refusal) });
 }
 
-async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: ProjectionRefreshPlan, reference: RecordReference): Promise<boolean> {
+async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: ProjectionRefreshPlan, reference: RecordReference,
+  owners: OwnerIdentity[]): Promise<boolean> {
   const read = await input.source.read({ reference });
   if (read.status === "refused") {
     if (read.refusal.code === "not-found") return planMissingRecord(input, plan, reference);
@@ -100,6 +101,7 @@ async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: Projec
   }
   const primary = located.result;
   const own = primary?.placement?.kind === "active" && isClaimedProjectionOwner(input.root, primary.reference.owner) ? primary.reference.owner : null;
+  if (routedToOwnerRefresh(input, owners, own)) return false;
   const visible = primary !== null && Object.values(input.index.entries).some(entry => entry.kind === "record"
     && sameOwner(entry.reference.owner, primary.reference.owner));
   const path = projectionRecordPath(input.root, read.result, primary === null ? [] : [primary], own,
@@ -107,6 +109,13 @@ async function planChangedRecord(input: ProjectionRefreshPlanInput, plan: Projec
   if (path !== null) plan.paths.set(path, read.result.reference);
   removeRelocatedEntries(input, plan, reference, path);
   return false;
+}
+
+/** A claim with no UID cannot tell a same-slug unit from its own by one record, so its owner's re-plan reads both. */
+function routedToOwnerRefresh(input: ProjectionRefreshPlanInput, owners: OwnerIdentity[], own: OwnerIdentity | null): boolean {
+  if (own === null || input.root.claimUid !== undefined) return false;
+  if (!owners.some(owner => sameOwner(owner, own))) owners.push(own);
+  return true;
 }
 
 function removeRelocatedEntries(input: ProjectionRefreshPlanInput, plan: ProjectionRefreshPlan,

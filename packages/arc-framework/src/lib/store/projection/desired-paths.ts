@@ -59,9 +59,11 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
     active: ActiveLayoutContext = { claim: root.claim, layoutActive: root.layoutActive }): boolean => {
     const address = identifyArcFileAddress(path, { active });
     if (address?.kind === "cohort-copy") return !unknownOwn && !unavailableCohorts.has(address.cohort);
-    return !unknownView || !path.startsWith(`${resolveArcPath({ kind: "placement-root", tier: "active" })}/`) || reference.owner.type !== "work-item"
-      || own !== null && sameOwner(reference.owner, own)
-      || !unknownOwn && selection.references.some(selected => sameOwner(selected.owner, reference.owner));
+    if (!path.startsWith(`${resolveArcPath({ kind: "placement-root", tier: "active" })}/`) || reference.owner.type !== "work-item"
+      || own !== null && sameOwner(reference.owner, own)) return true;
+    // While the own unit is unknown, any unit the claim could name may belong in the own folder or out of it, in every view.
+    if (unknownOwn && isClaimedProjectionOwner(root, reference.owner)) return false;
+    return !unknownView || !unknownOwn && selection.references.some(selected => sameOwner(selected.owner, reference.owner));
   };
   for (const [path, record] of files) if (!placementKnown(path, record.reference)) files.delete(path);
   return { files, own, placementKnown, unresolved: unknownOwn || unknownView || unavailableCohorts.size > 0 };

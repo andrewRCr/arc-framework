@@ -73,8 +73,11 @@ async function readOwners(input: ProjectionRefreshPlanInput, owners: readonly Ow
   return { records, complete, unresolved };
 }
 
-async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<{ primary: StoreRecord | null; unavailable: boolean }> {
+async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: StoreRecord[]): Promise<{ primary: StoreRecord | null; unavailable: boolean }> {
   if (input.root.claim === null) return { primary: null, unavailable: false };
+  const claimants = await readIndexedClaimants(input, records);
+  if (claimants === null) return { primary: null, unavailable: true };
+  records.push(...claimants);
   const listed = records.find(record => (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record")
     && isClaimedProjectionOwner(input.root, record.reference.owner) && record.placement?.kind === "active");
   if (listed !== undefined) return { primary: listed, unavailable: false };
@@ -85,6 +88,29 @@ async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: readon
   const unavailable = read.refusal.code !== "not-found";
   if (unavailable) input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
   return { primary: null, unavailable };
+}
+
+/**
+ * A claim with no UID matches by slug alone, so the live units the index holds under it are read beside the listed ones,
+ * letting the plan see a same-slug unit as a clash rather than as its own.
+ * @returns The claimants' active primaries the listing lacked, or null when one could not be read.
+ */
+async function readIndexedClaimants(input: ProjectionRefreshPlanInput, records: readonly StoreRecord[]): Promise<StoreRecord[] | null> {
+  const found: StoreRecord[] = [];
+  if (input.root.claimUid !== undefined) return found;
+  const indexed = Object.values(input.index.entries).flatMap(entry => entry.kind === "record"
+    && (entry.reference.kind === "work-item/meta" || entry.reference.kind === "work-item/record")
+    && isClaimedProjectionOwner(input.root, entry.reference.owner) ? [entry.reference] : [])
+    .filter((reference, at, all) => all.findIndex(other => sameReference(other, reference)) === at
+      && !records.some(record => sameReference(record.reference, reference)));
+  for (const reference of indexed) {
+    const read = await input.source.read({ reference });
+    if (read.status === "ok") { if (read.result.placement?.kind === "active") found.push(read.result); continue; }
+    if (read.refusal.code === "not-found") continue;
+    input.root.context.report?.({ path: input.root.checkout, copy: null, mark: markStoreRefusal(read.refusal) });
+    return null;
+  }
+  return found;
 }
 
 /** Load only the partition identified by the owner’s primary at the saved anchor. */

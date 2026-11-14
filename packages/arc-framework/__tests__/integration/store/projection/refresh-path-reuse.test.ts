@@ -280,24 +280,63 @@ it("reports two live units claiming an unbound checkout's slug, with a rename re
   expect(clash?.mark.remedy.text).toContain("arc rename 00000000-0000-4000-8000-0000000000aa <new-slug>");
 });
 
-it("never lays another live unit that shares the checkout's slug at the checkout's own path", async () => {
+async function unbindAlpha(root: string): Promise<void> {
+  await writeWorktreeMarker(root, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "alpha" },
+    spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+}
+
+function claimClashReported(): boolean {
+  return projectionProcessState().diagnostics.some(each => each.mark.reason.startsWith("ambiguous-claim:"));
+}
+
+it.each(["bound", "unbound"] as const)("never lays another live unit that shares a %s checkout's slug at the checkout's own path", async marker => {
   const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
   directories.push(h.f.root);
+  if (marker === "unbound") await unbindAlpha(h.f.root);
   const command = { checkout: h.f.root, store: h.f.store }, [path] = Object.keys(h.projected.index.entries);
   if (path === undefined) throw new Error("Missing own metadata path");
   await rm(join(h.projected.location.stateDir, "index"));
   await startProjection(command);
   await endProjection(command);
   const own = await readFile(join(h.f.root, path), "utf8");
-  await plantRefPrimary(h.f, { kind: "work-item/meta", name: "alpha", uid: "00000000-0000-4000-8000-0000000000aa",
+  const other = await plantRefPrimary(h.f, { kind: "work-item/meta", name: "alpha", uid: "00000000-0000-4000-8000-0000000000aa",
     content: makeMetaFixture("alpha", { owner: "bob", state: "Active", workClass: "Light", priority: "P2", currentWorkflow: "process-task-loop" }) });
   for (let round = 0; round < 2; round += 1) {
     expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    expect(claimClashReported()).toBe(marker === "unbound");
+    await endProjection(command);
+    expect(await readFile(join(h.f.root, path), "utf8")).toBe(own);
+  }
+  if (marker === "unbound") {
+    const planted = success(await h.f.store.read({ reference: other }));
+    success(await h.f.store.write({ action: "remove", reference: other, expected: planted.version, provenance: { verb: "merge", lifecycleAction: "remove" } }));
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    expect(claimClashReported()).toBe(false);
     await endProjection(command);
     expect(await readFile(join(h.f.root, path), "utf8")).toBe(own);
   }
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (marker === "unbound") expect(disk).toMatchObject({ kind: "index", index: { state: success(await h.f.store.version()) } });
   const owner = h.primary.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("The own primary lacks a UID");
   expect(disk.kind === "index" ? disk.index.entries[path] : "unread").toMatchObject({ reference: { owner: { uid: owner.uid } } });
+});
+
+it("holds a same-slug unit's changed record out of the own folder once the checkout's claim loses its UID", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(h.f.root);
+  const other = await plantRefPrimary(h.f, { kind: "work-item/meta", name: "alpha", uid: "00000000-0000-4000-8000-0000000000aa",
+    content: makeMetaFixture("alpha", { owner: "andrew", state: "Active", workClass: "Light", priority: "P2", currentWorkflow: "process-task-loop" }) });
+  const command = { checkout: h.f.root, store: h.f.store };
+  await rm(join(h.projected.location.stateDir, "index"));
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  await unbindAlpha(h.f.root);
+  await seed(h.f, recordReferences["work-item/notes"](other.owner), "Notes of the other live alpha.\n");
+  for (let round = 0; round < 2; round += 1) {
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    expect(claimClashReported()).toBe(true);
+    await endProjection(command);
+    await expect(readFile(join(h.f.root, ".arc/active/current/notes-alpha.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  }
 });
