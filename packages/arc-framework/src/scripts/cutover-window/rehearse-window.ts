@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { lockWindow } from "./lock.js";
 import { checkWindow } from "./check.js";
-import { accountWindow } from "./account.js";
+import { accountWindow, type WindowAccountingEntry } from "./account.js";
 import { chainWindow } from "./chain.js";
 import { recomputeWindow } from "./recompute.js";
 import { readWindowCheckouts } from "./checkouts.js";
@@ -73,8 +73,13 @@ export async function designateRehearsalRemote(context: WindowRehearsalContext):
   return "Designated the mirror as the state remote.";
 }
 
-/** The import's wall time and peak resident memory. */
-export interface WindowRehearsalImportMeasurement { wallMs: number; peakRssMiB: number }
+/**
+ * The import's wall time and peak resident memory, with the bounds its process ran under: the soft address-space limit
+ * (`"unlimited"`, or null where the platform does not expose it) and V8's heap ceiling.
+ */
+export interface WindowRehearsalImportMeasurement {
+  wallMs: number; peakRssMiB: number; addressSpaceLimitMiB: number | "unlimited" | null; heapLimitMiB: number;
+}
 
 /** Import with publication to the mirror under the bounds, keeping its report and measuring it. */
 export async function importRehearsal(context: WindowRehearsalContext,
@@ -86,11 +91,14 @@ export async function importRehearsal(context: WindowRehearsalContext,
   if (result.exitCode !== 0) throw commandStop("The import", result);
   const report = JSON.parse(result.stdout) as { status?: unknown };
   if (report.status !== "ok") throw new WindowRehearsalStop(`The import reported ${String(report.status)}.`);
-  const peak = JSON.parse(await readFile(memory, "utf8")) as { maxRssKiB: number };
-  const measurement = { wallMs: result.wallMs, peakRssMiB: Math.round(peak.maxRssKiB / 1024) };
+  const peak = JSON.parse(await readFile(memory, "utf8")) as { maxRssKiB: number } & Pick<WindowRehearsalImportMeasurement, "addressSpaceLimitMiB" | "heapLimitMiB">;
+  const measurement: WindowRehearsalImportMeasurement = { wallMs: result.wallMs, peakRssMiB: Math.round(peak.maxRssKiB / 1024),
+    addressSpaceLimitMiB: peak.addressSpaceLimitMiB, heapLimitMiB: peak.heapLimitMiB };
   record(measurement);
   const published = await observeRehearsalPublication(context);
-  return `Imported in ${measurement.wallMs} ms at ${measurement.peakRssMiB} MiB peak resident memory; the mirror holds all ${published} published store refs.`;
+  const limit = typeof measurement.addressSpaceLimitMiB === "number" ? `a ${measurement.addressSpaceLimitMiB} MiB`
+    : measurement.addressSpaceLimitMiB === "unlimited" ? "no" : "an unreadable";
+  return `Imported in ${measurement.wallMs} ms at ${measurement.peakRssMiB} MiB peak resident memory, under ${limit} address-space limit and a ${measurement.heapLimitMiB} MiB heap ceiling; the mirror holds all ${published} published store refs.`;
 }
 
 /** Run the import from the primary copy under the run's bounds, recording its peak memory to the named file. */
@@ -146,9 +154,17 @@ export async function verifyRehearsalIdentityRefs(context: WindowRehearsalContex
   return "No identity ref or kept tip remains on the copy or the mirror.";
 }
 
-/** Account for every tracked file the import should have carried. */
-export function accountRehearsal(context: WindowRehearsalContext, expected: WindowRehearsalExpectation = passed): Promise<string> {
-  return expectRehearsalOperation(context, "account", accountWindow, [], expected);
+/** Account for every tracked file the import should have carried, keeping how many files each classification holds. */
+export async function accountRehearsal(context: WindowRehearsalContext, expected: WindowRehearsalExpectation = passed): Promise<string> {
+  const repo = context.layout.repo;
+  const result = await settleWindowOperation("account", accountWindow, { repo, args: ["--repo", repo, "--json"] });
+  const outcome = expectWindowRehearsalResult(result, expected);
+  const counts = new Map<string, number>();
+  for (const file of (result.data as { files?: readonly Pick<WindowAccountingEntry, "classification">[] } | undefined)?.files ?? []) {
+    counts.set(file.classification, (counts.get(file.classification) ?? 0) + 1);
+  }
+  const listed = [...counts].sort(([left], [right]) => left.localeCompare(right)).map(([kind, count]) => `${count} ${kind}`);
+  return `${outcome.replace(/\.$/u, "")}; files: ${listed.length > 0 ? listed.join(", ") : "none"}.`;
 }
 
 /** Compare every Candidate chain through the repository and the imported store. */

@@ -111,7 +111,7 @@ npm run -s cutover-window -- restore --repo /path/to/checkout --flip-branch feat
 
 ```sh
 npm run -s cutover-window -- rehearse --repo /path/to/copy/primary --anchor <commit> --plan abort \
-  --cap-wrapper '["bash", "-c", "exec \"$@\"", "cap"]' --json
+  --cap-wrapper '["bash", "-c", "ulimit -v 8388608 && exec \"$@\"", "cap"]' --heap-mb 4096 --json
 ```
 
 It first repeats copy safety, so a target that is not such a copy refuses before anything is written. It then prepares
@@ -123,9 +123,12 @@ a hookless scratch clone of the mirror under `<copy>/rehearsal/` and reaches the
 apart from the mirror is written in the copy with `git commit-tree` and `git update-ref`. ARC commands run through each
 checkout's own built CLI, or the primary copy's from that checkout where it has none, under a search path holding no
 other `arc`. `--path` names the search path `check` judges, `--anchor` the sealing commit of a copy that predates the
-tooling, `--plan` a run plan (`abort` or `merge`), `--cap-wrapper` a JSON argv prefix that bounds the import's memory,
-and `--heap-mb` the import's heap ceiling, set below that bound. Each step's outcome is reported in order; the run stops
-at the first unexpected one, naming the step, and reports the import's wall time and peak resident memory.
+tooling, `--plan` a run plan (`abort` or `merge`), `--cap-wrapper` a JSON argv prefix the import runs under, which
+must set its address-space limit itself, as the example's `ulimit -v` (in KiB) does, and `--heap-mb` the import's heap
+ceiling, set below that limit. Without a wrapper the import inherits the driver's own limit. Each step's outcome is
+reported in order; the run stops at the first unexpected one, naming the step, and reports the import's wall time and
+peak resident memory with the address-space limit and heap ceiling its process ran under, and how many files `account`
+placed in each classification.
 
 The npm script bounds each WebAssembly memory's address-space reservation, so the family also runs under an
 address-space limit: unbounded, the TypeScript loader's two reservations can fill most of such a limit before any work
