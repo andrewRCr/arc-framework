@@ -143,16 +143,16 @@ member lands; a contract that does not hold when its member lands is a forward a
   provides:
     - **the quiesce check,** run from the importing checkout on `main`'s pre-flip build immediately before the import,
       refusing with each failing checkout named on the conditions its specification enumerates, among them a dirty
-      checkout or one off its upstream, an unmarked linked checkout, an unlocked marked linked checkout, an ended holder
-      or husk, a staged decomposition cut, a checkout not descending from the window tooling's own merge, which carries
-      the sealing guard and its seal on `arc user load`, a live branch changing tracked state outside its own work
-      item's records, `main` not a proper ancestor of the flip's branch, a host that squashes or rebases, an open pull
-      request into `main` other than the flip's, any Errand record in any state or Errand identity ref whose `origin`
-      tip the local ref does not equal, an `origin`-only ref included, a claim held by an identity other than the
-      configured one, a live work unit whose records `main` changed after the branch copy the import reads forked, other
-      than a parked unit's pointer, which the import reads on `main`, and a live work unit with a copy, other than a
-      stale one, that the lifecycle composition passes over and that is not an ancestor of the copy it selects, the same
-      branch's local and fetched copies included (§ 13.4);
+      checkout or one off its upstream, an unmarked linked checkout, an unlocked marked linked checkout, an ended holder,
+      husk, or unresolved checkout (A6), a staged decomposition cut, a checkout not descending from the window tooling's
+      own merge, which carries the sealing guard and its seal on `arc user load`, a live branch changing tracked state
+      outside its own work item's records, `main` not a proper ancestor of the flip's branch, a host that squashes or
+      rebases, an open pull request into `main` other than the flip's, any Errand record in any state or Errand identity
+      ref whose `origin` tip the local ref does not equal, an `origin`-only ref included, a claim held by an identity
+      other than the configured one, a live work unit whose records `main` changed after the branch copy the import
+      reads forked, other than a parked unit's pointer, which the import reads on `main`, and a live work unit with a
+      copy, other than a stale one, that the lifecycle composition passes over and that is not an ancestor of the copy
+      it selects, the same branch's local and fetched copies included (§ 13.4);
     - **the record and hold:** what its specification enumerates, held under `refs/arc-window/`, among them each
       worktree's `HEAD`, a digest of its personal files, each branch's local and fetched tips and each live branch's tip
       on the host, `origin/main`'s tip read from the host and required to equal the importing checkout's `HEAD`, and
@@ -1420,6 +1420,11 @@ operations through the family's npm script (§ 1.3).
   records, and pushed, since the import reads the branch's copy and would drop the change `main` made. A parked unit's
   pointer is exempt: the import reads it on `main`, taking the pause's reason and first parking time from it
   (`readImportParkedSources`), so a shelved branch merges nothing for the pointer alone.
+- A live work unit holding a Candidate it has not published settles the Candidate's applicability after the last commit
+  its branch takes ahead of the window, such as the merge above, and before the quiesce check:
+  `arc review pre-publication <wu>`, the Owner's choice through `arc candidate applicability resolve`, and that choice's
+  commit, pushed. Until then the moved Candidate needs an authority choice, so the roster derives its checkout as
+  unresolved (`projectCheckoutSubjectMeta`, `lib/locus/subject-meta.ts`), and the check refuses it (§ 1.3) (A6).
 - The repository merges by merge commit only, squash and rebase merging disabled, as it is configured today, since the
   window tooling's merged-flip test reads the flip's head reachable from `main`, which only a merge commit shows; its
   check, restore, and close refuse otherwise (§ 1.3).
@@ -2175,5 +2180,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 5.5 must-stop. _Work:_ 5.5. _Revalidated:_ pending → 5.12.
 - **A5** — 2026-11-14 — spec-depth: verification keeps the notes companion, consolidating it, and never deletes it.
   _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.12.
+- **A6** — 2026-11-14 — spec-depth: a unit holding an unpublished Candidate settles it before the quiesce check.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.8.
 
 ---

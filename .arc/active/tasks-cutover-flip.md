@@ -1124,8 +1124,10 @@ rewritten workflows (§ 9.2).
 
     - `[ ]` **6.4.b The import side**
         - Stage 1's steps on the copy's pre-flip build, the copy taken through `copy`, with the import's trial before
-          `check`; the flip build's refusal of a ref store, each probe run with the override dropped: over the copy
-          before its import, and in the flip's checkout after the import and before its deletion commit.
+          `check`, and before it each copied work unit holding an unpublished Candidate that the copy's merges moved
+          settling its applicability as § 10.1 settles it (A6); the flip build's refusal of a ref store, each probe run
+          with the override dropped: over the copy before its import, and in the flip's checkout after the import and
+          before its deletion commit.
 
     - `[ ]` **6.4.c The flip's own landing**
         - The deletion commit under the override, a merge into the copy's mirror, the archive and register closures
