@@ -274,14 +274,16 @@ today's text takes:
 
 The search § 4.8 asks for, at `a7c65b4239`: `branchToWorkUnitSlug` (20 call sites in 15 files), `isErrandBranchType`
 (3 uses), `ERRAND_BRANCH_TYPES` (5 uses), and nine other splits of a branch or head name on `/`. The readers first
-marked unclear are traced below; Task 2.10 confirms each at its own head.
+marked unclear are traced below. Re-run at `fb347303d9`, after the builders, validation, resume, and readiness had
+changed, the search finds the same readers in the same files, each still as classified here.
 
 - **Reaching an Errand's branch:** the builders (`lib/errand/open.ts`, `lib/session-init/errand-branch-cut.ts`); the
   record's validation (`validateOrdinaryNamespace`, `lib/errand/identity-record.ts`; the housekeep routing and grooming
   validators beside it keep their own checks);
   resume's continuity check (`validateResumeContinuity`, `lib/errand/open.ts`); readiness's vehicle-branch guard and
   Errand projection check (`identityFacts`, `scripts/review-gate/readiness.ts`); and the residue slug for an unlinked
-  branch (`lib/git/in-flight-store.ts`), which is display-only.
+  branch (`lib/git/in-flight-store.ts`), which is display-only and now names a suffixed Errand branch by the slug
+  before its suffix (`suffixedErrandBranchSlug`, `lib/errand/branch-type.ts`).
 - **Unaffected:** prefix-only checks (`lib/store/in-repo/transient-lookup.ts`, `scripts/review-gate/status-errand.ts`),
   exact matches against the record's branch (`status-errand-selection.ts`, `locus-classification.ts`, promotion's
   checkout check), `releaseMergeLock`, which passes the head branch through unparsed, and the work-unit-only readers in

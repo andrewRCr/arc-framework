@@ -317,20 +317,11 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   complete listing holds none, so an init refused later keeps its one ID on the re-run. The import writes the same
   record through `projectIdentityRecord`.
 
-### `[ ]` **2.10 The Errand branch's suffix and every reader of it — § 4.8**
+### `[x]` **2.10 The Errand branch's suffix and every reader of it — § 4.8**
 
 - _Goal:_ On the store path, `arc errand open` names an Errand's branch `<type>/<slug>-<suffix>`, the suffix eight
   lowercase hex characters it mints before its one write, records that branch link, and every reader that derives an
   Errand's slug from its branch or matches an Errand's branch exactly takes that form.
-
-- _Approach:_ The store mints an Errand's UID only when it resolves the write (`resolveOwner`,
-  `lib/store/ref/write-resolution.ts`), after the branch must be named, so open mints the suffix itself. The record's
-  schema cannot see the store's capability, so it admits both `<type>/<slug>` and the suffixed form; the store arm
-  writes only the suffixed form, and on the store path an exact match compares the branch with the record's branch link.
-  No Errand record crosses the window (§ 13.3).
-
-- _Note:_ The search § 4.8 asks for, at `a7c65b4239`, and each traced reader's outcome are in `notes-cutover-flip.md`
-  § Errand branch readers.
 
     - `[x]` **2.10.a The builders**
         - Open names a new branch through `errandBranch` (`lib/errand/branch-type.ts`), with the suffix
@@ -350,10 +341,16 @@ the fence harness pass over the ref backend; and the full suite passes with no b
           `errand-branch-mismatch` unless the head branch is the record's branch link for the project. The Errand
           merge's lock and `arc review readiness` now pass their store for Errand vehicles; both lock roots are tested.
 
-    - `[ ]` **2.10.d The remaining readers**
-        - Each reader the search marks as reaching an Errand's branch changes with its arm, and each it marked unclear
-          is recorded unaffected with its traced reason; the grooming claim, the housekeep routing record, and the
-          import's created-branch test (`lib/store/ref/import/code-links.ts`) keep their own checks.
+    - `[x]` **2.10.d The remaining readers**
+        - The display-only residue slug for an unlinked branch (`lib/git/in-flight-store.ts`) names a suffixed Errand
+          branch by the slug before its suffix (`suffixedErrandBranchSlug`). The search re-run at head found the same
+          readers, recorded in `notes-cutover-flip.md` § Errand branch readers; the grooming claim, the housekeep routing
+          record, and the import's created-branch test (`lib/store/ref/import/code-links.ts`) keep their own checks.
+
+- _Outcome:_ On the store path an Errand's branch is `<type>/<slug>-<suffix>`, and nothing ties it to its Errand by
+  rebuilding the branch from the slug: the record admits both forms, resume and review readiness compare the branch
+  with the record's (readiness through its stored branch link), and the search and each reader's outcome are in
+  `notes-cutover-flip.md` § Errand branch readers.
 
 ### `[ ]` **2.11 The cohort record's member-sections write check — § 4.10**
 

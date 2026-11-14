@@ -70,3 +70,16 @@ export function errandBranchType(branch: string, slug: string): ErrandBranchType
   if (rest === slug) return type;
   return rest.startsWith(`${slug}-`) && BRANCH_SUFFIX.test(rest.slice(slug.length + 1)) ? type : null;
 }
+
+/**
+ * The slug a suffixed errand branch carries, read from the branch alone.
+ *
+ * @param branch - A branch that may take the form `<type>/<slug>-<suffix>`.
+ * @returns The slug before the suffix, or null when the branch is not a suffixed errand branch.
+ */
+export function suffixedErrandBranchSlug(branch: string): string | null {
+  const separator = branch.indexOf("/");
+  if (separator < 0 || !isErrandBranchType(branch.slice(0, separator))) return null;
+  const rest = branch.slice(separator + 1), cut = rest.length - 9;
+  return cut > 0 && rest[cut] === "-" && BRANCH_SUFFIX.test(rest.slice(cut + 1)) ? rest.slice(0, cut) : null;
+}
