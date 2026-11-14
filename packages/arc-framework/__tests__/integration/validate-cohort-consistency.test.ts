@@ -20,6 +20,7 @@ import { join, resolve, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 const execFileAsync = promisify(execFile);
 const tsxLoader = import.meta.resolve("tsx");
@@ -41,7 +42,8 @@ async function runValidator(
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
-      { cwd: REPO_ROOT, env: { ...process.env, FORCE_COLOR: undefined } },
+      // The fixtures are not a Git repository, where the ref store refuses; the in-repo store reads them.
+      { cwd: REPO_ROOT, env: { ...process.env, FORCE_COLOR: undefined, [IN_REPO_STORE_OVERRIDE]: "1" } },
     );
     return { code: 0, stdout, stderr };
   } catch (err) {

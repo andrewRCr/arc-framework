@@ -488,31 +488,25 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 - _Outcome:_ No `pm.mode` installs a file into a projected root. An existing project keeps its copies: `arc update`'s
   removal arms (`lib/manifest/apply.ts`) leave a Scaffolded file and keep a Configurable one for review.
 
-### `[ ]` **3.2 The store seeding helper and the temporary spawn override — § 7.3**
+### `[x]` **3.2 The store seeding helper and the temporary spawn override — § 7.3**
 
 - _Goal:_ A spawned test can seed the records it needs into its temporary repository's store through one helper, and
   until each family moves onto it, the spawn helpers carry every spawned test across the switch on the in-repo
   implementation.
 
-    - `[ ]` **3.2.a The seeding helper**
-        - One helper under `__tests__/helpers/store/` writes records in process through the ref backend's ports
-          (`createDefaultRefStorePorts`) into the temporary repository's store under its common Git directory, as
-          `refSyncFixture` (`__tests__/helpers/store/ref-sync.ts`) does: it takes the repository, an identity, and the
-          records, writes them in one batch, and returns their references and versions. A test whose subject is a verb
-          seeds through that verb instead.
-        - Build `test-first` (one behavior at a time):
-            - records the helper seeds are read back by the built CLI's ref backend in the same repository
-            - a seeded work unit's records carry its lifecycle placement and links
-            - a repository whose tree tracks ARC state is refused before any write
+    - `[x]` **3.2.a The seeding helper**
+        - `seedStore` (`__tests__/helpers/store/seed-store.ts`) creates the given records in one batch through
+          `createDefaultRefStorePorts` as the given identity, and returns each reference, its minted owner UID included,
+          with its version; over a `HEAD` that tracks ARC state it throws the tracked-state refusal before any write.
+        - `integration/store-seeding-fixture.test.ts` reads the seeded records back through `selectStore` over the
+          default store ports, the composition `createStore` takes at the switch: before the switch no built-CLI verb
+          reads arbitrary records through the ref backend, so the spawned tests that move onto the helper read them
+          through the CLI.
 
-    - `[ ]` **3.2.b The temporary spawn override**
-        - The spawn helpers' environments set the override by default (`builtCliEnvironment`,
-          `__tests__/e2e/helpers.ts`; `runCli`, `__tests__/helpers/run-cli.ts`), each spawn able to drop it, until Task
-          3.6 removes the default once every family has moved; a test that spawns the CLI, or a script that composes the
-          default store, outside them sets it itself where it seeds tracked state or roots its store outside a Git
-          repository, listed in `notes-cutover-flip.md` § Test callers: among them
-          `integration/validate-cohort-consistency.test.ts`, which runs the cohort hook's script
-          (`validate-cohort-consistency.ts`) through `tsx` over a fixture that is not a Git repository.
+    - `[x]` **3.2.b The temporary spawn override**
+        - `builtCliEnvironment` and `runCli` set `ARC_IN_REPO_STORE` beneath the caller's environment, so a spawn drops
+          it by passing it as `undefined`, and `integration/validate-cohort-consistency.test.ts` sets it on its `tsx`
+          spawn of the cohort hook's script. No command selects through it until the switch.
         - _Retired in:_ Phase 3
 
 ### `[ ]` **3.3 The switch, with the in-process tests whose expectations rest on the default — § 2.1, § 7.2**

@@ -16,6 +16,7 @@
 import { spawn } from "node:child_process";
 
 import { CLI_PATH, assertCliBuilt } from "./cli-spawn.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { recordCliInvocationForCurrentTest } from "./test-cost-timeout.js";
 
 /** Default subprocess timeout in milliseconds. */
@@ -26,8 +27,9 @@ export interface RunCliOptions {
   /** Working directory for the spawned subprocess. Defaults to the parent's cwd. */
   cwd?: string;
   /**
-   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared; overrides are merged on top,
-   * so callers only need to supply the keys they want to override.
+   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared and the in-repo store override set;
+   * overrides are merged on top, so callers only need to supply the keys they want to override, and a key passed as
+   * `undefined` is dropped.
    */
   env?: NodeJS.ProcessEnv;
   /** Timeout in milliseconds. Default: {@link DEFAULT_TIMEOUT_MS}. */
@@ -58,7 +60,7 @@ export function runCli(
 ): Promise<RunCliResult> {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   recordCliInvocationForCurrentTest(timeout);
-  const env = { ...process.env, FORCE_COLOR: undefined, ...(options.env ?? {}) };
+  const env = { ...process.env, FORCE_COLOR: undefined, [IN_REPO_STORE_OVERRIDE]: "1", ...(options.env ?? {}) };
 
   return new Promise<RunCliResult>((resolveResult, rejectResult) => {
     try {
