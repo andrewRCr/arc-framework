@@ -281,17 +281,15 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   importers pass the store they hold; `handleBaseDrift`, which held none, composes the default store as
   `handleBaseSync` does.
 
-### `[ ]` **2.7 The store archive records `PR URL` and `Completed` — § 4.5**
+### `[x]` **2.7 The store archive records `PR URL` and `Completed` — § 4.5**
 
 - _Goal:_ The store arm of `arc archive` (`runStoreArchive`, `lib/work-unit/verbs/archive-store.ts`) writes `PR URL` and
   `Completed` in its one batch, so the archived meta's readers (`completedRecord`, `lib/store/lifecycle-completed.ts`;
   `completed-index.ts`) and base drift keep both fields.
 
-    - Build `test-first` (one behavior at a time):
-        - `--pr-url` lands in the archived meta
-        - an absent `--pr-url` writes `[none]` and warns, as the in-repo arm does (`lib/work-unit/verbs/archive.ts`)
-        - `--completed` lands, defaulting to the ship day as the in-repo arm does
-        - both land in the same batch as the archive's other writes
+- _Outcome:_ Both arms resolve the facts through `resolveArchiveFinalizeFacts` (`lib/work-unit/verbs/archive-finalize.ts`),
+  and the store arm writes them into the meta content its one batch already carries, adding the absent-URL warning to
+  its result.
 
 ### `[ ]` **2.8 Integration checkpoint records keyed by work-unit UID — § 4.6**
 

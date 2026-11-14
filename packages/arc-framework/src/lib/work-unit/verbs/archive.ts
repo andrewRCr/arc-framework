@@ -34,6 +34,7 @@
 
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { runStoreArchive } from "./archive-store.js";
+import { PR_URL_PLACEHOLDER, resolveArchiveFinalizeFacts } from "./archive-finalize.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { join, posix } from "node:path";
@@ -187,14 +188,8 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   // so an offline / pre-PR / resumed ship still completes (backfill later). The
   // completion date defaults to the clock's day — archive runs pre-merge, so the
   // git merge timestamp isn't available and the ship day is the right default.
-  const warnings: string[] = [];
-  const resolvedPrUrl = prUrl ?? PR_URL_PLACEHOLDER;
-  if (prUrl === undefined) {
-    warnings.push(
-      `No \`--pr-url\` supplied — wrote a \`${PR_URL_PLACEHOLDER}\` placeholder; ` +
-        `set the \`PR URL\` field in the archived meta once the PR exists (archive can't retarget a shipped WU).`,
-    );
-  }
+  const facts = resolveArchiveFinalizeFacts({ prUrl, completed }, clock);
+  const warnings = facts.warnings;
   // The finalize-write seams are core archive side effects — never silently skipped
   // (the `?.` no-op would lose the facts) and never escaping as an uncaught throw
   // (every other archive failure returns a rejection). The relocation already
@@ -203,7 +198,7 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
     return { status: "rejected", reason: "`archive` finalize-write seams are not wired (internal error)." };
   }
   try {
-    await executor.writeFinalizeFields(metaPath, { prUrl: resolvedPrUrl, completed: completed ?? today(clock) });
+    await executor.writeFinalizeFields(metaPath, { prUrl: facts.prUrl ?? PR_URL_PLACEHOLDER, completed: facts.completed });
     await executor.stageMeta(metaPath);
   } catch (err) {
     return {
@@ -249,14 +244,6 @@ async function finishArchiveWorkspace(
 }
 
 /** The placeholder `PR URL` written when `--pr-url` is absent — a bare sentinel, backfilled later. */
-const PR_URL_PLACEHOLDER = "[none]";
-
-/** The clock's day as a `YYYY-MM-DD` stamp, in local components (matching the quarter label). */
-function today(clock: Clock): string {
-  const d = clock();
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function parseCohortCoordinate(field: string): [Slug] | [Slug, Slug] | null {
   const segments = field.split("/").map((segment) => SlugSchema.safeParse(segment));

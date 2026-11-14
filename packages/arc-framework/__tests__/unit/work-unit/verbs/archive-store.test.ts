@@ -98,8 +98,46 @@ describe("store archive", () => {
   });
 });
 
+describe("store archive finalize fields", () => {
+  const shipDay = new Date(2026, 9, 14, 12);
+  async function archived(params: { prUrl?: string; completed?: string }) {
+    const h = createLifecycleHarness();
+    const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+      "# Cohort: group\n\n**Purpose:** Deliver a concrete result.\n");
+    const meta = await h.seedMeta("example", { cohort: "group" });
+    const result = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => shipDay },
+      { name: "example", ...params });
+    const record = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    return { h, group, meta, result, record, fields: ParsedMetaRecordSchema.parse(record.fields) };
+  }
+
+  it("records --pr-url and --completed in the archived meta", async () => {
+    const { result, fields } = await archived({ prUrl: "https://github.com/o/r/pull/12", completed: "2026-10-01" });
+    expect(result).toMatchObject({ status: "archived", warnings: [] });
+    expect(fields).toMatchObject({ prUrl: "https://github.com/o/r/pull/12", completed: "2026-10-01" });
+  });
+
+  it("writes a placeholder and warns without --pr-url, and dates completion on the ship day", async () => {
+    const { result, record, fields } = await archived({});
+    expect(result).toMatchObject({ status: "archived", warnings: [expect.stringContaining("No `--pr-url` supplied")] });
+    expect(record.content).toContain("- **PR URL:** [none]");
+    expect(fields).toMatchObject({ prUrl: null, completed: "2026-10-14" });
+  });
+
+  it("lands both fields in the archive's one batch beside the cohort closeout", async () => {
+    const { h, group, meta } = await archived({ prUrl: "https://github.com/o/r/pull/12" });
+    const ownHistory = lifecycleSuccess(await h.store.history({ reference: meta.reference }));
+    const groupHistory = lifecycleSuccess(await h.store.history({ reference: group.reference }));
+    expect(ownHistory).toHaveLength(2);
+    const own = ownHistory[0]?.provenance, closeout = groupHistory[0]?.provenance;
+    if (own === undefined || closeout === undefined || !("batchId" in own) || !("batchId" in closeout)) throw new Error("Atomic archive provenance is absent");
+    expect(own.batchId).toBe(closeout.batchId);
+  });
+});
+
 function archive(store: Store, name: string) {
-  return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
+  return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") },
+    { name, prUrl: "https://github.com/o/r/pull/1" });
 }
 
 const publicationRepair = { text: "Repair the remote designation and retry publication." };

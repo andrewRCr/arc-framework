@@ -14,7 +14,9 @@ import { observeRecords } from "../../store/record-observations.js";
 import { completedCohortPath } from "../../store/lifecycle-record-path.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
-import { writeMetaSessionContext, writeMetaStateAtHandoff, writeMetaCommitAtHandoff, writeMetaSessionType } from "../../store/kinds/meta/writers.js";
+import { writeMetaSessionContext, writeMetaStateAtHandoff, writeMetaCommitAtHandoff, writeMetaSessionType, writeMetaPrUrl,
+  writeMetaCompleted } from "../../store/kinds/meta/writers.js";
+import { resolveArchiveFinalizeFacts } from "./archive-finalize.js";
 import type { Mutation } from "../../store/write.js";
 import type { StoreRecord } from "../../store/read.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
@@ -55,7 +57,9 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const cohorts = await prepareArchiveCohorts(store, primary, prospective, quarter);
   if (cohorts.status === "rejected") return cohorts;
   const { writes } = cohorts;
-  const content = writeMetaSessionType(writeMetaCommitAtHandoff(writeMetaStateAtHandoff(writeMetaSessionContext(primary.content, null), null), null), null);
+  const facts = resolveArchiveFinalizeFacts(params, ctx.clock);
+  const cleared = writeMetaSessionType(writeMetaCommitAtHandoff(writeMetaStateAtHandoff(writeMetaSessionContext(primary.content, null), null), null), null);
+  const content = writeMetaCompleted(writeMetaPrUrl(cleared, facts.prUrl), facts.completed);
   const outcome = await executeTransition(ctx.executor, { verb: "archive", slug: params.name, inputs: {
     suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records,
       observations: observeRecords(cohorts.completed) },
@@ -63,7 +67,11 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...("refusal" in outcome && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
     ...("remedy" in outcome && outcome.remedy !== undefined ? { remedy: outcome.remedy } : {}) };
-  return settleStoredArchive(ctx.executor.cwd, store, primary, outcome);
+  return withFinalizeWarnings(await settleStoredArchive(ctx.executor.cwd, store, primary, outcome), facts.warnings);
+}
+
+function withFinalizeWarnings(result: ArchiveResult, warnings: readonly string[]): ArchiveResult {
+  return result.status === "archived" ? { ...result, warnings: [...warnings, ...result.warnings] } : result;
 }
 
 // Every notice a push raised joins the archive's warnings, or the reason of any rejection after publication.
