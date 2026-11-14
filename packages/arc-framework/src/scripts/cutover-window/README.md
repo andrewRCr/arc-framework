@@ -20,8 +20,10 @@ registered while the copy runs refuses it before any repair, since the copy woul
 folder and a repair would rewrite the live checkout's pointer; retry once no checkout is being added. All effective
 fetch and push URLs in the copy and mirror must name that mirror. Before reporting success it checks every copied
 Git pointer, backing-repository setting, host discovery result, and Errand identity snapshot. A copied Errand awaiting
-merge refuses because abandoning it would contact its host. The JSON result names the primary, mirror, and copied
-checkouts. A failed copy leaves its destination for inspection; repair the cause and use a new absent destination.
+merge refuses because abandoning it would contact its host; merge or abandon it on the live repository, then take a
+new copy. The JSON result names the primary, mirror, and copied checkouts. A copy that fails after creating its
+destination removes its copied worktree registrations, so the partial copy names no live checkout; remove it, repair
+the cause, and use a new absent destination.
 
 `check` refuses pre-existing store, designation, or hold state, then retains its restore point under
 `refs/arc-window/`. The record lives at `refs/arc-window/record`; `refs/arc-window/complete` is written last and

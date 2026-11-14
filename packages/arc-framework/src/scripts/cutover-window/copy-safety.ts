@@ -44,7 +44,8 @@ async function assertNoAwaitingErrands(repo: string, exec: GitExec): Promise<voi
   for (const entry of snapshot.records) {
     const record = TransientIdentityRecordSchema.parse(JSON.parse(entry.content));
     if (record.kind === "errand" && record.state === "awaiting-merge") {
-      refuse(`${repo}:${record.slug}`, "A copied Errand is awaiting its merge; abandoning it would read its host pull request.");
+      refuse(`${repo}:${record.slug}`, "A copied Errand is awaiting its merge; abandoning it would read its host pull request.",
+        `Merge or abandon Errand ${record.slug} on the live repository, then take a new copy.`);
     }
   }
 }
@@ -75,7 +76,7 @@ async function assertMirrorRemotes(exec: GitExec, repo: string, mirror: string):
   }
 }
 
-function refuse(subject: string, condition: string): never {
-  throw new WindowRefusal([{ subject, condition,
-    remedy: "Repair this copy's isolation and repeat copy safety before running any ARC command." }]);
+function refuse(subject: string, condition: string,
+  remedy = "Repair this copy's isolation and repeat copy safety before running any ARC command."): never {
+  throw new WindowRefusal([{ subject, condition, remedy }]);
 }

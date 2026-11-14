@@ -1,12 +1,12 @@
 /** Construct isolated repository copies with rewritten native worktree registrations. */
 import type { WindowRequest } from "./main.js";
 import { WindowRefusal } from "./result.js";
-import { cp, lstat, mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
-import { readGitDirectories } from "../../lib/git/directories.js";
+import { readGitDirectories, type GitDirectoryFileAccess } from "../../lib/git/directories.js";
 import { windowPathContains } from "./paths.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { assertWindowCopySafety, type WindowCopySafetyOptions } from "./copy-safety.js";
@@ -54,6 +54,19 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   await mkdir(dirname(destination), { recursive: true });
   try { await mkdir(destination); }
   catch (error) { refuse(destination, `Cannot acquire a new copy destination: ${String(error)}`); }
+  try {
+    await fillWindowCopy(layout, { commonDir, origin, exec, fs }, hooks);
+  } catch (error) {
+    await rm(join(layout.repo, ".git", "worktrees"), { recursive: true, force: true });
+    throw partialCopyRefusal(destination, error);
+  }
+  return layout;
+}
+
+interface WindowCopySource { commonDir: string; origin: string; exec: GitExec; fs: GitDirectoryFileAccess }
+
+async function fillWindowCopy(layout: WindowCopyLayout, source: WindowCopySource, hooks: WindowCopyHooks): Promise<void> {
+  const { commonDir, origin, exec, fs } = source, destination = layout.destination;
   for (const row of layout.worktrees) {
     await cp(row.source, row.path, { recursive: true, verbatimSymlinks: true,
       filter: path => path !== join(row.source, ".git") &&
@@ -75,7 +88,14 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   await rewriteRemotes(exec, layout.repo, layout.mirror);
   await rewriteRemotes(exec, layout.mirror, layout.mirror);
   await exec("git", ["worktree", "repair", ...layout.worktrees.filter(row => !row.primary).map(row => row.path)], { cwd: layout.repo });
-  return layout;
+}
+
+/** A failure after the destination is acquired leaves a partial copy whose worktree registrations were removed. */
+function partialCopyRefusal(destination: string, error: unknown): WindowRefusal {
+  const remedy = `Remove the partial copy at ${destination}, which holds no worktree registrations, then repair the condition and retry with a new, absent destination.`;
+  const findings = error instanceof WindowRefusal ? error.findings
+    : [{ subject: destination, condition: `The copy failed: ${error instanceof Error ? error.message : String(error)}`, remedy }];
+  return new WindowRefusal(findings.map(finding => ({ ...finding, remedy })));
 }
 
 /** Every registration the copy holds must name a copied checkout, or a repair would rewrite a live checkout's pointer. */
@@ -97,7 +117,7 @@ async function refuseLateRegistrations(copiedCommon: string, destination: string
 
 function refuse(subject: string, condition: string): never {
   throw new WindowRefusal([{ subject, condition,
-    remedy: "Repair the condition and retry with a new, absent destination; retain or remove any partial copy explicitly." }]);
+    remedy: "Repair the condition and retry with a new, absent destination." }]);
 }
 
 async function futurePhysicalPath(path: string): Promise<string> {

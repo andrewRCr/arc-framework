@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
-import { prepareWindowCopy } from "../../src/scripts/cutover-window/copy.js";
+import { prepareWindowCopy, type WindowCopyHooks } from "../../src/scripts/cutover-window/copy.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { windowPathContains } from "../../src/scripts/cutover-window/paths.js";
 import { makeGitExec } from "../helpers/integration.js";
@@ -22,6 +22,14 @@ async function snapshot(root: string) {
   }
   return { registrations: (await registrations("git", ["worktree", "list", "--porcelain", "-z"])).stdout,
     configuration: (await readFile(join(common, "config"))).toString("base64"), records };
+}
+
+async function runCopy(repo: string, destination: string, hooks: WindowCopyHooks = {}) {
+  const stdout: string[] = [];
+  const exit = await runWindow(["copy", "--repo", repo, "--destination", destination, "--json"], {
+    copy: async request => ({ operation: "copy", status: "reported", findings: [], data: await prepareWindowCopy(request, hooks) }),
+  }, { stdout: value => { stdout.push(value); }, stderr: () => undefined });
+  return { exit, result: JSON.parse(stdout.join("")) as unknown };
 }
 
 it("copies all registered checkouts and a mirror without changing live registrations or gitfiles", async () => {
@@ -83,15 +91,53 @@ it("refuses a checkout registered while the copy runs, leaving its live pointer 
   const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-race-"));
   onTestFinished(() => rm(container, { recursive: true, force: true }));
   const late = join(container, "late"), destination = join(container, "copy");
-  const stdout: string[] = [];
-  const exit = await runWindow(["copy", "--repo", h.root, "--destination", destination, "--json"], {
-    copy: async request => ({ operation: "copy", status: "reported", findings: [], data: await prepareWindowCopy(request, {
-      afterCheckouts: async () => { await h.git("git", ["worktree", "add", "--detach", late]); },
-    }) }),
-  }, { stdout: value => { stdout.push(value); }, stderr: () => undefined });
+  const refused = await runCopy(h.root, destination, {
+    afterCheckouts: async () => { await h.git("git", ["worktree", "add", "--detach", late]); },
+  });
   const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
   expect(await readFile(join(late, ".git"), "utf8")).toBe(`gitdir: ${join(common, "worktrees", "late")}\n`);
   expect((await h.git("git", ["rev-parse", "--git-common-dir"], { cwd: late })).stdout.trim()).toBe(common);
-  expect({ exit, result: JSON.parse(stdout.join("")) as unknown }).toMatchObject({ exit: 1, result: { status: "refused",
-    findings: [{ subject: late, condition: expect.stringContaining("registered while the copy ran") }] } });
+  expect(refused).toMatchObject({ exit: 1, result: { status: "refused", findings: [{ subject: late,
+    condition: expect.stringContaining("registered while the copy ran"),
+    remedy: expect.stringMatching(/^Remove the partial copy at .*copy, which holds no worktree registrations, then repair the condition and retry with a new, absent destination\.$/u) }] } });
+  await expect(readdir(join(destination, "primary", ".git", "worktrees"))).rejects.toMatchObject({ code: "ENOENT" });
+  await rm(destination, { recursive: true, force: true });
+  await h.git("git", ["worktree", "remove", late]);
+  expect(await runCopy(h.root, join(container, "retry"))).toMatchObject({ exit: 0 });
+}, 60_000);
+
+it("refuses a destination that is a direct child of a live checkout named with two leading dots", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-dots-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const inside = join(h.root, "..copy");
+  expect(await runCopy(h.root, inside)).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [{ subject: expect.stringMatching(/\.\.copy$/u), condition: expect.stringContaining("inside live checkout") }] } });
+  await expect(readdir(inside)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
+}, 60_000);
+
+it("refuses a registered checkout with no folder and copies once its registration is pruned", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-missing-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const gone = join(container, "gone");
+  await h.git("git", ["worktree", "add", "--detach", gone]);
+  await rm(gone, { recursive: true, force: true });
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [{ subject: gone, condition: expect.stringContaining("has no folder"), remedy: expect.stringContaining("new, absent destination") }] } });
+  await expect(readdir(join(container, "copy"))).rejects.toMatchObject({ code: "ENOENT" });
+  await h.git("git", ["worktree", "prune"]);
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
+}, 60_000);
+
+it("refuses an existing destination without touching it and copies to a new absent one", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-existing-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const existing = join(container, "existing");
+  await mkdir(existing);
+  await writeFile(join(existing, "kept.txt"), "kept");
+  expect(await runCopy(h.root, existing)).toMatchObject({ exit: 1, result: { status: "refused",
+    findings: [{ subject: expect.stringMatching(/existing$/u), condition: expect.stringContaining("Cannot acquire a new copy destination"),
+      remedy: "Repair the condition and retry with a new, absent destination." }] } });
+  expect(await readdir(existing)).toEqual(["kept.txt"]);
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
 }, 60_000);

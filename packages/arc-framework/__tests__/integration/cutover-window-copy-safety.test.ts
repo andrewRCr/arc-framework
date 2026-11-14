@@ -12,13 +12,18 @@ import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/s
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 
 async function copiedFixture(beforeCopy?: (h: Awaited<ReturnType<typeof windowFixture>>) => Promise<void>) {
-  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-safety-"));
-  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const h = await windowFixture();
   await h.git("git", ["worktree", "add", join(h.root, ".arc-fixture/linked"), "feat/alpha"]);
   await beforeCopy?.(h);
+  return { ...h, layout: await takeCopy(h.root) };
+}
+
+async function takeCopy(repo: string) {
+  const container = await mkdtemp(join(tmpdir(), "arc-window-safety-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
   const stdout: string[] = [];
   let layout: Awaited<ReturnType<typeof prepareWindowCopy>> | undefined;
-  const exit = await runWindow(["copy", "--repo", h.root, "--destination", join(container, "copy"), "--json"], {
+  const exit = await runWindow(["copy", "--repo", repo, "--destination", join(container, "copy"), "--json"], {
     copy: async request => {
       layout = await prepareWindowCopy(request);
       return { operation: "copy", status: "reported", findings: [], data: layout };
@@ -26,7 +31,7 @@ async function copiedFixture(beforeCopy?: (h: Awaited<ReturnType<typeof windowFi
   }, { stdout: value => { stdout.push(value); }, stderr: () => undefined });
   expect(exit, stdout.join("")).toBe(0);
   if (!layout) throw new Error("Missing copy layout");
-  return { ...h, layout };
+  return layout;
 }
 
 it("admits an isolated copy whose host discovery answers none", async () => {
@@ -34,7 +39,7 @@ it("admits an isolated copy whose host discovery answers none", async () => {
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
-it.each(["repo", "mirror"] as const)("refuses an awaiting-merge Errand on the %s and admits its removal", async side => {
+it.each(["repo", "mirror"] as const)("refuses an awaiting-merge Errand on the %s and admits a new copy once it leaves the live repository", async side => {
   const h = await copiedFixture(async source => {
     const headSha = (await source.git("git", ["rev-parse", "HEAD"])).stdout.trim();
     await seedTransients(source, [TransientIdentityRecordSchema.parse({ ...ordinaryErrand, state: "awaiting-merge", changeRequest: {
@@ -46,9 +51,12 @@ it.each(["repo", "mirror"] as const)("refuses an awaiting-merge Errand on the %s
   await h.git("git", ["update-ref", "-d", transientSourceRef], { cwd: other });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
     .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: expect.stringContaining("example"),
-      condition: expect.stringContaining("awaiting") })] });
-  await h.git("git", ["update-ref", "-d", transientSourceRef], { cwd: h.layout[side] });
-  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+      condition: expect.stringContaining("awaiting"),
+      remedy: "Merge or abandon Errand example on the live repository, then take a new copy." })] });
+  await h.git("git", ["update-ref", "-d", transientSourceRef]);
+  await h.git("git", ["push", "origin", `:${transientSourceRef}`]);
+  const fresh = await takeCopy(h.root);
+  await expect(assertWindowCopySafety(fresh, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
 it.each([true, false])("refuses a backing repository in a primary=%s checkout and admits its repair", async primary => {
