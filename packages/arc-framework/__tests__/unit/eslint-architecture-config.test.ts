@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 const ESLINT_CONFIG_LOAD_TIMEOUT = 10_000;
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot });
+// Parse supplied text even under `CI`, where typescript-eslint otherwise builds its program from disk once.
+const textLinter = new ESLint({ cwd: packageRoot,
+  overrideConfig: { languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } } } });
 
 async function architectureOptions(filename: string): Promise<unknown> {
   const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, filename)) as
@@ -28,11 +31,11 @@ describe("composed architecture configuration", () => {
   }, ESLINT_CONFIG_LOAD_TIMEOUT);
 
   it("permits private store imports only within the window family", async () => {
-    const inside = await eslint.lintText('import "../../lib/store/in-repo/meta.js";\nimport "../../lib/store/ref/context.js";\n',
+    const inside = await textLinter.lintText('import "../../lib/store/in-repo/meta.js";\nimport "../../lib/store/ref/context.js";\n',
       { filePath: resolve(packageRoot, "src/scripts/cutover-window/main.ts") });
     expect(inside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
       .toEqual([]);
-    const outside = await eslint.lintText('import "../lib/store/in-repo/meta.js";\nimport "../lib/store/ref/context.js";\n',
+    const outside = await textLinter.lintText('import "../lib/store/in-repo/meta.js";\nimport "../lib/store/ref/context.js";\n',
       { filePath: resolve(packageRoot, "src/scripts/run-focused-lint.ts") });
     expect(outside.flatMap(result => result.messages.filter(message => message.ruleId === "arc/architecture-imports")))
       .toHaveLength(2);
