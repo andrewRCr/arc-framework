@@ -47,15 +47,15 @@ describe("buildChangePlan", () => {
       // New file list includes an additional file not in the manifest
       const templateFiles = [
         "reference/README.md",
-        "backlog/ROADMAP.template.md",
+        "reference/TECHNICAL-OVERVIEW.template.md",
       ];
 
       const plan = buildChangePlan(manifest, templateFiles, {}, new Set());
 
       expect(plan.additions).toHaveLength(1);
       expect(plan.additions[0]).toEqual({
-        outputPath: "backlog/ROADMAP.md",
-        templateFile: "backlog/ROADMAP.template.md",
+        outputPath: "reference/TECHNICAL-OVERVIEW.md",
+        templateFile: "reference/TECHNICAL-OVERVIEW.template.md",
         classification: "Scaffolded",
         layer: "core",
       });
@@ -63,8 +63,8 @@ describe("buildChangePlan", () => {
 
     test("classifies added arc-in-git files with correct layer", () => {
       const manifest = makeManifest({});
-      const templateFiles = ["backlog/ATOMIC-INBOX.template.md"];
-      const arcInGitFiles = new Set(["backlog/ATOMIC-INBOX.template.md"]);
+      const templateFiles = ["reference/strategies/arc/strategy-planning-module.md"];
+      const arcInGitFiles = new Set(["reference/strategies/arc/strategy-planning-module.md"]);
 
       const plan = buildChangePlan(manifest, templateFiles, {}, arcInGitFiles);
 

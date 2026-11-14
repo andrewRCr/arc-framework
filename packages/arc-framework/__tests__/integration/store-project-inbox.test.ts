@@ -9,17 +9,17 @@ import { trackedWriteFixture } from "../helpers/store/tracked-write-fixture.js";
 import { success, testProvenance } from "../helpers/store/suite-tools.js";
 
 const reference = recordReferences["project-inbox/inbox"](OwnerIdentitySchema.parse({ type: "project", name: "project" }));
-const installedPath = ".arc/backlog/ATOMIC-INBOX.md";
+const inboxPath = ".arc/backlog/ATOMIC-INBOX.md";
 
 describe("project inbox surface", () => {
-  it("maps the semantic scope to the installed template and existing viewer", async () => {
+  it("maps the semantic scope to the existing viewer at a path no installed file occupies", async () => {
     const h = await trackedWriteFixture();
     const recipe = JSON.parse(await readFile(new URL("../../init-recipe.json", import.meta.url), "utf8")) as {
-      conditions: Record<string, { include_files: string[] }>;
+      include_files: string[]; conditions: Record<string, { include_files: string[] }>;
     };
-    expect(recipe.conditions["pm.mode == arc-in-git"]?.include_files).toContain("backlog/ATOMIC-INBOX.template.md");
-    expect(`.arc/${resolveTemplateOutputPath("backlog/ATOMIC-INBOX.template.md")}`).toBe(installedPath);
-    const path = join(h.root, installedPath);
+    const installable = [recipe.include_files, ...Object.values(recipe.conditions).map((arm) => arm.include_files)].flat();
+    expect(installable.map((file) => `.arc/${resolveTemplateOutputPath(file)}`)).not.toContain(inboxPath);
+    const path = join(h.root, inboxPath);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, "# Inbox\n");
     const unused = async (): Promise<never> => { throw new Error("Project inbox has no work-unit or personal target"); };
@@ -29,12 +29,12 @@ describe("project inbox surface", () => {
       pathExists: (target) => access(target).then(() => true, () => false),
     });
     expect(view).toMatchObject({ status: "resolved", path });
-    expect(resolveArcPath({ kind: "inbox", scope: { kind: "project" } })).toBe(installedPath);
+    expect(resolveArcPath({ kind: "inbox", scope: { kind: "project" } })).toBe(inboxPath);
   });
 
   it.each(["write", "batch"] as const)("reads and updates existing bytes through %s without creating a competing inbox", async (operation) => {
     const h = await trackedWriteFixture();
-    const path = join(h.root, installedPath);
+    const path = join(h.root, inboxPath);
     const original = "# Project Inbox\n\n## Atomic\n\n### **Existing item**\n\nKeep this entry.\n";
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, original);

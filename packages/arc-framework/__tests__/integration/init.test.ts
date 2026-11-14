@@ -529,8 +529,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("excludes arc-in-git files when pm.mode=none", async () => {
     try {
-      await stat(join(arcDir, "backlog/ROADMAP.md"));
-      expect.fail("ROADMAP should not exist for pm.mode=none");
+      await stat(join(arcDir, "reference/strategies/arc/strategy-planning-module.md"));
+      expect.fail("The planning-module strategy should not exist for pm.mode=none");
     } catch (err: unknown) {
       expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
     }
@@ -566,7 +566,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("includes arc-in-git conditional files", async () => {
+  it("includes arc-in-git conditional files and writes none into the projected roots", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -580,8 +580,10 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const roadmap = await stat(join(tempDir, ".arc/backlog/ROADMAP.md"));
-    expect(roadmap.isFile()).toBe(true);
+    const planningModule = await stat(join(tempDir, ".arc/reference/strategies/arc/strategy-planning-module.md"));
+    expect(planningModule.isFile()).toBe(true);
+    const installed = await listFiles(join(tempDir, ".arc"), { skipInternal: false });
+    expect(installed.filter((path) => /^(active|backlog|completed)\//.test(path.replaceAll("\\", "/")))).toEqual([]);
 
     const config = await readFile(
       join(tempDir, ".arc/system/arc-config.yml"),

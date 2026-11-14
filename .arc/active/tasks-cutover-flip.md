@@ -451,41 +451,40 @@ passes on this branch through its steps' override condition.
 
 _Design decisions:_ The switch lands in stages, each commit green; see `notes-cutover-flip.md` § The switch's increment.
 
-### `[ ]` **3.1 The installed files and their presence test leave the projected roots — § 5.2, § 5.3, § 7.4**
+### `[x]` **3.1 The installed files and their presence test leave the projected roots — § 5.2, § 5.3, § 7.4**
 
 - _Goal:_ The installer writes no file into `.arc/active/`, `.arc/backlog/`, or `.arc/completed/`, and nothing checks
   for one: the `completed/README.md` Configurable file and the `backlog/ATOMIC-INBOX.md` and `backlog/ROADMAP.md`
   templates are deleted from the package rather than relocated within its `arc/`, and `verify-integrity.sh`'s presence
   test for `ROADMAP.md` goes with them in both copies.
 
-- _Rationale:_ Before the switch, since an `arc-in-git` install that commits these files would otherwise meet the
-  tracked-state refusal (`initializedRepository("arc-in-git-and-committed")`,
-  `__tests__/helpers/initialized-repository.ts`; `integration/schema-command/cold-start-provisioning.test.ts`); and as
-  one commit, since the presence test fails a fresh `arc-in-git` install once the template is gone.
+    - `[x]` **3.1.a The files and their claims**
+        - The three files leave the package with their `init-recipe.json`, `SCAFFOLDED_FILES`, `CONFIGURABLE_FILES`, and
+          self-hosting `manifest.json` entries; the `arc-in-git` arm keeps only the planning-module strategy, and
+          `classification.ts` drops its `arc/surface-names` suppression with the lines that held it.
+        - `strategy-file-classification.md`, both copies: PROJECT-PRD and TECHNICAL-OVERVIEW are the Scaffolded
+          examples, `PROJECT-PRD.template.md` the suffix example, and ROADMAP leaves the one-shot list.
+          `strategy-package-project-sync.md`'s inventory follows (148 installed files, 43 Configurable, 2 Scaffolded, 8
+          template counterparts), which `framework-sync.test.ts` checks.
+        - The coupling audit's `installedDelta` drops both `.arc/backlog/` paths; its test reads the checked-in corpus
+          directly, and the captured fixtures are deleted.
 
-    - `[ ]` **3.1.a The files and their claims**
-        - Delete them with their `init-recipe.json` entries, `SCAFFOLDED_FILES` and `CONFIGURABLE_FILES`
-          (`lib/classification.ts`), and `manifest.json` entries; the recipe's structure stays. `arc update` treats each
-          as a removal and deletes no project's copy (`lib/manifest/apply.ts`).
-        - `strategy-file-classification.md`, both copies: ROADMAP among the Scaffolded examples, the example of a
-          template's suffix stripped at install, and ROADMAP among the templates rendered once at init.
-        - `audit:coupling`'s corpus (`audits/coupling-blast-radius/manifest.json`) drops the two `.arc/backlog/` paths
-          in its `installedDelta`; `integration/audit-coupling-blast-radius.test.ts`'s fixture substitution and its
-          fixtures under `__tests__/fixtures/coupling-audit-planning/` go with them.
+    - `[x]` **3.1.b The presence test**
+        - `verify-integrity.sh`, both copies, drops the `arc-in-git` check for `backlog/ROADMAP.md` and still reads
+          `pm.mode` for the strategy inventory; the in-repo ROADMAP arms, `DERIVED_VIEWS`, and the `project-document`
+          address stay.
 
-    - `[ ]` **3.1.b The presence test**
-        - `verify-integrity.sh` (`.arc/system/.internal/scripts/` and
-          `packages/arc-framework/arc/system/.internal/scripts/`) drops the `arc-in-git` check for `backlog/ROADMAP.md`,
-          while the in-repo ROADMAP arms, `DERIVED_VIEWS`, and the layout's `project-document` address stay. Its real
-          installed tree case asserts only the File Structure section and stays as it is.
+    - `[x]` **3.1.c The tests over them**
+        - An `arc-in-git` init, in process and end to end, installs the planning-module strategy and nothing under the
+          three roots; `pm.mode=none` is checked by that strategy's absence, and the reconfigure end-to-end cases mark
+          the arm by it. Their `--yes` removal case keeps only its Framework leg: the arm no longer installs a Scaffolded
+          file, and `removal-prompts.test.ts` keeps the non-Framework default.
+        - The project inbox test asserts no installable file maps to the inbox's projected path, and
+          `entry-reference.test.ts` stops parsing the deleted template. Hand-built recipes in the reconfigure, init,
+          manifest-plan, and recipe unit tests name `TECHNICAL-OVERVIEW.template.md` or the planning-module strategy.
 
-    - `[ ]` **3.1.c The tests over them**
-        - `integration/store-project-inbox.test.ts`, `integration/init.test.ts` (the `arc-in-git` and `pm.mode=none`
-          cases), `unit/init.test.ts`'s Scaffolded classification, `unit/manifest/plan.test.ts`,
-          `unit/lib/store/kinds/entry-reference.test.ts`, `e2e/init.e2e.test.ts`, and `e2e/reconfigure.e2e.test.ts`.
-        - `integration/scripts/verify-integrity.test.ts` stays as it is: its fresh `arc-in-git` install cases assert
-          only a clean report, which this one commit keeps (§ 5.3).
-        - `unit/reconfigure.test.ts`'s hand-built recipes that name the deleted templates change with them.
+- _Outcome:_ No `pm.mode` installs a file into a projected root. An existing project keeps its copies: `arc update`'s
+  removal arms (`lib/manifest/apply.ts`) leave a Scaffolded file and keep a Configurable one for review.
 
 ### `[ ]` **3.2 The store seeding helper and the temporary spawn override — § 7.3**
 

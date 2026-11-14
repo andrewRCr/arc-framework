@@ -198,9 +198,11 @@ describe("init", () => {
 
     expect(result.exitCode).toBe(0);
 
-    // arc-in-git specific files
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ATOMIC-INBOX.md"))).toBe(true);
+    // arc-in-git specific files, none of them in a projected root
+    expect(await pathExists(join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"))).toBe(true);
+    for (const root of ["active", "backlog", "completed"]) {
+      expect(await pathExists(join(tmpDir, ".arc", root)), root).toBe(false);
+    }
 
     // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);

@@ -693,11 +693,6 @@
       "count": 2
     }
   },
-  "src/lib/classification.ts": {
-    "arc/surface-names": {
-      "count": 2
-    }
-  },
   "src/lib/command-input/declaration.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1

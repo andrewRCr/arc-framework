@@ -82,7 +82,7 @@ async function initializeRepository(): Promise<string> {
 }
 
 describe("coupling audit repository command", () => {
-  it("keeps the tooling corpus runnable with captured planning inventory members", async () => {
+  it("keeps the checked-in tooling corpus runnable", async () => {
     const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
     const context = createCouplingAuditScriptContext(repositoryRoot);
     const checkedInManifest = parseCouplingManifest(
@@ -93,14 +93,7 @@ describe("coupling audit repository command", () => {
         ),
       ),
     );
-    const corpus = {
-      ...checkedInManifest.corpus,
-      installedDelta: checkedInManifest.corpus.installedDelta.map(path =>
-        path === ".arc/backlog/ATOMIC-INBOX.md" || path === ".arc/backlog/ROADMAP.md"
-          ? `packages/arc-framework/__tests__/fixtures/coupling-audit-planning/${path.slice(".arc/backlog/".length)}`
-          : path),
-    };
-    const files = await collectCorpus(corpus, {
+    const files = await collectCorpus(checkedInManifest.corpus, {
       git: context.git,
       readFile: (path) => context.readBytes(join(repositoryRoot, path)),
     });

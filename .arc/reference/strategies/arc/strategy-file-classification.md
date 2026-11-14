@@ -44,7 +44,7 @@ section-level.
 Created once during `arc init` from template. User replaces all placeholder content with
 project-specific content. Never touched by framework updates.
 
-**Examples:** PROJECT-PRD, ROADMAP, backlog files.
+**Examples:** PROJECT-PRD, TECHNICAL-OVERVIEW.
 
 **Update behavior:** Skip entirely. These are project-owned after initialization.
 
@@ -111,7 +111,7 @@ is no single default form; it is resolved from the work's derivation depth (see
 
 Files that go through the CLI render engine during `arc init` — token substitution (`{{TOKEN}}`),
 conditional content (`<!-- arc:if -->`), or full placeholder replacement — use a `.template.md`
-suffix. The suffix is stripped at init time: `ROADMAP.template.md` becomes `ROADMAP.md`,
+suffix. The suffix is stripped at init time: `PROJECT-PRD.template.md` becomes `PROJECT-PRD.md`,
 `AGENT-BRIEF.PROJECT.template.md` becomes `AGENT-BRIEF.PROJECT.md`.
 
 The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files
@@ -132,7 +132,7 @@ produced from package-source `*.template.md` files with mustache-token replaceme
 have a parallel `reference/templates/arc/**/template-*.md` entry. The package-source `.template`
 file is the canonical template; no second template surface exists for the same file class.
 
-**Governed files:** PROJECT-PRD, TECHNICAL-OVERVIEW, ROADMAP, BACKLOG-FEATURE,
+**Governed files:** PROJECT-PRD, TECHNICAL-OVERVIEW, BACKLOG-FEATURE,
 BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join render
 pipeline is the canonical inventory.
 

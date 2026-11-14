@@ -208,7 +208,7 @@ describe("resolveFileList", () => {
     prompts: [],
     conditions: {
       "pm.mode == arc-in-git": {
-        include_files: ["backlog/ROADMAP.template.md"],
+        include_files: ["reference/strategies/arc/strategy-planning-module.md"],
       },
     },
   };
@@ -221,12 +221,12 @@ describe("resolveFileList", () => {
 
   it("includes files when condition matches", () => {
     const files = resolveFileList(minimalRecipe, { "pm.mode": "arc-in-git" });
-    expect(files).toContain("backlog/ROADMAP.template.md");
+    expect(files).toContain("reference/strategies/arc/strategy-planning-module.md");
   });
 
   it("excludes files when condition does not match", () => {
     const files = resolveFileList(minimalRecipe, { "pm.mode": "none" });
-    expect(files).not.toContain("backlog/ROADMAP.template.md");
+    expect(files).not.toContain("reference/strategies/arc/strategy-planning-module.md");
   });
 
   it("returns no duplicates", () => {
@@ -336,8 +336,7 @@ describe("resolveFileList — actual recipe", () => {
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
     expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/ATOMIC-INBOX.template.md")).toBe("Scaffolded");
+    expect(classifyFile("reference/TECHNICAL-OVERVIEW.template.md")).toBe("Scaffolded");
   });
 
   it("classifies Configurable files", () => {
@@ -390,12 +389,12 @@ describe("needsRendering", () => {
 
 describe("fileLayer", () => {
   it("returns arc-in-git for files from arc-in-git conditions", () => {
-    const arcInGitFiles = new Set(["backlog/ROADMAP.template.md"]);
-    expect(fileLayer("backlog/ROADMAP.template.md", arcInGitFiles)).toBe("arc-in-git");
+    const arcInGitFiles = new Set(["reference/strategies/arc/strategy-planning-module.md"]);
+    expect(fileLayer("reference/strategies/arc/strategy-planning-module.md", arcInGitFiles)).toBe("arc-in-git");
   });
 
   it("returns core for files not in arc-in-git set", () => {
-    const arcInGitFiles = new Set(["backlog/ROADMAP.template.md"]);
+    const arcInGitFiles = new Set(["reference/strategies/arc/strategy-planning-module.md"]);
     expect(fileLayer("README.md", arcInGitFiles)).toBe("core");
   });
 });
