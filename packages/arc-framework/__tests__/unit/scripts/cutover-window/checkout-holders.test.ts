@@ -68,8 +68,13 @@ it.each([{ label: "missing", records: [] }, { label: "different claim", records:
   "refuses a missing or different Errand holder: $label", ({ records }) => {
     expect(windowErrandHolderFindings([errand], records)).toEqual([expect.objectContaining({ subject: row.path,
       condition: expect.stringMatching(/example.*11111111.*no.*record/u),
-      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run arc errand close, arc errand abandon, or arc errand leave, then retry check." })]);
+      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run git worktree remove \"/linked\", then retry check." })]);
   });
+
+it("requires unlock before removing a locked checkout an unheld Errand marker claims", () => {
+  expect(windowErrandHolderFindings([{ ...errand, locked: null }], [])).toEqual([expect.objectContaining({ subject: row.path,
+    remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run git worktree unlock \"/linked\", then git worktree remove \"/linked\", then retry check." })]);
+});
 
 it("also refuses an unheld Errand marker on the primary checkout", () => {
   const primary = classifyWindowCheckout({ ...row, primary: true }, errand.marker);

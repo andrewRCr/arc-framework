@@ -37,7 +37,7 @@ export async function readWindowCheckouts(io: WindowGitReadIO): Promise<WindowCh
   const scan = await scanRegisteredWorktrees((command, args, options) =>
     io.exec(command, args, { ...options, cwd: io.repo, objectAccess: "local-only" }));
   if (!scan.ok) throw new WindowRefusal([{ subject: "checkout registrations", condition: scan.message,
-    remedy: "Repair the unreadable Git worktree registration or restore Git access, then retry check." }]);
+    remedy: "Repair the unreadable Git worktree registration or restore Git access, then retry." }]);
   return Promise.all(scan.worktrees.map(async row => {
     const marker: WorktreeMarkerReadResult = row.folderPresent ? await readWorktreeMarker(row.path) : { kind: "absent" };
     return classifyWindowCheckout(row, marker);

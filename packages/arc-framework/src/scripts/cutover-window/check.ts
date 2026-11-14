@@ -60,11 +60,11 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
       ...await refusalFindings(async () => readWindowCheckoutAncestryFindings(io, state.checkouts, await readWindowSealAnchor(io, facts.anchor))),
       ...await readWindowBuildFindings(state.checkouts),
       ...await readWindowExecutableFindings(state.checkouts, input.path),
-      ...await readWindowTrackedRecordFindings(state.context, state.record, state.live.composition),
-      ...await readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition),
+      ...await refusalFindings(() => readWindowTrackedRecordFindings(state.context, state.record, state.live.composition)),
+      ...await refusalFindings(() => readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition)),
       ...await readWindowFlipAncestryFindings(io, state.record),
       ...windowPullRequestFindings(facts.pullRequests, Object.keys(state.record.branches.live), state.record.flip.branch),
-      ...facts.hosted ? windowMergeSettingFindings(await host.mergeSettings()) : [],
+      ...facts.hosted ? await refusalFindings(async () => windowMergeSettingFindings(await host.mergeSettings())) : [],
       ...windowErrandInputFindings(state.live.transientInputs), ...windowIdentityTipFindings(state.record.refs),
       ...windowForeignClaimFindings(state.live.transientInputs, await state.context.importSource.ports.identity()),
       ...windowHostTipFindings(state.record.branches, state.checkouts.find(row => row.primary)?.head)];
@@ -72,7 +72,7 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     const tip = await writeWindowHold(io, state.record, options.step);
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {
-    if (error instanceof WindowRefusal) await discardUnfinishedWindowHold(io);
+    await discardUnfinishedWindowHold(io);
     throw error;
   }
 }

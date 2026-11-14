@@ -34,7 +34,7 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
   const placement = await readWindowImportPlacementFindings(io.repo, checkouts);
   if (placement.length > 0) throw new WindowRefusal(placement);
   const local = select(refs, "refs/heads/", true); const fetched = select(refs, "refs/remotes/origin/", true);
-  const head = local[input.branch] ?? fetched[input.branch];
+  const head = fetched[input.branch] ?? local[input.branch];
   if (head === undefined) throw new WindowRefusal([{ subject: input.branch, condition: "The named flip branch cannot be resolved.",
     remedy: "Fetch or restore the intended flip branch, then retry check." }]);
   const [live, personal, review] = await Promise.all([

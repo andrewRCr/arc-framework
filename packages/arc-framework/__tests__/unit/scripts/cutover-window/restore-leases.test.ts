@@ -60,6 +60,17 @@ it.each(["kept", "records"] as const)("uses the saved %s consumption outcome to 
   for (const side of ["local", "origin"] as const) expect(result[side]).toEqual([{ ref, current: null, next: held }]);
 });
 
+it("permits the retired identity ref's local absence and its accepted kept tip on origin after a kept-regime acceptance", () => {
+  const ref = "refs/arc/user/andrew/errands", kept = published;
+  const target = { ...record, refs: { ...record.refs, local: { [ref]: held }, origin: { [ref]: held } } };
+  const accepted = { ...decision, regime: "kept" as const, identities: [{ ref, held, kept, outcome: "accepted" as const }],
+    accepted: [{ ref, value: kept }] };
+  const result = planWindowRestoreLeases(target, accepted, { ...snapshot, origin: { [ref]: kept } });
+  expect(result.findings).toEqual([]);
+  expect(result.local).toEqual([{ ref, current: null, next: held }]);
+  expect(result.origin).toEqual([{ ref, current: kept, next: held }]);
+});
+
 it("sets targets for window-owned local store, working, and tracking refs without accepting them", () => {
   const store = "refs/arc/project/registry", working = "refs/arc/tmp/migrate/import/kept/user/andrew/errands";
   const tracked = "refs/arc-remotes/origin/project/registry", added = "refs/arc-remotes/origin/user/andrew/claims";

@@ -18,10 +18,23 @@ export const builtCliLauncher: WindowRehearsalLauncher = async checkout => {
   return { argv: [process.execPath, CLI_PATH], cwd: checkout, own: true };
 };
 
+/**
+ * Rehearsal arguments whose import runs under an 8 GiB address-space limit above a 1 GiB heap ceiling; only Linux both
+ * enforces the limit and exposes it to the import's measurement.
+ */
+export const cappedRehearsalArgs: readonly string[] = ["--path", "",
+  "--cap-wrapper", JSON.stringify(["bash", "-c", "ulimit -v 8388608 && exec \"$@\"", "cap"]), "--heap-mb", "1024"];
+
 /** Build the source repository, take its copy with `copy`, and return the copy's layout. */
-export async function rehearsalCopy(): Promise<{ source: Awaited<ReturnType<typeof windowFixture>>; copy: WindowCopyLayout }> {
+export async function rehearsalCopy(options: { postCreate?: string } = {}): Promise<{ source: Awaited<ReturnType<typeof windowFixture>>; copy: WindowCopyLayout }> {
   const h = await windowFixture();
   const git = (...args: string[]) => h.git("git", args);
+  if (options.postCreate !== undefined) {
+    // Full protection lets an Errand open in its own provisioned checkout.
+    await appendFile(join(h.root, ".arc/system/arc-config.yml"), `\nbranch.protection: full\nworktree.post_create: ${options.postCreate}\n`);
+    await git("add", ".arc/system/arc-config.yml");
+    await git("commit", "--quiet", "-m", "Provision new checkouts");
+  }
   await writeFile(join(h.root, ".arc/active/extra-alpha.md"), "# Companion\n\nChanged on main after the work branch forked.\n");
   await git("commit", "--quiet", "-am", "Change alpha's companion on main");
   await git("push", "--quiet", "origin", "main");

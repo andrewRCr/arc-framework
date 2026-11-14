@@ -90,9 +90,24 @@ async function readSources(context: WindowImportContext, internal: InRepoContext
     sources.set(entry.meta.reference.owner.name, { readRevision: entry.revision,
       readCopyRef: local === entry.revision ? localRef : `refs/remotes/origin/${branch}` });
   }
-  const findings = report.notices.map(notice => ({ subject: "parked import source", condition: notice.condition,
-    remedy: notice.remedy?.text ?? "Restore the readable committed parking pointer and branch, then retry." }));
-  return { sources, pointers, parked: parkedPointers, findings };
+  const available = new Set(parked.available.map(entry => entry.meta.reference.owner.name));
+  return { sources, pointers, parked: parkedPointers, findings: parkedSourceFindings(parked.names, available, pointerBranches, report.notices) };
+}
+
+const PARKED_SOURCE_REMEDY = "Restore or realign the parked branch its committed pointer names, or repair the pointer, then retry.";
+
+/** One finding per parked unit the import cannot read, naming the unit and leading back to the operation that read it. */
+function parkedSourceFindings(names: ReadonlySet<string>, available: ReadonlySet<string>,
+  branches: ReadonlyMap<string, string | null>, notices: MigrateReport["notices"]): WindowFinding[] {
+  const unmatched = new Set(notices);
+  const findings = [...names].filter(slug => !available.has(slug)).sort().map(slug => {
+    const own = notices.filter(notice => notice.condition.includes(`'${slug}'`));
+    for (const notice of own) unmatched.delete(notice);
+    const branch = branches.get(slug);
+    return { subject: `work unit ${slug}`, remedy: PARKED_SOURCE_REMEDY,
+      condition: `The parked unit has no readable source${branch ? ` at ${branch}` : ""}: ${own.map(notice => notice.condition).join(" ") || "the import could not read it."}` };
+  });
+  return [...findings, ...[...unmatched].map(notice => ({ subject: "parked import source", condition: notice.condition, remedy: PARKED_SOURCE_REMEDY }))];
 }
 
 async function readComposedSources(context: WindowImportContext, internal: InRepoContext,

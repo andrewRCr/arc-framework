@@ -1,5 +1,6 @@
 /** Open host work cannot advance a branch during a quiescent window. */
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { WindowPullRequests } from "../../src/scripts/cutover-window/host.js";
@@ -50,13 +51,14 @@ it("refuses the flip's armed auto-merge and passes once it is disarmed", async (
 }, 60_000);
 
 async function hostedRequestsFixture() {
-  const h = await windowFixture(), settings = { allowSquash: true, allowRebase: true }, reads = { listingReadable: true };
+  const h = await windowFixture(), settings = { allowSquash: true, allowRebase: true }, reads = { listingReadable: true, settingsReadable: true };
   await h.git("git", ["remote", "set-url", "origin", "https://github.test/owner/repo.git"]);
   const row = (request: WindowPullRequests["flip"]) => ({ number: request.number,
     headRefName: request.headBranch, baseRefName: request.baseBranch });
   const exec: GitExec = async (command, args, options) => {
     if (command === "gh") {
       if (args[0] === "pr" && args[1] === "list" && !reads.listingReadable) throw new Error("Host listing unavailable");
+      if (args[0] === "api" && !reads.settingsReadable) throw new Error("Host settings unavailable");
       if (args[0] === "api") return { stdout: JSON.stringify({ allow_squash_merge: settings.allowSquash,
         allow_rebase_merge: settings.allowRebase }), stderr: "" };
       if (args[0] === "pr" && args[1] === "list") return { stdout: JSON.stringify(h.pullRequests.open.map(request => row({ ...request, autoMergeArmed: false }))), stderr: "" };
@@ -111,6 +113,21 @@ it("refuses a supplied listing on a hosted repository and passes with host facts
     expect.objectContaining({ subject: "host facts", condition: expect.stringContaining("Supplied host facts"),
       remedy: expect.stringContaining("Remove") }),
   ] } });
+  const repaired = await h.check();
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
+it("reports unreadable merge settings beside another failing condition and passes once both are repaired", async () => {
+  const h = await hostedRequestsFixture(), unfinished = join(h.root, "unfinished.txt");
+  h.settings.allowSquash = false; h.settings.allowRebase = false; h.reads.settingsReadable = false;
+  await writeFile(unfinished, "Work still in progress.\n");
+  const refused = await h.check();
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining("Host settings unavailable") }),
+    expect.objectContaining({ subject: expect.stringContaining(h.root), condition: expect.stringContaining("dirty") }),
+  ]) } });
+  h.reads.settingsReadable = true;
+  await rm(unfinished);
   const repaired = await h.check();
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);

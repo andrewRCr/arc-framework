@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { WindowRestoreContext } from "./restore.js";
 import { WindowRefusal } from "./result.js";
+import { isWindowIdentityRef } from "./transients.js";
 
 const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
 const ref = z.string().regex(/^refs\/arc\/[^\s\0]+$/u);
@@ -14,7 +15,7 @@ const documentSchema = z.strictObject({
 /** Immutable consumption facts and exact accepted values retained under the window hold. */
 export type WindowRestoreDecision = z.infer<typeof documentSchema>;
 type HeldWindow = Pick<WindowRestoreContext, "record" | "tip">;
-const isIdentity = (value: string) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(value);
+const isIdentity = isWindowIdentityRef;
 
 function refuse(condition: string): never {
   throw new WindowRefusal([{ subject: "restore decision", condition,

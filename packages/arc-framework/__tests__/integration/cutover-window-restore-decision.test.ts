@@ -2,7 +2,8 @@
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
-import { recordRestoreFixture } from "../helpers/cutover-window/restore.js";
+import { recordRestoreFixture, restoreFixture } from "../helpers/cutover-window/restore.js";
+import { readWindowHold } from "../../src/scripts/cutover-window/hold.js";
 import { seedTransients, transientCommon, transientSourceRef } from "../helpers/store/import-transients.js";
 import { saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
@@ -70,6 +71,12 @@ it("requires the actual consumed tip while the import still retains its source a
     regime: "kept", identities: [{ ref: transientSourceRef, held, kept: current, outcome: "accepted" }],
     accepted: [{ ref: transientSourceRef, value: current }],
   } } });
+  const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput }, { record } = await readWindowHold(io);
+  const restored = await restoreFixture(h, [`${transientSourceRef}=${current}`]);
+  expect(restored, restored.report).toMatchObject({ exit: 0 });
+  expect(Object.fromEntries(await listWindowRefs(io, ["refs/arc/"]))).toEqual(record.refs.local);
+  expect(Object.fromEntries(await listWindowRefs({ repo: h.origin, exec: h.remote }, ["refs/arc/"]))).toEqual(record.refs.origin);
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(new Map());
 }, 60_000);
 
 it.each(["same", "advanced", "deleted"] as const)("records unconsumed input before landing with the canonical ref %s", async mode => {

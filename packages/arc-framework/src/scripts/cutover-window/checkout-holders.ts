@@ -19,8 +19,9 @@ export function windowErrandHolderFindings(checkouts: readonly WindowCheckout[],
     if (subject?.kind !== "errand") return [];
     if (identities.some(identity => identity.kind === "errand" && identity.purpose === "errand"
       && identity.key === subject.slug && identity.claimId === subject.claimId)) return [];
+    const path = JSON.stringify(checkout.path), unlock = checkout.locked === undefined ? "" : `git worktree unlock ${path}, then `;
     return [{ subject: checkout.path, condition: `Errand ${subject.slug} claim ${subject.claimId} has no matching acquired identity record.`,
-      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run arc errand close, arc errand abandon, or arc errand leave, then retry check." }];
+      remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and run ${unlock}git worktree remove ${path}, then retry check.` }];
   });
 }
 
@@ -69,8 +70,9 @@ function markerSubjectName(subject: WorktreeSubject): string {
 }
 
 function holderRemedy(kind: string, name: string): string {
-  return kind === "work-unit" ? `Preserve wanted work, then run arc teardown ${name}, then retry check.`
-    : "Preserve wanted work, then run arc errand close, arc errand abandon, or arc errand leave for the holder, then retry check.";
+  if (kind === "work-unit") return `Preserve wanted work, then run arc teardown ${name}, then retry check.`;
+  if (kind === "branch") return `Preserve wanted work, then run arc teardown --branch ${name}, then retry check.`;
+  return "Preserve wanted work, then run arc errand close, arc errand abandon, or arc errand leave for the holder, then retry check.";
 }
 
 /** Explain each unmarked linked registration and the operation that removes it safely. */

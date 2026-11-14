@@ -27,6 +27,29 @@ it("passes a published deletion commit on the recorded branch and checkout witho
   expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(before);
 }, 60_000);
 
+it.each([{ branch: "feat/other" }, { pullRequest: 8 }])("refuses a flip identity other than the hold's (%j) and passes once corrected", async named => {
+  const h = await lastReadFixture();
+  await deleteWindowFile(h);
+  const refused = await lastRead({ ...h, flip: { ...h.flip, ...named } });
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({
+    subject: "flip identity", remedy: "Name the branch and request recorded in the hold, then retry last-read." })] } });
+  const repaired = await lastRead(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
+it.each([{ headBranch: "feat/other" }, { baseBranch: "release" }])("refuses a request whose flip names %j and passes once it names the recorded flip into main", async target => {
+  const h = await lastReadFixture();
+  await deleteWindowFile(h);
+  await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests, flip: { ...h.pullRequests.flip, ...target } }));
+  const refused = await lastRead(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({
+    subject: "flip pull request", condition: expect.stringContaining("not the recorded flip into main"),
+    remedy: "Repair the request to name the recorded flip into main, then retry last-read." })] } });
+  await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  const repaired = await lastRead(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
 it("refuses a host still at the recorded head and passes after publication", async () => {
   const h = await lastReadFixture();
   const next = await deleteWindowFile(h, false);

@@ -1,5 +1,5 @@
 /** Native repository copying must preserve every live pointer while relocating copied registrations. */
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -8,6 +8,7 @@ import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { prepareWindowCopy, type WindowCopyHooks } from "../../src/scripts/cutover-window/copy.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { windowPathContains } from "../../src/scripts/cutover-window/paths.js";
+import { assertWindowCopySafety } from "../../src/scripts/cutover-window/copy-safety.js";
 import { makeGitExec } from "../helpers/integration.js";
 
 async function snapshot(root: string) {
@@ -85,6 +86,7 @@ it("refuses a future destination under a symlink into a live checkout before cre
   expect({ exit, result: JSON.parse(stdout.join("")) as unknown }).toMatchObject({ exit: 1,
     result: { status: "refused", findings: [{ condition: expect.stringContaining("inside live checkout") }] } });
   await expect(readFile(join(h.root, ".arc-fixture", "..copy", "primary", ".git", "config"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
 }, 60_000);
 
 it("refuses a checkout registered while the copy runs, leaving its live pointer untouched", async () => {
@@ -140,4 +142,58 @@ it("refuses an existing destination without touching it and copies to a new abse
       remedy: "Repair the condition and retry with a new, absent destination." }] } });
   expect(await readdir(existing)).toEqual(["kept.txt"]);
   expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
+}, 60_000);
+
+it("copies a checkout registered inside the common Git directory once, with its pointer inside the copy", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-common-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  const inner = join(common, "arc", "review-gate", "materializations", "inner");
+  await h.git("git", ["worktree", "add", "--detach", inner]);
+  await writeFile(join(inner, "inner-sentinel.txt"), "inner");
+  const destination = join(container, "copy"), repo = join(destination, "primary");
+  expect(await runCopy(h.root, destination)).toMatchObject({ exit: 0 });
+  expect(await readdir(join(repo, ".git", "arc", "review-gate", "materializations"))).toEqual([]);
+  const copied = await scanRegisteredWorktrees((command, args, options) => h.git(command, args, { ...options, cwd: repo }));
+  if (!copied.ok) throw new Error(copied.message);
+  const holders: string[] = [];
+  for (const row of copied.worktrees) {
+    if (await readFile(join(row.path, "inner-sentinel.txt"), "utf8").catch(() => null) === "inner") holders.push(row.path);
+  }
+  expect(holders).toHaveLength(1);
+  const pointer = (await readFile(join(holders[0] ?? "", ".git"), "utf8")).trim().slice("gitdir: ".length);
+  expect(await windowPathContains(destination, pointer)).toBe(true);
+  await expect(assertWindowCopySafety({ destination, repo, mirror: join(destination, "mirror.git") },
+    { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("refuses linked checkout metadata outside the common Git directory and copies once its pointer is restored", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-metadata-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const linked = join(container, "linked"), outside = join(container, "outside-admin");
+  await h.git("git", ["worktree", "add", "--detach", linked]);
+  const gitfile = await readFile(join(linked, ".git"), "utf8"), admin = gitfile.trim().slice("gitdir: ".length);
+  await cp(admin, outside, { recursive: true });
+  await writeFile(join(outside, "commondir"), `${resolve(admin, (await readFile(join(admin, "commondir"), "utf8")).trim())}\n`);
+  await writeFile(join(linked, ".git"), `gitdir: ${outside}\n`);
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused", findings: [{ subject: linked,
+    condition: expect.stringContaining("outside the common Git directory"),
+    remedy: expect.stringMatching(/^Remove the partial copy at .*copy, which holds no worktree registrations, then repair the condition and retry with a new, absent destination\.$/u) }] } });
+  await writeFile(join(linked, ".git"), gitfile);
+  expect(await runCopy(h.root, join(container, "retry"))).toMatchObject({ exit: 0 });
+}, 60_000);
+
+it("names a stale worktree registration in the live repository and copies once it is pruned", async () => {
+  const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-stale-"));
+  onTestFinished(() => rm(container, { recursive: true, force: true }));
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  const stale = join(common, "worktrees", "stale");
+  await mkdir(stale, { recursive: true });
+  await writeFile(join(stale, "HEAD"), "ref: refs/heads/main\n");
+  await writeFile(join(stale, "commondir"), "../..\n");
+  expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused", findings: [{ subject: stale,
+    condition: expect.stringContaining("no readable gitdir"),
+    remedy: expect.stringMatching(/, then run `git worktree prune` in the live repository and retry with a new, absent destination\.$/u) }] } });
+  await h.git("git", ["worktree", "prune"]);
+  expect(await runCopy(h.root, join(container, "retry"))).toMatchObject({ exit: 0 });
 }, 60_000);

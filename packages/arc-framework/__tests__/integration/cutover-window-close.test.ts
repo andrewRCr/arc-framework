@@ -164,3 +164,24 @@ it("lists held marks when origin cannot be read and closes after access is resto
   await h.git("git", ["config", "remote.origin.url", h.origin]);
   expect(await invokeWindow(h.root, "close")).toMatchObject({ exit: 0 });
 }, 60_000);
+
+it("reports an unreadable host beside an unconfirmed range and closes once both are repaired", async () => {
+  const h = await windowFixture();
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  await finishFixtureFlip(h);
+  await h.git("git", ["checkout", "feat/alpha"]);
+  await h.git("git", ["commit", "--allow-empty", "-m", "Late branch change"]);
+  const tip = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.git("git", ["checkout", "main"]);
+  expect(await invokeWindow(h.root, "compare", ["--branch", "feat/alpha"])).toMatchObject({ exit: 0 });
+  await h.git("git", ["config", "remote.origin.url", join(h.root, ".arc-fixture/unreachable.git")]);
+  const refused = await invokeWindow(h.root, "close");
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", data: { merged: null },
+    findings: expect.arrayContaining([
+      expect.objectContaining({ subject: "git ls-remote", condition: expect.stringContaining("unreachable.git") }),
+      expect.objectContaining({ subject: "local/feat/alpha", condition: expect.stringContaining("confirmation (missing)") }),
+    ]) } });
+  await h.git("git", ["config", "remote.origin.url", h.origin]);
+  expect(await invokeWindow(h.root, "confirm", ["feat/alpha", "--local-tip", tip])).toMatchObject({ exit: 0 });
+  expect(await invokeWindow(h.root, "close")).toMatchObject({ exit: 0 });
+}, 60_000);

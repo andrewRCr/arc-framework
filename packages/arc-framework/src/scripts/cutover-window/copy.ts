@@ -2,12 +2,13 @@
 import type { WindowRequest } from "./main.js";
 import { WindowRefusal } from "./result.js";
 import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
 import { readGitDirectories, type GitDirectoryFileAccess } from "../../lib/git/directories.js";
 import { windowPathContains } from "./paths.js";
+import { canonicalLocalPath } from "../../lib/local-path-identity.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { assertWindowCopySafety, type WindowCopySafetyOptions } from "./copy-safety.js";
 import type { WindowResult } from "./result.js";
@@ -73,8 +74,8 @@ async function fillWindowCopy(layout: WindowCopyLayout, source: WindowCopySource
         !layout.worktrees.some(other => other.source !== row.source && path === other.source) });
   }
   await hooks.afterCheckouts?.();
-  const copiedCommon = join(layout.repo, ".git");
-  await cp(commonDir, copiedCommon, { recursive: true, verbatimSymlinks: true });
+  const copiedCommon = join(layout.repo, ".git"), nested = await checkoutsInside(commonDir, layout.worktrees);
+  await cp(commonDir, copiedCommon, { recursive: true, verbatimSymlinks: true, filter: path => !nested.includes(path) });
   for (const row of layout.worktrees.filter(row => !row.primary)) {
     const { gitDir } = await readGitDirectories(row.source, fs);
     if (!await windowPathContains(commonDir, gitDir)) refuse(row.source, "The linked checkout metadata is outside the common Git directory.");
@@ -83,23 +84,34 @@ async function fillWindowCopy(layout: WindowCopyLayout, source: WindowCopySource
     await writeFile(join(copiedGit, "gitdir"), `${join(row.path, ".git")}\n`);
     await writeFile(join(copiedGit, "commondir"), `${relative(copiedGit, copiedCommon)}\n`);
   }
-  await refuseLateRegistrations(copiedCommon, destination);
+  await refuseLateRegistrations(copiedCommon, commonDir, destination);
   await exec("git", ["clone", "--mirror", "--no-hardlinks", "--", origin, layout.mirror]);
   await rewriteRemotes(exec, layout.repo, layout.mirror);
   await rewriteRemotes(exec, layout.mirror, layout.mirror);
   await exec("git", ["worktree", "repair", ...layout.worktrees.filter(row => !row.primary).map(row => row.path)], { cwd: layout.repo });
 }
 
+/** Each registered checkout inside the common Git directory, spelled as the common directory's copy visits it. */
+async function checkoutsInside(commonDir: string, rows: WindowCopyLayout["worktrees"]): Promise<string[]> {
+  const common = await canonicalLocalPath(commonDir), nested: string[] = [];
+  for (const row of rows) {
+    const rel = relative(common, await canonicalLocalPath(row.source));
+    if (rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) nested.push(join(commonDir, rel));
+  }
+  return nested;
+}
+
 /** A failure after the destination is acquired leaves a partial copy whose worktree registrations were removed. */
 function partialCopyRefusal(destination: string, error: unknown): WindowRefusal {
-  const remedy = `Remove the partial copy at ${destination}, which holds no worktree registrations, then repair the condition and retry with a new, absent destination.`;
+  const cleanup = `Remove the partial copy at ${destination}, which holds no worktree registrations, then`;
   const findings = error instanceof WindowRefusal ? error.findings
-    : [{ subject: destination, condition: `The copy failed: ${error instanceof Error ? error.message : String(error)}`, remedy }];
-  return new WindowRefusal(findings.map(finding => ({ ...finding, remedy })));
+    : [{ subject: destination, condition: `The copy failed: ${error instanceof Error ? error.message : String(error)}`, remedy: RETRY }];
+  return new WindowRefusal(findings.map(finding => ({ ...finding,
+    remedy: `${cleanup} ${finding.remedy.charAt(0).toLowerCase()}${finding.remedy.slice(1)}` })));
 }
 
 /** Every registration the copy holds must name a copied checkout, or a repair would rewrite a live checkout's pointer. */
-async function refuseLateRegistrations(copiedCommon: string, destination: string): Promise<void> {
+async function refuseLateRegistrations(copiedCommon: string, commonDir: string, destination: string): Promise<void> {
   const registrations = join(copiedCommon, "worktrees");
   let entries: string[] = [];
   try { entries = await readdir(registrations); }
@@ -108,16 +120,20 @@ async function refuseLateRegistrations(copiedCommon: string, destination: string
     const admin = join(registrations, entry);
     let checkout: string;
     try { checkout = dirname(resolve(admin, (await readFile(join(admin, "gitdir"), "utf8")).trim())); }
-    catch { refuse(admin, "A checkout registered while the copy ran has no readable gitdir in the copy."); }
+    catch {
+      refuse(join(commonDir, "worktrees", entry), "This worktree registration has no readable gitdir, so Git lists it as prunable and omits it from the registered checkouts.",
+        "Run `git worktree prune` in the live repository and retry with a new, absent destination.");
+    }
     if (!await windowPathContains(destination, checkout)) {
       refuse(checkout, "This checkout was registered while the copy ran, so the copy holds its registration without its folder; repairing the copy would rewrite the live checkout's pointer.");
     }
   }
 }
 
-function refuse(subject: string, condition: string): never {
-  throw new WindowRefusal([{ subject, condition,
-    remedy: "Repair the condition and retry with a new, absent destination." }]);
+const RETRY = "Repair the condition and retry with a new, absent destination.";
+
+function refuse(subject: string, condition: string, remedy = RETRY): never {
+  throw new WindowRefusal([{ subject, condition, remedy }]);
 }
 
 async function futurePhysicalPath(path: string): Promise<string> {

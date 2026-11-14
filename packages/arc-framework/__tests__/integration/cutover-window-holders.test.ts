@@ -12,7 +12,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema } from "../../src/lib/kernel/index.js";
-import { runTeardown, type TeardownContext } from "../../src/lib/work-unit/verbs/teardown.js";
+import { runBranchTeardown, runTeardown, type TeardownContext } from "../../src/lib/work-unit/verbs/teardown.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
@@ -95,6 +95,12 @@ async function shippedAlphaCheckout(h: Awaited<ReturnType<typeof windowFixture>>
   return path;
 }
 
+/** Delete the passing check's hold, so the test's later checks start a new window. */
+async function releaseFixtureHold(h: Awaited<ReturnType<typeof windowFixture>>): Promise<void> {
+  const refs = (await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim().split("\n").filter(Boolean);
+  for (const ref of refs) await h.git("git", ["update-ref", "-d", ref]);
+}
+
 const indexFs: LifecycleIndexFs = { readdir: path => readdir(path, { withFileTypes: true }), readFile: path => readFile(path, "utf8") };
 const teardownContext = (cwd: string, exec: GitExec): TeardownContext => ({ cwd, exec, indexFs, chdir: () => undefined,
   readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path) });
@@ -127,6 +133,26 @@ it("refuses a husked checkout left by a self-teardown and passes after arc teard
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);
 
+it("refuses a branch husk left by a self-teardown and passes after arc teardown --branch reaps it", async () => {
+  const h = await windowFixture(), branch = "chore/husk-example", path = join(h.root, ".arc-fixture/husk-example");
+  await h.git("git", ["branch", branch]);
+  await h.git("git", ["push", "--set-upstream", "origin", branch]);
+  await h.git("git", ["worktree", "add", path, branch]);
+  await writeWorktreeMarker(path, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
+    createdFor: { kind: "branch", ref: branch } });
+  expect(await runBranchTeardown(teardownContext(path, makeGitExec(path)), { branch, base: "main" })).toMatchObject({
+    status: "torn-down", husk: { stamped: true, outcome: "created" }, worktreeRemoved: null });
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: path, condition: `Checkout carries a husk stamp for branch ${branch}.`,
+      remedy: `Preserve wanted work, then run arc teardown --branch ${branch}, then retry check.` }),
+  ]) } });
+  expect(await runBranchTeardown(teardownContext(h.root, h.git), { branch, base: "main" })).toMatchObject({
+    status: "torn-down", worktreeRemoved: path });
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
 it("refuses an Errand marker without its exact record and requires retirement after it is restored", async () => {
   const h = await windowFixture();
   const path = join(h.root, ".arc-fixture/errand");
@@ -139,10 +165,13 @@ it("refuses an Errand marker without its exact record and requires retirement af
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
     expect.objectContaining({ subject: path, condition: expect.stringMatching(/example.*11111111.*no.*record/u),
-      remedy: expect.stringContaining("arc errand close") }),
+      remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and run git worktree unlock ${JSON.stringify(path)}, then git worktree remove ${JSON.stringify(path)}, then retry check.` }),
   ]) } });
   await h.git("git", ["worktree", "unlock", path]);
   await h.git("git", ["worktree", "remove", path]);
+  const removed = await checkFixture(h);
+  expect(removed, removed.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+  await releaseFixtureHold(h);
   await h.git("git", ["branch", "-d", "chore/example"]);
   const identityTip = await seedTransients(h, [ordinaryErrand]);
   await h.git("git", ["worktree", "add", path, "chore/example"]);

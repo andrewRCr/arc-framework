@@ -1,5 +1,5 @@
 /** Refuse identity inputs the import would carry across incorrectly or leave behind. */
-import type { WindowTransientInput } from "./transients.js";
+import { isWindowIdentityRef, type WindowTransientInput } from "./transients.js";
 import type { WindowFinding } from "./result.js";
 
 /** Retire every ordinary Errand before the window, preserving side and ref attribution. */
@@ -12,7 +12,7 @@ export function windowErrandInputFindings(inputs: readonly WindowTransientInput[
 
 /** Refuse origin identity refs the import cannot retire from its local input. */
 export function windowIdentityTipFindings(refs: { local: Readonly<Record<string, string>>; origin: Readonly<Record<string, string>> }): WindowFinding[] {
-  return Object.entries(refs.origin).filter(([ref, tip]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref) && refs.local[ref] !== tip)
+  return Object.entries(refs.origin).filter(([ref, tip]) => isWindowIdentityRef(ref) && refs.local[ref] !== tip)
     .map(([ref, tip]) => ({ subject: ref, condition: `Identity ref differs: local ${refs.local[ref] ?? "absent"}; origin ${tip}.`,
       remedy: "Fetch origin into an absent or ancestral local ref, or push an ancestral origin forward; leave diverged tips to the Owner, then retry check." }));
 }
@@ -27,7 +27,7 @@ export function windowForeignClaimFindings(inputs: readonly WindowTransientInput
 
 /** Name identity inputs that survived or arrived after the import retired its source refs. */
 export function windowRemainingIdentityFindings(refs: Readonly<Record<string, string>>, side: "local" | "origin"): WindowFinding[] {
-  return Object.entries(refs).flatMap(([ref, tip]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref) ? [{
+  return Object.entries(refs).flatMap(([ref, tip]) => isWindowIdentityRef(ref) ? [{
     subject: `${side}:${ref}`, condition: `Identity ref was recorded for retirement: expected retired (null); observed ${tip}.`,
     remedy: "Stop the window and use restore to reconcile the remaining identity input before a fresh check.",
   }] : []);

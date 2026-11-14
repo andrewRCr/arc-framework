@@ -7,6 +7,14 @@ import { readTransientIdentitySnapshotAtRef, type TransientIdentitySnapshot } fr
 import type { RecordReference } from "../../lib/store/identity.js";
 import type { WindowFinding } from "./result.js";
 
+const IDENTITY_REF = /^refs\/arc\/user\/([^/]+)\/errands$/u;
+
+/** Whether a ref is the identity ref that holds one identity's Errand and claim records. */
+export function isWindowIdentityRef(ref: string): boolean { return IDENTITY_REF.test(ref); }
+
+/** The identity an identity ref names, or null for any other ref. */
+export function windowIdentityRefOwner(ref: string): string | null { return IDENTITY_REF.exec(ref)?.[1] ?? null; }
+
 /** One logical record, retaining the identity ref whose input supplied it. */
 export interface WindowTransientRecord { ref: string; reference: RecordReference; content: string }
 /** One acquired side of the identity inventory. */
@@ -23,7 +31,7 @@ export function projectWindowTransientSnapshot(ref: string, held: string,
     return { records: [], findings: [{ subject: ref, condition: `Held tip ${held} has an incomplete snapshot: ${detail}`,
       remedy: "Repair or recover the held identity snapshot before comparing or restoring its records." }] };
   }
-  const identity = /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref)?.[1] ?? "";
+  const identity = windowIdentityRefOwner(ref) ?? "";
   return { records: [...snapshot.records].map(([key, record]) => ({ ref,
     reference: transientReference(transientKind(record), key, identity),
     content: canonicalize(JSON.parse(serializeTransientIdentityRecord(record))),
@@ -37,7 +45,7 @@ export async function readWindowTransientRecords(io: WindowGitReadIO,
   const exec: WindowGitReadIO["exec"] = (command, args, options) => io.exec(command, args,
     { ...options, cwd: io.repo, objectAccess: "local-only" });
   for (const [ref, held] of Object.entries(refs)) {
-    const identity = /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref)?.[1];
+    const identity = windowIdentityRefOwner(ref);
     if (!identity) continue;
     const snapshot = await readTransientIdentitySnapshotAtRef({ exec, identity }, held);
     const projected = projectWindowTransientSnapshot(ref, held, snapshot);

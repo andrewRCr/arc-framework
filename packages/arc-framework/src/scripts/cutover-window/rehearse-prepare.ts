@@ -7,7 +7,7 @@ import { createWindowImportContext } from "./import-context.js";
 import { readWindowLiveState } from "./live-state.js";
 import { inspectWindowTrackedRecords, type WindowTrackedRecordInspection } from "./tracked-records.js";
 import { readWindowCheckoutAncestryFindings, readWindowSealAnchor } from "./seals.js";
-import { readWindowTransientRecords } from "./transients.js";
+import { readWindowTransientRecords, isWindowIdentityRef } from "./transients.js";
 import { readWindowStashFindings } from "./stashes.js";
 import { WindowRefusal } from "./result.js";
 import { mergeRehearsalMain, returnRehearsalPaths } from "./rehearse-merge.js";
@@ -18,7 +18,6 @@ import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { listInboxEntryTitles } from "../../lib/user-sync/inbox-writer.js";
 
-const identityRef = /^refs\/arc\/user\/[^/]+\/errands$/u;
 const plantedTitle = "Rehearsal inbox entry";
 
 /** Drop each copied checkout's changes, ignored files kept, and publish each branch ahead of its upstream. */
@@ -86,7 +85,7 @@ export async function remedyRehearsalSeals(context: WindowRehearsalContext): Pro
 /** Publish each copied Errand's branch and abandon the Errand from its own copied checkout. */
 export async function abandonRehearsalErrands(context: WindowRehearsalContext): Promise<string> {
   const io = { repo: context.layout.repo, exec: context.exec };
-  const refs = Object.fromEntries([...await listWindowRefs(io, ["refs/arc/user/"])].filter(([ref]) => identityRef.test(ref)));
+  const refs = Object.fromEntries([...await listWindowRefs(io, ["refs/arc/user/"])].filter(([ref]) => isWindowIdentityRef(ref)));
   const snapshot = await readWindowTransientRecords(io, refs);
   if (snapshot.findings.length > 0) throw new WindowRehearsalStop(snapshot.findings.map(finding => `${finding.subject}: ${finding.condition}`).join("\n"));
   const errands = snapshot.records.map(entry => TransientIdentityRecordSchema.parse(JSON.parse(entry.content)))

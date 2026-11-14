@@ -1,9 +1,10 @@
 /** Read-only comparison of the import's consumed transient identity input against the window hold. */
 import { listWindowRefs, readWindowRefTip, type WindowGitReadIO } from "./git.js";
-import { readWindowTransientRecords, type WindowTransientRecord } from "./transients.js";
+import { readWindowTransientRecords, type WindowTransientRecord, isWindowIdentityRef } from "./transients.js";
 import { readLandedWindowTransients } from "./landed-transients.js";
 import { canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import type { WindowFinding } from "./result.js";
+import { IMPORT_KEPT_PREFIX } from "../../lib/store/ref/import/transient-cleanup.js";
 
 /** Immutable identity coordinates used by a restore's persisted consumption decision. */
 export interface WindowConsumedIdentity { ref: string; held: string | null; kept: string | null }
@@ -17,12 +18,11 @@ export interface WindowConsumption {
 /** Compare consumption without creating the manifests or temporary refs a store listing would write. */
 export async function compareWindowConsumption(io: WindowGitReadIO,
   held: Readonly<Record<string, string>>): Promise<WindowConsumption> {
-  const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref))
+  const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => isWindowIdentityRef(ref))
     .map(([ref, tip]) => ({ ref, held: tip, kept: null as string | null }));
   if (await readWindowRefTip(io, "refs/arc/project/registry") === null) return { regime: "unconsumed", identities, findings: [] };
-  const prefix = "refs/arc/tmp/migrate/import/kept/";
-  const tips = await listWindowRefs(io, [prefix]);
-  const kept = new Map([...tips].map(([ref, tip]) => ["refs/arc/" + ref.slice(prefix.length), tip]));
+  const tips = await listWindowRefs(io, [IMPORT_KEPT_PREFIX]);
+  const kept = new Map([...tips].map(([ref, tip]) => ["refs/arc/" + ref.slice(IMPORT_KEPT_PREFIX.length), tip]));
   for (const [ref, tip] of kept) {
     if (!identities.some(identity => identity.ref === ref)) identities.push({ ref, held: null, kept: tip });
   }
@@ -36,7 +36,7 @@ export async function compareWindowConsumption(io: WindowGitReadIO,
 /** Compare the published transient records directly with the identity inputs retained by the check. */
 export async function compareWindowLandedConsumption(io: WindowGitReadIO,
   held: Readonly<Record<string, string>>): Promise<Pick<WindowConsumption, "identities" | "findings">> {
-  const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref))
+  const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => isWindowIdentityRef(ref))
     .map(([ref, tip]) => ({ ref, held: tip, kept: null }));
   const expected = await readWindowTransientRecords(io, held);
   const actual = await readLandedWindowTransients(io);

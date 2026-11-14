@@ -1,6 +1,6 @@
 /** The run that ends in the abort: the backfill reverted, five planted conditions, a refused import, and the restore. */
 import { access, readFile, rm, writeFile } from "node:fs/promises";
-import { join, posix } from "node:path";
+import { join, posix, relative } from "node:path";
 import { closeWindow } from "./close.js";
 import { recomputeWindow } from "./recompute.js";
 import { restoreWindow } from "./restore-operation.js";
@@ -12,9 +12,10 @@ import type { WindowRehearsalExpectation, WindowRehearsalExpectedFinding } from 
 import { appendRehearsalLine, commitRehearsalBranch, writeRehearsalFile, expectRehearsalRefs, markedRehearsalCheckouts, readRehearsalRecord,
   readRehearsalRefs, rehearsalCheckoutUnit, trackingCheckouts, unmarkedSides, unrecordedStateSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
 import { listWindowRefs } from "./git.js";
-import { readWindowTransientRecords } from "./transients.js";
+import { readWindowTransientRecords, isWindowIdentityRef } from "./transients.js";
 import { readWindowCheckouts } from "./checkouts.js";
-import { resolveArcPath } from "../../lib/layout/index.js";
+import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
+import { ARC_CONFIG_SUFFIX } from "../../lib/constants.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { renderMetaFile } from "../../lib/store/kinds/meta/projection.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
@@ -36,10 +37,7 @@ export const abortRehearsalPlan: WindowRehearsalPlan = {
     return "Reverted the pre-meta backfill on main.";
   },
   plants: [sharedChangePlant(), openRequestPlant(), errandPlant(), unlockPlant(), divergingCopyPlant()],
-  collateral: async context => {
-    const errand = await plantedErrandCheckout(context);
-    return [{ subject: `${errand.path} (${errand.branch})`, condition: "without an upstream" }];
-  },
+  collateral: plantedErrandCollateral,
   beforeImport: refuseMiskeyedBoundary,
   account: expectBackfillOmission,
   after: abortThroughRestore,
@@ -80,10 +78,18 @@ function openRequestPlant(): WindowRehearsalPlant {
   };
 }
 
-function errandPlant(): WindowRehearsalPlant {
+/** The planted Errand's checkout has no upstream, which the check reports beside the Errand's own findings. */
+export async function plantedErrandCollateral(context: WindowRehearsalContext): Promise<WindowRehearsalExpectedFinding[]> {
+  const errand = await plantedErrandCheckout(context);
+  return [{ subject: `${errand.path} (${errand.branch})`, condition: "without an upstream" }];
+}
+
+/** Open an Errand in the copy, provisioned without the copy's post-create script, and abandon it on removal. */
+export function errandPlant(): WindowRehearsalPlant {
   return { name: "an open Errand", point: "before lock",
     apply: async context => {
-      const opened = await runWindowRehearsalArc(context, context.layout.repo, ["--no-input", "errand", "open", errandSlug, "--isolate"]);
+      const opened = await withoutCopiedPostCreate(context, () =>
+        runWindowRehearsalArc(context, context.layout.repo, ["--no-input", "errand", "open", errandSlug, "--isolate"]));
       if (opened.exitCode !== 0) throw new WindowRehearsalStop(`Opening the planted Errand exited ${opened.exitCode}: ${opened.stderr.trim()}`);
       const condition = "An Errand record remains in";
       return [{ subject: `Errand ${errandSlug}`, condition: `${condition} local` }, { subject: `Errand ${errandSlug}`, condition: `${condition} origin` }];
@@ -96,9 +102,26 @@ function errandPlant(): WindowRehearsalPlant {
   };
 }
 
+/**
+ * The copy's post-create script installs and builds from the network, so the open runs with it blank, the file marked
+ * skip-worktree so the primary still reads as the clean launchpad, and its bytes and index flag restored after.
+ */
+async function withoutCopiedPostCreate<T>(context: WindowRehearsalContext, run: () => Promise<T>): Promise<T> {
+  const repo = context.layout.repo, path = join(materializeArcPath(repo, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
+  const tracked = relative(repo, path), original = await readFile(path);
+  await context.sync.copy(repo, ["update-index", "--skip-worktree", "--", tracked]);
+  try {
+    await writeFile(path, original.toString("utf8").replace(/^worktree\.post_create:[^\r\n]*/mu, "worktree.post_create:"));
+    return await run();
+  } finally {
+    await writeFile(path, original);
+    await context.sync.copy(repo, ["update-index", "--no-skip-worktree", "--", tracked]);
+  }
+}
+
 async function plantedErrandCheckout(context: WindowRehearsalContext): Promise<{ path: string; branch: string }> {
   const io = { repo: context.layout.repo, exec: context.exec };
-  const refs = Object.fromEntries([...await listWindowRefs(io, ["refs/arc/user/"])].filter(([ref]) => ref.endsWith("/errands")));
+  const refs = Object.fromEntries([...await listWindowRefs(io, ["refs/arc/user/"])].filter(([ref]) => isWindowIdentityRef(ref)));
   const record = (await readWindowTransientRecords(io, refs)).records.map(entry => TransientIdentityRecordSchema.parse(JSON.parse(entry.content)))
     .find(entry => entry.slug === errandSlug);
   const checkout = (await readWindowCheckouts(io)).find(row => record !== undefined && row.branch === record.branch);

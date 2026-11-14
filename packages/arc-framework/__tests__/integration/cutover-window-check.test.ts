@@ -50,23 +50,54 @@ it("exposes acquired origin refs before the record write and a record before the
   ]);
 }, 30_000);
 
-it("leaves an incomplete hold when stopped between the record and marker, then permits a fresh check after removal", async () => {
+it("refuses a fresh check over the incomplete hold a kill between the record and marker leaves, until it is removed", async () => {
   const h = await windowFixture();
   const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
-  expect(await checkFixture(h, { step: step => {
-    if (step === "check.complete") return Promise.reject(new Error("Window acquisition interrupted"));
-    return Promise.resolve();
+  let killed = new Map<string, string>();
+  expect(await checkFixture(h, { step: async step => {
+    if (step !== "check.complete") return;
+    killed = await listWindowRefs(io, ["refs/arc-window/"]);
+    throw new Error("Window acquisition interrupted");
   } })).toMatchObject({ exit: 1, result: { status: "stopped" } });
+  expect(killed.has("refs/arc-window/record")).toBe(true);
+  expect(killed.has("refs/arc-window/complete")).toBe(false);
+  for (const [ref, tip] of killed) await h.git("git", ["update-ref", ref, tip]);
   await expect(readWindowHold(io)).rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("incomplete") })] });
-  const refs = await listWindowRefs(io, ["refs/arc-window/"]);
-  expect(refs.has("refs/arc-window/record")).toBe(true);
-  expect(refs.has("refs/arc-window/complete")).toBe(false);
   expect(await checkFixture(h)).toMatchObject({ exit: 1, result: { status: "refused" } });
-  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(refs);
-  for (const [ref, tip] of refs) await h.git("git", ["update-ref", "-d", ref, tip]);
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(killed);
+  for (const [ref, tip] of killed) await h.git("git", ["update-ref", "-d", ref, tip]);
   expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
 
+it("discards its acquired hold when an error stops it after origin acquisition, so the retry passes", async () => {
+  const h = await windowFixture();
+  await seedTransients(h, []);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const io = { repo: h.root, exec: h.git, execInput: h.ports.execInput };
+  let acquired = new Map<string, string>();
+  expect(await checkFixture(h, { step: async step => {
+    if (step !== "check.record") return;
+    acquired = await listWindowRefs(io, ["refs/arc-window/"]);
+    throw new Error("A personal path could not be read");
+  } })).toMatchObject({ exit: 1, result: { status: "stopped" } });
+  expect(acquired.has(`refs/arc-window/origin/${transientSourceRef}`)).toBe(true);
+  expect(await listWindowRefs(io, ["refs/arc-window/"])).toEqual(new Map());
+  expect(await checkFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("records the flip head from its fetched tip when the local flip branch is behind it", async () => {
+  const h = await windowFixture();
+  await h.git("git", ["checkout", h.flip.branch]);
+  await h.git("git", ["commit", "--allow-empty", "-m", "Advance the flip on the host"]);
+  const fetched = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.git("git", ["push", "origin", h.flip.branch]);
+  await h.git("git", ["checkout", "main"]);
+  await h.git("git", ["branch", "-f", h.flip.branch, h.flip.head]);
+  const checked = await checkFixture(h);
+  expect(checked, checked.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+  const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
+  expect(held.record.flip).toEqual({ ...h.flip, head: fetched });
+}, 30_000);
 
 it("cleans its acquired hold on an explicit refusal while preserving canonical refs", async () => {
   const h = await windowFixture();

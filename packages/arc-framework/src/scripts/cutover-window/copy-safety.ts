@@ -5,7 +5,8 @@ import { WindowRefusal } from "./result.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { createWindowHost } from "./native-host.js";
 import type { GitExec } from "../../lib/git/exec.js";
-import { lstat, readFile, realpath } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { readGitDirectories } from "../../lib/git/directories.js";
 import { windowPathContains } from "./paths.js";
 import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
@@ -62,10 +63,25 @@ async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec)
   };
   await inside(layout.mirror);
   await checkout(layout.repo);
+  await assertCommonGitfiles(join(layout.repo, ".git"), layout.destination);
   const roster = await scanRegisteredWorktrees((command, args, options) => boundary(command, args, { ...options, cwd: layout.repo }));
   if (!roster.ok) refuse(layout.repo, `Cannot establish copied registrations: ${roster.message}`);
   for (const row of roster.worktrees) await checkout(row.path);
   return roster.worktrees.map(row => row.path);
+}
+
+/** A checkout folder copied inside the common Git directory would keep a gitfile naming the live repository. */
+async function assertCommonGitfiles(directory: string, destination: string, top = true): Promise<void> {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory() && !(top && entry.name === "objects")) await assertCommonGitfiles(path, destination, false);
+    else if (entry.isFile() && entry.name === ".git") {
+      const pointer = /^gitdir: (.+)$/mu.exec(await readFile(path, "utf8"))?.[1]?.trim();
+      if (pointer !== undefined && !await windowPathContains(destination, resolve(directory, pointer))) {
+        refuse(path, `A gitfile inside the copied Git directory names ${pointer}, outside the copy.`);
+      }
+    }
+  }
 }
 
 async function assertMirrorRemotes(exec: GitExec, repo: string, mirror: string): Promise<void> {

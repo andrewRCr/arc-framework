@@ -62,6 +62,6 @@ export async function readWindowReviewDigest(context: WindowImportContext): Prom
   const report: MigrateReport = { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
   const files = await readImportReviewGate(context, report);
   if (report.notices.length > 0) throw new WindowRefusal(report.notices.map(notice => ({ subject: "review gate",
-    condition: notice.condition, remedy: "Restore access to the review gate's files, then retry check." })));
+    condition: notice.condition, remedy: "Restore access to the review gate's files, then retry." })));
   return digestEntries(files.filter(file => file.path !== "arc/review-gate/identity/repository-identity.json"));
 }

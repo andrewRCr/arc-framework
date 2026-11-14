@@ -185,7 +185,7 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 | `check`     | After the fetch, immediately before the save and designation                                  | The record and hold (§ 4), only when every condition passes     | Refuses and leaves no hold                |
 | `recompute` | After the import, its accounting case, and its chain comparison                               | Nothing                                                         | Stops; the window aborts                  |
 | `last-read` | After the flip's deletion commit and the checks at its merged head, as the last pre-merge act | Nothing                                                         | Stops; the window aborts                  |
-| `compare`   | After the merge, for each live branch and then each checkout, before that one's own steps     | A mark per branch side under the hold                           | Reports; continues                        |
+| `compare`   | After the merge, for each live branch and then each checkout, before that one's own steps     | A mark per branch side under the hold                           | Reports; continues (A4)                   |
 | `confirm`   | After a range's changes are re-applied                                                        | A confirmation under the hold                                   | Refuses an unknown or changed range       |
 | `close`     | When the window closes                                                                        | Deletes the hold                                                | Refuses                                   |
 | `restore`   | On an abort before the merge                                                                  | Refs locally and on `origin`, store directories, one config key | Refuses (§ 6.3)                           |
@@ -315,8 +315,10 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   as neither `retired` nor `unresolved-checkout` (`DerivedCheckoutRow`, `lib/locus/derived-roster.ts`), with a marker
   that carries no husk stamp (`decodeWorktreeHuskStamp`, `lib/git/worktree-marker.ts`). An Errand marker must name an
   identity that some record holds. The refusal names the checkout and its holder. Remedy: `arc teardown` for an ended or
-  husked work unit's checkout, and `arc errand close`, `abandon`, or `leave` for an Errand's (A2); for an
-  unresolved row, the remedy its diagnostic names.
+  husked work unit's checkout, `arc teardown --branch <ref>` for a branch's husk (A5), and `arc errand close`,
+  `abandon`, or `leave` for an Errand's (A2); for an Errand marker no record holds, the holder's restored identity
+  record, or `git worktree remove` once wanted work is kept, unlocking the checkout first (A5); for an unresolved row,
+  the remedy its diagnostic names.
 - **C5 — A staged decomposition cut.** No local or fetched branch may sit in the decomposition-candidate namespace
   (`isDecomposeCandidateBranch`, `lib/work-unit/decompose-candidate.ts`) with a tip `main` does not contain, and no
   entry may remain under `<commonDir>/arc/decompose-worktrees/`. The store version reads no candidate branch or staged
@@ -612,7 +614,8 @@ that branch's step, and for each checkout before that checkout's own steps:
   `refs/arc-window/gone/<side>/<branch>` at its recorded tip and reported as a gone range. The branch's step continues.
 - **A branch missing from the record** that tracks a file under the tracked-state paths, locally or on the host: `compare`
   marks it the same way and reports it as an unrecorded range, running from its merge base with `main`'s recorded tip
-  to its mark.
+  to its mark. Such a branch that shares no history with `main` has no merge base to start the range, so `compare`
+  refuses it, naming the branch, until it is deleted or merged with `main` (A4).
 - **Each checkout:** its personal digest is compared with the record. The answer decides whether the window removes
   that checkout's pre-flip personal files or leaves them for its first materialization to withhold.
 
@@ -904,8 +907,9 @@ mirror and in the copy, any checkout holding it included, since no fast-forward 
    with that checkout as its working directory, since the import refuses where a checkout's personal files differ from
    its saved notes (§ 2.3).
 7. Import with publication to the mirror (`arc store migrate --import --json`), keeping its report for `chain`
-   (§ 10.3). The import runs under a 6 GB address-space cap, with Node's heap ceiling set below it so the import's own
-   failure arrives first, and its wall time and peak resident memory are recorded.
+   (§ 10.3). The import runs under its caller's address-space cap, inherited or set by the run's wrapper, with Node's
+   heap ceiling set below it so the import's own failure arrives first; the step stops unless the limit the import
+   recorded is finite and above that ceiling (A3). Its wall time and peak resident memory are recorded.
 8. In every copied checkout with a built CLI, a write through the in-repo implementation, run by that checkout's own
    build, refuses with the store-imported refusal and changes nothing (`refuseIfImported`,
    `lib/store/in-repo/backend.ts`). A checkout without one runs no ARC command through its own launcher (C6).
@@ -1175,8 +1179,8 @@ rather than overwrite or delete a ref another writer moved, until the Owner name
 The check's cost is dominated by the lifecycle composition, one freshness check per checkout, and its reads of the host:
 the fetch of `origin`'s `refs/arc/*`, the pull-request reads, the flip's auto-merge state among them, the host's merge
 settings, and one `git ls-remote`. The digests read each worktree's personal files and the review gate's
-files once. The import's time and peak memory are measured in Stage 1, under a
-6 GB address-space cap with Node's heap ceiling below it.
+files once. The import's time and peak memory are measured in Stage 1, under its caller's address-space cap with Node's
+heap ceiling below it (A3).
 
 ### Testing
 
@@ -1291,5 +1295,11 @@ None.
   _Supersedes:_ none. _Trigger:_ F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A2** — 2026-11-13 — spec-depth: C4's remedies drop `arc locus release`, which refuses before the flip.
   _Supersedes:_ § 2.2 C4 remedy. _Trigger:_ F25 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A3** — 2026-11-13 — design: Stage 1's import runs under its caller's cap, which must exceed the heap ceiling.
+  _Supersedes:_ § 9.2 step 7; § Performance. _Trigger:_ F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A4** — 2026-11-13 — design: `compare` refuses an unrecorded branch with no history shared with `main`.
+  _Supersedes:_ § 5.3 ¶2; § 1.2 `compare` row. _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A5** — 2026-11-13 — design: C4 sends a branch husk to `arc teardown --branch`, an unheld Errand marker to removal.
+  _Supersedes:_ § 2.2 C4 remedy (A2). _Trigger:_ F18, F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

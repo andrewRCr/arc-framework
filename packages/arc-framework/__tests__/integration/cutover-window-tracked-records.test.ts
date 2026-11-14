@@ -77,9 +77,13 @@ it("refuses an unresolved parked branch and passes after its local and fetched t
   await h.git("git", ["push", "origin", "main"]); await carryMainToFlip(h);
   await h.git("git", ["branch", "-D", h.branch]); await h.git("git", ["update-ref", "-d", `refs/remotes/origin/${h.branch}`]);
   const refused = await checkFixture(h);
-  expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
-    expect.objectContaining({ condition: expect.stringContaining(`Branch '${h.branch}' for '${h.slug}' is missing`) }),
-  ]) } });
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused" } });
+  const findings = (refused.result as { findings: { subject: string; condition: string; remedy: string }[] }).findings;
+  expect(findings.filter(finding => finding.subject.includes(h.slug) || finding.condition.includes(h.slug)
+    || finding.condition.includes("(unavailable)"))).toEqual([{ subject: `work unit ${h.slug}`,
+    condition: `The parked unit has no readable source at ${h.branch}: Branch '${h.branch}' for '${h.slug}' is missing.`,
+    remedy: "Restore or realign the parked branch its committed pointer names, or repair the pointer, then retry." }]);
+  expect(findings.filter(finding => finding.remedy.includes("migrate --import"))).toEqual([]);
   expect(await listWindowRefs({ repo: h.root, exec: h.git }, ["refs/arc-window/"])).toEqual(new Map());
   await h.git("git", ["branch", h.branch, h.tip]); await h.git("git", ["fetch", "origin"]);
   const repaired = await checkFixture(h);

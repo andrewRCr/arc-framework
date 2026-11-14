@@ -59,10 +59,12 @@ The hold `check` retains stays until `close` releases it or `restore` uses it. `
 alone. `close` with no hold to release passes as a cleanup only, so run it from the checkout that holds the window.
 
 After the import, `recompute` compares every input the check recorded with what is there now: local and `origin` branch
-and store-ref tips, the host's branch tips, and each checkout's head, cleanliness, and personal files. It fetches and
-writes nothing, and names each moved input. `account` reports every tracked state file the import's own discovery finds
-and refuses any whose state did not land. `chain` compares each Candidate's review chain as the repository held it with
-the chain the store now holds, reading the import's `--json` output:
+tips, the host's branch tips, each checkout's head, cleanliness, and personal files, and the review gate's files. It
+compares the transient records the import landed with the Errand identity inputs the check held, and refuses an
+identity ref that remains locally or on the host. It fetches and writes nothing, and names each moved input. `account`
+reports every tracked state file the import's own discovery finds and refuses any whose state did not land. `chain`
+compares each Candidate's review chain as the repository held it with the chain the store now holds, reading the
+import's `--json` output:
 
 ```sh
 npm run -s cutover-window -- recompute --repo /path/to/checkout
@@ -127,7 +129,9 @@ checkout's own built CLI, or the primary copy's from that checkout where it has 
 other `arc`. `--path` names the search path `check` judges, `--anchor` the sealing commit of a copy that predates the
 tooling, `--plan` a run plan (`abort` or `merge`), `--cap-wrapper` a JSON argv prefix the import runs under, which
 must set its address-space limit itself, as the example's `ulimit -v` (in KiB) does, and `--heap-mb` the import's heap
-ceiling, set below that limit. Without a wrapper the import inherits the driver's own limit. Each step's outcome is
+ceiling, set below that limit. Without a wrapper the import inherits the driver's own limit. Either way the import
+step stops unless the limit its process ran under is finite and above its heap ceiling, so an oversized import fails
+in the heap, where it reports; only Linux both enforces such a limit and exposes it to the run. Each step's outcome is
 reported in order; the run stops at the first unexpected one, naming the step, and reports the import's wall time and
 peak resident memory with the address-space limit and heap ceiling its process ran under, and how many files `account`
 placed in each classification.

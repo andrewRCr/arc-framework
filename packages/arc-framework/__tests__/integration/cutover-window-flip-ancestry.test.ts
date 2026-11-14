@@ -8,6 +8,7 @@ it("refuses a flip equal to main and passes once the flip takes a commit", async
   const main = (await h.git("git", ["rev-parse", "main"])).stdout.trim();
   await h.git("git", ["update-ref", `refs/heads/${h.flip.branch}`, main, h.flip.head]);
   await h.remote("git", ["update-ref", `refs/heads/${h.flip.branch}`, main, h.flip.head]);
+  await h.git("git", ["update-ref", `refs/remotes/origin/${h.flip.branch}`, main, h.flip.head]);
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
     expect.objectContaining({ subject: h.flip.branch, condition: expect.stringContaining("proper ancestor") }),

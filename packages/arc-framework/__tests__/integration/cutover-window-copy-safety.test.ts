@@ -1,7 +1,7 @@
 /** Isolation assertions run over native copied Git metadata and the host discovery boundary. */
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
@@ -80,6 +80,19 @@ it.each(["gitfile", "registration"] as const)("refuses a copied %s pointing outs
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
     .rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("outside the copy") })] });
   await writeFile(path, before);
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("refuses a gitfile inside the copied Git directory that names the live repository and admits its removal", async () => {
+  const h = await copiedFixture();
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  const planted = join(h.layout.repo, ".git", "arc", "review-gate", "materializations", "planted");
+  await mkdir(planted, { recursive: true });
+  await writeFile(join(planted, ".git"), `gitdir: ${join(common, "worktrees", "planted")}\n`);
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
+    .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: join(planted, ".git"),
+      condition: expect.stringContaining("outside the copy") })] });
+  await rm(planted, { recursive: true });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 

@@ -29,7 +29,9 @@ export async function readWindowTrackedRecordFindings(context: WindowImportConte
   const { findings, failures } = await inspectWindowTrackedRecords(context, { main,
     branches: [...new Set([...Object.keys(record.branches.live), record.flip.branch])],
     local: record.branches.local, origin: record.branches.origin }, composition);
-  return [...findings, ...failures.map(failure => trackedRecordFinding(failure.result, failure.target))];
+  // A parked unit with no readable source is reported once by the read map, not again for each of its files.
+  return [...findings, ...failures.filter(failure => failure.result.readCopyRef !== null)
+    .map(failure => trackedRecordFinding(failure.result, failure.target))];
 }
 
 /** Find every tracked path the read rule fails at the basis's revisions. */

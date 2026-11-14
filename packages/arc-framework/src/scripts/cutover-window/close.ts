@@ -6,9 +6,9 @@ import { windowCloseHeldFindings } from "./close-policy.js";
 import { readWindowCloseCheckoutFindings } from "./close-checkouts.js";
 import { parseArgs } from "node:util";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
-import { readWindowHold, discardUnfinishedWindowHold } from "./hold.js";
+import { readWindowHold, discardUnfinishedWindowHold, type WindowHoldIO } from "./hold.js";
 import { createWindowHost } from "./native-host.js";
-import { hasWindowHost } from "./host.js";
+import { hasWindowHost, type WindowHostPort } from "./host.js";
 import { isWindowFlipMerged } from "./merged-flip.js";
 import { WindowRefusal, type WindowResult, type WindowFinding } from "./result.js";
 import type { WindowRequest } from "./main.js";
@@ -30,11 +30,15 @@ export async function closeWindow(request: WindowRequest, options: WindowCloseOp
     ...state.ranges.map(range => `${range.side}/${range.branch}: ${range.kind} range ${range.from}..${range.tip}; confirmation ${range.confirmation ?? "(missing)"}.`)];
   let merged: boolean | null = null;
   try {
-    merged = await isWindowFlipMerged({ ...io, host, hosted: await hasWindowHost(io.exec) }, record.flip.head);
-    const findings: WindowFinding[] = merged ? [] : [{ subject: "merged flip", condition: "The recorded flip is not merged.",
-      remedy: "Preserve the complete hold; finish the window's merge or use restore before retrying close." }];
-    findings.push(...windowCloseHeldFindings(record.branches.live, record.flip.branch, state), ...await readWindowCloseCheckoutFindings(io),
-      ...await readWindowCloseBranchFindings(io, record, state, host));
+    const flip = await readMergedFlip(io, host, record.flip.head);
+    merged = flip.merged;
+    // A refused merged-flip test has already reported an unreadable host; the branch read would only repeat it.
+    const branches = await readWindowCloseBranchFindings(io, record, state, host).catch((error: unknown) => {
+      if (flip.merged === null) return [];
+      throw error;
+    });
+    const findings: WindowFinding[] = [...flip.findings, ...windowCloseHeldFindings(record.branches.live, record.flip.branch, state),
+      ...await readWindowCloseCheckoutFindings(io), ...branches];
     if (findings.length) return { operation: "close", status: "refused", findings, messages, data: { merged, ...state } };
     await io.exec("git", ["update-ref", "--no-deref", "-d", "refs/arc-window/complete", tip], { cwd: io.repo });
     await options.afterComplete?.();
@@ -46,5 +50,17 @@ export async function closeWindow(request: WindowRequest, options: WindowCloseOp
         condition: error instanceof Error ? error.message : String(error),
         remedy: "Preserve the remaining hold refs, resolve the reported failure, then retry close." }],
       messages, data: { merged, ...state } };
+  }
+}
+
+/** The merged-flip test as one of close's conditions: its refusal is a finding, and merged stays null. */
+async function readMergedFlip(io: WindowHoldIO, host: WindowHostPort, head: string): Promise<{ merged: boolean | null; findings: WindowFinding[] }> {
+  try {
+    const merged = await isWindowFlipMerged({ ...io, host, hosted: await hasWindowHost(io.exec) }, head);
+    return { merged, findings: merged ? [] : [{ subject: "merged flip", condition: "The recorded flip is not merged.",
+      remedy: "Preserve the complete hold; finish the window's merge or use restore before retrying close." }] };
+  } catch (error) {
+    if (error instanceof WindowRefusal) return { merged: null, findings: [...error.findings] };
+    throw error;
   }
 }

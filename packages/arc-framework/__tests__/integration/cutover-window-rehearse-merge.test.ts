@@ -1,39 +1,15 @@
 /** The rehearsal's own Git preparation: merging main into a parked unit's branch, and dropping tracked-state stashes. */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
-import { makeGitExec } from "../helpers/integration.js";
+import { expect, it } from "vitest";
+import { rehearsalMirrorRepository } from "../helpers/cutover-window/rehearse-mirror.js";
 import { mergeRehearsalMain } from "../../src/scripts/cutover-window/rehearse-merge.js";
 import { dropRehearsalStashes } from "../../src/scripts/cutover-window/rehearse-prepare.js";
-import { WindowRehearsalSync } from "../../src/scripts/cutover-window/rehearse-sync.js";
-import type { WindowRehearsalContext } from "../../src/scripts/cutover-window/rehearse-run.js";
 
 const pointer = ".arc/backlog/planned/meta-parked.md", active = ".arc/active/meta-parked.md";
 const lines = Array.from({ length: 12 }, (_, index) => `Line ${index + 1} of the planned unit.`);
 
-/** A mirror, its clone as the copy's primary, and a rehearsal context whose scratch clone writes to the mirror. */
-async function rehearsalRepository() {
-  const container = await mkdtemp(join(tmpdir(), "arc-window-rehearse-merge-"));
-  onTestFinished(() => rm(container, { recursive: true, force: true }));
-  const mirror = join(container, "mirror.git"), repo = join(container, "primary"), workspace = join(container, "workspace");
-  const exec = makeGitExec(container);
-  await exec("git", ["init", "--quiet", "--bare", "-b", "main", mirror]);
-  await exec("git", ["clone", "--quiet", mirror, repo]);
-  const git = (...args: string[]) => exec("git", ["-c", "user.name=Owner", "-c", "user.email=owner@example.test", ...args], { cwd: repo });
-  const write = async (path: string, content: string) => {
-    await mkdir(dirname(join(repo, path)), { recursive: true });
-    await writeFile(join(repo, path), content);
-  };
-  await mkdir(workspace);
-  const layout = { destination: container, repo, mirror, worktrees: [{ source: repo, path: repo, primary: true }],
-    workspace, scratch: join(workspace, "scratch") };
-  const sync = new WindowRehearsalSync(layout, exec, async () => undefined);
-  const context: WindowRehearsalContext = { layout, sync, exec, launcher: async () => { throw new Error("No ARC command runs here."); },
-    environment: { path: "" }, flip: { branch: "feat/window-flip", pullRequest: 7 }, checkPath: "",
-    importBounds: { prefix: [], heapMb: 1024 }, listing: join(workspace, "pull-requests.json") };
-  return { repo, mirror, exec, git, write, sync, context };
-}
+const rehearsalRepository = () => rehearsalMirrorRepository("arc-window-rehearse-merge-");
 
 it("keeps a parked branch's meta and pointer absence when main's park merges in cleanly", async () => {
   const r = await rehearsalRepository();

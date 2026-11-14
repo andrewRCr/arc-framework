@@ -18,10 +18,10 @@ import { observeRehearsalPublication } from "./rehearse-publication.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { storeImportedRefusal } from "../../lib/store/store-imported.js";
+import { isWindowIdentityRef } from "./transients.js";
+import { IMPORT_KEPT_PREFIX } from "../../lib/store/ref/import/transient-cleanup.js";
 
 const passed: WindowRehearsalExpectation = { status: "passed", findings: [] };
-const identityRef = /^refs\/arc\/user\/[^/]+\/errands$/u;
-const keptPrefix = "refs/arc/tmp/migrate/import/kept/";
 const noEligibleFiles = "No eligible files found in user directory to save.";
 
 /** Run one window operation on the copy's primary checkout and hold it to the expected outcome. */
@@ -95,10 +95,24 @@ export async function importRehearsal(context: WindowRehearsalContext,
   const measurement: WindowRehearsalImportMeasurement = { wallMs: result.wallMs, peakRssMiB: Math.round(peak.maxRssKiB / 1024),
     addressSpaceLimitMiB: peak.addressSpaceLimitMiB, heapLimitMiB: peak.heapLimitMiB };
   record(measurement);
+  const unbounded = rehearsalImportBoundsStop(measurement);
+  if (unbounded !== null) throw new WindowRehearsalStop(unbounded);
   const published = await observeRehearsalPublication(context);
   const limit = typeof measurement.addressSpaceLimitMiB === "number" ? `a ${measurement.addressSpaceLimitMiB} MiB`
     : measurement.addressSpaceLimitMiB === "unlimited" ? "no" : "an unreadable";
   return `Imported in ${measurement.wallMs} ms at ${measurement.peakRssMiB} MiB peak resident memory, under ${limit} address-space limit and a ${measurement.heapLimitMiB} MiB heap ceiling; the mirror holds all ${published} published store refs.`;
+}
+
+/**
+ * The import counts only under a finite address-space limit above its heap ceiling, so an oversized import fails in the
+ * heap, where it reports, before it reaches the limit; null when it ran so.
+ */
+export function rehearsalImportBoundsStop(bounds: Pick<WindowRehearsalImportMeasurement, "addressSpaceLimitMiB" | "heapLimitMiB">): string | null {
+  const limit = bounds.addressSpaceLimitMiB;
+  if (typeof limit === "number" && limit > bounds.heapLimitMiB) return null;
+  const ran = typeof limit === "number" ? `a ${limit} MiB` : limit === "unlimited" ? "no" : "an unreadable";
+  return `The import ran under ${ran} address-space limit, which must be finite and above its ${bounds.heapLimitMiB} MiB heap ceiling. `
+    + "Rehearse under such a limit, inherited or set through --cap-wrapper, with --heap-mb below it.";
 }
 
 /** Run the import from the primary copy under the run's bounds, recording its peak memory to the named file. */
@@ -148,7 +162,7 @@ export async function verifyRehearsalIdentityRefs(context: WindowRehearsalContex
   const remaining: string[] = [];
   for (const repo of [context.layout.repo, context.layout.mirror]) {
     const refs = await listWindowRefs({ repo, exec: context.exec }, ["refs/arc/"]);
-    for (const ref of refs.keys()) if (identityRef.test(ref) || ref.startsWith(keptPrefix)) remaining.push(`${repo}: ${ref}`);
+    for (const ref of refs.keys()) if (isWindowIdentityRef(ref) || ref.startsWith(IMPORT_KEPT_PREFIX)) remaining.push(`${repo}: ${ref}`);
   }
   if (remaining.length > 0) throw new WindowRehearsalStop(`Identity refs or kept tips remain:\n${remaining.join("\n")}`);
   return "No identity ref or kept tip remains on the copy or the mirror.";

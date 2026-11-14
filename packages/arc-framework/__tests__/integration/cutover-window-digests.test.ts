@@ -116,7 +116,7 @@ it("refuses an unreadable review gate and reads it after access is repaired", as
   const failed = await observeReview(h);
   expect(failed, failed.report).toMatchObject({ exit: 1, digest: undefined, result: { status: "refused", findings: [
     expect.objectContaining({ subject: "review gate", condition: expect.stringContaining("Cannot inventory"),
-      remedy: expect.stringMatching(/Restore access.*retry check/u) }),
+      remedy: "Restore access to the review gate's files, then retry." }),
   ] } });
   await rm(gate);
   await mkdir(gate);

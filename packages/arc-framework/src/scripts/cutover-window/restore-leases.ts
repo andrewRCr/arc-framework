@@ -4,6 +4,7 @@ import type { WindowRestoreDecision } from "./restore-decision-document.js";
 import type { WindowFinding } from "./result.js";
 import { isStateRef } from "../../lib/store/ref/manifest.js";
 import { isWindowStoreWorkingRef } from "./preflight.js";
+import { isWindowIdentityRef } from "./transients.js";
 
 /** Fresh values observed before the first restore push. */
 export interface WindowRestoreSnapshot {
@@ -48,7 +49,7 @@ function originAllowedValues(record: WindowRecord, decision: WindowRestoreDecisi
 
 function allowedValues(held: Readonly<Record<string, string>>, decision: WindowRestoreDecision, ref: string): (string | null)[] {
   const allowed = [held[ref] ?? null, ...decision.accepted.filter(item => item.ref === ref).map(item => item.value)];
-  if (/^refs\/arc\/user\/[^/]+\/errands$/u.test(ref) && decision.regime !== "unconsumed"
+  if (isWindowIdentityRef(ref) && decision.regime !== "unconsumed"
     && decision.identities.some(item => item.ref === ref && (item.outcome === "equal" || item.outcome === "accepted"))) allowed.push(null);
   return allowed;
 }

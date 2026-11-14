@@ -4,6 +4,7 @@ import { isGitProcessError } from "../../lib/git/process-error.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import type { WindowHostPort, WindowPullRequest, WindowPullRequests } from "./host.js";
 import { WindowRefusal } from "./result.js";
+import { isWindowIdentityRef } from "./transients.js";
 
 const requestSchema = z.object({ number: z.number().int().positive(), headRefName: z.string().min(1),
   baseRefName: z.string().min(1) });
@@ -21,7 +22,7 @@ function readRefLines(output: string, patterns: readonly string[]): Record<strin
     }
     return [ref, oid];
   }).filter(([ref]) => patterns.some(pattern => {
-    if (pattern === "refs/arc/user/*/errands") return /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref);
+    if (pattern === "refs/arc/user/*/errands") return isWindowIdentityRef(ref);
     return pattern.endsWith("*") ? ref.startsWith(pattern.slice(0, -1)) : ref === pattern;
   })));
 }

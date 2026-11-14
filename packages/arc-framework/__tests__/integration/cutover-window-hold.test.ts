@@ -27,6 +27,24 @@ it("round-trips the record through an orphan commit and writes its completion ma
 }, 15_000);
 
 
+it("fetches an origin tip whose object only origin holds before pinning it in the hold", async () => {
+  const h = await fixture();
+  const git = (...args: string[]) => h.exec("git", args);
+  const remote = join(h.repo, "origin.git");
+  await git("init", "--bare", remote);
+  await git("remote", "add", "origin", remote);
+  const tree = (await h.execInput(["--git-dir", remote, "mktree"], "")).trim();
+  const origin = (await git("--git-dir", remote, "-c", "user.name=Origin Writer", "-c", "user.email=origin@example.test",
+    "commit-tree", tree, "-m", "Written only on origin")).stdout.trim();
+  const originRef = "refs/arc/user/andrew/errands";
+  await git("--git-dir", remote, "update-ref", originRef, origin);
+  await expect(git("cat-file", "-e", `${origin}^{commit}`)).rejects.toThrow();
+  h.record.refs = { ...h.record.refs, origin: { [originRef]: origin } };
+  await writeWindowHold(h, h.record);
+  expect((await git("rev-parse", `refs/arc-window/origin/${originRef}`)).stdout.trim()).toBe(origin);
+  expect((await git("cat-file", "-t", origin)).stdout.trim()).toBe("commit");
+}, 15_000);
+
 it("keeps local, origin, and tracking tips reachable after their source refs are deleted", async () => {
   const h = await fixture();
   const git = (...args: string[]) => h.exec("git", args);

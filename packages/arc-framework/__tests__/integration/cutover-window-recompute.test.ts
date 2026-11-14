@@ -1,5 +1,5 @@
 /** Recompute observes the admitted repository after the native import without changing it. */
-import { mkdir, readFile, writeFile, rm, appendFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, appendFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { expect, it } from "vitest";
@@ -26,6 +26,22 @@ async function runFixtureWindow(h: Awaited<ReturnType<typeof windowFixture>>, op
   });
   return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
 }
+
+it("refuses an unreadable review gate with a remedy that leads back to recompute, and passes once access is restored", async () => {
+  const h = await importedFixture();
+  const gate = join(await resolveGitCommonDir(h.git, h.root), "arc/review-gate"), held = `${gate}.held`;
+  const moved = await rename(gate, held).then(() => true, () => false);
+  await mkdir(join(gate, ".."), { recursive: true });
+  await writeFile(gate, "A file prevents inventorying the gate directory.\n");
+  const refused = await runFixtureWindow(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { operation: "recompute", status: "refused", findings: [
+    expect.objectContaining({ subject: "review gate", remedy: "Restore access to the review gate's files, then retry." }),
+  ] } });
+  await rm(gate);
+  if (moved) await rename(held, gate);
+  const repaired = await runFixtureWindow(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { operation: "recompute", status: "passed" } });
+}, 60_000);
 
 it("passes unchanged imported inputs and leaves every ref unchanged", async () => {
   const h = await importedFixture();

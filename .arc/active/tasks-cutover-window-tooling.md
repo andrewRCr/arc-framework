@@ -536,7 +536,9 @@ refusing and then passing after its remedy, with the import's cost recorded from
   and the npm script's `--wasm-max-mem-pages` flag, which both runs already launched with, so the runs stand for the
   landing head unless the tools change again. Scenario: Tasks 7.2 and 7.3 passed
   every step, each planted condition refusing and then passing after its remedy. The import took 896 s at 2,439 MiB
-  peak resident memory in the first run and 1,108 s at 2,350 MiB in the second. `arc check segment` passed.
+  peak resident memory in the first run and 1,108 s at 2,350 MiB in the second. `arc check segment` passed. The
+  pre-publication review's fixes then changed the tools and both plans, so both run again at the converged head before
+  publication, as the Success Criteria deviations record.
 
 ## **Phase 8:** Verification
 
@@ -636,6 +638,13 @@ refusing and then passing after its remedy, with the import's cost recorded from
 
 - `[x]` C1 refuses a skip-worktree or assume-unchanged flag on a tracked-state path in the primary or a marked checkout,
   and the check passes once the flag is cleared.
+
+- `[x]` The rehearsal's import step stops unless its recorded address-space limit is finite and above its heap ceiling.
+
+- `[x]` `compare` refuses an unrecorded state-bearing branch that shares no history with `main`, and records it once the
+  branch is deleted or merged with `main`.
+
+- `[x]` C4 refuses a branch husk and an Errand marker no record holds, and the check passes after the remedy each names.
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
