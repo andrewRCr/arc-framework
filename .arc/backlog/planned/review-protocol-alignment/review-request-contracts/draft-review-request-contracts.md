@@ -446,8 +446,7 @@
 - _Approach:_ the gate emits an evidence identity (head, tree, checks, outcome) the replay cites and the CLI checks.
 
 - _Evidence:_ `fix-round-1/final-merge-gate.json` and `fix-round-1/respond-verified-fix-request.json` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local).
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 
@@ -469,8 +468,7 @@
 - _Approach:_ without a resume token, status says a typed continuation is needed rather than naming a step.
 
 - _Evidence:_ `fix-round-1/status-after-push.json` and `fix-round-1/envelope-after-fix.json` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local).
+  `storage-ref-backend`'s review and measurement evidence (kept outside the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 
@@ -548,10 +546,9 @@
 
 - _Evidence:_ `standard-pass-7/prepub-after-review.json`, `prepub-after-review-remedy.json`,
   `prepub-after-review-explicit-corrected.json`, `prepub-after-review-known.json`, and
-  `response-continuation-diagnosis.json`, under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local). Source head `9c34e7fdce79e8b3611e68608380af903dd06786`; local logical attempt 25 remained
-  current throughout.
+  `response-continuation-diagnosis.json`, under `storage-ref-backend`'s review and measurement evidence (kept outside
+  the repository), `verification/prepublication/`. Source head `9c34e7fdce79e8b3611e68608380af903dd06786`; local
+  logical attempt 25 remained current throughout.
 
 - _Captured during:_ storage-ref-backend prepublication, 2026-10-27; explicitly requested for a later separate
   Errand, outside this work unit. The public input correction restored the authorized fix route.
