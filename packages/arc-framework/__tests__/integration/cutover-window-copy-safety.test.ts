@@ -7,6 +7,7 @@ import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { prepareWindowCopy } from "../../src/scripts/cutover-window/copy.js";
 import { assertWindowCopySafety } from "../../src/scripts/cutover-window/copy-safety.js";
+import { windowCopyBounds } from "../../src/scripts/cutover-window/rehearse.js";
 import { writeBackingRepository } from "../../src/lib/config/status-reader.js";
 import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
@@ -97,10 +98,22 @@ it("refuses a registration outside the copy whose folder is gone, without readin
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
-it("refuses a live linked checkout named as the copy's primary by its pointers, not by a read error", async () => {
+it("refuses a rehearsal of a live linked checkout by the pointers leading out of its folder, not by a read error", async () => {
   const h = await copiedFixture(), live = join(h.root, ".arc-fixture/linked");
-  await expect(assertWindowCopySafety({ ...h.layout, repo: live }, { host: { discoverRepository: async () => null } }))
-    .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: live, condition: expect.stringContaining("outside the copy") })] });
+  const common = resolve(h.root, (await h.git("git", ["rev-parse", "--git-common-dir"])).stdout.trim());
+  await expect(assertWindowCopySafety(windowCopyBounds(live), { host: { discoverRepository: async () => null } }))
+    .rejects.toMatchObject({ findings: [join(common, "worktrees", "linked"), common]
+      .map(subject => expect.objectContaining({ subject, condition: expect.stringContaining("outside the copy") })) });
+  await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("scans the common Git directory of a live linked checkout whose folder holds it, refusing on the copy's absent parts", async () => {
+  const h = await copiedFixture(), sibling = join(h.root, "sibling");
+  await h.git("git", ["worktree", "add", "--detach", sibling]);
+  const bounds = windowCopyBounds(sibling);
+  await expect(assertWindowCopySafety(bounds, { host: { discoverRepository: async () => null } }))
+    .rejects.toMatchObject({ findings: expect.arrayContaining([
+      expect.objectContaining({ subject: bounds.mirror, condition: "The copy has no mirror repository." })]) });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
