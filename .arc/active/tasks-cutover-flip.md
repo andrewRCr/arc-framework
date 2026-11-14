@@ -352,25 +352,17 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   with the record's (readiness through its stored branch link), and the search and each reader's outcome are in
   `notes-cutover-flip.md` § Errand branch readers.
 
-### `[ ]` **2.11 The cohort record's member-sections write check — § 4.10**
+### `[x]` **2.11 The cohort record's member-sections write check — § 4.10**
 
 - _Goal:_ A hand edit of a cohort record whose `## Members` names a slug that is not the current name of a member of
   that cohort refuses, naming each such slug with its remedy, while a verb's write never refuses over a section it
   leaves.
 
-    - Add `cohort.member-sections` to `checkCohortDocument` (`lib/store/kinds/cohort/check.ts`), applying to hand edits
-      only (`HAND_EDIT_VERBS`, `lib/store/links.ts`; `deriveWriteCheckWriter`, `lib/store/write-check.ts`); membership
-      from the `Cohort` fields' last segment, current or former names (`observeAllHoldings`,
-      `lib/store/kinds/cohort/check-support.ts`; `observeCohortHoldings`, `lib/store/kinds/cohort/holdings.ts`).
-    - Build `test-first` (one behavior at a time):
-        - a member section naming no member refuses, naming the slug, with nothing written
-        - it admits once the section is removed or renamed, or once the slug's meta is saved naming the cohort
-        - a completed member's section, and one for a member whose `Cohort` names the cohort by a former name, admit
-        - a section naming only a member's former name, a subcohort, or a subcohort's member refuses
-        - an at-cap retirement's terminal batch admits while it leaves the origin's section (`terminalFanout`,
-          `lib/decompose/terminal-records.ts`), and the record's next hand edit refuses naming it
-        - `arc rename` rewrites a member's heading only where no other holder has the old name
-          (`planRenameMemberHeading`, `lib/store/rename-member-heading.ts`)
+- _Outcome:_ `checkCohortMemberSections` (`lib/store/kinds/cohort/member-section-rule.ts`) joins `checkCohortDocument`:
+  a hand edit whose resulting record keeps a `## Members` section naming no current member refuses, naming each slug.
+  Members come from `observeAllHoldings` over the proposed state, kept where the `Cohort` path holds the cohort at its
+  last segment. A verb's write passes, so the retirement's kept section and rename's kept heading are refused by the
+  record's next hand edit (`member-sections.test.ts`, `terminal-records.test.ts`, `store-ref-rename-uid-cli.test.ts`).
 
 ### `[ ]` **2.12 Import tests over the identity refs' leases and permuted listings — § 7.6, § 13.3, § 13.4**
 

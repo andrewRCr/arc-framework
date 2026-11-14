@@ -7,15 +7,18 @@
  */
 export function reportOrphanCohortMemberSections(content: string, members: Iterable<string>): string[] {
   const known = new Set(members);
-  return memberSlugs(content).filter((slug) => !known.has(slug));
+  return cohortMemberSectionSlugs(content).filter((slug) => !known.has(slug));
 }
 
 /**
  * The per-member section slugs declared under a cohort doc's `## Members`
  * section — each `### \`<slug>\`` heading. Headings outside `## Members` (the
  * coordination subsections) are ignored.
+ *
+ * @param content - Whole cohort document.
+ * @returns Section slugs in document order, including repeated sections.
  */
-function memberSlugs(content: string): string[] {
+export function cohortMemberSectionSlugs(content: string): string[] {
   const slugs: string[] = [];
   let inMembers = false;
   for (const line of content.split(/\r?\n/)) {

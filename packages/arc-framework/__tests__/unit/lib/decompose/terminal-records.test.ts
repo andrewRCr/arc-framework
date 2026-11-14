@@ -11,7 +11,7 @@ import { prepareDecomposeLineage } from "../../../../src/lib/decompose/lineage-p
 import { readWorkUnit, readLifecycleMetaFields, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { writeMetaCurrentWorkflow, writeMetaDependsOn, writeMetaDesign } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { writeCohortFanout } from "../../../../src/lib/store/kinds/cohort/index.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { prepareDecomposePreflight } from "../../../../src/lib/decompose/preflight.js";
 import { runStoreDecomposeAdditive } from "../../../../src/lib/decompose/additive.js";
 import { checkDecomposeSourceBinding } from "../../../../src/lib/decompose/source-binding.js";
@@ -80,6 +80,20 @@ it("appends the at-cap fan-out with the declared member slugs in the terminal ba
   const current = lifecycleSuccess(await h.store.read({ reference: cohort.record.reference }));
   expect(current.content).toContain("<!-- arc:decompose-fanout:origin:start -->\n### `origin` decomposition fan-out\n\n- `member-a`\n- `member-b`\n<!-- arc:decompose-fanout:origin:end -->");
   expect(current.version).not.toBe(cohort.record.version);
+});
+
+it("lands the at-cap retirement while it leaves the origin's member section, which the record's next hand edit refuses", async () => {
+  const h = await createDecomposeTerminalFixture({ atCap: true });
+  const child = lifecycleSuccess(await h.store.read({ reference: recordReferences["cohort/document"](
+    OwnerIdentitySchema.parse({ type: "cohort", name: "child" })) }));
+  const sectioned = await h.handEdit(child, `${child.content}\n## Members\n\n### \`origin\`\n`);
+  const { input, plan } = await prepare(h.ctx);
+  await land(h.ctx, input, plan);
+  const retired = lifecycleSuccess(await h.store.read({ reference: sectioned.reference }));
+  expect(retired.content).toContain("### `origin`\n");
+  expect(await h.store.write({ ...recordPut(retired, { content: `${retired.content}\nCoordination note.\n` }),
+    provenance: { verb: "write-back", lifecycleAction: "edit" } })).toMatchObject({ status: "refused", refusal: {
+    rule: "cohort.member-sections", condition: expect.stringContaining("`origin`") } });
 });
 
 it("reuses a hand-authored matching fan-out without advancing the cohort record", async () => {

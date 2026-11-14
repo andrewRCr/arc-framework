@@ -239,6 +239,11 @@ it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as c
       { document: cohort.reference, line: 7, replacement: "### `renamed`" },
     ] } });
   }
+  // A kept heading stays the section of a member whose current name it is; one only a former name matches refuses.
+  const noted = await f.store.write({ ...recordPut(document, { content: `${document.content}\nCoordination note.\n` }),
+    provenance: { verb: "save", lifecycleAction: "edit" } });
+  expect(noted).toMatchObject(mode === "former" ? { status: "refused", refusal: { rule: "cohort.member-sections",
+    condition: expect.stringContaining("`shared`") } } : { status: "ok" });
 }, 60_000);
 
 it("rewrites work-item references independently of a cohort holding the same slug", async () => {
