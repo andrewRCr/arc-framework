@@ -219,13 +219,10 @@ Every member has shipped, and every row of `cohort-state-storage.md`'s storage-c
 ### `cutover-window-tooling`
 
 _Exposes:_ on `main` ahead of the window, inert until run: the quiesce check, its record and hold under
-`refs/arc-window/`, its recompute after the import and its last read before the merge; the comparisons after the merge
-and the window's close; the abort's restore; the worktree lock step; the seal on `arc user load`; and Stage 1, with its
-copy driver, accounting case, and chain comparison, run clean.
+`refs/arc-window/`, its recompute after the import and its last read of `origin/main`'s tip; the abort's restore; the
+worktree lock step; and Stage 1, with its copy driver, accounting case, and chain comparison, run clean.
 
-_Consumes:_ nothing outstanding to build on; it reads only landed machinery, and relies on `projection-worktrees`'
-contract that the checkouts given a projection after the flip are exactly the primary and the marked checkouts,
-re-checked when that unit lands.
+_Consumes:_ nothing outstanding; it reads only landed machinery.
 
 ### `cutover-flip`
 
