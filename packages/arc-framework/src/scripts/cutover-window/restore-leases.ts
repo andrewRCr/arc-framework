@@ -15,6 +15,11 @@ export interface WindowRestoreRefChange { ref: string; current: string | null; n
 /** Complete admission findings and target changes for both sides. */
 export interface WindowRestoreRefPlan { origin: WindowRestoreRefChange[]; local: WindowRestoreRefChange[]; findings: WindowFinding[] }
 
+/** Whether the restore leases a local ref on its held or an accepted value; it sets store and working refs on what it finds. */
+export function isWindowAcceptedLocalRef(ref: string): boolean {
+  return ref.startsWith("refs/arc/") && !isStateRef(ref) && !isWindowStoreWorkingRef(ref);
+}
+
 /** Check all values before allowing any restore push. */
 export function planWindowRestoreLeases(record: WindowRecord, decision: WindowRestoreDecision,
   snapshot: WindowRestoreSnapshot): WindowRestoreRefPlan {
@@ -26,7 +31,7 @@ export function planWindowRestoreLeases(record: WindowRecord, decision: WindowRe
   }
   const local = changesFor(record.refs.local, snapshot.local);
   for (const change of local) {
-    if (isStateRef(change.ref) || isWindowStoreWorkingRef(change.ref)) continue;
+    if (!isWindowAcceptedLocalRef(change.ref)) continue;
     const allowed = allowedValues(record.refs.local, decision, change.ref);
     if (!allowed.includes(change.current)) findings.push(leaseFinding("local", change, allowed));
   }

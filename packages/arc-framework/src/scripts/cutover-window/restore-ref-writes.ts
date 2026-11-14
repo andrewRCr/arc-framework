@@ -4,7 +4,7 @@ import { updateRefTransaction, type RefChange } from "../../lib/git/ref-transact
 import { readWindowRefTip } from "./git.js";
 import { WindowRefusal } from "./result.js";
 import { requireWindowRestoreUnmerged, type WindowRestoreContext } from "./restore.js";
-import type { WindowRestoreRefChange, WindowRestoreRefPlan } from "./restore-leases.js";
+import { isWindowAcceptedLocalRef, type WindowRestoreRefChange, type WindowRestoreRefPlan } from "./restore-leases.js";
 
 async function originSource(context: WindowRestoreContext, change: WindowRestoreRefChange): Promise<string | null> {
   if (change.next === null) return null;
@@ -44,5 +44,7 @@ export async function restoreWindowRefs(context: WindowRestoreContext, plan: Win
   const outcome = await updateRefTransaction(context.io, changes, { cwd: context.io.repo });
   if (outcome.status !== "committed") throw new WindowRefusal(outcome.refs.map(ref => ({ subject: `local:${ref.ref}`,
     condition: `The local ref changed from ${ref.expected ?? "absent"} to ${ref.actual ?? "absent"} before its reset.`,
-    remedy: `Settle the changed ref, supply --accept ${ref.ref}=${ref.actual ?? "absent"}, then retry restore from the preserved hold.` })));
+    remedy: isWindowAcceptedLocalRef(ref.ref)
+      ? `Settle the changed ref, supply --accept ${ref.ref}=${ref.actual ?? "absent"}, then retry restore from the preserved hold.`
+      : "Let the other writer finish, then retry restore from the preserved hold; the restore sets this ref from the value it finds." })));
 }

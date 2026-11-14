@@ -51,7 +51,10 @@ export async function requireWindowRestoreUnmerged(context: WindowRestoreContext
   checkpoint: Extract<WindowRestoreStep, `restore.merged.${string}`>): Promise<void> {
   await context.step?.(checkpoint);
   if (await isWindowFlipMerged({ ...context.io, host: context.host, hosted: context.facts.hosted }, context.record.flip.head)) {
-    throw new WindowRefusal([{ subject: "merged flip", condition: "The recorded flip has merged into origin/main; the window cannot restore it.",
-      remedy: "Fix forward from the landed store and preserve the hold for diagnosis." }]);
+    throw new WindowRefusal([checkpoint === "restore.merged.registry" ? { subject: "merged flip",
+      condition: "The recorded flip merged into origin/main after the restore began on origin: origin lacks the store refs the restore deleted and again holds the Errand identity refs it re-created, while its registry and the local store are unchanged.",
+      remedy: "Fix forward: run arc store migrate --import to publish the landed store to origin again, then delete each re-created Errand identity ref from origin, leased on its held tip. Preserve the hold for diagnosis." }
+      : { subject: "merged flip", condition: "The recorded flip has merged into origin/main; the window cannot restore it.",
+        remedy: "Fix forward from the landed store and preserve the hold for diagnosis." }]);
   }
 }

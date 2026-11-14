@@ -2,7 +2,7 @@
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
-import { planRestoreFixture, recordRestoreFixture } from "../helpers/cutover-window/restore.js";
+import { planRestoreFixture, recordRestoreFixture, restoreFixture } from "../helpers/cutover-window/restore.js";
 import { seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
 import { writeTreeCommit } from "../../src/lib/git/ref-tree.js";
 import { saveImportPersonal } from "../helpers/store/import-fixture.js";
@@ -72,3 +72,21 @@ it("refuses a local identity and an unrelated temporary ref changed after the sa
     ]), findings: [] } } });
   expect((await h.git("git", ["ls-remote", "origin"])).stdout).toBe(origin);
 }, 30_000);
+
+it("finishes a restore once an origin ref's and a local ref's absence is accepted", async () => {
+  const h = await windowFixture();
+  const held = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const remote = "refs/arc/user/andrew/sync-state", local = "refs/arc/tmp/errand-close";
+  await h.git("git", ["push", "origin", `HEAD:${remote}`]);
+  await h.git("git", ["update-ref", local, held, ""]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  await h.git("git", ["push", `--force-with-lease=${remote}:${held}`, "origin", `:${remote}`]);
+  await h.git("git", ["update-ref", "-d", local, held]);
+  expect(await restoreFixture(h)).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: `origin:${remote}` }), expect.objectContaining({ subject: `local:${local}` }),
+  ]) } });
+  expect(await restoreFixture(h, [`${remote}=absent`, `${local}=absent`])).toMatchObject({ exit: 0, result: { status: "passed" } });
+  expect((await h.git("git", ["ls-remote", "origin", remote])).stdout).toContain(held);
+  expect((await h.git("git", ["rev-parse", local])).stdout.trim()).toBe(held);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
+}, 60_000);

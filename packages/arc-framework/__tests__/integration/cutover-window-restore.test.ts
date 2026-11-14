@@ -8,9 +8,10 @@ import { checkFixture } from "../helpers/cutover-window/check.js";
 import { writeTreeCommit } from "../../src/lib/git/ref-tree.js";
 import { transientSourceRef } from "../helpers/store/import-transients.js";
 
-it.each(["restore.compare-record", "restore.origin", "restore.local", "restore.configuration", "restore.verify", "restore.hold"] as const)(
-  "finishes when restarted after interruption at %s", async stopping => {
-    const h = await restorableWindow();
+const restartSteps = ["restore.compare-record", "restore.origin", "restore.local", "restore.configuration", "restore.verify", "restore.hold"] as const;
+it.each(restartSteps.flatMap(step => [[step, "after"], [step, "before"]] as const))(
+  "finishes when restarted after interruption at %s, %s publication", async (stopping, publication) => {
+    const h = await restorableWindow(publication === "before");
     expect(await restoreFixture(h, [], { step: step => step === stopping ? Promise.reject(new Error("pause-restore")) : Promise.resolve() }))
       .toMatchObject({ exit: 1, result: { status: "stopped" } });
     expect(await readWindowRefTip(h.io, "refs/arc-window/complete")).not.toBeNull();
@@ -100,7 +101,7 @@ it.each(["restore.merged.push", "restore.merged.registry"] as const)("keeps the 
   expect(await restoreFixture(h, [], { step: async step => {
     if (step === boundary) await h.git("git", ["push", "origin", `${h.flip.head}:refs/heads/main`]);
   } })).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({
-    subject: "merged flip", remedy: expect.stringContaining("Fix forward"),
+    subject: "merged flip", remedy: expect.stringContaining(boundary === "restore.merged.registry" ? "migrate --import" : "Fix forward"),
   })] } });
   expect(await listWindowRefs(h.io, ["refs/arc/", "refs/arc-remotes/origin/"])).toEqual(local);
   expect(await readWindowRefTip(originIO, "refs/arc/project/registry")).toBe(registry);
@@ -109,4 +110,21 @@ it.each(["restore.merged.push", "restore.merged.registry"] as const)("keeps the 
   else expect(await listWindowRefs(originIO, ["refs/arc/"])).toEqual(new Map([
     ...Object.entries(h.record.refs.origin), ["refs/arc/project/registry", registry],
   ]));
+}, 60_000);
+
+it("retries a tracking ref that races its reset without an acceptance", async () => {
+  const h = await restorableWindow();
+  const tracking = [...await listWindowRefs(h.io, ["refs/arc-remotes/origin/"])]
+    .find(([ref, tip]) => h.record.refs.tracking[ref] !== tip);
+  if (tracking === undefined) throw new Error("The publication changed no tracking ref.");
+  const [ref, published] = tracking;
+  const refused = await restoreFixture(h, [], { step: async step => {
+    if (step === "restore.local") await h.git("git", ["update-ref", ref, h.flip.head, published]);
+  } });
+  expect(refused).toMatchObject({ exit: 1, result: { status: "refused", findings: [expect.objectContaining({
+    subject: `local:${ref}`, remedy: expect.stringContaining("retry restore"),
+  })] } });
+  expect(refused.report).not.toContain(`--accept ${ref}`);
+  expect(await restoreFixture(h)).toMatchObject({ exit: 0, result: { status: "passed" } });
+  await expectRestoredWindow(h);
 }, 60_000);
