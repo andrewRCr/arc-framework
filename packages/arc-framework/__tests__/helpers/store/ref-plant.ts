@@ -1,6 +1,7 @@
-/** Raw-Git fixtures for state trees, refs, and deliberately missing objects. */
+/** Raw-Git fixtures for state trees, refs, and deliberately missing or damaged objects. */
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { deflateSync, inflateSync } from "node:zlib";
 import { dirname, join } from "node:path";
 import { resolveGitCommonDir } from "../../../src/lib/git/exec.js";
 import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js";
@@ -80,6 +81,16 @@ export async function plantRef(root: string, ref: string, entries: readonly Plan
 export async function removeLooseObject(root: string, oid: string, gitDir?: string): Promise<void> {
   const common = gitDir ?? await resolveGitCommonDir(makeGitExec(root), root);
   await rm(join(common, "objects", oid.slice(0, 2), oid.slice(2)));
+}
+
+/** Damage a loose object behind its intact header, so Git reads its type and size, then fails on its checksum. */
+export async function damageLooseObject(root: string, oid: string, gitDir?: string): Promise<void> {
+  const common = gitDir ?? await resolveGitCommonDir(makeGitExec(root), root);
+  const path = join(common, "objects", oid.slice(0, 2), oid.slice(2));
+  const stored = Buffer.from(deflateSync(inflateSync(await readFile(path)), { level: 0 }));
+  stored[stored.length - 1] = (stored[stored.length - 1] ?? 0) ^ 0xff;
+  await chmod(path, 0o644);
+  await writeFile(path, stored);
 }
 
 export async function plantMissingRef(root: string, ref: string, oid: string): Promise<void> {

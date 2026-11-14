@@ -1,7 +1,8 @@
 /** Enumerate captured trees through the owning operation's object reader, retaining raw foreign names and empty trees. */
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects, type RefTreeEntry } from "./batch-read.js";
+import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseRefTreeObject } from "./tree-content.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 
 interface EnumeratedTree { entries: RefTreeEntry[]; directories: string[] }
 interface Visit { root: string; oid: string; prefix: string; rawPrefix?: Uint8Array }
@@ -13,7 +14,7 @@ export async function enumerateRefTrees(context: RefBackendContext, roots: reado
   let pending: Visit[] = roots.map(oid => ({ root: oid, oid, prefix: "" }));
   while (pending.length > 0) {
     const missing = [...new Set(pending.map(visit => visit.oid).filter(oid => !decoded.has(oid)))];
-    const objects = await readBatchObjects(context, missing);
+    const objects = await readTreeObjects(context, missing);
     for (const oid of missing) decoded.set(oid, parseRefTreeObject(objects.get(oid), { preserveInvalidNames: true }));
     const next: Visit[] = [];
     for (const visit of pending) visitTree(result, decoded, visit, paths, next);
@@ -21,6 +22,34 @@ export async function enumerateRefTrees(context: RefBackendContext, roots: reado
   }
   for (const tree of result.values()) tree?.entries.sort((left, right) => Buffer.compare(sortPath(left), sortPath(right)));
   return result;
+}
+
+/**
+ * Read one level's trees, splitting a batch Git fails on until each damaged tree reads as unreadable, as a missing one does.
+ * A repository that cannot show the failing tree at all, as when its store directory is gone, keeps the original error.
+ */
+async function readTreeObjects(context: RefBackendContext, oids: readonly string[]): Promise<Map<string, BatchObject | null>> {
+  try { return await readBatchObjects(context, oids); }
+  catch (error) {
+    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+    const [oid] = oids;
+    if (oids.length === 1 && oid !== undefined) {
+      if (!await objectShown(context, oid)) throw error;
+      return new Map([[oid, null]]);
+    }
+    const middle = Math.ceil(oids.length / 2);
+    return new Map([...await readTreeObjects(context, oids.slice(0, middle)), ...await readTreeObjects(context, oids.slice(middle))]);
+  }
+}
+
+async function objectShown(context: RefBackendContext, oid: string): Promise<boolean> {
+  try {
+    await context.rawExec(["cat-file", "-e", oid], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && isCompletedGitFailure(error)) return false;
+    throw error;
+  }
 }
 
 function visitTree(result: Map<string, EnumeratedTree | null>, decoded: ReadonlyMap<string, RefTreeEntry[] | null>,
