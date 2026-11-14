@@ -48,6 +48,7 @@ export interface ProjectionRootState {
   blockedByLink: ProjectionLinkBoundary;
   claim: Slug | null;
   claimUid?: string;
+  claimKind?: "work-unit" | "errand" | "partial-errand";
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;
   readonly copies: { path: string; copy: string }[];
@@ -65,7 +66,6 @@ export interface ProjectionRootState {
   mint?: ProjectionStubMintPort;
   refresh?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
   reproject?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
-  fanOut?: () => Promise<void>;
   materialize?: () => Promise<void>;
 }
 

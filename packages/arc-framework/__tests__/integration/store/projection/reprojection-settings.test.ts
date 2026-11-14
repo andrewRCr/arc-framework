@@ -1,5 +1,6 @@
 /** Commands reproject fresh settings while preserving files outside the current identity's authority. */
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
@@ -48,6 +49,22 @@ it("preserves the previous identity's personal files and entries, then walks the
   if (selection.status !== "ok") throw new Error(selection.refusal.condition);
   expect(selection.result.paths).toContain(andrewPath); expect(selection.result.paths).not.toContain(bobPath);
   await endProjection(command);
+});
+
+it("acknowledges a layout reprojection whose scratch folder cannot be created, reporting the folder", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" }); directories.push(h.f.root);
+  const command = { store: h.f.store, checkout: h.f.root };
+  await mkdir(join(h.f.root, ".arc/user/andrew"), { recursive: true });
+  await writeFile(join(h.f.root, ".arc/user/andrew/scratch"), "A file where the scratch folder belongs.\n");
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" }); await endProjection(command);
+  await writeFile(join(h.f.root, ".arc/system/arc-config.yml"), "layout.active: flat\n");
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: ".arc/user/andrew/scratch/work-unit/alpha" }));
+  await endProjection(command);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing flat-layout index");
+  expect(disk.index.projectedUnder).toMatchObject({ claim: "alpha", layoutActive: "flat" });
+  expect(disk.index.reprojectionPending).toBeUndefined();
 });
 
 it("moves current files to the flat layout and keeps the claim's scratch folder", async () => {

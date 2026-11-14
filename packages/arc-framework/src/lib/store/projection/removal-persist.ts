@@ -25,7 +25,8 @@ import { checkChange, readReference } from "./change-detection.js";
 import { writableUnder } from "./sweep.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { writeBackProjectionFiles, type ProjectionFileWriteObservation } from "./engine-files.js";
-import { checkProjectionRemoval } from "./removal-check.js";
+import { checkProjectionRemoval, unusableProjectionIndexDetail } from "./removal-check.js";
+import { retirementName, type ProjectionRetirement } from "./removal-verdict.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { join } from "node:path";
@@ -79,7 +80,7 @@ export async function withPersistedProjection(checkout: string, context: Project
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
     if (disk.kind === "no-projection") return await persistUnprojected(checkout, context, disposition);
-    if (disk.kind === "unusable") return refuse(`Run arc save from ${checkout} to rebuild its ${disk.cause} projection index, then retry removal.`);
+    if (disk.kind === "unusable") return refuse(unusableProjectionIndexDetail(checkout, disk.cause));
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "refused", remedy: configuration.identity.remedy };
     const targetIdentity = configuration.identity.identity;
@@ -91,9 +92,9 @@ export async function withPersistedProjection(checkout: string, context: Project
         history, actor: await resolveProjectionActor(ports, location, targetIdentity), mint: context.mint }, context, disposition, complete);
     }, { ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
     if (result.status === "done") return result.value;
-    return refuse(`Projection lease ${result.status} at ${checkout}${result.status === "held" ? `; holder ${JSON.stringify(result.holder)}` : ""}. Retry removal after the lease is available.`);
+    return refuse(`Projection lease ${result.status} at ${checkout}${result.status === "held" ? `; holder ${JSON.stringify(result.holder)}` : ""}. Retry ${retirementName(disposition)} after the lease is available.`);
   } catch (error) {
-    return refuse(`Cannot persist the projection at ${checkout}: ${error instanceof Error ? error.message : String(error)}. Repair it and retry removal.`);
+    return refuse(`Cannot persist the projection at ${checkout}: ${error instanceof Error ? error.message : String(error)}. Repair it and retry ${retirementName(disposition)}.`);
   }
 }
 
@@ -109,18 +110,18 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
   complete: ProjectionPersistCompletion): Promise<ProjectionPersistResult> {
   await input.session.step();
   const disk = await readProjectionIndex(input.location, true, { groups: "all" });
-  if (disk.kind !== "index") return refuse(`Run arc save from ${input.checkout} to rebuild the projection index, then retry removal.`);
+  if (disk.kind !== "index") return refuse(unusableProjectionIndexDetail(input.checkout, disk.cause));
   const root = await bindProjectionRoot(input);
   try {
     let index = disk.index;
     for (let pass = 1; pass <= 3; pass += 1) {
       const observedFrom = projectionProcessState().diagnostics.length;
-      const written = await persistFiles(input, root, index);
+      const written = await persistFiles(input, root, index, disposition);
       index = written.index;
       if (written.refusal !== undefined) return { kind: "refused", remedy: written.refusal };
-      const unsent = unsentRefusal(root, observedFrom);
+      const unsent = unsentRefusal(root, observedFrom, disposition);
       if (unsent !== undefined) return { kind: "refused", remedy: unsent };
-      const copies = await persistProjectionAsides(root, index, context.hooks, written.ignoreRefusal);
+      const copies = await persistProjectionAsides(root, index, disposition, context.hooks, written.ignoreRefusal);
       index = copies.index;
       if (copies.refusal !== undefined) return { kind: "refused", remedy: copies.refusal };
       await context.hooks?.beforeLastCheck?.(root.checkout, pass);
@@ -131,11 +132,12 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       await input.session.step();
       return await complete(root, index, written.ignoreRefusal);
     }
-    return refuse(`Files kept changing at ${root.checkout}. Let the saves finish, then retry removal.`);
+    return refuse(`Files kept changing at ${root.checkout}. Let the saves finish, then retry ${retirementName(disposition)}.`);
   } finally { root.checkpoint = null; }
 }
 
-async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionRootState, initial: ProjectionIndex): Promise<{ index: ProjectionIndex; refusal?: Remedy; ignoreRefusal?: Remedy }> {
+async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionRootState, initial: ProjectionIndex,
+  disposition: ProjectionRetirement): Promise<{ index: ProjectionIndex; refusal?: Remedy; ignoreRefusal?: Remedy }> {
   const walked = await walkPersistedRoots(root);
   const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs },
     records: initial.ignoreFiles, recordedGuard: initial.ignoreGuard, reference: await readReference(root.checkout),
@@ -152,7 +154,7 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
     if (result.answer === "no-edit" || result.answer === "taken-in" && installation === "attempted") continue;
     const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.path === path)?.mark;
     const refusal = ignores.kind === "refused" && !root.writable(path) ? { text: ignores.remedy }
-      : reported?.remedy ?? result.entry.refused?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry removal.` };
+      : reported?.remedy ?? result.entry.refused?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` };
     return { index, refusal };
   }
   return { index, ...(ignores.kind === "refused" ? { ignoreRefusal: { text: ignores.remedy } } : {}) };
@@ -185,11 +187,11 @@ async function changedProjectionFiles(root: ProjectionRootState, index: Projecti
 
 function refuse(text: string): ProjectionPersistResult { return { kind: "refused", remedy: { text } }; }
 
-function unsentRefusal(root: ProjectionRootState, observedFrom: number): Remedy | undefined {
+function unsentRefusal(root: ProjectionRootState, observedFrom: number, disposition: ProjectionRetirement): Remedy | undefined {
   const [path] = root.unsent;
   if (path === undefined) return undefined;
   const mark = projectionProcessState().diagnostics.slice(observedFrom).reverse().find(each => each.path === path)?.mark;
-  return mark?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry removal.` };
+  return mark?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` };
 }
 
 function invalidateRemovalHistory(store: Store, history: HistoryMemo): Store {

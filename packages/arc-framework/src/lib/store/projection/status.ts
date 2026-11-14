@@ -65,7 +65,7 @@ async function readRecordedProjectionStatus(input: ProjectionStatusInput): Promi
     input.ports?.() ?? createProjectionEnginePorts(input.checkout));
   const read = await readProjectionIndex(location, false, { groups: "walked", retry: true });
   if (read.kind === "no-projection") return read;
-  if (read.kind === "unusable") return { ...read, remedy: {
+  if (read.kind === "unusable") return { kind: "unusable", cause: read.cause, remedy: {
     text: "Restore a readable projection index, then retry; existing projected files have been left alone.",
   } };
   return snapshot(read.index);

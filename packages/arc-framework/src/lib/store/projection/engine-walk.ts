@@ -37,7 +37,7 @@ export async function walkProjectionRoots(checkout: string, roots: readonly stri
   const output = { pending, files, links };
   for (let path = pending.pop(); path !== undefined; path = pending.pop()) {
     if (isExcludedProjectionPath(path)) continue;
-    const entries = readProjectionFolder(join(checkout, path), fs);
+    const entries = readProjectionFolder(join(checkout, path), fs, name => isExcludedProjectionPath(`${path}/${name}`));
     if (entries !== null) collectEntries(path, entries, output);
     await new Promise<void>(resolve => setImmediate(resolve));
   }
@@ -48,7 +48,6 @@ function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["read
   output: { pending: string[]; files: string[]; links: string[] }): void {
   for (const entry of entries) {
     const child = `${path}/${entry.name}`;
-    if (isExcludedProjectionPath(child)) continue;
     if (entry.isDirectory()) output.pending.push(child);
     else if (entry.isFile()) output.files.push(child);
     else if (entry.isSymbolicLink()) output.links.push(child);
@@ -59,22 +58,24 @@ function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["read
  * Read one folder's typed entries, or null when the folder itself is gone. A typed read types each entry a filesystem
  * leaves untyped by its own stat, which fails when that one entry vanishes; the survivors are then typed one at a time,
  * so one vanished entry never drops the folder. An entry the read types as a link is typed again by its own stat, since
- * a Windows listing types every reparse point as a link, a tagged regular file or folder included.
+ * a Windows listing types every reparse point as a link, a tagged regular file or folder included. A skipped name is left
+ * out before any of that, so nothing about it is inspected.
  */
-export function readProjectionFolder(folder: string, fs: ProjectionWalkFs = nativeWalkFs): readonly WalkEntry[] | null {
+export function readProjectionFolder(folder: string, fs: ProjectionWalkFs = nativeWalkFs,
+  skip: (name: string) => boolean = () => false): readonly WalkEntry[] | null {
   let entries: readonly WalkEntry[];
   try {
-    entries = fs.readdir(folder);
+    entries = fs.readdir(folder).filter(entry => !skip(entry.name));
   } catch (error) {
     if (!missingPath(error)) throw error;
-    return readSurvivingEntries(fs, folder);
+    return readSurvivingEntries(fs, folder, skip);
   }
   if (!entries.some(entry => entry.isSymbolicLink())) return entries;
   const lstat = walkLstat(fs);
   return entries.flatMap(entry => entry.isSymbolicLink() ? statEntry(lstat, folder, entry.name) : [entry]);
 }
 
-function readSurvivingEntries(fs: ProjectionWalkFs, folder: string): WalkEntry[] | null {
+function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name: string) => boolean): WalkEntry[] | null {
   const lstat = walkLstat(fs), names = fs.readdirNames ?? (path => readdirSync(path));
   let listed: readonly string[];
   try {
@@ -84,7 +85,7 @@ function readSurvivingEntries(fs: ProjectionWalkFs, folder: string): WalkEntry[]
     if (missingPath(error)) return null;
     throw error;
   }
-  return listed.flatMap(name => statEntry(lstat, folder, name));
+  return listed.filter(name => !skip(name)).flatMap(name => statEntry(lstat, folder, name));
 }
 
 function walkLstat(fs: ProjectionWalkFs): NonNullable<ProjectionWalkFs["lstat"]> {

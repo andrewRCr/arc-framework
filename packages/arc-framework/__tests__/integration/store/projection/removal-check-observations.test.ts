@@ -1,6 +1,6 @@
 /** Failed target observations never become local edit refusals during retirement feasibility. */
-import { mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
-import { writeFileSync } from "node:fs";
+import { mkdir, readdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
@@ -231,5 +231,29 @@ it.each(["unreadable", "incomplete"] as const)("keeps a project inbox unobservab
   const context = { store, identity: SlugSchema.parse("andrew") };
   expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable" });
   restored = true;
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
+});
+
+it("keeps an index a publication leaves unusable at admission capture unobservable until it settles", async () => {
+  const { f, projected } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  const path = Object.keys(projected.index.entries)[0];
+  if (path === undefined) throw new Error("No projected metadata");
+  const before = parseStampedFile(await readFile(join(f.root, path), "utf8"));
+  if (before.stamp === null) throw new Error("The projected metadata has no base stamp");
+  await writeFile(join(f.root, path), renderStampedFile({ content: `${before.content}\nA valid hand edit.\n`, stamp: before.stamp }));
+  const partition = (await readdir(projected.location.stateDir)).find(name => /^index-[a-f0-9]{40}$/u.test(name));
+  if (partition === undefined) throw new Error("No index partition");
+  const live = join(projected.location.stateDir, partition), held = `${live}.held`;
+  const native = createProjectionEnginePorts(f.root);
+  let configurations = 0;
+  const context = { store: f.store, identity: SlugSchema.parse("andrew"), ports: () => ({ ...native,
+    exec: (...args: Parameters<typeof native.exec>) => {
+      // A publication between the check's own index read and the capture's leaves a named partition missing.
+      if (args[1][0] === "config" && ++configurations === 2) renameSync(live, held);
+      return native.exec(...args);
+    } }) };
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable", detail: expect.stringContaining(f.root) });
+  await rename(held, live);
+  configurations = 2;
   expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
 });

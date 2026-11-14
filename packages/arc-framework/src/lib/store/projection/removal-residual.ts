@@ -18,7 +18,8 @@ type Check = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
 export async function observeUnprojectedPersonalFiles(checkout: string, fs: ProjectionResidualFs = nativeFs): Promise<Check> {
   try {
     const marker = await readWorktreeMarker(checkout);
-    if (marker.kind === "malformed") return { kind: "unobservable", detail: `${marker.path}: ${marker.message}` };
+    if (marker.kind === "malformed") return { kind: "unobservable",
+      detail: `${marker.path}: ${marker.message}. Repair or remove the marker, then retry removal.` };
     if (marker.kind === "absent" || decodeWorktreeMarkerOwnership(marker.marker).kind !== "current") return { kind: "passes" };
     return await observeManagedPersonalFiles(checkout, fs);
   } catch (error) {

@@ -27,9 +27,6 @@ export async function withProjectionFanOutLock<T>(location: ProjectionLocation, 
       state.lockHeld = held.previous;
       if (fanOut === "drop") state.fanOutSuppressed -= 1;
     }
-    if (fanOut === "run" && state.fanOutRounds.size > 0) {
-      const root = state.command === null ? undefined : state.roots.get(state.command.checkout);
-      await (root?.fanOut ?? flushProjectionFanOut)();
-    }
+    if (fanOut === "run" && state.fanOutRounds.size > 0) await flushProjectionFanOut();
   }
 }

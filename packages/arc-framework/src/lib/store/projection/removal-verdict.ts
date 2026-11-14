@@ -6,14 +6,23 @@ import { sameReference, type RecordReference } from "../identity.js";
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
 
+/** The retirement a check or step answers for: a checkout's removal, or the release of its projection. */
+export type ProjectionRetirement = "remove" | "release";
+
+/** The retirement a remedy asks to retry, named as the operation that met the refusal. */
+export function retirementName(disposition: ProjectionRetirement): "removal" | "release" {
+  return disposition === "release" ? "release" : "removal";
+}
+
 /** Preserve failed observations separately from locally refused authored changes. */
-export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, path: string): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
+export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, path: string,
+  disposition: ProjectionRetirement): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
   if (prepared.kind === "ready") {
     const plan = prepared.submission.plan;
     // Write-back lands an edit that keeps a retained mark and then refuses it, so persistence would refuse it too.
     if (plan.prepared.retained !== null) return { kind: "would-refuse", remedy: plan.prepared.retained.remedy };
     const current = plan.observations.find(observation => sameReference(observation.reference, plan.mutation.reference));
-    return unresolvedRemovalConflicts(path, current?.expected?.conflicts ?? [], plan.mutation.resolves ?? []);
+    return unresolvedRemovalConflicts(path, current?.expected?.conflicts ?? [], plan.mutation.resolves ?? [], disposition);
   }
   // A failed read leaves the edit unjudged. A refusal preparation reached on what it read is the edit's own; a Store
   // read that failed beneath it is still retained by the check's read observation.
@@ -22,12 +31,12 @@ export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, pa
   if (prepared.kind === "refused" && prepared.nativeRefusal === true) return { kind: "unobservable", detail: prepared.mark.remedy.text };
   const mark = prepared.kind === "refused" ? prepared.mark : prepared.kind === "clashed" ? prepared.diagnostic
     : prepared.diagnostic ?? prepared.result.entry.refused;
-  return { kind: "would-refuse", remedy: mark?.remedy ?? { text: `Let ${path} finish settling, then run arc save there and retry removal.` } };
+  return { kind: "would-refuse", remedy: mark?.remedy ?? { text: `Let ${path} finish settling, then run arc save there and retry ${retirementName(disposition)}.` } };
 }
 
 /** A preparation that preserves open conflicts cannot finish retirement's conflict hold. */
 export function unresolvedRemovalConflicts(path: string, open: readonly RecordReference[],
-  resolves: readonly RecordReference[]): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
+  resolves: readonly RecordReference[], disposition: ProjectionRetirement): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
   return open.some(conflict => !resolves.some(reference => sameReference(conflict, reference)))
-    ? { kind: "would-refuse", remedy: { text: `Resolve the conflicts in ${path} by hand, then run arc save there and retry removal.` } } : null;
+    ? { kind: "would-refuse", remedy: { text: `Resolve the conflicts in ${path} by hand, then run arc save there and retry ${retirementName(disposition)}.` } } : null;
 }

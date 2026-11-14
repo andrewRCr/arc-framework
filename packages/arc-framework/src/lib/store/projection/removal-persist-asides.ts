@@ -9,6 +9,7 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
+import { retirementName, type ProjectionRetirement } from "./removal-verdict.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -18,17 +19,18 @@ interface CopyPersistenceInput {
   readonly index: ProjectionIndex;
   readonly hooks?: ProjectionPersistHooks;
   readonly ignoreRefusal?: Remedy;
+  readonly disposition: ProjectionRetirement;
 }
 
 /** Settle even a live writer's copies, publishing returned aliases before cleanup. */
-export async function persistProjectionAsides(root: ProjectionRootState, initial: ProjectionIndex,
+export async function persistProjectionAsides(root: ProjectionRootState, initial: ProjectionIndex, disposition: ProjectionRetirement,
   hooks?: ProjectionPersistHooks, ignoreRefusal?: Remedy): Promise<PersistedProjectionAsides> {
   let index = initial;
   for (const path of Object.keys(index.entries)) {
     const first = index.entries[path];
     if (first?.kind !== "record") continue;
     for (const name of first.copies.map(copy => copy.name)) {
-      const settled = await persistCopy({ root, index, hooks, ignoreRefusal }, path, name);
+      const settled = await persistCopy({ root, index, hooks, ignoreRefusal, disposition }, path, name);
       index = settled.index;
       if (settled.refusal !== undefined) return settled;
     }
@@ -66,7 +68,7 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
   const published = await commitReturnedCopies({ checkout: root.checkout, location: root.location, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, settled.entry),
     returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [] });
-  return { index: published, refusal: removalCopyRefusal(settled, name, diagnosticFrom) };
+  return { index: published, refusal: removalCopyRefusal(settled, name, diagnosticFrom, input.disposition) };
 }
 
 async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string,
@@ -76,19 +78,20 @@ async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string
   if (observed.kind === "no-edit" || observed.kind === "gone") return { index };
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);
-  return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(copy.name) };
+  return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(copy.name, input.disposition) };
 }
 
 /** Preserve the copy's actual blocking outcome and diagnostic across retirement operations. */
-export function removalCopyRefusal(settled: CopySettlement, copy: string, diagnosticFrom: number): Remedy | undefined {
+export function removalCopyRefusal(settled: CopySettlement, copy: string, diagnosticFrom: number,
+  disposition: ProjectionRetirement): Remedy | undefined {
   if (settled.kind === "deleted" || settled.kind === "dropped" || settled.kind === "linked-back") return undefined;
   if (settled.kind === "not-a-file") return settled.remedy;
-  if (settled.kind === "moved-on") return recoverCopy(copy);
+  if (settled.kind === "moved-on") return recoverCopy(copy, disposition);
   const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.copy === copy)?.mark;
   return reported?.remedy ?? settled.entry.refused?.remedy
-    ?? { text: `Let ${copy} finish saving, then run arc save there and retry removal.` };
+    ?? { text: `Let ${copy} finish saving, then run arc save there and retry ${retirementName(disposition)}.` };
 }
 
-function recoverCopy(copy: string): Remedy {
-  return { text: `Recover anything wanted from ${copy}, then delete that copy explicitly and retry removal.` };
+function recoverCopy(copy: string, disposition: ProjectionRetirement): Remedy {
+  return { text: `Recover anything wanted from ${copy}, then delete that copy explicitly and retry ${retirementName(disposition)}.` };
 }

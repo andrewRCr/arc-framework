@@ -40,7 +40,7 @@ export async function projectionSelectionResult(store: Store, checkout: string,
     condition: "The checkout's projection start has not completed.", remedy: { text: "Retry arc selection through its command entry." } } };
   const disk = await readProjectionIndex(root.location, true, { groups: "non-completed", retry: true });
   if (disk.kind !== "index") return { status: "refused", refusal: { code: "projection-refused",
-    condition: `Projection index is ${disk.kind === "unusable" ? disk.cause : "missing"}.`,
+    condition: `Projection index is ${disk.cause}.`,
     remedy: { text: "Restore a readable projection index, then retry arc selection; existing projected files have been preserved." } } };
   return { status: "ok", result: { paths: selectProjectedMarkdown(disk.index.entries, root.identity, options)
     .filter(path => root.blockedByLink(path) === null) } };

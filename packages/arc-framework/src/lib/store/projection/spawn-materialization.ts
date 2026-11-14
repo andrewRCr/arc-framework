@@ -55,7 +55,7 @@ async function materializeSpawn(input: ProjectionCommandInput, checkout: string)
         return;
       }
       const materialized = await materializeProjectionRoot({ root, source: input.store, configuration, version: version.result,
-        index: null, recovered: disk.kind === "unusable" ? disk.header : undefined });
+        index: null, recovered: disk.header });
       if (materialized.kind === "refused") root.context.report?.({ path: checkout, copy: null, mark: materialized.mark });
     } finally { root.checkpoint = null; }
   }, { invalidatePartition: true, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);

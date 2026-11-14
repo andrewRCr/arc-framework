@@ -56,7 +56,11 @@ async function resolveArchivedCohort(root: ProjectionSelectionContext, path: str
   if (result.status === "absent") return missingArchive(path);
   if (result.missed || result.diagnostics.length > 0) {
     const first = result.diagnostics[0];
-    return { kind: "refused", readFailure: true, mark: first === undefined ? missingArchive(path).mark : { reason: first.condition, remedy: first.remedy } };
+    // An incomplete listing establishes nothing about the record, so it names the inventory, as the work-item archive does.
+    return { kind: "refused", readFailure: true, mark: first === undefined ? {
+      reason: "The archived cohort inventory is incomplete.",
+      remedy: { text: "Restore the missing cohort archive inventory, then retry adoption." },
+    } : { reason: first.condition, remedy: first.remedy } };
   }
   const matching: StoreRecord[] = [];
   for (const record of result.records) {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { readProjectionConfiguration } from "./configuration.js";
-import { readProjectionIndex, PROJECTION_INDEX_FILE } from "./index-file.js";
+import { readProjectionIndex, PROJECTION_INDEX_FILE, type HeldProjectionIndexRead } from "./index-file.js";
 import { walkProjectionRoots, type ProjectionWalkResult } from "./engine-walk.js";
 import { checkoutHoldsProjection } from "./ownership.js";
 import { readProjectionStats } from "./stat-observations.js";
@@ -32,7 +32,7 @@ export function launchProjectionStart(input: ProjectionStartInput, ports: Projec
   version: ReturnType<ProjectionStartInput["store"]["version"]>;
   shared: Promise<ProjectionWalkObservation>;
   personal: Promise<ProjectionWalkObservation>;
-  index: ReturnType<typeof readProjectionIndex>;
+  index: Promise<HeldProjectionIndexRead>;
 } {
   const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
   const version = input.store.version();

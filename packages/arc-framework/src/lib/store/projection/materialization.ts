@@ -39,16 +39,20 @@ import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
 
 /** Inputs observed by the lease-owning caller. */
-export interface ProjectionMaterializationInput {
+interface ProjectionMaterializationBasis {
   readonly root: ProjectionRootState;
   readonly source: ProjectionSource;
   readonly configuration: ProjectionConfiguration;
   readonly version: StateVersion;
-  readonly index: ProjectionIndex | null;
-  readonly onlyDeleted?: boolean;
   readonly startTiming?: number;
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
 }
+/**
+ * A full lay over no usable index, or the restoration of deleted files over a usable one. A usable index never takes a
+ * full lay: only complete removal evidence could advance its state, and the start's refresh owns that.
+ */
+export type ProjectionMaterializationInput = ProjectionMaterializationBasis
+  & ({ readonly index: null; readonly onlyDeleted?: false } | { readonly index: ProjectionIndex; readonly onlyDeleted: true });
 /** The resulting index, retaining any per-root refusal for callers that report a failed materialization. */
 export type ProjectionMaterializationResult = { readonly kind: "materialized"; readonly index: ProjectionIndex }
   | { readonly kind: "refused"; readonly index: ProjectionIndex; readonly mark: RefusedMark };

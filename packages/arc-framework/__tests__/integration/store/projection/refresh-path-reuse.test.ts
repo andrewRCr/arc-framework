@@ -11,12 +11,11 @@ import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store
 import { runCohortRename } from "../../../../src/lib/store/cohort-rename.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { saveAs, SAVE_MODES } from "../../../helpers/store/projection/save-loss.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
-import { materializeProjectionRoot } from "../../../../src/lib/store/projection/materialization.js";
-import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
@@ -148,35 +147,26 @@ it.each(SAVE_MODES)("holds a late %s save across command end and resumes after d
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(h.arrived);
 });
 
-async function materializeExisting(h: Awaited<ReturnType<typeof reusedPathFixture>>) {
-  const root = projectionProcessState().roots.get(h.f.root);
-  if (root === undefined) throw new Error("Missing bound root");
-  const configuration = await readProjectionConfiguration(root.ports.exec, h.f.root);
-  const version = success(await h.f.store.version());
-  const result = await withProjectionLock(root.location, async session => {
-    root.checkpoint = session.step;
-    try {
-      const disk = await readProjectionIndex(root.location, true, { groups: "all" });
-      if (disk.kind !== "index") throw new Error("Missing materialization input");
-      return await materializeProjectionRoot({ root, source: h.f.store, configuration, version, index: disk.index });
-    } finally { root.checkpoint = null; }
-  });
-  if (result.status !== "done") throw new Error("Materialization lease refused");
-  return result.value.index;
+async function startedIndex(h: Awaited<ReturnType<typeof reusedPathFixture>>) {
+  await startProjection({ checkout: h.f.root, store: h.f.store });
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing started index");
+  return disk.index;
 }
 
-it("uses the same journal and recovery when fully materializing an existing index", async () => {
+it("journals an arrival at a reused path and recovers it across the starts that follow", async () => {
   const h = await reusedPathFixture();
   const before = await readProjectionIndex(h.projected.location, true);
   if (before.kind !== "index") throw new Error("Missing original anchor");
-  const first = await materializeExisting(h);
+  const first = await startedIndex(h);
   expect(first.state).toBe(before.index.state);
   await endProjection({ checkout: h.f.root, store: h.f.store });
-  const second = await materializeExisting(h);
+  const second = await startedIndex(h);
   expect(second.entries[h.path]).toMatchObject({ withheld: true, handoff: { reference: { owner: {
     uid: "00000000-0000-4000-8000-000000000099",
   } } } });
-  const recovered = await materializeExisting(h);
+  await endProjection({ checkout: h.f.root, store: h.f.store });
+  const recovered = await startedIndex(h);
   expect(recovered.entries[h.path]).toMatchObject({ reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } },
     withheld: false, pending: false });
   expect(recovered.state).toBe(success(await h.f.store.version()));
@@ -340,3 +330,56 @@ it("holds a same-slug unit's changed record out of the own folder once the check
     await expect(readFile(join(h.f.root, ".arc/active/current/notes-alpha.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   }
 });
+
+it("keeps a held handoff's ownership mark through a later start's refresh, never reporting the generic withheld mark", async () => {
+  const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await startProjection(command);
+  await writeFile(join(h.f.root, h.path), h.old.replace("Coordinate the work.", "A late leaving save must stay recoverable."));
+  await endProjection(command);
+  await startProjection(command);
+  const marks = projectionProcessState().diagnostics.filter(each => each.path === h.path).map(each => each.mark.reason);
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: { entries: {
+    [h.path]: { withheld: true, refused: { reason: expect.stringContaining("Ownership handoff") } },
+  } } });
+  expect(marks).toContainEqual(expect.stringContaining("Ownership handoff"));
+  expect(marks).not.toContainEqual(expect.stringContaining("no trustworthy basis"));
+  await endProjection(command);
+});
+
+it("carries a moved record's changed mark onto a path another record is vacating", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(h.f.root);
+  const command = { checkout: h.f.root, store: h.f.store };
+  const leaving = await seed(h.f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })), cohortDoc().content);
+  const moving = await seed(h.f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "other" })),
+    cohortDoc("other").content);
+  await rm(join(h.projected.location.stateDir, "index"));
+  await startProjection(command);
+  await endProjection(command);
+  const path = ".arc/backlog/planned/group/cohort-group.md", from = ".arc/backlog/planned/other/cohort-other.md";
+  await withProjectionLock(h.projected.location, async session => {
+    const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    if (read.kind !== "index") throw new Error("Missing index");
+    const entry = read.index.entries[from];
+    if (entry?.kind !== "record") throw new Error("Missing moving entry");
+    await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
+      index: withProjectionEntry(read.index, from, { ...entry, changed: true }) });
+  });
+  expect(await runCohortRename(h.f.store, leaving, { operand: "group", targetSlug: "root" })).toMatchObject({ status: "renamed" });
+  const owner = moving.reference.owner, uid = owner.type === "person" ? undefined : owner.uid;
+  if (uid === undefined) throw new Error("Missing moving UID");
+  // A concurrent writer's rename of the moving cohort onto the vacated name arrives with the next pull.
+  await plantRefPrimary(h.f, { kind: "cohort/document", name: "group", uid,
+    content: cohortDoc().content.replace("Coordinate the work.", "The moving cohort under its new name.") });
+  for (let round = 0; round < 3; round++) {
+    await startProjection(command);
+    await endProjection(command);
+  }
+  const index = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (index.kind !== "index") throw new Error("Missing index");
+  const arrived = index.index.entries[path];
+  expect(arrived).toMatchObject({ kind: "record", changed: true, reference: { owner: { uid } } });
+  expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
+}, 30_000);

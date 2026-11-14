@@ -1,17 +1,18 @@
 /** Re-lay changed owner primaries, loading historical coordinates only for those owners. */
-import { OwnerIdentitySchema, recordReferences, sameOwner, sameReference, type OwnerIdentity } from "../identity.js";
+import { OwnerIdentitySchema, recordReferences, sameOwner, sameReference, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { identifyArcFileAddress } from "../../layout/index.js";
 import type { StoreRecord } from "../read.js";
 import { desiredProjectionPaths, isClaimedProjectionOwner, projectionRecordPath, type DesiredProjection } from "./desired-paths.js";
 import { projectionListingComplete, projectionListingDiagnostics, type ProjectionInventory } from "./inventory.js";
-import { loadProjectionPathGroup } from "./index-memory.js";
+import { loadProjectionGroups, loadProjectionPathGroup } from "./index-memory.js";
 import { retainUncertainProjectionPaths } from "./placement-evidence.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import type { ProjectionRefreshPlanInput, ProjectionRefreshPlan } from "./refresh-plan.js";
+import { planProjectionSelection } from "./selection-plan.js";
 
 /** Primary changes expand to every current owner record and every former indexed path. */
 export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[],
-  plan: ProjectionRefreshPlan): Promise<boolean> {
+  plan: ProjectionRefreshPlan, pendingOnly: readonly OwnerIdentity[] = []): Promise<boolean> {
   const { records, complete, unresolved } = await readOwners(input, owners);
   const located = await readOwnPrimary(input, records);
   const own = located.primary;
@@ -20,16 +21,41 @@ export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners
     complete: reference => complete.some(owner => sameOwner(reference.owner, owner)) };
   const desired = await desiredProjectionPaths(input.root, inventory, located.unavailable);
   const membership = ownMembershipChanged(input, complete, own);
-  applyOwnerPaths({ input, owners, complete, plan, desired, membership });
+  applyOwnerPaths({ input, owners, complete, plan, desired, membership, pendingOnly });
   retainUncertainProjectionPaths(input.index, desired, plan);
-  return unresolved || desired.unresolved;
+  const regrouped = membership && inFlightSelectionMoved(input, desired) ? await planInFlightSelection(input, plan) : false;
+  return unresolved || desired.unresolved || regrouped;
+}
+
+const IN_FLIGHT = /^\.arc\/active\/in-flight\/([^/]+)\//u;
+
+/** Under the cohort view the own unit's membership picks the in-flight units, so a pick the index does not hold has moved. */
+function inFlightSelectionMoved(input: ProjectionRefreshPlanInput, desired: DesiredProjection): boolean {
+  if (input.root.view.mode !== "cohort" || desired.selection.kind !== "selected") return false;
+  loadProjectionGroups(input.index, [".arc/active"]);
+  const held = new Set(Object.keys(input.index.entries).flatMap(path => IN_FLIGHT.exec(path)?.[1] ?? []));
+  const picked = new Set(desired.selection.references.map(reference => reference.owner.name));
+  return held.size !== picked.size || [...picked].some(name => !held.has(name));
+}
+
+/** Lay the newly selected units' files and remove the departed ones' through the guarded removal, as reprojection does. */
+async function planInFlightSelection(input: ProjectionRefreshPlanInput, plan: ProjectionRefreshPlan): Promise<boolean> {
+  const selected = await planProjectionSelection(input, path => IN_FLIGHT.test(path));
+  for (const [path, reference] of selected.paths) if (!settledAt(input, path, reference)) plan.paths.set(path, reference);
+  for (const path of selected.removals) {
+    if (!selected.paths.has(path)) plan.paths.delete(path);
+    plan.removals.add(path);
+  }
+  return selected.unresolved;
 }
 
 function applyOwnerPaths(scope: { input: ProjectionRefreshPlanInput; owners: readonly OwnerIdentity[]; complete: readonly OwnerIdentity[];
-  plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean }): void {
-  const { input, owners, plan, desired, membership } = scope;
+  plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean; pendingOnly: readonly OwnerIdentity[] }): void {
+  const { input, owners, plan, desired, membership, pendingOnly } = scope;
   for (const [path, record] of desired.files) {
-    if (owners.some(owner => sameOwner(record.reference.owner, owner)) || membership && isOwnCohortCopy(input, path)) plan.paths.set(path, record.reference);
+    const owned = owners.some(owner => sameOwner(record.reference.owner, owner));
+    if (owned && pendingOnly.some(owner => sameOwner(record.reference.owner, owner)) && settledAt(input, path, record.reference)) continue;
+    if (owned || membership && isOwnCohortCopy(input, path)) plan.paths.set(path, record.reference);
   }
   removeOwnerPaths(scope);
 }
@@ -43,6 +69,12 @@ function removeOwnerPaths(scope: Parameters<typeof applyOwnerPaths>[0]): void {
     const affected = complete.some(owner => sameOwner(entry.reference.owner, owner)) || membership && isOwnCohortCopy(input, path);
     if (affected) { if (arriving === undefined) plan.paths.delete(path); plan.removals.add(path); }
   }
+}
+
+/** A file already laid at its place for the same record, with nothing pending, which no store change touched. */
+function settledAt(input: ProjectionRefreshPlanInput, path: string, reference: RecordReference): boolean {
+  const entry = input.index.entries[path];
+  return entry?.kind === "record" && !entry.pending && sameReference(entry.reference, reference);
 }
 
 function ownMembershipChanged(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[], own: StoreRecord | null): boolean {

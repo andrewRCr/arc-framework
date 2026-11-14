@@ -6,7 +6,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { Stats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import { loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
+import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -54,6 +54,7 @@ export function projectionLinkRemedy(link: string): Remedy {
 export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "checkout" | "location" | "context" | "blockedByLink" | "unsent">,
   index: ProjectionIndex): Promise<ProjectionIndex> {
   loadProjectionGroups(index, "walked");
+  const groups = loadedProjectionGroups(index);
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of Object.entries(index.entries)) {
@@ -66,7 +67,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
     changed ||= next !== entry;
   }
   return changed ? commitProjectionIndex({ checkout: root.checkout, location: root.location,
-    checkpoint: root.context.checkpoint, index: replaceLoadedProjectionEntries(index, Object.fromEntries(entries)) }) : index;
+    checkpoint: root.context.checkpoint, index: replaceLoadedProjectionEntries(index, Object.fromEntries(entries), groups) }) : index;
 }
 
 function withoutPhysicalEdit(entry: IndexEntry): IndexEntry | null {

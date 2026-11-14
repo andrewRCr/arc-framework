@@ -82,3 +82,20 @@ it("skips an unresolvable anchor without inventory reads, then rebuilds it at th
   expect(source.calls("list")).toBeGreaterThan(lists);
   expect(success(await h.store.version())).toBe(success(await h.h.store.version()));
 });
+
+it("reports a sibling whose changes read the store refuses for a fault, skips it, and catches it up after repair", async () => {
+  let source: ReturnType<typeof createRefusingStore> | undefined;
+  const h = await createFanOutFixture(directories, { store: store => { source = createRefusingStore(store); return source.store; } });
+  if (source === undefined) throw new Error("Missing controlled source");
+  source.refuse("changes", StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/work-items",
+    condition: "The change history is damaged.", remedy: { text: "Repair the change history and retry." } }));
+  const before = await h.file();
+  expect(await write(h, "Stored over a damaged change history.\n")).toMatchObject({ status: "ok" });
+  expect(await h.file()).toBe(before);
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: h.sibling.checkout,
+    mark: expect.objectContaining({ reason: expect.stringContaining("The change history is damaged.") }) }));
+  await endProjection(h.input);
+  source.refuse("changes", null);
+  expect(await startProjection({ store: h.h.store, checkout: h.sibling.checkout, location: h.sibling.location })).toMatchObject({ kind: "ready" });
+  expect(await h.file()).toContain("Stored over a damaged change history.");
+});

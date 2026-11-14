@@ -14,7 +14,8 @@ import { projectionProcessState, type FanOutScope, type ProjectionRootState } fr
 import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { createProjectionReadMemo, type ProjectionSource } from "./record-source.js";
-import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
+import { readProjectionIndex, commitProjectionIndex, type ProjectionIndexRead } from "./index-file.js";
+import { markStoreRefusal } from "./refusal-mark.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import { SIBLING_LOCK_WAIT_MS, type ProjectionLockSession } from "./lock.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
@@ -52,31 +53,42 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
   // Only a record some view could lay in this checkout takes a changed mark here.
   const identity = configuration.identity.identity;
   const writes = ownWrites.filter(reference => projectableRecord(identity, reference));
-  const source = createProjectionReadMemo(input.store), version = await source.version();
-  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return writes; }
   const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, { cwd: input.checkout, ...options });
   const checkouts = createCheckoutObservation(exec), roster = await checkouts.scan();
+  // Every target's header is read before the round's version, so a state another process records after it fails the lease check.
+  const own = await observeTarget(ports, input.checkout, input.location);
+  const siblings = scope === "own" || !roster.ok ? [] : await observeSiblings(input.checkout, input.location, ports, roster.worktrees);
+  const source = createProjectionReadMemo(input.store), version = await source.version();
+  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return writes; }
   const evidence = createProjectionProtectionEvidence({ source, checkout: input.checkout, exec: ports.exec, checkouts });
   const round: FanOutRound = { input, ports, configuration, source, version: version.result, ownWrites: writes, evidence };
-  const unmarked = await visitTarget(round, input.checkout, input.location);
+  const unmarked = await visitTarget(round, own);
   if (scope === "own") return unmarked;
   if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return unmarked; }
+  for (const sibling of siblings) await visitTarget(round, sibling);
+  return unmarked;
+}
+
+/** Each registered sibling that holds its own Git directory and a checked-out head, observed in roster order. */
+async function observeSiblings(writer: string, writerLocation: ProjectionLocation, ports: ProjectionEnginePorts,
+  worktrees: readonly { readonly path: string; readonly folderPresent: boolean }[]): Promise<ObservedTarget[]> {
+  const observed: ObservedTarget[] = [];
   let ownGitDir: Promise<string> | undefined;
-  for (const checkout of roster.worktrees) {
-    if (!checkout.folderPresent || checkout.path === input.checkout) continue;
+  for (const checkout of worktrees) {
+    if (!checkout.folderPresent || checkout.path === writer) continue;
     try {
       // Git lists a primary whose `.git` is a `gitdir:` file at its Git directory, where no projection was laid.
       if (!await holdsGitMarker(checkout.path, ports.fs)) continue;
       const directories = await readGitDirectories(checkout.path, ports.fs);
-      if (directories.gitDir === input.location.gitDir
-        || await ports.fs.realpath(directories.gitDir) === await (ownGitDir ??= ports.fs.realpath(input.location.gitDir))
+      if (directories.gitDir === writerLocation.gitDir
+        || await ports.fs.realpath(directories.gitDir) === await (ownGitDir ??= ports.fs.realpath(writerLocation.gitDir))
         || await readReference(checkout.path) === null) continue;
       const location = { ...directories, primary: directories.gitDir === directories.commonDir,
         stateDir: join(directories.gitDir, PROJECTION_STATE_FOLDER) };
-      await visitTarget(round, checkout.path, location);
+      observed.push(await observeTarget(ports, checkout.path, location));
     } catch (cause) { reportProjectionFanOutFailure(checkout.path, cause); }
   }
-  return unmarked;
+  return observed;
 }
 
 async function holdsGitMarker(path: string, fs: ProjectionEnginePorts["fs"]): Promise<boolean> {
@@ -89,18 +101,37 @@ async function holdsGitMarker(path: string, fs: ProjectionEnginePorts["fs"]): Pr
   }
 }
 
-/** Visit one checkout, answering the writer's own writes it left unmarked there; a sibling answers none. */
-async function visitTarget(round: FanOutRound, checkout: string, location: ProjectionLocation): Promise<readonly RecordReference[]> {
-  const state = projectionProcessState(), own = checkout === round.input.checkout;
-  const unmarked = own ? round.ownWrites : [];
-  // A faulted writer still records its marks under the lease; only its refresh waits for the repair.
-  if (state.retiring.has(checkout) || state.faulted.has(checkout) && !own) return [];
+/** A target's unlocked header, or why the round leaves it: skipped answers no marks, a failed read the writer's own. */
+interface ObservedTarget {
+  readonly checkout: string;
+  readonly location: ProjectionLocation;
+  readonly read: ProjectionIndexRead | "skipped" | "failed";
+}
+
+function skippedTarget(checkout: string): boolean {
+  return projectionProcessState().retiring.has(checkout);
+}
+
+async function observeTarget(ports: ProjectionEnginePorts, checkout: string, location: ProjectionLocation): Promise<ObservedTarget> {
+  if (skippedTarget(checkout)) return { checkout, location, read: "skipped" };
   try {
-    await round.ports.beforeFanOutTarget?.(checkout);
-    const disk = await readProjectionIndex(location, false, { retry: true });
-    // A checkout that holds no projection has no marks to record.
-    if (disk.kind === "no-projection") return [];
-    if (disk.kind !== "index") return unmarked;
+    await ports.beforeFanOutTarget?.(checkout);
+    return { checkout, location, read: await readProjectionIndex(location, false, { retry: true }) };
+  } catch (cause) {
+    reportProjectionFanOutFailure(checkout, cause);
+    return { checkout, location, read: "failed" };
+  }
+}
+
+/** Visit one observed checkout, answering the writer's own writes it left unmarked there; a sibling answers none. */
+async function visitTarget(round: FanOutRound, observed: ObservedTarget): Promise<readonly RecordReference[]> {
+  const { checkout, location, read: disk } = observed;
+  const unmarked = checkout === round.input.checkout ? round.ownWrites : [];
+  if (disk === "skipped" || skippedTarget(checkout)) return [];
+  // A checkout that holds no projection has no marks to record.
+  if (disk !== "failed" && disk.kind === "no-projection") return [];
+  if (disk === "failed" || disk.kind !== "index") return unmarked;
+  try {
     const target: FanOutTarget = { checkout, location, index: disk.index };
     const result = await withProjectionFanOutLock(location, session => refreshTarget(round, target, session),
       { maxWaitMs: SIBLING_LOCK_WAIT_MS }, round.ports.lock);
@@ -134,10 +165,7 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     if (!eligibleTarget(round, root, held, own)) return [];
     const needsReprojection = needsProjectionReprojection(root, held);
     if (held.state === round.version && !needsReprojection && (!own || round.ownWrites.length === 0)) return [];
-    if (held.state !== null && held.state !== round.version) {
-      const changes = await round.source.changes({ from: held.state, to: round.version });
-      if (changes.status !== "ok") return await keepMarks();
-    }
+    if (await changesUnreachable(round, root, held)) return await keepMarks();
     if (!root.ready) root.unsent.clear();
     const refreshed = await refreshHeldProjectionRoot({ root, source: round.source, version: round.version, index: held,
       configuration: round.configuration, evidence: round.evidence,
@@ -149,6 +177,16 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     // A refresh that reached the round's version laid every record projected here, so a write it laid nowhere is not one.
     return index.state === round.version ? [] : unmarked;
   } finally { root.checkpoint = null; }
+}
+
+/** Whether the round's changes cannot be read from the target's state; any refusal but an unresolvable state is reported. */
+async function changesUnreachable(round: FanOutRound, root: ProjectionRootState, held: ProjectionIndex): Promise<boolean> {
+  if (held.state === null || held.state === round.version) return false;
+  const changes = await round.source.changes({ from: held.state, to: round.version });
+  if (changes.status === "ok") return false;
+  // An unresolvable state waits for the target's own rebuild; any other refusal is a fault the round reports.
+  if (changes.refusal.code !== "state-unresolvable") root.context.report?.({ path: root.checkout, copy: null, mark: markStoreRefusal(changes.refusal) });
+  return true;
 }
 
 async function targetRoot(round: FanOutRound, target: FanOutTarget, session: ProjectionLockSession): Promise<ProjectionRootState> {

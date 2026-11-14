@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences, RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 import { commitProjectionIndex, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { loadProjectionGroups, ProjectionPartitionMismatch, withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { loadedProjectionGroups, loadProjectionGroups, ProjectionPartitionMismatch, replaceLoadedProjectionEntries, withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { ProjectionIndexHeaderSchema, ProjectionIndexPartitionSchema } from "../../../../src/lib/store/projection/index-schema.js";
-import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
+import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 
@@ -139,7 +140,7 @@ it("reads back every group its writer forms, including dot folders and unslugged
     ".arc/completed/.hidden/a.md": held, ".arc/user/Blair/notes.md": held, ".arc/user/andrew/USER-INBOX.md": held } };
   await writeProjectionIndex(location, written);
   const disk = await readProjectionIndex(location, true, { groups: "all" });
-  if (disk.kind !== "index") throw new Error(`The written index read back as ${disk.kind === "unusable" ? disk.cause : disk.kind}`);
+  if (disk.kind !== "index") throw new Error(`The written index read back as ${disk.cause}`);
   expect(Object.keys(disk.index.entries).sort()).toEqual(Object.keys(written.entries).sort());
 });
 
@@ -150,4 +151,81 @@ it.each([".arc/active/current", ".arc/completed/..", ".arc/user/.", ".arc/system
   header.groups[group] = header.groups[".arc/active"];
   await writeFile(path, JSON.stringify(header));
   expect(await readProjectionIndex(location, true, { groups: "all" })).toMatchObject({ kind: "unusable" });
+});
+
+it("refuses to replace a path in a root partition the pass did not enumerate", async () => {
+  await writeProjectionIndex(location, index());
+  const source = await disk();
+  loadProjectionGroups(source, [".arc/active"]);
+  const groups = loadedProjectionGroups(source);
+  const entries = Object.fromEntries(Object.entries(source.entries));
+  expect(() => replaceLoadedProjectionEntries(source, { ...entries, ".arc/user/beth/USER-INBOX.md": held }, groups))
+    .toThrow(/did not read in full/u);
+});
+
+it("keeps a root partition loaded after the pass enumerated its entries", async () => {
+  await writeProjectionIndex(location, index());
+  const source = await disk();
+  loadProjectionGroups(source, [".arc/active"]);
+  const groups = loadedProjectionGroups(source);
+  const pending = { ...held, refused: { reason: "pending", remedy: held.refused.remedy } };
+  const entries = Object.fromEntries(Object.entries(source.entries).map(([path]) => [path, pending]));
+  loadProjectionGroups(source, [".arc/user/beth"]);
+  await commitProjectionIndex({ location, checkout, index: replaceLoadedProjectionEntries(source, entries, groups) });
+  const after = await disk();
+  loadProjectionGroups(after, "all");
+  expect(after.entries[".arc/active/current/a.md"]).toEqual(pending);
+  expect(after.entries[".arc/user/beth/USER-INBOX.md"]).toEqual(held);
+});
+
+it("deletes an entry the pass leaves out of an enumerated root and keeps every other root", async () => {
+  await writeProjectionIndex(location, index());
+  const source = await disk();
+  loadProjectionGroups(source, [".arc/active", ".arc/user/andrew"]);
+  const groups = loadedProjectionGroups(source);
+  const entries = Object.fromEntries(Object.entries(source.entries).filter(([path]) => path !== ".arc/user/andrew/USER-INBOX.md"));
+  await commitProjectionIndex({ location, checkout, index: replaceLoadedProjectionEntries(source, entries, groups) });
+  const after = await disk();
+  loadProjectionGroups(after, "all");
+  expect(Object.keys(after.entries).sort()).toEqual([".arc/active/current/a.md", ".arc/completed/2026-q4/a.md", ".arc/user/beth/USER-INBOX.md"]);
+});
+
+const blob = gitBlobId("alpha\n", "sha1"), v1 = RecordVersionSchema.parse("v1");
+const settled: RecordEntry = { kind: "record", reference: recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" })),
+  stat: held.stat, written: blob, base: { blob, version: v1 }, markers: null, notices: [], unshown: [], protected: false, changed: false,
+  pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
+const copy = { name: "a.md.aside", moving: blob, rendering: { markers: null, notices: [] }, linked: null, writeBackSent: false, landed: null };
+
+it.each<[string, Partial<RecordEntry>, boolean]>([
+  ["an aside copy", { copies: [copy] }, true],
+  ["a taken-in input copy", { persisted: { stamp: blob, takenIn: { kind: "copy", name: copy.name, blob, version: v1 } } }, true],
+  ["an adoption", { adoption: { kind: "write-back" } }, true],
+  ["a pending mark", { pending: true }, true],
+  ["a withheld mark", { withheld: true }, true],
+  ["a refusal", { refused: held.refused }, true],
+  ["an unshown conflict", { unshown: [settled.reference] }, true],
+  ["a landed take-in", { persisted: { stamp: blob, takenIn: { kind: "landed", version: v1 } } }, false],
+  ["nothing outstanding", {}, false],
+])("sets its root partition's unsettled mark by a record holding %s", async (_name, arm, unsettled) => {
+  await writeProjectionIndex(location, { ...index(), entries: {
+    ".arc/active/current/a.md": settled, ".arc/completed/2026-q4/a.md": { ...settled, ...arm } } });
+  const groups = (await header()).groups;
+  expect(groups[".arc/completed/2026-q4"]?.unsettled).toBe(unsettled);
+  expect(groups[".arc/active"]?.unsettled).toBe(false);
+});
+
+it("loads a marked cold partition on the walked load and leaves an unmarked one unread", async () => {
+  await writeProjectionIndex(location, { ...index(), entries: {
+    ".arc/active/current/a.md": settled, ".arc/user/andrew/USER-INBOX.md": settled,
+    ".arc/completed/2026-q3/a.md": settled, ".arc/completed/2026-q4/a.md": { ...settled, pending: true },
+    ".arc/user/beth/USER-INBOX.md": settled } });
+  const groups = (await header()).groups;
+  for (const cold of [".arc/completed/2026-q3", ".arc/user/beth"]) {
+    await writeFile(join(location.stateDir, groups[cold]!.name), "corrupted but unvisited");
+  }
+  const source = await disk();
+  loadProjectionGroups(source, "walked");
+  expect([...loadedProjectionGroups(source)].sort()).toEqual([".arc/active", ".arc/completed/2026-q4", ".arc/user/andrew"]);
+  expect(Object.keys(source.entries).sort()).toEqual([".arc/active/current/a.md", ".arc/completed/2026-q4/a.md", ".arc/user/andrew/USER-INBOX.md"]);
+  expect(source.entries[".arc/completed/2026-q4/a.md"]).toMatchObject({ pending: true });
 });

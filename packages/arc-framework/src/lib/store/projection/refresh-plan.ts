@@ -60,8 +60,11 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
     if (added) uncertain.push(reference);
     unresolved ||= added;
   }
+  // An owner here only for a pending entry gets that entry's placement, never a re-lay of its settled files.
+  const changedOwners = [...reduced.map(change => change.reference), ...subjects.references].map(reference => reference.owner);
+  const pendingOnly = owners.filter(owner => !changedOwners.some(changed => sameOwner(changed, owner)));
   if (owners.length > 0) {
-    const ownersUnresolved = await planOwnerRefresh(input, owners, plan);
+    const ownersUnresolved = await planOwnerRefresh(input, owners, plan, pendingOnly);
     unresolved ||= ownersUnresolved;
   }
   for (const reference of uncertain) retainReferencePaths(index, plan, reference);

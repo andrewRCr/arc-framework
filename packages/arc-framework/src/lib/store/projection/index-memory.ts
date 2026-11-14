@@ -130,16 +130,27 @@ export function withProjectionEntry(index: ProjectionIndex, path: string, entry:
   return { ...index, entries: partitionedProjectionEntries(next) };
 }
 
-/** Replace the entries already enumerated by a pass while retaining every unvisited root. */
-export function replaceLoadedProjectionEntries(index: ProjectionIndex, entries: ProjectionEntries): ProjectionIndex {
+/** The root partitions loaded now, which a pass snapshots just before it enumerates the index's entries. */
+export function loadedProjectionGroups(index: ProjectionIndex): ReadonlySet<string> {
+  return new Set(projectionIndexBacking(index)?.loaded.keys());
+}
+
+/**
+ * Replace the entries of the root partitions a pass enumerated while retaining every other root, including one loaded
+ * after the enumeration; a path in a partition the pass did not enumerate refuses rather than truncating it.
+ * @param enumerated - The partitions loaded when the pass enumerated its entries, from `loadedProjectionGroups`.
+ */
+export function replaceLoadedProjectionEntries(index: ProjectionIndex, entries: ProjectionEntries,
+  enumerated: ReadonlySet<string>): ProjectionIndex {
   const backing = projectionIndexBacking(index);
   if (backing === undefined) return { ...index, entries };
-  const next: ProjectionIndexBacking = { ...backing, loaded: new Map([...backing.loaded.keys()].map(group => [group, {}])) };
+  const next: ProjectionIndexBacking = { ...backing, loaded: new Map(backing.loaded) };
+  for (const group of enumerated) next.loaded.set(group, {});
   for (const [path, entry] of Object.entries(entries)) {
     const group = projectionIndexGroup(path);
-    const held = next.loaded.get(group) ?? {};
+    const held = enumerated.has(group) ? next.loaded.get(group) : undefined;
+    if (held === undefined) throw new Error(`Projection path ${path} lies in a root partition this pass did not read in full.`);
     held[path] = entry;
-    next.loaded.set(group, held);
   }
   return { ...index, entries: partitionedProjectionEntries(next) };
 }

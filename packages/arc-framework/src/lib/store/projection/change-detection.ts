@@ -1,6 +1,5 @@
 /** Change detection by Git's racy rule: a stat match is clean only when older than the index's reference. */
-import { withProjectionEntry } from "./index-memory.js";
-import { replaceLoadedProjectionEntries } from "./index-memory.js";
+import { loadedProjectionGroups, replaceLoadedProjectionEntries, withProjectionEntry } from "./index-memory.js";
 import { lstatSync, type BigIntStats } from "node:fs";
 import { lstat, mkdir, readFile as fsReadFile, stat as fsStat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -42,13 +41,14 @@ export async function writeReference(checkout: string, checkpoint?: () => Promis
 export function smudgeRacyEntries(
   index: ProjectionIndex, reference: bigint | null,
 ): ProjectionIndex {
+  const groups = loadedProjectionGroups(index);
   const entries = Object.fromEntries(Object.entries(index.entries).map(([path, entry]) => (
     [path, { ...entry, stat: smudged(entry.stat, reference) }]
   )));
   const ignoreFiles = index.ignoreFiles?.map((record) => (
     record.stat === null ? record : { ...record, stat: smudged(record.stat, reference) }
   )) ?? null;
-  return { ...replaceLoadedProjectionEntries(index, entries), ignoreFiles };
+  return { ...replaceLoadedProjectionEntries(index, entries, groups), ignoreFiles };
 }
 
 function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): T {

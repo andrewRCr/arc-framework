@@ -7,7 +7,7 @@ import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
 import { observeAsideCopy } from "./aside-copies.js";
 import { recordProjectionLockSkip } from "./engine.js";
-import { loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
+import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 /** Clear accepted changed marks under a fresh lease, preserving unsent and uncertain saved copies. */
 export async function saveProjectionChanges(store: Store): Promise<ProjectionSaveResult> {
@@ -20,7 +20,7 @@ export async function saveProjectionChanges(store: Store): Promise<ProjectionSav
       await session.step();
       const disk = await readProjectionIndex(root.location, true);
       if (disk.kind !== "index") return { status: "refused" as const, refusal: { code: "projection-refused" as const,
-        condition: disk.kind === "unusable" ? `Projection index is ${disk.cause}.` : "The projection index disappeared after command start.",
+        condition: `Projection index is ${disk.cause}.`,
         remedy: { text: "Restore a readable projection index, then retry arc save; changed marks have been preserved." } } };
       const index = await clearAcceptedMarks(root, disk.index);
       const version = await versionResult(store);
@@ -42,6 +42,7 @@ async function versionResult(store: Store): Promise<ProjectionSaveResult> {
 
 async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionIndex> {
   loadProjectionGroups(index, "all");
+  const groups = loadedProjectionGroups(index);
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of entries) {
@@ -50,7 +51,7 @@ async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIn
     if (!await accepted(root, index, path, entry)) continue;
     entries.set(path, { ...entry, changed: false }); changed = true;
   }
-  return changed ? replaceLoadedProjectionEntries(index, Object.fromEntries(entries)) : index;
+  return changed ? replaceLoadedProjectionEntries(index, Object.fromEntries(entries), groups) : index;
 }
 
 async function accepted(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry): Promise<boolean> {

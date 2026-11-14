@@ -16,6 +16,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
+import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 
 afterEach(() => { beginProjectionCommand(); });
@@ -185,6 +186,8 @@ it("keeps physical folder spelling separate from renamed record authority and re
   expect(repaired.index.entries[alias]).toBeUndefined();
   expect(repaired.index.entries[repairedPath]).toBeUndefined();
   expect(repaired.index.entries[".arc/backlog/planned/beta/scratch/extra-beta.md"]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
+  await expect(readFile(join(f.root, repairedPath))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(parseStampedFile(await readFile(join(f.root, ".arc/backlog/planned/beta/scratch/extra-beta.md"), "utf8")).content).toBe(aliasContent);
 });
 
 it("preserves a namespace lookup refusal and adopts the same file after forward metadata repair", async () => {

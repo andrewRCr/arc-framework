@@ -212,6 +212,15 @@ it("keeps a malformed target marker unobservable until it is repaired", async ()
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
 
+it("names the marker repair on check and persist for a malformed marker on a checkout without a projection index", async () => {
+  const target = await targetCheckout();
+  await rm(join(target.location.stateDir, PROJECTION_INDEX_FILE));
+  await writeFile(resolveWorktreeMarkerPath(target.checkout), "malformed marker\n");
+  const repair = "Repair or remove the marker, then retry removal.";
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "unobservable", detail: expect.stringContaining(repair) });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy: { text: expect.stringContaining(repair) } });
+});
+
 it("refuses a newly edited protected file and passes once its content is restored", async () => {
   const target = await targetCheckout();
   const { foreign, path, entry, original } = await foreignMetadata(target);
@@ -1017,6 +1026,8 @@ it("holds an edited aside copy in a root its ignore guard refuses, as persistenc
   const ignores = await readFile(join(target.checkout, ".gitignore"));
   await writeFile(join(target.checkout, ".gitignore"), "");
   const unedited = await checkProjectionRemoval(target.checkout, target.context);
+  // An unedited copy needs no installation, so the refused guard holds nothing until the copy is edited.
+  expect(unedited).toEqual({ kind: "passes" });
   expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual(unedited.kind === "passes" ? { kind: "persisted" }
     : { kind: "refused", remedy: unedited.kind === "would-refuse" ? unedited.remedy : undefined });
   const original = parseStampedFile(await readFile(join(target.checkout, copy.name), "utf8")).content;

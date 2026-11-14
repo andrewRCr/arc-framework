@@ -6,7 +6,7 @@ import { refSyncFixture } from "../../../helpers/store/ref-sync.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { success } from "../../../helpers/store/suite-tools.js";
-import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, type StateVersion } from "../../../../src/lib/store/identity.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -15,10 +15,14 @@ import { readProjectionIndex } from "../../../../src/lib/store/projection/index-
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 import { canonicalLocalPath } from "../../../../src/lib/local-path-identity.js";
 import { locateProjection } from "../../../../src/lib/store/projection/location.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
+import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
+import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
-async function fixture(aliasWriter = false) {
+async function fixture(aliasWriter = false, wrap: (store: Store) => Store = store => store) {
   beginProjectionCommand();
   const h = await refSyncFixture();
   const reference = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "scratch/native.md" });
@@ -40,7 +44,7 @@ async function fixture(aliasWriter = false) {
   const ports = { ...createProjectionEnginePorts(writer), beforeFanOutTarget: async (root: string) => {
     visits.push(await canonicalLocalPath(root));
   } };
-  const store = withFanOut(h.a.store, createProjectionFanOutDependencies(writer));
+  const store = withFanOut(wrap(h.a.store), createProjectionFanOutDependencies(writer));
   const location = await locateProjection(writer, ports);
   expect(await startProjection({ store, checkout: writer, location, ports: () => ports })).toMatchObject({ kind: "ready" });
   return { h, store, reference, own, sibling, path, visits, checkout,
@@ -82,4 +86,33 @@ it("refreshes remote pull merges in both native worktrees without setting verb c
   expect(await siblingFile()).toContain("A remote save.");
   for (const projection of [own, sibling]) expect(await readProjectionIndex(projection.location, true, { groups: "all" }))
     .toMatchObject({ kind: "index", index: { entries: { [path]: { changed: false } } } });
+}, 30_000);
+
+it("leaves a sibling another process advances after the round reads its version at that newer state", async () => {
+  let advance: (() => Promise<void>) | undefined;
+  const f = await fixture(false, base => overrideEngineStore(base, { version: async () => {
+    const read = await base.version();
+    const step = advance; advance = undefined;
+    await step?.();
+    return read;
+  } }));
+  const other = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "scratch/other.md" });
+  let newer: StateVersion | undefined;
+  advance = async () => {
+    // Another writer lands a newer state, and the sibling's own command records it, after the round's version read.
+    success(await f.h.a.store.write({ action: "put", reference: other, expected: null, content: "A newer state.\n",
+      provenance: { verb: "save", lifecycleAction: "save" } }));
+    newer = success(await f.h.a.store.version());
+    await withProjectionLock(f.sibling.location, async session => {
+      const disk = await readProjectionIndex(f.sibling.location, true, { groups: "all" });
+      if (disk.kind !== "index") throw new Error("Missing sibling index");
+      await commitProjectionIndex({ location: f.sibling.location, checkout: f.checkout, index: { ...disk.index, state: newer ?? null },
+        checkpoint: session.step });
+    });
+  };
+  const current = success(await f.h.a.store.read({ reference: f.reference }));
+  success(await f.store.write({ action: "put", reference: current.reference, expected: current.version,
+    content: "The round's write.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(newer).toBeDefined();
+  expect(await readProjectionIndex(f.sibling.location, true)).toMatchObject({ kind: "index", index: { state: newer } });
 }, 30_000);

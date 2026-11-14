@@ -102,6 +102,8 @@
     "packages/arc-framework/package.json",
     "packages/arc-framework/tsconfig*.json",
     "vitest.config.ts",
+    "packages/arc-framework/__tests__/helpers/store/projection/index-schema-guard.ts",
+    "packages/arc-framework/__tests__/helpers/store/projection/index-schema-check.ts",
     {
       "closureOf": [
         "packages/arc-framework/vitest.config.ts",

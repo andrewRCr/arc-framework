@@ -165,7 +165,7 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
       if (measured === undefined) throw new Error("Native store write did not invoke its command's fan-out");
       retained.push(measured);
       expect(projectionProcessState().diagnostics).toEqual([]);
-      await endProjection(input);
+      // The timed round itself delivers to every destination; the end may run deferred rounds outside the timer.
       for (const target of destinations) {
         const index = await indexAt(target, client);
         for (const reference of references.slice(0, count)) {
@@ -175,7 +175,10 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
           expect(parseStampedFile(await readFile(join(target, path), "utf8")).content).toBe(content);
         }
       }
+      await endProjection(input);
     }
+    // The reference round's physical Git processes: six control starts, one changes reader, and two readers per owner.
+    expect(retained.map(sample => sample.gitCalls)).toEqual(retained.map(() => 7 + 2 * count));
     return medianTiming(retained);
   };
   return { linkedWorktrees: destinations.length, oneFile: await measure(1), tenFiles: await measure(10) };
@@ -199,7 +202,11 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
         oneFile: fanOut.oneFile, tenFiles: fanOut.tenFiles, materialization }).map(([key, value]) => [key, value.medianMs]));
       const gitAdjustment = { status: "not-established", creditMs: 0,
         reason: "Process counts and baselines do not establish exposed critical-path delay." };
-      const result = { platform: process.platform, node: process.version, samples: SAMPLES, bounds,
+      const measured = {
+        gitSingle: "git for-each-ref --format='%(objectname) %(refname)' refs/arc/, history refs included, which the start's version() excludes",
+        materialization: "every sample after the first reuses the process-wide lookup capture the first one built",
+      };
+      const result = { platform: process.platform, node: process.version, samples: SAMPLES, bounds, measured,
         baseline, archive, archivePairs, fanOut, materialization, rawMediansMs, gitAdjustment, qualifiedMediansMs: rawMediansMs };
       const directory = resolve(import.meta.dirname, "../../.test-cost-runs");
       await mkdir(directory, { recursive: true });

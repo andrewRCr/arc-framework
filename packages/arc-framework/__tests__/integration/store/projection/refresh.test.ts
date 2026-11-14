@@ -18,6 +18,7 @@ import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js"
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 
 const observation = vi.hoisted(() => ({ file: "", index: "", reference: "", events: [] as string[],
   firstHeader: null as (() => Promise<void>) | null }));
@@ -260,6 +261,27 @@ it("lays a newly added owner record without replacing its existing files", async
   expect({ ino: after.ino, mtimeNs: after.mtimeNs }).toEqual({ ino: before.ino, mtimeNs: before.mtimeNs });
 });
 
+it("reports an arriving record whose read the store refuses and lays it at the next start after repair", async () => {
+  const h = await fixture();
+  const path = ".arc/active/current/assessment-alpha.md";
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "assessment"), "A new assessment.\n");
+  // The owner's primary changes too, so the arrival is planned from the owner's listing and read only when laid.
+  const primary = success(await h.f.store.read({ reference: h.primary.reference }));
+  success(await h.f.store.write(update(h.f, primary, primary.content.replace("`P1`", "`P2`"))));
+  const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/work-items",
+    condition: "The arriving record cannot be read.", remedy: { text: "Repair the record and retry." } });
+  const store = overrideEngineStore(h.f.store, { read: request => request.reference.kind === "work-item/companion" && request.asOf === undefined
+    ? Promise.resolve({ status: "refused", refusal }) : h.f.store.read(request) });
+  expect(await startProjection({ checkout: h.f.root, store })).toMatchObject({ kind: "ready" });
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path,
+    mark: expect.objectContaining({ reason: expect.stringContaining("The arriving record cannot be read.") }) }));
+  await endProjection({ checkout: h.f.root, store });
+  await expect(stat(join(h.f.root, path))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await startProjection({ checkout: h.f.root, store: h.f.store })).toMatchObject({ kind: "ready" });
+  await endProjection({ checkout: h.f.root, store: h.f.store });
+  expect(parseStampedFile(await readFile(join(h.f.root, path), "utf8")).content).toBe("A new assessment.\n");
+});
+
 it("clears a reverted refused edit and performs its pending refresh without sending the clean bytes", async () => {
   const h = await fixture();
   const companion = await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "repair.txt"), "Opening.\nBase.\nClosing.\n");
@@ -286,6 +308,55 @@ it("clears a reverted refused edit and performs its pending refresh without send
     [path]: { pending: false, refused: null },
   } } });
   expect(success(await h.f.store.version())).toBe(version);
+});
+
+it("leaves an owner's unchanged files in place while one of its files stays refused or withheld", async () => {
+  const h = await fixture();
+  const companion = await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "repair.txt"), "Opening.\nBase.\nClosing.\n");
+  const path = ".arc/active/current/repair.txt", command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  const refused = createRefusingStore(h.f.store);
+  refused.refuse("batch", StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/work-items",
+    condition: "The edit's namespace needs repair.", remedy: { text: "Repair the namespace and retry." } }));
+  await writeFile(join(h.f.root, path), "Authored opening.\nBase.\nClosing.\n");
+  success(await h.f.store.write(update(h.f, companion, "Opening.\nBase.\nNew stored closing.\n")));
+  const held = { ...command, store: refused.store };
+  await startProjection(held);
+  await endProjection(held);
+  const neighbors = async () => Promise.all([h.path, h.metaPath].map(async file => {
+    const { ino, mtimeNs } = await stat(join(h.f.root, file), { bigint: true });
+    return { file, ino, mtimeNs };
+  }));
+  const before = await neighbors();
+  for (let round = 0; round < 2; round++) {
+    await startProjection(held);
+    await endProjection(held);
+  }
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: { entries: {
+    [path]: { pending: true, refused: { reason: "The edit's namespace needs repair." } },
+  } } });
+  expect(await neighbors()).toEqual(before);
+  await writeFile(join(h.f.root, path), "Opening.\nBase.\nClosing.\n");
+  await startProjection(command);
+  await endProjection(command);
+  await withProjectionLock(h.projected.location, async session => {
+    const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    if (read.kind !== "index") throw new Error("Missing index");
+    const entry = read.index.entries[path];
+    if (entry?.kind !== "record") throw new Error("Missing companion entry");
+    await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
+      index: withProjectionEntry(read.index, path, { ...entry, pending: true, withheld: true }) });
+  });
+  const withheld = await neighbors();
+  for (let round = 0; round < 2; round++) {
+    await startProjection(command);
+    await endProjection(command);
+  }
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: { entries: {
+    [path]: { pending: true, withheld: true },
+  } } });
+  expect(await neighbors()).toEqual(withheld);
 });
 
 

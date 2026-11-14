@@ -372,6 +372,27 @@ describe("provisionTransientLocus", () => {
     expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "pending" } });
   });
 
+  it("retains a refused spawn's markerless checkout over a refused compensation check and provisions it after repair", async () => {
+    let blocked = true;
+    const test = harness({
+      revalidateTarget: async () => blocked ? { kind: "refused", reason: "topology-unknown" } : { kind: "ready" },
+      checkRollback: async (...args) => blocked ? { kind: "would-refuse", remedy: { text: "Recover the retained personal file" } }
+        : passingProjectionRemovalSlots.check(...args),
+    });
+    const refusedResult = await provisionTransientLocus(options(test.dependencies));
+    expect(refusedResult).toEqual({ kind: "refused", reason: "topology-unknown", evidence: { kind: "marker-residue",
+      checkoutPath: WORKTREE_PATH, markerBytes: null, detail: "Recover the retained personal file" } });
+    expect(test.hasWorktree()).toBe(true);
+    expect(test.marker()).toEqual({ kind: "absent" });
+    expect(test.events).not.toContain("rollback-worktree");
+    blocked = false;
+    expect(await provisionTransientLocus(options(test.dependencies))).toMatchObject({
+      kind: "provisioned", receipt: { allocation: "spawned", checkoutPath: WORKTREE_PATH, marker: { state: "ready" } },
+    });
+    expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    expect(test.hasWorktree()).toBe(true);
+  });
+
   it("refuses and rolls back when a retained spawned branch changed head", async () => {
     const test = harness();
 

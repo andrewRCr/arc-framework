@@ -14,8 +14,8 @@ export async function observeMaterialization(input: ProjectionMaterializationInp
     readIgnoreRules: async () => (await readProjectionConfiguration(root.ports.exec, root.checkout)).ignoreRules,
     guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs } };
   if (!input.onlyDeleted) return sweepAsideFolder(sweep);
-  const ignores = await checkIgnores({ guard: sweep.guard, records: input.index?.ignoreFiles ?? null,
-    recordedGuard: input.index?.ignoreGuard ?? null, reference: await readReference(root.checkout), format: sweep.format,
+  const ignores = await checkIgnores({ guard: sweep.guard, records: input.index.ignoreFiles,
+    recordedGuard: input.index.ignoreGuard, reference: await readReference(root.checkout), format: sweep.format,
     ignoreRules: sweep.ignoreRules, readIgnoreRules: sweep.readIgnoreRules });
   return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
 }

@@ -3,7 +3,7 @@ import { checkAsideCopy, observeAsideCopy, recordWriteBackSent } from "./aside-c
 import { readProjectionLinkBoundary, type ProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
 import type { ProjectionRemovalGuard, ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionProtection } from "./protection.js";
-import { projectionFeasibilityRefusal, type ProjectionRemovalCheck } from "./removal-verdict.js";
+import { projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import type { AsideCopyRecord, RecordEntry, ProjectionIndex } from "./index-schema.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,6 +19,7 @@ interface UnrecordedProjectionCopyInput {
   readonly format: ObjectFormat;
   readonly linkFs?: ProjectionLinkFs;
   readonly walkFs?: ProjectionWalkFs;
+  readonly disposition: ProjectionRetirement;
 }
 
 /** The copy check shares the files check's guard, so both read one ignore answer. */
@@ -46,7 +47,7 @@ export async function checkProjectionRemovalAsides(input: ProjectionRemovalAside
     }
   }
   return checkUnrecordedProjectionCopies({ checkout: root.checkout, index, format: root.context.format, linkFs: input.ports.linkFs,
-    walkFs: input.ports.walkFs });
+    walkFs: input.ports.walkFs, disposition: input.disposition });
 }
 
 /** Refuse authored recovery files absent from the index before their containing folder can be removed. */
@@ -62,7 +63,7 @@ export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectio
     const links = await readProjectionLinkBoundary(checkout, [visit.location], input.linkFs);
     if (links(visit.location) !== null) continue;
     if (await unrecordedCopyIsUnchanged(input, visit.location, named)) continue;
-    return { kind: "would-refuse", remedy: { text: `Recover anything wanted from ${visit.location}, then delete that copy and retry removal.` } };
+    return { kind: "would-refuse", remedy: { text: `Recover anything wanted from ${visit.location}, then delete that copy and retry ${retirementName(input.disposition)}.` } };
   }
   return { kind: "passes" };
 }
@@ -108,17 +109,17 @@ async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: 
     ...(destinationLink === null ? {} : { holding: { kind: "not-a-file" as const } }),
     format: root.context.format, takeIn: async request => {
       const prepared = await root.takeIn(request);
-      refusal.verdict = projectionFeasibilityRefusal(prepared, copy.name) ?? { kind: "passes" };
+      refusal.verdict = projectionFeasibilityRefusal(prepared, copy.name, input.disposition) ?? { kind: "passes" };
       return prepared.kind === "ready" ? { answer: "taken-in", read: prepared.read,
         entry: recordWriteBackSent(request.entry, request.copy) } : { answer: "no-edit", entry: request.entry };
     } });
   if (refusal.verdict.kind !== "passes") return { entry, verdict: refusal.verdict };
   if (checked.kind === "not-a-file") return { entry, verdict: { kind: "would-refuse", remedy: checked.remedy } };
   if (checked.kind === "unsettled" || checked.kind === "empty") {
-    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Let ${copy.name} finish saving, then retry removal.` } } };
+    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Let ${copy.name} finish saving, then retry ${retirementName(input.disposition)}.` } } };
   }
   if (checked.kind === "moved-on") {
-    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Recover the edit in ${copy.name}, then delete that copy and retry removal.` } } };
+    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Recover the edit in ${copy.name}, then delete that copy and retry ${retirementName(input.disposition)}.` } } };
   }
   return { entry: checked.entry, verdict: { kind: "passes" } };
 }

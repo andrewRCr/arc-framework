@@ -9,7 +9,7 @@ import { retriesIndexedEntry } from "./engine-files.js";
 import type { ProjectionRemovalGuard } from "./removal-observations.js";
 import type { ProjectionRemovalCheck } from "./removal-verdict.js";
 
-/** The target's write authority as persist's ignore check decided it, and the verb its walk ran under. */
+/** The write authority release and its check share, every path wherever the ignore check passed, and the verb its walk ran under. */
 export interface ReleaseEntryBasis {
   readonly checkout: string;
   readonly verb: string | undefined;

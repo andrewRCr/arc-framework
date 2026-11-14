@@ -27,6 +27,7 @@ import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
 import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
 import { materializeProjectionRoot } from "../../../../src/lib/store/projection/materialization.js";
+import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 import type { ProjectionSource } from "../../../../src/lib/store/projection/record-source.js";
@@ -64,20 +65,20 @@ async function fixture() {
   return { h, primary, checkout, ports, location, configuration };
 }
 
-async function materialize(target: Awaited<ReturnType<typeof fixture>>, options: { index?: ProjectionIndex | null; source?: ProjectionSource } = {}) {
+async function materialize(target: Awaited<ReturnType<typeof fixture>>, options: { source?: ProjectionSource } = {}) {
   const source = options.source ?? target.h.store;
   const version = success(await source.version());
   return withProjectionLock(target.location, async session => {
     const root = await bindProjectionRoot({ ...target, store: target.h.store, actor: "andrew@fixture", history: createHistoryMemo(target.h.store), session, register: true });
-    try { return await materializeProjectionRoot({ root, source, configuration: target.configuration, version, index: options.index ?? null }); }
+    try { return await materializeProjectionRoot({ root, source, configuration: target.configuration, version, index: null }); }
     finally { root.checkpoint = null; }
   });
 }
 
-it("keeps incomplete materialization retryable while installing unrelated records", async () => {
+it("keeps an incomplete rebuild retryable while installing unrelated records", async () => {
   const target = await fixture();
-  const first = await materialize(target);
-  if (first.status !== "done") throw new Error("Initial materialization did not run");
+  const command = { checkout: target.checkout, store: target.h.store };
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
   const personal = await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
     owner: { type: "person", name: "andrew" }, key: "scratch/independent.md" }), "Independent arrival.\n");
   const revised = target.h.record.content + "\nUpdated stored notes.\n";
@@ -86,14 +87,17 @@ it("keeps incomplete materialization retryable while installing unrelated record
     condition: "Work-item inventory unavailable.", remedy: { text: "Repair the inventory and retry." } });
   const source = overrideEngineStore(target.h.store, { list: input => input.family === "work-item"
     ? Promise.resolve({ status: "refused", refusal }) : target.h.store.list(input) });
-  const held = await materialize(target, { index: first.value.index, source });
-  expect(held).toMatchObject({ status: "done", value: { index: { state: first.value.index.state } } });
+  await rm(join(target.location.stateDir, "index"));
+  expect(await startProjection({ ...command, store: source })).toMatchObject({ kind: "ready" });
+  await endProjection({ ...command, store: source });
+  expect((await settledIndex(target)).state).toBeNull();
   const notes = join(target.checkout, ".arc/active/current/notes-work-item-one.md");
   expect(parseStampedFile(await readFile(notes, "utf8")).content).toBe(target.h.record.content);
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/user/andrew/scratch/independent.md"), "utf8")).content).toBe(personal.content);
-  if (held.status !== "done") throw new Error("Partial materialization did not run");
   const version = success(await target.h.store.version());
-  expect(await materialize(target, { index: held.value.index })).toMatchObject({ status: "done", value: { index: { state: version } } });
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect((await settledIndex(target)).state).toBe(version);
   expect(parseStampedFile(await readFile(notes, "utf8")).content).toBe(revised);
   expect(success(await target.h.store.version())).toBe(version);
 }, 60_000);
@@ -115,6 +119,26 @@ it("materializes a fresh linked worktree's stamped own files and scratch folder 
     expect(result.value.index.entries[path]).toMatchObject({ kind: "record", reference: record.reference, changed: false, pending: false });
   }
   expect((await stat(join(target.checkout, ".arc/user/andrew/scratch/work-unit/work-item-one"))).isDirectory()).toBe(true);
+});
+
+it("creates no work-unit scratch folder for a checkout an Errand claims", async () => {
+  const target = await fixture();
+  await writeWorktreeMarker(target.checkout, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: new Date(0).toISOString(),
+    createdFor: { kind: "errand", slug: "errand-one", claimId: "a".repeat(32) }, provisioning: "ready" });
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
+  await expect(stat(join(target.checkout, ".arc/user/andrew/scratch/work-unit"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("reports a scratch folder it cannot create and still publishes the materialization", async () => {
+  const target = await fixture();
+  await mkdir(join(target.checkout, ".arc/user/andrew"), { recursive: true });
+  await writeFile(join(target.checkout, ".arc/user/andrew/scratch"), "A file where the scratch folder belongs.\n");
+  const version = success(await target.h.store.version());
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized", index: { state: version } } });
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({
+    path: ".arc/user/andrew/scratch/work-unit/work-item-one", mark: expect.objectContaining({ reason: expect.stringContaining("scratch folder") }) }));
+  const disk = await readProjectionIndex(target.location, true);
+  expect(disk).toMatchObject({ kind: "index", index: { state: version } });
 });
 
 it("never creates the scratch folder through a linked ancestor", async () => {
@@ -176,13 +200,14 @@ it("rebuilds an unedited file but withholds hand edits and unknown files until t
   expect(await readFile(join(target.checkout, unknown), "utf8")).toBe("Unclaimed hand-written prose.\n");
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/meta-work-item-one.md"), "utf8")).content).toBe(revised);
   expect(success(await target.h.store.version())).toBe(version);
-  if (rebuilt.status !== "done") throw new Error("Rebuild did not run");
   await rm(join(target.checkout, notes));
   await rm(join(target.checkout, unknown));
-  const released = await materialize(target, { index: rebuilt.value.index });
-  expect(released).toMatchObject({ status: "done", value: { index: { entries: { [notes]: { withheld: false } } } } });
-  if (released.status !== "done") throw new Error("Release did not run");
-  expect(released.value.index.entries[unknown]).toBeUndefined();
+  const command = { checkout: target.checkout, store: target.h.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  const released = await settledIndex(target);
+  expect(released.entries[notes]).toMatchObject({ withheld: false });
+  expect(released.entries[unknown]).toBeUndefined();
   expect(parseStampedFile(await readFile(join(target.checkout, notes), "utf8")).content).toBe(target.h.record.content);
 });
 
@@ -213,7 +238,7 @@ async function heldRebuild(target: Awaited<ReturnType<typeof fixture>>,
   await rm(join(target.location.stateDir, "index"));
   const held = await materialize({ ...target, ports: { ...target.ports, hooks } }, { source });
   if (held.status !== "done") throw new Error("Held rebuild did not run");
-  return { index: held.value.index, version, personal, published };
+  return { index: held.value.index, version, personal, published, source };
 }
 
 async function settledIndex(target: Awaited<ReturnType<typeof fixture>>): Promise<ProjectionIndex> {
@@ -242,13 +267,15 @@ it("holds files a no-index rebuild cannot place and settles them after a read-on
   expect(success(await target.h.store.version())).toBe(version);
 }, 60_000);
 
-it("keeps the held mark through a materialization over the held index and settles the file at the next start", async () => {
+it("keeps the held mark through a sync restoration over the held index and settles the file at the next start", async () => {
   const target = await fixture();
-  const { index } = await heldRebuild(target);
-  const respawned = await materialize(target, { index });
-  if (respawned.status !== "done") throw new Error("Materialization did not run");
-  expect(respawned.value.index.entries[HELD.notes]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark() });
-  expect(respawned.value.index.state).toBeNull();
+  const { source } = await heldRebuild(target);
+  expect(await startProjection({ checkout: target.checkout, store: source })).toMatchObject({ kind: "ready" });
+  await restoreSyncProjection(target.h.store, target.checkout, {});
+  const restored = await settledIndex(target);
+  expect(restored.entries[HELD.notes]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark() });
+  expect(restored.state).toBeNull();
+  await endProjection({ checkout: target.checkout, store: source });
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
   expect((await settledIndex(target)).entries[HELD.notes]).toMatchObject({ kind: "record", withheld: false });
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
@@ -269,15 +296,16 @@ it("gives held files at unplaced paths the ordinary mark once evidence is whole,
   expect(await readdir(outside)).toEqual([]);
 }, 60_000);
 
-it("gives a held file the ordinary mark when a materialization over its index finds evidence whole", async () => {
+it("gives a held file the ordinary mark when the next start's rebuild finds evidence whole", async () => {
   const target = await fixture();
   const { index, personal } = await heldRebuild(target, { family: "personal" });
   expect(index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark() });
-  const respawned = await materialize(target, { index });
-  if (respawned.status !== "done") throw new Error("Materialization did not run");
-  expect(respawned.value.index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true,
-    refused: withheldProjectionMark() });
-  expect(respawned.value.index.state).toBe(success(await target.h.store.version()));
+  const command = { checkout: target.checkout, store: target.h.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  const settled = await settledIndex(target);
+  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark() });
+  expect(settled.state).toBe(success(await target.h.store.version()));
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.arriving), "utf8")).content).toBe(personal.content);
 }, 60_000);
 
@@ -641,15 +669,16 @@ it("leaves a later spawn dark after its command's materialize port expires", asy
 });
 
 
-it("advances an existing index's state after laying a full newer inventory", async () => {
+it("advances a materialized index's state when the next start lays a newer inventory", async () => {
   const target = await fixture();
-  const first = await materialize(target);
-  if (first.status !== "done") throw new Error("Materialization did not run");
+  expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized" } });
   const changed = target.h.record.content + "\nNew stored note.\n";
   success(await target.h.store.write(update(target.h, target.h.record, changed)));
   const version = success(await target.h.store.version());
-  const result = await materialize(target, { index: first.value.index });
-  expect(result).toMatchObject({ status: "done", value: { index: { state: version } } });
+  const command = { checkout: target.checkout, store: target.h.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect((await settledIndex(target)).state).toBe(version);
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/notes-work-item-one.md"), "utf8")).content).toBe(changed);
 });
 

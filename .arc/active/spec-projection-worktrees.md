@@ -806,7 +806,8 @@ wanted personal bytes outside the checkout and removing the residual, repairing 
 same Errand open; the retained pending generation can resume through the existing recovery path. The primary copy is
 never inspected or modified. A passing check leaves exact marker-generation deletion and receipt/roster rollback
 checks in force. Borrowed pending markers remain retained as today; empty/machine-local targets and capability-off
-compensation preserve their cleanup behavior. This adds a check dependency, not a fourth projection slot.
+compensation preserve their cleanup behavior. This adds a check dependency, not a fourth projection slot. A failed
+work-unit spawn's cleanup runs no such check, a deferred residual (A8, § 17 item 13).
 
 There is no fourth slot, new setting, persisted state, automatic recovery, or additional lock. A save after the last
 observation remains the physical-removal residual in § 17; repeating the observation does not make deletion atomic
@@ -1249,9 +1250,9 @@ last publication, while `recordProjectionTiming`'s persisted samples necessarily
 them. Keep both visible and do not compare the persisted sample as though it were the external full-round measurement.
 
 A tripwire notice reports the raw recent median and its platform's runtime bound. Crossing it calls for attribution
-rather than an automatic change to locking, recovery, or file scheduling. A3's concurrent-sibling proposal
-(`notes-projection-worktrees.md` § Per-root cost reductions) remains held; none of these budgets depends on adopting it
-(A4).
+rather than an automatic change to locking, recovery, or file scheduling. A proposal to visit independent sibling
+worktrees concurrently (`notes-projection-worktrees.md` § Per-root cost reductions) remains held; none of these budgets
+depends on adopting it (A4).
 
 #### 15.5 Fan-out and full materialization
 
@@ -1519,6 +1520,13 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     installed record: a link at or above it, a path the checkout cannot write, an arrival still handing off, or a file
     withheld with no record basis at a path a record has since arrived at, until that file is deleted. Each is reported
     with its remedy (§ 2.5, § 15.2, A7).
+13. **A failed work-unit spawn's cleanup (A8).** Three cleanups after a failed work-unit spawn — `rollbackFreshSpawn`,
+    `rejectCreateNewScaffold`, and a graduation's occupation rollback — remove the new checkout through
+    `removeDisposableSpawn` with no removal check, so a personal file a `post_create` script wrote there goes with it,
+    though the spawn's materialization may already have reported it withheld. § 12.2's check covers a transient's spawn
+    compensation alone, and the bound check answers `unobservable` for a work-unit checkout with no index, so adding it
+    as it stands would refuse every such cleanup. Protecting these cleanups is deferred, with no owner yet, and captured
+    for routing as "Protect personal files when a failed work-unit spawn is cleaned up" (`USER-INBOX` § Work Unit).
 
 ### 18. Expected contracts
 
@@ -1809,9 +1817,26 @@ _These considerations cover the design the three members build together; § 1.1 
     index withholds every file at a path it lays no stored record at under the held mark, which the removal check and
     the persist and release steps refuse over as over any withheld file, and publishes no state version; once the
     reported condition is resolved, the next rebuild settles each held file at a path it lays a stored record at by
-    § 2.5's rule, with no store write, where no link at or above it blocks that path and the checkout can write it, and
-    the next rebuild or full materialization other than `arc sync`'s gives one still at a path it lays no stored record
-    at the ordinary withheld mark.
+    § 2.5's rule, with no store write, where no link, write right or handoff blocks that path, and gives one still at a
+    path it lays no stored record at the ordinary withheld mark.
+
+15. **Nothing an edit could lose leaves with its checkout (A8; supersedes criterion 2).** A file withheld at an index
+    rebuild stays in its file and is reported. For it, and for an edit to a protected or archived file another person
+    owns, an unadopted file, a file that fails to parse, a refused edit, a file held by a conflict, a clash found in the
+    checkout included, a file not yet settled, and an aside copy kept because its path moved on, the removal check
+    answers `persist-would-refuse`, and the persist and release steps refuse, then succeed once it is resolved or, for
+    the copy, deleted; a failed read answers `unobservable`. This holds for every removal but a failed work-unit spawn's
+    cleanup (§ 17 item 13).
+
+16. **Unindexed personal bytes survive destructive retirement (A8; supersedes criterion 13).** With state off branch,
+    an ARC-managed checkout holding no projection/index refuses destructive removal over non-machine-local regular files
+    under `.arc/user/*/`, naming their local paths and explicit recovery. Refusal retains bytes and topology; recovery
+    permits retry without ARC touching the primary. Empty/machine-local-only targets need no identity, release retains
+    its current success, missing folders and disabled capability perform no residual scan, unreadability refuses, and
+    links are not followed. Failed transient setup observes the same protection before compensation clears its pending
+    marker: residual or read failure retains checkout, branch, marker and claim with recovery detail; repaired setup
+    resumes that same claim, while empty/machine-local-only and capability-off compensation retain their cleanup
+    behavior. This holds for every destructive removal but a failed work-unit spawn's cleanup (§ 17 item 13).
 
 ## Open Questions
 
@@ -1823,20 +1848,23 @@ this design open.
 - **A1** — 2026-11-10 — design: smudge installing entries. _Supersedes:_ § 16.2 ¶3.
   _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ 1.14.
 
-- **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 15.2 ¶2.
-  _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
+- **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 2.2, the fan-out's skip of a
+  current worktree. _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
 
 - **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1;
   Cross-cutting Considerations, "Performance"; criterion 4. _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
-- **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ Task 2.4.b tests.
-  _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
+- **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ none; adds § 12.2's binding
+  verification and criterion 12. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
 
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
   _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
 
 - **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ § 15.2 ¶5; § 16.1 ¶3;
   § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ 3.1.
+
+- **A8** — 2026-11-14 — design: defer work-unit spawn cleanup protection. _Supersedes:_ criteria 2 and 13 for work-unit
+  spawn cleanups; § 12.2 ¶ spawn compensation. _Trigger:_ standard pass 1 A2. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

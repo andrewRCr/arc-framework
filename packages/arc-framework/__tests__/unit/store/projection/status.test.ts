@@ -1,5 +1,5 @@
 /** Projection status exposes outstanding index state without mutating its authority. */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { buildProjectionStatusSummary, readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
@@ -130,6 +130,20 @@ it("reports an absent index without creating one and observes a restored project
   await expect(readFile(join(h.location.stateDir, PROJECTION_INDEX_FILE))).rejects.toMatchObject({ code: "ENOENT" });
   await writeProjectionIndex(h.location, h.index);
   expect(await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location })).toMatchObject({ kind: "ready" });
+});
+
+it("reports a missing partition in the declared public shape, without the recovered header, and serializes", async () => {
+  const h = await createWriteBackFixture();
+  fixtures.push(h);
+  const stat = { type: "file" as const, size: 12n, mtimeNs: 1_700_000_000_000_000_000n, ino: 42n };
+  await writeProjectionIndex(h.location, { ...h.index, ignoreFiles: [{ path: ".gitignore", stat, blob: "a".repeat(40) }] });
+  const partition = (await readdir(h.location.stateDir)).find(name => name !== PROJECTION_INDEX_FILE && name.startsWith(PROJECTION_INDEX_FILE));
+  if (partition === undefined) throw new Error("No index partition");
+  await rm(join(h.location.stateDir, partition));
+  const status = await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location });
+  expect(status).toEqual({ kind: "unusable", cause: "unreadable",
+    remedy: { text: expect.stringContaining("Restore a readable projection index") } });
+  expect(() => JSON.stringify(status)).not.toThrow();
 });
 
 it.each(["unreadable", "other-format"] as const)("reports an %s index with a remedy and observes its repair", async cause => {

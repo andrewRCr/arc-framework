@@ -394,8 +394,9 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Outcome:_ Projected inboxes stay checkout-local and fan out through the Store; off-branch teardown, reconciliation,
   husking and cleanup readers bypass legacy personal-file merging and safety reads. Production contexts forward their
   Store, and lint enforces the projection import boundary. Unindexed retirement now preserves personal bytes before
-  deletion, including failed setup compensation, while release and empty-husk fast paths remain identity-free.
-  `notes-projection-worktrees.md` records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
+  deletion, including a failed transient setup's compensation, while release and empty-husk fast paths remain
+  identity-free; protection in a failed work-unit spawn's cleanup is deferred (A8). `notes-projection-worktrees.md`
+  records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
 
 ### `[x]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
 
@@ -435,12 +436,13 @@ No production composition sets the slots today, so every caller runs `passingPro
   `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store, E2E,
   and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
   `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
-- _Success criteria:_ 15 criteria: 14 met, one superseded (the original performance criterion, by A4). Accepted
-  residuals are recorded as deviations on the removal, changed-mark and unindexed-retirement criteria, and the A4
-  criterion carries its wording and macOS measurement note. The refreshed author walk covered the complete change set
-  at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every finding fixed or
-  dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7 is revalidated by
-  this verification.
+- _Success criteria:_ 17 criteria: 14 met, three superseded — the original performance criterion by A4, and the removal
+  and unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup and appends
+  their narrowed forms, met on the same evidence. The changed-mark criterion records its accepted residuals as a
+  deviation, and the A4 criterion carries its wording and macOS measurement note. The refreshed author walk covered the
+  complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every
+  finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7 is
+  revalidated by this verification.
 
 ---
 
@@ -452,14 +454,14 @@ No production composition sets the slots today, so every caller runs `passingPro
         into a refresh; and over the ref backend, twenty worktrees saving into refreshes, fan-outs, file removals, and
         checkouts' persist steps at once lose no save, but for the residuals the spec's § 17 names.
 
-- `[x]` A file withheld at a rebuild stays in its file and is reported; for it, for an edit to a protected or another
+- `[~]` A file withheld at a rebuild stays in its file and is reported; for it, for an edit to a protected or another
   person's archived file, an unadopted file, a file that fails to parse, a refused edit, a file held by a conflict, a
   clash found in the checkout included, a file not yet settled, and an aside copy kept because its path moved on, the
   removal check answers `persist-would-refuse`, and `unobservable` for a failed read, and the persist and release steps
   refuse, then succeed once it is resolved or, for the copy, deleted.
 
-  **Deviation (accepted residual):** A failed work-unit spawn's setup compensation removes its new checkout without
-  a removal check; the gap is captured for later work, and this criterion's text is unchanged.
+  **Superseded (A8):** The narrowed criterion below replaces this one for every removal but a failed work-unit spawn's
+  cleanup, whose protection is deferred with no owner yet (spec § 17 item 13); its text is preserved.
 
 - `[x]` The isolation test passes; `layout.active: flat` lays the checkout's work item flat; and a changed view setting,
   identity, checkout claim, or `layout.active` reprojects what it governs.
@@ -523,20 +525,33 @@ No production composition sets the slots today, so every caller runs `passingPro
         Store/identity forwarding is inspected, and factory tests cover capability, identity, and mint-port authority
         (A5; spec criterion 12).
 
-- `[x]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain
+- `[~]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain
         their bytes until explicit recovery; retry leaves primary bytes untouched. Release, empty/machine-local-only
         targets without identity, missing folders, disabled capability, unreadability, and symbolic links follow A6's
         defined behavior; failed setup compensation preserves pending recovery state and permits same-claim retry
         after recovery and setup repair (spec criterion 13).
 
-  **Deviation (accepted residual):** A failed work-unit spawn's setup compensation removes its new checkout without
-  a removal check, so personal files there are not held as the criterion reads literally; the gap is captured for later
-  work.
+  **Superseded (A8):** The narrowed criterion below replaces this one for every destructive removal but a failed
+  work-unit spawn's cleanup, whose protection is deferred with no owner yet (spec § 17 item 13); its text is preserved.
 
 - `[x]` While its evidence is not whole, a rebuild with no usable index withholds every file at a path it lays no stored
         record at under the held mark, which removal, persist and release refuse over, and publishes no state version;
         once the reported condition is resolved, the next rebuild settles each held file by the rebuild rule with no
-        store write where nothing blocks its path, and the next rebuild or full materialization other than `arc sync`'s
-        gives one still at an unlaid path the ordinary withheld mark (A7; spec criterion 14).
+        store write where nothing blocks its path, giving one still at an unlaid path the ordinary withheld mark (A7;
+        spec criterion 14).
+
+- `[x]` A file withheld at a rebuild stays in its file and is reported; for it, for an edit to a protected or another
+        person's archived file, an unadopted file, a file that fails to parse, a refused edit, a file held by a
+        conflict, a clash found in the checkout included, a file not yet settled, and an aside copy kept because its
+        path moved on, the removal check answers `persist-would-refuse`, and `unobservable` for a failed read, and the
+        persist and release steps refuse, then succeed once it is resolved or, for the copy, deleted. This holds for
+        every removal but a failed work-unit spawn's cleanup (A8; spec criterion 15).
+
+- `[x]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain their
+        bytes until explicit recovery; retry leaves primary bytes untouched. Release, empty/machine-local-only targets
+        without identity, missing folders, disabled capability, unreadability, and symbolic links follow A6's defined
+        behavior; failed setup compensation preserves pending recovery state and permits same-claim retry after recovery
+        and setup repair. This holds for every destructive removal but a failed work-unit spawn's cleanup (A8; spec
+        criterion 16).
 
 - `[x]` Ready for integration

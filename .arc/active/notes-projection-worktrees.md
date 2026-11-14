@@ -14,6 +14,12 @@
 - [A2 — ownership while a path is reused](#a2--ownership-while-a-path-is-reused)
 - [Implementation timing feedback](#implementation-timing-feedback)
 - [A4 — Full-round performance calibration](#a4--full-round-performance-calibration)
+    - [Owner direction for 1.14 — 2026-11-11](#owner-direction-for-114--2026-11-11)
+    - [Native cross-process save placement](#native-cross-process-save-placement)
+    - [Physical Git-start assertions after reader reuse](#physical-git-start-assertions-after-reader-reuse)
+    - [Segment scenario and ownership recheck](#segment-scenario-and-ownership-recheck)
+    - [Segment timing qualification](#segment-timing-qualification)
+    - [Removal-check read boundaries](#removal-check-read-boundaries)
 - [Removal persistence](#removal-persistence)
 - [Release under the persistence lease](#release-under-the-persistence-lease)
 - [Removal compositions](#removal-compositions)
@@ -348,10 +354,10 @@ a save to that file necessarily follows the new reference." The inherited `smudg
 through its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference advance;
 a partition left unchanged by value does not get that second write.
 
-The controlled-timestamp case in `smudging.test.ts` publishes an installing entry, saves different same-size bytes
-in the entry's timestamp tick, then advances the reference through another root's partition. The first group's
-partition stays unread and unchanged; `checkChange` reports clean rather than changed. Command-skip coverage also
-exposed the case on Linux, where the same-size write retained the original timestamp and the sweep's publication
+The swap case in `swap.test.ts` that detects a same-size in-place save after linking exercises the rule A1 states: it
+pins the reference into the staged file's tick, saves different same-size bytes in that tick after the link, and lets
+the second index write advance the reference, and `checkChange` reports the file changed. Command-skip coverage exposed
+the defect itself on Linux, where the same-size write retained the original timestamp and the sweep's publication
 advanced the reference before change detection.
 
 A1 removes the exemption at partition publication, retaining the comparison by value before smudging. Every racy
@@ -494,7 +500,8 @@ The new single-Git, concurrent-pair, and beneath-Git medians were 2.62, 4.44, an
 already above the raw 10 ms budget. A Linux host-cost adjustment should use a measured Linux reference, not the
 Windows 42 ms allowance, retain raw measurements, and protect the projection's own work beneath Git. This is a
 recommendation, not an amendment to the criterion. The reference runner still exceeds the start budget with its
-4.44 ms Git pair, so Git attribution does not close that gap. A3 remains held; A4 below records the qualified bounds.
+4.44 ms Git pair, so Git attribution does not close that gap. The proposal to schedule independent destination visits
+concurrently remains held; A4 below records the qualified bounds.
 
 `readChangeEnds` also treated every live-tip edit as a lifecycle move and enumerated unchanged archive endpoints.
 Its membership check now leaves those snapshots cold when both live endpoints exist; changed end records, changed
@@ -543,9 +550,9 @@ not prove every operation inside them necessary or predict a concurrency speedup
 The intent publication's obsolete-partition collection is another serial consolidation candidate. In the same trace, the
 interval from its final directory read through publication return totals 3.47 ms for one file and 3.54 ms for ten across
 all 21 roots, including any return overhead. Deferring that collection cannot close either gap, so its existing behavior
-remains. A3's remaining candidate is bounded scheduling of independent destination visits, preserving both durable
-publications and per-root checks; these results neither authorize that locking change nor establish that it will reach
-100 ms. Start, expanded-archive behavior, and materialization remain separate open costs.
+remains. The remaining candidate, still held, is bounded concurrent scheduling of independent destination visits,
+preserving both durable publications and per-root checks; these results neither authorize that locking change nor
+establish that it will reach 100 ms. Start, expanded-archive behavior, and materialization remain separate open costs.
 
 ### Paired settled-archive comparison
 
@@ -572,7 +579,7 @@ The same full-round run measured 212.25 ms one-file fan-out, 580.00 ms ten-file 
 These raw medians calibrate the proposed criterion amendment; they do not close the current bounds. A 15 ms start budget
 would keep the existing 20 ms start tripwire; proposed 750 ms fan-out and 1500 ms materialization bounds would add an
 explicit engineering allowance of roughly one third over the native full-round medians. These values are proposals only.
-The existing criteria remain intact, and A3's concurrent-root locking change remains held.
+The existing criteria remain intact, and the concurrent-visit locking change remains held.
 
 The cold-partition regression also passed both cases in run `0ca0fbd16ef046cea5e4de71e7ebef2b`: start and end succeed
 with deliberately invalid bytes in the settled 60,000-entry partition, leave those bytes untouched, and retain
@@ -581,10 +588,10 @@ evidence for keeping settled archive entry growth out of the criterion rebase.
 
 ## A4 — Full-round performance calibration
 
-The approved rebase replaces prototype-derived bounds with platform-specific full-round measurements. A3's
-concurrent-sibling proposal stays held. The earlier proposed 15 ms Linux start bound left almost no run-to-run margin;
-the one-third allowance over the 14.64 ms expanded median rounds upward to a 20 ms start budget, with a 25 ms tripwire.
-The Linux fan-out criterion is 300 ms for one file and 750 ms for ten, with one 750 ms runtime fan-out tripwire, and
+The approved rebase replaces prototype-derived bounds with platform-specific full-round measurements. The
+concurrent-visit proposal stays held. The earlier proposed 15 ms Linux start bound left almost no run-to-run margin; the
+one-third allowance over the 14.64 ms expanded median rounds upward to a 20 ms start budget, with a 25 ms tripwire. The
+Linux fan-out criterion is 300 ms for one file and 750 ms for ten, with one 750 ms runtime fan-out tripwire, and
 materialization 1500 ms. Windows and macOS receive same-build native calibrations of their own before capture, with
 roughly one-third allowance and raw times retained. Author checks only were selected; no independent amendment review
 was requested.
@@ -665,6 +672,12 @@ timing-only input makes it measurement evidence rather than work-unit verificati
 | Standard beneath-Git work       | 3.52    | 18.12   | 15.30   |
 | Standard concurrent Git pair    | 6.06    | 88.22   | 19.24   |
 | Standard single Git call        | 3.41    | 71.96   | 17.56   |
+
+The single Git call times `git for-each-ref --format='%(objectname) %(refname)' refs/arc/` over the whole namespace,
+history refs included, a heavier listing than the start's `version()`, which excludes them; qualification compares the
+same command, so the figure stands as measured. Each materialization sample after the first reuses the process-wide
+lookup capture the first one built, so that median may sit below a fresh command's. The timing artifact names both
+under `measured`.
 
 The paired expanded-minus-standard start medians were −0.27 ms on Linux, +1.49 ms on Windows, and −1.09 ms on macOS.
 Expanded beneath-Git medians were 3.55, 17.54, and 15.17 ms respectively. These do not show a repeatable archive-entry
@@ -1827,5 +1840,6 @@ The footprint is the withheld term, § 2.2, § 2.5, § 3.1's readers of every pa
 § 16.2's narrowing of the substrate's withheld lifetime, § 17's eighth and twelfth residuals and criterion 14, with no
 new task or segment; a bounded set of decisions makes it a medium-depth amendment. Its implementation landed in
 review-fix commits: most of it in `c3f43d3534`, and the fan-out's skip in `4490aa6c2a`, beside the writer's-marks fix
-whose gate it extends, with the corrections of its later review rounds in `5e8caa8d77`, `23868a1c05` and `422d54f7f2`.
-It revalidates at Task 3.1.
+whose gate it extends, with the corrections of its later review rounds in `5e8caa8d77`, `23868a1c05`, `422d54f7f2` and
+`34661e67de`, the last counting a file withheld on its record's basis as bound, so that § 17's twelfth residual alone
+keeps a rebuild's state unset. It revalidates at Task 3.1.

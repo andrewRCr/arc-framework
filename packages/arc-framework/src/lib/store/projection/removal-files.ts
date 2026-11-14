@@ -6,7 +6,7 @@ import { checkChange, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
 import { unfinishedRecordingRefusal } from "./recording-state.js";
-import { projectionFeasibilityRefusal, type ProjectionRemovalCheck } from "./removal-verdict.js";
+import { projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
 import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
@@ -61,7 +61,7 @@ async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: 
   const { root, index } = input;
   const entry = index.entries[path];
   if (entry?.withheld) return { kind: "would-refuse", remedy: entry.refused?.remedy ?? withheldProjectionMark().remedy };
-  if (entry?.kind !== "record") return checkProjectionAdoption(root, index, path, guard);
+  if (entry?.kind !== "record") return checkProjectionAdoption(root, index, path, guard, input.disposition);
   const recording = unfinishedRecordingRefusal(entry);
   if ((recording !== null || entry.adoption?.kind === "read-back")
     && entry.reference.owner.type === "person" && entry.reference.owner.name !== root.identity) {
@@ -69,15 +69,23 @@ async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: 
       exec: root.ports.exec, verb: root.context.verb }, entry.reference);
     if (denied !== null) return { kind: "would-refuse", remedy: denied.remedy };
   }
-  if (recording !== null) return { kind: "would-refuse", remedy: recording.remedy };
+  if (recording !== null) return checkUnfinishedRecording(root, path, guard, input.disposition);
   if (entry.adoption?.kind === "read-back") return checkPendingProjectionReadBack(input, path, guard);
   // Persistence resends an attached adoption's observed file whatever its stat records, so the check predicts that send.
-  if (entry.adoption?.kind === "write-back") return checkRemovalSend(root, pendingFileRequest(root.checkout, path, entry), guard);
-  return checkIndexedRemovalEdit(root, path, entry, reference, guard);
+  if (entry.adoption?.kind === "write-back") return checkRemovalSend(root, pendingFileRequest(root.checkout, path, entry), guard, input.disposition);
+  return checkIndexedRemovalEdit(root, path, entry, reference, guard, input.disposition);
+}
+
+/** Persist finishes the recording where the ignore check lets it install, so the hold names the guard's remedy or that save. */
+async function checkUnfinishedRecording(root: ReadOnlyProjectionRoot, path: string, guard: ProjectionRemovalGuard,
+  disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
+  const guarded = await guard(path);
+  if (guarded.kind !== "passes") return guarded;
+  return { kind: "would-refuse", remedy: { text: `Run arc save from ${root.checkout} to finish recording the accepted input at ${path}, then retry ${retirementName(disposition)}.` } };
 }
 
 async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry,
-  reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
+  reference: bigint | null, guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
     written: entry.written, reference, format: root.context.format });
   if (changed.status === "absent") return { kind: "passes" };
@@ -85,15 +93,15 @@ async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: strin
   if (changed.status !== "changed" && !conflict) return { kind: "passes" };
   const request = pendingFileRequest(root.checkout, path, entry);
   if (await readUnchangedProjectionFile(root.context, request) !== null) return { kind: "passes" };
-  return checkRemovalSend(root, request, guard);
+  return checkRemovalSend(root, request, guard, disposition);
 }
 
 /** Predict persistence's send: a file it would send at all must also be one it could install. */
 async function checkRemovalSend(root: ReadOnlyProjectionRoot, request: TakeInRequest,
-  guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
+  guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const prepared = await root.takeIn(request);
   if (prepared.kind === "held" && prepared.result.answer === "no-edit") return { kind: "passes" };
-  const refused = projectionFeasibilityRefusal(prepared, request.path);
+  const refused = projectionFeasibilityRefusal(prepared, request.path, disposition);
   if (refused?.kind === "unobservable") return refused;
   const guarded = await guard(request.path);
   return guarded.kind === "passes" ? refused ?? guarded : guarded;

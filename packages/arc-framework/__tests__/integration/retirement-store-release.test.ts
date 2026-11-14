@@ -98,6 +98,31 @@ describe("projected checkout release", () => {
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).version).toBe(h.record.version);
   });
 
+  it("lays every removed file again at the next command after release refuses past its removal", async () => {
+    const h = await projectedRetirement();
+    const command = { checkout: h.checkout, store: h.store };
+    const second = ".arc/user/test-user/scratch/second.md";
+    await h.seed(RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "test-user" }, key: "scratch/second.md" }),
+      "Second prose.\n");
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await endProjection(command);
+    expect(parseStampedFile(await readFile(join(h.checkout, second), "utf8")).content).toBe("Second prose.\n");
+    const copy = nameAsideFile({ path: h.path, base: h.entry.base.blob, writer: await createProjectionEnginePorts(h.checkout).writer(), role: "aside" });
+    await createStagedFile(h.checkout, copy, renderStampedFile({ content: h.record.content, stamp: h.entry.base.blob }));
+    let saved = false;
+    h.configure({ ports: checkout => ({ ...createProjectionEnginePorts(checkout), hooks: { afterFirstCheck: async () => {
+      if (saved) return;
+      await writeFile(join(checkout, copy), renderStampedFile({ content: "A late unrecorded edit.\n", stamp: h.entry.base.blob })); saved = true;
+    } } }) });
+    expect(await h.release()).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("lays them again") } });
+    await expect(readFile(join(h.checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+    await rm(join(h.checkout, copy));
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await endProjection(command);
+    expect(parseStampedFile(await readFile(join(h.checkout, h.path), "utf8")).content).toBe(h.record.content);
+    expect(parseStampedFile(await readFile(join(h.checkout, second), "utf8")).content).toBe("Second prose.\n");
+  });
+
   it.each(["md", "txt"] as const)("retains an edited %s projection until its accepted-input base is restored", async extension => {
     const h = await retirementRetainedBase(extension);
     h.marker.spawnedByArc = false; await writeWorktreeMarker(h.checkout, h.marker);
@@ -210,6 +235,23 @@ describe("projected checkout release", () => {
     await endProjection(command);
     expect(await readProjectionIndex(h.location, false)).toEqual({ kind: "no-projection" });
     expect(await withProjectionLock(h.location, () => Promise.resolve("free"), { maxWaitMs: 0 })).toEqual({ status: "done", value: "free" });
+  });
+
+  it("releases a deleted withheld file under another identity's root, as its removal check predicts", async () => {
+    const h = await anchoredRelease();
+    const record = await h.seed(RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "blair" }, key: "scratch/previous.md" }), "Previous identity's prose.\n");
+    const path = ".arc/user/blair/scratch/previous.md";
+    const seeded = await seedProjection({ checkout: h.checkout, store: h.store, identity: SlugSchema.parse("blair"), files: [{ path, reference: record.reference }] });
+    const entry = seeded.index.entries[path];
+    if (entry?.kind !== "record") throw new Error("No previous-identity entry");
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+    if (disk.kind !== "index") throw new Error("No projection index");
+    await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
+      [path]: { ...entry, withheld: true, refused: withheldProjectionMark() } } });
+    await rm(join(h.checkout, path));
+    expect(await checkProjectionRemoval(h.checkout, { store: h.store, identity: SlugSchema.parse("test-user") }, "release")).toEqual({ kind: "passes" });
+    expect(await h.release()).toEqual({ kind: "released" });
+    expect(lifecycleSuccess(await h.store.read({ reference: record.reference })).version).toBe(record.version);
   });
 
   it("names the refusing ignore rules for a deleted withheld file, then releases after their repair", async () => {

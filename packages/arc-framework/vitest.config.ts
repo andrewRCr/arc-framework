@@ -113,6 +113,7 @@ export default defineConfig({
           exclude: [...configDefaults.exclude, ...timingTests, ...burstTests],
         },
       },
+      // The timing and burst projects load no index schema guard, so their measurements carry no check.
       {
         test: {
           ...integrationTest,

@@ -170,7 +170,7 @@ describe("the command's projected-root walk", () => {
     expect(success(await h.store.read({ reference: adopted.reference })).content).toBe("new file\n");
   });
 
-  it("ignores editor side files before inspecting a dangling Emacs lock entry", async () => {
+  it("ignores editor side files before inspecting or stating a dangling Emacs lock entry", async () => {
     const h = await createEngineFixture(directories);
     const folder = join(h.checkout, ".arc/active/current"), lock = join(folder, ".#note.md");
     await mkdir(folder, { recursive: true });
@@ -185,6 +185,9 @@ describe("the command's projected-root walk", () => {
             if (join(path, entry.name) === lock) throw new Error("An editor lock must be excluded before type inspection");
             return entry.isDirectory();
           }, isFile: () => entry.isFile(), isSymbolicLink: () => entry.isSymbolicLink() }));
+      }, lstat: path => {
+        if (path === lock) throw new Error("An editor lock must be excluded before its own stat");
+        return lstatSync(path);
       } },
     }) })).toMatchObject({ kind: "ready", discovered: [] });
     expect(success(await h.store.version())).toBe(before);

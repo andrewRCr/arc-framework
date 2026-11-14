@@ -3,7 +3,7 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionConfiguration } from "./configuration.js";
-import type { ProjectionRemovalCheck } from "./removal-verdict.js";
+import { retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -13,6 +13,7 @@ import { observeProjectionHandoffs } from "./ownership-handoff.js";
 
 /** A read binding plus the exact index and configuration being checked. */
 export interface ProjectionRemovalObservationInput {
+  readonly disposition: ProjectionRetirement;
   readonly root: ReadOnlyProjectionRoot;
   readonly index: ProjectionIndex;
   readonly configuration: ProjectionConfiguration;
@@ -64,5 +65,5 @@ export async function checkPendingProjectionReadBack(input: ProjectionRemovalObs
   guard: ProjectionRemovalGuard = createRemovalGuard(input)): Promise<ProjectionRemovalCheck> {
   const guarded = await guard(path);
   if (guarded.kind !== "passes") return guarded;
-  return { kind: "would-refuse", remedy: { text: `Run arc save from ${input.root.checkout} to finish installing the accepted adoption at ${path}, then retry removal.` } };
+  return { kind: "would-refuse", remedy: { text: `Run arc save from ${input.root.checkout} to finish installing the accepted adoption at ${path}, then retry ${retirementName(input.disposition)}.` } };
 }

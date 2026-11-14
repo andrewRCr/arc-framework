@@ -23,7 +23,12 @@ export async function readCheckoutLayoutContext(checkoutRoot: string, options: {
 }
 
 /** Fresh projection coordinates retain the marker UID outside the shared layout value. */
-export interface ProjectionCheckoutContext { readonly layout: ActiveLayoutContext; readonly uid?: string }
+export interface ProjectionCheckoutContext {
+  readonly layout: ActiveLayoutContext;
+  readonly uid?: string;
+  /** What the claim names, present whenever the layout carries a claim. */
+  readonly claimKind?: "work-unit" | "errand" | "partial-errand";
+}
 
 /** Re-read marker and layout together, caching only the shared layout shape for ordinary path readers. */
 export async function readProjectionCheckoutContext(checkoutRoot: string): Promise<ProjectionCheckoutContext> {
@@ -52,7 +57,8 @@ async function readFreshCheckoutLayoutContext(checkoutRoot: string): Promise<Pro
   const claim = subject.kind === "work-unit" ? subject.name
     : subject.kind === "errand" || subject.kind === "partial-errand" ? subject.slug : null;
   return { layout: { claim: claim === null ? null : SlugSchema.parse(claim), layoutActive },
-    ...(subject.kind === "work-unit" && subject.uid !== undefined ? { uid: subject.uid } : {}) };
+    ...(subject.kind === "work-unit" && subject.uid !== undefined ? { uid: subject.uid } : {}),
+    ...(subject.kind === "work-unit" || subject.kind === "errand" || subject.kind === "partial-errand" ? { claimKind: subject.kind } : {}) };
 }
 
 async function readActiveLayout(checkoutRoot: string): Promise<ActiveLayoutContext["layoutActive"]> {

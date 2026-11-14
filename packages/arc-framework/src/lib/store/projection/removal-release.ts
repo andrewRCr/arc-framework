@@ -23,6 +23,7 @@ import { observeAsideCopy } from "./aside-copies.js";
 import { removalCopyRefusal } from "./removal-persist-asides.js";
 import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 import { findRetainedReleaseEntry, retainedReleaseEntry, unfinishedReleaseRemedy } from "./release-entries.js";
+import { releaseAbsentWithheldPaths } from "./withheld.js";
 
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
@@ -34,8 +35,12 @@ export async function releaseProjectionRemoval(checkout: string, _isPrimary: boo
   return result.kind === "persisted" ? { kind: "released" } : result;
 }
 
-async function removeLinkedProjection(root: ProjectionRootState, index: ProjectionIndex, ignoreRefusal?: Remedy): Promise<ProjectionPersistResult> {
-  const retained = await retainedReleaseRefusal(root, index, ignoreRefusal);
+async function removeLinkedProjection(root: ProjectionRootState, initial: ProjectionIndex, ignoreRefusal?: Remedy): Promise<ProjectionPersistResult> {
+  // Nothing of an absent withheld entry remains on disk, so release discards it wherever the ignore check passes, as its
+  // removal check predicts, including under another identity's root that persist leaves alone.
+  const releasable = (path: string): boolean => ignoreRefusal === undefined || root.writable(path);
+  const index = await releaseAbsentWithheldPaths({ checkout: root.checkout, writable: releasable }, initial, Object.keys(initial.entries));
+  const retained = await retainedReleaseRefusal(root, index, ignoreRefusal, releasable);
   if (retained !== undefined) return { kind: "refused", remedy: retained };
   const observed = observeRemovalSends(root);
   const guarded = await guardReleasedFiles(root, index, observed);
@@ -44,7 +49,7 @@ async function removeLinkedProjection(root: ProjectionRootState, index: Projecti
     format: root.context.format, writer: root.context.writer, takeIn: observed.takeIn,
     checkpoint: root.context.checkpoint, hooks: root.ports.hooks });
   const firstRefusal = observed.refusal();
-  if (firstRefusal !== undefined) return { kind: "refused", remedy: firstRefusal };
+  if (firstRefusal !== undefined) return refusedAfterRemoval(root, batch.index, firstRefusal);
   const currentLinks = await readProjectionLinkBoundary(root.checkout,
     [...batch.removals, ...batch.copies.flatMap(copy => [copy.path, copy.copy])], root.ports.linkFs);
   const diagnosticFrom = projectionProcessState().diagnostics.length;
@@ -53,21 +58,29 @@ async function removeLinkedProjection(root: ProjectionRootState, index: Projecti
     removals: batch.removals, blockedByLink: currentLinks, format: root.context.format, writer: root.context.writer,
     takeIn: observed.takeIn, checkpoint: root.context.checkpoint });
   const secondRefusal = observed.refusal();
-  if (secondRefusal !== undefined) return { kind: "refused", remedy: secondRefusal };
+  if (secondRefusal !== undefined) return refusedAfterRemoval(root, checked.index, secondRefusal);
   for (const copy of checked.settled) {
     // An opaque destination still permits discarding a copy proven unchanged below.
     if (currentLinks(copy.path) !== null && copy.settlement.kind === "not-a-file") continue;
-    const remedy = removalCopyRefusal(copy.settlement, copy.copy, diagnosticFrom);
-    if (remedy !== undefined) return { kind: "refused", remedy };
+    const remedy = removalCopyRefusal(copy.settlement, copy.copy, diagnosticFrom, "release");
+    if (remedy !== undefined) return refusedAfterRemoval(root, checked.index, remedy);
   }
   const incomplete = await incompleteRemoval(root, checked.index);
-  if (incomplete !== undefined) return { kind: "refused", remedy: incomplete };
+  if (incomplete !== undefined) return refusedAfterRemoval(root, checked.index, incomplete);
   const unrecorded = await checkUnrecordedProjectionCopies({ checkout: root.checkout, index: checked.index,
-    format: root.context.format, linkFs: root.ports.linkFs, walkFs: root.ports.walkFs });
-  if (unrecorded.kind === "would-refuse") return { kind: "refused", remedy: unrecorded.remedy };
+    format: root.context.format, linkFs: root.ports.linkFs, walkFs: root.ports.walkFs, disposition: "release" });
+  if (unrecorded.kind === "would-refuse") return refusedAfterRemoval(root, checked.index, unrecorded.remedy);
   await discardReleasedState(root);
   retireProjectionRoot(root);
   return { kind: "persisted" };
+}
+
+/** Release removed files from a checkout it still claims: clearing the state version makes the next command's rebuild lay them. */
+async function refusedAfterRemoval(root: ProjectionRootState, index: ProjectionIndex, remedy: Remedy): Promise<ProjectionPersistResult> {
+  await commitProjectionIndex({ checkout: root.checkout, location: root.location, index: { ...index, state: null },
+    checkpoint: root.context.checkpoint });
+  return { kind: "refused", remedy: { ...remedy,
+    text: `${remedy.text} Release already removed projected files from ${root.checkout}; the next arc command there lays them again.` } };
 }
 
 /** Guard each recorded file's removal, stopping at the first one release cannot take over. */
@@ -94,8 +107,9 @@ async function guardReleasedFiles(root: ProjectionRootState, initial: Projection
 }
 
 /** An entry whose file is gone that persist left in place: release cannot discard it, as its removal check predicts. */
-async function retainedReleaseRefusal(root: ProjectionRootState, index: ProjectionIndex, ignoreRefusal: Remedy | undefined): Promise<Remedy | undefined> {
-  const basis = { checkout: root.checkout, verb: root.context.verb, writable: root.writable, ignoreRefusal };
+async function retainedReleaseRefusal(root: ProjectionRootState, index: ProjectionIndex, ignoreRefusal: Remedy | undefined,
+  writable: (path: string) => boolean): Promise<Remedy | undefined> {
+  const basis = { checkout: root.checkout, verb: root.context.verb, writable, ignoreRefusal };
   const retained = await findRetainedReleaseEntry(index, root.checkout, root.ports.linkFs, (path, entry) => {
     const remedy = retainedReleaseEntry(basis, path, entry);
     return Promise.resolve(remedy === undefined ? { kind: "passes" } : { kind: "would-refuse", remedy });

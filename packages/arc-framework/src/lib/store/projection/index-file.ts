@@ -101,6 +101,15 @@ export interface ProjectionIndexReadOptions {
   readonly retry?: boolean;
 }
 
+/** A read by a checkout that holds a projection, where a missing index is unusable rather than intentionally absent. */
+export type HeldProjectionIndexRead = Exclude<ProjectionIndexRead, { readonly kind: "no-projection" }>;
+
+/** Read the header and partition presence, loading only the caller's selected groups. */
+export function readProjectionIndex(location: ProjectionLocation, holdsProjection: true,
+  options?: ProjectionIndexReadOptions): Promise<HeldProjectionIndexRead>;
+/** Read the header and partition presence, loading only the caller's selected groups. */
+export function readProjectionIndex(location: ProjectionLocation, holdsProjection: boolean,
+  options?: ProjectionIndexReadOptions): Promise<ProjectionIndexRead>;
 /** Read the header and partition presence, loading only the caller's selected groups. */
 export async function readProjectionIndex(location: ProjectionLocation, holdsProjection: boolean,
   options: ProjectionIndexReadOptions = {}): Promise<ProjectionIndexRead> {

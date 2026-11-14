@@ -11,7 +11,7 @@ describe("unrecorded recovery-file observation", () => {
     });
     const failure = Object.assign(new Error("Recovery folder authority is unavailable."), { code: "EACCES" });
     await expect(checkUnrecordedProjectionCopies({ checkout: "/checkout", index, format: "sha1",
-      linkFs: { lstat: () => Promise.reject(failure) },
+      linkFs: { lstat: () => Promise.reject(failure) }, disposition: "remove",
     })).rejects.toBe(failure);
   });
 });

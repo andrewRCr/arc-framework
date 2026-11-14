@@ -124,11 +124,14 @@ type IndexedFileResult = { index: ProjectionIndex; file?: SwapFile; unresolved: 
 
 async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileResult> {
   const { root, index, path } = input;
-  if ((await readProjectionLinkBoundary(root.checkout, [path]))(path) !== null) return { index, unresolved: true };
   const prior = index.entries[path];
+  if (await leftToLaterPass(input, prior)) return { index, unresolved: true };
   if (prior !== undefined && prior.kind !== "record") return input.rebuilding && isEvidenceHeldEntry(prior) ? settleHeldFile(input) : { index, unresolved: false };
   const read = await input.source.read({ reference: input.target });
-  if (prior === undefined && read.status !== "ok") return { index, unresolved: true };
+  if (prior === undefined && read.status !== "ok") {
+    root.context.report?.({ path, copy: null, mark: markStoreRefusal(read.refusal) });
+    return { index, unresolved: true };
+  }
   const entry = prior ?? projectionEntryForRecord((read as Extract<typeof read, { status: "ok" }>).result, path, root.context.format);
   if (!root.writable(path)) return { index: withProjectionEntry(index, path, { ...entry, pending: true }), unresolved: false };
   if (read.status === "refused") {
@@ -144,6 +147,13 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
   if (root.unsent.has(path)) return { index: withProjectionEntry(index, path,
     { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) }), unresolved: false };
   return prepareCurrentFile(input, entry, read.result);
+}
+
+/** A link at or above the path, or an ownership handoff in flight there, leaves the path to a later pass. */
+async function leftToLaterPass(input: IndexedFileInput, prior: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
+  if ((await readProjectionLinkBoundary(input.root.checkout, [input.path]))(input.path) !== null) return true;
+  // An ownership handoff in flight is reconciliation's to settle, under the mark naming both identities.
+  return prior?.kind === "record" && prior.handoff !== undefined;
 }
 
 /** Settle a held file by the rebuild rule now that the rebuild lays a record at its path: unedited bytes refresh. */

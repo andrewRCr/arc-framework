@@ -25,6 +25,8 @@ export interface DesiredProjection {
   readonly own: OwnerIdentity | null;
   readonly unresolved: boolean;
   readonly placementKnown: (path: string, reference: RecordReference, active?: ActiveLayoutContext) => boolean;
+  /** The other active units the in-flight view selects, as the active inventory reported them. */
+  readonly selection: ProjectionViewSelection;
 }
 
 /** The checkout's claim: its slug, with the marker's UID wherever the marker records one. */
@@ -66,7 +68,7 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
     return !unknownView || !unknownOwn && selection.references.some(selected => sameOwner(selected.owner, reference.owner));
   };
   for (const [path, record] of files) if (!placementKnown(path, record.reference)) files.delete(path);
-  return { files, own, placementKnown, unresolved: unknownOwn || unknownView || unavailableCohorts.size > 0 };
+  return { files, own, placementKnown, selection, unresolved: unknownOwn || unknownView || unavailableCohorts.size > 0 };
 }
 
 /** Live work items that all match the checkout's claim: name them and the store's repair for a live clash. */

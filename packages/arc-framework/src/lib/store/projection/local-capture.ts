@@ -35,9 +35,15 @@ export interface ProjectionLocalCaptureInput {
   readonly index?: ProjectionIndex;
 }
 
+/** A capture whose own evidence could not be read: the edit is unjudged, never refused on what it read. */
+export type ProjectionLocalCaptureResult = StoreResult<ProjectionLocalCapture> & { readonly nativeRefusal?: true };
+
 /** Capture every local candidate position, treating unreadable evidence differently from absence. */
-export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<StoreResult<ProjectionLocalCapture>> {
-  const disk = input.index ? null : await readProjectionIndex(input.location, true);
+export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<ProjectionLocalCaptureResult> {
+  // A reader holding no lease restarts once across a concurrent publication, then reports the index unobservable.
+  const disk = input.index ? null : await readProjectionIndex(input.location, true, { retry: true });
+  if (disk?.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
+    `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
   const index = input.index ?? (disk?.kind === "index" ? disk.index : null);
   const settings = input.settings ?? index?.projectedUnder;
   if (!settings) return refusedLocal("The projection settings and ownership basis are unavailable.");
@@ -86,7 +92,8 @@ async function captureProspectiveMetadata(checkout: string, path: string): Promi
   }
 }
 
-function refusedLocal(condition: string): StoreResult<never> {
+function refusedLocal(condition: string,
+  remedy = "Restore settled, readable local ownership evidence and prepare this file again."): Extract<StoreResult<never>, { status: "refused" }> {
   return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "projection.local", condition,
-    remedy: { text: "Restore settled, readable local ownership evidence and prepare this file again." } } };
+    remedy: { text: remedy } } };
 }

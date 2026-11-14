@@ -6,7 +6,8 @@ import { observeUnprojectedPersonalFiles, type ProjectionResidualFs } from "./re
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection } from "./location.js";
 import { checkoutHoldsProjection } from "./ownership.js";
-import { readProjectionIndex } from "./index-file.js";
+import { readProjectionIndex, type UnusableIndexCause } from "./index-file.js";
+import type { ProjectionRetirement } from "./removal-verdict.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { bindReadOnlyProjectionRoot } from "./engine-read-only.js";
 import { createHistoryMemo } from "./base-recovery.js";
@@ -25,14 +26,18 @@ export interface ProjectionRemovalContext {
   readonly ports?: (checkout: string) => ProjectionEnginePorts;
 }
 
+/** The repair for a target whose projection index cannot be used, which the check and the persist step both name. */
+export function unusableProjectionIndexDetail(checkout: string, cause: UnusableIndexCause): string {
+  return `The projection index at ${checkout} is ${cause}. Run arc save from that checkout to rebuild it, then retry removal or release there.`;
+}
+
 /** Check projected retirement safety without acquiring a lease or changing local or stored state. */
-export async function checkProjectionRemoval(checkout: string, context: ProjectionRemovalContext, disposition: "remove" | "release" = "remove"): Promise<Awaited<ReturnType<ProjectionRemovalSlots["check"]>>> {
+export async function checkProjectionRemoval(checkout: string, context: ProjectionRemovalContext, disposition: ProjectionRetirement = "remove"): Promise<Awaited<ReturnType<ProjectionRemovalSlots["check"]>>> {
   try {
     const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
-    if (disk.kind === "unusable") return { kind: "unobservable", detail:
-      `The projection index at ${checkout} is ${disk.cause}. Run arc save from that checkout to rebuild it, then retry removal or release there.` };
+    if (disk.kind === "unusable") return { kind: "unobservable", detail: unusableProjectionIndexDetail(checkout, disk.cause) };
     if (disk.kind === "no-projection") return disposition === "release" ? { kind: "passes" }
       : await observeUnprojectedPersonalFiles(checkout, context.residualFs);
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
@@ -44,11 +49,11 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     const observed = observeProjectionReads(context.store, { answeredLookups: ["ambiguous-match"] });
     const root = await bindReadOnlyProjectionRoot({ checkout, store: observed.store, ports, location, configuration,
       history: createHistoryMemo(observed.store) });
-    const index = await readRemovalHandoffs({ root, index: disk.index, ports, configuration });
-    const guard = createRemovalGuard({ root, index, ports, configuration });
-    const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(targetIdentity), ports, configuration, guard });
+    const index = await readRemovalHandoffs({ disposition, root, index: disk.index, ports, configuration });
+    const guard = createRemovalGuard({ disposition, root, index, ports, configuration });
+    const files = await checkProjectionRemovalFiles({ disposition, root, index, roots: projectedRootPaths(targetIdentity), ports, configuration, guard });
     const asides = files.verdict.kind === "passes"
-      ? await checkProjectionRemovalAsides({ root, index: files.index, ports, configuration, guard }) : files.verdict;
+      ? await checkProjectionRemovalAsides({ disposition, root, index: files.index, ports, configuration, guard }) : files.verdict;
     // Release alone keeps a linked checkout and walks every entry it will discard, so it answers for files already gone.
     const result = asides.kind !== "passes" || disposition !== "release" || location.primary ? asides
       : await checkRetainedReleaseEntries({ index: files.index, checkout, verb: root.context.verb, linkFs: ports.linkFs, guard });

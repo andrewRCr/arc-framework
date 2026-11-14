@@ -4,7 +4,7 @@ import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./submission.js";
-import type { ProjectionLocalCapture } from "./local-capture.js";
+import type { ProjectionLocalCaptureResult } from "./local-capture.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -57,7 +57,7 @@ export interface WriteBackContext {
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
   readonly actor: string;
-  readonly captureLocal?: (path: string, source: "file" | "aside") => Promise<StoreResult<ProjectionLocalCapture>>;
+  readonly captureLocal?: (path: string, source: "file" | "aside") => Promise<ProjectionLocalCaptureResult>;
   readonly registry?: Readonly<Record<KindId, KindDefinition>>;
   readonly readCopy?: (name: string) => Promise<string>;
   readonly now?: () => Date;

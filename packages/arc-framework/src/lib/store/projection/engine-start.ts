@@ -49,7 +49,6 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     }
     const saved = fulfilled(read[1]);
     const disk = fulfilled(read[4]);
-    if (disk.kind === "no-projection") return { kind: "no-projection" };
     const sharedWalk = fulfilled(read[2]), personalWalk = fulfilled(read[3]);
     const files = [...sharedWalk.files, ...personalWalk.files].sort();
     reportProjectionLinks([...sharedWalk.links, ...personalWalk.links]);

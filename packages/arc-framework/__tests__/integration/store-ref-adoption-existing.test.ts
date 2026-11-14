@@ -24,6 +24,7 @@ import { withProjectionLock } from "../../src/lib/store/projection/lock.js";
 import { createWriteBackPort } from "../../src/lib/store/projection/write-back.js";
 import { TAKEN_IN_FOLDER } from "../../src/lib/store/projection/taken-in.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -226,6 +227,29 @@ it("binds an unindexed archived cohort file to its archive coordinates while its
   const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archived cohort adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: archived.reference, pending: false, refused: null });
+});
+
+it("answers an archived cohort file unobservable while the cohort archive inventory is incomplete, then passes", async () => {
+  const { f } = await createAdoptionFixture();
+  const name = SlugSchema.parse("core"), reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
+  const body = "# Cohort: core\n\n**Parent:** [none]\n\n**Purpose:** Coordinate old work.\n\nOriginal archived prose\n";
+  const prior = await seed(f, reference, body);
+  success(await f.store.write({ ...update(f, prior, body), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const path = completedCohortPath(success(await f.store.read({ reference: prior.reference })));
+  await mkdir(dirname(join(f.root, path)), { recursive: true });
+  await writeFile(join(f.root, path), renderStampedFile({ content: body.replace("Original archived prose", "Archived correction"),
+    stamp: gitBlobId(body, "sha1") }));
+  let incomplete = true;
+  const store = overrideEngineStore(f.store, { list: async request => {
+    const listed = await f.store.list(request);
+    return incomplete && request.family === "cohort" && listed.status === "ok" && listed.result.status === "complete"
+      ? { ...listed, result: { ...listed.result, missed: true } } : listed;
+  } });
+  const check = () => checkProjectionRemoval(f.root, { store, identity: SlugSchema.parse("andrew") });
+  expect(await check()).toEqual({ kind: "unobservable", detail: expect.stringContaining("cohort archive inventory") });
+  incomplete = false;
+  expect(await check()).toEqual({ kind: "passes" });
 });
 
 it("holds a project inbox until its unique project identity is established, then adopts the same bytes into that namespace", async () => {

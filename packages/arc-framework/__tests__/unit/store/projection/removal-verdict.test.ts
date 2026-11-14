@@ -6,7 +6,8 @@ import type { RecordEntry } from "../../../../src/lib/store/projection/index-sch
 import { projectionAdmissionConflict } from "../../../../src/lib/store/projection/preparation-view.js";
 import { observeProjectionReads } from "../../../../src/lib/store/projection/read-observation.js";
 import { markStoreRefusal } from "../../../../src/lib/store/projection/refusal-mark.js";
-import { projectionFeasibilityRefusal } from "../../../../src/lib/store/projection/removal-verdict.js";
+import { projectionFeasibilityRefusal, unresolvedRemovalConflicts } from "../../../../src/lib/store/projection/removal-verdict.js";
+import { removalCopyRefusal } from "../../../../src/lib/store/projection/removal-persist-asides.js";
 import type { StoreRefusal } from "../../../../src/lib/store/refusal.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 
@@ -21,7 +22,7 @@ describe("retirement feasibility of a held preparation", () => {
     const refusal = projectionAdmissionConflict(reference, "The indexed record changed identity or role.");
     const mark = markStoreRefusal(refusal);
     expect(projectionFeasibilityRefusal({ kind: "held", refusal,
-      result: { answer: "refused", entry: { ...entry, refused: mark }, mark } }, "notes.md"))
+      result: { answer: "refused", entry: { ...entry, refused: mark }, mark } }, "notes.md", "remove"))
       .toEqual({ kind: "would-refuse", remedy: mark.remedy });
   });
 
@@ -29,8 +30,23 @@ describe("retirement feasibility of a held preparation", () => {
     const readRefusal: StoreRefusal = { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
       condition: "The base is unreadable.", remedy: { text: "Restore readable record history, then retry." } };
     expect(projectionFeasibilityRefusal({ kind: "held", readRefusal, diagnostic: markStoreRefusal(readRefusal),
-      result: { answer: "pending", entry: { ...entry, pending: true } } }, "notes.md"))
+      result: { answer: "pending", entry: { ...entry, pending: true } } }, "notes.md", "remove"))
       .toEqual({ kind: "unobservable", detail: "Restore readable record history, then retry." });
+  });
+});
+
+describe("the retirement a shared remedy asks to retry", () => {
+  const conflict = recordReferences["personal/document"](owner, "scratch/other.md");
+  it.each([["remove", "removal"], ["release", "release"]] as const)("names %s's own retry", (disposition, name) => {
+    expect(projectionFeasibilityRefusal({ kind: "held", result: { answer: "pending", entry: { ...entry, pending: true } } },
+      "notes.md", disposition)).toEqual({ kind: "would-refuse",
+      remedy: { text: `Let notes.md finish settling, then run arc save there and retry ${name}.` } });
+    expect(unresolvedRemovalConflicts("notes.md", [conflict], [], disposition)).toEqual({ kind: "would-refuse",
+      remedy: { text: `Resolve the conflicts in notes.md by hand, then run arc save there and retry ${name}.` } });
+    expect(removalCopyRefusal({ kind: "moved-on", entry, path: "notes.md", copy: "notes.md.aside" }, "notes.md.aside", 0, disposition))
+      .toEqual({ text: `Recover anything wanted from notes.md.aside, then delete that copy explicitly and retry ${name}.` });
+    expect(removalCopyRefusal({ kind: "kept", entry, answer: "unsettled" }, "notes.md.aside", Number.MAX_SAFE_INTEGER, disposition))
+      .toEqual({ text: `Let notes.md.aside finish saving, then run arc save there and retry ${name}.` });
   });
 });
 

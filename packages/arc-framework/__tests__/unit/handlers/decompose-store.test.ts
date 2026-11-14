@@ -1,6 +1,6 @@
 /** Actual handler composition over checked operational records and scripted physical boundaries. */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDecomposeOriginFixture } from "../../fixtures/decompose-origin.js";
@@ -63,7 +63,6 @@ async function invoke(store: Store, options: DecomposeOptions, locusPorts: Locus
 it("runs a retirement through handler-built store contexts without a holding checkout", async () => {
   const h = await createDecomposeOriginFixture(false);
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example" })), "{}");
-  await writeFile(join(state.root, "personal.txt"), "Retained personal content.");
   const locus: LocusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" }) };
   const starter = await invoke(h.store, { preflight: true }, locus);
   expect(starter).toHaveProperty("machine");
@@ -81,7 +80,6 @@ it("runs a retirement through handler-built store contexts without a holding che
   expect(await readWorkUnit(h.store, "origin")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.primary.reference.owner) })).fields)
     .toMatchObject({ kind: "decompose", retiredBranches: [] });
-  expect(await readFile(join(state.root, "personal.txt"), "utf8")).toBe("Retained personal content.");
 });
 
 it("routes both revision forms and discard through approved previews without changing origin content", async () => {

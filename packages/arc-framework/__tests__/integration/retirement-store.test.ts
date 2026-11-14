@@ -24,7 +24,7 @@ import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { persistProjectionRemoval } from "../../src/lib/store/projection/removal-persist.js";
-import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { checkProjectionRemoval, unusableProjectionIndexDetail } from "../../src/lib/store/projection/removal-check.js";
 import { passingProjectionRemovalSlots } from "../../src/lib/git/worktree-removal.js";
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
 import { parseStampedFile, renderStampedFile } from "../../src/lib/store/projection/stamp.js";
@@ -233,7 +233,8 @@ describe("store retirement real Git", () => {
   it("holds a damaged projection index until a command in that checkout rebuilds it", async () => {
     const h = await projectedRetirement();
     await writeFile(join(h.location.stateDir, PROJECTION_INDEX_FILE), "damaged header\n");
-    expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining(`Run arc save from ${h.checkout}`) });
+    expect(await h.remove()).toMatchObject({ status: "rejected",
+      reason: expect.stringContaining(unusableProjectionIndexDetail(h.checkout, "unreadable")) });
     expect(await h.store.read({ reference: h.record.reference })).toMatchObject({ status: "ok", result: { version: h.record.version } });
     const command = { checkout: h.checkout, store: h.store, mode: "save" as const };
     expect(await startProjection(command)).toMatchObject({ kind: "ready" });
@@ -563,6 +564,24 @@ describe("store retirement real Git", () => {
     await endProjection(h.command);
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
+  });
+
+  it("names the refusing ignore rules for an unfinished recording, then the save in that checkout, then removes", async () => {
+    const h = await retirementRecording();
+    h.repair();
+    const context = { store: h.store, identity: SlugSchema.parse("test-user") };
+    const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
+    await writeFile(excludes, ".arc/\n");
+    const ports = createProjectionEnginePorts(h.checkout);
+    const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
+    if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
+    expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "would-refuse", remedy: { text: guard.remedy } });
+    await writeFile(excludes, original);
+    expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "would-refuse",
+      remedy: { text: expect.stringContaining(`arc save from ${h.checkout} to finish recording`) } });
+    expect(await startProjection(h.command)).toMatchObject({ kind: "ready" });
+    await endProjection(h.command);
+    expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "passes" });
   });
 
   it("holds an altered cold archive partition until arc save rebuilds it", async () => {

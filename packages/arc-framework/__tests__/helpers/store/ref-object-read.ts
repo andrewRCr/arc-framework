@@ -84,7 +84,7 @@ export function refObjectReadFixture(options: {
   if (options.missingRecord) objects.delete(record.oid);
   if (parent) objects.delete(parent.oid);
 
-  const calls: string[][] = [];
+  const calls: string[][] = [], batches: string[][] = [];
   let transientMetadataAbsence = options.transientMetadataAbsence;
   const unexpected = async (): Promise<never> => { throw new Error("Unexpected fixture I/O"); };
   const missing = (path: string) => Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
@@ -101,6 +101,7 @@ export function refObjectReadFixture(options: {
       if (args[0] === "for-each-ref") stdout = Buffer.from(`${options.live === false ? "" : `${tip.oid} ${namespace}\n`}${manifest.oid} refs/arc/tmp/version\n`);
       else if (args[0] === "cat-file" && args[1] === "--batch") {
         const queries = Buffer.from(controls?.input ?? "").toString().trimEnd().split("\n");
+        batches.push(queries);
         stdout = Buffer.concat(queries.map(query => {
           if (transientMetadataAbsence && query === `${metadataRef}:${metadataPath}`) {
             transientMetadataAbsence = false;
@@ -133,7 +134,7 @@ export function refObjectReadFixture(options: {
     backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected }, random: () => 0.5,
   };
-  return { store: createRefStore(ports), calls, namespace, emptyVersion: StateVersionSchema.parse(empty.oid),
+  return { store: createRefStore(ports), calls, batches, rootTree: root.oid, namespace, emptyVersion: StateVersionSchema.parse(empty.oid),
     version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
     owner: { type: "work-item", name: "alpha", uid: metadataUid }, kind: "work-item/companion", key: "extra",
   }) };

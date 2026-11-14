@@ -60,10 +60,13 @@ it.each(["absent", "manual-only"])("adds no policy for an %s marker", async mark
   expect(await observeUnprojectedPersonalFiles(h.root, { readdir: unexpected, lstat: unexpected })).toEqual({ kind: "passes" });
 });
 
-it("refuses an unreadable marker instead of treating it as unmanaged", async () => {
-  const h = await fixture();
-  await writeFile(resolveWorktreeMarkerPath(h.root), "{ malformed marker");
-  expect(await observeUnprojectedPersonalFiles(h.root)).toMatchObject({ kind: "unobservable" });
+it("refuses an unreadable marker instead of treating it as unmanaged, naming its repair, and passes once repaired", async () => {
+  const h = await fixture(), marker = resolveWorktreeMarkerPath(h.root), original = await readFile(marker);
+  await writeFile(marker, "{ malformed marker");
+  expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "unobservable",
+    detail: expect.stringContaining("Repair or remove the marker, then retry removal.") });
+  await writeFile(marker, original);
+  expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "passes" });
 });
 
 it.each(["user-root", "personal-root", "nested-directory", "file"])("does not follow a %s symbolic link", async placement => {
