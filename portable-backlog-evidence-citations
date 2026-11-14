@@ -3,7 +3,7 @@
   "slug": "portable-backlog-evidence-citations",
   "claimId": "bda8c4cbd56410c17ce2a6536e7d280c",
   "createdAt": "2026-11-14T01:15:48.244Z",
-  "updatedAt": "2026-11-14T01:15:48.244Z",
+  "updatedAt": "2026-11-14T01:31:25.415Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Replace dead checkout-local evidence paths in six backlog drafts with portable storage-ref-backend citations.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Cite `storage-ref-backend`'s evidence in backlog drafts without a machine path",
   "originEntrySourceDigest": "sha256:66dd38240b63f0c13a33cfcc80ee63980797a1fbdc5cdead77da5c0783f9b49b",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/portable-backlog-evidence-citations",
+    "headSha": "52ab9fb53b1afeb9c12c1672c08d49550e4da7ee"
+  }
 }
