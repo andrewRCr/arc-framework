@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { resolveCurrentWorkUnit } from "../../../../src/lib/store/current-work-unit.js";
-import { createStore } from "../../../../src/lib/store/create.js";
-import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { readActiveMetaCandidates } from "../../../../src/lib/active/meta-reader.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -16,7 +15,7 @@ async function fixture() {
   await mkdir(join(cwd, ".arc/active"), { recursive: true });
   const forbiddenGit = async () => { throw new Error("Current-work-unit resolution must spawn no Git process"); };
   const ports = testStorePorts(cwd, forbiddenGit, forbiddenGit);
-  return { cwd, ports, store: createStore(ports),
+  return { cwd, ports, store: inRepoStore(ports),
     write: (slug: string, content: string) => writeFile(join(cwd, `.arc/active/meta-${slug}.md`), content) };
 }
 

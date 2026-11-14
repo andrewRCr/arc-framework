@@ -12,13 +12,13 @@ import { projectionProcessState } from "../../../../src/lib/store/projection/pro
 import { writeWorktreeMarker, resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
 import { workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { randomUUID } from "node:crypto";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
 
 import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -143,7 +143,7 @@ describe("projection command entry", () => {
 
   it("does no I/O over the in-repo backend, recording its capability before dependency resolution", async () => {
     const checkout = "/not-a-repository";
-    const store = createStore(createDefaultStorePorts({ checkoutRoot: checkout,
+    const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: checkout,
       exec: async () => { throw new Error("Git must stay dark"); }, execInput: async () => { throw new Error("Git input must stay dark"); } }));
     const input = { store, checkout, ports: () => { throw new Error("engine dependencies must stay dark"); } };
     expect(await startProjection(input)).toEqual({ kind: "disabled" });

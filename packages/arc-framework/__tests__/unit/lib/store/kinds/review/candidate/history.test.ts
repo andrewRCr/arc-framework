@@ -2,13 +2,12 @@
 import { expect, it, onTestFinished } from "vitest";
 import { readRepositoryCandidateSupersessionChain, readRepositoryCandidateRecordRevision } from
   "../../../../../../../src/lib/store/kinds/review/candidate/history.js";
-import { createStore } from "../../../../../../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../../../../src/lib/store/identity.js";
 import { createCandidateAttestation, serializeCandidateManagedRecord } from
   "../../../../../../../src/lib/work-unit/candidate-attestation.js";
 import { candidateFixture } from "../../../../../../helpers/store/tracked-write-fixture.js";
 import { scriptGitExec, scriptGitExecInput } from "../../../../../../helpers/git-exec-fake.js";
-import { testStorePorts } from "../../../../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../../../../helpers/store/in-repo-ports.js";
 import { success } from "../../../../../../helpers/store/suite-tools.js";
 import { createReviewHarness } from "../../../../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../../../../helpers/store/lifecycle-harness.js";
@@ -51,7 +50,7 @@ function fixture() {
     { match: ["cat-file", "commit", older], responses: [`tree ${oid("f")}\n\nInitial Candidate\n`] },
   ]);
   return { grandparent, predecessor, current, grandparentContent, exec,
-    store: createStore(testStorePorts("/candidate", exec, execInput)) };
+    store: inRepoStore(testStorePorts("/candidate", exec, execInput)) };
 }
 
 it("retains the linked version introduced by a merge commit instead of using the store's path-following history", async () => {

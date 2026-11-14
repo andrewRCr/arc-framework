@@ -9,8 +9,7 @@ import { prepareTaskClose, runTaskClose } from "../../src/lib/work-unit/verbs/ta
 import { recordPut, batchLifecycleWrites } from "../../src/lib/store/lifecycle-write.js";
 import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
-import { createStore } from "../../src/lib/store/create.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 it.each(["detached", "unlinked", "ambiguous", "no-link"] as const)("retains close's exact %s condition and repair", async kind => {
   const h = await makeUnclosedTaskFixture();
   const links = (await h.readMeta()).links ?? {};
@@ -88,5 +87,5 @@ it("omits Planning work, a work unit with no open task, and the in-repo implemen
   const forbidden = async () => { throw new Error("Git must not be read"); };
   expect(await computeUnclosedTaskCommits({ ...planning.input, exec: forbidden })).toBeNull();
   expect(await computeUnclosedTaskCommits({ ...closed.input, exec: forbidden })).toBeNull();
-  expect(await computeUnclosedTaskCommits({ ...closed.input, store: createStore(testStorePorts(closed.cwd, forbidden, forbidden)), exec: forbidden })).toBeNull();
+  expect(await computeUnclosedTaskCommits({ ...closed.input, store: inRepoStore(testStorePorts(closed.cwd, forbidden, forbidden)), exec: forbidden })).toBeNull();
 });

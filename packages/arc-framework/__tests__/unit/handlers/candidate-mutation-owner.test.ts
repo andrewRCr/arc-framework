@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { resolveCandidateMutationGeneration, resolveCompletedCandidateOwners, resolveCompletedCandidateWorkUnits }
   from "../../../src/handlers/candidate-mutation-owner.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
@@ -15,6 +14,7 @@ import { recordReferences, type OwnerIdentity } from "../../../src/lib/store/ide
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot, serializeCandidateManagedRecord }
   from "../../../src/lib/work-unit/candidate-attestation.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 const named = { cwd: "/repo", candidateId: canonicalDigest({ candidate: "named" }) };
 
@@ -193,7 +193,7 @@ it("keeps an in-repo completed name that is no slug in the name list, selecting 
   for (const name of ["example", "Legacy_Name"]) {
     await writeFile(join(cwd, ".arc", "completed", "2026-q4", `meta-${name}.md`), meta);
   }
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: scriptGitExec([]).exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: scriptGitExec([]).exec }));
   expect([...await resolveCompletedCandidateWorkUnits(cwd, store)].sort()).toEqual(["Legacy_Name", "example"]);
   expect(await resolveCompletedCandidateOwners(cwd, store)).toEqual([{ type: "work-item", name: "example" }]);
 });

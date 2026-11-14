@@ -13,8 +13,8 @@ import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHan
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -74,7 +74,7 @@ describe("projection command end", () => {
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
     await writeFile(join(folder, "orphan"), "must remain");
-    await endProjection({ store: createStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
+    await endProjection({ store: inRepoStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("must remain");
   });
 

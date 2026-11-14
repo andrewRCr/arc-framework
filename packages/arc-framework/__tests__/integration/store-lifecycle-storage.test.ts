@@ -2,7 +2,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { createStoreLifecycleStorage } from "../../src/lib/store/lifecycle-storage.js";
 import { StateVersionSchema, RecordReferenceSchema } from "../../src/lib/store/identity.js";
@@ -18,13 +17,14 @@ import { readIntegrationCheckpointComposition } from "../../src/scripts/integrat
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 async function fixture() {
   const root = await createTempRepo("arc-lifecycle-storage-");
   onTestFinished(async () => cleanupTempDir(root));
   const exec = makeGitExec(root);
   const ports = createDefaultStorePorts({ checkoutRoot: root, exec, execInput: makeGitExecInput(root) });
-  const store = createStore(ports);
+  const store = inRepoStore(ports);
   const storage = createStoreLifecycleStorage({ store, checkoutRoot: root });
   const put = async (path: string, content: string) => {
     await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), content);

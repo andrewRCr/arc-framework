@@ -6,8 +6,8 @@ import { expect, it, onTestFinished } from "vitest";
 import { exportWorkUnitSpec } from "../../../src/lib/work-unit/design-export.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 it("writes the stored spec as a review copy without mutating the store", async () => {
   const h = createReviewHarness();
@@ -30,7 +30,7 @@ it.each(["none", "in-repo"] as const)("exports nothing under %s", async mode => 
   const cwd = await mkdtemp(join(tmpdir(), "arc-design-disabled-"));
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
   const exec = async () => ({ stdout: "" });
-  const store = mode === "in-repo" ? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })) : h.store;
+  const store = mode === "in-repo" ? inRepoStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })) : h.store;
   expect(await exportWorkUnitSpec({ cwd, workUnit: "example", store, owner: primary.reference.owner,
     trackDesignDocs: mode === "none" ? "none" : "specs", exec: async () => ({ stdout: "" }) })).toBeNull();
   await expect(readFile(join(cwd, ".arc/specs/example/spec-example.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });

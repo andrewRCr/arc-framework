@@ -25,7 +25,6 @@ import { nativeReviewInFlightRecordName } from "../../../src/scripts/review-gate
 import { RepositoryGitCommonStatePublisher } from "../../../src/lib/git-common-state.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 import type { Store } from "../../../src/lib/store/contract.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { SlugSchema, canonicalDigest } from "../../../src/lib/kernel/index.js";
@@ -40,6 +39,7 @@ import { livePredecessorReviewAttempt } from "../../../src/scripts/review-gate/l
 import { createLocalPrepareDependencies } from "../../../src/scripts/review-gate/runtime/local-prepare-composition.js";
 import { resolveLocalReviewInvocation } from "../../../src/scripts/review-gate/runtime/local-review-invocation.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 interface ContinuationOverride { operationRef?: string; workItem?: OwnerIdentity; store?: Store }
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -567,7 +567,7 @@ it.each(["resume", "attest", "reduce"] as const)("rejects native locators at rep
   const h = await fixture(true, "errand", false);
   const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h[command](prepared.payload.operationId, { operationRef: prepared.payload.operationRef, store }))
     .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("omit `operationRef`") } });
 });

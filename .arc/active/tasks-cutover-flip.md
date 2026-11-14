@@ -100,13 +100,10 @@ the ref backend while the default store stays in-repo.
           after, so the production command's source stays in-repo once `createStore` follows the selection. The 41
           suites that import the fixture pass unchanged.
 
-### `[ ]` **1.4 Callers whose subject is the in-repo arm build it explicitly — § 7.2**
+### `[x]` **1.4 Callers whose subject is the in-repo arm build it explicitly — § 7.2**
 
 - _Goal:_ Each test that composes a store, directly or by passing one to a handler, and whose subject is the in-repo arm
   builds it explicitly, and every other direct caller is recorded for Task 3.3 as expecting the ref backend.
-
-- _Note:_ About 85 test files call `createStore` directly; the classification by file is recorded in
-  `notes-cutover-flip.md` § Test callers as this task runs.
 
     - `[x]` **1.4.a The in-repo store suites**
         - The eleven `store-tracked-*`, `store-transient*`, `store-in-repo-*`, and `store-personal-*` integration
@@ -120,9 +117,15 @@ the ref backend while the default store stays in-repo.
           `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts`, and as
           `createSessionStatusContext`'s `operational.store` in `integration/session-inbox-compatibility.test.ts`.
 
-    - `[ ]` **1.4.c The remaining direct callers classified**
-        - Handler, review-gate, session-init, projection, and work-unit tests: each either builds the in-repo backend
-          now, where its subject leaves with that arm, or is recorded as expecting the ref backend at the switch.
+    - `[x]` **1.4.c The remaining direct callers classified**
+        - Thirty-three files whose subject is the in-repo arm build it through `inRepoStore`: handler, review-gate,
+          integration-script, session-init, store, projection, work-unit, and recovery tests, and the import sources
+          the `store-ref-import-*` suites build by hand. `integration/identity-setup-store-cli`'s mock falls through to
+          it for the legacy join. `integration/command-surface-documentation`'s default-backend case and the partial
+          mocks that bind a reference store around each dispatch are recorded as expecting the ref backend.
+
+- _Outcome:_ Every direct `createStore` caller and § 7.2 handler entry in the test tree is classified by file in
+  `notes-cutover-flip.md` § Test callers, which Task 3.3 takes as its list of tests expecting the ref backend.
 
 ### `[ ]` **1.5 Spawned tests whose subject is the in-repo arm set the override — § 7.3**
 

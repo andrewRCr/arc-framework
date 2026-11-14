@@ -15,7 +15,6 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-ga
 import { createStandardReviewReservation } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import type { Store } from "../../../src/lib/store/contract.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
@@ -39,6 +38,7 @@ import { bindNativeReviewOperationReference, parseNativeReviewOperationReference
 import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 // The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
 const mocks = vi.hoisted(() => ({
@@ -425,7 +425,7 @@ it("rejects native hosted locators at a repository root", async () => {
   const h = await fixture();
   const requested = HostedRequestResultSchema.parse(await h.run());
   if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.awaitResult(requested.action, { store })).toMatchObject({ error: {
     code: "invalid-input", message: expect.stringContaining("omit `operationRef`"),
   } });
@@ -603,7 +603,7 @@ it("preserves response project recovery before selecting its source owner", asyn
 
 it("rejects a native response source at a repository root", async () => {
   const h = await hostedProposalFixture();
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.respond(h.request, { store })).toMatchObject({ error: {
     code: "invalid-input", message: expect.stringContaining("matching reference"),
   } });
@@ -711,7 +711,7 @@ it("preserves hosted settlement project recovery and retries the submitted reque
 
 it("rejects native settlement sources at a repository root", async () => {
   const h = await hostedSettlementFixture();
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.settle(h.settlementRequest, { store })).toMatchObject({ error: {
     code: "invalid-input", message: expect.stringContaining("matching reference"),
   } });

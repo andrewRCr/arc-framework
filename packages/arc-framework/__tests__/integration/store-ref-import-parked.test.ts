@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { importFixture, IMPORT_DOCUMENTS } from "../helpers/store/import-fixture.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { createStore, createRefStore, RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/index.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { composePointerRecord } from "../../src/lib/work-unit/pointer-record.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
@@ -20,6 +20,7 @@ import { importCandidatePath } from "../helpers/store/import-candidates.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 const execFileAsync = promisify(execFile);
 const firstPark = "2026-01-02T03:04:05.000Z";
@@ -59,7 +60,7 @@ describe("parked work in the default layout", () => {
     const facts = new Map<string, Awaited<ReturnType<typeof park>>>();
     const h = await importComparisonFixture(layout, async fixture => { facts.set(fixture.root, await park(fixture)); });
     const pause = MetaPauseSchema.parse({ pausedBy: "andrew", since: firstPark, reason });
-    const source = createStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
+    const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.source.root }));
     for (const kind of [...workKinds, "review/candidate", "review/integration-boundary"] as const) {
       h.comparators.set(kind, { normalize: async (expected, actual) => {
         const pinned = success(await source.read({ reference: expected.reference, asOf: facts.get(h.source.root)!.tree }));
@@ -104,7 +105,7 @@ it.each((["remote-only", "remote-ahead"] as const).flatMap(state => [{ state, ab
   await h.git("git", ["update-ref", "refs/remotes/origin/feat/alpha", tip]);
   if (state === "remote-only") await h.git("git", ["branch", "-D", "feat/alpha"]);
   else await h.git("git", ["update-ref", "refs/heads/feat/alpha", facts.tip]);
-  const source = createStore(createDefaultStorePorts({ checkoutRoot: h.root }));
+  const source = inRepoStore(createDefaultStorePorts({ checkoutRoot: h.root }));
   const records: StoreRecord[] = [];
   for (const kind of workKinds) {
     const listed = success(await source.list({ family: "work-item", kind, owner: reference.owner, asOf }));

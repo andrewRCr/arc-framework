@@ -10,12 +10,13 @@ import { writeWorktreeMarker, readWorktreeMarkerGeneration, resolveWorktreeMarke
   writeWorktreeOwnershipMarker, stampWorktreeHusk, removePrimaryTransientOccupancy,
   type WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { createDefaultStorePorts, createDefaultRefStorePorts } from "../../../../src/lib/store/default-ports.js";
-import { createRefStore, createStore, createReadSourceStore } from "../../../../src/lib/store/create.js";
+import { createRefStore, createReadSourceStore } from "../../../../src/lib/store/create.js";
 import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
 import { workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
 import { WorkUnitReadPlacementSchema } from "../../../../src/lib/store/placement.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); beginProjectionCommand(); });
@@ -47,19 +48,19 @@ it("reads the checkout's effective flat layout from its project configuration", 
 
 it.each([false, true])("keeps the engine's %s capability over a store composed later in the command", async stateOffBranch => {
   const root = await checkout("alpha"), ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  const selected = stateOffBranch ? createRefStore(ports) : createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const selected = stateOffBranch ? createRefStore(ports) : inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   const start = await startProjection({ store: selected, checkout: root });
   expect(start.kind).toBe(stateOffBranch ? "skipped" : "disabled");
-  if (stateOffBranch) createStore(createDefaultStorePorts({ checkoutRoot: root })); else createRefStore(ports);
+  if (stateOffBranch) inRepoStore(createDefaultStorePorts({ checkoutRoot: root })); else createRefStore(ports);
   expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null))
     .toBe(stateOffBranch ? ".arc/active/current/meta-alpha.md" : ".arc/active/meta-alpha.md");
 });
 
 it.each([false, true])("expires the engine's %s override while retaining the latest composition for the next command", async stateOffBranch => {
   const root = await checkout("alpha"), ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  const selected = stateOffBranch ? createRefStore(ports) : createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const selected = stateOffBranch ? createRefStore(ports) : inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   await startProjection({ store: selected, checkout: root });
-  if (stateOffBranch) createStore(createDefaultStorePorts({ checkoutRoot: root })); else createRefStore(ports);
+  if (stateOffBranch) inRepoStore(createDefaultStorePorts({ checkoutRoot: root })); else createRefStore(ports);
   beginProjectionCommand();
   expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null))
     .toBe(stateOffBranch ? ".arc/active/meta-alpha.md" : ".arc/active/current/meta-alpha.md");
@@ -124,7 +125,7 @@ it.each(["ownership", "husk", "primary-release"] as const)("updates path answers
 it("rereads layout facts when composition changes the root's effective backend", async () => {
   const root = await checkout("alpha"), ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
   expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-alpha.md");
-  createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null)).toBe(".arc/active/meta-alpha.md");
   await writeFile(join(root, ".arc", "system", "arc-config.yml"), "layout.active: flat\n");
   createRefStore(ports);
@@ -133,7 +134,7 @@ it("rereads layout facts when composition changes the root's effective backend",
 
 it.each(["unrecorded", "in-repo", "read-source"] as const)("keeps %s path resolution independent of marker and config files", async mode => {
   const root = await checkout("alpha", false), ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
-  if (mode !== "unrecorded") createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  if (mode !== "unrecorded") inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   if (mode === "read-source") createReadSourceStore(ports, "upstream");
   await writeFile(resolveWorktreeMarkerPath(root), "not marker JSON");
   await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.protection: invalid\n");

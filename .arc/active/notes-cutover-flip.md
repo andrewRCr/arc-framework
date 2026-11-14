@@ -135,6 +135,56 @@ The search § 7.7 asks for, at `a7c65b4239`. Task 1.4 and Task 3.6 record each f
   expecting `unsupported` from a helper-built store. Eight tests hand-build a store with `stateOffBranch: false` and do
   not reach the default.
 
+The direct callers and handler entry points, classified at Task 1.4. An explicit in-repo store is built through
+`inRepoStore` (`__tests__/helpers/store/in-repo-ports.ts`), which selects the in-repo implementation through the
+override whatever the default builds.
+
+- **Build the in-repo store explicitly, since their subject leaves with that arm:**
+    - the store helpers (Task 1.3) and the in-repo store suites: eleven integration suites, `store-tracked-history`,
+      `-listing-failures`, `-lookup`, `-reads`, and `-writes`, `store-transient`, `-boundary`, `-history-order`, and
+      `-local-causes`, `store-in-repo-errand-branches`, and `store-personal-read`; the unit suites
+      `lib/store/in-repo-dispatch`, `-flat-read`, `-identity-admission`, and `-review-read`; and three unit tests that
+      expect the in-repo store's `unsupported` refusals, `handlers/review-adversarial`,
+      `work-unit/verbs/pause-handover`, and `store-command-registration`;
+    - the three § 7.2 tests that reach the default through a handler or script, each now passing its store in:
+      `integration/errand-store-imported-cli`, `integration/session-inbox-compatibility` (`createSessionStatusContext`'s
+      `operational.store`), and `unit/scripts/review-gate/runtime/invocation-extra-pass-references`
+      (`resolveReviewInvocation`'s `store`);
+    - handler tests of the repository-root arm: `unit/handlers/candidate-mutation-owner`, `review-frontline-store`,
+      `review-hosted-store`, `review-local-store`, and `review`;
+    - script tests of the in-repo arm: `unit/scripts/integration/checkpoint-native-convergence` and
+      `unit/scripts/review-gate/runtime/respond-candidate-selection` and `source-invocation`;
+    - session-init tests of the in-repo arm: `unit/session-init/locus-classification`,
+      `materializable-work-units-store`, and `store-user-pull`;
+    - store and projection tests of the in-repo implementation: `unit/lib/store/current-work-unit`,
+      `lifecycle-index-aliases`, `lifecycle-storage-layout`, and `kinds/review/candidate/history`;
+      `unit/lib/checks/projected-selection`'s four starts, which need the in-repo store's disabled start;
+      `unit/store/projection/status`; and `integration/store-lifecycle-storage`, `store-passive-object-access`,
+      `store-imported-seal`, `store-default-identity`, `store/projection/engine`'s and `engine-end`'s in-repo cases;
+    - work-unit and recovery tests of the in-repo arm: `unit/work-unit/design-export`'s in-repo mode,
+      `unit/work-unit/store-read-consumers`, `integration/unclosed-task-actions`,
+      `integration/recovery-personal-address`'s `offBranch=false` case, and
+      `integration/review-policy-native-context`'s repository store;
+    - the import sources the five `store-ref-import-*` suites build by hand: `lineage`, `links`, `parked`,
+      `personal-layout`, and `review-mapping`;
+    - `integration/identity-setup-store-cli`'s mock of `lib/store/create.js`, whose fall-through serves only the
+      registered legacy join.
+- **Expect the ref backend at the switch (Task 3.3.b):** `integration/command-surface-documentation`'s
+  remote-designation case, which asserts the default stays in-repo; and the partial mocks of `lib/store/create.js` that
+  bind a reference store around each in-process dispatch and fall through to the default when none is bound:
+  `integration/completed-subject-matrix`, `editor-settings`, `errand-preservation-store-cli`, `inbox-cli-dispatch`,
+  `join-store-cli`, `lifecycle-default-locus-ports`, `lifecycle-marker-occupancy`, `locus-release`,
+  `recovery-snapshot-consistency`, `recovery-warm-verification`, `start-cold-store`, `store-public-readers-cli`,
+  `store-ref-errand-uid-cli`, `store-ref-projection-changed-mark`, `-selection`, `-selection-reader`, and `-stub-mint`,
+  `store/projection/save`, `save-round-trip`, `status`, and `status-command`, and `user-reference-scratch-cli`;
+  `unit/lib/store/kinds/review/access-shared`'s, whose default is the real factory; and
+  `integration/view-store-cli`'s, which replaces only `openDefaultStore`.
+- **Move at Task 3.3.c:** `repair-cli`'s mock and `integration/handoff-write-store` (§ 7.2).
+- **Not the default factory:** `createStore` names a local builder in the `lane-progress*` suites,
+  `integration/delivery-authoring-store`, and `unit/lib/release/commit-message-retry-store`; an injected port in
+  `unit/lib/checks/projected-selection`, `unit/handlers/check/run`, and
+  `integration/store-ref-projection-selection-reader`; and fixture text in `integration/eslint-architecture-rows`.
+
 ## Errand branch readers
 
 The search § 4.8 asks for, at `a7c65b4239`: `branchToWorkUnitSlug` (20 call sites in 15 files), `isErrandBranchType`

@@ -5,9 +5,8 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { listHeldLifecycleIndex, listLifecycleIndex } from "../../../../src/lib/store/lifecycle-index.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 const roots: string[] = [];
@@ -40,7 +39,7 @@ it("omits aliases when the in-repo primary has no alias field", async () => {
   await mkdir(join(root, ".arc/active"), { recursive: true });
   await writeFile(join(root, ".arc/active/meta-example.md"), makeMetaFixture("example"));
   const noGit = async (): Promise<never> => { throw new Error("Git is unavailable in this directory"); };
-  const store = createStore(testStorePorts(root, noGit, noGit));
+  const store = inRepoStore(testStorePorts(root, noGit, noGit));
   const direct = lifecycleSuccess(await store.list({ family: "work-item", kind: "work-item/meta", filter: { heldHere: true } }));
   if (direct.status !== "complete") throw new Error("Expected held primary");
   expect(direct.records).toHaveLength(1);

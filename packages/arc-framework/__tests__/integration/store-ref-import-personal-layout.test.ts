@@ -10,8 +10,9 @@ import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { runUserSave, runUserLoad } from "../../src/commands/user.js";
 import { makeUserIO } from "../helpers/integration.js";
-import { createRefStore, createStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
 const handoff = "a".repeat(40);
@@ -92,7 +93,7 @@ describe("personal layout in the default layout", () => {
     }, { completed: true });
     expect(await h.target.migrate()).toMatchObject({ status: "ok" });
     for (const person of ["andrew", "alex"]) {
-      const source = createStore({ ...createDefaultStorePorts({ checkoutRoot: h.source.root }), identity: async () => SlugSchema.parse(person) });
+      const source = inRepoStore({ ...createDefaultStorePorts({ checkoutRoot: h.source.root }), identity: async () => SlugSchema.parse(person) });
       // A clone reads only its configured identity's refs, so each person's records read under that identity.
       const personStore = createRefStore({ ...h.target.ports, identity: async () => SlugSchema.parse(person) });
       const before = success(await source.list({ family: "personal" }));

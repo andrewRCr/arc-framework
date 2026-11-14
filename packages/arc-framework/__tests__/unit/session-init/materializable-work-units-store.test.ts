@@ -1,7 +1,7 @@
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import type { StoreRecord } from "../../../src/lib/store/read.js";
 /** Store membership offers released work without remote discovery and isolates lookup failures. */
-import { createStore, createDefaultStorePorts } from "../../../src/lib/store/index.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/index.js";
 import { expect, it } from "vitest";
 import { findMaterializableWorkUnits, MaterializableWorkUnitsResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { StoreInFlightWorkUnit } from "../../../src/lib/git/in-flight-store.js";
@@ -9,6 +9,7 @@ import { MetaPauseSchema } from "../../../src/lib/active/meta-schema.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 const entry = (record: StoreRecord, branch?: string): StoreInFlightWorkUnit => ({ kind: "work-unit", name: record.reference.owner.name, uid: boundWorkUnitSubject(record).uid, state: "Active", owner: "andrew", remoteOnly: false, dependsOn: [], ...(branch === undefined ? {} : { branch }) });
 
 it("offers released and branchless work with no remote, leaving held and paused work out", async () => {
@@ -51,7 +52,7 @@ it("reports one rejected holder lookup and still offers the others", async () =>
 });
 
 it("keeps the bound store overload asynchronous before the flip while preserving the legacy set", async () => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unused" }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unused" }));
   const result = findMaterializableWorkUnits({ store, entries: [{ kind: "work-unit", name: "legacy", branch: "feat/legacy", state: "Active", remoteOnly: true, dependsOn: [] }],
     identity: "andrew", findHoldingCheckout: async () => { throw new Error("Legacy offers read no marker port"); } });
   expect(result).toBeInstanceOf(Promise);

@@ -1,12 +1,12 @@
 /** Off-branch pull orientation preserves remedies without any notes fields. */
 import { expect, it } from "vitest";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { bindStoreSyncPort, createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
 import { probeStoreUserPull, describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
 import { PullResultSchema } from "../../../src/lib/store/sync.js";
 import { SessionInitUserValueSchema } from "../../../src/commands/user/session-init-schema.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 it("carries a bound designation and typed remedy through the user slot schema", async () => {
   const store = createLifecycleHarness().store;
@@ -34,7 +34,7 @@ it("never pulls when remote sync is disabled", async () => {
 });
 
 it("keeps the in-repo arm dormant even with a bound backend pull", async () => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/project", exec: async () => { throw new Error("Read Git before the flip"); } }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/project", exec: async () => { throw new Error("Read Git before the flip"); } }));
   expect(await probeStoreUserPull({ store, remoteSyncEnabled: true,
     sync: createStoreSyncPort({ pull: async () => { throw new Error("Pulled before the flip"); } }) })).toBeNull();
 });

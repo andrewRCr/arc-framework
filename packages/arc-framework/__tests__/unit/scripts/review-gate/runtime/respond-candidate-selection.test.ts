@@ -2,8 +2,9 @@
 import { expect, it } from "vitest";
 import { selectRespondCandidateWorkUnits } from "../../../../../src/scripts/review-gate/runtime/respond-candidate-selection.js";
 import { createLifecycleHarness } from "../../../../helpers/store/lifecycle-harness.js";
-import { createStore, createDefaultStorePorts, OwnerIdentitySchema } from "../../../../../src/lib/store/index.js";
+import { createDefaultStorePorts, OwnerIdentitySchema } from "../../../../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../../../../src/lib/kernel/index.js";
+import { inRepoStore } from "../../../../helpers/store/in-repo-ports.js";
 
 const byName = (name: string) => OwnerIdentitySchema.parse({ type: "work-item", name });
 const completed = async () => [byName("alpha"), byName("beta")];
@@ -46,7 +47,7 @@ it("reads natively only the generation the owning checkout's marker binds, not a
 });
 
 it("keeps every completed work unit in-repo", async () => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unavailable" }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unavailable" }));
   expect(await selectRespondCandidateWorkUnits({ cwd: "/project", store }, { status: "unowned" }, completed)).toEqual(["alpha", "beta"]);
   expect(await selectRespondCandidateWorkUnits({ cwd: "/project", store }, { status: "owned", workUnit: "alpha" }, completed)).toEqual(["alpha"]);
 });

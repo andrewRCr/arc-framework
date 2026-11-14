@@ -1,5 +1,4 @@
 import { withReviewReport } from "../../fixtures/review-report-input.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
@@ -83,6 +82,7 @@ import {
 import {
   LocalPrepareCommandError,
 } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 describe("hosted fix settlement pre-effect guard", () => {
   const evidence = {
@@ -1068,7 +1068,7 @@ describe("handleReviewStatus", () => {
       state: "review-required" as const, nextAction: "run-review" as const };
     const ceiling = { target: { repository: "owner/repo", pullRequest: 42, headSha: statusTarget.headSha }, lane: "standard",
       exhaustedPassCount: 1, nextPass: 2 };
-    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
+    const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
     const run = async (override: object) => {
       const output: string[] = [];
       let exitCode: number | undefined;

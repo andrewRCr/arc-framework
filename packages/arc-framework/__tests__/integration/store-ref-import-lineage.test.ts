@@ -11,7 +11,6 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { importedLineageComparator } from "../helpers/store/import-lineage-comparison.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createRefSyncCheckout } from "../helpers/store/ref-sync.js";
@@ -19,6 +18,7 @@ import { HistoryRefSchema } from "../../src/lib/store/refusal.js";
 import { writeFile } from "node:fs/promises";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 const ref = (kind: "lineage/transition" | "work-item/meta", name: string) => RecordReferenceSchema.parse({ kind, owner: { type: "work-item", name } });
 
@@ -209,7 +209,7 @@ it.each(["alpha", "archived"])("mints a terminal origin its own owner when it sh
   }
   await h.git("git", ["add", path]);
   await h.git("git", ["commit", "-m", "Seed a terminal origin sharing a held slug"]);
-  const source = createStore({ ...createDefaultStorePorts({ checkoutRoot: h.root }), ...h.ports });
+  const source = inRepoStore({ ...createDefaultStorePorts({ checkoutRoot: h.root }), ...h.ports });
   const expectedTerminal = success(await source.read({ reference: ref("lineage/transition", name) }));
   const migrated = await h.migrate();
   expect(migrated.status, JSON.stringify(migrated)).toBe("ok");

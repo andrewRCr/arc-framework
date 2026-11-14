@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { storeImported, StoreImportedError, storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { runUserRenameWorkspace, runUserSave } from "../../src/commands/user/save-load.js";
 import { runUserFetch, runUserPull, runUserPush } from "../../src/commands/user/push-fetch.js";
@@ -16,7 +15,7 @@ import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-r
 import { errandsRef } from "../../src/lib/errand/ref-tree.js";
 import { cleanupTempDir, DEFAULT_PROMPTS, makeCommit, makeGitExec, makeGitExecInput, makeUserIO } from "../helpers/integration.js";
 import { initInTempRepo } from "../helpers/init-temp-repo.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 
 const execFileAsync = promisify(execFile);
@@ -73,7 +72,7 @@ describe("imported store detection", () => {
 
 describe("sealed writes", () => {
   it("refuses the interim backend's writes and synchronization while its reads stay open", async () => {
-    const store = createStore(testStorePorts(root, makeGitExec(root), makeGitExecInput(root)));
+    const store = inRepoStore(testStorePorts(root, makeGitExec(root), makeGitExecInput(root)));
     const reference = createReferenceFixture().reference("work-item/meta");
     const write = { action: "put" as const, reference, expected: null, content: "sealed", provenance };
     await whileImported(async () => {
