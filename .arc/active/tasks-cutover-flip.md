@@ -482,6 +482,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
         - The project inbox test asserts no installable file maps to the inbox's projected path, and
           `entry-reference.test.ts` stops parsing the deleted template. Hand-built recipes in the reconfigure, init,
           manifest-plan, and recipe unit tests name `TECHNICAL-OVERVIEW.template.md` or the planning-module strategy.
+        - `e2e/lifecycle-exit.e2e.test.ts` and `e2e/rename.e2e.test.ts` commit a ROADMAP in their fixtures, since their
+          in-repo park landing and rename carry the one the install wrote.
 
 - _Outcome:_ No `pm.mode` installs a file into a projected root. An existing project keeps its copies: `arc update`'s
   removal arms (`lib/manifest/apply.ts`) leave a Scaffolded file and keep a Configurable one for review.

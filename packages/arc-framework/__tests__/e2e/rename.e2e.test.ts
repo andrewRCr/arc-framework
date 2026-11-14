@@ -179,6 +179,9 @@ async function createFixture(): Promise<RenameFixture> {
     "init", "--yes", "--name", "rename-test", "--pm-mode", "arc-in-git", "--tools", "codex",
   ], repo);
   expect(initialized.exitCode).toBe(0);
+  // The in-repo rename rewrites a ROADMAP the install no longer writes.
+  await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+  await writeFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "# Roadmap\n");
   await git(repo, ["config", "core.hooksPath", "/dev/null"]);
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "chore(test): initialize fixture"]);
@@ -300,7 +303,7 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
 
-    expect(renamed.exitCode).toBe(0);
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
     expect(renamed.stdout).toContain("in-place");
     expect(renamed.stdout).toContain("Checkout:  unmanaged");
     expect(renamed.stdout).toContain("Worktree:  unchanged");

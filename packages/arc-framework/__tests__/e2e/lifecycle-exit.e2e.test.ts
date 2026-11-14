@@ -393,6 +393,9 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       repo,
     );
     expect(init.exitCode).toBe(0);
+    // The in-repo park landing carries a ROADMAP the install no longer writes.
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "# Roadmap\n");
     await commitFixtureBypassingHooks(repo, "arc init");
     const origin = await mkdtemp(join(tmpdir(), "arc-exit-origin-"));
     externalDirs.push(origin);
