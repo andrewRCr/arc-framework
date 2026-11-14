@@ -1,9 +1,22 @@
-/** The pieces an operational store selection composes: the in-repo override and the ref backend's ports. */
+/** The pieces an operational store selection composes: the in-repo override, the ref backend's ports, and the refusal
+ * that keeps a ref store from opening over a checkout whose branch still tracks ARC state. */
 
+import type { GitExec } from "../git/exec.js";
+import { isGitProcessError } from "../git/process-error.js";
+import { PROJECTED_LIFECYCLE_PATTERNS } from "../layout/index.js";
+import type { Store } from "./contract.js";
 import type { RefStorePorts, StorePorts } from "./ports.js";
+import type { StoreRefusal } from "./refusal.js";
 
 /** The environment variable that, set and non-empty, selects the in-repo implementation. */
 export const IN_REPO_STORE_OVERRIDE = "ARC_IN_REPO_STORE";
+
+/** The roots under which a tracked file means the branch still carries state the ref store keeps. */
+export const TRACKED_STATE_ROOTS: readonly string[] = [...PROJECTED_LIFECYCLE_PATTERNS,
+  ".arc/system/.internal/candidates/", ".arc/system/.internal/transitions/"];
+
+/** The refusal a ref store composed over a tree that tracks ARC state returns from every operation. */
+export type TrackedStateRefusal = Extract<StoreRefusal, { code: "tracked-state" }>;
 
 /** Compose the ref backend's ports from an operational store caller's ports.
  * @param ports - The caller's ports. Its Git executors pass the Git floor gate. Its file access, clock, and identity
@@ -19,4 +32,57 @@ export async function composeRefStorePorts(ports: StorePorts): Promise<RefStoreP
     backingRepository: () => readBackingRepository(checkoutRoot) });
   const fs: RefStorePorts["fs"] = { ...base.fs, ...ports.fs };
   return { ...base, fs, clock: ports.clock, identity: ports.identity, lock: createRefLockFactory({ checkoutRoot, fs }) };
+}
+
+/** Find the state roots under which `HEAD`'s tree tracks a file, reading from the repository's top level whatever the
+ * checkout's depth. The index is not read, so a staged deletion still counts until it is committed.
+ * @param exec - Git executor run in the checkout.
+ * @returns The roots tracked, in their fixed order: none for an unborn `HEAD` or outside a Git repository. Any other Git
+ *   failure throws.
+ */
+export async function findTrackedStateRoots(exec: GitExec): Promise<string[]> {
+  let tree: string;
+  try {
+    tree = (await exec("git", ["rev-parse", "--verify", "--quiet", "HEAD^{tree}"], { diagnosticLocale: "stable" })).stdout.trim();
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit"
+      && (error.exitCode === 1 || (error.exitCode === 128 && /not a git repository/iu.test(error.stderr)))) return [];
+    throw error;
+  }
+  const listed = (await exec("git", ["ls-tree", "-z", "--full-tree", "--name-only", tree, "--", ...TRACKED_STATE_ROOTS],
+    { clearPathspecEnvironment: true })).stdout.split("\0");
+  return TRACKED_STATE_ROOTS.filter((root) => listed.some((path) => path.startsWith(root)));
+}
+
+/** Build the tracked-state refusal, its remedy chosen by whether this repository holds an imported store locally.
+ * @param exec - Git executor run in the checkout; it reads no remote.
+ * @param roots - The tracked state roots found.
+ */
+export async function trackedStateRefusal(exec: GitExec, roots: readonly string[]): Promise<TrackedStateRefusal> {
+  const { storeImportedHere } = await import("./store-imported.js");
+  const steps = `on this checkout's branch, delete the tracked state from disk and the index (\`git rm -r -- ${roots.join(" ")}\`), `
+    + "commit the deletion, merge the base branch (for example `git merge origin/main`), then run the command again";
+  const text = await storeImportedHere(exec)
+    ? `This repository's store has been imported: ${steps}.`
+    : "No imported store is present here, which may only mean it has not been fetched. Fetch `origin` and check whether "
+      + "its base branch still tracks ARC state (for example "
+      + `\`git ls-tree -r --name-only origin/main -- ${TRACKED_STATE_ROOTS.join(" ")}\`). If it no longer does, the store `
+      + `has been imported: ${steps}. If it still does, the store has not been imported yet: import it with the build of `
+      + "ARC that wrote this state (`arc store migrate --import`), then run the command again.";
+  return { code: "tracked-state", class: "recoverable", roots: [...roots],
+    condition: `This checkout's HEAD tracks ARC state under ${roots.join(", ")}, which this build of ARC keeps in its `
+      + "store rather than on the branch.", remedy: { text } };
+}
+
+/** The tracked-state refusal for a checkout whose `HEAD` tracks ARC state, or null where it tracks none. */
+export async function findTrackedStateRefusal(exec: GitExec): Promise<TrackedStateRefusal | null> {
+  const roots = await findTrackedStateRoots(exec);
+  return roots.length === 0 ? null : trackedStateRefusal(exec, roots);
+}
+
+/** A ref-capable store that returns one refusal from every operation, writing nothing. */
+export function refusingStore(refusal: StoreRefusal): Store {
+  const refused = (): Promise<{ status: "refused"; refusal: StoreRefusal }> => Promise.resolve({ status: "refused", refusal });
+  return { capabilities: { stateOffBranch: true }, read: refused, list: refused, write: refused, batch: refused,
+    version: refused, history: refused, changes: refused, lookup: refused, push: refused, pull: refused, maintain: refused };
 }

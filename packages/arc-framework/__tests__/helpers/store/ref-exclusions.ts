@@ -6,6 +6,7 @@ import type { FixtureDeclarations } from "./fixture-contract.js";
 export const refRefusalExclusions: FixtureDeclarations["refusalExclusions"] = {
   "checkout-not-writable": "Ref writes do not require authority to edit the tracked checkout.",
   "store-imported": "The ref store is the import's destination; only the interim backend's writes are sealed.",
+  "tracked-state": "The store selection refuses before it builds the ref backend; a ref store built directly never sees the tree.",
   "unsupported:cross-substrate-batch": "Every ref batch publishes through one local ref transaction.",
   "unsupported:uncovered-state-version": "Ref manifests cover every served family.",
   "unsupported:work-item-kind-required": "Ref listings enumerate every registered kind in the family.",

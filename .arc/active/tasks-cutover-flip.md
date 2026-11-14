@@ -14,17 +14,12 @@ rest on the default.
 _Mode:_ `layer` through Phase 2 — closes on a settled substrate: every path the switch turns on, built and tested over
 the ref backend while the default store stays in-repo.
 
-### `[ ]` **1.1 The override, the tracked-state refusal, and the ref composition — § 2.1, § 3.1, § 3.2**
+### `[x]` **1.1 The override, the tracked-state refusal, and the ref composition — § 2.1, § 3.1, § 3.2**
 
 - _Goal:_ A selection `createStore` can call composes the ref backend from its caller's ports, makes that composition
   refuse at its first use over a `HEAD` tree tracking ARC state with the remedy for the condition it observes, and
   builds the in-repo implementation under the override, while `createStore` itself still returns the in-repo
   implementation.
-
-- _Approach:_ The selection is its own module beside `lib/store/create.ts`, a function of the override and the
-  checkout's ports, tested directly; `createStore` stays untouched until Task 3.3 points it at the selection, and the
-  override stays the only other branch there. The module exports the refusal's predicate and remedy builder for the root
-  hook (Task 2.2).
 
     - `[x]` **1.1.a The ref backend's ports composed from the caller's**
         - `composeRefStorePorts` (`lib/store/selection.ts`) builds them through `createDefaultRefStorePorts` with the
@@ -43,30 +38,18 @@ the ref backend while the default store stays in-repo.
           `eslint/architecture-imports.ts`). `selection.ts` holds the override's name and the pieces the selection
           composes.
 
-    - `[ ]` **1.1.c The tracked-state refusal at the store's first use**
-        - The predicate reads `HEAD`'s tree, not the index, from the repository's top level whatever the checkout root's
-          depth, for a tracked file under `.arc/active/`, `.arc/backlog/`, `.arc/completed/`,
-          `.arc/system/.internal/candidates/`, or `.arc/system/.internal/transitions/`; an unborn `HEAD` tracks nothing,
-          and outside a Git repository it finds nothing tracked, so the command's own message stands, as
-          `e2e/update.e2e.test.ts`'s not-a-repository case keeps showing after the switch. It reads no remote and never
-          names the override.
-        - The refusal is a new recoverable `tracked-state` code in the local refusal union (`LocalRefusalSchema`,
-          `lib/store/refusal.ts`), not an `unsupported` case. The composed store's lazy constructor evaluates the
-          predicate, so every operation of a store composed over such a tree returns the refusal at first use, before
-          any store write — the backstop for a caller that composes a store outside a command, such as the pre-commit
-          hook's cohort check (`validate-cohort-consistency.ts`).
-        - Remedy by condition: with `refs/arc/project/registry` present locally, the window's steps for the checkout's
-          branch and checkout (delete its tracked state, then merge `main`); with it absent, both routes and the fact
-          that decides between them (whether `origin`'s `main` still tracks ARC state).
-        - Build `test-first` (one behavior at a time):
-            - a tree tracking a file under each of the five paths refuses, recoverably, at first use and before any
-              store write
-            - the registry-present remedy names the deletion and the merge
-            - the registry-absent remedy names both routes and the deciding fact
-            - a deletion staged but not committed still refuses
-            - a tree tracking none of them, or an unborn `HEAD`, composes the ref backend
-            - a checkout root below the repository's top level reads the whole tree
-            - outside a Git repository the predicate finds nothing tracked
+    - `[x]` **1.1.c The tracked-state refusal at the store's first use**
+        - `findTrackedStateRoots` lists `HEAD`'s tree with `--full-tree` for the five roots; only an unborn `HEAD` or
+          a missing repository reads as tracking nothing, and any other Git failure throws. `trackedStateRefusal`
+          returns the new recoverable `tracked-state` code with the roots found and picks its remedy by whether the
+          registry ref exists locally (`storeImportedHere`). The ref arm of `selectStore` evaluates both in its lazy
+          constructor and builds a store that refuses every operation, writing nothing
+          (`integration/store-selection-tracked-state.test.ts`, `unit/lib/store/selection-tracked-state.test.ts`).
+        - The conformance fixtures exclude the code with reasons, since only the selection produces it.
+
+- _Outcome:_ `createStore` is unchanged; `selectStore` beside it in `lib/store/create.ts` is what Task 3.3 points it at.
+  `lib/store/selection.ts` exports the predicate (`findTrackedStateRoots`), the remedy builder (`trackedStateRefusal`),
+  and their composite (`findTrackedStateRefusal`) for the root hook in Task 2.2.
 
 ### `[ ]` **1.2 The test setup clears the override, and CI sets it only for the flip's tracked tree — § 3.1, § 7.6**
 

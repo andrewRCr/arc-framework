@@ -135,5 +135,6 @@ export const inRepoDeclarations: FixtureDeclarations = {
     "state-unresolvable": "The interim backend has no ref-store anchors or ended-item history refs; its saved-state coverage uses unsupported:uncovered-state-version.",
     "namespace-corrupt": "Tracked and personal files have no shared namespace index; unreadable transient ref structure throws an operation error instead of this typed refusal.",
     "unsupported:held-here": "Tracked listing supports checkout held-here selection.",
+    "tracked-state": "The in-repo implementation keeps its state in the tracked tree; only a ref store refuses over it.",
   },
 };
