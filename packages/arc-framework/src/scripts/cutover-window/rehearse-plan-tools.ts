@@ -112,7 +112,8 @@ export async function unrecordedStateSides(context: WindowRehearsalContext, reco
     && (await context.sync.copy(where, ["ls-tree", "-r", "--name-only", tip, "--", ...WINDOW_TRACKED_STATE_ROOTS])).stdout.trim() !== "";
   const findings: WindowRehearsalExpectedFinding[] = [];
   for (const branch of [...new Set([...local.keys(), ...origin.keys()])].sort()) {
-    if (branch === "main" || branch === record.flip.branch || Object.hasOwn(record.branches.live, branch)) continue;
+    const missingFromRecord = !Object.hasOwn(record.branches.local, branch) && !Object.hasOwn(record.branches.origin, branch);
+    if (branch === "main" || branch === record.flip.branch || !missingFromRecord) continue;
     if (!await tracks(repo, local.get(branch)) && !await tracks(mirror, origin.get(branch))) continue;
     for (const [side, tips] of [["local", local], ["origin", origin]] as const) {
       if (tips.has(branch)) findings.push({ subject: `${side}/${branch}`, condition: "has no comparison mark" });

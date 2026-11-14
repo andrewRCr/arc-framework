@@ -78,10 +78,12 @@ options `check` took, with `--pull-requests` for a hostless rehearsal:
 npm run -s cutover-window -- last-read --repo /path/to/checkout --flip-branch feat/flip --flip-pr 7
 ```
 
-After the merge, `compare` records where one branch or checkout stands against the hold. With `--branch` it marks the
-branch's local and `origin` tips and reports each range changed since the check; with `--checkout` it reports a late
-change to a registered checkout's personal files. Reapply each reported branch range through the store, then `confirm`
-the branch at the exact tip of each reported range:
+After the merge, `compare` records where one branch or checkout stands against the hold. With `--branch` it marks a
+live branch's local and `origin` tips, or those of a state-bearing branch the record holds no tip of, and reports each
+range changed since the check; a branch the record holds but did not count live has nothing to compare. An unrecorded
+branch that shares no history with `main` refuses until it is deleted or `main` is merged into it. With `--checkout` it
+reports a late change to a registered checkout's personal files. Reapply each reported branch range through the store,
+then `confirm` the branch at the exact tip of each reported range:
 
 ```sh
 npm run -s cutover-window -- compare --repo /path/to/checkout --branch feat/example
@@ -89,10 +91,10 @@ npm run -s cutover-window -- compare --repo /path/to/checkout --checkout /path/t
 npm run -s cutover-window -- confirm feat/example --repo /path/to/checkout --local-tip <oid> --origin-tip <oid>
 ```
 
-`close` releases the hold once `origin` contains the flip, every live or state-bearing branch side has a comparison
-mark, every range is confirmed at its current mark, and no checkout's committed head still tracks state. Otherwise it
-refuses, naming each gap, and keeps the hold. It deletes the completion marker before the remaining hold refs, and it
-removes an incomplete hold on its own.
+`close` releases the hold once `origin` contains the flip, every side the record holds of a live branch and every side
+of a state-bearing branch the record holds no tip of has a comparison mark, every range is confirmed at its current
+mark, and no checkout's committed head still tracks state. Otherwise it refuses, naming each gap, and keeps the hold.
+It deletes the completion marker before the remaining hold refs, and it removes an incomplete hold on its own.
 
 To abort before the merge, `restore` returns every recorded ref locally and on `origin`, verifies them, and deletes the
 hold. It takes the recorded flip's options, and refuses while auto-merge is armed or once the flip has merged, which is

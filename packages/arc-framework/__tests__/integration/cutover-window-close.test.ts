@@ -35,6 +35,17 @@ it("recognizes a host-only merge and refuses the primary's tracked state until r
   expect(await invokeWindow(h.root, "close")).toMatchObject({ exit: 0 });
 }, 60_000);
 
+it("closes without a mark on a branch the record holds but did not count live", async () => {
+  const h = await windowFixture();
+  await h.git("git", ["branch", "chore/recorded", "main"]);
+  await h.git("git", ["push", "--set-upstream", "origin", "chore/recorded"]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  await finishFixtureFlip(h);
+  expect(await invokeWindow(h.root, "compare", ["--branch", "feat/alpha"])).toMatchObject({ exit: 0 });
+  const closed = await invokeWindow(h.root, "close");
+  expect(closed, closed.report).toMatchObject({ exit: 0 });
+}, 60_000);
+
 it("checks every registered checkout tree and continues after a stale checkout is removed", async () => {
   const h = await windowFixture();
   expect(await checkFixture(h)).toMatchObject({ exit: 0 });

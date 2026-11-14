@@ -1,5 +1,5 @@
 /** Post-import branch comparisons retain every observed side without blocking late changes. */
-import { appendFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
@@ -66,6 +66,43 @@ it("marks unrecorded state-bearing branches from their recorded-main merge base"
   const tip = (await h.git("git", ["rev-parse", "feat/late/name"])).stdout.trim();
   const result = await compare(h, "--branch", "feat/late/name");
   expect(result, result.report).toMatchObject({ exit: 0, result: { data: { ranges: [
+    { side: "local", kind: "unrecorded", from: base, tip }, { side: "origin", kind: "unrecorded", from: base, tip },
+  ] } } });
+}, 60_000);
+
+it("leaves a branch the record holds but did not count live without marks", async () => {
+  const h = await windowFixture();
+  await h.git("git", ["branch", "chore/recorded", "main"]);
+  await h.git("git", ["push", "--set-upstream", "origin", "chore/recorded"]);
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  const result = await compare(h, "--branch", "chore/recorded");
+  expect(result, result.report).toMatchObject({ exit: 0, result: { findings: [], data: { ranges: [] } } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/compared/", "refs/arc-window/gone/"])).stdout).toBe("");
+}, 60_000);
+
+it("refuses an unrecorded branch with no history shared with main until main is merged into it", async () => {
+  const h = await windowFixture(), branch = "feat/orphan";
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  const base = (await h.git("git", ["rev-parse", "main"])).stdout.trim();
+  const side = join(h.root, ".arc-fixture/orphan"), path = ".arc/active/notes-orphan.md";
+  await h.git("git", ["worktree", "add", "--detach", side]);
+  await h.git("git", ["checkout", "--orphan", branch], { cwd: side });
+  await h.git("git", ["rm", "-rfq", "."], { cwd: side });
+  await mkdir(join(side, ".arc/active"), { recursive: true });
+  await writeFile(join(side, path), "# Notes: Orphan\n");
+  await h.git("git", ["add", path], { cwd: side }); await h.git("git", ["commit", "-m", "Start an unrelated history"], { cwd: side });
+  await h.git("git", ["push", "--set-upstream", "origin", branch], { cwd: side });
+  const refused = await compare(h, "--branch", branch);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: [{ subject: branch,
+    condition: expect.stringContaining(`shares no history with main's recorded tip ${base}`),
+    remedy: expect.stringContaining("git merge --allow-unrelated-histories main") }] } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", `refs/arc-window/compared/local/${branch}`])).stdout).toBe("");
+  await h.git("git", ["merge", "--allow-unrelated-histories", "--no-edit", "main"], { cwd: side });
+  await h.git("git", ["push", "origin", branch], { cwd: side });
+  await h.git("git", ["worktree", "remove", side]);
+  const tip = (await h.git("git", ["rev-parse", branch])).stdout.trim();
+  const repaired = await compare(h, "--branch", branch);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { data: { ranges: [
     { side: "local", kind: "unrecorded", from: base, tip }, { side: "origin", kind: "unrecorded", from: base, tip },
   ] } } });
 }, 60_000);

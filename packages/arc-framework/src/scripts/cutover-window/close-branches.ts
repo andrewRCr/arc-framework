@@ -1,10 +1,10 @@
-/** Discover unrecorded state-bearing branch sides without refreshing recorded comparison marks. */
+/** Discover state-bearing sides of branches the record holds no tip of, without refreshing recorded comparison marks. */
 import type { WindowHoldIO, WindowRecord } from "./hold.js";
 import type { WindowHostPort } from "./host.js";
 import type { WindowHeldComparisons } from "./held-comparisons.js";
 import { listWindowRefs } from "./git.js";
 import { acquireWindowHostCommit } from "./merged-flip.js";
-import { readWindowTrackedPaths } from "./branch-observations.js";
+import { isWindowRecordedBranch, readWindowTrackedPaths } from "./branch-observations.js";
 import type { WindowFinding } from "./result.js";
 
 /** Require present sides of an unrecorded state-bearing branch to have retained comparison marks. */
@@ -15,7 +15,7 @@ export async function readWindowCloseBranchFindings(io: WindowHoldIO, record: Wi
     .filter(([ref]) => ref.startsWith("refs/heads/")).map(([ref, tip]) => [ref.slice("refs/heads/".length), tip]));
   const findings: WindowFinding[] = [];
   for (const branch of new Set([...local.keys(), ...origin.keys()])) {
-    if (branch === "main" || branch === record.flip.branch || Object.hasOwn(record.branches.live, branch)) continue;
+    if (branch === "main" || branch === record.flip.branch || isWindowRecordedBranch(record, branch)) continue;
     findings.push(...await unrecordedFindings(io, state, branch, { local: local.get(branch) ?? null, origin: origin.get(branch) ?? null }));
   }
   return findings;

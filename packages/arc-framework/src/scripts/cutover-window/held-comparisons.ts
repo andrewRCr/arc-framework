@@ -19,7 +19,7 @@ export async function readWindowHeldComparisons(io: WindowHoldIO, record: Window
     if (parsed === null || branch !== undefined && parsed.branch !== branch) continue;
     const { side, kind, branch: name } = parsed;
     const recorded = record.branches.live[name]?.[side] ?? null;
-    const base = recorded ?? await readWindowUnrecordedBase(io, record, tip);
+    const base = recorded ?? await readWindowUnrecordedBase(io, record, name, tip);
     const confirmationRef = `refs/arc-window/confirmed/${side}/${name}`, confirmation = held.get(confirmationRef) ?? null;
     const mark: WindowHeldMark = { branch: name, side, kind, tip, recorded, base, ref, confirmation };
     marks.push(mark);
