@@ -670,7 +670,7 @@ notice, and ADR-035 describe the store's arms.
           `e2e/run-cli.e2e.test.ts`, `e2e/decompose-dormant.e2e.test.ts`, `e2e/cli-help.e2e.test.ts`'s width and group
           order, and `unit/lib/cli-help-coverage.test.ts`.
 
-### `[ ]` **4.3 The Markdown notice — § 6.2**
+### `[x]` **4.3 The Markdown notice — § 6.2**
 
 - _Goal:_ `strategy-quality-gates.md` § Check state where it is edited, both copies, tells a project how its Markdown
   checks behave over projected state, in the four points `spec-projected-markdown-checks.md` § 1.4 and § 7.3 set: a tool
@@ -678,9 +678,9 @@ notice, and ADR-035 describe the store's arms.
   files included, and a fixer among them rewrites files write-back takes as hand edits; each tool is handed exactly its
   paths; link-target existence over state is checked only where `validate-links.sh` is declared as a `selection` check.
 
-    - The section states the first and third already; add the fixer's hand edits and the link check's home, in the
-      shipped-content register.
-    - No `versions.json` entry: no version has been published, so no project upgrades across the change.
+- _Outcome:_ The section, both copies, adds that a fixer globbing from disk rewrites projected files write-back keeps
+  as hand edits, and that the commit hook checks links only in staged Markdown, so link targets in state are checked
+  only where the link validator is declared as a selection check. No `versions.json` entry is due.
 
 ### `[ ]` **4.4 ADR-035's item 8 amendment — § 12, § 16**
 
