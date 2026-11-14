@@ -245,8 +245,10 @@ the approver. For a bound delivery, execute its typed correction/authoring conti
 manual writes or another checkout. Complete any [before-fix settlement][hosted-settlement] before changing the head.
 
 Between fix rounds, run the commit and push gates plus the tests that exercise each fix. Record the local evidence
-each round rests on. Dispatch the project's hosted CI once, at the converged head to be verified or published, and
-again only after a later code change. Isolate a failure at convergence by bisecting the fix rounds.
+each round rests on. Dispatch the project's hosted CI once, at the converged head to be verified or published.
+A later code change requires a new qualification; a cancelled or infrastructure-failed run may be retried at the same
+head and verification target under the project's existing retry rules; retain both attempts. Isolate a failure at
+convergence by bisecting the fix rounds.
 
 Commit the verified fixes atomically where the configured interlock releases them; manual settings retain their stop:
 
