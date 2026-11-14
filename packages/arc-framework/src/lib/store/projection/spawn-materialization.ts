@@ -10,7 +10,9 @@ import { bindProjectionRoot } from "./engine-binding.js";
 import { resolveProjectionActor } from "./engine-actor.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { materializeProjectionRoot } from "./materialization.js";
-import { readProjectionIndex } from "./index-file.js";
+import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
+import { refreshHeldProjectionRoot, type HeldProjectionRefresh } from "./held-refresh.js";
+import type { ProjectionRootState } from "./process-state.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
@@ -48,12 +50,25 @@ async function materializeSpawn(input: ProjectionCommandInput, checkout: string)
     root.spawned = true;
     try {
       const disk = await readProjectionIndex(location, true, { groups: "walked" });
+      if (disk.kind === "index") {
+        await refreshSpawnedRoot(root, { source: input.store, configuration, version: version.result, index: disk.index });
+        return;
+      }
       const materialized = await materializeProjectionRoot({ root, source: input.store, configuration, version: version.result,
-        index: disk.kind === "index" ? disk.index : null, recovered: disk.kind === "unusable" ? disk.header : undefined });
+        index: null, recovered: disk.kind === "unusable" ? disk.header : undefined });
       if (materialized.kind === "refused") root.context.report?.({ path: checkout, copy: null, mark: materialized.mark });
     } finally { root.checkpoint = null; }
   }, { invalidatePartition: true, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
   if (result.status !== "done") reportFailure(checkout, `Projection materialization could not acquire its lease (${result.status}).`);
+}
+
+/** A checkout that already holds a usable index takes what the store changed since its state, never a full lay. */
+async function refreshSpawnedRoot(root: ProjectionRootState, held: Omit<HeldProjectionRefresh, "root" | "refused">): Promise<void> {
+  const index = await refreshHeldProjectionRoot({ ...held, root, refused: (reason, remedy) => {
+    root.context.report?.({ path: root.checkout, copy: null, mark: { reason: `Projection ignore guard refused: ${reason}`, remedy: { text: remedy } } });
+  } });
+  await commitProjectionIndex({ location: root.location, checkout: root.checkout, index, checkpoint: root.context.checkpoint });
+  root.ready = true;
 }
 
 function reportFailure(checkout: string, reason: string, remedy = "Retry an ARC command in the spawned worktree to materialize its projection."): void {

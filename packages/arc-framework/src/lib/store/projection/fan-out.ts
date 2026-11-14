@@ -22,12 +22,9 @@ import { reportProjectionFanOutFailure } from "./fan-out-scheduler.js";
 import { bindProjectionRoot, refreshProjectionRootLayout } from "./engine-binding.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { resolveProjectionActor } from "./engine-actor.js";
-import { readReference } from "./change-detection.js";
-import { checkIgnores } from "./ignore-check.js";
-import { recordProjectionIgnoreCheck } from "./ignore-record.js";
-import { guardedProjectionRoots } from "./ignore-guard.js";
-import { writableUnder } from "./sweep.js";
 import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
+import { refreshHeldProjectionRoot } from "./held-refresh.js";
+import { readReference } from "./change-detection.js";
 import { projectableRecord } from "./desired-paths.js";
 
 interface FanOutRound {
@@ -141,7 +138,10 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
       const changes = await round.source.changes({ from: held.state, to: round.version });
       if (changes.status !== "ok") return await keepMarks();
     }
-    const refreshed = await refreshRoot(round, root, held, needsReprojection);
+    if (!root.ready) root.unsent.clear();
+    const refreshed = await refreshHeldProjectionRoot({ root, source: round.source, version: round.version, index: held,
+      configuration: round.configuration, evidence: round.evidence,
+      refused: (reason, remedy) => { reportProjectionFanOutFailure(root.checkout, `Projection ignore guard refused: ${reason}. ${remedy}`); } });
     const { index, unmarked } = own ? markOwnWrites(refreshed, round) : { index: refreshed, unmarked: [] };
     await commitProjectionIndex({ location: root.location, checkout: root.checkout, index, checkpoint: session.step });
     await session.step();
@@ -149,21 +149,6 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     // A refresh that reached the round's version laid every record projected here, so a write it laid nowhere is not one.
     return index.state === round.version ? [] : unmarked;
   } finally { root.checkpoint = null; }
-}
-
-/** Check the target's ignore rules, then reproject and refresh it to the round's version under the held lease. */
-async function refreshRoot(round: FanOutRound, root: ProjectionRootState, held: ProjectionIndex, needsReprojection: boolean): Promise<ProjectionIndex> {
-  const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity,
-    exec: root.ports.execInput, fs: root.ports.fs }, records: held.ignoreFiles, reference: await readReference(root.checkout),
-    format: root.context.format, ignoreRules: round.configuration.ignoreRules, recordedGuard: held.ignoreGuard,
-    readIgnoreRules: async () => (await readProjectionConfiguration(root.ports.exec, root.checkout)).ignoreRules });
-  let index = recordProjectionIgnoreCheck(held, ignores);
-  root.writable = writableUnder(ignores, guardedProjectionRoots(root.identity).map(root => root.path));
-  if (ignores.kind === "refused") reportProjectionFanOutFailure(root.checkout, `Projection ignore guard refused: ${ignores.reason}. ${ignores.remedy}`);
-  if (!root.ready) root.unsent.clear();
-  loadProjectionGroups(index, "walked");
-  if (needsReprojection) index = await root.reproject?.({ source: round.source, version: round.version, index, evidence: round.evidence }) ?? index;
-  return await root.refresh?.({ source: round.source, version: round.version, index, evidence: round.evidence, publication: "caller" }) ?? index;
 }
 
 async function targetRoot(round: FanOutRound, target: FanOutTarget, session: ProjectionLockSession): Promise<ProjectionRootState> {

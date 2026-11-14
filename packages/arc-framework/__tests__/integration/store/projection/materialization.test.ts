@@ -40,6 +40,7 @@ import { endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { evidenceHeldProjectionMark, withheldProjectionMark } from "../../../../src/lib/store/projection/materialization-file.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -680,4 +681,77 @@ it("settles copies from both materializations when a spawn binds its root twice"
   await program.parseAsync(["spawn-probe"], { from: "user" });
   if (firstCopy === undefined) throw new Error("Missing first replacement copy");
   await expect(readFile(join(target.checkout, firstCopy))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+async function seedWorkUnit(target: Awaited<ReturnType<typeof fixture>>, name: string) {
+  const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } });
+  const primary = await seed(target.h, reference, makeMetaFixture(name, { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }));
+  await seed(target.h, recordReferences["work-item/task-list"](primary.reference.owner));
+  return primary;
+}
+
+async function spawnInto(target: Awaited<ReturnType<typeof fixture>>): Promise<ProjectionIndex> {
+  const program = new Command("arc").exitOverride();
+  program.command("spawn-probe").action(() => materializeSpawnedProjection(target.checkout));
+  registerProjectionHooks(program, { input: () => ({ store: target.h.store, checkout: target.h.checkout }), writeError: () => undefined });
+  await program.parseAsync(["spawn-probe"], { from: "user" });
+  const disk = await readProjectionIndex(target.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing index");
+  return disk.index;
+}
+
+function pathsOf(index: ProjectionIndex, name: string): string[] {
+  return Object.entries(index.entries).flatMap(([path, entry]) => entry.kind === "record" && entry.reference.owner.name === name ? [path] : []).sort();
+}
+
+it("refreshes a spawned checkout's usable index past a record that left the store since its state", async () => {
+  const target = await fixture();
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  const path = ".arc/active/current/notes-work-item-one.md";
+  await access(join(target.checkout, path));
+  success(await target.h.store.write({ action: "remove", reference: target.h.record.reference, expected: target.h.record.version,
+    provenance: { verb: "merge", lifecycleAction: "remove" } }));
+  const version = success(await target.h.store.version());
+  const index = await spawnInto(target);
+  expect(index.state).toBe(version);
+  expect(pathsOf(index, "work-item-one")).toEqual([".arc/active/current/meta-work-item-one.md"]);
+  await expect(access(join(target.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("moves a spawned checkout's files for a work unit archived since its index's state", async () => {
+  const target = await fixture();
+  const second = await seedWorkUnit(target, "second");
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  const laid = pathsOf(first.value.index, "second");
+  expect(laid).toEqual([".arc/active/in-flight/second/meta-second.md", ".arc/active/in-flight/second/tasks-second.md"]);
+  success(await target.h.store.write({ action: "put", reference: second.reference, expected: second.version, content: second.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const version = success(await target.h.store.version());
+  const index = await spawnInto(target);
+  expect(index.state).toBe(version);
+  const moved = pathsOf(index, "second");
+  expect(moved).toHaveLength(2);
+  expect(moved.every(path => path.startsWith(".arc/completed/2026-q4/"))).toBe(true);
+  for (const path of moved) await access(join(target.checkout, path));
+  for (const path of laid) await expect(access(join(target.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("reprojects a spawned checkout's usable index when its claim changed since its state", async () => {
+  const target = await fixture();
+  const second = await seedWorkUnit(target, "second");
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  expect(pathsOf(first.value.index, "work-item-one")).toContain(".arc/active/current/notes-work-item-one.md");
+  await writeWorktreeMarker(target.checkout, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: new Date(0).toISOString(),
+    createdFor: boundWorkUnitSubject(second) });
+  const index = await spawnInto(target);
+  expect(index.projectedUnder).toMatchObject({ claim: "second" });
+  expect(pathsOf(index, "second")).toEqual([".arc/active/current/meta-second.md", ".arc/active/current/tasks-second.md"]);
+  const former = pathsOf(index, "work-item-one");
+  expect(former).toContain(".arc/active/in-flight/work-item-one/meta-work-item-one.md");
+  expect(former.every(path => path.startsWith(".arc/active/in-flight/work-item-one/"))).toBe(true);
+  await expect(access(join(target.checkout, ".arc/active/current/notes-work-item-one.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  await access(join(target.checkout, ".arc/active/current/meta-second.md"));
 });
