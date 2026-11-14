@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { readProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
 
-type WalkEntry = Pick<Dirent, "name" | "isDirectory" | "isFile" | "isSymbolicLink">;
+/** One folder entry, typed by the read or by its own stat. */
+export type WalkEntry = Pick<Dirent, "name" | "isDirectory" | "isFile" | "isSymbolicLink">;
 
 /** Filesystem observations used by discovery, native unless a caller needs a fault or scheduling boundary. */
 export interface ProjectionWalkFs {

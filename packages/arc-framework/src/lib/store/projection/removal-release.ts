@@ -63,7 +63,7 @@ async function removeLinkedProjection(root: ProjectionRootState, index: Projecti
   const incomplete = await incompleteRemoval(root, checked.index);
   if (incomplete !== undefined) return { kind: "refused", remedy: incomplete };
   const unrecorded = await checkUnrecordedProjectionCopies({ checkout: root.checkout, index: checked.index,
-    format: root.context.format, linkFs: root.ports.linkFs });
+    format: root.context.format, linkFs: root.ports.linkFs, walkFs: root.ports.walkFs });
   if (unrecorded.kind === "would-refuse") return { kind: "refused", remedy: unrecorded.remedy };
   await discardReleasedState(root);
   retireProjectionRoot(root);

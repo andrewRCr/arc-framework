@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile, type AsideFile } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
+import type { ProjectionWalkFs } from "./engine-walk.js";
 import { readStat } from "./change-detection.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 
@@ -17,6 +18,7 @@ interface UnrecordedProjectionCopyInput {
   readonly index: ProjectionIndex;
   readonly format: ObjectFormat;
   readonly linkFs?: ProjectionLinkFs;
+  readonly walkFs?: ProjectionWalkFs;
 }
 
 /** The copy check shares the files check's guard, so both read one ignore answer. */
@@ -43,7 +45,8 @@ export async function checkProjectionRemovalAsides(input: ProjectionRemovalAside
       entry = checked.entry;
     }
   }
-  return checkUnrecordedProjectionCopies({ checkout: root.checkout, index, format: root.context.format, linkFs: input.ports.linkFs });
+  return checkUnrecordedProjectionCopies({ checkout: root.checkout, index, format: root.context.format, linkFs: input.ports.linkFs,
+    walkFs: input.ports.walkFs });
 }
 
 /** Refuse authored recovery files absent from the index before their containing folder can be removed. */
@@ -52,7 +55,7 @@ export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectio
   const boundary = await readProjectionLinkBoundary(checkout, [ASIDE_FILES_ROOT], input.linkFs);
   if (boundary(ASIDE_FILES_ROOT) !== null) return { kind: "passes" };
   const recorded = new Set(Object.values(index.entries).flatMap(entry => entry.kind === "record" ? entry.copies.map(copy => copy.name) : []));
-  for await (const visit of walkProjectionAsideFolder(checkout)) {
+  for await (const visit of walkProjectionAsideFolder(checkout, input.walkFs)) {
     if (visit.kind !== "copy" || recorded.has(visit.location)) continue;
     const named = parseAsideFile(visit.location);
     if (named?.role !== "aside") continue;

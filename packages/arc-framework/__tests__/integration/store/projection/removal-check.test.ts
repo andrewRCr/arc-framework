@@ -1,6 +1,6 @@
 /** Retirement feasibility reads the target checkout without granting mutation authority. */
 import { access, link, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
-import { readdirSync } from "node:fs";
+import { readdirSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, onTestFinished } from "vitest";
@@ -42,6 +42,7 @@ import { projectionEntryForRecord } from "../../../../src/lib/store/projection/m
 import { prepareWriteBack } from "../../../../src/lib/store/projection/write-back.js";
 import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
 import { createStagedFile, nameAsideFile, parseAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -609,6 +610,28 @@ it("holds the newer edited copy once the older copy would be taken in, even whil
     remedy: { text: expect.stringContaining(name) } });
   await rm(join(target.checkout, name));
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+});
+
+it("holds an unrecorded aside edit when a sibling vanishes while an untyped read types its folder", async () => {
+  const target = await targetCheckout();
+  const entry = target.index.entries[target.h.path];
+  if (entry?.kind !== "record") throw new Error("No original copy basis");
+  const writer = { pid: process.pid, processInstance: "vanishing-sibling", processScope: "removal-copy-tests" };
+  const name = nameAsideFile({ path: target.h.path, base: entry.base.blob, role: "aside", writer });
+  await createStagedFile(target.checkout, name, renderStampedFile({ content: "An unrecorded late edit.\n", stamp: entry.base.blob }));
+  const sibling = join(target.checkout, name, "..", "editor-swap.tmp");
+  await writeFile(sibling, "an editor's swap file\n");
+  let typed = 0;
+  const walkFs = { readdir: (path: string) => {
+    if (path === join(sibling, "..") && typed++ === 0) {
+      unlinkSync(sibling);
+      throw Object.assign(new Error("lstat of an untyped entry failed"), { code: "ENOENT" });
+    }
+    return readdirSync(path, { withFileTypes: true });
+  } };
+  const ports = (checkout: string) => ({ ...target.h.ports(), ...createProjectionEnginePorts(checkout), walkFs });
+  expect(await checkProjectionRemoval(target.checkout, { ...target.context, ports })).toMatchObject({ kind: "would-refuse",
+    remedy: { text: expect.stringContaining(name) } });
 });
 
 it("holds an unrecorded aside edit until it is removed, without pruning its scaffolding", async () => {
