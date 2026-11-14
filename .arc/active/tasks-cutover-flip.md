@@ -90,8 +90,9 @@ the ref backend while the default store stays in-repo.
           `eslint/architecture-imports.ts`) keeps tests from importing `createInRepoBackend`. The store it builds records
           its capability as `createStore` does.
 
-    - `[ ]` **1.3.b The differential harnesses**
-        - `review-differential` and `import-comparison`, whose in-repo side stays in-repo.
+    - `[x]` **1.3.b The differential harnesses**
+        - `review-differential`'s in-repo side and `import-comparison`'s source store build through `inRepoStore`; the
+          reference and ref sides are unchanged.
 
     - `[ ]` **1.3.c The import fixture**
         - Both of `import-fixture`'s import paths build the import's source through `createStore` (`runStoreMigrate`,

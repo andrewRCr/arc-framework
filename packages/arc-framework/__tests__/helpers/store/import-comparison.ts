@@ -1,6 +1,7 @@
 /** Independent source and destination copies for record-by-record import comparison. */
 import { importFixture, type ImportFixtureOptions } from "./import-fixture.js";
-import { createRefStore, createStore } from "../../../src/lib/store/create.js";
+import { createRefStore } from "../../../src/lib/store/create.js";
+import { inRepoStore } from "./in-repo-ports.js";
 import { isDeepStrictEqual } from "node:util";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { resolveCallerComposedLifecycleIndex } from "../../../src/lib/work-unit/composed-lifecycle-index.js";
@@ -36,7 +37,7 @@ export async function importComparisonFixture(layout: "default" | "separate" = "
   if (prepare) { await prepare(source); await prepare(target); }
   const store = createRefStore(target.ports);
   const ports = { ...createDefaultStorePorts({ checkoutRoot: source.ports.checkoutRoot, exec: source.ports.exec, execInput: source.ports.execInput }), ...source.ports };
-  const sourceStore = createStore(ports);
+  const sourceStore = inRepoStore(ports);
   const comparators = new Map<KindId, ImportComparator>();
   return { source, target, store, sourceStore, comparators, compare: async (): Promise<ImportDifference[]> => {
     const inventory = await readComparisonSource(sourceStore, ports);
