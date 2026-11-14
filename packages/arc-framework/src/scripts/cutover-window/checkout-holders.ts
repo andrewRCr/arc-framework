@@ -20,7 +20,7 @@ export function windowErrandHolderFindings(checkouts: readonly WindowCheckout[],
     if (identities.some(identity => identity.kind === "errand" && identity.purpose === "errand"
       && identity.key === subject.slug && identity.claimId === subject.claimId)) return [];
     return [{ subject: checkout.path, condition: `Errand ${subject.slug} claim ${subject.claimId} has no matching acquired identity record.`,
-      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run arc errand close, arc errand abandon, arc errand leave, or arc locus release, then retry check." }];
+      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run arc errand close, arc errand abandon, or arc errand leave, then retry check." }];
   });
 }
 
@@ -51,7 +51,7 @@ export function windowEndedCheckoutFindings(checkouts: readonly WindowCheckout[]
     findings.push({ subject: row.checkout.path, condition: `Checkout is ${row.kind}: ${holder}.`,
       remedy: row.kind === "unresolved-checkout"
         ? [...row.diagnostics.map(item => item.message), ...(row.actions ?? []).map(item => item.text),
-          "Resolve the reported checkout evidence, or preserve wanted work and run arc locus release, then retry check."].join(" ")
+          "Resolve the reported checkout evidence, then retry check."].join(" ")
         : holderRemedy(row.subject.kind, row.subject.key) });
   }
   for (const checkout of checkouts) {
@@ -69,8 +69,8 @@ function markerSubjectName(subject: WorktreeSubject): string {
 }
 
 function holderRemedy(kind: string, name: string): string {
-  return kind === "work-unit" ? `Preserve wanted work, then run arc teardown ${name}, or arc locus release, then retry check.`
-    : "Preserve wanted work, then run arc errand close, arc errand abandon, or arc errand leave for the holder, or arc locus release, then retry check.";
+  return kind === "work-unit" ? `Preserve wanted work, then run arc teardown ${name}, then retry check.`
+    : "Preserve wanted work, then run arc errand close, arc errand abandon, or arc errand leave for the holder, then retry check.";
 }
 
 /** Explain each unmarked linked registration and the operation that removes it safely. */

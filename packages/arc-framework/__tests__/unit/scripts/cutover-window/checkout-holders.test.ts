@@ -37,7 +37,7 @@ const rosterRow: DerivedCheckoutRow = { checkout: row, markerGeneration: null, p
 
 it("refuses a retired work-unit holder with its teardown remedy", () => {
   expect(windowEndedCheckoutFindings([row], [rosterRow])).toEqual([expect.objectContaining({ subject: row.path,
-    condition: expect.stringMatching(/retired.*example/u), remedy: expect.stringContaining("arc teardown") })]);
+    condition: expect.stringMatching(/retired.*example/u), remedy: "Preserve wanted work, then run arc teardown example, then retry check." })]);
 });
 
 it("preserves an unresolved checkout's diagnostic instructions", () => {
@@ -67,7 +67,8 @@ it.each([{ label: "missing", records: [] }, { label: "different claim", records:
   { label: "different slug", records: [identityRecord({ slug: "other", branch: "chore/other" })] }])(
   "refuses a missing or different Errand holder: $label", ({ records }) => {
     expect(windowErrandHolderFindings([errand], records)).toEqual([expect.objectContaining({ subject: row.path,
-      condition: expect.stringMatching(/example.*11111111.*no.*record/u), remedy: expect.stringContaining("arc locus release") })]);
+      condition: expect.stringMatching(/example.*11111111.*no.*record/u),
+      remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run arc errand close, arc errand abandon, or arc errand leave, then retry check." })]);
   });
 
 it("also refuses an unheld Errand marker on the primary checkout", () => {

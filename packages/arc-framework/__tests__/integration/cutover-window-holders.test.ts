@@ -99,7 +99,7 @@ const indexFs: LifecycleIndexFs = { readdir: path => readdir(path, { withFileTyp
 const teardownContext = (cwd: string, exec: GitExec): TeardownContext => ({ cwd, exec, indexFs, chdir: () => undefined,
   readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path) });
 const teardownAlpha = { subject: { kind: "slug", slug: "alpha" }, base: "main", protection: "partial" } as const;
-const endedRemedy = "Preserve wanted work, then run arc teardown alpha, or arc locus release, then retry check.";
+const endedRemedy = "Preserve wanted work, then run arc teardown alpha, then retry check.";
 
 it("refuses a retired work unit's checkout and passes after arc teardown removes it", async () => {
   const h = await windowFixture(), path = await shippedAlphaCheckout(h);
@@ -139,7 +139,7 @@ it("refuses an Errand marker without its exact record and requires retirement af
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
     expect.objectContaining({ subject: path, condition: expect.stringMatching(/example.*11111111.*no.*record/u),
-      remedy: expect.stringContaining("arc locus release") }),
+      remedy: expect.stringContaining("arc errand close") }),
   ]) } });
   await h.git("git", ["worktree", "unlock", path]);
   await h.git("git", ["worktree", "remove", path]);

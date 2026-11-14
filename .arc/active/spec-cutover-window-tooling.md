@@ -315,7 +315,7 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   as neither `retired` nor `unresolved-checkout` (`DerivedCheckoutRow`, `lib/locus/derived-roster.ts`), with a marker
   that carries no husk stamp (`decodeWorktreeHuskStamp`, `lib/git/worktree-marker.ts`). An Errand marker must name an
   identity that some record holds. The refusal names the checkout and its holder. Remedy: `arc teardown` for an ended or
-  husked work unit's checkout, `arc errand close`, `abandon`, or `leave` for an Errand's, or `arc locus release`; for an
+  husked work unit's checkout, and `arc errand close`, `abandon`, or `leave` for an Errand's (A2); for an
   unresolved row, the remedy its diagnostic names.
 - **C5 — A staged decomposition cut.** No local or fetched branch may sit in the decomposition-candidate namespace
   (`isDecomposeCandidateBranch`, `lib/work-unit/decompose-candidate.ts`) with a tip `main` does not contain, and no
@@ -1289,5 +1289,7 @@ None.
 
 - **A1** — 2026-11-13 — spec-depth: C1 refuses a skip-worktree or assume-unchanged flag on a tracked-state path.
   _Supersedes:_ none. _Trigger:_ F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A2** — 2026-11-13 — spec-depth: C4's remedies drop `arc locus release`, which refuses before the flip.
+  _Supersedes:_ § 2.2 C4 remedy. _Trigger:_ F25 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
