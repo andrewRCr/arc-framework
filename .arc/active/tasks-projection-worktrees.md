@@ -427,30 +427,51 @@ No production composition sets the slots today, so every caller runs `passingPro
 
 ## **Phase 3:** Verification
 
-### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ The forced merge gate passed all 20 selected checks at `0a27c749b5`, including the full store run
+  (471 of 475 suites). Its first run at `b3f7e7db5c` failed in the store suite whose fixture lacked the integration
+  project's new index-schema setup file; `072102c465` repaired the fixture. Full non-diagnostic hosted CI run
+  `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store, E2E,
+  and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
+  `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
+- _Success criteria:_ 15 criteria: 14 met, one superseded (the original performance criterion, by A4). Accepted
+  residuals are recorded as deviations on the removal, changed-mark and unindexed-retirement criteria, and the A4
+  criterion carries its wording and macOS measurement note. The refreshed author walk covered the complete change set
+  at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every finding fixed or
+  dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7 is revalidated by
+  this verification.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Over the reference backend with real repositories and worktrees, on Linux and in a dispatched run of the
+- `[x]` Over the reference backend with real repositories and worktrees, on Linux and in a dispatched run of the
         portability pair, a hand edit in any worktree, and a conflict record its write files, reach every other
         worktree's copy at the writer's fan-out, a pull's merges included; the save-loss harness loses no save timed
         into a refresh; and over the ref backend, twenty worktrees saving into refreshes, fan-outs, file removals, and
         checkouts' persist steps at once lose no save, but for the residuals the spec's § 17 names.
 
-- `[ ]` A file withheld at a rebuild stays in its file and is reported; for it, for an edit to a protected or another
+- `[x]` A file withheld at a rebuild stays in its file and is reported; for it, for an edit to a protected or another
   person's archived file, an unadopted file, a file that fails to parse, a refused edit, a file held by a conflict, a
   clash found in the checkout included, a file not yet settled, and an aside copy kept because its path moved on, the
   removal check answers `persist-would-refuse`, and `unobservable` for a failed read, and the persist and release steps
   refuse, then succeed once it is resolved or, for the copy, deleted.
 
-- `[ ]` The isolation test passes; `layout.active: flat` lays the checkout's work item flat; and a changed view setting,
+  **Deviation (accepted residual):** A failed work-unit spawn's setup compensation removes its new checkout without
+  a removal check; the gap is captured for later work, and this criterion's text is unchanged.
+
+- `[x]` The isolation test passes; `layout.active: flat` lays the checkout's work item flat; and a changed view setting,
   identity, checkout claim, or `layout.active` reprojects what it governs.
 
-- `[ ]` A verb run from the checkout marks the files its write changes there, so `arc selection --changed` lists them.
+- `[x]` A verb run from the checkout marks the files its write changes there, so `arc selection --changed` lists them.
 
-- `[ ]` The no-change overhead stays within 10 ms on Linux and macOS and 60 ms on Windows at this repository's size; the
+  **Deviation (accepted residuals):** Marks are lost when the command end's visit to its own checkout also cannot hold
+  the lease; the "Changed marks not recorded" diagnostic names them. When the writer keeps its marks without
+  refreshing, a write outside that checkout's view counts as unmarked, so if the end's retry also cannot refresh, the
+  diagnostic can name a file that was never placed there.
+
+- `[~]` The no-change overhead stays within 10 ms on Linux and macOS and 60 ms on Windows at this repository's size; the
         start, a full materialization, and a one-file fan-out of a record that is not a primary into 20 worktrees each
         measure within their tripwires' bounds on every platform; and a ten-file fan-out into 20 worktrees measures
         within its bound on Linux and macOS, its Windows median recorded against it. On Windows each of these is read
@@ -461,23 +482,26 @@ No production composition sets the slots today, so every caller runs `passingPro
         the work beneath them from the suite's time for that work run alone, so the projection is held to its own share
         (spec § 15.3, § 15.4).
 
-- `[ ]` Over the in-repo implementation the removal slots pass.
+  **Superseded (A4):** The platform-specific full-round bounds of the A4 criterion below replace this criterion; its
+  text is preserved.
 
-- `[ ]` The `.worktreeinclude` copy copies nothing under the projected roots or `.arc/system/.local/`.
+- `[x]` Over the in-repo implementation the removal slots pass.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` The `.worktreeinclude` copy copies nothing under the projected roots or `.arc/system/.local/`.
 
-- `[ ]` An installing file's same-tick save remains detectable after another partition advances the reference,
+- `[x]` All quality gates pass (tests, linting, type checking)
+
+- `[x]` An installing file's same-tick save remains detectable after another partition advances the reference,
         without loading or rewriting the saved file's partition; a later clean, value-equal publication writes no
         partition (A1).
 
-- `[ ]` A new record arriving at a reused path remains retryable until installed. Saves during removal, linking, and
+- `[x]` A new record arriving at a reused path remains retryable until installed. Saves during removal, linking, and
         interrupted installation, including unstamped files, never reach the other record; proved installations resume
         automatically, ambiguous bytes remain recoverable and reported, and deletion permits successful retry. A
         blocked arrival after a claim-only change retries without an intervening store write, including A → B → A after
         partial progress or interruption (A2).
 
-- `[ ]` Complete external medians over the reference backend fit the separate Linux, Windows, and macOS bounds in
+- `[x]` Complete external medians over the reference backend fit the separate Linux, Windows, and macOS bounds in
         specification § 15.3 and § 15.4: no-change start, one-file backlog-companion fan-out into twenty linked
         worktrees, ten-file fan-out, and full materialization. Each platform has its own same-build named reference;
         all raw samples and same-run Git and filesystem baselines remain, and only established exposed host-Git delay
@@ -485,21 +509,34 @@ No production composition sets the slots today, so every caller runs `passingPro
         growth, whose partitions remain unread; runtime notices retain raw nine-sample medians. This supersedes the
         earlier performance criterion (A4; specification criterion 11).
 
-- `[ ]` Executable retirement contexts refuse held projected edits, retain checkout and claim, and succeed after
+  **Deviation (wording and macOS measurement):** Specification criterion 11 governs where this text says "reference
+  backend": the timing runs over the ref backend. At the verified head every median fits its bound with no Git credit:
+  Linux on its named reference machine, Windows in the full CI run, and macOS in a same-head timing-only run, counted by
+  Owner decision. The full CI run's macOS shard missed the start bounds (60.94 and 45.69 ms against 45 ms). Every macOS
+  measurement taken after a job's other test files has missed and every one taken alone, as calibration was, has fit;
+  the slowdown sits in the suite's own Git and Git-free baselines, not the projection's share, and its cause on the
+  host is not established. The hosted Linux job's medians exceed the Linux bounds, which belong to the named reference
+  machine.
+
+- `[x]` Executable retirement contexts refuse held projected edits, retain checkout and claim, and succeed after
         repair; lint rejects missing slots at direct start, rename apply/rollback, and legacy park/abandon compositions.
         Store/identity forwarding is inspected, and factory tests cover capability, identity, and mint-port authority
         (A5; spec criterion 12).
 
-- `[ ]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain
+- `[x]` Unindexed ARC-managed targets refuse destructive removal over non-machine-local personal files and retain
         their bytes until explicit recovery; retry leaves primary bytes untouched. Release, empty/machine-local-only
         targets without identity, missing folders, disabled capability, unreadability, and symbolic links follow A6's
         defined behavior; failed setup compensation preserves pending recovery state and permits same-claim retry
         after recovery and setup repair (spec criterion 13).
 
-- `[ ]` While its evidence is not whole, a rebuild with no usable index withholds every file at a path it lays no stored
+  **Deviation (accepted residual):** A failed work-unit spawn's setup compensation removes its new checkout without
+  a removal check, so personal files there are not held as the criterion reads literally; the gap is captured for later
+  work.
+
+- `[x]` While its evidence is not whole, a rebuild with no usable index withholds every file at a path it lays no stored
         record at under the held mark, which removal, persist and release refuse over, and publishes no state version;
         once the reported condition is resolved, the next rebuild settles each held file by the rebuild rule with no
         store write where nothing blocks its path, and the next rebuild or full materialization other than `arc sync`'s
         gives one still at an unlaid path the ordinary withheld mark (A7; spec criterion 14).
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

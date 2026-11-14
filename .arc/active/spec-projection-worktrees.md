@@ -1836,7 +1836,7 @@ this design open.
   _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
 
 - **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ § 15.2 ¶5; § 16.1 ¶3;
-  § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
+  § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

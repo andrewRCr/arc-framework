@@ -11,14 +11,14 @@
 - **Design:** `spec-projection-worktrees.md`
 - **Task List:** `tasks-projection-worktrees.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:d88163843943dc3a1ba735a9bda9f676fcad64943df9399297c4a6ec101143b0`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 2.8 — Removal after persist; Phases 1–2 deferred batch complete
-- **Next Task:** Task 3.1 — Complete verification (line ~430 in `tasks-projection-worktrees.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 3.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** Over-limit criteria pass 3 pending; final current-head qualification remains pending
 
-- **Next Action:** Prepare and launch the Owner-approved over-limit complete criteria pass 3 at `88739f4002`, rebinding
-  pass 2's review split
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
