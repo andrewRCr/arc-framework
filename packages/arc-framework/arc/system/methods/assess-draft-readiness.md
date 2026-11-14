@@ -34,9 +34,8 @@ gaps that block it — each tagged by kind, so the caller can route without re-j
 2. **A stateable success signal exists.** The author can name a concrete outcome or behavior that will show the
    work succeeded — the seed of the spec's success criteria. An aspiration too vague to observe ("make it
    cleaner") does not count.
-3. **The inbound buffer is drained.** No `## Inbound Buffer — Pending Integration` section remains un-integrated.
-   Read for the section; do not drain it — draining is the caller's act, prompted by the not-ready verdict this
-   check produces.
+3. **The inbound list is drained.** `arc inbox <slug>` reports the work unit's pending count as zero. Read the list;
+   do not drain it — draining is the caller's act, prompted by the not-ready verdict this check produces.
 
 4. **Every settled decision carries an ADR disposition.** Each decision the draft settles records one, in its
    decision prose, against [strategy-adr-methodology][adr-methodology] § When to Write an ADR. With no draft, the

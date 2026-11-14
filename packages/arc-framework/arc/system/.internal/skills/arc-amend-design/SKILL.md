@@ -33,7 +33,7 @@ the door. A verified finding from either audit enters here like any other eviden
 **Caller input:**
 
 - **finding** — the specific observation, and where it was seen. Its counterpart is the design record: the artifact
-  the active work unit's `meta-{name}.md` names in its `**Design:**` field. Resolve it from there when it is not
+  the active work unit's meta names in its `**Design:**` field. Resolve it from there when it is not
   already known in-session.
 
 **Dispatch.** Run `.arc/system/workflows/arc/supplemental/amend-design.md` over the finding and that record, at the

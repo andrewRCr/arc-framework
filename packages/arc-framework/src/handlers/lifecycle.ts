@@ -2095,7 +2095,8 @@ export async function handleRepointDesign(
     return;
   }
   p.note(
-    [`Work unit: ${slug}`, `Design:    ${result.design}`, `Meta:      ${result.metaPath}`].join("\n"),
+    [`Work unit: ${slug}`, `Design:    ${result.design}`, `Meta:      ${result.metaPath}`,
+      ...(result.removedDraft === undefined ? [] : [`Removed:   ${result.removedDraft}`])].join("\n"),
     "Design repointed",
   );
   p.outro("Done.");

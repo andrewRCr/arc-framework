@@ -2157,6 +2157,7 @@ None.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-14 — task: `arc repoint-design spec-finalized` removes the draft record in its own store write.
+  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.3.R. _Revalidated:_ pending → 5.12.
 
 ---

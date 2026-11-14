@@ -10,8 +10,9 @@
  * - `draft-created` — `[none] → draft-<name>.md`, when a first draft is produced
  *   (conditional: a `Light` WU that drafts no design goes straight to a spec).
  * - `spec-finalized` — `draft-<name>.md → spec-<name>.md` at `create-spec`
- *   finalization, riding the draft-retire edge (the draft-delete itself is the
- *   workflow's; this is the pointer move).
+ *   finalization, riding the draft-retire edge. Over a store that keeps state off
+ *   the branch, the same write removes the draft record, so the pointer never names
+ *   a spec while the draft survives; the in-repo arm repoints only.
  *
  * `Design` is an identifier-list, so a repoint operates on the **parsed list** —
  * the draft member is swapped for the spec, layered siblings preserved — never a
@@ -30,7 +31,10 @@ import { posix } from "node:path";
 import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath, workUnitArtifactName } from "../../store/lifecycle-write.js";
-import type { StoreRefusal } from "../../store/refusal.js";
+import { recordReferences } from "../../store/identity.js";
+import type { Mutation } from "../../store/write.js";
+import type { StoreRefusal, StoreResult } from "../../store/refusal.js";
+import type { StoreRecord } from "../../store/read.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { BEGIN_CURRENT_WORKFLOW_SENTINEL } from "../../active/current-workflow-consistency.js";
 import { writeMetaCurrentWorkflow, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
@@ -45,7 +49,7 @@ export type RepointDesignEvent = "draft-created" | "spec-finalized";
 
 /** The outcome of a {@link runRepointDesign} run. */
 export type RepointDesignResult =
-  | { status: "ok"; metaPath: string; design: string }
+  | { status: "ok"; metaPath: string; design: string; removedDraft?: string }
   | { status: "rejected"; reason: string; refusal?: StoreRefusal };
 
 /**
@@ -114,10 +118,20 @@ async function repointThroughStore(ctx: RepointDesignContext, name: string, even
     content = writeMetaNextAction(writeMetaCurrentWorkflow(content, "generate-tasks"), BEGIN_CURRENT_WORKFLOW_SENTINEL);
   }
   const metaPath = await workUnitMetaPath(ctx.cwd, record);
-  const written = await batchLifecycleWrites(ctx.store, [recordPut(record, { content })],
-    { verb: "repoint-design", lifecycleAction: event });
-  return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
-    : { status: "ok", metaPath, design: next.length === 0 ? "[none]" : next.join(", ") };
+  const retired = event === "spec-finalized" ? await readOwnDraft(ctx.store, record) : undefined;
+  if (retired?.status === "refused") return { status: "rejected", reason: retired.refusal.condition, refusal: retired.refusal };
+  const writes: Mutation[] = [recordPut(record, { content })];
+  if (retired !== undefined) writes.push({ action: "remove", reference: retired.result.reference, expected: retired.result.version });
+  const written = await batchLifecycleWrites(ctx.store, writes, { verb: "repoint-design", lifecycleAction: event });
+  if (written.status === "refused") return { status: "rejected", reason: written.refusal.condition, refusal: written.refusal };
+  return { status: "ok", metaPath, design: next.length === 0 ? "[none]" : next.join(", "),
+    ...(retired === undefined ? {} : { removedDraft: draft }) };
+}
+
+/** Read the work unit's own draft for retirement; a work unit that never drafted has none to remove. */
+async function readOwnDraft(store: NonNullable<RepointDesignContext["store"]>, meta: StoreRecord): Promise<StoreResult<StoreRecord> | undefined> {
+  const read = await store.read({ reference: recordReferences["work-item/draft"](meta.reference.owner) });
+  return read.status === "refused" && read.refusal.code === "not-found" ? undefined : read;
 }
 
 function repointedDesign(current: readonly string[], draft: string, spec: string, event: RepointDesignEvent): string[] {

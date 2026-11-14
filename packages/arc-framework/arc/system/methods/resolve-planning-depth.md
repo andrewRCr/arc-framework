@@ -99,8 +99,8 @@ The re-entry read is a `classify-work-unit` confirm-or-ratchet exactly as the en
 signal ratchets `Class` **up** to the realized floor (scale → `Heavy`; derivation → `Heavy` / `Novel`),
 coordinating with [classify-work-unit][classify-work-unit]. Like the entry read, this ratchet is **decision-live
 but persistence-deferred**: it drives the (re-)entered stage's depth immediately, but the `**Class:**` write
-defers to that stage's planning-ceremony commit, never a mid-stage meta edit — honoring meta-timing's
-no-mid-session-churn rule.
+defers to that stage's save, through `arc set-class` or the stage verb's `--class` flag, never a mid-stage meta edit —
+honoring meta-timing's no-mid-session-churn rule.
 
 **Re-entry vs. in-place correction.** Re-entry is for an _unshaped or under-derived_ design direction — the
 owning stage must be re-entered to author it at the right depth. A _local_ correction — a named mechanism, shape,

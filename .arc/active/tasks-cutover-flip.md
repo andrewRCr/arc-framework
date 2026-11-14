@@ -752,27 +752,43 @@ command declares it (`integration/command-surface-documentation.test.ts`).
           shared and projected. Its § Advanced: Personal Planning Pipeline is unchanged: no specification settles the
           contributor pipeline after the flip, so it stays with `AGENT-BRIEF.CONTRIBUTOR.md` (Task 5.10).
 
-### `[ ]` **5.3 Planning stages: draft-design, create-spec, generate-tasks, and amend-design — § 8.2, § 8.3, § 8.11, § 8.14**
+### `[x]` **5.3 Planning stages: draft-design, create-spec, generate-tasks, and amend-design — § 8.2, § 8.3, § 8.11, § 8.14**
 
 - _Goal:_ Planning runs branchless, saves state per review increment with a check request before each save, removes a
   draft as a record delete, and names the work unit's record and projected location rather than a tracked path.
 
-    - `[ ]` **5.3.a `draft-design.md` and `create-spec.md`**
-        - The grooming-branch redirect, groom-and-stop's commit-and-push pause, and "Ship instead of pause"'s planning
-          lane go; create-spec's planning branch goes; its capture gate reads `arc inbox` (§ 4.2) and removes captures
-          by `--id` and `--expected-version`; its save-location step names the record.
+    - `[x]` **5.3.a `draft-design.md` and `create-spec.md`**
+        - Draft-design's entry gate keeps `arc plan check`'s `proceed` route, its grooming-entry skip and redirect gone;
+          an idea with no work unit takes the start, stub, or Errand route first, since a draft written for none is
+          not adopted. The capture saves, persists `Class` with `arc set-class`, and groom-and-stop saves the draft,
+          with "Ship instead of pause" and the commit shape gone. Create-spec's capture gate reads
+          `arc inbox personal --target` and `arc inbox {name}` and removes captures by `--id` and `--expected-version`;
+          Finalize saves, then `arc repoint-design spec-finalized` removes the draft record; only an accepted ADR or
+          moved research commits. Both save locations name the folder holding the work unit's meta.
 
-    - `[ ]` **5.3.b `generate-tasks.template.md`**
-        - Its save-location step names the record; § Finalize the task list's validator step names the save, whose
-          task-list write check covers it (`checkTaskListSegmentation`, `checkTaskListDescriptor`,
-          `lib/store/kinds/task-list/shape-rules.ts`); the ceremony commit becomes a save.
+    - `[x]` **5.3.b `generate-tasks.template.md`**
+        - The destination names the folder holding the work unit's meta; the checklist's segmentation line names the
+          save's write check; Finalize saves, then runs `arc finalize generate-tasks`; delivery's `from-tasks` takes
+          the task list's path from `arc view tasks --path`; the next step names activation creating the work branch.
+          `integration/work-unit/generate-tasks-delivery-authoring-contract.test.ts` pins the save before the finalize.
 
-    - `[ ]` **5.3.c `amend-design.md`, the planning-review and readiness methods, and planning skills and templates**
-        - `resolve-planning-depth`'s deferred `Class` write becomes the stage's `arc set-class` at its save (§ 8.6);
-          `assess-draft-readiness`' third criterion reads the inbound list; `planning-review`'s pass record moves onto
-          `arc review adversarial record` (§ 8.7).
-        - Tests that change with it: `integration/pr-lifecycle.test.ts`'s cases pinning `adversarial-passes.md` in the
-          work unit's personal workspace.
+    - `[x]` **5.3.c `amend-design.md`, the planning-review and readiness methods, and planning skills and templates**
+        - Amend-design's capture becomes a save (§ The capture save), and the task arm and review site ride their
+          increment's save; `planning-review` records passes with `arc review adversarial record` and rereads before
+          the save; `assess-draft-readiness` reads the inbound list; `resolve-planning-depth` defers `Class` to the
+          stage's save through `arc set-class` or the stage's `--class`; `source-grounding` names the session context;
+          the audit and amend skills name the meta and a paused design. The templates' hits are kept.
+        - `integration/pr-lifecycle.test.ts`'s planning-review case pins the record verb.
+
+    - `[x]` **5.3.R `arc repoint-design spec-finalized` removes the draft record**
+        - _Goal:_ Over the ref backend, the spec-finalized repoint removes the work unit's draft record in the same
+          store write that points `Design` at the spec, so create-spec's draft removal is a record delete (A1).
+        - `repointThroughStore` (`lib/work-unit/verbs/repoint-design.ts`) adds the draft's expected-version removal to
+          the repoint's batch; a work unit that never drafted removes nothing, and the result and the handler's note
+          name the removed draft (`integration/repoint-design-store.test.ts`). The in-repo arm still leaves the draft.
+
+- _Outcome:_ Each stage saves its authored text before the verbs that repoint, finalize, or advance it, and commits only
+  tracked files. Kept sites are in `notes-cutover-flip.md` § Kept sites.
 
 ### `[ ]` **5.4 The task loop and commit text — § 8.4, § 8.15**
 
@@ -804,6 +820,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
     - `[ ]` **5.5.b `activate-work-unit.md` and `deactivate-work-unit.md`**
         - Activation's Step 3 `Class` edit moves onto `arc set-class`; Step 4 runs the actions its result names rather
           than `git push origin --delete`; the workspace step goes.
+        - Step 3's residual-draft removal: § 8.11 keeps it inside the verb at activation, yet a search of `src` and
+          `spec-seam-lifecycle.md` § 6.1 found no draft removal on the activation path. A stub specified before its
+          start reaches activation with its draft record, since create-spec's repoint runs only in `Planning`.
         - Deactivate: Case A's Step 3 remote delete goes to the verb's actions; Case A-delete's Step 3 abandonment
           commit becomes the abandon's write, and its Step 5 keeps only the `external` and `none` arms, since no stub
           folder stays on base and ROADMAP is not stored; Case C's `Branch` edit goes to the verb; a partial-scope `[~]`

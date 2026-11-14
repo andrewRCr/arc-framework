@@ -499,9 +499,10 @@ describe("PR lifecycle and review contracts", () => {
       expect(method).toContain("    - adversarial-review");
       expect(method).toContain("adversarial-review:");
       expect(normalized).toContain("complete-disposition and continuation protocol");
-      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
-      expect(normalized).toContain("later passes take their history from that record");
-      expect(normalized).toContain("a stub groomed before it starts has no workspace");
+      expect(normalized).toContain("record each pass with `arc review adversarial record`");
+      expect(normalized).toContain("a stub groomed before its start included");
+      expect(normalized).toContain("later passes take their history from those records");
+      expect(normalized).not.toContain("adversarial-passes.md");
       expect(normalized).toContain("creates no lane-progress record");
       for (const packagedPath of callers) {
         const path = base === projectArc ? packagedPath.replace(".template.md", ".md") : packagedPath;

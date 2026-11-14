@@ -266,9 +266,11 @@ today's text takes:
 - **Unchanged:** `arc pause` names `arc park <name> --reason <text>`, `arc locus release` names `arc park` or
   `arc teardown`, and `arc status --conflicts` names `git status`.
 - **Not refusing in-repo:** `arc errand open --from-inbox personal:<id>`, which reads the personal inbox file, and
-  `arc store remote`, which answers. `arc attest` and `arc materialize` were not run: a search of their source found
-  no capability-gated `unsupported` refusal. The in-repo store's own `unsupported` refusals
-  (`lib/store/in-repo/**`) answer its internal callers; each verb above refuses before it writes through one.
+  `arc store remote`, which answers. `arc repoint-design spec-finalized` repoints in-repo without removing the draft,
+  so create-spec's draft stays tracked there until activation's residual-draft removal. `arc attest` and
+  `arc materialize` were not run: a search of their source found no capability-gated `unsupported` refusal. The
+  in-repo store's own `unsupported` refusals (`lib/store/in-repo/**`) answer its internal callers; each verb above
+  refuses before it writes through one.
 
 ## Errand branch readers
 
@@ -436,3 +438,18 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   `session-handoff.template.md`: the work unit's notes companion and task-list completion notes, not Git notes.
 - In `user/README.md`: "scratch notes", personal freeform files; `arc user add`, the setup verb the flip keeps; and
   `.arc/active/`, `active/`, and `backlog/`, the projected roots named as directories, not a record's path.
+
+**Planning stages (Task 5.3):**
+
+- `arc user inbox-remove --id <id> --expected-version <version>` in `create-spec.md`: the removal verb the flip keeps,
+  by ID and version.
+- "held" in `create-spec.md`: `_Hold`, kept as the retention escape hatch.
+- `chore(arc): create spec-{name}` and its commit in `create-spec.md`: a commit of tracked files only, an accepted ADR
+  or research moved under `reference/supplemental/`.
+- `notes-*`, `notes-{name}.md`, "notes file", and "no commit metadata" in `create-spec.md`, `task-audit`,
+  `spec-review`, `template-draft.md`, and `template-spec-outline.md`: the notes companion, not Git notes; "notes" and
+  "committing" in `template-draft.md` are prose.
+- `[~]` in `amend-design.md` § Where the change lands: a superseded Success Criterion's disposition at verification,
+  not a task close; "fix commit" there is the review fix's code commit.
+- "park it as an open question" in `create-spec.md`, and "branch" in `create-spec.md`, `generate-tasks.template.md`,
+  and `assess-draft-readiness`: prose, the work branch, and the base branch, not a planning branch.

@@ -36,34 +36,26 @@ start.
 existing grooming set. Continue in its current checkout at **Resolve depth & Class**, without running this fresh-entry
 gate or treating the set key as a backlog stub.
 
-**Session-init planning entry:** `stub` identifies the selected backlog stub; `onGroomingBranch` reports whether
-this checkout is already on that stub's grooming branch.
+**Session-init planning entry:** `stub` identifies the selected backlog stub.
 
-**Grooming-entry skip.** A `--plan` entry skips this gate only when `onGroomingBranch` is true, continuing to
-**Resolve depth & Class**. Every other `--plan` entry runs the gate below.
-
-Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
-context and routes so a draft never lands where it can't be committed:
+Before drafting, run the mechanical preflight:
 
 ```bash
 arc plan check --name <slug> --json
 ```
 
-Include `--name` when the design has a working slug (it gates the draft-presence check); omit it for an unnamed
-idea. Act on the emitted `route`:
+Include `--name` when the design has a working slug; omit it for an unnamed idea. On its `proceed` route, continue to
+**Resolve depth & Class** below once the idea has a work unit: a draft is its work unit's record, and a draft written
+for none is not adopted when saved. For an idea with no work unit yet (`arc status <slug>` finds none), route it by
+WU-worthiness and **confirm with the developer** before acting:
 
-- **`proceed`** — committable: the base branch under partial protection, or an active planning branch (a
-  `Planning`-state `meta-{name}.md` on its branch) under full. Continue to **Resolve depth & Class** below.
-- **`redirect`** — not committable; `reason` words why (on the protected base, on another work unit's branch, or
-  a degenerate context). Don't draft here. Surface the route by WU-worthiness and **confirm with the developer**
-  before acting — the mechanic resolved the context, but the leg is judgment:
-    - **start now** — WU-worthy → `arc start <name> --new`, then draft on its branch.
-    - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
-      backlog stub; when `draftPresent`, fold the existing draft in, then start it via `init` (or keep drafting first).
-    - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
+- **start now** — WU-worthy → `arc start <name> --new`, then draft in its checkout.
+- **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the backlog
+  stub; draft in its folder, or start it via `init` first.
+- **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 **Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this
-workflow opens. (Pre-WU drafting on the base has no meta yet — minted at `init`; transient, not a meta-less draft.)
+workflow opens.
 
 ## Resolve depth & Class
 
@@ -166,19 +158,19 @@ formalization-ready gate:
 
 At loop-exit, assess the draft's formalization-readiness with the [assess-draft-readiness][assess-draft-readiness]
 method. On **ready**, the draft crosses into create-spec; on **not-ready**, re-synthesize against the returned gaps and
-keep iterating. For a gap of inbound entries not yet integrated, run [route-discovered-work][route-discovered-work] at
-this owner's-pass fire-point:
+keep iterating. For a gap of entries in the work unit's inbound list (a nonzero pending count from `arc inbox <slug>`),
+run [route-discovered-work][route-discovered-work] at this owner's-pass fire-point:
 
 ```yaml
 route-discovered-work:
-  entry: each held inbound entry
+  entry: each inbound entry
   door: owner's planning pass
-  host: the work unit whose draft holds the entries
+  host: the work unit whose inbound list holds the entries
 ```
 
 At the Owner's pass, show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon
 advisory, and any wait the binding names. On confirmation, execute through the binding and leave the dispositions
-table before re-assessing readiness. This is the pass that makes the draft ready; nothing remains held.
+table before re-assessing readiness. This is the pass that makes the draft ready; it leaves the pending count at zero.
 These readiness states describe a draft's maturity for cross-session continuity; a draft is `formalization-ready`
 when the method returns `ready`.
 
@@ -217,7 +209,7 @@ On a draft-producing path, run `arc check increment` before readiness approval a
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
-> approval before persisting `Class` and committing the capture.
+> approval before saving the capture and persisting `Class`.
 
 **Re-entry valve (the loop's floor-raising back-edge):** follow
 [resolve-planning-depth's mid-stage route][resolve-planning-depth] when the design runs deeper than the resolved
@@ -226,48 +218,30 @@ shaping step over the named locus, from the problem and alternatives, the `Novel
 or boundary assessment when concerns can stand apart. Accepting a return ends the loop as `re-entered`; re-run
 readiness after shaping, then offer a fresh loop with a fresh cap and the ended loop's findings as context.
 
-On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
-is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
-at the draft-capture ceremony commit.
+On approval, run [planning-review's post-settle reread][planning-reread] as the final review. If draft text changed
+after the first request, including review amendments or this reread, run `arc check increment` again. Then capture
+what the level produced:
 
-On a draft-producing path (`medium` / `high`) with an active planning meta, repoint `Design` to the new draft:
+```bash
+arc save
+```
+
+Persist the resolved `Class` with `arc set-class <Class> <slug>`. The `Class` decision is live from the entry read —
+it drove this stage's depth immediately — but its write lands here, at the capture.
+
+On a draft-producing path (`medium` / `high`) for a work unit in `Planning`, repoint `Design` to the new draft:
 `arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
-draft — `Design` repoints straight to the spec at create-spec finalization), or when drafting pre-WU on the base
-with no meta yet (minted at `init` — transient, not a meta-less draft).
+draft — `Design` repoints straight to the spec at create-spec finalization).
 
 When the draft is formalization-ready and crosses into create-spec (the forward path — not the re-entry
 back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:
-draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel,
-bundled into this capture commit — so a fresh session after handoff resumes in create-spec.
+draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel in
+this capture — so a fresh session after handoff resumes in create-spec.
 
 **Groom-and-stop (the `--plan` grooming exit).** A `--plan <stub>` grooming session ends here without advancing —
-a complete outcome, not an incomplete forward path. Capture the draft to the grooming branch and **do not advance
-the stage pointer**: the stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`.
-The tracked `draft-*` is the continuity artifact — pausing is commit + push; write no marker and no new durable
-state.
-
-**Ship instead of pause (optional).** After the capture commit and push, a path-pure grooming branch may ship as a
-lean PR on the auto-merge lane: one-line Summary, Test Plan only when non-obvious, then native auto-merge per the
-[merge-gate setup][setup-merge-gate]. Resolve the merge method from the repository/ruleset or config surface; do
-not assume the repo's advertised default is the allowed method. After the PR lands, return to the base checkout,
-fast-forward it, and remove the local grooming branch if it is still present.
-
-What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
-`Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
-commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
-
-Run [planning-review's post-settle reread][planning-reread] as the final review before this commit. If draft text
-changed after the first request, including review amendments or this reread, run `arc check increment` again before
-the capture commit.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): capture draft for {name}
-
-Context: draft-{name}.md (planning)
-```
+a complete outcome, not an incomplete forward path. Save the draft and **do not advance the stage pointer**: the
+stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`. The draft record is the
+continuity artifact; write no marker and no new durable state.
 
 ---
 
@@ -285,8 +259,6 @@ planning-depth level is never recorded.
 [assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
-[setup-merge-gate]: supplemental/setup-merge-gate.md
-[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
 [route-discovered-work]: ../../methods/route-discovered-work.md
 

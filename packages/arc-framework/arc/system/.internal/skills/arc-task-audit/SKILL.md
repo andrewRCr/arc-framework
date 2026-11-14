@@ -31,7 +31,7 @@ against code, not the design against its goal.
   floor alone. Absent an explicit depth, audit at `full`.
 
 **Context resolution.** When the active task list isn't already known in-session, resolve it from the active
-work unit's `meta-{name}.md` (its `**Task List:**` field), then read the sections the scope selects — the
+work unit's meta (its `**Task List:**` field), then read the sections the scope selects — the
 method's scope-reading rules cover neighbor and adjacent-phase context.
 
 **Dispatch.** Load and run `.arc/system/methods/task-audit.md` at the resolved scope and depth. Report the

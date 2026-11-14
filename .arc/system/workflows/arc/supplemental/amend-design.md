@@ -34,8 +34,8 @@ anchor. Rename a heading only with every citing site updated in the same change.
 
 1. **Gate** — run the tree over the finding. It returns an arm, or that this is not an amendment. § Entry gate
 2. **Depth** — resolve the amendment's own derivation depth; it sets the rigor. § Depth and rigor
-3. **Capture** — write the record; on the spec-changing arms commit it before corrective work.
-   § The amendment record, § The capture commit
+3. **Capture** — write the record; on the spec-changing arms save it before corrective work.
+   § The amendment record, § The capture save
 4. **Revise** — place the corrective work against the task it corrects. § Placement of revision work
 5. **Sweep** — propagate over the footprint, forward and backward. § The propagation sweep
 6. **Close** — re-run the check that opened the detour. § Closure
@@ -103,8 +103,8 @@ anchor on.
 Changing pre-commitment text commits the Owner and is never the agent's to discharge. Adding revision subtasks
 inside the current increment is agent-doable under discovered-work routing, reported at the interlock.
 
-- **Task arm** — proceed within the increment. The record row and the revision work ride the increment's task
-  commit and reach the ordinary completion report. The row is a record rather than pre-commitment text, so
+- **Task arm** — proceed within the increment. The record row and the revision work ride the increment's save and
+  reach the ordinary completion report. The row is a record rather than pre-commitment text, so
   appending it needs no authorization of its own.
 - **Spec-depth and design arms** — Owner-authorized at a stop that already exists. The report at that stop carries
   the triage read, the cited statement or criterion, the depth read, and a lean; the Owner's direction is the
@@ -135,7 +135,7 @@ Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the 
 take the level it returns. The work unit's `Class` does not set the amendment's depth.
 
 The written amendment receives the shared [author checks][planning-author-checks] at release, as directed in
-The capture commit below. The footprint includes removals and affected surrounding obligations and definitions.
+The capture save below. The footprint includes removals and affected surrounding obligations and definitions.
 
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate. Run
   [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
@@ -145,7 +145,7 @@ The capture commit below. The footprint includes removals and affected surroundi
   when a new segment appears.
 - **`high`** — design that must be authored rather than corrected. Run the same procedures at scope and
   [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized floor; the write itself lands at the
-  capture commit (§ The capture commit).
+  capture save (§ The capture save).
 
 **Stage procedures at scope move nothing.** They carry no lifecycle prerequisite beyond the artifacts existing, so
 running them inside an active work unit moves no lifecycle state, advances no stage pointer, and repoints nothing.
@@ -243,7 +243,7 @@ few lines; on the design arm, quote the superseded text there. Create the compan
 The task list carries the revision work, citing the row id in the corrective parent's `_Goal:_`. No
 forward-amendment paragraphs and no provenance in task bodies — the list stays a coherent forward artifact.
 
-## The capture commit
+## The capture save
 
 After the amendment record's bounded writes, run the shared [author checks][planning-author-checks],
 [independent offer][planning-offer], and [findings and pass record][planning-findings] before release:
@@ -260,33 +260,28 @@ planning-review:
 Return corrections through the existing iteration and approval flow. No stage pointer or lifecycle state moves.
 
 On the **spec-depth and design arms** the capture — log row, revision tasks, body edit, criterion, notes entry,
-and the `Class` ratchet where the depth read requires one — lands as **one commit before corrective work begins**,
-released at the stop where the Owner authorized it, so the point-in-time design is recoverable.
+and the `Class` ratchet where the depth read requires one — lands **before corrective work begins**, saved at the stop
+where the Owner authorized it, so the point-in-time design is recoverable from the records' history.
 
 Write the `Class` ratchet with `arc finalize amend-design --class <Class>` rather than editing the meta by hand:
 the capture is a planning ceremony and that verb performs the write with no lifecycle guard.
 
-Run [planning-review's post-settle reread][planning-reread] as the final review before the capture, task, or
-review-fix commit, on every arm.
+Run [planning-review's post-settle reread][planning-reread] as the final review before the capture save, or the
+task or review-fix increment's save, on every arm.
 
-Run `arc check increment` over the amendment's authored text before the capture commit.
+Run `arc check increment` over the amendment's authored text before the capture save. Then save the capture:
 
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`:
-
-```text
-chore(arc): amend design for {name} — A{n}
-
-Context: spec-{name}.md (planning)
+```bash
+arc save
 ```
 
 On the **task arm** nothing in the record's body changes — the row is the one write, and a record rather than
-pre-commitment text — so the row and the revision tasks ride the increment's task commit and reach the ordinary
-completion report. Use the task's existing increment request before that shared commit.
+pre-commitment text — so the row and the revision tasks ride the increment's save and reach the ordinary completion
+report. Use the task's existing increment request before that save.
 
-At the **review site** there is no separate capture commit: on the spec-changing arms the row and the body edit
-ride the review-fix increment's single commit, approved with the disposition set.
-Use the caller's increment request over authored state text before that shared commit; add no duplicate request here.
+At the **review site** there is no separate capture save: on the spec-changing arms the row and the body edit ride
+the review-fix increment's save, approved with the disposition set. Use the caller's increment request over authored
+state text before that save; add no duplicate request here.
 
 Under a bound delivery plan the capture and its plan revision land together, before corrective work, on every arm
 (§ Under a bound delivery plan).
@@ -323,7 +318,7 @@ The id series, the R scheme's placement mechanics, and the retirement of parent 
 - **A review finding that reopens design** takes the design arm. Where the work unit was withdrawn, it returns to
   execution through [`reopen-work-unit`][reopen-work-unit], anchored on the cursor leaf rather than the parent;
   that path refuses a coherently bound delivery, so a bound stack's correction runs through the review-fix
-  continuation instead. Author and commit the corrective parent before the reopen runs.
+  continuation instead. Author and save the corrective parent before the reopen runs.
 
 ## The propagation sweep
 
