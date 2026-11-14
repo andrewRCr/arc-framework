@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 /** Off-branch current identity comes from real ownership markers and reference fixture hooks. */
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -85,12 +86,14 @@ describe("current work-unit marker fallback", () => {
 
   it.each(["absent", "errand", "branch", "husk"])("finds none for an %s checkout marker", async (kind) => {
     const h = await fixture();
-    if (kind === "errand" || kind === "branch") await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true,
-      createdFor: kind === "errand" ? { kind: "errand", slug: "example" } : { kind: "branch", ref: "main" }, spawningIdentity: "andrew", now: 0 });
+    if (kind === "errand") await writeWorktreeMarker(h.cwd, { spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "example", claimId: "a".repeat(32) }, provisioning: "ready", spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+    if (kind === "branch") await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true,
+      createdFor: { kind: "branch", ref: "main" }, spawningIdentity: "andrew", now: 0 });
     if (kind === "husk") {
       await h.marker();
-      await stampWorktreeHusk(h.cwd, { sha: "a".repeat(40), at: new Date(0).toISOString(),
-        subject: { kind: "work-unit", name: h.record.reference.owner.name }, branch: `feat/${h.record.reference.owner.name}` });
+      await stampWorktreeHusk(h.cwd, makeHuskStamp({ sha: "a".repeat(40), at: new Date(0).toISOString(),
+        subject: { kind: "work-unit", name: h.record.reference.owner.name }, branch: `feat/${h.record.reference.owner.name}` }));
     }
     expect(await h.resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
   });

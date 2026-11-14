@@ -1,3 +1,4 @@
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 /**
  * Unit tests for the `teardown` verb — the arc-state authority gate, branch
  * resolution (slug enumeration + ambiguity), and the presence-guarded dispatch
@@ -7,6 +8,7 @@
  * orchestration is asserted in isolation.
  */
 
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 import { describe, it, expect, onTestFinished } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -348,12 +350,14 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
     createdFor: { kind: "work-unit", name: "demo" },
     spawningIdentity: "andrew",
     createdAt: "2026-07-14T19:00:00.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: "def",
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "demo" },
       branch: pathBranch,
-    },
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: SHIPPED_RESULT_DIGEST, baseProofOid: "abc" },
+    }),
   };
 }
 
@@ -421,6 +425,8 @@ function branchMarkerWithHusk(branch: string): WorktreeMarker {
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "branch", ref: branch },
       branch,
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest({ subject: { kind: "branch", ref: branch } }), baseProofOid: "abc" },
     },
   };
 }
@@ -1259,7 +1265,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
-      branchDeleteThrows: true,
+      updateRefThrows: true,
       branchSurvivesDelete: true,
     });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
@@ -1272,7 +1278,7 @@ describe("runTeardown — detached husk replay", () => {
     expect(result.branchDeleted).toBe(false);
     expect(result.worktreeRemoved).toBeNull();
     expect(result.notices).toHaveLength(1);
-    expect(result.notices[0]).toMatch(/retry teardown from the husk or primary/iu);
+    expect(result.notices[0]).toMatch(/Could not compare-and-delete local branch/iu);
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
   });
 

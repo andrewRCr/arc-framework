@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -64,12 +65,12 @@ async function harness() {
 }
 
 describe("teardown worktree transaction", () => {
-  const stamp = {
+  const stamp = makeHuskStamp({
     sha: "a".repeat(40),
     at: "2026-08-06T00:00:00.000Z",
     subject: { kind: "work-unit" as const, name: "demo" },
     branch: "feat/demo",
-  };
+  });
 
   it("stamps and detaches one exact selection under the shared mutex", async () => {
     const h = await harness();

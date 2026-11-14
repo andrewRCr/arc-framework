@@ -388,7 +388,13 @@ const AuthorableConfigRecordSchema = z.record(
 export const ArcConfigSchema = z.intersection(
   AuthorableConfigRecordSchema,
   z.looseObject(knownConfigShape).partial(),
-);
+).superRefine((value, context) => {
+  // Key constraints remain conjunctive even when another object accepts an unrecognized key.
+  const result = AuthorableConfigRecordSchema.safeParse(value);
+  if (!result.success) for (const issue of result.error.issues) {
+    context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+  }
+});
 
 /** Project keys surfaced to agents rather than consumed only by hooks. */
 export type AgentConsumableConfigKey = Exclude<ArcConfigKey, `hooks.${string}`>;

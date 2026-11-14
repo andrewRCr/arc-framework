@@ -128,8 +128,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      role suffix closes its segment by running that segment's exit-criterion scenario and recording the outcome as
      its ordinary completion note. A scenario that did not pass is not a completion: leave the task `[ ]`, stop,
      and enter [`amend-design`][amend-design] over the failure — its [entry gate][amend-design-gate] decides what
-     the failure changes. Never patch it inline, and never hang the corrective work under the verifier, which
-     re-runs its scenario to close. The key is the task in hand, never list-wide state.
+     the failure changes. When the miss is a timing or performance bound, first take the free rerun in
+     [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure; unless a rule the user already gave makes a passing rerun
+     the verdict, stop with every result. Never patch it inline, and never hang the corrective work under the
+     verifier, which re-runs its scenario to close. The key is the task in hand, never list-wide state.
 
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between

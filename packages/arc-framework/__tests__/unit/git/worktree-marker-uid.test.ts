@@ -1,4 +1,5 @@
 /** Work-unit marker generations are UUIDs and never part of terminal husk subjects. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { expect, it } from "vitest";
 import { decodeWorktreeMarkerOwnership, isWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 
@@ -19,6 +20,6 @@ it("decodes the typed work-unit UID with the marker's name", () => {
 });
 
 it("rejects a husk subject that includes a live work-unit UID", () => {
-  expect(isWorktreeMarker({ ...marker, husk: { sha: "a".repeat(40), at: "2026-10-24T00:00:00.000Z",
-    subject: marker.createdFor, branch: "feat/widget" } })).toBe(false);
+  expect(isWorktreeMarker({ ...marker, husk: makeHuskStamp({ sha: "a".repeat(40), at: "2026-10-24T00:00:00.000Z",
+    subject: marker.createdFor, branch: "feat/widget" }) })).toBe(false);
 });

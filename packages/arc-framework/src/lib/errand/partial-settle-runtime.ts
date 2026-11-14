@@ -90,11 +90,24 @@ export async function settlePartialErrandAtRuntime(
       pinned.kind === "refused" ? pinned.reason : pinned.message,
     );
   }
-  if (authority.row.checkout.branch !== options.base || authority.row.checkout.head !== pinned.head) {
+  if (authority.row.checkout.branch !== options.base) {
     return refusal(
       operation,
       "preservation-unproven",
-      "Partial Errand checkout is off the configured base or not at its freshly pushed head.",
+      `Return to the configured base '${options.base}' without discarding the partial Errand's work, `
+        + `then retry arc errand ${options.action} ${options.slug}.`,
+    );
+  }
+  if (authority.row.checkout.head !== pinned.head) {
+    return refusal(
+      operation,
+      "preservation-unproven",
+      `Partial Errand HEAD does not match origin/${options.base}. Resolve any Git divergence normally, `
+        + `then push ${options.base} to origin/${options.base} through the normal gates and retry `
+        + `arc errand ${options.action} ${options.slug}. For a gate failure reproduced on base, use a passing `
+        + "project-supported environment where available. If that cannot clear the gate, ask the Owner "
+        + "to approve a prerequisite repair in this checkout "
+        + "as a separate commit. Retain the Errand and capture until the gated push succeeds.",
     );
   }
   const inbox = await options.settleInbox({

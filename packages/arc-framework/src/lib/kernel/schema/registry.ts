@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { visitJsonSchemas } from "./visit.js";
 
 import { ArcError } from "../errors.js";
 import { SlugSchema } from "./slug.js";
@@ -120,11 +121,23 @@ function boundTupleProjection(
   if (definition.type !== "tuple") return;
   const optionality = io === "input" ? "optin" : "optout";
   let minimum = definition.items.length;
-  while (minimum > 0 && definition.items[minimum - 1]?._zod[optionality] === "optional") minimum -= 1;
+  while (minimum > 0) {
+    const marker = definition.items[minimum - 1]?._zod[optionality];
+    if (marker !== "optional" && !(io === "input" && marker === "defaulted")) break;
+    minimum -= 1;
+  }
   jsonSchema.minItems = minimum;
   if (definition.rest === null) jsonSchema.maxItems = definition.items.length;
   else delete jsonSchema.maxItems;
   if (definition.items.length === 0) delete jsonSchema.prefixItems;
+}
+
+function expandTypeUnion(schema: KernelJSONSchema): void {
+  if (!Array.isArray(schema.type)) return;
+  const alternatives = { anyOf: schema.type.map(type => ({ type })) };
+  delete schema.type;
+  if (schema.anyOf === undefined) schema.anyOf = alternatives.anyOf;
+  else schema.allOf = [...(schema.allOf ?? []), alternatives];
 }
 
 function projectRegistry(
@@ -143,6 +156,8 @@ function projectRegistry(
     override: ({ zodSchema, jsonSchema }) => { boundTupleProjection(zodSchema, jsonSchema, options.io); },
     uri,
   });
+  // Keep unions usable by strict JSON Schema consumers after native projection compacts them.
+  for (const schema of Object.values(bundle.schemas)) visitJsonSchemas(schema, expandTypeUnion);
   // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
   // that document but omits the document's own identity, so normalize it to the same bundle
   // contract as every registered root.

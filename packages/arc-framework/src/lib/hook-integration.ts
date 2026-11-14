@@ -32,9 +32,7 @@ const ARC_PRE_COMMIT = posix.join(ARC_GIT_HOOKS_DIR, "pre-commit");
 /** Relative path from repo root to ARC's commit-msg hook. */
 const ARC_COMMIT_MSG = posix.join(ARC_GIT_HOOKS_DIR, "commit-msg");
 
-const LEGACY_HUSKY_COMMIT_MSG = `${ARC_COMMIT_MSG} $1`;
 const HUSKY_COMMIT_MSG = `${ARC_COMMIT_MSG} "$1"`;
-const LEGACY_LEFTHOOK_COMMIT_MSG = `${ARC_COMMIT_MSG} {1}`;
 const LEFTHOOK_COMMIT_MSG = `${ARC_COMMIT_MSG} "{1}"`;
 
 /** Relative path from repo root to ARC's pre-push hook. */
@@ -195,7 +193,7 @@ async function integrateHusky(
     HUSKY_COMMIT_MSG,
     readFile,
     writeFile,
-    LEGACY_HUSKY_COMMIT_MSG,
+    ARC_COMMIT_MSG,
   );
   // Pre-push receives the remote name + URL as args and the ref list on stdin;
   // forward "$@" and let stdin pass through to the canonical hook.
@@ -212,23 +210,12 @@ async function integrateHuskyHook(
   arcLine: string,
   readFile: ReadFileFn,
   writeFile: WriteFileFn,
-  legacyArcLine?: string,
+  arcCommand = arcLine,
 ): Promise<void> {
   const existing = await readFileOrNull(hookPath, readFile);
 
-  if (existing !== null && legacyArcLine !== undefined) {
-    const migrated = migrateExactHookLine(existing, legacyArcLine, arcLine);
-    if (migrated !== null) {
-      await writeFile(hookPath, migrated);
-      return;
-    }
-  }
-
-  if (
-    existing !== null
-    && (existing.includes(arcLine) || (legacyArcLine !== undefined && existing.includes(legacyArcLine)))
-  ) {
-    return; // Already integrated — idempotent
+  if (existing !== null && existing.split(/\r?\n/).some(line => !line.trimStart().startsWith("#") && line.includes(arcCommand))) {
+    return; // Already integrated — preserve the installed invocation.
   }
 
   if (existing === null) {
@@ -237,24 +224,6 @@ async function integrateHuskyHook(
     const separator = existing.endsWith("\n") ? "" : "\n";
     await writeFile(hookPath, `${existing}${separator}${arcLine}\n`);
   }
-}
-
-function migrateExactHookLine(content: string, legacyLine: string, currentLine: string): string | null {
-  const newline = content.includes("\r\n") ? "\r\n" : "\n";
-  const lines = content.split(/\r?\n/);
-  if (!lines.includes(legacyLine)) return null;
-
-  const migrated: string[] = [];
-  let hasCurrentLine = lines.includes(currentLine);
-  for (const line of lines) {
-    if (line !== legacyLine) {
-      migrated.push(line);
-    } else if (!hasCurrentLine) {
-      migrated.push(currentLine);
-      hasCurrentLine = true;
-    }
-  }
-  return migrated.join(newline);
 }
 
 // -- Lefthook --
@@ -308,9 +277,6 @@ async function integrateLefthook(
   const commitMsgCommand = config["commit-msg"].commands["arc-commit-msg"];
   if (!commitMsgCommand) {
     config["commit-msg"].commands["arc-commit-msg"] = { run: LEFTHOOK_COMMIT_MSG };
-    changed = true;
-  } else if (commitMsgCommand.run === LEGACY_LEFTHOOK_COMMIT_MSG) {
-    commitMsgCommand.run = LEFTHOOK_COMMIT_MSG;
     changed = true;
   }
 

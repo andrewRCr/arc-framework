@@ -1,4 +1,5 @@
 /** Removal observations retained by advisory cleanup readers. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,11 +38,12 @@ async function sweep(options: { locked?: boolean; status?: "dirty" | "failed"; h
   return runStaleWorktreeSweep({
     exec, roster: { entries: options.husk ? [] : [{ worktreePath: checkout, branch: "feat/done" }], warnings: [] },
     worktreeIdentity: { kind: "primary" }, baseBranch: "main", derivedRoster: [], readBlob: async () => null,
+    revalidateEvidence: async () => true,
     baseEvidence: { remoteSyncEnabled: true,
       snapshot: { kind: "available", scope: "all-heads", tips: { main: base } },
       objectAvailability: { kind: "complete", commits: { [base]: true } }, history: { kind: "complete" } },
     readMarker: async (path) => path !== checkout ? { kind: "absent" } : options.husk ? { kind: "present", marker: {
-      ...marker.marker, husk: { sha: head, at: "2026-10-01T00:00:00Z", subject: { kind: "work-unit", name: "done" }, branch: "feat/done" },
+      ...marker.marker, husk: makeHuskStamp({ sha: head, at: "2026-10-01T00:00:00Z", subject: { kind: "work-unit", name: "done" }, branch: "feat/done" }),
     } } : marker,
     projectionRemovalSlots: { ...passingProjectionRemovalSlots, check: async () => options.projectionRefuses
       ? { kind: "would-refuse", remedy: { text: "save projection", argv: ["arc", "save"] } } : { kind: "passes" } },

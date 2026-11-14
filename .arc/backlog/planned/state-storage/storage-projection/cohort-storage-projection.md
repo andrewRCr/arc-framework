@@ -100,7 +100,9 @@ size, where `auto` stays `all` below both thresholds. The Owner split them the s
 `projection-team-scale` keeps D and lands before the flip, and `projection-narrowed-views` takes C, the window, and the
 team-scale work, and follows the cutover window, the 1/10/50/150 target binding 1.0 rather than Gate B. The split
 follows the 2026-11-07 one, a minted stub carrying the moved design, rather than `arc decompose`'s extraction arm,
-which has not been rehearsed.
+which has not been rehearsed. The Owner then let `projection-team-scale` land before the flip or after it (2026-11-13),
+matching the landing orders of `spec-cutover-flip.md` § 1.3: landing after, it rewrites the archive's errata convention
+onto `arc edit` at its own landing.
 
 ### Review chunks
 
