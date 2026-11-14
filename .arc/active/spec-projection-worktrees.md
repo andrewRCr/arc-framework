@@ -1249,8 +1249,9 @@ last publication, while `recordProjectionTiming`'s persisted samples necessarily
 them. Keep both visible and do not compare the persisted sample as though it were the external full-round measurement.
 
 A tripwire notice reports the raw recent median and its platform's runtime bound. Crossing it calls for attribution
-rather than an automatic change to locking, recovery, or file scheduling. The concurrent-sibling proposal remains held;
-none of these budgets depends on adopting it (A4).
+rather than an automatic change to locking, recovery, or file scheduling. A3's concurrent-sibling proposal
+(`notes-projection-worktrees.md` § Per-root cost reductions) remains held; none of these budgets depends on adopting it
+(A4).
 
 #### 15.5 Fan-out and full materialization
 
@@ -1292,7 +1293,7 @@ include (`includeIf`) differs, and a sibling whose recorded view setting, identi
 differs, or whose index records no guard pass, is skipped before any guard runs there (§ 2.2), its next command reading
 its own and reprojecting (§ 10.4). A pull's merges fan out as a write does (§ 2.2): with the index in partitions, a
 day's merges cost about 0.4 s on Windows across this repository's five worktrees and, for a 50-person team, about 2.8 s
-across 20 worktrees, 0.4 s on Linux, past the fan-out old prototype-derived tripwire on both
+across 20 worktrees, 0.4 s on Linux, past the old prototype-derived fan-out tripwire on both
 (`notes-projection-worktrees.md` § Spike 4); those model estimates do not qualify a full native round against A4's
 calibrated bounds. Leaving the other worktrees to catch up at their next command would not remove that cost: a later
 write's fan-out brings each worktree up from its own state version, so the first write after a pull would lay the merges
@@ -1825,8 +1826,8 @@ this design open.
 - **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 15.2 ¶2.
   _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
 
-- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; criterion 4.
-  _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
+- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1;
+  Cross-cutting Considerations, "Performance"; criterion 4. _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
 - **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ Task 2.4.b tests.
   _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
