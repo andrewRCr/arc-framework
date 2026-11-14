@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "window-tooling-cohort-entry",
+  "claimId": "baf320267395c29f68f0d1bd4b08832e",
+  "createdAt": "2026-11-14T21:51:47.090Z",
+  "updatedAt": "2026-11-14T21:51:47.090Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Update cutover-window-tooling's member entry in the storage-cutover cohort record to what the unit delivers and relies on",
+  "branch": "chore/window-tooling-cohort-entry",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
