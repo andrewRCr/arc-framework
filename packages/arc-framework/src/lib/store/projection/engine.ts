@@ -52,9 +52,8 @@ export async function startProjection(input: ProjectionCommandInput): Promise<Pr
   try { state.start = await initializeProjection(input); }
   catch (error) {
     if (!(error instanceof ArcError) || !["store.layout-marker-unreadable", "store.layout-marker-invalid", "store.layout-config-invalid"].includes(error.code)) throw error;
-    // A marker fault is this checkout's alone, so the fan-out still reaches its siblings; layout configuration closes it.
-    if (error.code === "store.layout-config-invalid") disposeProjectionFanOut();
-    else state.faulted.add(input.checkout);
+    // A marker or layout configuration fault is this checkout's alone, so the fan-out still reaches its siblings.
+    state.faulted.add(input.checkout);
     const mark: RefusedMark = { reason: error.message, remedy: {
       text: "Repair the checkout metadata named above, then retry. Pending edits remain in their files.",
     } };

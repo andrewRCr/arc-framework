@@ -87,7 +87,7 @@ export interface ProjectionProcessState {
   materializeSpawn: ((checkout: string) => Promise<void>) | null;
   readonly roots: Map<string, ProjectionRootState>;
   readonly retiring: Set<string>;
-  /** Checkouts whose marker this command's start could not read; its fan-out leaves them for their next command. */
+  /** Checkouts whose marker or layout configuration this command's start could not read; its fan-out leaves them for their next command. */
   readonly faulted: Set<string>;
   readonly actors: Map<string, Promise<string>>;
   readonly capabilities: Map<string, boolean>;

@@ -40,9 +40,9 @@ it.each(["marker", "configuration"] as const)("contains corrupt entering %s, kee
   success(await store.write({ action: "put", reference: current.reference, expected: current.version,
     content: "Written while the marker needs repair.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
   expect(await h.file()).toBe(own);
-  // A marker fault is the writer's own; its siblings still refresh. Layout configuration closes the whole fan-out.
-  if (fault === "marker") expect(await file()).toContain("Written while the marker needs repair.");
-  else expect(await file()).toBe(sibling);
+  // Either fault is the writer's own; its siblings still refresh.
+  expect(await file()).not.toBe(sibling);
+  expect(await file()).toContain("Written while the marker needs repair.");
   expect(projectionProcessState().diagnostics.filter(each => each.mark.reason.startsWith("Fan-out failed"))).toEqual([]);
   await endProjection(input);
   if (original === null) await rm(marker);
