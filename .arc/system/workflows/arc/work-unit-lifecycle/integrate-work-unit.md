@@ -708,25 +708,26 @@ after a partial teardown skips what is already done:
   preservation, the remote head is left intact and surfaced;
 - from outside a distinct linked worktree, removes it after the existing clean and user-surface guards;
 - from inside that worktree, preflights cleanliness, preservation, and every user-surface reconciliation before
-  detaching `HEAD`; on success it reaps refs but leaves the current directory as a live terminal husk;
+  detaching `HEAD`; the personal `arc.selfTeardownMode` preference defaults to `husk`, leaving an unlocked,
+  stamped terminal husk after reaping refs. With `remove`, the CLI moves to primary and removes the checkout;
 - keeps the primary/in-place arm unchanged — switch away from the WU branch and reap refs without husking;
 - prunes the stale remote-tracking ref a deleted remote branch left behind.
 
 Interpret a self-teardown result explicitly:
 
-- **Husk created:** This session remains live in a detached, disposable worktree. Report whether the local branch
-  was reaped. If it survived an operational delete failure, report the exact ref and retry `arc teardown <wu-name>`
-  from this husk or the primary; remote deletion is skipped on that attempt and prune still runs. When the marker was
-  stamped, the husk can be removed later by re-running teardown from outside or accepting the primary worktree's
-  stale-worktree offer. When the marker is absent, malformed, or could not be extended, report an externally managed
-  husk: remove/prune it manually from outside; do not promise a sweep backstop. Never reuse a husk for new work.
+- **Husk created:** Report that the folder remains, whether its branch was reaped, and the verb's exact outside
+  removal command. Never reuse a husk for new work. If ref cleanup failed, retain the verb's exact retry route.
+  From primary, `arc teardown` previews stamped husks and `arc teardown --yes` removes eligible ones, listing
+  every removed or retained path with its reason. Unstamped and externally managed checkouts remain untouched.
+- **Checkout removed:** Report that the invoking shell or agent session is now in a deleted directory; run all
+  subsequent commands from the reported primary checkout. On Windows, `remove` falls back to a husk with a notice.
 - **Cannot husk:** Dirty tree, unproven preservation, and blocked user-surface reconciliation are atomic refusals —
   the worktree remains branched and unchanged. Resolve a dirty tree or user-surface block and re-run. If preservation
   cannot be proven in place, inspect and dispose from outside the worktree. Stop at this step until the refusal is
   resolved; there is no `--force` escape.
 
 An outside re-run may physically remove only a clean stamped husk whose live `HEAD` still equals its stamp. A dirty
-or moved-`HEAD` husk is refused; a re-run from inside the husk never removes its own cwd.
+or moved-`HEAD` husk is refused. The no-argument sweep refuses to run from inside a husk.
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one

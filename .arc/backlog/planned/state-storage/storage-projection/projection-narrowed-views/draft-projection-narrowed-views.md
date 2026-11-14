@@ -365,6 +365,8 @@ other machines, which the model's team churn does not describe, so that row show
 
 ### Sequential fan-out attribution — routed from projection-worktrees, 2026-11-11
 
+- _Routed from:_ `projection-worktrees`, 2026-11-11.
+
 _Shapes:_ the fanned pull at the anchor, destination scheduling, and the growth-relative scale criterion.
 
 The Owner leaves sibling scheduling here; the proposed concurrent-root locking amendment in `projection-worktrees` stays

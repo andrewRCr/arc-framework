@@ -695,8 +695,8 @@
   finding's boundary) without breaching the evaluator boundary that withholds preferred fixes and author conclusions.
 
 - _Evidence:_ `fix-check-2/REVIEW-report.yaml` R-03 and R-04, and `fix-check-2/verification.md` § F3 and § F4,
-  under `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's
-  checkout (checkout-local).
+  under `storage-ref-backend`'s review and measurement evidence (kept outside the repository),
+  `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
 

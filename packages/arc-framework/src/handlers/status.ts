@@ -56,6 +56,7 @@ import { createGitExec, createRawGitExec, readGitBlobBytes } from "../lib/io-con
 import { SlugSchema } from "../lib/kernel/index.js";
 import { RECOVERY_RECENCY_DAYS, runBranchGoneRecovery } from "../lib/session-init/branch-gone-recovery.js";
 import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { validateStoreHuskEvidence } from "../lib/work-unit/store-retirement-husk.js";
 import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
@@ -457,6 +458,8 @@ export async function composeSessionInitStatus(
       }, async (stamp, decoded) => {
         const baseBranch = resolved.settings["branch.base"];
         const baseOid = exactSessionBaseOid(sessionCleanupBaseEvidence(context), baseBranch);
+        if (stateOffBranch) return baseOid !== null && marker.kind === "present"
+          && await validateStoreHuskEvidence({ store, exec, marker: marker.marker, baseOid });
         return baseOid !== null && await revalidateDecodedHuskRetirementEvidenceStrict(
           exec,
           stamp,
