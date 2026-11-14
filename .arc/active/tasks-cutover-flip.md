@@ -26,21 +26,12 @@ the ref backend while the default store stays in-repo.
   override stays the only other branch there. The module exports the refusal's predicate and remedy builder for the root
   hook (Task 2.2).
 
-    - `[ ]` **1.1.a The ref backend's ports composed from the caller's**
-        - Build them through `createDefaultRefStorePorts({ checkoutRoot, exec, execInput, backingRepository })`
-          (`lib/store/default-ports.ts`) with the caller's `exec` and `execInput`, so they pass the Git floor gate that
-          function wraps them in, and `backingRepository` from `readBackingRepository`, as `createStoreCommandPorts`
-          (`commands/store-ports.ts`) does; that supplies `rawExec`, `sleep`, `random`, `actor`, `lock`, `registry`, and
-          the directory and byte-level file access.
-        - Over the result, lay the caller's file-access methods, `clock`, and `identity`. The caller's `remote` and
-          `locks` have no place in the ref ports (`RefStorePorts`, `lib/store/ports.ts`): the ref backend takes its
-          remotes from their `arc-state` designation and serializes its writes through its own `lock` port
-          (`createRefLockFactory`; `withRefLocks`, `lib/store/ref/write-locks.ts`).
-        - Build `test-first` (one behavior at a time):
-            - an identity the caller supplies reaches the composed ports
-            - the caller's file access and clock reach them, and its `exec` runs behind the Git floor gate
-            - a caller's notes-lock override is not consulted
-            - ports from `createDefaultStorePorts` keep its identity resolution
+    - `[x]` **1.1.a The ref backend's ports composed from the caller's**
+        - `composeRefStorePorts` (`lib/store/selection.ts`) builds them through `createDefaultRefStorePorts` with the
+          caller's executors behind the Git floor gate and `backingRepository` from `readBackingRepository`, then lays
+          the caller's file-access methods, `clock`, and `identity` over them. The ref lock is rebuilt over the merged
+          file access, so the caller's file access reaches it and the caller's `locks` are never consulted
+          (`unit/lib/store/selection-ref-ports.test.ts`).
 
     - `[ ]` **1.1.b The override selects the in-repo implementation**
         - `ARC_IN_REPO_STORE`, in force when set and non-empty, read once per composition; the capability stays a fixed
