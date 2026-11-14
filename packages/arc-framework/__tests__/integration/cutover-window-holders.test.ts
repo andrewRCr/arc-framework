@@ -1,5 +1,6 @@
 /** Native ownership refusals use the same checkout lifecycle view as status. */
-import { join } from "node:path";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
@@ -7,7 +8,14 @@ import { readStatusCheckoutRoster } from "../../src/handlers/status/checkout-ros
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { retireFixtureErrand } from "../helpers/cutover-window/identity-inputs.js";
 import { ordinaryErrand, seedTransients } from "../helpers/store/import-transients.js";
-import { makeHuskStamp } from "../helpers/worktree-husk-fixture.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { resolveArcPath } from "../../src/lib/layout/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { runTeardown, type TeardownContext } from "../../src/lib/work-unit/verbs/teardown.js";
+import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import { readGitBlobBytes } from "../../src/lib/io-context.js";
 
 it("refuses an unmarked linked checkout and passes after it is removed", async () => {
   const h = await windowFixture();
@@ -17,6 +25,22 @@ it("refuses an unmarked linked checkout and passes after it is removed", async (
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
     expect.objectContaining({ subject: path, condition: expect.stringContaining("no-marker"), remedy: expect.stringContaining("git worktree remove") }),
   ]) } });
+  await h.git("git", ["worktree", "remove", path]);
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("refuses a locked unmarked checkout and passes after the named unlock and removal", async () => {
+  const h = await windowFixture();
+  const path = join(h.root, ".arc-fixture/locked");
+  await h.git("git", ["worktree", "add", "--detach", path]);
+  await h.git("git", ["worktree", "lock", "--reason", "kept by hand", path]);
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: path,
+      remedy: `Copy out anything wanted; run git worktree unlock ${JSON.stringify(path)}, then git worktree remove ${JSON.stringify(path)}.` }),
+  ]) } });
+  await h.git("git", ["worktree", "unlock", path]);
   await h.git("git", ["worktree", "remove", path]);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
@@ -47,22 +71,61 @@ it("refuses the primary's unresolved status role and passes after its topology i
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
 
-it("refuses a husked marked checkout and passes after its registration is removed", async () => {
-  const h = await windowFixture();
+/** Land alpha on main, archive it as shipped, and leave its branch in an ARC-spawned checkout. */
+async function shippedAlphaCheckout(h: Awaited<ReturnType<typeof windowFixture>>): Promise<string> {
+  await h.git("git", ["checkout", "feat/alpha"]);
+  await h.git("git", ["rm", "--quiet", ".arc/active/meta-alpha.md"]);
+  await h.git("git", ["commit", "-m", "Close alpha's active ownership"]);
+  await h.git("git", ["push", "origin", "feat/alpha"]);
+  await h.git("git", ["checkout", "main"]);
+  await h.git("git", ["merge", "--ff-only", "feat/alpha"]);
+  const archived = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse("alpha"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3"), sequence: ArchiveSequenceSchema.parse("01") } });
+  await mkdir(dirname(join(h.root, archived)), { recursive: true });
+  await writeFile(join(h.root, archived), makeMetaFixture("alpha", { state: "Shipped", owner: "andrew", branch: null,
+    completed: "2026-10-01", prUrl: "https://example.test/pull/2" }));
+  await h.git("git", ["add", archived]);
+  await h.git("git", ["commit", "-m", "Archive alpha as shipped"]);
+  await h.git("git", ["push", "origin", "main"]);
+  await mergeMainIntoFixtureFlip(h);
   const path = join(h.root, ".arc-fixture/alpha");
   await h.git("git", ["worktree", "add", path, "feat/alpha"]);
-  const head = (await h.git("git", ["rev-parse", "feat/alpha"])).stdout.trim();
   await writeWorktreeMarker(path, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
-    createdFor: { kind: "work-unit", name: "alpha" }, husk: makeHuskStamp({ sha: head, at: "2026-01-01T00:00:00.000Z",
-      subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha" }) });
+    createdFor: { kind: "work-unit", name: "alpha" } });
+  return path;
+}
+
+const indexFs: LifecycleIndexFs = { readdir: path => readdir(path, { withFileTypes: true }), readFile: path => readFile(path, "utf8") };
+const teardownContext = (cwd: string, exec: GitExec): TeardownContext => ({ cwd, exec, indexFs, chdir: () => undefined,
+  readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path) });
+const teardownAlpha = { subject: { kind: "slug", slug: "alpha" }, base: "main", protection: "partial" } as const;
+const endedRemedy = "Preserve wanted work, then run arc teardown alpha, or arc locus release, then retry check.";
+
+it("refuses a retired work unit's checkout and passes after arc teardown removes it", async () => {
+  const h = await windowFixture(), path = await shippedAlphaCheckout(h);
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
-    expect.objectContaining({ subject: path, condition: expect.stringMatching(/husk.*alpha/u), remedy: expect.stringContaining("arc teardown alpha") }),
+    expect.objectContaining({ subject: path, condition: "Checkout is retired: work-unit alpha.", remedy: endedRemedy }),
   ]) } });
-  await h.git("git", ["worktree", "remove", path]);
+  expect(await runTeardown(teardownContext(h.root, h.git), teardownAlpha)).toMatchObject({ status: "torn-down",
+    worktreeRemoved: path, branchDeleted: true });
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
-}, 30_000);
+}, 60_000);
+
+it("refuses a husked checkout left by a self-teardown and passes after arc teardown reaps it", async () => {
+  const h = await windowFixture(), path = await shippedAlphaCheckout(h);
+  expect(await runTeardown(teardownContext(path, makeGitExec(path)), teardownAlpha)).toMatchObject({ status: "torn-down",
+    husk: { stamped: true, outcome: "created" }, worktreeRemoved: null });
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: path, condition: "Checkout carries a husk stamp for work-unit alpha.", remedy: endedRemedy }),
+  ]) } });
+  expect(await runTeardown(teardownContext(h.root, h.git), teardownAlpha)).toMatchObject({ status: "torn-down",
+    husk: { outcome: "already-husked" }, worktreeRemoved: path });
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
 
 it("refuses an Errand marker without its exact record and requires retirement after it is restored", async () => {
   const h = await windowFixture();

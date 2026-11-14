@@ -40,12 +40,17 @@ it.each(["edit", "deletion"] as const)("refuses a live branch's %s to another un
 it("admits parked main and both branch sides with a branch inheriting their pointer absence", async () => {
   const h = await parkedWindowFixture(), inherited = "feat/inherited-park";
   await h.git("git", ["push", "origin", "main"]); await carryMainToFlip(h);
-  await h.git("git", ["branch", inherited, h.tip]); await h.git("git", ["push", "--set-upstream", "origin", inherited]);
+  await h.git("git", ["checkout", "-b", inherited, h.tip]);
+  await writeFile(join(h.root, "inherited.txt"), "A commit the forked branch holds alone.\n");
+  await h.git("git", ["add", "inherited.txt"]); await h.git("git", ["commit", "-m", "Advance the branch forked after the park"]);
+  const inheritedTip = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.git("git", ["push", "--set-upstream", "origin", inherited]); await h.git("git", ["checkout", "main"]);
   const checked = await checkFixture(h);
   expect(checked, checked.report).toMatchObject({ exit: 0, result: { status: "passed" } });
   const held = await readWindowHold({ repo: h.root, exec: h.git, execInput: h.ports.execInput });
   expect(held.record.branches.live[h.branch]).toMatchObject({ local: h.tip, origin: h.tip });
-  expect(held.record.branches.live[inherited]).toMatchObject({ local: h.tip, origin: h.tip });
+  expect(inheritedTip).not.toBe(h.tip);
+  expect(held.record.branches.live[inherited]).toMatchObject({ local: inheritedTip, origin: inheritedTip });
 }, 60_000);
 
 it("refuses a live branch deleting a pointer after the park and passes after it is restored", async () => {
@@ -99,17 +104,21 @@ it("checks the named flip branch even when it holds no work-unit metadata", asyn
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);
 
-it("refuses changes in a stale branch copy and passes once that copy matches the read branch", async () => {
+it("refuses changes in a stale branch copy and passes once that copy only inherits the read branch's content", async () => {
   const h = await windowFixture(), path = ".arc/active/notes-alpha.md", branch = "feat/stale";
   await h.git("git", ["checkout", "-b", branch, "feat/alpha"]);
   await writeFile(join(h.root, path), "# Notes: Alpha\n\nA changed stale copy.\n");
   await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Change stale branch content"]);
-  await h.git("git", ["push", "--set-upstream", "origin", branch]); await h.git("git", ["checkout", "main"]);
+  await h.git("git", ["push", "--set-upstream", "origin", branch]);
+  await h.git("git", ["checkout", "feat/alpha"]);
+  await writeFile(join(h.root, path), "# Notes: Alpha\n\nThe read copy moved after the stale fork.\n");
+  await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Advance the read copy"]);
+  await h.git("git", ["push", "origin", "feat/alpha"]); await h.git("git", ["checkout", "main"]);
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
     expect.objectContaining({ subject: expect.stringContaining(branch), condition: expect.stringContaining(path) }),
   ]) } });
-  await h.git("git", ["checkout", branch]); await h.git("git", ["checkout", "feat/alpha", "--", path]);
+  await h.git("git", ["checkout", branch]); await h.git("git", ["checkout", "HEAD~1", "--", path]);
   await h.git("git", ["commit", "-m", "Drop the stale copy's change"]);
   await h.git("git", ["push", "origin", branch]); await h.git("git", ["checkout", "main"]);
   const repaired = await checkFixture(h);
@@ -146,13 +155,16 @@ it("refuses the only stale branch copy after its unit landed and its own branch 
   await writeFile(join(h.root, path), "# Notes: Alpha\n\nUnseen work in the only stale copy.\n");
   await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Change the last stale copy"]);
   await h.git("git", ["push", "--set-upstream", "origin", branch]); await h.git("git", ["checkout", "main"]);
+  await writeFile(join(h.root, path), "# Notes: Alpha\n\nMain moved after the stale fork.\n");
+  await h.git("git", ["add", ".arc"]); await h.git("git", ["commit", "-m", "Advance main's copy"]);
+  await h.git("git", ["push", "origin", "main"]); await carryMainToFlip(h);
   await h.git("git", ["branch", "-d", "feat/alpha"]); await h.git("git", ["push", "origin", ":refs/heads/feat/alpha"]);
   await h.git("git", ["update-ref", "-d", "refs/remotes/origin/feat/alpha"]);
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
     expect.objectContaining({ subject: expect.stringContaining(branch), condition: expect.stringContaining(path) }),
   ]) } });
-  await h.git("git", ["checkout", branch]); await h.git("git", ["checkout", "main", "--", path]);
+  await h.git("git", ["checkout", branch]); await h.git("git", ["checkout", "HEAD~1", "--", path]);
   await h.git("git", ["commit", "-m", "Drop the last stale copy's change"]);
   await h.git("git", ["push", "origin", branch]); await h.git("git", ["checkout", "main"]);
   const repaired = await checkFixture(h);

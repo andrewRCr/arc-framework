@@ -22,6 +22,20 @@ it("refuses another open request into main and passes once it is closed", async 
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);
 
+it("refuses an open request into a live branch and passes once it is closed", async () => {
+  const h = await windowFixture();
+  const intoLive = { number: 9, headBranch: "feat/alpha-side", baseBranch: "feat/alpha" };
+  await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests, open: [...h.pullRequests.open, intoLive] }));
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { findings: expect.arrayContaining([
+    expect.objectContaining({ subject: "pull request #9", condition: expect.stringContaining("into feat/alpha"),
+      remedy: expect.stringContaining("close") }),
+  ]) } });
+  await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
 it("refuses the flip's armed auto-merge and passes once it is disarmed", async () => {
   const h = await windowFixture();
   await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests, flip: { ...h.pullRequests.flip, autoMergeArmed: true } }));

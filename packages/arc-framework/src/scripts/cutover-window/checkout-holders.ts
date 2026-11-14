@@ -88,5 +88,6 @@ function unmarkedRemovalRemedy(row: WindowCheckout): string {
     return `${row.locked !== undefined ? `Run git worktree unlock ${path}, then ` : "Run "}git worktree prune.`;
   }
   const branchRepair = row.branch === null ? "" : `make ${row.branch} clean, apply any tracked-state branch remedy reported by this check, push the branch, then `;
-  return `Copy out anything wanted; ${branchRepair}run git worktree remove ${path}.${row.branch === null ? "" : " The branch survives."}`;
+  const unlock = row.locked === undefined ? "" : `git worktree unlock ${path}, then `;
+  return `Copy out anything wanted; ${branchRepair}run ${unlock}git worktree remove ${path}.${row.branch === null ? "" : " The branch survives."}`;
 }

@@ -26,6 +26,12 @@ it("requires unlock before pruning a locked missing-folder registration", () => 
     remedy: expect.stringMatching(/git worktree unlock.*git worktree prune/u) })]);
 });
 
+it("requires unlock before removing a locked present checkout", () => {
+  const findings = windowUnmarkedCheckoutFindings([{ ...row, locked: null }]);
+  expect(findings).toEqual([expect.objectContaining({ subject: row.path,
+    remedy: expect.stringMatching(/push the branch, then run git worktree unlock "\/linked", then git worktree remove/u) })]);
+});
+
 const rosterRow: DerivedCheckoutRow = { checkout: row, markerGeneration: null, parentCheckoutPath: null, origin: null,
   identity: null, context: null, lifecycleLocation: null, diagnostics: [], kind: "retired", subject: { kind: "work-unit", key: "example" } };
 
