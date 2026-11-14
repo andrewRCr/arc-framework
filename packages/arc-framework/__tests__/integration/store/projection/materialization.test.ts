@@ -167,7 +167,8 @@ it("rebuilds an unedited file but withholds hand edits and unknown files until t
   const version = success(await target.h.store.version());
   await rm(join(target.location.stateDir, "index"));
   const rebuilt = await materialize(target);
-  expect(rebuilt).toMatchObject({ status: "done", value: { kind: "materialized", index: { entries: {
+  // A file withheld on its record's basis at a path the rebuild lays is bound there, so whole evidence publishes the state.
+  expect(rebuilt).toMatchObject({ status: "done", value: { kind: "materialized", index: { state: version, entries: {
     [notes]: { kind: "record", withheld: true, changed: true }, [unknown]: { kind: "ownerless", withheld: true },
   } } } });
   expect(await readFile(join(target.checkout, notes), "utf8")).toBe(edited);

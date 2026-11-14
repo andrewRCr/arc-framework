@@ -20,19 +20,25 @@ export type OwnershipObservationRoot = Pick<OwnershipRoot, "checkout" | "writabl
   readonly context: Pick<OwnershipRoot["context"], "format" | "report">;
 };
 
-/** Keep every desired identity the index did not already bind before a layout pass. */
-export function findProjectionArrivals(index: ProjectionIndex, desired: ReadonlyMap<string, RecordReference>): ReadonlyMap<string, RecordReference> {
-  return new Map([...desired].filter(([path, reference]) => {
-    const entry = index.entries[path];
-    return entry?.kind !== "record" || !sameReference(entry.reference, reference) || entry.stat === null || entry.handoff !== undefined;
-  }));
+/** A path the index binds to a record: its reference, observed bytes, and no arrival in flight. */
+function boundAt(entry: ProjectionIndex["entries"][string] | undefined, reference: RecordReference): boolean {
+  return entry?.kind === "record" && sameReference(entry.reference, reference) && entry.stat !== null && entry.handoff === undefined;
 }
 
-/** A layout pass acknowledges only arrivals whose bytes have been installed and confirmed. */
+/** Keep every desired identity the index did not already bind before a layout pass. */
+export function findProjectionArrivals(index: ProjectionIndex, desired: ReadonlyMap<string, RecordReference>): ReadonlyMap<string, RecordReference> {
+  return new Map([...desired].filter(([path, reference]) => !boundAt(index.entries[path], reference)));
+}
+
+/**
+ * A layout pass acknowledges only arrivals whose bytes have been installed and confirmed, or a file it withheld on that
+ * record's basis, which the next pass already reads as bound.
+ */
 export function projectionArrivalsInstalled(index: ProjectionIndex, arrivals: ReadonlyMap<string, RecordReference>): boolean {
   return [...arrivals].every(([path, reference]) => {
     const entry = index.entries[path];
-    return entry?.kind === "record" && sameReference(entry.reference, reference) && !entry.pending && !entry.withheld && entry.handoff === undefined;
+    return entry?.kind === "record" && sameReference(entry.reference, reference) && entry.handoff === undefined
+      && (!entry.pending && !entry.withheld || entry.withheld && boundAt(entry, reference));
   });
 }
 
