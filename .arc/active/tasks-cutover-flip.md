@@ -83,9 +83,12 @@ the ref backend while the default store stays in-repo.
   calls and `createInRepoBackend` does not), so a test that mixes one with a handler composing the default for the same
   root sees the default's capability.
 
-    - `[ ]` **1.3.a The fixtures**
-        - `tracked-write-fixture`, `in-repo-fixture`, `personal-fixture`, `sync-fixture`, and `in-repo-remote` under
-          `__tests__/helpers/store/`.
+    - `[x]` **1.3.a The fixtures**
+        - `tracked-write-fixture`, `in-repo-fixture`, `personal-fixture`, `sync-fixture`, and `in-repo-remote` build
+          their stores through `inRepoStore` (`__tests__/helpers/store/in-repo-ports.ts`). It selects the in-repo
+          implementation by passing the override to `selectStore`, since the test lint (`store-tests`,
+          `eslint/architecture-imports.ts`) keeps tests from importing `createInRepoBackend`. The store it builds records
+          its capability as `createStore` does.
 
     - `[ ]` **1.3.b The differential harnesses**
         - `review-differential` and `import-comparison`, whose in-repo side stays in-repo.

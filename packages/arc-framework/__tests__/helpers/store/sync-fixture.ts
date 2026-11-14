@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { onTestFinished } from "vitest";
 import { setupMultiClone } from "../multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../integration.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
@@ -12,6 +11,8 @@ import { errandsRef } from "../../../src/lib/errand/ref-tree.js";
 import { withAdvisoryLock } from "../../../src/lib/advisory-lock.js";
 import { getNotesLockPath } from "../../../src/lib/user-sync/notes-lock.js";
 import { success } from "./suite-tools.js";
+import { inRepoStore } from "./in-repo-ports.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 
 export const syncIdentity = "andrew";
 export const syncNotesRef = "refs/notes/arc/user/andrew";
@@ -27,7 +28,7 @@ export function syncRecord(intent = "original") {
   if (record.kind !== "errand" || record.purpose !== "errand" || record.state !== "open") throw new Error("Expected an ordinary open Errand fixture");
   return record;
 }
-export function syncPut(intent = "original", expected: Parameters<ReturnType<typeof createStore>["write"]>[0]["expected"] = null) {
+export function syncPut(intent = "original", expected: Parameters<Store["write"]>[0]["expected"] = null) {
   return { action: "put" as const, reference: syncErrand, expected, content: serializeTransientIdentityRecord(syncRecord(intent)),
     placement: { kind: "active" as const }, provenance: syncProvenance };
 }
@@ -49,12 +50,12 @@ async function syncCheckout(root: string) {
   const ports = createDefaultStorePorts({ checkoutRoot: root, exec, execInput });
   const lockPath = await getNotesLockPath(exec, root, syncIdentity);
   ports.locks.notes = (operation) => withAdvisoryLock(lockPath, operation, { maxWaitMs: 100 });
-  return { root, exec, execInput, ports, store: createStore(ports), lockPath,
+  return { root, exec, execInput, ports, store: inRepoStore(ports), lockPath,
     async file(key: string, content: string) { const path = join(root, ".arc/user/andrew", key); await mkdir(dirname(path), { recursive: true }); await writeFile(path, content); },
     async inbox(content = "# User Inbox\n\nPersonal content.\n") {
       const existing = await ports.fs.readFile(join(root, ".arc/user/andrew/USER-INBOX.md")).catch(() => null);
-      const expected = existing === null ? null : success(await createStore(ports).read({ reference: syncInbox })).version;
-      success(await createStore(ports).write({ action: "put", reference: syncInbox, expected, content, provenance: syncProvenance }));
+      const expected = existing === null ? null : success(await inRepoStore(ports).read({ reference: syncInbox })).version;
+      success(await inRepoStore(ports).write({ action: "put", reference: syncInbox, expected, content, provenance: syncProvenance }));
     } };
 }
 export async function seedAheadErrand(h: Awaited<ReturnType<typeof syncFixture>>) {
