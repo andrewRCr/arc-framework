@@ -28,3 +28,22 @@ export const DEFAULT_ERRAND_BRANCH_TYPE: ErrandBranchType = "chore";
 export function isErrandBranchType(value: string): value is ErrandBranchType {
   return (ERRAND_BRANCH_TYPES as readonly string[]).includes(value);
 }
+
+/** Eight lowercase hex characters after the slug, which keep two same-slug errands' branches apart. */
+const BRANCH_SUFFIX = /^[0-9a-f]{8}$/u;
+
+/**
+ * The nature-type an errand branch names for its slug, as `<type>/<slug>` or `<type>/<slug>-<suffix>`.
+ *
+ * @param branch - The branch an errand record names.
+ * @param slug - The errand's slug.
+ * @returns The admitted type, or null when the branch takes neither form.
+ */
+export function errandBranchType(branch: string, slug: string): ErrandBranchType | null {
+  const separator = branch.indexOf("/");
+  if (separator < 0) return null;
+  const type = branch.slice(0, separator), rest = branch.slice(separator + 1);
+  if (!isErrandBranchType(type)) return null;
+  if (rest === slug) return type;
+  return rest.startsWith(`${slug}-`) && BRANCH_SUFFIX.test(rest.slice(slug.length + 1)) ? type : null;
+}

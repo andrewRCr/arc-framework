@@ -439,3 +439,23 @@ it("resumes a qualified-ID origin using the persisted null digest re-fed by mate
  const {restoreErrandInboxOrigin}=await import("../../../src/lib/errand/inbox-origin.js");
  expect(await resumeFixture(record).run({inbox:restoreErrandInboxOrigin(record.originEntry,record.origin==="inbox"?record.originEntrySourceDigest:null)})).toMatchObject({outcome:"applied",identity:{originEntry:"project:12345678",originEntrySourceDigest:null}});
 });
+
+describe("suffixed ordinary Errand branches", () => {
+  const suffixed = (branch: string) => ({ ...paused(), branch });
+
+  it("admits a branch carrying an eight-hex suffix after its slug", () => {
+    expect(parseOrdinaryErrandRecord(suffixed("chore/fix-output-0a1b2c3d")).branch).toBe("chore/fix-output-0a1b2c3d");
+  });
+
+  it.each(["chore/fix-output-0A1B2C3D", "chore/fix-output-0a1b2c3", "chore/fix-output-0a1b2c3d4", "feat/fix-output-0a1b2c3d",
+    "chore/other-0a1b2c3d", "chore/fix-output-"])("refuses %s", (branch) => {
+    expect(TransientIdentityRecordV3Schema.safeParse(suffixed(branch)).success).toBe(false);
+  });
+
+  it("resumes with the recorded type and refuses another", async () => {
+    const fixture = resumeFixture(parseOrdinaryErrandRecord(suffixed("fix/fix-output-0a1b2c3d")));
+    expect(await fixture.run({ type: "chore" })).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(await fixture.run({ type: "fix" })).toMatchObject({ outcome: "applied", identity: { branch: "fix/fix-output-0a1b2c3d" } });
+    expect(fixture.branch()).toBe("fix/fix-output-0a1b2c3d");
+  });
+});

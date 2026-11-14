@@ -337,10 +337,11 @@ the fence harness pass over the ref backend; and the full suite passes with no b
           (`lib/errand/branch-type.ts`); `lib/session-init/errand-branch-cut.ts` cuts the branch the record names rather
           than rebuilding it.
 
-    - `[ ]` **2.10.b The record's validation and resume's recorded-branch check**
-        - `validateOrdinaryNamespace` (`lib/errand/identity-record.ts`), which the record's schema applies at every
-          read, admits the suffixed form; `validateErrandBranch` and `validateGroom` beside it keep their checks.
-          `validateResumeContinuity` (`lib/errand/open.ts`) compares the type prefix rather than a rebuilt branch.
+    - `[x]` **2.10.b The record's validation and resume's recorded-branch check**
+        - `errandBranchType` (`lib/errand/branch-type.ts`) reads the type from `<type>/<slug>` or
+          `<type>/<slug>-<eight lowercase hex>`; `validateOrdinaryNamespace` and `validateResumeContinuity` both use it,
+          and the housekeep routing and grooming validators keep their checks. Done ahead of 2.10.a, whose suffixed
+          branch the record's schema must first admit.
 
     - `[ ]` **2.10.c Review readiness's identity facts**
         - `identityFacts` (`scripts/review-gate/readiness.ts`): for an Errand vehicle the head branch equals the
