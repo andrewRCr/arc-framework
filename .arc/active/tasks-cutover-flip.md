@@ -1013,6 +1013,15 @@ command declares it (`integration/command-surface-documentation.test.ts`).
       conflict exemption and contributor staging warning (`system/.internal/githooks/README.md`) and
       `hooks.contributor_protected_paths` stay until tracked-state removal deletes them, recorded as kept.
 
+### `[ ]` **5.R Verification keeps the notes companion — § 8.7**
+
+- _Goal:_ Verification keeps the work unit's notes companion, consolidating it where it is not reference-ready, and no
+  step deletes it (A5).
+
+    - `verify-work-unit.md` Step 1 keeps the companion and follows `clean-work-unit.md` § Notes File Consolidation where
+      it is not reference-ready; the delete arm and its task-file cleanup go, and so does `clean-work-unit.md`'s search
+      for references to a deleted notes file.
+
 ### `[ ]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 
 - _Goal:_ The closure search over the shipped text at this head finds only the recorded kept sites; Framework files
@@ -1260,6 +1269,9 @@ landing after verification).
 
 - `[ ]` `activate-work-unit.md` records each capture its gate rejects or dismisses, with its reason, in the work unit's
   notes companion (A4).
+
+- `[ ]` `verify-work-unit.md` keeps the work unit's notes companion, consolidating it where it is not reference-ready,
+  and no shipped step deletes it (A5).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

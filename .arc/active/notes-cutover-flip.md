@@ -463,6 +463,21 @@ A4's checks, run by the author: depth `low`; `spec-review` over the § 8.6 bulle
 with § 8.7's `_Captures:_` and § 8.10's capture removal as the surrounding contract, and `activate-work-unit.md` Step 1
 and Step 3 read against them, found nothing to fold; no independent pass at `low`.
 
+## A5 — verification keeps the notes companion
+
+Verification's Step 1 kept the notes companion only when it was already reference-ready and otherwise deleted it,
+removing the task list's references to it. From the flip no verb deletes a companion, and a projected file removed from
+disk reads as unedited, so its record survives and the next refresh writes it back (`checkFileAtPath`,
+`lib/store/projection/engine-files.ts`; `rebuild`, `lib/store/projection/swap.ts`); since A4 the companion also carries
+activation's capture record to the archive. Step 1 therefore keeps the companion and consolidates it where needed, and
+`clean-work-unit.md`'s search for references to a deleted notes file goes with the delete arm. Task 5.R carries the
+text.
+
+A5's checks, run by the author: depth `low`; `spec-review` over the § 8.7 sentence, the row, and the appended criterion,
+with § 8.6's A4 bullet and § 8.7's `_Captures:_` as the surrounding contract, and `verify-work-unit.md` Step 1 and
+`clean-work-unit.md` § Notes File Consolidation read against them; `task-audit` at grounding-only depth over Task 5.R;
+no independent pass at `low`.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

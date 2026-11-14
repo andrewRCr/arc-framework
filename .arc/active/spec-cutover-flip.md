@@ -984,7 +984,11 @@ retire (`spec-seam-lifecycle.md` § 8.1, § 8.9). The two workflows shrink to th
   dismissed one, and saved with the task, since the ordinary path makes no verification commit. The rewrite changes
   `verify-work-unit.md` § Verification Record and `strategy-task-list-formatting.md`'s verification-task exception,
   which names the record's categories, together. Attest refuses a task list that is still open (`no-open-task`), so it
-  moves after the close, and the staged-subject wording goes.
+  moves after the close, and the staged-subject wording goes. Step 1 keeps the notes companion, consolidating it where
+  it is not reference-ready, and its delete arm goes, with `clean-work-unit.md`'s search for references to a deleted
+  notes file: no verb deletes a companion, a file removed from disk reads as unedited and returns at the next refresh
+  (`checkFileAtPath`, `lib/store/projection/engine-files.ts`; `rebuild`, `lib/store/projection/swap.ts`), and the
+  companion carries activation's capture record to the archive (§ 8.6) (A5).
 - Archival becomes a store write in both cadences, so the archive commit and its push go, while
   `integrate-work-unit.md`'s step-8 dispatch keeps both arms: under `with-integration` integrate archives before the
   merge and the landing writes the landing-commit link; under `manual` archival follows the merge through
@@ -2169,5 +2173,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.5.R. _Revalidated:_ pending → 5.12.
 - **A4** — 2026-11-14 — spec-depth: activation records each rejected or dismissed capture in the notes companion.
   _Supersedes:_ none. _Trigger:_ 5.5 must-stop. _Work:_ 5.5. _Revalidated:_ pending → 5.12.
+- **A5** — 2026-11-14 — spec-depth: verification keeps the notes companion, consolidating it, and never deletes it.
+  _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.12.
 
 ---
