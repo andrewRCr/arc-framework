@@ -6,19 +6,28 @@ import { resolveArcPath } from "../../lib/layout/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import type { WindowParkedPointer } from "./read-map.js";
 import { WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 
 const roadmap = ".arc/backlog/ROADMAP.md";
 
-/** Merge main into the branch and publish it; a parked unit's branch keeps its side at its pointer and meta. */
+/** Merge main into the branch and publish it; a parked unit's branch keeps its side at its pointer and meta, conflict or not. */
 export async function mergeRehearsalMain(context: WindowRehearsalContext, branch: string,
   parked: readonly WindowParkedPointer[]): Promise<void> {
   const { sync } = context;
+  const branchSide = branchSidePaths(branch, parked);
   await sync.carryLocal(branch);
   await sync.checkout(branch);
+  let unmerged: string[] = [];
   try {
-    await sync.scratch(["merge", "--quiet", "--no-edit", "origin/main"]);
+    await sync.scratch(["merge", "--quiet", ...branchSide.size > 0 ? ["--no-ff", "--no-commit"] : ["--no-edit"], "origin/main"]);
   } catch (error) {
-    await concludeMerge(context, branch, branchSidePaths(branch, parked), error);
+    unmerged = await unmergedPaths(context);
+    if (unmerged.length === 0) throw error;
+  }
+  if (await merging(context)) {
+    for (const path of branchSide) await keepBranchSide(context, path);
+    await concludeConflicts(context, branch, unmerged.filter(path => !branchSide.has(path)));
+    await sync.scratch(["commit", "--quiet", "--no-edit"]);
   }
   await sync.publish(branch, "HEAD");
 }
@@ -48,14 +57,24 @@ function branchSidePaths(branch: string, parked: readonly WindowParkedPointer[])
   return paths;
 }
 
-async function concludeMerge(context: WindowRehearsalContext, branch: string, branchSide: ReadonlySet<string>,
-  failure: unknown): Promise<void> {
-  const { sync } = context;
-  const unmerged = [...new Set((await sync.scratch(["diff", "--name-only", "-z", "--diff-filter=U"])).stdout
+async function unmergedPaths(context: WindowRehearsalContext): Promise<string[]> {
+  return [...new Set((await context.sync.scratch(["diff", "--name-only", "-z", "--diff-filter=U"])).stdout
     .split("\0").filter(Boolean))];
-  if (unmerged.length === 0) throw failure;
-  for (const path of unmerged.filter(path => branchSide.has(path))) await keepBranchSide(context, path);
-  const remaining = unmerged.filter(path => !branchSide.has(path));
+}
+
+async function merging(context: WindowRehearsalContext): Promise<boolean> {
+  try {
+    await context.sync.scratch(["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]);
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return false;
+    throw error;
+  }
+}
+
+/** Conclude a ROADMAP conflict through its remedy, and stop on any other conflict outside the branch's own side. */
+async function concludeConflicts(context: WindowRehearsalContext, branch: string, remaining: readonly string[]): Promise<void> {
+  const { sync } = context;
   if (remaining.some(path => path !== roadmap)) {
     await sync.scratch(["merge", "--abort"]);
     throw new WindowRehearsalStop(`Merging main into ${branch} conflicts at ${remaining.join(", ")}.`);
@@ -69,15 +88,13 @@ async function concludeMerge(context: WindowRehearsalContext, branch: string, br
       throw new WindowRehearsalStop(`The ROADMAP remedy did not conclude merging main into ${branch}: ${JSON.stringify(remedy)}.`);
     }
   }
-  await sync.scratch(["commit", "--quiet", "--no-edit"]);
 }
 
+/** Put a path back as the branch held it before the merge, absence included. */
 async function keepBranchSide(context: WindowRehearsalContext, path: string): Promise<void> {
   const { sync } = context;
-  const ours = (await sync.scratch(["ls-files", "-u", "-z", "--", path])).stdout.split("\0").some(row => /^\d+ [a-f0-9]+ 2\t/u.test(row));
-  if (ours) {
-    await sync.scratch(["checkout", "--quiet", "--ours", "--", path]);
-    await sync.scratch(["add", "--", path]);
+  if ((await sync.scratch(["ls-tree", "-z", "--name-only", "HEAD", "--", path])).stdout !== "") {
+    await sync.scratch(["checkout", "--quiet", "HEAD", "--", path]);
   } else {
     await sync.scratch(["rm", "--quiet", "--cached", "--ignore-unmatch", "--", path]);
     await sync.scratch(["clean", "--quiet", "--force", "--", path]);
