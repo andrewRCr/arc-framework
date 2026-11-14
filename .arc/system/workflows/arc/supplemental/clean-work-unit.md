@@ -10,10 +10,9 @@ top-to-bottom flow is required.
 
 ## When to Use
 
-- **From [`integrate-work-unit.md`][integrate] Step 3.** Invoked as a delegated subroutine when integration's
-  disposition decision is "keep + clean" for an existing notes file (`§ Notes File Consolidation`), or when
-  integrate's survey finds temporal markers / accumulated scratchpad content in the task list
-  (`§ Task List Temporal-Noise Pass`).
+- **From [`verify-work-unit.md`][verify] Step 1.** Invoked as a delegated subroutine when the work unit's notes file is
+  not yet reference-ready (`§ Notes File Consolidation`), or when verification's survey finds temporal markers /
+  accumulated scratchpad content in the task list (`§ Task List Temporal-Noise Pass`).
 
 - **Standalone, as needed.** For mid-work tidying when a task list or notes file has accumulated drift that
   hampers session loading or scanning. Genuine need; not part of the strict lifecycle pipeline.
@@ -100,9 +99,6 @@ grep -in "status:.*complete\|status:.*pending\|status:.*blocked\|status:.*[0-9]/
 # Resume/Continue markers
 grep -in "resume at\|continue with\|pick up at\|blocked on" tasks-*.md
 
-# References to deleted notes file (if notes file was deleted)
-grep -in "notes-.*\.md" tasks-*.md
-
 # Inline subtask completion dates (header date is fine, subtask dates are noise)
 grep -in "\*\*completed:\*\*.*202[0-9]" tasks-*.md
 ```
@@ -130,5 +126,5 @@ grep -in "next step\|resume at\|blocked on" tasks-*.md
 
 ---
 
-[integrate]: ../work-unit-lifecycle/integrate-work-unit.md
 [prepare]: ../work-unit-lifecycle/prepare-work-unit.md
+[verify]: ../work-unit-lifecycle/verify-work-unit.md

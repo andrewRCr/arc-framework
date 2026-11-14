@@ -46,8 +46,8 @@ with its reason, in the verification record's `_Captures:_` category. Then re-ru
 
 Before the Candidate exists, clean the WU content:
 
-- If `notes-{name}.md` exists, follow [`clean-work-unit.md`][clean] `§ Notes File Consolidation`: keep it only when
-  already reference-ready, or delete it and remove task-file references.
+- If `notes-{name}.md` exists, it stays with the work unit through its archive: follow [`clean-work-unit.md`][clean]
+  `§ Notes File Consolidation` unless it is already reference-ready.
 - Apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` when the task list carries temporal markers,
   ad-hoc inline status, or accumulated scratchpad content.
 

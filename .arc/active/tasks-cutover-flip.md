@@ -1013,14 +1013,14 @@ command declares it (`integration/command-surface-documentation.test.ts`).
       conflict exemption and contributor staging warning (`system/.internal/githooks/README.md`) and
       `hooks.contributor_protected_paths` stay until tracked-state removal deletes them, recorded as kept.
 
-### `[ ]` **5.R Verification keeps the notes companion — § 8.7**
+### `[x]` **5.R Verification keeps the notes companion — § 8.7**
 
 - _Goal:_ Verification keeps the work unit's notes companion, consolidating it where it is not reference-ready, and no
   step deletes it (A5).
 
-    - `verify-work-unit.md` Step 1 keeps the companion and follows `clean-work-unit.md` § Notes File Consolidation where
-      it is not reference-ready; the delete arm and its task-file cleanup go, and so does `clean-work-unit.md`'s search
-      for references to a deleted notes file.
+- _Outcome:_ `verify-work-unit.md` Step 1 keeps the notes companion through the archive and consolidates it unless it
+  is already reference-ready. `clean-work-unit.md` drops its search for references to a deleted notes file, and its
+  "When to Use" names verification's Step 1, its one caller, where it named integration's Step 3.
 
 ### `[ ]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 
