@@ -61,10 +61,15 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
   loadProjectionGroups(index, root.context.verb === "save" ? "all" : "walked");
   return Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
-    const selected = root.context.verb === "save" || !path.startsWith(".arc/completed/");
-    return entry?.kind === "record" && entry.adoption?.kind === "read-back"
-      || selected && (entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined);
+    return entry !== undefined && retriesIndexedEntry(root.context.verb, path, entry);
   });
+}
+
+/** Whether a command's walk retries an entry whose file it may not reach: every root at `arc save`, else outside the archive. */
+export function retriesIndexedEntry(verb: string | undefined, path: string, entry: ProjectionIndex["entries"][string]): boolean {
+  const selected = verb === "save" || !path.startsWith(".arc/completed/");
+  return entry.kind === "record" && entry.adoption?.kind === "read-back"
+    || selected && (entry.kind === "ownerless" || entry.adoption !== undefined);
 }
 
 function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | null {

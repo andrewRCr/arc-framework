@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { projectedRetirement, retirementRetainedBase, interruptedRetirementReplacement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 import { releaseProjectionRemoval } from "../../src/lib/store/projection/removal-release.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
 import { writeWorktreeMarker, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
@@ -31,11 +32,20 @@ import { ADVISORY_LEASE_DURATION_MS } from "../../src/lib/renewable-lease.js";
 
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
 
-async function anchoredRelease() {
-  const h = await projectedRetirement();
+async function anchoredRelease(options: { ended?: boolean } = {}) {
+  const h = await projectedRetirement(undefined, undefined, options);
   h.marker.spawnedByArc = false;
   await writeWorktreeMarker(h.checkout, h.marker);
   return h;
+}
+
+/** Abandonment's own removal check, as production binds it, in place of the fixture's passing slot. */
+function bindRemovalCheck(h: Awaited<ReturnType<typeof projectedRetirement>>) {
+  const slots = h.ctx.projectionRemovalSlots;
+  if (slots === undefined) throw new Error("Missing fixture removal slots");
+  const context = { store: h.store, identity: SlugSchema.parse("test-user") };
+  h.ctx.projectionRemovalSlots = { ...slots, check: (checkout, disposition) => checkProjectionRemoval(checkout, context, disposition) };
+  return () => checkProjectionRemoval(h.checkout, context, "release");
 }
 
 async function removalCopy(h: Awaited<ReturnType<typeof projectedRetirement>>, path = h.path): Promise<string> {
@@ -218,6 +228,49 @@ describe("projected checkout release", () => {
     await writeFile(excludes, original);
     expect(await h.release()).toEqual({ kind: "released" });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).version).toBe(h.record.version);
+  });
+
+  it("holds an anchored abandonment over a deleted withheld file its ignore rules keep, as release does, until their repair", async () => {
+    const h = await anchoredRelease({ ended: false }), check = bindRemovalCheck(h);
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+    if (disk.kind !== "index") throw new Error("No projection index");
+    await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
+      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark() } } });
+    await rm(join(h.checkout, h.path));
+    const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
+    await writeFile(excludes, ".arc/\n");
+    const ports = createProjectionEnginePorts(h.checkout);
+    const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
+    if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
+    expect(await check()).toEqual({ kind: "would-refuse", remedy: { text: guard.remedy } });
+    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: guard.remedy } });
+    expect(await h.abandon()).toMatchObject({ status: "rejected", reason: guard.remedy });
+    expect((await h.store.read({ reference: h.meta.reference })).status).toBe("ok");
+    expect(await readWorktreeMarker(h.checkout)).toMatchObject({ kind: "present" });
+    await writeFile(excludes, original);
+    expect(await check()).toEqual({ kind: "passes" });
+    expect(await h.abandon()).toMatchObject({ status: "abandoned", lifecycle: { cleanup: { worktree: { status: "completed" } } } });
+    expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused");
+  });
+
+  it("holds an anchored abandonment over a deleted unadopted archive file, as release does, until arc save settles it", async () => {
+    const h = await anchoredRelease({ ended: false }), check = bindRemovalCheck(h);
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+    if (disk.kind !== "index") throw new Error("No projection index");
+    const path = ".arc/completed/2026-q4/01_gone/notes-gone.md";
+    await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries, [path]: { kind: "ownerless", stat: null,
+      refused: { reason: "unadopted", remedy: { text: "Adopt or delete the file, then retry." } } } } });
+    const checked = await check();
+    expect(checked).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining("arc save") } });
+    if (checked.kind !== "would-refuse") throw new Error("The archive entry was not held");
+    expect(await h.release()).toEqual({ kind: "refused", remedy: checked.remedy });
+    expect(await h.abandon()).toMatchObject({ status: "rejected", reason: checked.remedy.text });
+    expect((await h.store.read({ reference: h.meta.reference })).status).toBe("ok");
+    const save = { checkout: h.checkout, store: h.store, mode: "save" as const };
+    expect(await startProjection(save)).toMatchObject({ kind: "ready" });
+    await endProjection(save);
+    expect(await check()).toEqual({ kind: "passes" });
+    expect(await h.abandon()).toMatchObject({ status: "abandoned", lifecycle: { cleanup: { worktree: { status: "completed" } } } });
   });
 
   it("returns an unparseable removal edit to its path and releases after the metadata is repaired", async () => {

@@ -15,6 +15,7 @@ import { checkProjectionRemovalFiles } from "./removal-files.js";
 import { observeProjectionReads } from "./read-observation.js";
 import { createRemovalGuard, readRemovalHandoffs } from "./removal-observations.js";
 import { checkProjectionRemovalAsides } from "./removal-asides.js";
+import { checkRetainedReleaseEntries } from "./release-entries.js";
 
 /** The command's store authority and independently target-bound host operations. */
 export interface ProjectionRemovalContext {
@@ -46,8 +47,11 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     const index = await readRemovalHandoffs({ root, index: disk.index, ports, configuration });
     const guard = createRemovalGuard({ root, index, ports, configuration });
     const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(targetIdentity), ports, configuration, guard });
-    const result = files.verdict.kind === "passes"
+    const asides = files.verdict.kind === "passes"
       ? await checkProjectionRemovalAsides({ root, index: files.index, ports, configuration, guard }) : files.verdict;
+    // Release alone keeps a linked checkout and walks every entry it will discard, so it answers for files already gone.
+    const result = asides.kind !== "passes" || disposition !== "release" || location.primary ? asides
+      : await checkRetainedReleaseEntries({ index: files.index, checkout, verb: root.context.verb, linkFs: ports.linkFs, guard });
     const unreadable = observed.nativeFailure();
     return unreadable === undefined ? result : { kind: "unobservable", detail: unreadable.remedy.text };
   } catch (error) {
