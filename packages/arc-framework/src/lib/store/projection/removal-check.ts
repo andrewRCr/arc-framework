@@ -13,7 +13,7 @@ import { createHistoryMemo } from "./base-recovery.js";
 import { projectedRootPaths } from "../../layout/index.js";
 import { checkProjectionRemovalFiles } from "./removal-files.js";
 import { observeProjectionReads } from "./read-observation.js";
-import { readRemovalHandoffs } from "./removal-observations.js";
+import { createRemovalGuard, readRemovalHandoffs } from "./removal-observations.js";
 import { checkProjectionRemovalAsides } from "./removal-asides.js";
 
 /** The command's store authority and independently target-bound host operations. */
@@ -44,9 +44,10 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     const root = await bindReadOnlyProjectionRoot({ checkout, store: observed.store, ports, location, configuration,
       history: createHistoryMemo(observed.store) });
     const index = await readRemovalHandoffs({ root, index: disk.index, ports, configuration });
-    const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(targetIdentity), ports, configuration });
+    const guard = createRemovalGuard({ root, index, ports, configuration });
+    const files = await checkProjectionRemovalFiles({ root, index, roots: projectedRootPaths(targetIdentity), ports, configuration, guard });
     const result = files.verdict.kind === "passes"
-      ? await checkProjectionRemovalAsides({ root, index: files.index, ports, configuration }) : files.verdict;
+      ? await checkProjectionRemovalAsides({ root, index: files.index, ports, configuration, guard }) : files.verdict;
     const unreadable = observed.nativeFailure();
     return unreadable === undefined ? result : { kind: "unobservable", detail: unreadable.remedy.text };
   } catch (error) {

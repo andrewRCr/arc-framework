@@ -8,7 +8,7 @@ import { withheldProjectionMark } from "./materialization-file.js";
 import { unfinishedRecordingRefusal } from "./recording-state.js";
 import { projectionFeasibilityRefusal, type ProjectionRemovalCheck } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
-import { checkPendingProjectionReadBack, createRemovalGuard, type ProjectionRemovalGuard,
+import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { readProjectionProtection } from "./protection.js";
@@ -20,8 +20,11 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 
-/** Discovery roots join the shared target-local observation inputs. */
-export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput { readonly roots: readonly string[] }
+/** Discovery roots and the check's one guard join the shared target-local observation inputs. */
+export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
+  readonly roots: readonly string[];
+  readonly guard: ProjectionRemovalGuard;
+}
 
 /** Hypothetical send marks travel to the subsequent copy check, while the published index stays untouched. */
 export interface ProjectionRemovalFilesResult { readonly verdict: ProjectionRemovalCheck; readonly index: ProjectionIndex }
@@ -44,7 +47,7 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
       || entry?.kind === "ownerless" && entry.minted !== undefined;
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);
-  const guard = createRemovalGuard(input);
+  const { guard } = input;
   for (const path of new Set([...walked.files, ...retries])) {
     if (boundary(path) !== null) continue;
     const checked = await checkRemovalFileAtPath({ ...input, root: observingRoot, index: preparedIndex }, path, reference, guard);

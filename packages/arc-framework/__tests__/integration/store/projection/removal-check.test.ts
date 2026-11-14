@@ -987,3 +987,22 @@ it("holds a new file in a root its ignore guard refuses until the rule is restor
   expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
+
+it("holds an edited aside copy in a root its ignore guard refuses, as persistence does, and passes once the rule is restored", async () => {
+  const { target, entry, copy } = await interruptedCopy();
+  const ignores = await readFile(join(target.checkout, ".gitignore"));
+  await writeFile(join(target.checkout, ".gitignore"), "");
+  const unedited = await checkProjectionRemoval(target.checkout, target.context);
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual(unedited.kind === "passes" ? { kind: "persisted" }
+    : { kind: "refused", remedy: unedited.kind === "would-refuse" ? unedited.remedy : undefined });
+  const original = parseStampedFile(await readFile(join(target.checkout, copy.name), "utf8")).content;
+  await writeFile(join(target.checkout, copy.name), renderStampedFile({ content: `Aside prefix.\n${original}`, stamp: entry.base.blob }));
+  const checked = await checkProjectionRemoval(target.checkout, target.context);
+  expect(checked).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(".arc/user/") } });
+  if (checked.kind !== "would-refuse") throw new Error("The guard refusal was not predicted for the copy");
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy: checked.remedy });
+  await writeFile(join(target.checkout, ".gitignore"), ignores);
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
+  expect(success(await target.h.store.read({ reference: target.h.record.reference })).content).toContain("Aside prefix.");
+});
