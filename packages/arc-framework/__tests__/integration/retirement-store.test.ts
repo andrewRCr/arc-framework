@@ -182,6 +182,24 @@ describe("store retirement real Git", () => {
     await rm(join(dirty, "personal.txt"));
     expect(await sweep()).toMatchObject({ status: "swept", removed: [dirty], left: [] });
   }, 30_000);
+  it("reports an unobservable projection check as failed, sweeps its sibling, and retries after repair", async () => {
+    const h = await huskFixture(), [blocked, clean] = h.paths;
+    let broken = true;
+    h.ctx.projectionRemovalSlots = {
+      check: async path => broken && path === blocked
+        ? { kind: "unobservable", detail: "injected projection observation failure" } : { kind: "passes" },
+      persist: async () => ({ kind: "persisted" }), release: async () => ({ kind: "released" }),
+    };
+    const input = TeardownCommandInputSchema.parse({ yes: true });
+    const sweep = () => runTeardownHuskSweep(h.ctx, { base: "main", confirmed: input.yes === true });
+    expect(await sweep()).toMatchObject({ status: "swept", removed: [clean],
+      left: [{ path: blocked, reason: expect.stringContaining("injected projection observation failure"), failed: true }] });
+    expect(await readWorktreeMarker(blocked)).toEqual({ kind: "present", marker: h.huskMarker });
+    const roster = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout;
+    expect(roster).toContain(blocked); expect(roster).not.toContain(clean);
+    broken = false;
+    expect(await sweep()).toMatchObject({ status: "swept", removed: [blocked], left: [] });
+  }, 30_000);
   it("recognizes a native husk from Store lineage and rejects a changed owner or evidence", async () => {
     const h = await huskFixture(), path = h.paths[0];
     const resolve = (marker: WorktreeMarker) => resolveCurrentHuskAdvisory({ worktreePath: path,

@@ -66,7 +66,11 @@ async function removeHusk(ctx: TeardownContext, options: Pick<TeardownParams, "b
   if (decoded.kind !== "current") return decoded.reason;
   const check = await checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: candidate.path, disposition: "remove",
     check: ctx.projectionRemovalSlots?.check, folderExists: ctx.worktreeFs?.directoryExists.bind(ctx.worktreeFs) });
-  if (check.kind === "refused") return describeRemovalRefusal(check);
+  if (check.kind === "refused") {
+    const reason = describeRemovalRefusal(check);
+    if (check.reason === "unobservable") throw new Error(reason);
+    return reason;
+  }
   const decision = decideHuskCleanup({ marker: current, clean: check.kind === "removable", head: candidate.head });
   if (decision.action !== "removable") return decision.reason;
   const subject = stamp.subject;

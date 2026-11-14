@@ -21,12 +21,16 @@ async function initializedRepository(start: Parameters<typeof initializedReposit
   return fixturePath(await initializedRepositoryCore(start));
 }
 
-async function removalFailureEnvironment(dir: string): Promise<NodeJS.ProcessEnv> {
+async function gitFailureEnvironment(dir: string,
+  fault: { kind: "remove" } | { kind: "status"; checkoutPath: string } = { kind: "remove" }): Promise<NodeJS.ProcessEnv> {
   await mkdir(dir);
   const script = ["#!/usr/bin/env node", 'const { spawnSync } = require("node:child_process");',
     'const { delimiter, resolve } = require("node:path");', "const args = process.argv.slice(2);",
-    'if (args[0] === "worktree" && args[1] === "remove") {',
-    '  process.stderr.write("injected physical removal failure\\n"); process.exit(97);', "}",
+    `const fault = ${JSON.stringify(fault)};`,
+    'if (fault.kind === "remove" ? args[0] === "worktree" && args[1] === "remove"',
+    '  : args[0] === "status" && resolve(process.cwd()) === resolve(fault.checkoutPath)) {',
+    '  process.stderr.write(fault.kind === "remove" ? "injected physical removal failure\\n" : "injected removal observation failure\\n");',
+    '  process.exit(97);', "}",
     'const path = (process.env.PATH ?? "").split(delimiter).filter(entry => resolve(entry) !== resolve(__dirname)).join(delimiter);',
     'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
     "process.exit(result.status ?? 1);", ""].join("\n");
@@ -216,10 +220,29 @@ describe("arc teardown (CLI surface)", () => {
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-failure-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
-    const env = await removalFailureEnvironment(join(worktreeParent, "bin"));
+    const env = await gitFailureEnvironment(join(worktreeParent, "bin"));
     const failed = await runArc(["teardown", "--yes"], tmpDir, { env });
     expect(failed.stdout + failed.stderr).toContain("injected physical removal failure");
     expect(failed.exitCode).toBe(1);
+    expect(await stat(worktree)).toMatchObject({});
+    const repaired = await runArc(["teardown", "--yes"], tmpDir);
+    expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+    await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+  }, 30_000);
+
+  it("fails a sweep on an unobservable removal check and completes after repair", async () => {
+    tmpDir = await initializedRepository("initialized");
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-observation-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    expect((await runArc(["teardown", "demo"], worktree)).exitCode).toBe(0);
+    const markerPath = join(worktree, ".arc/system/.internal/worktree-marker.json");
+    const before = await readFile(markerPath, "utf8");
+    const env = await gitFailureEnvironment(join(worktreeParent, "bin"), { kind: "status", checkoutPath: worktree });
+    const failed = await runArc(["teardown", "--yes"], tmpDir, { env });
+    expect(failed.stdout + failed.stderr).toContain("injected removal observation failure");
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stdout + failed.stderr).toContain("1 failed");
+    expect(await readFile(markerPath, "utf8")).toBe(before);
     expect(await stat(worktree)).toMatchObject({});
     const repaired = await runArc(["teardown", "--yes"], tmpDir);
     expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
