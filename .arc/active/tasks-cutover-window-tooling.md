@@ -591,6 +591,9 @@ refusing and then passing after its remedy, with the import's cost recorded from
 - `[ ]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
   is never deleted unseen, proved by Stage 1's second run (Task 7.3).
 
+- `[ ]` C1 refuses a skip-worktree or assume-unchanged flag on a tracked-state path in the primary or a marked checkout,
+  and the check passes once the flag is cleared.
+
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration

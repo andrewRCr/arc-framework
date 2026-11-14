@@ -17,12 +17,27 @@ export async function readWindowCheckoutStatusFindings(io: WindowGitReadIO, chec
         { cwd: checkout.path, objectAccess: "local-only", preserveOutput: true });
       if (status.stdout.length > 0) findings.push({ subject, condition: `The checkout is dirty, including untracked files: ${JSON.stringify(status.stdout)}.`,
         remedy: "Finish the work and commit and push it, or drop the changes, then retry check." });
+      findings.push(...await hiddenStateFindings(io, checkout.path, subject));
     } catch (error) {
       findings.push({ subject, condition: `Cannot read checkout cleanliness: ${error instanceof Error ? error.message : String(error)}`,
         remedy: "Restore Git access in this checkout, then retry check." });
     }
   }
   return findings;
+}
+
+/** Name tracked-state index entries whose skip-worktree or assume-unchanged flag hides their edits from status. */
+async function hiddenStateFindings(io: WindowGitReadIO, cwd: string, subject: string): Promise<WindowFinding[]> {
+  const { stdout } = await io.exec("git", ["ls-files", "-v", "-z", "--", ...WINDOW_TRACKED_STATE_ROOTS],
+    { cwd, objectAccess: "local-only", preserveOutput: true });
+  return stdout.split("\0").filter(entry => entry !== "").flatMap(entry => {
+    const tag = entry.slice(0, 1), path = entry.slice(2);
+    const flags = [...tag.toUpperCase() === "S" ? ["skip-worktree"] : [], ...tag !== tag.toUpperCase() ? ["assume-unchanged"] : []];
+    if (flags.length === 0) return [];
+    const clear = flags.map(flag => `--no-${flag}`).join(" ");
+    return [{ subject, condition: `Tracked-state path ${path} carries the ${flags.join(" and ")} flag, which hides its edits from git status.`,
+      remedy: `Run git update-index ${clear} -- ${JSON.stringify(path)} in this checkout, then commit and push or drop any change it shows, then retry check.` }];
+  });
 }
 
 /** Compare selected checkout heads with their configured fetched upstreams without transport. */

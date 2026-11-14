@@ -14,6 +14,8 @@ const absent: WorktreeMarkerReadResult = { kind: "absent" };
 const checkout = (primary: boolean, marker: WorktreeMarkerReadResult) => classifyWindowCheckout({ path: repo,
   head: "a".repeat(40), branch: "main", detached: false, primary, folderPresent: true }, marker);
 const statusArgs = ["status", "--porcelain=v1", "-z", "--untracked-files=all"];
+const flagArgs = { prefix: ["ls-files", "-v", "-z", "--"] };
+const unflagged = { match: flagArgs, responses: [{ stdout: "H .arc/active/meta-alpha.md\0" }] };
 
 it.each([
   { primary: true, marker: absent, stdout: "?? unfinished.txt\0", refuses: true },
@@ -21,7 +23,7 @@ it.each([
   { primary: false, marker: absent, stdout: "?? unfinished.txt\0", refuses: false },
   { primary: true, marker: absent, stdout: "", refuses: false },
 ])("reports physical dirt only for a selected checkout: %j", async ({ primary, marker, stdout, refuses }) => {
-  const boundary = scriptGitExec([{ match: statusArgs, responses: [{ stdout }] }]);
+  const boundary = scriptGitExec([{ match: statusArgs, responses: [{ stdout }] }, unflagged]);
   const findings = await readWindowCheckoutStatusFindings({ repo, exec: boundary.exec }, [checkout(primary, marker)]);
   expect(findings).toEqual(refuses ? [expect.objectContaining({ subject: `${repo} (main)`, condition: expect.stringContaining("dirty") })] : []);
 });
@@ -29,11 +31,26 @@ it.each([
 it("reports an unreadable checkout and permits a clean read after Git access is repaired", async () => {
   const boundary = scriptGitExec([{ match: statusArgs, responses: [
     { failure: { exitCode: 128, stderr: "fatal: index read denied" } }, { stdout: "" },
-  ] }]);
+  ] }, unflagged]);
   const io = { repo, exec: boundary.exec }, selected = [checkout(true, absent)];
   await expect(readWindowCheckoutStatusFindings(io, selected)).resolves.toEqual([expect.objectContaining({
     subject: `${repo} (main)`, condition: expect.stringContaining("index read denied"), remedy: expect.stringContaining("retry check"),
   })]);
+  await expect(readWindowCheckoutStatusFindings(io, selected)).resolves.toEqual([]);
+});
+
+it.each([
+  { tag: "S", flags: "skip-worktree", clear: "--no-skip-worktree" },
+  { tag: "h", flags: "assume-unchanged", clear: "--no-assume-unchanged" },
+  { tag: "s", flags: "skip-worktree and assume-unchanged", clear: "--no-skip-worktree --no-assume-unchanged" },
+])("refuses a tracked-state path whose $flags flag hides its edits and passes once it is cleared", async ({ tag, flags, clear }) => {
+  const path = ".arc/active/notes-alpha.md";
+  const boundary = scriptGitExec([{ match: statusArgs, responses: [{ stdout: "" }] },
+    { match: flagArgs, responses: [{ stdout: `H .arc/active/meta-alpha.md\0${tag} ${path}\0` }, { stdout: `H ${path}\0` }] }]);
+  const io = { repo, exec: boundary.exec }, selected = [checkout(true, absent)];
+  await expect(readWindowCheckoutStatusFindings(io, selected)).resolves.toEqual([{ subject: `${repo} (main)`,
+    condition: `Tracked-state path ${path} carries the ${flags} flag, which hides its edits from git status.`,
+    remedy: `Run git update-index ${clear} -- "${path}" in this checkout, then commit and push or drop any change it shows, then retry check.` }]);
   await expect(readWindowCheckoutStatusFindings(io, selected)).resolves.toEqual([]);
 });
 

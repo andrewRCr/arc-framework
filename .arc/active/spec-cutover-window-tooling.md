@@ -279,19 +279,21 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
 
 - **C1 — A checkout dirty, off its upstream, or holding a personal link, or tracked state stashed.** The primary and
   every marked checkout must have an empty `git status --porcelain`, untracked files included, and a branch whose local
-  tip equals its upstream's fetched tip. `git status --porcelain --ignored` must also list nothing under the
-  tracked-state paths, since the in-repo store's discovery reads ignored files there too: a gitignored `temp-<slug>.md`
-  beside a meta (`.arc/**/temp-*`) is that unit's companion (`companionNames`, `lib/store/in-repo/paths.ts`). And its
-  personal files must include no link: the import follows a link's target, nested links included, wherever the notes the
-  save writes after the check hold a path through it (§ 4.2), which no digest taken at the check can cover. No stash
-  entry (`refs/stash`, which every checkout of the repository shares) may change a file under the tracked-state paths,
-  in its index, working-tree, or untracked part: the import reads no stash, so such an edit never crosses, and applied
-  after the flip it writes pre-flip content at projected paths. The refusal names the checkout, its branch, and whether
-  it is dirty, ahead, behind, detached, without an upstream, or holding a link, and each such stash entry by position
-  and message. Remedy: commit and push, or drop the changes, move an ignored file out of those paths, replace a personal
-  link with the files it points to or remove it, set an upstream where none exists, and apply a stash entry, commit its
-  changes on its branch, and drop it, or only drop it. This puts every in-flight implementation unit at a task boundary,
-  landed or paused.
+  tip equals its upstream's fetched tip. No index entry under the tracked-state paths may carry a skip-worktree or
+  assume-unchanged flag, since either hides the path's edits from that status (A1). `git status --porcelain --ignored`
+  must also list nothing under the tracked-state paths, since the in-repo store's discovery reads ignored files there
+  too: a gitignored `temp-<slug>.md` beside a meta (`.arc/**/temp-*`) is that unit's companion (`companionNames`,
+  `lib/store/in-repo/paths.ts`). And its personal files must include no link: the import follows a link's target, nested
+  links included, wherever the notes the save writes after the check hold a path through it (§ 4.2), which no digest
+  taken at the check can cover. No stash entry (`refs/stash`, which every checkout of the repository shares) may change
+  a file under the tracked-state paths, in its index, working-tree, or untracked part: the import reads no stash, so
+  such an edit never crosses, and applied after the flip it writes pre-flip content at projected paths. The refusal
+  names the checkout, its branch, and whether it is dirty, ahead, behind, detached, without an upstream, holding a link,
+  or holding a flagged path, and each such stash entry by position and message. Remedy: commit and push, or drop the
+  changes, clear a skip-worktree or assume-unchanged flag with `git update-index` (A1), move an ignored file out of
+  those paths, replace a personal link with the files it points to or remove it, set an upstream where none exists, and
+  apply a stash entry, commit its changes on its branch, and drop it, or only drop it. This puts every in-flight
+  implementation unit at a task boundary, landed or paused.
 - **C2 — An unmarked linked checkout.** Every registered linked checkout must be a marked checkout. That excludes ARC's
   machinery checkouts, which carry no work-unit or Errand marker: the review gate's materializations, base sync's
   temporary checkout, the delivery-refresh and review-fix worktrees, the test-cost benchmark's checkout, and a
@@ -1285,6 +1287,7 @@ None.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-13 — spec-depth: C1 refuses a skip-worktree or assume-unchanged flag on a tracked-state path.
+  _Supersedes:_ none. _Trigger:_ F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

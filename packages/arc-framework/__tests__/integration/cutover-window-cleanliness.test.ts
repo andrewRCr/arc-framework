@@ -23,6 +23,23 @@ it("refuses an untracked checkout file despite a configuration that hides it and
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
 
+it.each(["skip-worktree", "assume-unchanged"] as const)(
+  "refuses a hidden tracked-state edit under the %s flag and passes once the flag is cleared and the edit dropped", async flag => {
+    const h = await windowFixture(), path = ".arc/active/notes-alpha.md";
+    await h.git("git", ["update-index", `--${flag}`, path]);
+    await writeFile(join(h.root, path), "# Notes: Alpha\n\nAn edit the index flag hides.\n");
+    expect((await h.git("git", ["status", "--porcelain"])).stdout).toBe("");
+    const refused = await checkFixture(h);
+    expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+      expect.objectContaining({ subject: expect.stringContaining(h.root), condition: expect.stringContaining(`${path} carries the ${flag} flag`),
+        remedy: expect.stringContaining(`git update-index --no-${flag}`) }),
+    ]) } });
+    await h.git("git", ["update-index", `--no-${flag}`, path]);
+    await h.git("git", ["checkout", "--", path]);
+    const repaired = await checkFixture(h);
+    expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+  }, 30_000);
+
 it.each(["ahead", "behind", "detached", "without an upstream"] as const)(
   "refuses a checkout that is %s and passes after its upstream boundary is restored", async state => {
     const h = await windowFixture();
