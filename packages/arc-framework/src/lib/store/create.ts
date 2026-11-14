@@ -4,6 +4,7 @@ import type { Store, ReadOnlyStore } from "./contract.js";
 import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 import { recordComposedStoreCapability } from "./projection/process-state.js";
+import { IN_REPO_STORE_OVERRIDE } from "./selection.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
  * @param ports - Explicit file, Git, policy, clock, and write-lock dependencies.
@@ -12,6 +13,22 @@ import { recordComposedStoreCapability } from "./projection/process-state.js";
 export function createStore(ports: StorePorts): Store {
   return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
     .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
+}
+
+/** Compose a checkout's operational store, choosing its implementation without reading the repository.
+ * @param ports - The caller's ports, used as they are by the in-repo implementation and composed for the ref backend.
+ * @param environment - Where the in-repo override is read, once per composition.
+ * @returns A lazy store whose capability is fixed at composition and whose backend is built at its first use.
+ */
+export function selectStore(ports: StorePorts, environment: Readonly<Record<string, string | undefined>> = process.env): Store {
+  if ((environment[IN_REPO_STORE_OVERRIDE] ?? "") !== "") {
+    return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
+      .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
+  }
+  return lazyStore(ports.checkoutRoot, true, async () => {
+    const [{ createRefBackend }, { composeRefStorePorts }] = await Promise.all([import("./ref/backend.js"), import("./selection.js")]);
+    return createRefBackend(await composeRefStorePorts(ports));
+  });
 }
 
 /** Construct the dark ref backend without consulting any dependency. */

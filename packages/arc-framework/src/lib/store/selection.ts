@@ -1,6 +1,9 @@
-/** Selects and composes the operational store backend for a checkout from its caller's ports. */
+/** The pieces an operational store selection composes: the in-repo override and the ref backend's ports. */
 
 import type { RefStorePorts, StorePorts } from "./ports.js";
+
+/** The environment variable that, set and non-empty, selects the in-repo implementation. */
+export const IN_REPO_STORE_OVERRIDE = "ARC_IN_REPO_STORE";
 
 /** Compose the ref backend's ports from an operational store caller's ports.
  * @param ports - The caller's ports. Its Git executors pass the Git floor gate. Its file access, clock, and identity

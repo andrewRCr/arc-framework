@@ -33,13 +33,15 @@ the ref backend while the default store stays in-repo.
           file access, so the caller's file access reaches it and the caller's `locks` are never consulted
           (`unit/lib/store/selection-ref-ports.test.ts`).
 
-    - `[ ]` **1.1.b The override selects the in-repo implementation**
-        - `ARC_IN_REPO_STORE`, in force when set and non-empty, read once per composition; the capability stays a fixed
-          property of the store built, with no repository read to choose.
-        - Build `test-first` (one behavior at a time):
-            - with the override set, the composition builds the in-repo implementation and reports `stateOffBranch`
-              false, whatever the tree tracks
-            - with it unset or empty, the composition builds the ref backend over a tree that tracks nothing
+    - `[x]` **1.1.b The override selects the in-repo implementation**
+        - `selectStore` reads `ARC_IN_REPO_STORE` from a passed environment, defaulting to the process's, once per
+          composition. Set and non-empty, it builds the in-repo implementation over the caller's ports; otherwise it
+          builds the ref backend over the composed ones. Neither choice reads Git
+          (`unit/lib/store/selection-override.test.ts`).
+        - `selectStore` lives in `lib/store/create.ts` beside the unchanged `createStore`, not in `selection.ts`: the
+          architecture lint admits backend entries only from that factory (`store-production`,
+          `eslint/architecture-imports.ts`). `selection.ts` holds the override's name and the pieces the selection
+          composes.
 
     - `[ ]` **1.1.c The tracked-state refusal at the store's first use**
         - The predicate reads `HEAD`'s tree, not the index, from the repository's top level whatever the checkout root's
