@@ -78,9 +78,8 @@
 
 - _Approach:_ one finding identity carried from the aggregate prompt through the approved set to the commit body.
 
-- _Evidence:_ `standard-pass-1/fix-map.md` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local).
+- _Evidence:_ `standard-pass-1/fix-map.md` under `storage-ref-backend`'s review and measurement evidence (kept outside
+  the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 
@@ -99,8 +98,8 @@
   label to finding.
 
 - _Evidence:_ `fix-check-1/disposition-report-1.txt` against `-2.txt`, and `standard-pass-2/f-map.json`,
-  under `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's
-  checkout (checkout-local).
+  under `storage-ref-backend`'s review and measurement evidence (kept outside the repository),
+  `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
 

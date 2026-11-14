@@ -175,9 +175,8 @@ members consume.
   "read", whether configurations collapse) and each agent reports against them. Weigh the placement against the
   always-loaded cost: the case arises only at fan-out time.
 
-- _Evidence:_ `restart-sets-*.md` § 0 and § 1.3 under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/` in that work unit's checkout;
-  checkout-local, leaving at its teardown.
+- _Evidence:_ `restart-sets-*.md` § 0 and § 1.3 under `storage-ref-backend`'s review and measurement evidence (kept
+  outside the repository), `verification/selection/`.
 
 - _Captured during:_ `storage-ref-backend` verification (process lessons), 2026-10-22.
 
