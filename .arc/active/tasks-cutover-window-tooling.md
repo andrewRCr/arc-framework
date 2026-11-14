@@ -539,6 +539,21 @@ refusing and then passing after its remedy, with the import's cost recorded from
   `arc check segment` passed. The pre-publication review's fixes then changed the tools and both plans, so both run
   again at the converged head before publication, as the Success Criteria deviations record.
 
+  After review converged, both plans ran again on a fresh copy at `ac35d74314`, whose tools are unchanged since
+  `6067f2c917`, and both passed every step. In the first run the five plants refused with their eight findings and
+  passed after their remedies, case 1 refused with no `refs/arc/` ref changed, and the mirror held all 341 published
+  store refs. The sealing guard refused in each copied checkout with its own build, `account` reported the 73 backfill
+  files and listed 26 of `main`'s copies as superseded, and `chain` held; `close`, `recompute`, and `restore` then ran
+  as in Task 7.2. The second run, on that aborted copy, placed everything in 363 published store refs, `account` passing
+  with the same 26 superseded copies, and `last-read`, `restore`, `compare`, and `close` ran as in Task 7.3, `compare`
+  reporting every live branch and copied checkout. The imports took 768 s at 2,388 MiB and 775 s at 2,242 MiB peak
+  resident memory, under the caller's 8,192 MiB address-space limit and V8's 4,192 MiB heap ceiling, against 896 s at
+  2,439 MiB and 1,108 s at 2,350 MiB in the earlier runs; the driver peaked at 2.9 GiB. The live repository's refs,
+  worktree locks, inbox, and store configuration read the same before and after each run. An earlier attempt at
+  `12fba9b835` stopped at the planted check: preparation returned this branch's edit to its entry in the cohort record
+  to the merge base, which moved the branch past its attested Candidate, and C4 refused this unit's own checkout. The
+  edit left this branch in `ca6190e850`, to land on `main` on its own.
+
 ## **Phase 8:** Verification
 
 ### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -580,7 +595,7 @@ refusing and then passing after its remedy, with the import's cost recorded from
 - `[x]` `runUserLoad`, `arc user load`, and the user-sync load direction each refuse once the registry ref exists,
   writing no file and exiting non-zero with the refusal's condition and remedy, and load once it is gone.
 
-- `[ ]` Stage 1's first run is clean at the head that lands, with every outcome spec Success Criterion 6 lists observed
+- `[x]` Stage 1's first run is clean at the head that lands, with every outcome spec Success Criterion 6 lists observed
   (Task 7.2).
 
   **Deviation:** The recorded runs, at `0a154a4a4d` and `6cee5ff25d`, predate main's merge and this verification's
@@ -588,54 +603,72 @@ refusing and then passing after its remedy, with the import's cost recorded from
   listing of superseded copies was observed only by a later read-only `account` run on the second-run copy (26
   superseded); from the rerun the driver keeps each classification's count in its step result.
 
-- `[ ]` Stage 1's second run is clean at the head that lands, with every outcome spec Success Criterion 7 lists
+  **Met:** The first run at `ac35d74314`, after review converged, observed every listed outcome, its `account` step
+  listing 26 superseded copies apart (Task 7.4).
+
+- `[x]` Stage 1's second run is clean at the head that lands, with every outcome spec Success Criterion 7 lists
   observed (Task 7.3).
 
   **Deviation:** The recorded run predates main's merge and the review fixes; it runs again with the first run after
   review converges.
 
-- `[ ]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
+  **Met:** The second run at `ac35d74314` observed every listed outcome (Task 7.4).
+
+- `[x]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
 
   **Deviation:** Both imports ran under the driver's inherited 8 GiB address-space limit with a 4,096 MB heap, the
   limit the runner-pool session recommended; the spec's A3 now makes the cap the caller's, above the heap ceiling.
   Run 4's import under a 6,144 MiB wrapper ended `import-refused` on a data notice, not on memory. From the rerun the
   driver records the limit and heap ceiling its import ran under.
 
+  **Met:** At `ac35d74314` the imports took 768 s at 2,388 MiB and 775 s at 2,242 MiB, and the driver recorded the
+  caller's 8,192 MiB address-space limit and the 4,192 MiB heap ceiling each ran under (Task 7.4).
+
 - `[x]` The family lands inert: no package `files` entry, recipe entry, or bundle metafile input names it; no existing
   caller reads the provenance field and no existing constructor of the composition's result changed; and the full
   unit, integration, and end-to-end tiers pass with the load guard present.
 
-- `[ ]` From the import to the merge, every record the import took equals what the check recorded and the merged head
+- `[x]` From the import to the merge, every record the import took equals what the check recorded and the merged head
   differs from the recorded flip head only by its deletion commit, proved by the comparison tests and by Stage 1's
   first-run abort and second-run last read (Tasks 5.1, 5.2, 7.2, 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[ ]` Between the check and the merge, `main` changes on the host only by the flip's merge and no live branch changes
+  **Met:** The runs at `ac35d74314` repeated Stage 1's part of this proof (Task 7.4).
+
+- `[x]` Between the check and the merge, `main` changes on the host only by the flip's merge and no live branch changes
   there, proved by Stage 1's second-run last read and stand-in merge (Task 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[ ]` No Errand record crosses the window, every claim crosses it or stops it, and an abort rewinds no record another
+  **Met:** The runs at `ac35d74314` repeated Stage 1's part of this proof (Task 7.4).
+
+- `[x]` No Errand record crosses the window, every claim crosses it or stops it, and an abort rewinds no record another
   writer added unseen, proved by Stage 1's planted Errand and retirement check and by the restore's tests
   (Tasks 2.3, 7.2).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[ ]` No live work unit's copy is dropped in favor of one it diverges from, proved by Stage 1's planted diverging copy
+  **Met:** The runs at `ac35d74314` repeated Stage 1's part of this proof (Task 7.4).
+
+- `[x]` No live work unit's copy is dropped in favor of one it diverges from, proved by Stage 1's planted diverging copy
   (Task 7.2).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[ ]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
+  **Met:** The runs at `ac35d74314` repeated Stage 1's part of this proof (Task 7.4).
+
+- `[x]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
   is never deleted unseen, proved by Stage 1's second run (Task 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
+
+  **Met:** The runs at `ac35d74314` repeated Stage 1's part of this proof (Task 7.4).
 
 - `[x]` C1 refuses a skip-worktree or assume-unchanged flag on a tracked-state path in the primary or a marked checkout,
   and the check passes once the flag is cleared.
@@ -652,4 +685,4 @@ refusing and then passing after its remedy, with the import's cost recorded from
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
