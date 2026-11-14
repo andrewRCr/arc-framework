@@ -3,7 +3,7 @@
   "slug": "knowledge-evolution-loadset-pointer",
   "claimId": "9e2440b0618578613577bcd68777f4e4",
   "createdAt": "2026-11-14T00:40:54.191Z",
-  "updatedAt": "2026-11-14T00:40:54.191Z",
+  "updatedAt": "2026-11-14T01:12:56.477Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the settled load-set scoping analysis reachable from the knowledge evolution strategy.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Point `strategy-knowledge-evolution` at `analysis-load-set-scoping`",
   "originEntrySourceDigest": "sha256:42fb86913ecbacdb1211a6545eb5e5241cbfa821a5fac030b76b125bf8b1da12",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/knowledge-evolution-loadset-pointer",
+    "headSha": "6c102dee4e4109e1160c72efa8864b90540396e3"
+  }
 }
