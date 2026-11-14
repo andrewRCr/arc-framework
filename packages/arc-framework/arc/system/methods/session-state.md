@@ -1,6 +1,6 @@
 ---
 name: session-state
-description: Read and write session state across handoffs via tracked and gitignored files plus git notes
+description: Read and write session state across handoffs through the work unit's stored meta and personal records
 override-active: false
 ---
 
@@ -19,12 +19,13 @@ override-active: false
 
 Read/write session state at session boundaries:
 
-- **`meta-{name}.md`** (`active/`) — tracked per-WU project pointer. The `**State:**` field is the load-bearing
-  lifecycle marker; see the meta file template for the full field set. Updated at commit time and handoff.
-- **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff
-- **Git notes** (`refs/notes/arc/user/{identity}`) — portability layer for the user directory.
-  Save at handoff, load at init when local files are missing or stale. Push per `user.notes_push`
-  config (`on-sync` / `prompt` / `manual`; per-developer override via `git config arc.notesPush`).
+- **The work unit's meta** — its stored record, projected into the work unit's checkout. The `**State:**` field is the
+  load-bearing lifecycle marker; see the meta file template for the full field set. Its handoff — `Next Action`, an
+  optional `Session Type`, and the `## Session Context` section of personal working context — is written whole at
+  handoff by `arc handoff write`, which records `State at Handoff` and `Commit at Handoff` itself.
+- **Personal records** (`user/{identity}/`) — `WORKING-MEMORY.md` and the personal inbox, stored under the person's
+  identity and projected into each checkout. Edits persist with `arc save`.
+- **Sync** — `arc sync` pulls state and publishes it, project and personal alike, beside the branch push.
 
 ---
 

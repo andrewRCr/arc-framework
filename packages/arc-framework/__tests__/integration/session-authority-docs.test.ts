@@ -23,7 +23,7 @@ describe("session authority documentation", () => {
     }
   });
 
-  it("limits SESSION-NOTES overrides to discretionary planning and execution", async () => {
+  it("limits session type overrides to discretionary planning and execution", async () => {
     const [template, handoff] = await Promise.all([
       readFile(resolve(ROOT, "packages/arc-framework/templates/user/SESSION-NOTES.md"), "utf8"),
       readFile(
@@ -32,10 +32,25 @@ describe("session authority documentation", () => {
       ),
     ]);
 
+    expect(template).toContain("**Session Type:** {planning | execution}");
+    expect(handoff).toContain("**Session Type** (`sessionType`, optional) — `planning | execution`");
     for (const content of [template, handoff]) {
-      expect(content).toContain("**Session Type:** {planning | execution}");
       expect(content).toContain("prepublication/integration phases cannot be overridden");
-      expect(content).not.toContain("**Session Type:** {planning | execution | integration}");
+      expect(content).not.toContain("planning | execution | integration");
+    }
+  });
+
+  it("writes the handoff through the store rather than a meta commit and session notes", async () => {
+    for (const path of [
+      resolve(ROOT, "packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md"),
+      resolve(ROOT, ".arc/system/workflows/arc/session-lifecycle/session-handoff.md"),
+    ]) {
+      const content = await readFile(path, "utf8");
+      expect(content).toContain("arc handoff write -");
+      expect(content).toMatch(softWrappedProse("The verb records `State at Handoff` and `Commit at Handoff` itself."));
+      expect(content).toContain("### Remaining Work Before Returning to Task List");
+      expect(content).toContain("arc handover <slug> --to <identity>");
+      expect(content).not.toMatch(/SESSION-NOTES|chore\(arc\): handoff|arc user (save|status)|notesDriftSurface|retryOffer/u);
     }
   });
 });

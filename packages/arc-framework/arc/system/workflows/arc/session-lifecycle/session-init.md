@@ -93,9 +93,9 @@ ran elsewhere. Start the fresh agenda at its first step. The compiler carries an
 followed methods; never manufacture `--answered` or `--done` flags. Elicitation above is the only argv insertion.
 
 Carry reads already completed for the same checkout and path only when no intervening sync could have written them.
-Notes pull/load writes user documents, including SESSION-NOTES, WORKING-MEMORY, and USER-INBOX; user-reference apply
-can move personal context. Worktree pulls, resets, and materialization into the session's checkout can change tracked
-files. Re-read affected documents according to the fresh agenda. Carry followed methods' reports and questions.
+A store pull and the projection it refreshes can rewrite projected records, the work unit's meta and personal records
+among them. Worktree pulls and resets in the session's checkout can change tracked files. Re-read affected documents
+according to the fresh agenda. Carry followed methods' reports and questions.
 
 **Handoff:** For `then.kind: "handoff"`, relay the command's own result text naming the resulting checkout and stop.
 Ask the person to open a fresh session there with their harness of choice; emit no harness-specific launch command.
@@ -110,9 +110,9 @@ followed method's report and question, and report unoffered `exec` actions that 
 
 - **`work-state`:** Compose **Last completed** (one line: task ID, title, commit state), **Current task** (one line:
   task ID and title, or `none` between work units), **Blockers** (`none` or the relevant detail), and **Next action**
-  (one line on the task list, unbounded when off-task work has no tracked source). Use the loaded meta, task cursor,
-  and SESSION-NOTES within the authority rules below. Include a cohort-coordination line only when the loaded cohort
-  document bears on the current task.
+  (one line on the task list, unbounded when off-task work has no tracked source). Use the loaded meta, its session
+  context included, and the task cursor within the authority rules below. Include a cohort-coordination line only when
+  the loaded cohort document bears on the current task.
 - **`subject`:** Frame the summary around `orientation.subject` and its kind/key, goal, and relevant working context,
   instead of composing work-unit state.
 - **`checkout`:** Emit the compiled header and checkout surfaces, with no thought-state lines or subject.
@@ -120,7 +120,7 @@ followed method's report and question, and report unoffered `exec` actions that 
 
 Do not restate a task's full description: its task-list pointer is enough. Reserve unbounded working-context prose
 for off-task-list work with no tracked source. Never include configuration overrides, defaults active, freshness
-clean, or environment checks passed. Live Git facts come from the compiled text, never SESSION-NOTES prose.
+clean, or environment checks passed. Live Git facts come from the compiled text, never session-context prose.
 
 After emitting the orientation, write each emitted step's `marker.value` to its exact `marker.path` when present,
 creating parent directories as needed. Never write a marker before its text is shown or for a suppressed surface.
@@ -135,16 +135,16 @@ At a `gate`:
 
 ## 5. State authority and mismatches
 
-SESSION-NOTES may supply roster/context anchors (`Working On`, `Session Type`, `Commit at Handoff`) and human working
-context. It never selects lifecycle phase, workflow, load set, or live Git facts. WORKING-MEMORY entries bind as active
-constraints until each entry's `_Remove when:_` trigger is met.
+The meta's session context and its handoff fields (`Session Type`, `State at Handoff`, `Commit at Handoff`) may supply
+context anchors and human working context. They never select lifecycle phase, workflow, load set, or live Git facts.
+WORKING-MEMORY entries bind as active constraints until each entry's `_Remove when:_` trigger is met.
 
 Distinguish two mismatch axes:
 
 - **Truth of work state:** Git commits, actual file contents, and `git status` are authoritative. The task list,
-  active meta, and personal notes make claims about that state; verify them against Git, which wins on conflict.
-- **Which work is being picked up:** Identity-filtered metas and the worktree list are authoritative. Personal notes
-  describe working context, not which work unit, branch, or task this session resumes.
+  active meta, and session context make claims about that state; verify them against Git, which wins on conflict.
+- **Which work is being picked up:** Identity-filtered metas and the worktree list are authoritative. The session
+  context describes working context, not which work unit, branch, or task this session resumes.
 
 When an axis's authority resolves a discrepancy unambiguously, use ground truth and report the discrepancy in
 orientation: “Active meta said X. Git/task list show Y. Proceeding with Y.” If the compiled selection needs refreshing,

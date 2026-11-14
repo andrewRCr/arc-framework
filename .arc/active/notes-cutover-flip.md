@@ -426,3 +426,13 @@ kept, in the task named.
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
+
+**Session lifecycle (Task 5.2):**
+
+- `Commit at Handoff` in `session-handoff.template.md`, `session-init.md`, and the `session-state` method: the meta's
+  code-head anchor, which `arc handoff write` records beside `State at Handoff`.
+- `git commit` in `session-handoff.template.md`'s Errand checkpoint: a code commit on the Errand's branch.
+- `notes-*` in `session-handoff.template.md` and `session-recover.md`, and "completion notes" in
+  `session-handoff.template.md`: the work unit's notes companion and task-list completion notes, not Git notes.
+- In `user/README.md`: "scratch notes", personal freeform files; `arc user add`, the setup verb the flip keeps; and
+  `.arc/active/`, `active/`, and `backlog/`, the projected roots named as directories, not a record's path.

@@ -27,34 +27,28 @@ arc status --session-handoff --json
 
 | Field                    | Contents                                                                                                             |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                    |
+| `identity`               | `{identity, role}` — either may be `null`. `identity === null` skips the personal-state steps                        |
 | `derivedLocusState`      | Required entering-checkout frame; sole handoff subject and workflow/session authority                                |
 | `locusGuidance`          | CLI-precomposed current-checkout narration and sibling diagnostics from the same derived frame                       |
 | `handoffLocus`           | `Probe<HandoffLocusPlan>` for `between-work-units`, `release-work-unit`, `leave-errand`, or `refused`                |
 | `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header |
-| `dirty`                  | `{state: clean / dirty, fileCount}`. Refresh for the SESSION-NOTES "Uncommitted Work" section                        |
+| `dirty`                  | `{state: clean / dirty, fileCount}`. Refresh for the session context's "Uncommitted Work" subsection                 |
 | `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Refresh for unpushed counts              |
-| `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                    |
 | `syncInterlock`          | `{value, source}` — gates handoff auto-invoke of `arc sync` (`on-handoff`/`on-workflow` fire; `manual` skips)        |
 | `active`                 | Active meta file resolution + sessionType (same shape as session-init)                                               |
-| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Refresh for the `Commit at Handoff` anchor                       |
+| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Refresh for the Errand checkpoint                                |
 | `pushability`            | Pushability pre-check matrix for the worktree push leg                                                               |
-| `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)     |
-| `pathSet`                | Probe of `{sessionNotes, workingMemory}` absolute paths (`null` when N/A). Do not re-derive from conventions         |
+| `restateCandidates`      | Structured payload backing the session-context restate filter, measured from the last `State at Handoff`             |
+| `pathSet`                | Absolute paths (`null` when N/A); `workingMemory` names `WORKING-MEMORY.md`. Do not re-derive from conventions       |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)   |
 
-On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
-`user.value.notesDriftSurface` (`{direction, register: expected | caution}`) carries unresolved notes/disk
-drift for Confirm Handoff — calm parallel-session steady state vs inspect-before-rely.
+**Slot freshness contract.** Probe-1 captures pre-path state. Subject leave and between-WUs context routing may mutate
+checkout, worktree, dirty, and head state; refresh `derivedLocusState`, `locusGuidance`, `handoffLocus`, `worktree`,
+`dirty`, and `head` after each such operation. Use the latest refresh for dispatch and confirmation. Other slots,
+including `pathSet`, remain stable from probe-1.
 
-**Slot freshness contract.** Probe-1 captures pre-path state. Subject leave, active-WU meta-file commit, and
-between-WUs context routing may mutate checkout, worktree, dirty, and head state; refresh `derivedLocusState`,
-`locusGuidance`, `handoffLocus`, `worktree`, `dirty`, and `head` after each such operation. Use the latest refresh
-for dispatch and confirmation. Other slots, including `pathSet`, remain stable from probe-1.
-
-**Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
-depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
-identity cannot push notes.
+**Identity absent** (`identity.identity === null`): Skip the personal-state steps — `WORKING-MEMORY` review and
+personal routing resolve through identity — and the sync. Surface a warning in the handoff summary.
 
 **Composite probe failure:** If the composite call itself fails, surface the failure and stop. Direct diagnostic
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
@@ -75,44 +69,39 @@ branch on its `kind`:
   artifact projection to match the selected WU role.
 - **`between-work-units`** — follow [Between-WUs Handoff Path](#between-wus-handoff-path).
 
-Never select the handoff subject from a branch prefix, active-meta plurality, or SESSION-NOTES.
+Never select the handoff subject from a branch prefix, active-meta plurality, or session context.
 
 ## What to Update
 
-Session state is split across tracked project state and personal session state (per the
-[session-state method][arc-methods-session] default — if your project overrides session-state,
-follow the override instead):
+Session state lives in the store and is projected into the checkout (per the [session-state method][arc-methods-session]
+default — if your project overrides session-state, follow the override instead):
 
-- **Active meta file** (tracked) — project state for the active work unit: `meta-{name}.md` in `.arc/active/`. Carries
-  `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`, `**Last Completed:**`, `**Blockers:**`, and
-  `**Next Action:**`. Between work units or during planning cycles with no active WU, no tracked meta file exists.
-- **SESSION-NOTES.md** (gitignored) — path from `pathSet.value.sessionNotes` when `pathSet.ok` (checkout-local
-  to the active worktree; `null` between WUs or without identity). Per-WU session context: completed work,
-  decisions, debugging insights, things tried. Replaced each handoff (not appended). Write only at the emitted
-  path — never reconstruct from identity + slug under a different checkout. When `pathSet.ok === false`, surface
-  the probe error and do not guess a path.
-- **WORKING-MEMORY.md** (gitignored) — path from `pathSet.value.workingMemory` when `pathSet.ok` (resolver-backed
-  to the primary worktree under linked-worktree operation; `null` without identity). Cross-WU persistent context.
-  Entries survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
-  (see WORKING-MEMORY entries guidance below).
+- **The work unit's meta** — the active work unit's stored record. `arc handoff write` writes its handoff in one
+  write: `Next Action`, an optional `Session Type`, and its `## Session Context` section — per-WU session context:
+  completed work, decisions, blockers, debugging insights, things tried. The section is replaced each handoff, not
+  appended. The verb records `State at Handoff` and `Commit at Handoff` itself. Between work units, or during
+  planning cycles with no active WU, no meta exists to write.
+- **WORKING-MEMORY.md** — path from `pathSet.value.workingMemory` when `pathSet.ok` (`null` without identity).
+  Cross-WU persistent context, persisted with `arc save`. Entries survive across handoffs, each carrying an explicit
+  `_Remove when:_` trigger reviewed at each handoff (see WORKING-MEMORY entries guidance below).
 
-> **Person-to-person handoff:** If handing off to a different developer (not just ending your
-> own session), write SESSION-NOTES.md for someone with no prior context on this work and
-> reassign the work unit via the meta `**Owner:**` field. See [Team Coordination Strategy][team-coordination]
-> § Person-to-Person Task Handoff for the full protocol.
+> **Person-to-person handoff:** If handing off to a different developer (not just ending your own session), write
+> the session context for someone with no prior context on this work. After the handoff syncs, hand the work unit to
+> them with `arc handover <slug> --to <identity>` and free this checkout with `arc locus release`. See [Team
+> Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
 
-**Active-WU handoff** — active meta file and SESSION-NOTES.md session context. Use
+**Active-WU handoff** — the work unit's handoff, written with `arc handoff write`. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).
 
 **Errand-session handoff** — the exact ordinary Errand selected by `handoffLocus`. Preserve its checkpoint and
 retain the selected checkout for the next session. Use [Errand-Session Handoff Path](#errand-session-handoff-path).
 
-**Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY` for approved additions, backlog artifacts as
-applicable), then sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
+**Between-WUs handoff** — no handoff write. Review WORKING-MEMORY, route any durable captures to existing surfaces (a
+capture through `arc-inbox`, `WORKING-MEMORY` for approved additions, backlog artifacts as applicable), then save,
+sync, and confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
 
-**When context changes** — capture working-directory paths or environment expectations in the active
-meta file only when they change next-session orientation.
+**When context changes** — capture working-directory paths or environment expectations in the session context only
+when they change next-session orientation.
 
 **Preserve persistent context** — `WORKING-MEMORY.md` carries cross-session entries with explicit
 removal triggers. See the WORKING-MEMORY steps below for the preservation criterion and review cadence.
@@ -126,7 +115,7 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
    tree is clean and no commits are local-only, skip the checkpoint commit and proceed to the push check.
 2. **Commit the checkpoint when needed** — this is a temporary errand checkpoint, not a WU ceremony. Use raw
    `git commit` with the appropriate standalone context footer from [commit-footer][commit-footer]; do not write
-   a meta file or SESSION-NOTES.
+   a handoff.
 
     ```text
     chore(errand): checkpoint <slug>
@@ -171,13 +160,21 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
 
 1. **Review `WORKING-MEMORY.md`** — if identity resolved, apply the criterion in the WORKING-MEMORY
    entries guidance below. Remove entries whose triggers are met, AND entries whose information is now
-   carried in tracked state. Surface removals in the handoff summary; do not silently rewrite. If identity
+   carried in project state. Surface removals in the handoff summary; do not silently rewrite. If identity
    is absent, skip user-state reads and surface the degraded state.
 2. **Route durable handoff context** — if anything must survive the handoff, write it to an existing
-   authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU persistent
-   context, once its addition is approved, or backlog artifacts when the project document is already the clear home.
-   Do not create a per-WU SESSION-NOTES home or a placeholder marker.
-3. **Refresh probe** — after WORKING-MEMORY edits or durable context routing, re-run the composite probe:
+   authoritative surface: a capture through `arc-inbox` for deferred personal work, `WORKING-MEMORY` for cross-WU
+   persistent context, once its addition is approved, or backlog artifacts when the project document is already the
+   clear home. Do not write a session context or a placeholder marker.
+3. **Check and save** — after WORKING-MEMORY edits or durable context routing, run `arc check increment` over the state
+   this handoff authored, correcting and re-checking its own edits when a check fails, then persist them:
+
+    ```bash
+    arc save
+    ```
+
+   Name any failure left in unfinished work in the handoff summary rather than stopping to ask.
+4. **Refresh probe** — re-run the composite probe:
 
     ```bash
     arc status --session-handoff --json
@@ -185,8 +182,8 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
 
    Read updated `worktree`, `dirty`, `head`, and `recommendedSummaryLine`; unchanged slots remain stable from
    probe-1. If nothing changed, the refresh is harmless and becomes the sync baseline.
-4. **Run [Sync](#sync)**.
-5. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
+5. **Run [Sync](#sync)**.
+6. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
    **Next session** unless the user gave a concrete next action during handoff.
 
 ## Active-WU Handoff Format
@@ -194,144 +191,63 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
 Use this path when `handoffLocus.value.kind === "release-work-unit"`. Resolve the active meta only through the
 selected WU row's derived context; if the `active` artifact slot disagrees, stop instead of disambiguating.
 
-Update session state files before ending session:
+Write the handoff before ending the session:
 
 1. **Review `WORKING-MEMORY.md`** — apply the criterion in the WORKING-MEMORY entries guidance below.
-   Remove entries whose triggers are met, AND entries whose information is now carried in tracked
+   Remove entries whose triggers are met, AND entries whose information is now carried in project
    state (the criterion catches drift introduced by earlier sessions). Surface removals in the
    handoff summary; do not silently rewrite.
-2. **Update the active meta file + commit** — advance `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and
-   any other load-bearing fields. Meta-file changes land as a dedicated `chore(arc): handoff — <position>` commit per
-   [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape — at handoff, the meta file is the entire staged change.
+2. **Check and save** — run `arc check increment` over the state this handoff authored. Correct and re-check its own
+   edits when a check fails; record failures in unfinished state or code under Remaining Work in the session context,
+   without a fix-now/defer stop. Then persist any edits:
 
-    **Skip threshold.** Update fields only when changes are materially relevant to next-session
-    orientation. Test: "Would the next session do anything different at step 0 with this change?"
-    If no, skip — even when a field is technically different. Concrete signals to update:
-
-    - Task advanced (Last Completed / Next Task changed)
-    - Blockers added or resolved
-    - Branch / Spec / Task List field changed
-    - Next Action describes work that didn't exist before
-
-    Below threshold (skip): minor rephrasing of Last Completed / Next Action with no semantic
-    change, cosmetic reorderings, restating the same Next Action in different words.
+    ```bash
+    arc save
+    ```
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants approval for the
-    workflow's bundled actions, including the `chore(arc): handoff` commit, but not a `WORKING-MEMORY` addition, which
-    lands only on its own approval. No separate per-commit prompt fires under either push-interlock mode — push
-    behavior is gated by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-    Stage the meta file and lint it (catches authoring errors before the chore-commit lands):
+    workflow's bundled actions, including the save and the handoff write, but not a `WORKING-MEMORY` addition, which
+    lands only on its own approval. No separate prompt fires under either push-interlock mode — push behavior is gated
+    by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
+3. **Write the handoff** — compose `nextAction`, any `sessionType`, and the session context per the guidance below,
+   then pass the request on standard input (or as a file path in place of `-`):
 
     ```bash
-    git add <resolved-meta-file-path>
-    <project markdown lint on the staged file>  # fix + re-stage on failure
+    arc handoff write -
     ```
 
-    Run `arc check increment` before the handoff commit. Correct and re-stage this meta edit if its checks fail;
-    record failures in unfinished state or code as remaining work in the handoff notes, without a fix-now/defer stop.
-
-    **Compose the commit message** from the codified subject + body templates. Position-string
-    selection is field-delta driven (minimal judgment):
-
-    - `Phase N complete, next: Task X.Y` — last-completed task closes a phase boundary
-    - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position)
-    - `planning <wu-name>` — on a draft-doc branch
-    - `work unit complete, next: integrate` — all tasks complete; integration pending
-    - `off-task-list — <brief>` — off-task-list work mid-WU
-
-    Body template:
-
-    ```text
-    chore(arc): handoff — <position>
-
-    Last Completed: <prev>
-      → <curr>
-    Next Task: <prev>
-      → <curr>
-    [State: <value> (changed | unchanged)]
-    [Blockers: <delta if changed>]
-
-    Context: meta-<wu-name>.md (handoff)
+    ```json
+    {
+      "schemaVersion": 1,
+      "sessionContext": "### Uncommitted Work\n\n[none]\n\n…",
+      "nextAction": "Start Task 3.3 — Write unit tests for validation logic"
+    }
     ```
 
-    `Last Completed` + `Next Task` lines always present; wrap each `prev → curr` pair so the arrow
-    and curr value sit on a continuation line (keeps body lines under `hooks.body_max_line_length` when task titles are
-    long). `State` line included only when value changed; `Blockers` line included only when delta exists. Prev-value
-    derived from `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from staged
-    content.
+    A `written` result carries the recorded `stateAtHandoff` and `commitAtHandoff`. Render each `text` in its
+    `maintenance` report and any `diagnostics` in Confirm Handoff. A `refused` result names its condition and remedy:
+    take the remedy and retry once, or surface it and stop.
 
-    **Subject-length guard.** Apply [`commit-format`][commit-format]'s literal-workflow-subject identity fallback to
-    the WU-name component of `<position>`; keep the exact identity in the body and `Context:` footer.
-
-    **Body-length guard.** Do not put both full task titles on one `Last Completed` / `Next Task`
-    line — the body template above wraps deliberately. The release wrapper auto-wraps `-m` bodies
-    but preserves `-F` bytes; handoff uses heredoc `-F -`, so the template itself must stay under
-    the line limit.
-
-    > [!CAUTION]
-    > `commit-interlock` release — commit as `workflowCommit` with the composed message above.
-
-    When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
-    value written in step 4. When no field cleared the skip threshold, nothing is staged and the
-    commit is a no-op — step 4 carries the prior `Commit at Handoff:` value forward.
-
-    Contributors (`arc.role = contributor`) skip the commit — their personal active meta file at
-    `.arc/user/{identity}/active/meta-{name}.md` is gitignored, so the field update lands
-    without staging.
-3. **Refresh probe** — re-run the composite probe to pick up post-step-2 state:
-
-    ```bash
-    arc status --session-handoff --json
-    ```
-
-    The refreshed probe carries the post-step-2 values for `worktree`, `dirty`, `head`, and
-    `recommendedSummaryLine`. Step 4 and Confirm Handoff read those four slots from the latest refresh; all
-    other slots remain stable from probe-1.
-
-    When step 2 didn't fire a commit (no field cleared the skip threshold), the refreshed probe's mutated
-    slots are identical to probe-1's — the second invocation is harmless redundancy. The
-    workflow doesn't branch on whether a commit fired.
-4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from the refreshed
-   `head.value.hash` — that's the post-step-2 HEAD whether or not step 2 committed.
-
-**Update the active meta file** (tracked project state, if an active WU exists):
-
-```markdown
-## Work Unit Metadata
-
-**State:** Active
-**Branch**: [current branch name, e.g., feat/config-parser]
-**Task List**: [filename of task list, e.g., tasks-config-parser.md]
-  [OR: [none associated] for planning/boundary work between task lists]
-**Next Task**: Task 3.3 — Write unit tests (line ~247)
-  [REQUIRED when following task list — use triple-anchor format]
-  [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
-  [Omit only when no task list exists or all tasks are complete.]
-**Last Completed**: Task 3.2 — Add validation logic
-  [OR for off-task-list: brief description, e.g., "Fixed connection timeout in batch processor"]
-  [OR if work complete: "Backend Type Safety (Tasks 1-14, archived)"]
-**Blockers**: [none]
-  [OR: describe blockers, pending decisions, waiting on user clarification]
-**Next Action**: Start Task 3.3 — Write unit tests for validation logic
-  [OR for off-task-list/preparatory: specific action description]
-  [Freeform — can be preparatory work, off-task-list activity, or simply "start Next Task"]
-
-_Content discipline: keep each field to one line (Next Action may span two for a multi-file scope); push
-longer context elsewhere — commit body, SESSION-NOTES, task-list completion notes. Wrap to the 120-char
-target._
+**Next Action** (`nextAction`, required) — the next task with its ID and title (`Start Task 3.3 — Write unit tests for
+validation logic`), or a specific preparatory or off-task-list action; say so when work runs out of task-list order.
+Keep it to one line (two for a multi-file scope), wrapped to the 120-char target; push longer context into the session
+context or task-list completion notes.
 
 _Workflow step pointer: when Next Action resumes a lifecycle workflow, use the literal format
 `<workflow-name> Step <N> — <description>` (for example, "integrate-work-unit Step 1 — push and create PR";
 kebab-case name = filename without `.md`). This is a human resume pointer; typed status determines session phase
-and workflow. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
-```
+and workflow. Task-list-driven workflows (process-task-loop) skip it; the task list is the pointer._
 
-**Update SESSION-NOTES at `pathSet.value.sessionNotes`** (per-WU session context — gitignored; active-WU path
-only). Requires `pathSet.ok`; the path is `null` when no active WU or identity is absent — Between-WUs handoff
-skips this section entirely. Do not re-derive the path from identity + slug.
+**Session Type** (`sessionType`, optional) — `planning | execution`. Set it only when the next session's discretionary
+planning/execution intent diverges from what the work unit's state implies (e.g., status points at execution, next
+session will plan a separate concern); omitting it clears an earlier override. Typed
+prepublication/integration phases cannot be overridden: never set it to enter, leave, or replace one.
 
-**Audience:** The next session's agent loading from cold context. They already have tracked state —
-git log, task list, meta file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
+**Compose the session context** (`sessionContext` — per-WU session context; active-WU path only). Between-WUs handoff
+skips this section entirely.
+
+**Audience:** The next session's agent loading from cold context. They already have project state —
+git log, task list, meta, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
 only what they can't derive from any of that. Volume is a side effect, not a target.
 
 **Filter pipeline — apply both passes:**
@@ -343,58 +259,41 @@ paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When
 
 **Pass 2 — 3-criterion filter on the residual:**
 
-1. **Not in any durable tracked source.** PRD, strategy, constitution, plan docs, ADRs — those are
+1. **Not in any durable project source.** PRD, strategy, constitution, plan docs, ADRs — those are
    authoritative; duplicating creates shadow copies that drift.
 2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
    it loads. Not a retrospective observation you "want on record."
-3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
+3. **Costly if missing.** Re-deriving from project state in 30 seconds is not rework; a
    misinterpretation costing an hour of re-debugging is.
 
-If any criterion fails, omit. Empty sections write `[none]`.
+If any criterion fails, omit. Empty subsections write `[none]`.
 
-**Template skeleton:**
+**Session context skeleton** — level-three subsections. A line opening with `##` and a space, or a standalone `---`,
+would end the meta's section, so `arc handoff write` refuses it.
 
 ```markdown
-## Handoff Metadata
-
-**Working On:** meta-{name}.md
-<!--
-Markers:
-  [none]                        — no active work
-  [planning: {category}/{name}] — planning cycle, no WU yet
-  meta-{name}.md                — normal case, file reference
--->
-
-**Commit at Handoff:** `{{short-hash}}`
-<!--
-  **Session Type:** {planning | execution}
-  Optional override; absent → inferred from tracked state. Set only when the next session's
-  discretionary planning/execution intent diverges from what tracked state implies. Typed
-  prepublication/integration phases cannot be overridden. Case-insensitive. Invalid value → ignored + warning.
--->
-
-## Uncommitted Work
+### Uncommitted Work
 
 <!-- Wrap continuation lines on bullets to the 120-char target. Under-wrapping (60-80 chars)
      is the common failure here — see DEV-RULES.PROJECT § Documentation Standards. -->
 
 [Commit-level detail for any uncommitted work. Otherwise: [none].]
 
-## Remaining Work Before Returning to Task List
+### Remaining Work Before Returning to Task List
 
 [Off-task-list work with known path back. Otherwise: [none] or "Path unclear".]
 
-## Additional Context
+### Blockers
+
+[Blockers, pending decisions, or waits on clarification. Otherwise: [none].]
+
+### Additional Context
 
 [Only if the filter passes. Otherwise: [none].]
 ```
 
 **Per-section guidance:**
 
-- **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
-  optional; absent → session-init infers. Set only when discretionary planning/execution intent diverges from
-  what the active meta file implies (e.g., status points at execution, next session will plan a separate concern).
-  Never author it to enter, leave, or replace a typed prepublication/integration phase.
 - **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
   already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
   commits. Map accomplishments to logical commits (what changed, which files), include task
@@ -409,19 +308,20 @@ Markers:
 - **Remaining Work Before Returning to Task List:** Off-task-list work with a known path back.
   List all steps, not just the next. Use triple-anchor format for the return target. If the path
   is unknown, state it: "Path unclear — will return to Task X.Y when resolved."
-- **Additional Context:** Debugging insights, decisions not in tracked state, things tried and
+- **Blockers:** What stops progress until someone acts — a pending decision, a wait on clarification or another
+  work unit. Session-init withholds auto-proceed on a blocker; write `[none]` when nothing blocks.
+- **Additional Context:** Debugging insights, decisions not in project state, things tried and
   ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
   Record an Owner direction with the subject it answered — the gate, Errand, or head — so the next session does
   not read it as standing posture for other work. Filter applies — empty is normal.
 
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
-  (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under
-  linked-worktree operation, this is the primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`.
-  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above. An addition
-  is proposed and lands only on approval; invoking the handoff does not approve it.
+  (and WU boundaries) at the identity's `WORKING-MEMORY.md` (`pathSet.value.workingMemory`). Each needs an explicit
+  removal trigger (not tied to full work unit completion). Same filter as above. An addition is proposed and lands
+  only on approval; invoking the handoff does not approve it.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
-      meta-conventions, parking references to uncommitted work visible in `git status`.
+      meta-conventions, references to uncommitted work left visible in `git status`.
     - **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, rules already
       in a strategy doc, behavioral guidance already in DEV-RULES.
     - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
@@ -431,7 +331,7 @@ Markers:
       session sees them naturally.
 
     Review at each handoff: remove entries whose triggers are met, AND entries whose information
-    is now carried in tracked state.
+    is now carried in project state.
 
 **Stay-out list — when you notice yourself writing one of these, delete it:**
 
@@ -441,41 +341,29 @@ Markers:
   lessons in a strategy or QUICK-REFERENCE — not here.
 - Probe-owned volatile git state — unpushed-commit counts, ahead/behind numbers, dirty file counts.
   The next session-init recomputes these fresh from git, and this handoff's own sync leg (§ Sync)
-  drives the unpushed count to zero, so a recorded count reads false at next load. SESSION-NOTES
+  drives the unpushed count to zero, so a recorded count reads false at next load. The session context
   reflects _post-handoff_ state, not the moment-of-writing snapshot. Intentionally-left uncommitted
   work is the exception — record it under Uncommitted Work above; it's working context visible only
   in `git diff`, not a transient count the sync leg erases.
-- Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.
+- Explanatory paragraphs where the template expects whitespace. Empty subsections stay empty.
 
-(Restating tracked content is the most common failure but already excluded by Pass 1 — see the
+(Restating project state is the most common failure but already excluded by Pass 1 — see the
 filter pipeline above for the full case.)
 
 ## Handoff Examples
 
 **Example 1: Off-task-list with known path back**
 
-meta-data-pipeline.md:
+`nextAction`: `Fix connection timeout in batch processor (src/pipeline/batch.py:89), then Task 4.1 — Add retry logic`
+
+`sessionContext`:
 
 ```markdown
-## Work Unit Metadata
-
-**State:** Active
-**Branch**: feat/data-pipeline
-**Task List**: tasks-data-pipeline.md
-**Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
-**Last Completed**: Task 3.5 — Schema validation for input records
-**Blockers**: [none]
-**Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
-```
-
-SESSION-NOTES.md:
-
-```markdown
-## Uncommitted Work
+### Uncommitted Work
 
 [none]
 
-## Remaining Work Before Returning to Task List
+### Remaining Work Before Returning to Task List
 
 1. Fix connection timeout in batch processor (pool exhaustion under load)
 2. Add integration test for concurrent batch processing
@@ -486,52 +374,40 @@ SESSION-NOTES.md:
 > `Path unclear - exploratory debugging. Will return to Task 4.1 — Add retry logic (line ~312)
 > when resolved.`
 
-## Additional Context
+### Blockers
+
+[none]
+
+### Additional Context
 
 - Discovered timeout when batch size exceeds 1000 records (connection pool default is 10).
 - Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections.
 - Best fix: switch to async batch processing with connection pool recycling.
 ```
 
-## Task List Completion & Transition Format
+## Task List Completion & Transition
 
-**When work is complete and/or task list has been archived**, use this expanded format:
+**When every task is closed** and the work unit is still active, Next Action names the next lifecycle step — for
+example, `archive-work-unit Step 1 — archive the work unit`.
 
-meta-{name}.md while the WU is still active:
-
-```markdown
-## Work Unit Metadata
-
-**State:** Complete
-**Last Completed**: [Task list name] (Tasks X-Y, archived)
-**Blockers**: [none]
-**Next Action:** archive-work-unit Step 1 — archive artifacts and retire the meta file
-```
-
-If the work unit has already been archived, no active meta file remains. The per-WU SESSION-NOTES
-subdir is retired alongside the WU (`arc user close` handles this); WORKING-MEMORY.md persists
-unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
+Archiving clears the session context, both anchors, and `Session Type`, and resets Next Action. WORKING-MEMORY.md
+persists unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
 
 ## Handing Off Mid-Integration — `Integrating`
 
-PR open and awaiting review across the wait: the meta file stays `**State:** Integrating` and Next Action points
-at the integrate resume step (`integrate-work-unit Step <N> — <description>`) — the next session resumes there. A
-PR that merged during this session is finalized by the § Sync finalize pass, not parked here.
-
-## Post-Update Cleanup
-
-After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
-may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+PR open and awaiting review across the wait: the work unit stays `Integrating` and Next Action points at the integrate
+resume step (`integrate-work-unit Step <N> — <description>`) — the next session resumes there. A PR that merged
+during this session is finalized by the § Sync finalize pass, not left here.
 
 ## Sync
 
 First, run the [Same-session finalize pass](#same-session-finalize-pass) — a no-op unless this session opened an
-unfinalized PR. Running it before sync lets a re-anchored post-merge note ride the sync push.
+unfinalized PR.
 
-For active-WU and between-WUs handoff, sync is gated on `syncInterlock.value`. `arc sync` (the orchestrator) owns
-the matrix dispatch internally — push-ordering invariant, worktree+notes coherence, notes-vs-worktree blocking, and
-partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations Strategy][session-ops] § Push
-Toggles for the underlying model.
+For active-WU and between-WUs handoff, sync is gated on `syncInterlock.value`. `arc sync` pulls state, publishes it
+first and alone, then pushes the branch, and reports each separately; the ordering, the pull's handling, and push
+recovery live in the CLI, not in workflow prose. See [Session Operations Strategy][session-ops] § Push Toggles for the
+underlying model.
 
 - **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
   output. Both values fire sync at handoff.
@@ -543,33 +419,23 @@ Toggles for the underlying model.
     arc sync --json
     ```
 
-  The orchestrator probes worktree state, notes state, `push_interlock`, and `notes_push`;
-  routes the resulting matrix cell through `runPairedPush` (paired) or single-leg primitives
-  (worktree-only, notes-only, notes-blocked, save-only, prompt). Worst-outcome exit code;
-  itemized leg outcomes in the JSON envelope's `cell`, `worktree`, `notes`, `exitCode`,
-  optional `reconcile`, and `recommendedSummaryLine` fields. Surface the result per § Confirm
-  Handoff.
+  Surface the result per § Confirm Handoff. A pull that stops, or a clone with no designated state remote, publishes
+  no state and exits nonzero while the branch push still runs; take the remedy the result names, such as
+  `arc store remote` for the designation. Resolve it conversationally; never block on a TTY prompt.
 
-  **Notes-push-failed (the Act site).** When the envelope carries `retryOffer` — the notes leg is still
-  failing after its silent auto-retries, and the partial-push marker is already persisted — surface a primed
-  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, re-invoke `arc sync --json`; a
-  resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still fails, the
-  marker persists knowingly — report it in § Confirm Handoff so the next session inherits it. Resolve the offer
-  conversationally; never block on a TTY prompt.
-
-- **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
-  ready. The latest `recommendedSummaryLine` carries the unpushed / Reconcile surface (see §
-  Confirm Handoff).
+- **`manual`** — skip the auto-invoke. The user runs `arc sync` when ready. The latest `recommendedSummaryLine`
+  carries the unpushed / Reconcile surface (see § Confirm Handoff).
 
 **Identity absent** (`identity.identity === null`): skip the auto-invoke regardless of
-`syncInterlock.value` — `arc sync` requires identity for the notes leg. The latest probe's
+`syncInterlock.value` — `arc sync` refuses without an identity. The latest probe's
 `recommendedSummaryLine` still composes from worktree state.
 
 ## Finalize Handoff State
 
 After state capture and sync, require `handoffLocus.ok === true` and consume the latest `handoffLocus.value`:
 
-- `release-work-unit` — write no generic locus state; the WU remains derived from its checkout and tracked lifecycle.
+- `release-work-unit` — write no generic locus state; the WU remains derived from its checkout and stored lifecycle.
+  Its checkout stays held unless released (`arc locus release`), as a person-to-person handoff does.
 - `between-work-units` — write no generic locus state; a cold transient's subject driver already settled its own
   occupancy.
 - Any transient or `refused` result — stop. Its subject driver has not restored a handoff-safe frame.
@@ -579,7 +445,7 @@ The subject leave/close driver owns transient settlement. Never invent a WU or p
 ## Confirm Handoff
 
 After completing the selected handoff path and sync step, deliver a verbal summary to the user. This is
-a quick confirmation for the human — the session state files and routed captures are the durable artifacts.
+a quick confirmation for the human — the stored handoff and routed captures are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
@@ -589,23 +455,20 @@ after the branch — naming the non-primary worktree the session occupies. Omit 
 For active-WU and between-WUs handoff, render **Sync:** as one of these results (read from
 `arc sync --json` when it ran, otherwise from the matching skip arm):
 
-- `synced to remote` — sync ran, at least one leg has `action: "push"` with
-  `result: "success"` (worktree, notes, or both).
-- `notes push deferred — worktree pushed; notes still failing after auto-retry, partial-push marker
-  persisted. Re-run \`arc sync\` next session.` — the envelope carried `retryOffer` and the retry was
-  deferred or still failed.
-- `saved locally — no remote push fired` — sync ran with `exitCode: 0` but no leg pushed
-  (save-only cell, notes-blocked path, or every leg `noop`/`skipped`/`blocked`).
-- `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero.
+- `synced to remote` — sync ran, exited `0`, and at least one leg (state or branch) reports a successful push.
+- `saved locally — no remote push fired` — sync ran and exited `0`, but no leg pushed.
+- `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero. Name the leg it reports
+  failed: state publishes first and alone, so a failed branch push leaves state published, and a stopped pull
+  publishes none.
 - `skipped (sync_interlock: manual). Run \`arc sync\` when ready.` — auto-invoke skipped per
   config.
-- `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
-  identity-absent fallback.
+- `skipped (no identity). Configure \`arc.identity\` to enable sync.` — identity-absent fallback.
 
 For Errand handoff, render **Errand:** with the checkpoint commit hash or `no new commit`, plus the selected
 branch's push result.
 
-**Checkout:** [work-unit checkout retained | Errand checkout retained | between work units]
+**Checkout:** [work-unit checkout retained | work-unit checkout released | Errand checkout retained | between work
+units]
 
 **Next session:** [Task list pointer (on-task-list), exact retained Errand checkout, freeform (off-task-list), or
 `session-init discovery / user direction` between WUs]
@@ -617,26 +480,14 @@ or `**Errand:**`):
   (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from the latest probe
   otherwise (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or
   dispatch.
-- `identity` present, `user.value.notesDriftSurface` present, and the sync result did not report the notes leg
-  saved or pushed successfully: branch on `notesDriftSurface.register` and render the matching advisory below.
-  Suppress when `arc sync --json` shows notes save/push success; the sync already captured the drift.
-
-  ```text
-  **Notes/disk drift:** expected with live sibling sessions or a fresh seed ({direction}); converges at
-  next save or handoff — lag, not loss.
-  ```
-
-  ```text
-  **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
-  `arc user status` before relying on session notes — no auto-load (may carry local edits).
-  ```
+- `arc handoff write`'s `maintenance` report or `diagnostics` non-empty: prepend each `text` and diagnostic verbatim.
 
 **Formatting guidance:**
 
 - Mirrors the session-init orientation summary — bookend pattern. Confirm Handoff doesn't restate
-  what got done (SESSION-NOTES, git log, task list, meta-file `**Last Completed:**`, and routed captures already
-  carry it); the verbal output is operational confirmation, not a session retrospective.
-- **Next session**: one line on-task-list (meta file pointer); unbounded only when off-task-list
+  what got done (the session context, git log, task list, and routed captures already carry it); the verbal output is
+  operational confirmation, not a session retrospective.
+- **Next session**: one line on-task-list (the Next Action pointer); unbounded only when off-task-list
   — same bounding as session-init orientation Next Action.
 - An Errand handoff is framed on its retained exact checkout; a WU or between-WUs handoff stays framed on that
   resolved locus.
@@ -664,42 +515,15 @@ Dispatch only on its typed state and action:
       restores or tears down the exact checkout, retires the owned locus and identity generation, reaps refs, and
       settles only the originating capture generation;
     - **recordless `chore/<slug>` cheap-branch candidate** → `arc teardown --branch <branch>`: reaps the merged
-      branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
-    - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
+      branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs.
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
   `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
   auto-merge lanes.
 - `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
   session.
 
-## Notes-sync leg
-
-A reusable completion step — invoked by reference from the paths that finalize a merge landing outside an
-attended ceremony, at merge completion, right after the WORKING-MEMORY / inbox maintenance that rides a work
-unit's close. It is not part of the linear handoff flow above.
-
-A post-merge base pull / fast-forward advances HEAD past the commit the user note was saved on, leaving the note
-reachable from an ancestor of HEAD but not from HEAD itself (`arc user status` reports an `ancestor` freshness
-state). Re-anchor it so the saved note travels with the merged state:
-
-```bash
-arc user save        # write the user note onto current HEAD
-```
-
-Then confirm HEAD carries the note — `arc user status` reports `current-head`, not `ancestor`. Re-running is
-safe: `arc user save` is idempotent against an already-current note, so the leg no-ops when HEAD already carries
-it.
-
-This step is only the wiring — call the sync at completion, leave HEAD fresh. The merge-coherence correctness it
-relies on (idempotent removal-tombstone resolution, projection-aware status, `ancestor`-freshness recognition)
-lives behind `arc user save` / `arc user sync`.
-
-**Identity absent** (`identity.identity === null`): skip the leg — user notes are identity-scoped, so there is no
-note to anchor.
-
 [arc-methods-session]: ../../../methods/session-state.md
 [commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
-[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md

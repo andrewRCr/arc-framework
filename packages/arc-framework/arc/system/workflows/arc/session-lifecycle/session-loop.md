@@ -29,9 +29,9 @@ Each session follows the same rhythm: establish context, co-develop, preserve st
    increment at a time per [DEV-RULES.ARC][dev-rules-arc] § Task Execution.
 
 4. **Hand off.** When the session should end (see [When to End a Session](#when-to-end-a-session)), trigger the
-   [session-handoff workflow][session-handoff]. The agent captures work state, session notes, and any unfinished
-   context. Committing before handoff is recommended but at your discretion. Invoke via the `arc-handoff` skill or
-   conversational request.
+   [session-handoff workflow][session-handoff]. The agent writes the work unit's handoff — its session context and
+   next action — with any unfinished context. Committing before handoff is recommended but at your discretion. Invoke
+   via the `arc-handoff` skill or conversational request.
 
 5. **Clear and repeat.** After handoff is complete and you've received the session summary, clear the conversation or
    context. Return to step 1.

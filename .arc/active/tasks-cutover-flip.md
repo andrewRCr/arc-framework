@@ -229,6 +229,8 @@ the fence harness pass over the ref backend; and the full suite passes with no b
         - The push's figures go through `reportHandoffTripwires` (`lib/handoff/tripwires.ts`; `spec-seam-locus.md`
           § 9.3), taking the largest retry count and wait across the push's publishes (`PushResult`,
           `lib/store/sync.ts`).
+        - _Note:_ `session-handoff.md`'s Confirm Handoff reads each leg's push result, state and branch, and names the
+          failed leg (Task 5.2.a); a change to this leg vocabulary changes that text.
         - The pull is consumed as session start consumes it (`consumePull`, `lib/store/pull-consumption.ts`). A stopping
           pull pushes no state and exits nonzero. A designation question is offered when the command may prompt, as `arc
           join` offers it (`pullJoinStore`, `handlers/join.ts`), and the push follows the designation made; otherwise it
@@ -708,38 +710,47 @@ family's commit carries the tests that pin its text, named per subtask; the comm
 the family's integration files run by `test:file` before it. A guidance invocation may carry `--json` only where its
 command declares it (`integration/command-surface-documentation.test.ts`).
 
-### `[ ]` **5.1 Re-check `projection-team-scale`'s contract where it has landed — § 1.3, § 8.12**
+### `[x]` **5.1 Re-check `projection-team-scale`'s contract where it has landed — § 1.3, § 8.12**
 
 - _Goal:_ Where `projection-team-scale` has landed, the read-only archive and `arc edit` hold at `main` as § 1.3 states,
   or the spec takes a forward amendment. The task closes here either way: Task 5.6.c writes the errata convention by
   whether the unit has landed when it writes it (§ 1.3), and a landing after that is taken up before the head is fixed
   for the window (`notes-cutover-flip.md` § The landing after verification).
 
-### `[ ]` **5.2 Session lifecycle: handoff, init, recovery, and the loop — § 8.9, § 8.10**
+- _Outcome:_ Not landed: `arc status projection-team-scale` reports it in planning at `generate-tasks`, so `main` has no
+  read-only archive or `arc edit` to check, and no amendment is due. Task 5.6.c writes the errata convention against
+  write-back's in-place archived edit unless the unit lands first.
+
+### `[x]` **5.2 Session lifecycle: handoff, init, recovery, and the loop — § 8.9, § 8.10**
 
 - _Goal:_ The session workflows read and write session context, save state, and sync through the store, with no notes
   leg, SESSION-NOTES file, or commit anchor.
 
-    - `[ ]` **5.2.a `session-handoff.template.md`**
-        - Its SESSION-NOTES write becomes `arc handoff write` (`runHandoffWrite`, `lib/handoff/write.ts`); its sync
-          section loses the paired push, the notes legs, and the notes-drift surface; its `Commit at Handoff` anchor
-          becomes the store's state version, and its `git show <hash>:<meta>` restate reads `history`; the
-          person-to-person handoff's `Owner` edit moves to `arc handover` (§ 8.6); it releases a checkout through `arc
-          locus release` (§ 8.5).
-        - Tests that change with it: `integration/session-authority-docs.test.ts`, and
-          `integration/locus-methodology-contracts.test.ts`'s cases that forbid `arc locus release` in handoff and the
-          `arc-handoff` skill.
+    - `[x]` **5.2.a `session-handoff.template.md`**
+        - The active-WU path checks and saves with `arc save`, then writes `nextAction`, an optional `sessionType`, and
+          the session context through `arc handoff write -`, which records both anchors; the handoff commit, its
+          `git show <hash>:<meta>` prior-value read, and the SESSION-NOTES write go, and the `restateCandidates` filter
+          reads from the meta's last `State at Handoff` (no history verb exists or is needed). The session context
+          takes the four level-three subsections of `spec-seam-record-kinds.md` § 5.5, `Blockers` among them, since
+          `Last Completed`, `Next Task`, and `Blockers` retire from the meta at the flip. Sync names state published
+          first and alone, then the branch, with no notes leg, retry offer, or drift surface; the person-to-person
+          handoff runs `arc handover` and releases its checkout with `arc locus release`; the notes-sync leg goes.
+        - Tests: `integration/session-authority-docs.test.ts` pins the store write and the new `Session Type` form;
+          `integration/locus-methodology-contracts.test.ts` requires the release rather than forbidding it. The skill
+          case still forbids `arc locus release`, which the skill does not name.
 
-    - `[ ]` **5.2.b `session-init.md`, `session-recover.md`, `session-loop.md`, and the `session-state` method**
-        - The text § 8.9 names (`spec-session-init-agenda.md` § 7.3): the spine's SESSION-NOTES authority boundary, its
-          thought-state lines and the Blockers line it withholds auto-proceed on, read from the meta's session context;
-          the compiler's changes themselves are Task 2.14's.
-        - Tests that change with it: `integration/locus-methodology-contracts.test.ts`'s session-init case forbidding
-          `arc locus release`.
+    - `[x]` **5.2.b `session-init.md`, `session-recover.md`, `session-loop.md`, and the `session-state` method**
+        - Session-init's carried-read, orientation, and authority text read the meta's session context and handoff
+          fields; the loop's handoff step names the session context; the method describes the stored meta, personal
+          records saved with `arc save`, and `arc sync`. `session-recover.md`'s one hit, `notes-*`, is kept
+          (`notes-cutover-flip.md` § Kept sites). The session-init case of
+          `integration/locus-methodology-contracts.test.ts` needs no change: session-init names no release.
 
-    - `[ ]` **5.2.c The `arc-handoff` skill and the user directory's README**
-        - `user/README.md`: the per-work-unit `SESSION-NOTES.md`, the `arc user save` / `load` / `push` / `pull` verbs,
-          and `active/` and `backlog/` described as shared and tracked.
+    - `[x]` **5.2.c The `arc-handoff` skill and the user directory's README**
+        - The skill writes the restored work unit's handoff. `user/README.md` describes the identity root as ARC's
+          records plus `scratch/`, stored and published with project state by `arc sync`, with `active/` and `backlog/`
+          shared and projected. Its § Advanced: Personal Planning Pipeline is unchanged: no specification settles the
+          contributor pipeline after the flip, so it stays with `AGENT-BRIEF.CONTRIBUTOR.md` (Task 5.10).
 
 ### `[ ]` **5.3 Planning stages: draft-design, create-spec, generate-tasks, and amend-design — § 8.2, § 8.3, § 8.11, § 8.14**
 

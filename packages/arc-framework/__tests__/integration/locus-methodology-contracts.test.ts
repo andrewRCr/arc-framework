@@ -73,7 +73,7 @@ describe("locus methodology contracts", () => {
       expect(handoff).toContain("`derivedLocusState`      | Required entering-checkout frame");
       expect(handoff).toMatch(softWrappedProse("`release-work-unit` — write no generic locus state"));
       expect(handoff).toMatch(softWrappedProse("direct subsequent commands to the retained surviving checkout"));
-      expect(handoff).not.toContain("arc locus release");
+      expect(handoff).toMatch(softWrappedProse("Its checkout stays held unless released (`arc locus release`)"));
       expect(handoff).not.toContain("`recordId`");
       expect(handoff).not.toContain("`leaseId`");
       expect(handoff).toMatch(softWrappedProse("If the composite call itself fails, surface the failure and stop."));
