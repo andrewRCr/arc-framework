@@ -4,10 +4,12 @@ import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
 import { createSessionStatusContext, readUserInboxFromStore } from "../../src/handlers/status/session-context.js";
 import { runInboxState } from "../../src/lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminders.js";
 import type { Store } from "../../src/lib/store/contract.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 it("counts and reminds valid in-repository captures despite another malformed entry, then reads its repair", async () => {
   const cwd = await createTempRepo("arc-session-inbox-"); onTestFinished(() => cleanupTempDir(cwd));
@@ -18,7 +20,8 @@ it("counts and reminds valid in-repository captures despite another malformed en
   const path = join(personal, "USER-INBOX.md");
   const content = "## Errand\n\n### **Valid capture**\n- _Created:_ `2026-10-16`\n- _Remind:_ `true`\n\nKeep this pending.\n\n### Missing bold title\n- _Created:_ `2026-10-16`\n- _Remind:_ `true`\n\nRepair this block.\n\n## Work Unit\n";
   await writeFile(path, content);
-  const context = await createSessionStatusContext(cwd, exec, raw, raw);
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store });
   expect(context.store?.capabilities.stateOffBranch).toBe(false);
   const read = await context.readUserInbox("alice");
   expect(runInboxState({ content: read })).toMatchObject({ routableCount: 1, executeBoundCount: 0, housekeepNeeded: true });

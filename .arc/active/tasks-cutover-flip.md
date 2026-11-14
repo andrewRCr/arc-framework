@@ -114,12 +114,11 @@ the ref backend while the default store stays in-repo.
           that expect `unsupported` from the in-repo store outside those names: `handlers/review-adversarial`,
           `work-unit/verbs/pause-handover`, and `store-command-registration`.
 
-    - `[ ]` **1.4.b Default-factory tests of the in-repo arm**
-        - `integration/errand-store-imported-cli.test.ts` asserts the sealing refusal from an in-repo build;
-          `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts` asserts the in-repo refusal
-          `requireNativeReviewDecisionReferences` skips once capable; `integration/session-inbox-compatibility.test.ts`
-          reads in-repo captures, passing its explicit store as the session context's `operational.store`
-          (`createSessionStatusContext`, `handlers/status/session-context.ts`).
+    - `[x]` **1.4.b Default-factory tests of the in-repo arm**
+        - Each builds its store through `inRepoStore` and passes it in, to the registered commands it seals in
+          `integration/errand-store-imported-cli.test.ts`, as `resolveReviewInvocation`'s `store` in
+          `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts`, and as
+          `createSessionStatusContext`'s `operational.store` in `integration/session-inbox-compatibility.test.ts`.
 
     - `[ ]` **1.4.c The remaining direct callers classified**
         - Handler, review-gate, session-init, projection, and work-unit tests: each either builds the in-repo backend
