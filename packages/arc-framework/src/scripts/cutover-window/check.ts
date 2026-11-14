@@ -1,7 +1,7 @@
 /** Quiescence admission and restore-point acquisition for an explicitly named importing checkout. */
 import { windowHostTipFindings } from "./off-host.js";
 import type { WindowRequest } from "./main.js";
-import { WindowRefusal, type WindowResult } from "./result.js";
+import { WindowRefusal, type WindowFinding, type WindowResult } from "./result.js";
 import { readWindowPreconditions, windowPreexistingStoreRefFindings } from "./preflight.js";
 import { parseWindowFlipInput } from "./input.js";
 import { readWindowHostFacts, type WindowHostPort } from "./host.js";
@@ -39,25 +39,26 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     ...input.anchor !== undefined ? { anchor: input.anchor } : {},
     ...input.listing !== undefined ? { pullRequests: () => readSuppliedWindowRequests(request.repo, input.listing ?? "", input.pullRequest) } : {},
   });
-  if (facts.pullRequests.flip.headBranch !== input.branch || facts.pullRequests.flip.baseBranch !== "main") {
-    throw new WindowRefusal([{ subject: "flip pull request",
-      condition: `Pull request #${input.pullRequest} names ${facts.pullRequests.flip.headBranch} into ${facts.pullRequests.flip.baseBranch}, not ${input.branch} into main.`,
-      remedy: "Name the matching flip branch and main-targeting pull request, or repair the request target, then retry." }]);
-  }
+  const flipRequest = facts.pullRequests.flip;
+  const requestFindings: WindowFinding[] = flipRequest.headBranch === input.branch && flipRequest.baseBranch === "main" ? [] : [{
+    subject: "flip pull request",
+    condition: `Pull request #${input.pullRequest} names ${flipRequest.headBranch} into ${flipRequest.baseBranch}, not ${input.branch} into main.`,
+    remedy: "Name the matching flip branch and main-targeting pull request, or repair the request target, then retry." }];
   const origin = await host.refs(["refs/arc/*"]);
   const originFindings = windowPreexistingStoreRefFindings(new Map(Object.entries(origin)), "origin");
   if (originFindings.length > 0) return { operation: "check", status: "refused", findings: originFindings };
   try {
     await acquireWindowOriginRefs(io, origin);
     const state = await captureWindowState(io, input, { refs: origin, branches: await host.refs(["refs/heads/*"]) });
-    const anchor = await readWindowSealAnchor(io, facts.anchor);
-    const checkoutFindings = [...windowUnmarkedCheckoutFindings(state.checkouts), ...await readWindowEndedCheckoutFindings(io, state.checkouts),
+    const checkoutFindings = [...requestFindings, ...state.findings, ...windowUnmarkedCheckoutFindings(state.checkouts),
+      ...await refusalFindings(() => readWindowEndedCheckoutFindings(io, state.checkouts)),
       ...windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)),
       ...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
       ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),
       ...await readWindowDecompositionBranchFindings(io, state.record.branches), ...await readWindowDecompositionDirectoryFindings(request.repo),
-      ...await readWindowCheckoutAncestryFindings(io, state.checkouts, anchor), ...await readWindowBuildFindings(state.checkouts),
+      ...await refusalFindings(async () => readWindowCheckoutAncestryFindings(io, state.checkouts, await readWindowSealAnchor(io, facts.anchor))),
+      ...await readWindowBuildFindings(state.checkouts),
       ...await readWindowExecutableFindings(state.checkouts, input.path),
       ...await readWindowTrackedRecordFindings(state.context, state.record, state.live.composition),
       ...await readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition),
@@ -72,6 +73,16 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {
     if (error instanceof WindowRefusal) await discardUnfinishedWindowHold(io);
+    throw error;
+  }
+}
+
+/** Report a condition whose input cannot be read as its own findings, so the check still evaluates every other one. */
+async function refusalFindings(read: () => Promise<WindowFinding[]>): Promise<WindowFinding[]> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof WindowRefusal) return [...error.findings];
     throw error;
   }
 }

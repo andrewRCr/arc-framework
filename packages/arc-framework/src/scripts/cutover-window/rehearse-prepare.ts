@@ -9,6 +9,7 @@ import { inspectWindowTrackedRecords, type WindowTrackedRecordInspection } from 
 import { readWindowCheckoutAncestryFindings, readWindowSealAnchor } from "./seals.js";
 import { readWindowTransientRecords } from "./transients.js";
 import { readWindowStashFindings } from "./stashes.js";
+import { WindowRefusal } from "./result.js";
 import { mergeRehearsalMain, returnRehearsalPaths } from "./rehearse-merge.js";
 import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run.js";
 import type { WindowPullRequests } from "./host.js";
@@ -165,6 +166,7 @@ async function inspectTrackedState(context: WindowRehearsalContext): Promise<Win
   const main = local.main;
   if (main === undefined) throw new WindowRehearsalStop("The copy has no main branch.");
   const live = await readWindowLiveState(importContext, checkouts, { local, origin });
+  if (live.findings.length > 0) throw new WindowRefusal(live.findings);
   return inspectWindowTrackedRecords(importContext, { main, branches: Object.keys(live.branches), local, origin }, live.composition);
 }
 

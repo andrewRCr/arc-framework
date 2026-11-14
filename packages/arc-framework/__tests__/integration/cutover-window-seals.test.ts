@@ -96,3 +96,22 @@ it("accepts a supplied anchor to resume a hostless rehearsal without the tooling
   const repaired = await checkFixture(h, {}, ["--path", "", "--anchor", anchor.slice(0, 12)]);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
+
+it("reports an underivable anchor and an incomplete identity snapshot beside the other failing conditions", async () => {
+  const h = await windowFixture({ sealed: false });
+  const identity = "refs/arc/user/alex/errands";
+  await h.git("git", ["push", "origin", `HEAD:${identity}`]);
+  await writeFile(join(h.root, "untracked.txt"), "dirty\n");
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: "sealing anchor" }),
+    expect.objectContaining({ subject: identity, condition: expect.stringContaining("incomplete snapshot") }),
+    expect.objectContaining({ subject: `${h.root} (main)`, condition: expect.stringContaining("dirty") }),
+  ]) } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc-window/"])).stdout.trim()).toBe("");
+  await rm(join(h.root, "untracked.txt"));
+  await h.git("git", ["push", "origin", `:${identity}`]);
+  const anchor = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const repaired = await checkFixture(h, {}, ["--path", "", "--anchor", anchor]);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
