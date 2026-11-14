@@ -6,22 +6,23 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ProjectionPartitionMismatch } from "../../../../src/lib/store/projection/index-memory.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 
-const observation = vi.hoisted(() => ({ partition: "", lock: "", heldAtDelete: false }));
+const observation = vi.hoisted(() => ({ partition: "", lock: "", heldAtDelete: false, refuse: false }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   return { ...actual, unlink: async (path: string) => {
     if (path === observation.partition) {
       await actual.access(observation.lock);
       observation.heldAtDelete = true;
+      if (observation.refuse) throw Object.assign(new Error(`EACCES: permission denied, unlink '${path}'`), { code: "EACCES" });
     }
     return actual.unlink(path);
   } };
 });
 const directories: string[] = [];
-afterEach(async () => { observation.partition = ""; observation.lock = ""; observation.heldAtDelete = false;
+afterEach(async () => { observation.partition = ""; observation.lock = ""; observation.heldAtDelete = false; observation.refuse = false;
   for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true }); });
 
-it.each([true, false])("contains a late mismatch, with invalidation set to %s", async invalidatePartition => {
+async function mismatchedState(): Promise<{ location: { gitDir: string; commonDir: string; primary: boolean; stateDir: string }; name: string }> {
   const gitDir = await mkdtemp(join(tmpdir(), "arc-projection-index-lock-"));
   directories.push(gitDir);
   const location = { gitDir, commonDir: gitDir, primary: true, stateDir: join(gitDir, "arc-projection") };
@@ -31,6 +32,11 @@ it.each([true, false])("contains a late mismatch, with invalidation set to %s", 
   observation.lock = join(location.stateDir, "lock");
   await writeFile(observation.partition, "bad partition");
   await writeFile(join(location.stateDir, "index"), "header preserved");
+  return { location, name };
+}
+
+it.each([true, false])("contains a late mismatch, with invalidation set to %s", async invalidatePartition => {
+  const { location, name } = await mismatchedState();
   const result = await withProjectionLock(location, async () => {
     throw new ProjectionPartitionMismatch(name, location);
   }, { invalidatePartition });
@@ -39,5 +45,17 @@ it.each([true, false])("contains a late mismatch, with invalidation set to %s", 
   if (invalidatePartition) await expect(access(observation.partition)).rejects.toMatchObject({ code: "ENOENT" });
   else await access(observation.partition);
   await access(join(location.stateDir, "index"));
+  await expect(access(observation.lock)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("ends a late mismatch with its result when the invalidating delete is refused, leaving the partition for a later read", async () => {
+  const { location, name } = await mismatchedState();
+  observation.refuse = true;
+  const result = await withProjectionLock(location, async () => {
+    throw new ProjectionPartitionMismatch(name, location);
+  }, { invalidatePartition: true });
+  expect(result).toMatchObject({ status: "mismatch", partition: name });
+  expect(observation.heldAtDelete).toBe(true);
+  await access(observation.partition);
   await expect(access(observation.lock)).rejects.toMatchObject({ code: "ENOENT" });
 });

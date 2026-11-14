@@ -141,7 +141,8 @@ async function runLeased<T>(
         if (!(error instanceof ProjectionPartitionMismatch)) throw error;
         if (options.invalidatePartition && error.location.stateDir === location.stateDir) {
           await step();
-          await unlink(join(location.stateDir, error.partition)).catch(rethrowUnlessGone);
+          // A partition the delete cannot remove mismatches again at the next read; the command still ends its use here.
+          await unlink(join(location.stateDir, error.partition)).catch(() => undefined);
         }
         return { status: "mismatch", partition: error.partition, report: error.message };
       }
