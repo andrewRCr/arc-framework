@@ -10,8 +10,8 @@ import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext
   type WindowRehearsalPlant } from "./rehearse-run.js";
 import type { WindowRehearsalExpectation, WindowRehearsalExpectedFinding } from "./rehearse-expect.js";
 import { appendRehearsalLine, commitRehearsalBranch, writeRehearsalFile, expectRehearsalRefs, markedRehearsalCheckouts, readRehearsalRecord,
-  readRehearsalRefs, rehearsalCheckoutUnit, trackingCheckouts, unmarkedSides, unrecordedStateSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
-import { listWindowRefs } from "./git.js";
+  readRehearsalRefs, trackingCheckouts, unmarkedSides, unrecordedStateSides, verifyRehearsalRestore } from "./rehearse-plan-tools.js";
+import { listWindowRefs, windowBranchValue } from "./git.js";
 import { readWindowTransientRecords, isWindowIdentityRef } from "./transients.js";
 import { readWindowCheckouts } from "./checkouts.js";
 import { materializeArcPath, resolveArcPath } from "../../lib/layout/index.js";
@@ -169,9 +169,9 @@ function divergingCopyPlant(): WindowRehearsalPlant {
 async function refuseMiskeyedBoundary(context: WindowRehearsalContext): Promise<string> {
   const [held, other] = await markedRehearsalCheckouts(context, 2);
   if (!held || !other) throw new WindowRehearsalStop("Two marked checkouts are needed.");
-  const unit = rehearsalCheckoutUnit(held), foreign = rehearsalCheckoutUnit(other);
+  const unit = held.unit, foreign = other.unit;
   const record = await readRehearsalRecord(context);
-  const recorded = record.branches.local[held.branch];
+  const recorded = windowBranchValue(record.branches.local, held.branch);
   if (recorded === undefined) throw new WindowRehearsalStop(`The hold records no local tip for ${held.branch}.`);
   const target = resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse(unit) });
   const source = (await context.sync.scratch(["ls-tree", "-r", "--name-only", "origin/main", "--", posix.dirname(target)])).stdout

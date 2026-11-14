@@ -1,5 +1,6 @@
 /** Bind import admission to the primary checkout and the host's current branch tips. */
 import type { WindowRecord } from "./hold.js";
+import { windowBranchValue } from "./git.js";
 import type { WindowCheckout } from "./checkouts.js";
 import type { WindowFinding } from "./result.js";
 import { localPathsEqual } from "../../lib/local-path-identity.js";
@@ -22,7 +23,7 @@ export function windowHostTipFindings(branches: Pick<WindowRecord["branches"], "
     remedy: "Pull main in the importing primary checkout, then retry check." });
   for (const branch of Object.keys(branches.live)) {
     if (branch === "main") continue;
-    const fetched = branches.origin[branch] ?? null, host = branches.host[branch];
+    const fetched = windowBranchValue(branches.origin, branch) ?? null, host = windowBranchValue(branches.host, branch);
     if (host === undefined || fetched !== host) findings.push({ subject: branch,
       condition: `Fetched tip ${fetched ?? "absent"} differs from host ${host === undefined ? "unavailable" : host ?? "absent"}.`,
       remedy: "Fetch origin again, restore readable host evidence if unavailable, then retry check." });

@@ -1,6 +1,6 @@
 /** Plain Git acquisition of landed transient records, without the store listing's manifest writes. */
 import { listWindowRefs, type WindowGitReadIO } from "./git.js";
-import { WindowRefusal } from "./result.js";
+import { WindowRefusal, type WindowFinding } from "./result.js";
 import type { WindowTransientRecord } from "./transients.js";
 import { KIND_REGISTRY } from "../../lib/store/registry.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity } from "../../lib/store/identity.js";
@@ -24,44 +24,47 @@ async function workOwner(io: WindowGitReadIO, ref: string, tip: string): Promise
   return OwnerIdentitySchema.parse({ type: "work-item", name: metadata.slug, uid });
 }
 
-function errandIdentity(ref: string, records: readonly { kind: string; content: string }[]): string {
+function errandIdentity(ref: string, records: readonly { kind: string; content: string }[]): string | WindowFinding {
   const content = records.find(record => record.kind === "work-item/record")?.content;
   const record = content === undefined ? undefined : TransientIdentityRecordSchema.parse(JSON.parse(content));
   if (record?.kind === "errand" && record.purpose === "errand" && record.owner) return `refs/arc/user/${record.owner}/errands`;
-  throw new WindowRefusal([{ subject: ref, condition: `Landed transient records have no readable source identity: ${JSON.stringify(records)}`,
-    remedy: "Preserve the landed store and settle these records before retrying the consumed-input comparison." }]);
+  return { subject: ref, condition: `Landed transient records have no readable source identity: ${JSON.stringify(records)}`,
+    remedy: "Preserve the landed store and settle these records before retrying the consumed-input comparison." };
 }
 
-/** Acquire every landed claim and Errand record or description at captured immutable tips. */
+/** Acquire every landed claim and Errand record or description at captured immutable tips, refusing once with every unplaced record. */
 export async function readLandedWindowTransients(io: WindowGitReadIO): Promise<WindowTransientRecord[]> {
   const tips = await listWindowRefs(io, ["refs/arc/user/", "refs/arc/work/"]);
-  const records: WindowTransientRecord[] = [];
+  const records: WindowTransientRecord[] = [], findings: WindowFinding[] = [];
   for (const [ref, tip] of tips) {
     const family = matchesFamilyRef(ref, "claims") ? "claims" : matchesFamilyRef(ref, "work-item") ? "work-item" : null;
     if (family === null) continue;
-    records.push(...await recordsAt(io, ref, tip, family));
+    const landed = await recordsAt(io, ref, tip, family);
+    records.push(...landed.records); findings.push(...landed.findings);
   }
+  if (findings.length > 0) throw new WindowRefusal(findings);
   return records;
 }
 
 async function recordsAt(io: WindowGitReadIO, ref: string, tip: string,
-  family: "claims" | "work-item"): Promise<WindowTransientRecord[]> {
-  const records: WindowTransientRecord[] = [];
+  family: "claims" | "work-item"): Promise<{ records: WindowTransientRecord[]; findings: WindowFinding[] }> {
+  const records: WindowTransientRecord[] = [], findings: WindowFinding[] = [];
   const { stdout } = await io.exec("git", ["--no-replace-objects", "ls-tree", "-r", "-z", "--name-only", tip],
     { cwd: io.repo, objectAccess: "local-only", preserveOutput: true });
   const selected = stdout.split("\0").filter(Boolean).flatMap(path => {
     const kind = fixedStoredPathKind(KIND_REGISTRY, family, path);
     return kind && transientKinds.has(kind) ? [{ kind, path }] : [];
   });
-  if (selected.length === 0) return [];
+  if (selected.length === 0) return { records, findings };
   const owner = family === "claims" ? OwnerIdentitySchema.parse({ type: "person", name: ref.split("/")[3] }) : await workOwner(io, ref, tip);
   const acquired = await Promise.all(selected.map(async entry => ({ ...entry, content: await blob(io, tip, entry.path) })));
   const source = family === "claims" ? `refs/arc/user/${owner.name}/errands` : errandIdentity(ref, acquired);
+  if (typeof source !== "string") return { records, findings: [source] };
   for (const { kind, path, content } of acquired) {
     const reference = decodeStoredKindReference(KIND_REGISTRY[kind], owner, path);
-    if (reference === null) throw new WindowRefusal([{ subject: `${ref}:${path}`, condition: `The landed path names no matching record: ${content}`,
-      remedy: "Preserve the landed store and repair its record coordinates before retrying the comparison." }]);
-    records.push({ ref: source, reference, content: kind === "work-item/description" ? content : canonicalize(JSON.parse(content)) });
+    if (reference === null) findings.push({ subject: `${ref}:${path}`, condition: `The landed path names no matching record: ${content}`,
+      remedy: "Preserve the landed store and repair its record coordinates before retrying the comparison." });
+    else records.push({ ref: source, reference, content: kind === "work-item/description" ? content : canonicalize(JSON.parse(content)) });
   }
-  return records;
+  return { records, findings };
 }

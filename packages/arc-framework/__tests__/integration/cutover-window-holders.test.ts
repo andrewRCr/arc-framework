@@ -190,6 +190,30 @@ it("refuses an Errand marker without its exact record and requires retirement af
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);
 
+it("defers an Errand marker's holder to an incomplete identity snapshot, and checks the holder once the snapshot reads", async () => {
+  const h = await windowFixture();
+  const path = join(h.root, ".arc-fixture/errand"), snapshot = "refs/arc/user/alex/errands";
+  await h.git("git", ["branch", "chore/example"]);
+  await h.git("git", ["push", "--set-upstream", "origin", "chore/example"]);
+  await h.git("git", ["worktree", "add", path, "chore/example"]);
+  await writeWorktreeMarker(path, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
+    createdFor: { kind: "errand", slug: "example", claimId: "1".repeat(32) }, provisioning: "ready" });
+  await h.git("git", ["update-ref", snapshot, "HEAD"]);
+  const incomplete = await checkFixture(h);
+  expect(incomplete, incomplete.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: snapshot, condition: expect.stringContaining("incomplete snapshot") }),
+  ]) } });
+  expect(incomplete.report).not.toContain("no matching acquired identity record");
+  await h.git("git", ["update-ref", "-d", snapshot]);
+  const unheld = await checkFixture(h);
+  expect(unheld, unheld.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: path, condition: expect.stringMatching(/example.*11111111.*no.*record/u) }),
+  ]) } });
+  await h.git("git", ["worktree", "remove", path]);
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
 it("refuses an unheld Errand marker on the primary and passes once the marker is deleted", async () => {
   const h = await windowFixture(), marker = resolveWorktreeMarkerPath(h.root);
   await writeWorktreeMarker(h.root, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",

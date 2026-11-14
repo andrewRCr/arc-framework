@@ -1,11 +1,10 @@
 /** Fingerprint the exact personal and review sources acquired by the import. */
-import type { WindowImportContext } from "./import-context.js";
+import { windowImportReport, type WindowImportContext } from "./import-context.js";
 import type { WindowCheckout } from "./checkouts.js";
 import { readImportPersonalDisk, type ImportPersonalDisk } from "../../lib/store/ref/import/personal-disk.js";
 import { createHash } from "node:crypto";
 import { isAbsolute, relative, sep } from "node:path";
 import { readImportReviewGate } from "../../lib/store/ref/import/review-gate.js";
-import type { MigrateReport } from "../../lib/store/commands.js";
 import { WindowRefusal } from "./result.js";
 
 /** One acquisition retained for checkout conditions beside its per-checkout fingerprints. */
@@ -59,7 +58,7 @@ function digestEntries(entries: readonly { path: string; bytes: Uint8Array | nul
 
 /** Fingerprint the import's complete review-gate read, preserving unreadable-source refusal. */
 export async function readWindowReviewDigest(context: WindowImportContext): Promise<string> {
-  const report: MigrateReport = { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
+  const report = windowImportReport();
   const files = await readImportReviewGate(context, report);
   if (report.notices.length > 0) throw new WindowRefusal(report.notices.map(notice => ({ subject: "review gate",
     condition: notice.condition, remedy: "Restore access to the review gate's files, then retry." })));

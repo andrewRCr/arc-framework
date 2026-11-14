@@ -10,20 +10,23 @@ import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { storeImported } from "../../lib/store/store-imported.js";
 import { WINDOW_TRACKED_STATE_ROOTS } from "./tracked-state.js";
 
-/** The copy's marked linked checkouts that hold a branch, in branch order; a plan needs at least `count`. */
-export async function markedRehearsalCheckouts(context: WindowRehearsalContext, count: number): Promise<(WindowCheckout & { branch: string })[]> {
-  const rows = (await readWindowCheckouts({ repo: context.layout.repo, exec: context.exec }))
-    .filter((row): row is WindowCheckout & { branch: string } => row.kind === "marked" && !row.primary && row.branch !== null)
-    .sort((left, right) => left.branch.localeCompare(right.branch));
-  if (rows.length < count) throw new WindowRehearsalStop(`The plan needs ${count} marked checkouts holding branches; the copy has ${rows.length}.`);
-  return rows;
+/** A linked checkout a work unit's marker holds, with the unit it names and the branch it holds. */
+export type WindowRehearsalUnitCheckout = WindowCheckout & { branch: string; unit: string };
+
+/** The linked checkouts whose current marker names a work unit and that hold a branch, in branch order. */
+export function workUnitRehearsalCheckouts(rows: readonly WindowCheckout[]): WindowRehearsalUnitCheckout[] {
+  return rows.flatMap(row => {
+    const subject = row.ownership?.kind === "current" ? row.ownership.subject : undefined;
+    return row.kind === "marked" && !row.primary && row.branch !== null && subject?.kind === "work-unit"
+      ? [{ ...row, branch: row.branch, unit: subject.name }] : [];
+  }).sort((left, right) => left.branch.localeCompare(right.branch));
 }
 
-/** The work unit a marked checkout's marker names. */
-export function rehearsalCheckoutUnit(checkout: WindowCheckout): string {
-  const subject = checkout.ownership?.kind === "current" ? checkout.ownership.subject : undefined;
-  if (subject?.kind !== "work-unit") throw new WindowRehearsalStop(`The checkout ${checkout.path} names no work unit.`);
-  return subject.name;
+/** The copy's work-unit checkouts holding branches, in branch order; a plan needs at least `count`. */
+export async function markedRehearsalCheckouts(context: WindowRehearsalContext, count: number): Promise<WindowRehearsalUnitCheckout[]> {
+  const rows = workUnitRehearsalCheckouts(await readWindowCheckouts({ repo: context.layout.repo, exec: context.exec }));
+  if (rows.length < count) throw new WindowRehearsalStop(`The plan needs ${count} work units' marked checkouts holding branches; the copy has ${rows.length}.`);
+  return rows;
 }
 
 /** Commit a change on a mirror branch through the scratch clone, then carry it into the copy; returns both tips. */

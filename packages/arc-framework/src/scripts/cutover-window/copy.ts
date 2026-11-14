@@ -11,7 +11,7 @@ import { windowPathContains } from "./paths.js";
 import { canonicalLocalPath } from "../../lib/local-path-identity.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { assertWindowCopySafety, type WindowCopySafetyOptions } from "./copy-safety.js";
-import type { WindowResult } from "./result.js";
+import type { WindowFinding, WindowResult } from "./result.js";
 
 /** Coordinates of one copied repository and its independent local mirror. */
 export interface WindowCopyLayout {
@@ -40,10 +40,12 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   const roster = await scanRegisteredWorktrees(exec);
   if (!roster.ok) refuse("worktree registrations", roster.message);
   const destination = await futurePhysicalPath(resolve(values.destination));
+  const findings: WindowFinding[] = [];
   for (const row of roster.worktrees) {
-    if (await windowPathContains(row.path, destination)) refuse(destination, `The destination is inside live checkout ${row.path}.`);
-    if (!row.folderPresent) refuse(row.path, "A registered checkout has no folder; restore it or prune its registration before copying.");
+    if (await windowPathContains(row.path, destination)) findings.push(finding(destination, `The destination is inside live checkout ${row.path}.`));
+    if (!row.folderPresent) findings.push(finding(row.path, "A registered checkout has no folder; restore it or prune its registration before copying."));
   }
+  if (findings.length > 0) throw new WindowRefusal(findings);
   const primary = roster.worktrees.find(row => row.primary);
   if (!primary) refuse("copy", "No primary checkout is registered.");
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
@@ -116,24 +118,31 @@ async function refuseLateRegistrations(copiedCommon: string, commonDir: string, 
   let entries: string[] = [];
   try { entries = await readdir(registrations); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  const findings: WindowFinding[] = [];
   for (const entry of entries.sort()) {
     const admin = join(registrations, entry);
     let checkout: string;
     try { checkout = dirname(resolve(admin, (await readFile(join(admin, "gitdir"), "utf8")).trim())); }
     catch {
-      refuse(join(commonDir, "worktrees", entry), "This worktree registration has no readable gitdir, so Git lists it as prunable and omits it from the registered checkouts.",
-        "Run `git worktree prune` in the live repository and retry with a new, absent destination.");
+      findings.push(finding(join(commonDir, "worktrees", entry), "This worktree registration has no readable gitdir, so Git lists it as prunable and omits it from the registered checkouts.",
+        "Run `git worktree prune` in the live repository and retry with a new, absent destination."));
+      continue;
     }
     if (!await windowPathContains(destination, checkout)) {
-      refuse(checkout, "This checkout was registered while the copy ran, so the copy holds its registration without its folder; repairing the copy would rewrite the live checkout's pointer.");
+      findings.push(finding(checkout, "This checkout was registered while the copy ran, so the copy holds its registration without its folder; repairing the copy would rewrite the live checkout's pointer."));
     }
   }
+  if (findings.length > 0) throw new WindowRefusal(findings);
 }
 
 const RETRY = "Repair the condition and retry with a new, absent destination.";
 
+function finding(subject: string, condition: string, remedy = RETRY): WindowFinding {
+  return { subject, condition, remedy };
+}
+
 function refuse(subject: string, condition: string, remedy = RETRY): never {
-  throw new WindowRefusal([{ subject, condition, remedy }]);
+  throw new WindowRefusal([finding(subject, condition, remedy)]);
 }
 
 async function futurePhysicalPath(path: string): Promise<string> {

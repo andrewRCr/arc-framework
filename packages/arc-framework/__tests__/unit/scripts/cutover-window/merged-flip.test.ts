@@ -49,7 +49,7 @@ it.each(["resolved", "still missing", "moved"])("fetches a missing main commit i
   const target = io([
     { match: resolveTip, responses: [{ failure: { exitCode: 1 } },
       outcome === "still missing" ? { failure: { exitCode: 1 } } : { stdout: tip }] },
-    { match: { prefix: ["fetch", "--refmap=", "origin"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["fetch", "--refmap=", "--no-tags", "--no-write-fetch-head", "origin"] }, responses: [{ stdout: "" }] },
     { match: { predicate: args => args[0] === "--no-replace-objects" && args[1] === "rev-parse" &&
       args.at(-1)?.startsWith("refs/arc-window-scratch/") === true }, responses: [{ stdout: fetched }] },
     { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },
@@ -73,7 +73,8 @@ it("refuses when origin has no main tip", async () => {
 it.each(["still missing", "moved"])("names the branch it acquires when its host tip is %s", async outcome => {
   const target = io([
     { match: resolveTip, responses: [{ failure: { exitCode: 1 } }, { failure: { exitCode: 1 } }] },
-    { match: { predicate: args => args[0] === "fetch" && args[3]?.startsWith("refs/heads/feat/x:") === true }, responses: [{ stdout: "" }] },
+    { match: { predicate: args => args.slice(0, 5).join(" ") === "fetch --refmap= --no-tags --no-write-fetch-head origin"
+      && args.at(-1)?.startsWith("refs/heads/feat/x:") === true }, responses: [{ stdout: "" }] },
     { match: { predicate: args => args[0] === "--no-replace-objects" && args[1] === "rev-parse" &&
       args.at(-1)?.startsWith("refs/arc-window-scratch/") === true }, responses: [{ stdout: outcome === "moved" ? "c".repeat(40) : tip }] },
     { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },

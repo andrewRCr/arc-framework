@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { rehearsalMirrorRepository } from "../helpers/cutover-window/rehearse-mirror.js";
-import { mergeRehearsalMain } from "../../src/scripts/cutover-window/rehearse-merge.js";
+import { mergeRehearsalMain, returnRehearsalPaths } from "../../src/scripts/cutover-window/rehearse-merge.js";
 import { dropRehearsalStashes } from "../../src/scripts/cutover-window/rehearse-prepare.js";
 
 const pointer = ".arc/backlog/planned/meta-parked.md", active = ".arc/active/meta-parked.md";
@@ -28,7 +28,7 @@ it("keeps a parked branch's meta and pointer absence when main's park merges in 
   await r.git("push", "--quiet", "origin", "main", "feat/parked");
   await r.git("fetch", "--quiet", "origin");
   await r.sync.open();
-  await mergeRehearsalMain(r.context, "feat/parked", [{ slug: "parked", path: pointer, branch: "feat/parked" }]);
+  await mergeRehearsalMain(r.context, "feat/parked", [{ slug: "parked", path: pointer, branch: "feat/parked", available: true }]);
   const at = (path: string) => r.exec("git", ["--git-dir", r.mirror, "show", `refs/heads/feat/parked:${path}`]);
   expect((await at(active)).stdout.trimEnd()).toBe(graduated.join("\n"));
   await expect(at(pointer)).rejects.toThrow();
@@ -52,10 +52,32 @@ it("keeps a parked branch's meta when main's park conflicts with it", async () =
   await r.git("commit", "--quiet", "-am", "Park the unit");
   await r.git("push", "--quiet", "origin", "main", "feat/parked");
   await r.sync.open();
-  await mergeRehearsalMain(r.context, "feat/parked", [{ slug: "parked", path: pointer, branch: "feat/parked" }]);
+  await mergeRehearsalMain(r.context, "feat/parked", [{ slug: "parked", path: pointer, branch: "feat/parked", available: true }]);
   const at = (path: string) => r.exec("git", ["--git-dir", r.mirror, "show", `refs/heads/feat/parked:${path}`]);
   expect((await at(active)).stdout.trimEnd()).toBe(graduated.join("\n"));
   await expect(at(pointer)).rejects.toThrow();
+}, 60_000);
+
+it("returns a path on an unheld branch whose mirror tip already holds it, then moves the behind local copy to that tip", async () => {
+  const r = await rehearsalRepository(), notes = ".arc/active/notes-alpha.md";
+  await r.write(notes, "# Notes: Alpha\n");
+  await r.git("add", "."); await r.git("commit", "--quiet", "-m", "Start");
+  await r.git("checkout", "--quiet", "-b", "feat/alpha");
+  await r.write(notes, "# Notes: Alpha\n\nA shared change on the branch.\n");
+  await r.git("commit", "--quiet", "-am", "Change shared state");
+  const behind = (await r.git("rev-parse", "HEAD")).stdout.trim();
+  await r.write(notes, "# Notes: Alpha\n");
+  await r.git("commit", "--quiet", "-am", "Return shared state");
+  const tip = (await r.git("rev-parse", "HEAD")).stdout.trim();
+  await r.git("push", "--quiet", "origin", "main", "feat/alpha");
+  await r.git("checkout", "--quiet", "main");
+  await r.git("branch", "--force", "feat/alpha", behind);
+  await r.git("fetch", "--quiet", "origin");
+  await r.sync.open();
+  await returnRehearsalPaths(r.context, "feat/alpha", [notes]);
+  expect((await r.exec("git", ["--git-dir", r.mirror, "rev-parse", "refs/heads/feat/alpha"])).stdout.trim()).toBe(tip);
+  await r.sync.sync();
+  expect((await r.git("rev-parse", "refs/heads/feat/alpha")).stdout.trim()).toBe(tip);
 }, 60_000);
 
 it("drops only the stash entries that change tracked state, last position first", async () => {
@@ -73,4 +95,18 @@ it("drops only the stash entries that change tracked state, last position first"
   expect(await dropRehearsalStashes(r.context)).toBe("Dropped 2 stash entries.");
   expect((await r.git("stash", "list", "--format=%gs")).stdout.trim()).toBe("On main: code edit");
   expect(await readFile(join(r.repo, ".arc/active/notes-alpha.md"), "utf8")).toBe("# Notes: Alpha\n");
+}, 60_000);
+
+it("stops before dropping any stash when an entry cannot be inspected, and drops after the entry is repaired", async () => {
+  const r = await rehearsalRepository();
+  await r.write(".arc/active/notes-alpha.md", "# Notes: Alpha\n");
+  await r.git("add", "."); await r.git("commit", "--quiet", "-m", "Start");
+  await writeFile(join(r.repo, ".arc/active/notes-alpha.md"), "# Notes: Alpha\n\nA state edit.\n");
+  await r.git("stash", "push", "--quiet", "-m", "state edit");
+  await r.git("update-ref", "--create-reflog", "-m", "On main: not a stash", "refs/stash", "HEAD");
+  await expect(dropRehearsalStashes(r.context)).rejects.toThrow(/Cannot inspect stash snapshots:\nstash@\{0\}: .*malformed parent layout/u);
+  expect((await r.git("stash", "list", "--format=%gs")).stdout.trim().split("\n")).toHaveLength(2);
+  await r.git("reflog", "delete", "--updateref", "--rewrite", "refs/stash@{0}");
+  expect(await dropRehearsalStashes(r.context)).toBe("Dropped 1 stash entry.");
+  expect((await r.git("stash", "list")).stdout.trim()).toBe("");
 }, 60_000);

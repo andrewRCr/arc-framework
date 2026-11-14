@@ -1,6 +1,6 @@
 /** Validate the flip's recorded branch and checkout coordinates before inspecting its final commit. */
 import { WINDOW_TRACKED_STATE_ROOTS } from "./tracked-state.js";
-import type { WindowGitReadIO } from "./git.js";
+import { windowBranchValue, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
 import type { WindowFinding } from "./result.js";
 import type { WindowRecomputeCoordinates } from "./recompute-coordinates.js";
@@ -9,12 +9,13 @@ interface FlipCoordinate { subject: string; tip: string | null }
 /** An agreed next head, or coordinate differences that prevent choosing one. */
 export interface WindowFlipCommitBasis { tip: string | null; findings: WindowFinding[] }
 
-/** Require every recorded flip side and checkout to name the same advanced head. */
+/** Require every recorded flip side and checkout to name the same advanced head; an unread host map names no side. */
 export function windowFlipCommitBasis(record: WindowRecord, observed: WindowRecomputeCoordinates): WindowFlipCommitBasis {
   const branch = record.flip.branch, findings: WindowFinding[] = [];
-  const coordinates: FlipCoordinate[] = [{ subject: `host:${branch}`, tip: observed.branches.host[branch] ?? null }];
+  const host = observed.branches.host;
+  const coordinates: FlipCoordinate[] = host === null ? [] : [{ subject: `host:${branch}`, tip: windowBranchValue(host, branch) ?? null }];
   for (const side of ["local", "origin"] as const) {
-    if (Object.hasOwn(record.branches[side], branch)) coordinates.push({ subject: `${side}:${branch}`, tip: observed.branches[side][branch] ?? null });
+    if (Object.hasOwn(record.branches[side], branch)) coordinates.push({ subject: `${side}:${branch}`, tip: windowBranchValue(observed.branches[side], branch) ?? null });
   }
   for (const held of record.worktrees.filter(row => row.branch === branch)) {
     const current = observed.worktrees.find(row => row.path === held.path);

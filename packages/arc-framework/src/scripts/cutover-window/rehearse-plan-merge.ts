@@ -8,7 +8,7 @@ import { closeWindow } from "./close.js";
 import { settleWindowOperation } from "./rehearse-expect.js";
 import { expectRehearsalOperation, rehearsalFlipArgs } from "./rehearse-window.js";
 import { WindowRehearsalStop, type WindowRehearsalContext, type WindowRehearsalPlan } from "./rehearse-run.js";
-import { appendRehearsalLine, commitRehearsalBranch, markedRehearsalCheckouts, readRehearsalRecord, rehearsalCheckoutUnit,
+import { appendRehearsalLine, commitRehearsalBranch, markedRehearsalCheckouts, readRehearsalRecord,
   trackingCheckouts, unrecordedStateSides } from "./rehearse-plan-tools.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -74,7 +74,7 @@ async function compareAfterTheMerge(context: WindowRehearsalContext, record: Win
   const identity = await createDefaultStorePorts({ checkoutRoot: context.layout.repo }).identity();
   if (identity === null) throw new WindowRehearsalStop("The copy has no configured identity.");
   const personal = join(edited.path, resolveArcPath({ kind: "user-document", identity,
-    document: { kind: "session-notes", workUnit: SlugSchema.parse(rehearsalCheckoutUnit(edited)) } }));
+    document: { kind: "session-notes", workUnit: SlugSchema.parse(edited.unit) } }));
   await mkdir(dirname(personal), { recursive: true });
   await appendFile(personal, "Edited after the merge.\n");
   const ranges: string[] = [];

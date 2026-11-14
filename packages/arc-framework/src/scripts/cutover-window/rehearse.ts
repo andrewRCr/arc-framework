@@ -46,8 +46,8 @@ export async function rehearseWindow(request: WindowRequest, options: WindowRehe
   await assertWindowCopySafety(bounds, options);
   const workspace = join(bounds.destination, "rehearsal");
   const layout: WindowRehearsalLayout = { ...bounds, workspace, scratch: join(workspace, "scratch") };
-  await mkdir(workspace, { recursive: true });
   const path = await withoutWindowArcDirectories(process.env.PATH ?? "");
+  await mkdir(workspace, { recursive: true });
   const exec = createDefaultStorePorts({ checkoutRoot: layout.repo }).exec;
   const sync = new WindowRehearsalSync(layout, exec, options.rebuild ?? (primary => rebuildWindowRehearsalPrimary(primary, path)));
   const context: WindowRehearsalContext = { layout, sync, exec, flip: input.flip, checkPath: input.path ?? process.env.PATH ?? "",

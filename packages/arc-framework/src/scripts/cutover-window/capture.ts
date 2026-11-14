@@ -1,6 +1,6 @@
 /** Capture the importing repository's coordinates and acquired source digests for the window record. */
 import { readWindowImportPlacementFindings } from "./off-host.js";
-import { listWindowRefs, type WindowGitReadIO } from "./git.js";
+import { listWindowRefs, selectWindowRefs, type WindowGitReadIO } from "./git.js";
 import type { WindowRecord } from "./hold.js";
 import type { WindowFlipInput } from "./input.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
@@ -19,11 +19,6 @@ export interface WindowCapturedState {
   findings: WindowFinding[];
 }
 
-function select(refs: ReadonlyMap<string, string>, prefix: string, branches = false): Record<string, string> {
-  return Object.fromEntries<string>([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
-    .map(([ref, tip]): [string, string] => [branches ? ref.slice(prefix.length) : ref, tip]));
-}
-
 /** Read every registered checkout, local/fetched branch, and local/tracking ARC ref without moving any ref. */
 export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipInput,
   origin: WindowOriginInputs): Promise<WindowCapturedState> {
@@ -33,7 +28,7 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
   ]);
   const placement = await readWindowImportPlacementFindings(io.repo, checkouts);
   if (placement.length > 0) throw new WindowRefusal(placement);
-  const local = select(refs, "refs/heads/", true); const fetched = select(refs, "refs/remotes/origin/", true);
+  const local = selectWindowRefs(refs, "refs/heads/", true); const fetched = selectWindowRefs(refs, "refs/remotes/origin/", true);
   const head = fetched[input.branch] ?? local[input.branch];
   if (head === undefined) throw new WindowRefusal([{ subject: input.branch, condition: "The named flip branch cannot be resolved.",
     remedy: "Fetch or restore the intended flip branch, then retry check." }]);
@@ -54,8 +49,8 @@ export async function captureWindowState(io: WindowGitReadIO, input: WindowFlipI
   });
   return { checkouts, personal, live, context, findings: [...live.findings, ...review.findings],
     record: { version: 1, flip: { branch: input.branch, pullRequest: input.pullRequest, head }, worktrees, reviewGateDigest,
-      branches: { local, origin: fetched, host, live: live.branches }, refs: { local: select(refs, "refs/arc/"), origin: { ...origin.refs },
-        tracking: select(refs, "refs/arc-remotes/origin/") } } };
+      branches: { local, origin: fetched, host, live: live.branches }, refs: { local: selectWindowRefs(refs, "refs/arc/"), origin: { ...origin.refs },
+        tracking: selectWindowRefs(refs, "refs/arc-remotes/origin/") } } };
 }
 
 async function readReviewDigest(context: WindowImportContext): Promise<{ digest: string; findings: WindowFinding[] }> {

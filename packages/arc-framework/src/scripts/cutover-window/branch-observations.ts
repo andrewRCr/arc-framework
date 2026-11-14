@@ -1,12 +1,13 @@
 /** Observe branch sides and acquire the object evidence needed to retain post-import marks. */
 import type { WindowHoldIO, WindowRecord } from "./hold.js";
-import { readWindowRefTip } from "./git.js";
+import { readWindowRefTip, windowBranchValue } from "./git.js";
 import { createWindowHost } from "./native-host.js";
 import { acquireWindowHostCommit } from "./merged-flip.js";
 import { WINDOW_TRACKED_STATE_ROOTS } from "./tracked-state.js";
 import type { WindowComparisonMark } from "./comparison-marks.js";
 import { WindowRefusal } from "./result.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 
 /** Read all tracked state paths in a commit's tree without resolving replace objects or lazy fetching. */
 export async function readWindowTrackedPaths(io: Pick<WindowHoldIO, "repo" | "exec">, revision: string): Promise<string[]> {
@@ -24,12 +25,12 @@ export function isWindowRecordedBranch(record: WindowRecord, branch: string): bo
 /** Observe recorded live sides, or each present side of an unrecorded state-bearing branch. */
 export async function readWindowBranchObservations(io: WindowHoldIO, record: WindowRecord, branch: string): Promise<WindowComparisonMark[]> {
   if (branch === "main" || branch === record.flip.branch) return [];
-  const recorded = Object.hasOwn(record.branches.live, branch) ? record.branches.live[branch] : undefined;
+  const recorded = windowBranchValue(record.branches.live, branch);
   if (recorded === undefined && isWindowRecordedBranch(record, branch)) return [];
   const local = await readWindowRefTip(io, `refs/heads/${branch}`);
   const origin = (await createWindowHost(io).refs([`refs/heads/${branch}`]))[`refs/heads/${branch}`] ?? null;
   if (origin !== null) await acquireWindowHostCommit(io, branch, origin);
-  if (recorded === undefined && !await stateBearing(io, [local, origin])) return [];
+  if (recorded === undefined && !await windowTipsTrackState(io, [local, origin])) return [];
   return sideMarks(io, record, branch, recorded, { local, origin });
 }
 
@@ -49,7 +50,8 @@ async function sideMarks(io: WindowHoldIO, record: WindowRecord, branch: string,
   return marks;
 }
 
-async function stateBearing(io: WindowHoldIO, tips: readonly (string | null)[]): Promise<boolean> {
+/** Whether any present tip holds tracked state: compare marks such a branch, and close refuses one left unmarked. */
+export async function windowTipsTrackState(io: Pick<WindowHoldIO, "repo" | "exec">, tips: readonly (string | null)[]): Promise<boolean> {
   for (const tip of tips) if (tip !== null && (await readWindowTrackedPaths(io, tip)).length) return true;
   return false;
 }
@@ -67,6 +69,6 @@ export async function readWindowUnrecordedBase(io: WindowHoldIO, record: WindowR
       condition: `Unrecorded branch tip ${tip} shares no history with main's recorded tip ${main}, so its range has no base.`,
       remedy: `Delete ${branch} locally and on origin if it is not wanted, or merge main into it with git merge --allow-unrelated-histories main and push it, then run compare --branch ${branch} again.` }]);
   }
-  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(base)) throw new Error("No complete unrecorded-branch merge base is available. Restore history and retry.");
+  if (!isGitObjectId(base)) throw new Error("No complete unrecorded-branch merge base is available. Restore history and retry.");
   return base;
 }

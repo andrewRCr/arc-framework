@@ -1,5 +1,6 @@
 /** Reconstruct comparison ranges from held marks, independently of later live branch tips. */
 import type { WindowHoldIO, WindowRecord } from "./hold.js";
+import { windowBranchValue } from "./git.js";
 import { readWindowUnrecordedBase } from "./branch-observations.js";
 import { windowComparisonRange, type WindowComparisonMark, type WindowComparisonRange } from "./comparison-marks.js";
 
@@ -18,7 +19,7 @@ export async function readWindowHeldComparisons(io: WindowHoldIO, record: Window
     const parsed = parseMarkRef(ref);
     if (parsed === null || branch !== undefined && parsed.branch !== branch) continue;
     const { side, kind, branch: name } = parsed;
-    const recorded = record.branches.live[name]?.[side] ?? null;
+    const recorded = windowBranchValue(record.branches.live, name)?.[side] ?? null;
     const base = recorded ?? await readWindowUnrecordedBase(io, record, name, tip);
     const confirmationRef = `refs/arc-window/confirmed/${side}/${name}`, confirmation = held.get(confirmationRef) ?? null;
     const mark: WindowHeldMark = { branch: name, side, kind, tip, recorded, base, ref, confirmation };

@@ -36,12 +36,21 @@ export class WindowRefusal extends Error {
   }
 }
 
-/** Report a condition whose input cannot be read as its own findings, so the operation still evaluates every other one. */
-export async function windowRefusalFindings(read: () => Promise<WindowFinding[]>): Promise<WindowFinding[]> {
+/** A read's value, or the findings of the refusal that kept it from being read. */
+export type WindowRead<T> = { value: T } | { findings: WindowFinding[] };
+
+/** Read one input, returning a refusal as its findings so the operation still evaluates every comparison it does not feed. */
+export async function windowRead<T>(read: () => Promise<T>): Promise<WindowRead<T>> {
   try {
-    return await read();
+    return { value: await read() };
   } catch (error) {
-    if (error instanceof WindowRefusal) return [...error.findings];
+    if (error instanceof WindowRefusal) return { findings: [...error.findings] };
     throw error;
   }
+}
+
+/** Report a condition whose input cannot be read as its own findings, so the operation still evaluates every other one. */
+export async function windowRefusalFindings(read: () => Promise<WindowFinding[]>): Promise<WindowFinding[]> {
+  const result = await windowRead(read);
+  return "value" in result ? result.value : result.findings;
 }

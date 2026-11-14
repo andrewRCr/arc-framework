@@ -1,6 +1,7 @@
 /** Refuse committed tracked-state changes outside the import's selected read and inherited content. */
 import type { WindowImportContext } from "./import-context.js";
 import type { WindowRecord } from "./hold.js";
+import { windowBranchValue } from "./git.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
 import type { ComposedLifecycleIndexResult } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { createWindowReadMap, type WindowParkedPointer, type WindowReadMap } from "./read-map.js";
@@ -29,20 +30,22 @@ export async function readWindowTrackedRecordFindings(context: WindowImportConte
   const { findings, failures } = await inspectWindowTrackedRecords(context, { main,
     branches: [...new Set([...Object.keys(record.branches.live), record.flip.branch])],
     local: record.branches.local, origin: record.branches.origin }, composition);
-  // A parked unit with no readable source is reported once by the read map, not again for each of its files.
-  return [...findings, ...failures.filter(failure => failure.result.readCopyRef !== null)
-    .map(failure => trackedRecordFinding(failure.result, failure.target))];
+  return [...findings, ...failures.map(failure => trackedRecordFinding(failure.result, failure.target))];
 }
 
-/** Find every tracked path the read rule fails at the basis's revisions. */
+/**
+ * Find every tracked path the read rule fails at the basis's revisions. A parked unit whose source the import cannot
+ * read is reported once by the read map, so neither its files nor its pointer path fail again here.
+ */
 export async function inspectWindowTrackedRecords(context: WindowImportContext, basis: WindowTrackedRecordBasis,
   composition: ComposedLifecycleIndexResult): Promise<WindowTrackedRecordInspection> {
   const map = await createWindowReadMap(context, basis.main, composition), rule = createWindowReadRule(context, map);
+  const unreadPointers = new Set(map.parked.filter(pointer => !pointer.available).map(pointer => pointer.path));
   const failures: WindowTrackedRecordFailure[] = [];
   for (const target of comparisonRevisions(basis)) {
     for (const path of await comparisonPaths(rule, map, target)) {
       const result = await rule.inspect(path, target.tip, target.branchTip);
-      if (!result.passes) failures.push({ target, result });
+      if (!result.passes && result.readCopyRef !== null && !unreadPointers.has(result.path)) failures.push({ target, result });
     }
   }
   return { findings: [...map.findings], failures, parked: map.parked };
@@ -70,7 +73,7 @@ function comparisonRevisions(basis: WindowTrackedRecordBasis): WindowComparisonR
   for (const branch of basis.branches) {
     if (branch === "main") continue;
     for (const side of ["local", "origin"] as const) {
-      const tip = basis[side][branch];
+      const tip = windowBranchValue(basis[side], branch);
       if (tip) revisions.push({ ref: `${side === "local" ? "refs/heads/" : "refs/remotes/origin/"}${branch}`, tip, branchTip: true });
     }
   }

@@ -1,5 +1,5 @@
 /** Read-only comparison of the import's consumed transient identity input against the window hold. */
-import { listWindowRefs, readWindowRefTip, type WindowGitReadIO } from "./git.js";
+import { listWindowRefs, readWindowRefTip, WINDOW_REGISTRY_REF, type WindowGitReadIO } from "./git.js";
 import { readWindowTransientRecords, type WindowTransientRecord, isWindowIdentityRef } from "./transients.js";
 import { readLandedWindowTransients } from "./landed-transients.js";
 import { canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
@@ -20,7 +20,7 @@ export async function compareWindowConsumption(io: WindowGitReadIO,
   held: Readonly<Record<string, string>>): Promise<WindowConsumption> {
   const identities: WindowConsumedIdentity[] = Object.entries(held).filter(([ref]) => isWindowIdentityRef(ref))
     .map(([ref, tip]) => ({ ref, held: tip, kept: null as string | null }));
-  if (await readWindowRefTip(io, "refs/arc/project/registry") === null) return { regime: "unconsumed", identities, findings: [] };
+  if (await readWindowRefTip(io, WINDOW_REGISTRY_REF) === null) return { regime: "unconsumed", identities, findings: [] };
   const tips = await listWindowRefs(io, [IMPORT_KEPT_PREFIX]);
   const kept = new Map([...tips].map(([ref, tip]) => ["refs/arc/" + ref.slice(IMPORT_KEPT_PREFIX.length), tip]));
   for (const [ref, tip] of kept) {

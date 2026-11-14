@@ -39,6 +39,6 @@ if (fs.readFileSync(${JSON.stringify(response)}, "utf8") === "found") {
   const refused = await run("hosted");
   expect(refused.exitCode, refused.stderr).toBe(1);
   expect(JSON.parse(refused.stdout)).toMatchObject({ operation: "copy", status: "refused", findings: [
-    expect.objectContaining({ condition: expect.stringContaining("owner/repository") }),
-  ] });
+    join(root, "hosted", "primary"), join(root, "hosted", "mirror.git"),
+  ].map(subject => expect.objectContaining({ subject, condition: expect.stringContaining("owner/repository") })) });
 }, 60_000);

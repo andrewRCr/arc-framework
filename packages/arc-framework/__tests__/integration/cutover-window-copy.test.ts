@@ -1,5 +1,5 @@
 /** Native repository copying must preserve every live pointer while relocating copied registrations. */
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -64,6 +64,8 @@ it("copies all registered checkouts and a mirror without changing live registrat
     sentinels.push(await readFile(join(row.path, ".arc-fixture/copy-sentinel.txt"), "utf8"));
   }
   expect(sentinels.sort()).toEqual(["linked", "nested", "primary"]);
+  await expect(lstat(join(repo, ".arc-fixture/nested")), "the nested checkout is copied only as its own registration").rejects
+    .toMatchObject({ code: "ENOENT" });
   for (const cwd of [repo, mirror]) {
     const remotes = (await h.git("git", ["remote"], { cwd })).stdout.trim().split("\n").filter(Boolean);
     for (const remote of remotes) for (const args of [["remote", "get-url", "--all", remote], ["remote", "get-url", "--push", "--all", remote]]) {
@@ -118,14 +120,16 @@ it("refuses a destination that is a direct child of a live checkout named with t
   expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });
 }, 60_000);
 
-it("refuses a registered checkout with no folder and copies once its registration is pruned", async () => {
+it("refuses every registered checkout with no folder together and copies once their registrations are pruned", async () => {
   const h = await windowFixture(), container = await mkdtemp(join(tmpdir(), "arc-window-copy-missing-"));
   onTestFinished(() => rm(container, { recursive: true, force: true }));
-  const gone = join(container, "gone");
-  await h.git("git", ["worktree", "add", "--detach", gone]);
-  await rm(gone, { recursive: true, force: true });
+  const gone = [join(container, "gone-a"), join(container, "gone-b")];
+  for (const path of gone) {
+    await h.git("git", ["worktree", "add", "--detach", path]);
+    await rm(path, { recursive: true, force: true });
+  }
   expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 1, result: { status: "refused",
-    findings: [{ subject: gone, condition: expect.stringContaining("has no folder"), remedy: expect.stringContaining("new, absent destination") }] } });
+    findings: gone.map(subject => ({ subject, condition: expect.stringContaining("has no folder"), remedy: expect.stringContaining("new, absent destination") })) } });
   await expect(readdir(join(container, "copy"))).rejects.toMatchObject({ code: "ENOENT" });
   await h.git("git", ["worktree", "prune"]);
   expect(await runCopy(h.root, join(container, "copy"))).toMatchObject({ exit: 0 });

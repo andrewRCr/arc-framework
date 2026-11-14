@@ -6,8 +6,10 @@ import type { ComposedLifecycleSlugQuality } from "../../lib/work-unit/composed-
 import type { RegisteredWorktree } from "../../lib/git/worktree-roster.js";
 import type { WindowTransientRecord } from "./transients.js";
 import { TransientIdentityRecordSchema } from "../../lib/errand/identity-record.js";
+import { windowBranchValue } from "./git.js";
+import { GIT_OBJECT_ID_PATTERN } from "../../lib/git/object-id.js";
 
-const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
+const oid = z.string().regex(GIT_OBJECT_ID_PATTERN);
 /** Recorded local and fetched coordinates, retaining why the branch belongs to the window. */
 export const WindowLiveBranchSchema = z.strictObject({ local: oid.nullable(), origin: oid.nullable(), reasons: z.array(z.string().min(1)).min(1) });
 /** One live branch's immutable check-time observations. */
@@ -40,7 +42,7 @@ export function deriveWindowLiveBranches(input: WindowLiveBranchInput): Record<s
 }
 
 function branchTip(tips: Readonly<Record<string, string>>, branch: string): string | null {
-  return Object.hasOwn(tips, branch) ? tips[branch] ?? null : null;
+  return windowBranchValue(tips, branch) ?? null;
 }
 
 function addErrandReasons(reasons: Map<string, Set<string>>, identities: WindowLiveBranchInput["identities"]): void {

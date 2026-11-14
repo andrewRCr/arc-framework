@@ -7,8 +7,9 @@ import { updateRefTransaction, type RefChange } from "../../lib/git/ref-transact
 import { refFetchArgs } from "../../lib/store/ref/fetch-target.js";
 import { hashBlob, writeTreeCommit } from "../../lib/git/ref-tree.js";
 import { WindowLiveBranchSchema } from "./live-branches.js";
+import { GIT_OBJECT_ID_PATTERN } from "../../lib/git/object-id.js";
 
-const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
+const oid = z.string().regex(GIT_OBJECT_ID_PATTERN);
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const names = z.string().min(1).regex(/^[^\s\0]+$/u);
 const branchTips = z.record(names, oid);

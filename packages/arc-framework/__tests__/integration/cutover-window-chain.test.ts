@@ -9,16 +9,12 @@ import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { importCandidatePath } from "../helpers/store/import-candidates.js";
 import type { WindowCandidateComparison } from "../../src/scripts/cutover-window/chain-candidate.js";
-import { runWindow } from "../../src/scripts/cutover-window/main.js";
+import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
 
-async function chain(h: Awaited<ReturnType<typeof windowFixture>>, report: string) {
-  const stdout: string[] = [], stderr: string[] = [];
-  const exit = await runWindow(["chain", "--repo", h.root, "--report", report, "--json"], undefined, {
-    stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); },
-  });
-  return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
+function chain(h: Awaited<ReturnType<typeof windowFixture>>, report: string) {
+  return invokeWindow(h.root, "chain", ["--report", report]);
 }
 
 it("passes equal current records and chains without changing refs", async () => {

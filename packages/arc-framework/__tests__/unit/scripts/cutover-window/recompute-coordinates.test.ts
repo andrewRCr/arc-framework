@@ -51,3 +51,14 @@ it("exempts only the recorded flip tips and checkout head while retaining other 
     expect.objectContaining({ subject: "review gate" }),
   ]);
 });
+
+it("reports a deleted branch named like an inherited object property as null, not as the inherited value", () => {
+  const held = record();
+  Object.assign(held.branches.local, { constructor: tip });
+  const current = structuredClone(held);
+  Reflect.deleteProperty(current.branches.local, "constructor");
+  const findings = windowRecomputeCoordinateFindings(held, current);
+  expect(findings).toEqual([expect.objectContaining({ subject: "local:constructor" })]);
+  expect(findings[0]?.condition).toContain("null");
+  expect(findings[0]?.condition).not.toContain("function");
+});

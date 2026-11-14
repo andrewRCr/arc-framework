@@ -69,7 +69,7 @@ it.each([true, false])("refuses a backing repository in a primary=%s checkout an
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
-it.each(["gitfile", "registration"] as const)("refuses a copied %s pointing outside the copy and admits its repair", async kind => {
+it.each(["gitfile", "registration"] as const)("refuses every pointer a copied %s leads outside the copy and admits its repair", async kind => {
   const h = await copiedFixture(), linked = h.layout.worktrees.find(row => !row.primary);
   if (!linked) throw new Error("Missing linked copy");
   const copiedGit = (await readFile(join(linked.path, ".git"), "utf8")).trim().slice(8);
@@ -77,8 +77,9 @@ it.each(["gitfile", "registration"] as const)("refuses a copied %s pointing outs
   const path = kind === "gitfile" ? join(linked.path, ".git") : join(copiedGit, "gitdir");
   const before = await readFile(path, "utf8");
   await writeFile(path, kind === "gitfile" ? `gitdir: ${sourceGit}\n` : `${join(linked.source, ".git")}\n`);
+  const outside = [...kind === "registration" ? [linked.source] : [], sourceGit, resolve(sourceGit, "../..")];
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
-    .rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("outside the copy") })] });
+    .rejects.toMatchObject({ findings: outside.map(subject => expect.objectContaining({ subject, condition: expect.stringContaining("outside the copy") })) });
   await writeFile(path, before);
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
@@ -99,19 +100,43 @@ it("refuses a gitfile inside the copied Git directory that names the live reposi
 it.each([
   ["repo", "url", "/another/local/repository"], ["repo", "pushurl", "https://github.com/owner/repository.git"],
   ["mirror", "url", "https://github.com/owner/repository.git"], ["mirror", "pushurl", "/another/local/repository"],
-] as const)("refuses an effective %s remote %s outside the mirror and admits its repair", async (side, key, value) => {
+] as const)("refuses an effective %s remote %s outside the mirror in every repository sharing it and admits its repair", async (side, key, value) => {
   const h = await copiedFixture(), cwd = h.layout[side];
   await h.git("git", ["config", "--add", `remote.origin.${key}`, value], { cwd });
+  const repositories = side === "repo" ? h.layout.worktrees.map(row => row.path) : [h.layout.mirror];
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } }))
-    .rejects.toMatchObject({ findings: [expect.objectContaining({ subject: expect.stringContaining("origin"),
-      condition: expect.stringContaining("mirror") })] });
+    .rejects.toMatchObject({ findings: repositories.map(repository => expect.objectContaining({ subject: `${repository}:origin`,
+      condition: expect.stringContaining("mirror") })) });
   await h.git("git", ["config", "--replace-all", `remote.origin.${key}`, h.layout.mirror], { cwd });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);
 
-it("refuses when host discovery finds a repository and admits it after discovery answers none", async () => {
+it("refuses each repository where host discovery finds a repository and admits them after discovery answers none", async () => {
   const h = await copiedFixture();
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => "owner/repository" } }))
-    .rejects.toMatchObject({ findings: [expect.objectContaining({ condition: expect.stringContaining("owner/repository") })] });
+    .rejects.toMatchObject({ findings: [...h.layout.worktrees.map(row => row.path), h.layout.mirror].map(subject =>
+      expect.objectContaining({ subject, condition: expect.stringContaining("owner/repository") })) });
   await expect(assertWindowCopySafety(h.layout, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
+}, 60_000);
+
+it("refuses every failing subject together, runs no host discovery where a remote fails, and admits a new copy once repaired", async () => {
+  const snapshot = "refs/arc/user/alex/errands";
+  const h = await copiedFixture(async source => {
+    await source.git("git", ["update-ref", snapshot, "HEAD"]);
+    await source.git("git", ["push", "origin", snapshot]);
+  });
+  await h.git("git", ["config", "--add", "remote.origin.url", "/another/local/repository"], { cwd: h.layout.mirror });
+  let discoveries = 0;
+  const host = { discoverRepository: async () => { discoveries += 1; return null; } };
+  const remedy = "Repair the identity snapshot on the live repository, then take a new copy.";
+  await expect(assertWindowCopySafety(h.layout, { host })).rejects.toMatchObject({ findings: [
+    expect.objectContaining({ subject: `${h.layout.mirror}:origin`, condition: expect.stringContaining("mirror") }),
+    expect.objectContaining({ subject: `${h.layout.repo}:${snapshot}`, condition: expect.stringContaining("incomplete snapshot"), remedy }),
+    expect.objectContaining({ subject: `${h.layout.mirror}:${snapshot}`, condition: expect.stringContaining("incomplete snapshot"), remedy }),
+  ] });
+  expect(discoveries).toBe(h.layout.worktrees.length);
+  await h.git("git", ["update-ref", "-d", snapshot]);
+  await h.git("git", ["push", "origin", `:${snapshot}`]);
+  const fresh = await takeCopy(h.root);
+  await expect(assertWindowCopySafety(fresh, { host: { discoverRepository: async () => null } })).resolves.toBeUndefined();
 }, 60_000);

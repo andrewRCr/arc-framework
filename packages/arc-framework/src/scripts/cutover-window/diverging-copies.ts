@@ -1,8 +1,7 @@
 /** Refuse non-stale live copies whose commits the import's selected copy does not contain. */
 import type { InFlightBranchProvenance } from "../../lib/git/in-flight-derivation.js";
-import type { WindowImportContext } from "./import-context.js";
+import { windowImportReport, type WindowImportContext } from "./import-context.js";
 import type { ComposedLifecycleIndexResult } from "../../lib/work-unit/composed-lifecycle-index.js";
-import type { MigrateReport } from "../../lib/store/commands.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
 import { readWindowRefTip } from "./git.js";
 import { createInRepoContext } from "../../lib/store/in-repo/context.js";
@@ -16,7 +15,7 @@ export async function readWindowDivergingCopyFindings(context: WindowImportConte
   if (main === undefined) throw new WindowRefusal([{ subject: "main", condition: "The importing main revision is unavailable.",
     remedy: "Restore main and retry check." }]);
   const internal = createInRepoContext(context.importSource.ports);
-  const report: MigrateReport = { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
+  const report = windowImportReport();
   const parked = await readImportParkedSources(context, internal, report, main), findings: WindowFinding[] = [];
   for (const [slug, record] of composition.recordsBySlug) {
     if (record.selected.location === "completed" || parked.names.has(slug)) continue;

@@ -90,6 +90,28 @@ it("refuses an unresolved parked branch and passes after its local and fetched t
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);
 
+it("reports a diverged parked branch once, through its unreadable source, and passes after its tips realign", async () => {
+  const h = await parkedWindowFixture();
+  await h.git("git", ["push", "origin", "main"]); await carryMainToFlip(h);
+  await h.git("git", ["checkout", h.branch]);
+  await writeFile(join(h.root, "parked-origin.txt"), "A commit only the fetched tip holds.\n");
+  await h.git("git", ["add", "parked-origin.txt"]); await h.git("git", ["commit", "-m", "Advance the fetched side"]);
+  await h.git("git", ["push", "origin", h.branch]); await h.git("git", ["reset", "--hard", h.tip]);
+  await writeFile(join(h.root, "parked-local.txt"), "A commit only the local tip holds.\n");
+  await h.git("git", ["add", "parked-local.txt"]); await h.git("git", ["commit", "-m", "Advance the local side"]);
+  await h.git("git", ["checkout", "main"]);
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused" } });
+  const findings = (refused.result as { findings: { subject: string; condition: string; remedy: string }[] }).findings;
+  expect(findings.filter(finding => finding.subject === `work unit ${h.slug}` || finding.condition.includes(h.pointer)
+    || finding.condition.includes(`work unit ${h.slug} `))).toEqual([{ subject: `work unit ${h.slug}`,
+    condition: expect.stringContaining(`The parked unit has no readable source at ${h.branch}`),
+    remedy: "Restore or realign the parked branch its committed pointer names, or repair the pointer, then retry." }]);
+  await h.git("git", ["branch", "--force", h.branch, `origin/${h.branch}`]);
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
 it("checks the named flip branch even when it holds no work-unit metadata", async () => {
   const h = await windowFixture();
   const path = resolveArcPath({ kind: "cohort-document", cohort: [SlugSchema.parse("group")], placement: { kind: "planned" } });

@@ -1,10 +1,10 @@
 /** What the import's publication placed on the mirror: every ref the state push publishes, at the copy's object. */
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
-import { listWindowRefs } from "./git.js";
+import { listWindowRefs, WINDOW_REGISTRY_REF } from "./git.js";
 import { isWindowPublishableRef } from "./restore-leases.js";
 import { WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run.js";
 
-const registry = "refs/arc/project/registry";
+const registry = WINDOW_REGISTRY_REF;
 
 /** Each ref the state push publishes for the identity that the mirror lacks or holds at another object. */
 export function unpublishedRehearsalRefs(local: ReadonlyMap<string, string>, mirror: ReadonlyMap<string, string>,

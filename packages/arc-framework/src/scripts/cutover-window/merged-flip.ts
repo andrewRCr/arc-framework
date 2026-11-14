@@ -4,9 +4,9 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import type { WindowHostPort } from "./host.js";
 import { WindowRefusal } from "./result.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 
 interface MergeIO { exec: GitExec; repo: string; host: WindowHostPort; hosted: boolean }
-const oidPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 function refuse(condition: string, remedy = "Repair access or resolve the changed main tip, then retry.", subject = "merged flip"): never {
   throw new WindowRefusal([{ subject, condition, remedy }]);
@@ -20,7 +20,7 @@ async function resolveCommit(io: Pick<MergeIO, "exec" | "repo">, revision: strin
   try {
     const value = (await io.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${revision}^{commit}`],
       { cwd: io.repo, objectAccess: "local-only" })).stdout.trim();
-    if (!oidPattern.test(value)) refuse(`The commit at ${revision} could not be resolved.`);
+    if (!isGitObjectId(value)) refuse(`The commit at ${revision} could not be resolved.`);
     return value;
   } catch (error) {
     if (completedOne(error)) return null;
@@ -33,7 +33,7 @@ export async function acquireWindowHostCommit(io: Pick<MergeIO, "exec" | "repo">
   if (await resolveCommit(io, tip) === tip) return;
   const scratch = `refs/arc-window-scratch/${randomUUID()}`;
   try {
-    await io.exec("git", ["fetch", "--refmap=", "origin", `refs/heads/${branch}:${scratch}`],
+    await io.exec("git", ["fetch", "--refmap=", "--no-tags", "--no-write-fetch-head", "origin", `refs/heads/${branch}:${scratch}`],
       { cwd: io.repo, signal: AbortSignal.timeout(30_000) });
     const remedy = `Repair access to origin's ${branch}, or wait until it stops moving, then retry.`;
     if (await resolveCommit(io, scratch) !== tip) refuse(`Origin's ${branch} tip changed after it was read.`, remedy, `origin/${branch}`);
@@ -49,7 +49,7 @@ export async function acquireWindowHostCommit(io: Pick<MergeIO, "exec" | "repo">
 /** Determine whether the flip merged only from origin's resolved main tip and strict ancestry. */
 export async function isWindowFlipMerged(io: MergeIO, recordedHead: string): Promise<boolean> {
   try {
-    if (!oidPattern.test(recordedHead)) refuse("The recorded flip head is not a full object ID.");
+    if (!isGitObjectId(recordedHead)) refuse("The recorded flip head is not a full object ID.");
     if (io.hosted) {
       const settings = await io.host.mergeSettings();
       if (settings.allowSquash || settings.allowRebase) {
@@ -57,7 +57,7 @@ export async function isWindowFlipMerged(io: MergeIO, recordedHead: string): Pro
       }
     }
     const tip = (await io.host.refs(["refs/heads/main"]))["refs/heads/main"];
-    if (tip === undefined || !oidPattern.test(tip)) refuse("Origin has no readable main tip.");
+    if (tip === undefined || !isGitObjectId(tip)) refuse("Origin has no readable main tip.");
     await acquireWindowHostCommit(io, "main", tip);
     try {
       await io.exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", recordedHead, tip],

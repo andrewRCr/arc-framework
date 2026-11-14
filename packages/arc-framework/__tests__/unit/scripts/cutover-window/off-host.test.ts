@@ -17,3 +17,12 @@ it.each([
   expect(windowHostTipFindings({ live, host: { main: head, [branch]: head }, origin: { [branch]: head } }, head)).toEqual([]);
   expect(windowHostTipFindings({ live, host: { main: head, [branch]: null }, origin: {} }, head)).toEqual([]);
 });
+
+it("reads a live branch named like an inherited object property as unavailable when neither side holds it", () => {
+  const inherited = { constructor: { local: head, origin: null, reasons: ["Fixture work unit"] } };
+  expect(windowHostTipFindings({ live: inherited, host: { main: head }, origin: {} }, head)).toEqual([
+    expect.objectContaining({ subject: "constructor", condition: "Fetched tip absent differs from host unavailable." }),
+  ]);
+  expect(windowHostTipFindings({ live: inherited, host: { main: head, constructor: head }, origin: { constructor: head } }, head))
+    .toEqual([]);
+});

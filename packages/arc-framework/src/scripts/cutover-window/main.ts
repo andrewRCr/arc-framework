@@ -13,7 +13,8 @@ import { copyWindow } from "./copy.js";
 import { rehearseWindow } from "./rehearse.js";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { realpath } from "node:fs/promises";
 
 import { emitWindowResult, WindowRefusal } from "./result.js";
 import type { WindowResult, WindowOutput } from "./result.js";
@@ -70,6 +71,16 @@ function isOptionParseError(error: unknown): error is Error {
   return error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("ERR_PARSE_ARGS");
 }
 
-if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url) {
+/** Whether the process entry is this module, compared by real path so a symlinked invocation still runs. */
+async function isWindowEntry(argv1: string | undefined): Promise<boolean> {
+  if (argv1 === undefined) return false;
+  try {
+    return await realpath(argv1) === await realpath(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (await isWindowEntry(process.argv[1])) {
   process.exitCode = await runWindow(process.argv.slice(2));
 }

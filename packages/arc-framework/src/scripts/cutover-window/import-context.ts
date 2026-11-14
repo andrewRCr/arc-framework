@@ -3,6 +3,7 @@ import { createRefBackendContext, type RefBackendContext } from "../../lib/store
 import { createDefaultStorePorts, createDefaultRefStorePorts } from "../../lib/store/default-ports.js";
 import { createStore } from "../../lib/store/create.js";
 import { readBackingRepository, readConfigSettings } from "../../lib/config/status-reader.js";
+import type { MigrateReport } from "../../lib/store/commands.js";
 
 /** A native import context whose pre-import source is always bound. */
 export type WindowImportContext = RefBackendContext & { importSource: NonNullable<RefBackendContext["importSource"]> };
@@ -14,4 +15,9 @@ export async function createWindowImportContext(repo: string): Promise<WindowImp
   const baseBranch = (await readConfigSettings(repo)).settings["branch.base"];
   const importSource = { store: createStore(sourcePorts), ports: sourcePorts, baseBranch };
   return { ...createRefBackendContext({ ...ports, importSource }), importSource };
+}
+
+/** An empty import report for the import's own readers to record notices in, as a run of the import would. */
+export function windowImportReport(): MigrateReport {
+  return { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
 }

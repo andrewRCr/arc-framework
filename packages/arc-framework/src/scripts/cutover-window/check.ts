@@ -52,7 +52,8 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     const state = await captureWindowState(io, input, { refs: origin, branches: await host.refs(["refs/heads/*"]) });
     const checkoutFindings = [...requestFindings, ...state.findings, ...windowUnmarkedCheckoutFindings(state.checkouts),
       ...await windowRefusalFindings(() => readWindowEndedCheckoutFindings(io, state.checkouts)),
-      ...windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)),
+      // An incomplete identity snapshot refuses through its own finding; its holders are checked on the retry.
+      ...state.live.findings.length === 0 ? windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)) : [],
       ...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
       ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),

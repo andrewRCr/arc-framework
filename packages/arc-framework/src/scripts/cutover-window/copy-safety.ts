@@ -1,7 +1,7 @@
 /** Assert repository-copy isolation before a rehearsal may run an ARC command. */
 import type { WindowCopyLayout } from "./copy.js";
 import type { WindowHostPort } from "./host.js";
-import { WindowRefusal } from "./result.js";
+import { WindowRefusal, windowRead, type WindowFinding } from "./result.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { createWindowHost } from "./native-host.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -20,41 +20,50 @@ export interface WindowCopySafetyOptions { host?: Pick<WindowHostPort, "discover
 /** The copy coordinates the isolation assertions read. */
 export type WindowCopyBounds = Pick<WindowCopyLayout, "destination" | "repo" | "mirror">;
 
-/** Refuse a copy until every isolation assertion is established. */
+/** Refuse a copy until every isolation assertion is established, listing every failing subject together. */
 export async function assertWindowCopySafety(layout: WindowCopyBounds, options: WindowCopySafetyOptions = {}): Promise<void> {
   const ports = createDefaultStorePorts({ checkoutRoot: layout.repo });
   const checkouts = await assertCopiedPointers(layout, ports.exec);
-  for (const repo of [...checkouts, layout.mirror]) {
-    const exec: GitExec = (command, args, execution) => ports.exec(command, args, { ...execution, cwd: repo });
-    await assertMirrorRemotes(exec, repo, layout.mirror);
-    if (await readBackingRepository(repo) !== null) refuse(`${repo}:storage.backing_repository`, "A backing repository is configured.");
-    const host = options.host ?? createWindowHost({ repo, exec });
-    const found = await host.discoverRepository();
-    if (found !== null) refuse(repo, `Host discovery found ${found}.`);
-  }
-  for (const repo of [layout.repo, layout.mirror]) {
-    const exec: GitExec = (command, args, execution) => ports.exec(command, args, { ...execution, cwd: repo });
-    await assertNoAwaitingErrands(repo, exec);
-  }
+  // Git runs in the mirror only once it exists; a target that is not a copy has none.
+  const mirror = await lstat(layout.mirror).then(stats => stats.isDirectory(), () => false) ? [layout.mirror] : [];
+  const findings = mirror.length > 0 ? [] : [finding(layout.mirror, "The copy has no mirror repository.")];
+  const execIn = (repo: string): GitExec => (command, args, execution) => ports.exec(command, args, { ...execution, cwd: repo });
+  for (const repo of [...checkouts, ...mirror]) findings.push(...await isolationFindings(repo, execIn(repo), layout.mirror, options));
+  for (const repo of [layout.repo, ...mirror]) findings.push(...await awaitingErrandFindings(repo, execIn(repo)));
+  refuseAll(findings);
 }
 
-async function assertNoAwaitingErrands(repo: string, exec: GitExec): Promise<void> {
+async function isolationFindings(repo: string, exec: GitExec, mirror: string, options: WindowCopySafetyOptions): Promise<WindowFinding[]> {
+  const findings = await mirrorRemoteFindings(exec, repo, mirror);
+  if (await readBackingRepository(repo) !== null) findings.push(finding(`${repo}:storage.backing_repository`, "A backing repository is configured."));
+  // Discovery reads the repository's remotes, so it runs only where every remote names the mirror and nothing else is configured.
+  if (findings.length > 0) return findings;
+  const found = await windowRead(() => (options.host ?? createWindowHost({ repo, exec })).discoverRepository());
+  if ("findings" in found) return found.findings;
+  return found.value === null ? [] : [finding(repo, `Host discovery found ${found.value}.`)];
+}
+
+async function awaitingErrandFindings(repo: string, exec: GitExec): Promise<WindowFinding[]> {
   const io = { repo, exec }, refs = await listWindowRefs(io, ["refs/arc/user/"]);
   const snapshot = await readWindowTransientRecords(io, Object.fromEntries(refs));
-  if (snapshot.findings.length > 0) throw new WindowRefusal(snapshot.findings);
+  const findings = snapshot.findings.map(found => ({ subject: `${repo}:${found.subject}`, condition: found.condition,
+    remedy: "Repair the identity snapshot on the live repository, then take a new copy." }));
   for (const entry of snapshot.records) {
     const record = TransientIdentityRecordSchema.parse(JSON.parse(entry.content));
     if (record.kind === "errand" && record.state === "awaiting-merge") {
-      refuse(`${repo}:${record.slug}`, "A copied Errand is awaiting its merge; abandoning it would read its host pull request.",
-        `Merge or abandon Errand ${record.slug} on the live repository, then take a new copy.`);
+      findings.push(finding(`${repo}:${record.slug}`, "A copied Errand is awaiting its merge; abandoning it would read its host pull request.",
+        `Merge or abandon Errand ${record.slug} on the live repository, then take a new copy.`));
     }
   }
+  return findings;
 }
 
+/** Gather every pointer naming a path outside the copy, refusing before Git reads the roster and again before it runs in a copied checkout. */
 async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec): Promise<string[]> {
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
+  const findings: WindowFinding[] = [];
   const inside = async (path: string) => {
-    if (!await windowPathContains(layout.destination, path)) refuse(path, "A Git pointer names a path outside the copy.");
+    if (!await windowPathContains(layout.destination, path)) findings.push(finding(path, "A Git pointer names a path outside the copy."));
   };
   const checkout = async (path: string) => {
     await inside(path);
@@ -63,36 +72,48 @@ async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec)
   };
   await inside(layout.mirror);
   await checkout(layout.repo);
-  await assertCommonGitfiles(join(layout.repo, ".git"), layout.destination);
+  findings.push(...await commonGitfileFindings(join(layout.repo, ".git"), layout.destination));
+  refuseAll(findings);
   const roster = await scanRegisteredWorktrees((command, args, options) => boundary(command, args, { ...options, cwd: layout.repo }));
-  if (!roster.ok) refuse(layout.repo, `Cannot establish copied registrations: ${roster.message}`);
+  if (!roster.ok) throw new WindowRefusal([finding(layout.repo, `Cannot establish copied registrations: ${roster.message}`)]);
   for (const row of roster.worktrees) await checkout(row.path);
+  refuseAll(findings);
   return roster.worktrees.map(row => row.path);
 }
 
 /** A checkout folder copied inside the common Git directory would keep a gitfile naming the live repository. */
-async function assertCommonGitfiles(directory: string, destination: string, top = true): Promise<void> {
+async function commonGitfileFindings(directory: string, destination: string, top = true): Promise<WindowFinding[]> {
+  const findings: WindowFinding[] = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory() && !(top && entry.name === "objects")) await assertCommonGitfiles(path, destination, false);
+    if (entry.isDirectory() && !(top && entry.name === "objects")) findings.push(...await commonGitfileFindings(path, destination, false));
     else if (entry.isFile() && entry.name === ".git") {
       const pointer = /^gitdir: (.+)$/mu.exec(await readFile(path, "utf8"))?.[1]?.trim();
       if (pointer !== undefined && !await windowPathContains(destination, resolve(directory, pointer))) {
-        refuse(path, `A gitfile inside the copied Git directory names ${pointer}, outside the copy.`);
+        findings.push(finding(path, `A gitfile inside the copied Git directory names ${pointer}, outside the copy.`));
       }
     }
   }
+  return findings;
 }
 
-async function assertMirrorRemotes(exec: GitExec, repo: string, mirror: string): Promise<void> {
+async function mirrorRemoteFindings(exec: GitExec, repo: string, mirror: string): Promise<WindowFinding[]> {
+  const findings: WindowFinding[] = [];
   const names = (await exec("git", ["remote"])).stdout.trim().split("\n").filter(Boolean);
   for (const name of names) for (const direction of [[], ["--push"]]) {
     const urls = (await exec("git", ["remote", "get-url", ...direction, "--all", name])).stdout.trim().split("\n");
-    if (urls.some(url => url !== mirror)) refuse(`${repo}:${name}`, "An effective remote URL does not name the copy's mirror.");
+    if (urls.some(url => url !== mirror) && !findings.some(found => found.subject === `${repo}:${name}`)) {
+      findings.push(finding(`${repo}:${name}`, "An effective remote URL does not name the copy's mirror."));
+    }
   }
+  return findings;
 }
 
-function refuse(subject: string, condition: string,
-  remedy = "Repair this copy's isolation and repeat copy safety before running any ARC command."): never {
-  throw new WindowRefusal([{ subject, condition, remedy }]);
+function finding(subject: string, condition: string,
+  remedy = "Repair this copy's isolation and repeat copy safety before running any ARC command."): WindowFinding {
+  return { subject, condition, remedy };
+}
+
+function refuseAll(findings: readonly WindowFinding[]): void {
+  if (findings.length > 0) throw new WindowRefusal([...findings]);
 }

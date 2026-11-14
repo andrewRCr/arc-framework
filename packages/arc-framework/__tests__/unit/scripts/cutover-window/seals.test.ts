@@ -1,6 +1,6 @@
 /** Sealing anchors retain explicit rehearsal coordinates and repairable read failures. */
 import { expect, it } from "vitest";
-import { readWindowSealAnchor, readWindowCheckoutAncestryFindings } from "../../../../src/scripts/cutover-window/seals.js";
+import { readWindowSealAnchor, readWindowCheckoutAncestry, readWindowCheckoutAncestryFindings } from "../../../../src/scripts/cutover-window/seals.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { WindowCheckout } from "../../../../src/scripts/cutover-window/checkouts.js";
 
@@ -49,3 +49,17 @@ it.each([{ exitCode: 128, stderr: "ancestry unavailable" }, { exitCode: 1, isCan
     })]);
     expect(await readWindowCheckoutAncestryFindings({ repo: "/target", exec }, [checkout], derived)).toEqual([]);
   });
+
+it("reads each checkout's ancestry as descending, lacking the anchor, or unreadable", async () => {
+  const lacking = { ...checkout, path: "/lacking", head: "c".repeat(40) }, unreadable = { ...checkout, path: "/unreadable", head: "d".repeat(40) };
+  const exec = scriptGitExec([
+    { match: ["--no-replace-objects", "merge-base", "--is-ancestor", derived, checkout.head], responses: [{ stdout: "" }] },
+    { match: ["--no-replace-objects", "merge-base", "--is-ancestor", derived, lacking.head], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["--no-replace-objects", "merge-base", "--is-ancestor", derived, unreadable.head],
+      responses: [{ failure: { exitCode: 128, stderr: "missing object" } }] },
+  ]).exec;
+  expect(await readWindowCheckoutAncestry({ repo: "/target", exec }, [checkout, lacking, unreadable], derived)).toEqual([
+    { checkout, state: "descends" }, { checkout: lacking, state: "lacks" },
+    { checkout: unreadable, state: "unreadable", error: expect.stringContaining("missing object") },
+  ]);
+});

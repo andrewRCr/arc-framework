@@ -22,13 +22,14 @@ export interface SuppliedHostFacts { anchor?: string; pullRequests?: WindowPullR
 /** Resolved facts, retaining whether settings must be read from a real host. */
 export interface WindowHostFacts { hosted: boolean; pullRequests: WindowPullRequests; anchor?: string }
 
-function localUrl(url: string): boolean {
-  if (/^file:/iu.test(url) || /^[a-z]:[\\/]/iu.test(url)) return true;
+/** Git reads a drive-letter URL as a local path only on Windows; elsewhere `C:` names an SSH host. */
+function localUrl(url: string, platform: NodeJS.Platform): boolean {
+  if (/^file:/iu.test(url) || platform === "win32" && /^[a-z]:[\\/]/iu.test(url)) return true;
   return !/^[^/\\:]+:/u.test(url);
 }
 
-/** Whether any effective fetch or push URL reaches a host. */
-export async function hasWindowHost(exec: GitExec): Promise<boolean> {
+/** Whether any effective fetch or push URL reaches a host, as Git on the given platform reads it. */
+export async function hasWindowHost(exec: GitExec, platform: NodeJS.Platform = process.platform): Promise<boolean> {
   const names = (await exec("git", ["remote"])).stdout.trim().split("\n").filter(Boolean);
   for (const name of names) {
     const values = await Promise.all([
@@ -39,7 +40,7 @@ export async function hasWindowHost(exec: GitExec): Promise<boolean> {
       const urls = value.stdout.trim().split("\n").filter(Boolean);
       if (urls.length === 0) throw new WindowRefusal([{ subject: name, condition: "The remote has no effective URL.",
         remedy: "Configure the remote URL and retry." }]);
-      if (urls.some(url => !localUrl(url))) return true;
+      if (urls.some(url => !localUrl(url, platform))) return true;
     }
   }
   return false;

@@ -1,7 +1,7 @@
 /** Leased origin restoration followed by one atomic local ref reset. */
 import { pushRefs } from "../../lib/git/push.js";
 import { updateRefTransaction, type RefChange } from "../../lib/git/ref-transaction.js";
-import { readWindowRefTip } from "./git.js";
+import { readWindowRefTip, WINDOW_REGISTRY_REF } from "./git.js";
 import { WindowRefusal } from "./result.js";
 import { requireWindowRestoreUnmerged, type WindowRestoreContext } from "./restore.js";
 import { isWindowAcceptedLocalRef, type WindowRestoreRefChange, type WindowRestoreRefPlan } from "./restore-leases.js";
@@ -19,7 +19,7 @@ async function restoreOrigin(context: WindowRestoreContext, changes: readonly Wi
   await context.step?.("restore.origin");
   if (changes.length === 0) return;
   await requireWindowRestoreUnmerged(context, "restore.merged.push");
-  const registry = "refs/arc/project/registry";
+  const registry = WINDOW_REGISTRY_REF;
   const ordered = [...changes.filter(change => change.ref !== registry), ...changes.filter(change => change.ref === registry)];
   for (const change of ordered) {
     if (change.ref === registry && change.next === null) await requireWindowRestoreUnmerged(context, "restore.merged.registry");

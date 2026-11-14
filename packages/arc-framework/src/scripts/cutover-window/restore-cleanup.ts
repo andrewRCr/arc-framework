@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { readGitDirectories } from "../../lib/git/directories.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 import { updateRefTransaction } from "../../lib/git/ref-transaction.js";
-import { listWindowRefs, readWindowRefTip } from "./git.js";
+import { listWindowRefs, readWindowRefTip, WINDOW_REGISTRY_REF } from "./git.js";
+import { WINDOW_STORE_DIRECTORIES } from "./preflight.js";
 import { discardUnfinishedWindowHold } from "./hold.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
 import type { WindowRestoreContext } from "./restore.js";
@@ -12,7 +13,7 @@ import type { WindowRestoreContext } from "./restore.js";
 async function clearConfiguration(context: WindowRestoreContext): Promise<void> {
   await context.step?.("restore.configuration");
   const { commonDir } = await readGitDirectories(context.io.repo, { lstat, readFile: path => readFile(path, "utf8"), realpath });
-  for (const name of ["store", "store-migrate-build", "store-migrate-old"]) await rm(join(commonDir, "arc", name), { recursive: true, force: true });
+  for (const name of WINDOW_STORE_DIRECTORIES) await rm(join(commonDir, "arc", name), { recursive: true, force: true });
   try {
     await context.io.exec("git", ["config", "--local", "--unset-all", "remote.origin.arc-state"], { cwd: context.io.repo });
   } catch (error) {
@@ -23,7 +24,7 @@ async function clearConfiguration(context: WindowRestoreContext): Promise<void> 
 async function verifyRefs(context: WindowRestoreContext): Promise<void> {
   await context.step?.("restore.verify");
   const [local, origin, registry] = await Promise.all([
-    listWindowRefs(context.io, ["refs/arc/"]), context.host.refs(["refs/arc/*"]), readWindowRefTip(context.io, "refs/arc/project/registry"),
+    listWindowRefs(context.io, ["refs/arc/"]), context.host.refs(["refs/arc/*"]), readWindowRefTip(context.io, WINDOW_REGISTRY_REF),
   ]);
   const findings: WindowFinding[] = [];
   for (const [side, actual] of [["local", Object.fromEntries(local)], ["origin", origin]] as const) {
@@ -34,7 +35,7 @@ async function verifyRefs(context: WindowRestoreContext): Promise<void> {
         remedy: "Preserve the complete hold, settle this changed ref, then retry restore with its exact --accept value if required." });
     }
   }
-  if (registry !== null || origin["refs/arc/project/registry"] !== undefined) findings.push({ subject: "registry",
+  if (registry !== null || origin[WINDOW_REGISTRY_REF] !== undefined) findings.push({ subject: "registry",
     condition: "The registry still exists after restoring refs.", remedy: "Preserve the hold and retry restore after settling the remaining registry." });
   if (findings.length > 0) throw new WindowRefusal(findings);
 }

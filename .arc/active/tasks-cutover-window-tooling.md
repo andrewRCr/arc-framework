@@ -532,13 +532,12 @@ refusing and then passing after its remedy, with the import's cost recorded from
 
 - _Goal:_ The segment's exit criterion holds at the head that lands.
 
-- _Outcome:_ Both runs used the tools as of `0a154a4a4d`. Every later commit changes only this task list, the notes,
-  and the npm script's `--wasm-max-mem-pages` flag, which both runs already launched with, so the runs stand for the
-  landing head unless the tools change again. Scenario: Tasks 7.2 and 7.3 passed
-  every step, each planted condition refusing and then passing after its remedy. The import took 896 s at 2,439 MiB
-  peak resident memory in the first run and 1,108 s at 2,350 MiB in the second. `arc check segment` passed. The
-  pre-publication review's fixes then changed the tools and both plans, so both run again at the converged head before
-  publication, as the Success Criteria deviations record.
+- _Outcome:_ Both runs used the tools as of `0a154a4a4d`. When this task closed, every later commit had changed only
+  this task list, the notes, and the npm script's `--wasm-max-mem-pages` flag, which both runs already launched with.
+  Scenario: Tasks 7.2 and 7.3 passed every step, each planted condition refusing and then passing after its remedy. The
+  import took 896 s at 2,439 MiB peak resident memory in the first run and 1,108 s at 2,350 MiB in the second.
+  `arc check segment` passed. The pre-publication review's fixes then changed the tools and both plans, so both run
+  again at the converged head before publication, as the Success Criteria deviations record.
 
 ## **Phase 8:** Verification
 
@@ -550,14 +549,16 @@ refusing and then passing after its remedy, with the import's cost recorded from
   and six store shards plus lint and type checks. After the review fixes, the family's 78 unit, integration, and
   end-to-end files passed locally.
 
-- _Success criteria:_ 17 criteria, all met; items 6, 7, 8, and 10 to 14 carry Deviation notes for the Stage 1 rerun
-  after review converges and for the import's inherited 8 GiB limit. Criteria verification ran pass 1 of 2: eight
-  chunk reviewers over the review chunk map, then a seam and aggregate call. Of its 24 findings, 22 were fixed, F1
-  (Stage 1 predates the fixes) was deferred to that rerun, and F20 was rejected: the check does not raise the import's
-  composition-quality refusals, but the import itself refuses on them, so the window fails closed. F1 and F2 were
-  regraded minor at disposition, so the pass converged with no fix check or second pass. Fixing F13 surfaced F25, a
-  C4 remedy, `arc locus release`, that refuses before the flip; it was dropped. Amendments A1 (F14) and A2 (F25)
-  record the design changes. Frontline review was skipped by direction, the change set being too large for it.
+- _Success criteria:_ 17 criteria at verification, all met; the pre-publication review's fixes have since added four, 21
+  in all, and the Stage 1 criteria and Ready for integration stay open until Stage 1 runs at the converged head; items
+  6, 7, 8, and 10 to 14 carry Deviation notes for the Stage 1 rerun after review converges and for the import's
+  inherited 8 GiB limit. Criteria verification ran pass 1 of 2: eight chunk reviewers over the review chunk map, then a
+  seam and aggregate call. Of its 24 findings, 22 were fixed, F1 (Stage 1 predates the fixes) was deferred to that
+  rerun, and F20 was rejected: the check does not raise the import's composition-quality refusals, but the import itself
+  refuses on them, so the window fails closed. F1 and F2 were regraded minor at disposition, so the pass converged with
+  no fix check or second pass. Fixing F13 surfaced F25, a C4 remedy, `arc locus release`, that refuses before the flip;
+  it was dropped. Amendments A1 (F14) and A2 (F25) record the design changes. Frontline review was skipped by direction,
+  the change set being too large for it.
 
 ---
 
@@ -579,7 +580,7 @@ refusing and then passing after its remedy, with the import's cost recorded from
 - `[x]` `runUserLoad`, `arc user load`, and the user-sync load direction each refuse once the registry ref exists,
   writing no file and exiting non-zero with the refusal's condition and remedy, and load once it is gone.
 
-- `[x]` Stage 1's first run is clean at the head that lands, with every outcome spec Success Criterion 6 lists observed
+- `[ ]` Stage 1's first run is clean at the head that lands, with every outcome spec Success Criterion 6 lists observed
   (Task 7.2).
 
   **Deviation:** The recorded runs, at `0a154a4a4d` and `6cee5ff25d`, predate main's merge and this verification's
@@ -587,13 +588,13 @@ refusing and then passing after its remedy, with the import's cost recorded from
   listing of superseded copies was observed only by a later read-only `account` run on the second-run copy (26
   superseded); from the rerun the driver keeps each classification's count in its step result.
 
-- `[x]` Stage 1's second run is clean at the head that lands, with every outcome spec Success Criterion 7 lists
+- `[ ]` Stage 1's second run is clean at the head that lands, with every outcome spec Success Criterion 7 lists
   observed (Task 7.3).
 
   **Deviation:** The recorded run predates main's merge and the review fixes; it runs again with the first run after
   review converges.
 
-- `[x]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
+- `[ ]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
 
   **Deviation:** Both imports ran under the driver's inherited 8 GiB address-space limit with a 4,096 MB heap, the
   limit the runner-pool session recommended; the spec's A3 now makes the cap the caller's, above the heap ceiling.
@@ -604,33 +605,33 @@ refusing and then passing after its remedy, with the import's cost recorded from
   caller reads the provenance field and no existing constructor of the composition's result changed; and the full
   unit, integration, and end-to-end tiers pass with the load guard present.
 
-- `[x]` From the import to the merge, every record the import took equals what the check recorded and the merged head
+- `[ ]` From the import to the merge, every record the import took equals what the check recorded and the merged head
   differs from the recorded flip head only by its deletion commit, proved by the comparison tests and by Stage 1's
   first-run abort and second-run last read (Tasks 5.1, 5.2, 7.2, 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[x]` Between the check and the merge, `main` changes on the host only by the flip's merge and no live branch changes
+- `[ ]` Between the check and the merge, `main` changes on the host only by the flip's merge and no live branch changes
   there, proved by Stage 1's second-run last read and stand-in merge (Task 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[x]` No Errand record crosses the window, every claim crosses it or stops it, and an abort rewinds no record another
+- `[ ]` No Errand record crosses the window, every claim crosses it or stops it, and an abort rewinds no record another
   writer added unseen, proved by Stage 1's planted Errand and retirement check and by the restore's tests
   (Tasks 2.3, 7.2).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[x]` No live work unit's copy is dropped in favor of one it diverges from, proved by Stage 1's planted diverging copy
+- `[ ]` No live work unit's copy is dropped in favor of one it diverges from, proved by Stage 1's planted diverging copy
   (Task 7.2).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
   review fixes; it is repeated by the Stage 1 rerun after review converges.
 
-- `[x]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
+- `[ ]` A change to a live branch or personal file after the check, made before that branch's or checkout's `compare`,
   is never deleted unseen, proved by Stage 1's second run (Task 7.3).
 
   **Deviation:** Stage 1's part of this proof comes from runs that predate main's merge and this verification's
@@ -651,4 +652,4 @@ refusing and then passing after its remedy, with the import's cost recorded from
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[x]` Ready for integration
+- `[ ]` Ready for integration

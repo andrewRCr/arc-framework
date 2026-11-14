@@ -5,6 +5,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import type { WindowHostPort, WindowPullRequest, WindowPullRequests } from "./host.js";
 import { WindowRefusal } from "./result.js";
 import { isWindowIdentityRef } from "./transients.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 
 const requestSchema = z.object({ number: z.number().int().positive(), headRefName: z.string().min(1),
   baseRefName: z.string().min(1) });
@@ -17,7 +18,7 @@ function refuse(subject: string, condition: string): never {
 function readRefLines(output: string, patterns: readonly string[]): Record<string, string> {
   return Object.fromEntries<string>(output.trim().split("\n").filter(Boolean).map((line): [string, string] => {
     const [oid, ref] = line.split(/\s+/u);
-    if (oid === undefined || ref === undefined || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(oid)) {
+    if (oid === undefined || ref === undefined || !isGitObjectId(oid)) {
       refuse("origin refs", "Malformed ref listing");
     }
     return [ref, oid];

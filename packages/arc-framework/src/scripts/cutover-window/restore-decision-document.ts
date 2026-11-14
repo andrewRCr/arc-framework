@@ -3,9 +3,12 @@ import { z } from "zod";
 import type { WindowRestoreContext } from "./restore.js";
 import { WindowRefusal } from "./result.js";
 import { isWindowIdentityRef } from "./transients.js";
+import { GIT_OBJECT_ID_PATTERN } from "../../lib/git/object-id.js";
 
-const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
-const ref = z.string().regex(/^refs\/arc\/[^\s\0]+$/u);
+const oid = z.string().regex(GIT_OBJECT_ID_PATTERN);
+/** The refs a restore decision and its `--accept` operands may name. */
+export const WINDOW_DECISION_REF_PATTERN = /^refs\/arc\/[^\s\0]+$/u;
+const ref = z.string().regex(WINDOW_DECISION_REF_PATTERN);
 const documentSchema = z.strictObject({
   version: z.literal(1), windowTip: oid, regime: z.enum(["unconsumed", "kept", "records"]),
   identities: z.array(z.strictObject({ ref, held: oid.nullable(), kept: oid.nullable(), outcome: z.enum(["equal", "accepted", "unconsumed"]) })),

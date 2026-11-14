@@ -75,6 +75,19 @@ it("refuses armed auto-merge before restoring and admits it after the request is
   expect(await admitRestoreFixture(h)).toMatchObject({ exit: 0, result: { status: "reported" } });
 }, 30_000);
 
+it("refuses a retargeted request and its armed auto-merge together, and admits once the request is repaired", async () => {
+  const h = await windowFixture();
+  expect(await checkFixture(h)).toMatchObject({ exit: 0 });
+  await writeFile(h.listingPath, JSON.stringify({ ...h.pullRequests,
+    flip: { ...h.pullRequests.flip, headBranch: "feat/other", autoMergeArmed: true } }));
+  expect(await admitRestoreFixture(h)).toMatchObject({ exit: 1, result: { status: "refused", findings: [
+    expect.objectContaining({ subject: "flip pull request", condition: expect.stringContaining("feat/other") }),
+    expect.objectContaining({ subject: "flip pull request", remedy: expect.stringContaining("Disarm") }),
+  ] } });
+  await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  expect(await admitRestoreFixture(h)).toMatchObject({ exit: 0, result: { status: "reported" } });
+}, 30_000);
+
 it("refuses supplied facts on a hosted remote before reading the file or invoking the host", async () => {
   const h = await windowFixture();
   expect(await checkFixture(h)).toMatchObject({ exit: 0 });

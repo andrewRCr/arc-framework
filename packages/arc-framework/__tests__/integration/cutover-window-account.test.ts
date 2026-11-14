@@ -8,17 +8,13 @@ import { createRefStore } from "../../src/lib/store/create.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { expect, it } from "vitest";
-import { runWindow } from "../../src/scripts/cutover-window/main.js";
+import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { parkedWindowFixture } from "../helpers/cutover-window/parked.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
 
-async function account(h: Awaited<ReturnType<typeof windowFixture>>) {
-  const stdout: string[] = [], stderr: string[] = [];
-  const exit = await runWindow(["account", "--repo", h.root, "--json"], undefined, {
-    stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); },
-  });
-  return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
+function account(h: Awaited<ReturnType<typeof windowFixture>>) {
+  return invokeWindow(h.root, "account");
 }
 
 it("accounts for a live record at its import read copy and leaves every ref unchanged", async () => {

@@ -1,11 +1,12 @@
 /** A host merge absent from the clone is checked without advancing its tracking branch. */
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
 import { isWindowFlipMerged } from "../../src/scripts/cutover-window/merged-flip.js";
 
-it("fetches a missing merge commit into a disposable ref while preserving origin/main", async () => {
+it("fetches a missing merge commit into a disposable ref, writing no other ref, tag, or FETCH_HEAD", async () => {
   const publisher = await createTempRepo(); const target = await createTempRepo();
   onTestFinished(async () => { await cleanupTempDir(publisher); await cleanupTempDir(target); });
   const publishExec = makeGitExec(publisher); const exec = makeGitExec(target);
@@ -27,10 +28,16 @@ it("fetches a missing merge commit into a disposable ref while preserving origin
   await publish("checkout", "main");
   await publish("merge", "--no-ff", "feat/flip", "-m", "merge flip");
   const merged = (await publish("rev-parse", "HEAD")).stdout.trim();
-  await publish("push", "origin", "main");
+  await publish("tag", "-a", "v-flip", "-m", "tag on the fetched history", flip);
+  await publish("push", "origin", "main", "refs/tags/v-flip");
   await expect(git("cat-file", "-e", `${merged}^{commit}`)).rejects.toThrow();
+  const refs = async () => (await git("for-each-ref", "--format=%(refname) %(objectname)")).stdout;
+  const fetchHead = () => readFile(join(target, ".git", "FETCH_HEAD"), "utf8");
+  const [refsBefore, fetchHeadBefore] = [await refs(), await fetchHead()];
   const io = { exec, repo: target, host: createWindowHost({ exec, repo: target }), hosted: false };
   expect(await isWindowFlipMerged(io, flip)).toBe(true);
+  expect(await refs()).toBe(refsBefore);
+  expect(await fetchHead()).toBe(fetchHeadBefore);
   expect((await git("rev-parse", "refs/remotes/origin/main")).stdout.trim()).toBe(base);
   expect((await git("rev-parse", "HEAD")).stdout.trim()).toBe(base);
   expect((await git("for-each-ref", "--format=%(refname)", "refs/arc-window-scratch/")).stdout.trim()).toBe("");

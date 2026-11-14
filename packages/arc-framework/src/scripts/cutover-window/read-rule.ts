@@ -5,6 +5,7 @@ import { WindowRefusal } from "./result.js";
 import { WINDOW_TRACKED_STATE_ROOTS } from "./tracked-state.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 import { resolveImportBranchTip } from "../../lib/store/ref/import/branch-tip.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 
 /** A path's comparison outcome and its read/main merge bases. */
 export interface WindowPathRule extends WindowPathRead { revision: string; passes: boolean; bases: string[] }
@@ -73,7 +74,7 @@ async function readBases(context: WindowImportContext, left: string, right: stri
     const { stdout } = await context.exec("git", ["--no-replace-objects", "merge-base", "--all", left, right],
       { cwd: context.checkoutRoot, objectAccess: "local-only" });
     const bases = stdout.trim().split("\n");
-    if (bases.some(value => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value))) throw new Error("The merge-base listing is incomplete or malformed.");
+    if (bases.some(value => !isGitObjectId(value))) throw new Error("The merge-base listing is incomplete or malformed.");
     return bases;
   } catch (error) {
     if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return [];

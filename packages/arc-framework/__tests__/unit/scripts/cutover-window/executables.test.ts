@@ -1,9 +1,9 @@
-/** PATH admission examines later executables even when an earlier one belongs to a checkout. */
+/** PATH admission examines later executables, and the rehearsal hides arc without losing a tool it starts by name. */
 import { chmod, link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
-import { readWindowExecutableFindings } from "../../../../src/scripts/cutover-window/executables.js";
+import { readWindowExecutableFindings, withoutWindowArcDirectories } from "../../../../src/scripts/cutover-window/executables.js";
 
 afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -13,9 +13,9 @@ async function fixture() {
   return root;
 }
 
-async function executable(directory: string) {
+async function executable(directory: string, name = "arc") {
   await mkdir(directory, { recursive: true });
-  const path = join(directory, process.platform === "win32" ? "arc.cmd" : "arc");
+  const path = join(directory, process.platform === "win32" ? `${name}.cmd` : name);
   await writeFile(path, process.platform === "win32" ? "@echo off\r\nexit /b 0\r\n" : "#!/bin/sh\nexit 0\n");
   await chmod(path, 0o755);
   return path;
@@ -70,4 +70,44 @@ it("does not treat a directory link as an executable", async () => {
   await mkdir(directory);
   await symlink(directory, join(bin, process.platform === "win32" ? "arc.cmd" : "arc"), "junction");
   expect(await readWindowExecutableFindings([], bin)).toEqual([]);
+});
+
+it("drops a directory holding only arc and keeps the rest in order", async () => {
+  const root = await fixture(), first = join(root, "first"), arcOnly = join(root, "arc-only"), last = join(root, "last");
+  await executable(first, "node"); await executable(arcOnly); await executable(last, "git");
+  expect(await withoutWindowArcDirectories([first, arcOnly, last].join(delimiter))).toBe([first, last].join(delimiter));
+});
+
+it("refuses to drop a directory holding arc and the first node, and passes once that arc is gone", async () => {
+  const root = await fixture(), shared = join(root, "shared"), later = join(root, "later");
+  const arc = await executable(shared);
+  await executable(shared, "node"); await executable(later, "node");
+  const path = [shared, later].join(delimiter);
+  await expect(withoutWindowArcDirectories(path)).rejects.toMatchObject({ findings: [expect.objectContaining({ subject: shared,
+    condition: expect.stringMatching(/holds both arc and node.*changes node/u), remedy: expect.stringMatching(/off PATH.*unlinking/u) })] });
+  await rm(arc);
+  expect(await withoutWindowArcDirectories(path)).toBe(path);
+});
+
+it("refuses to drop the only directory holding npm", async () => {
+  const root = await fixture(), shared = join(root, "shared");
+  await executable(shared); await executable(shared, "npm");
+  await expect(withoutWindowArcDirectories(shared)).rejects.toMatchObject({ findings: [expect.objectContaining({ subject: shared,
+    condition: expect.stringContaining("leaves no npm") })] });
+});
+
+it("drops a directory holding arc behind an earlier node", async () => {
+  const root = await fixture(), earlier = join(root, "earlier"), shared = join(root, "shared");
+  await executable(earlier, "node"); await executable(shared); await executable(shared, "node");
+  expect(await withoutWindowArcDirectories([earlier, shared].join(delimiter))).toBe(earlier);
+});
+
+it.skipIf(process.platform === "win32")("refuses a PATH entry it cannot resolve, naming the entry, and passes once it is repaired", async () => {
+  const root = await fixture(), looped = join(root, "looped");
+  await mkdir(looped);
+  await symlink("arc", join(looped, "arc"));
+  await expect(withoutWindowArcDirectories(looped)).rejects.toMatchObject({ findings: [expect.objectContaining({ subject: looped,
+    condition: expect.stringContaining("could not be resolved"), remedy: expect.stringContaining("Repair or remove this PATH entry") })] });
+  await rm(join(looped, "arc"));
+  expect(await withoutWindowArcDirectories(looped)).toBe(looped);
 });

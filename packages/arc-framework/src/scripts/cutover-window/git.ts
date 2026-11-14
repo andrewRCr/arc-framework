@@ -2,11 +2,12 @@
 import { z } from "zod";
 import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { GIT_OBJECT_ID_PATTERN } from "../../lib/git/object-id.js";
 
 /** Read access pinned to the operation's explicit checkout. */
 export interface WindowGitReadIO { repo: string; exec: GitExec }
 const name = z.string().min(1).regex(/^[^\s\0]+$/u);
-const oid = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
+const oid = z.string().regex(GIT_OBJECT_ID_PATTERN);
 
 /** Enumerate actual local refs in the named prefixes, preserving every read failure. */
 export async function listWindowRefs(io: WindowGitReadIO, prefixes: readonly [string, ...string[]]): Promise<Map<string, string>> {
@@ -28,4 +29,18 @@ export async function readWindowRefTip(io: WindowGitReadIO, ref: string): Promis
     if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return null;
     throw error;
   }
+}
+
+/** A branch's entry in a branch-keyed map, ignoring inherited object properties such as `constructor`. */
+export function windowBranchValue<T>(map: Readonly<Record<string, T>>, branch: string): T | undefined {
+  return Object.hasOwn(map, branch) ? map[branch] : undefined;
+}
+
+/** The store registry ref: present once an import has landed the store. */
+export const WINDOW_REGISTRY_REF = "refs/arc/project/registry";
+
+/** The listed refs under a prefix, leaving out `refs/remotes/origin/HEAD`; `strip` keys them by the name after the prefix. */
+export function selectWindowRefs(refs: ReadonlyMap<string, string>, prefix: string, strip = false): Record<string, string> {
+  return Object.fromEntries<string>([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
+    .map(([ref, tip]): [string, string] => [strip ? ref.slice(prefix.length) : ref, tip]));
 }

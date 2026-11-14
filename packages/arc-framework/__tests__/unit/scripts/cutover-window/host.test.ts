@@ -28,7 +28,13 @@ function urls(remotes: Record<string, { fetch: string[]; push?: string[] }>) {
 }
 
 describe("window supplied host facts", () => {
-  it.each(["/mirror/repo.git", "../mirror.git", "file:///mirror.git", "C:\\mirror\\repo.git"])(
+  it.each(["C:\\mirror\\repo.git", "C:/mirror/repo.git"])("reads drive-letter URL %s as local only on Windows", async url => {
+    expect(await hasWindowHost(urls({ origin: { fetch: [url] } }), "win32")).toBe(false);
+    expect(await hasWindowHost(urls({ origin: { fetch: [url] } }), "linux")).toBe(true);
+    expect(await hasWindowHost(urls({ origin: { fetch: [url] } }), "darwin")).toBe(true);
+  });
+
+  it.each(["/mirror/repo.git", "../mirror.git", "file:///mirror.git"])(
     "accepts rehearsal facts with local URL %s", async url => {
       const exec = urls({ origin: { fetch: [url] } });
       expect(await hasWindowHost(exec)).toBe(false);

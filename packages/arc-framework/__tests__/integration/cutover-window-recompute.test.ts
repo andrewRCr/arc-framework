@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, rm, appendFile, rename } from "node:fs/prom
 import { join } from "node:path";
 import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { expect, it } from "vitest";
-import { runWindow } from "../../src/scripts/cutover-window/main.js";
+import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
@@ -18,13 +18,9 @@ async function importedFixture() {
   return h;
 }
 
-async function runFixtureWindow(h: Awaited<ReturnType<typeof windowFixture>>, operation = "recompute", extra: string[] = []) {
-  const stdout: string[] = [], stderr: string[] = [];
-  const exit = await runWindow([operation, "--repo", h.root, "--json", ...(operation === "restore"
-    ? ["--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath] : []), ...extra], undefined, {
-    stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); },
-  });
-  return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
+function runFixtureWindow(h: Awaited<ReturnType<typeof windowFixture>>, operation = "recompute", extra: string[] = []) {
+  return invokeWindow(h.root, operation, [...(operation === "restore"
+    ? ["--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest), "--pull-requests", h.listingPath] : []), ...extra]);
 }
 
 it("refuses an unreadable review gate with a remedy that leads back to recompute, and passes once access is restored", async () => {
@@ -39,6 +35,25 @@ it("refuses an unreadable review gate with a remedy that leads back to recompute
   ] } });
   await rm(gate);
   if (moved) await rename(held, gate);
+  const repaired = await runFixtureWindow(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { operation: "recompute", status: "passed" } });
+}, 60_000);
+
+it("reports an unreadable review gate and an unreachable host together, and passes once both are restored", async () => {
+  const h = await importedFixture();
+  const gate = join(await resolveGitCommonDir(h.git, h.root), "arc/review-gate"), held = `${gate}.held`;
+  const moved = await rename(gate, held).then(() => true, () => false);
+  await mkdir(join(gate, ".."), { recursive: true });
+  await writeFile(gate, "A file prevents inventorying the gate directory.\n");
+  const origin = (await h.git("git", ["remote", "get-url", "origin"])).stdout.trim();
+  await h.git("git", ["remote", "set-url", "origin", join(h.root, ".arc-fixture", "missing-origin.git")]);
+  const refused = await runFixtureWindow(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { operation: "recompute", status: "refused", findings: [
+    expect.objectContaining({ subject: "review gate" }), expect.objectContaining({ subject: "git ls-remote" }),
+  ] } });
+  await rm(gate);
+  if (moved) await rename(held, gate);
+  await h.git("git", ["remote", "set-url", "origin", origin]);
   const repaired = await runFixtureWindow(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { operation: "recompute", status: "passed" } });
 }, 60_000);
@@ -104,8 +119,11 @@ it.each(["dirty", "ignored", "stash"] as const)("stops on %s input left after im
     repair = () => rm(join(h.root, file));
   }
   const refused = await runFixtureWindow(h);
+  const finding = mode === "stash"
+    ? { subject: expect.stringMatching(/^stash@\{0\}: .*Late tracked state$/u), condition: expect.stringContaining("The stash changes tracked state") }
+    : { condition: expect.stringContaining(mode) };
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
-    expect.objectContaining({ condition: expect.stringContaining(mode), remedy: expect.stringContaining("restore") }),
+    expect.objectContaining({ ...finding, remedy: expect.stringContaining("restore") }),
   ]) } });
   expect(refused.report).toContain(file); expect(refused.report).toContain("recorded"); expect(refused.report).toContain("observed");
   await repair();

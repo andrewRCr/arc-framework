@@ -1,14 +1,14 @@
 /** Bring a copy taken while sessions ran to the state the cleanup before the window leaves the live repository in. */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { listWindowRefs, readWindowRefTip } from "./git.js";
+import { listWindowRefs, readWindowRefTip, selectWindowRefs } from "./git.js";
 import { readWindowCheckouts } from "./checkouts.js";
 import { createWindowImportContext } from "./import-context.js";
 import { readWindowLiveState } from "./live-state.js";
 import { inspectWindowTrackedRecords, type WindowTrackedRecordInspection } from "./tracked-records.js";
-import { readWindowCheckoutAncestryFindings, readWindowSealAnchor } from "./seals.js";
+import { readWindowCheckoutAncestry, readWindowSealAnchor } from "./seals.js";
 import { readWindowTransientRecords, isWindowIdentityRef } from "./transients.js";
-import { readWindowStashFindings } from "./stashes.js";
+import { readWindowStashInventory } from "./stashes.js";
 import { WindowRefusal } from "./result.js";
 import { mergeRehearsalMain, returnRehearsalPaths } from "./rehearse-merge.js";
 import { runWindowRehearsalArc, WindowRehearsalStop, type WindowRehearsalContext } from "./rehearse-run.js";
@@ -17,6 +17,7 @@ import { TransientIdentityRecordSchema } from "../../lib/errand/identity-record.
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { listInboxEntryTitles } from "../../lib/user-sync/inbox-writer.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 
 const plantedTitle = "Rehearsal inbox entry";
 
@@ -46,6 +47,7 @@ export async function cleanRehearsalCheckouts(context: WindowRehearsalContext): 
 /** Merge main into each read copy main's tracked state outruns, then return each branch's remaining paths to their merge base. */
 export async function remedyRehearsalTrackedState(context: WindowRehearsalContext): Promise<string> {
   const first = await inspectTrackedState(context);
+  if (first.findings.length > 0) throw new WindowRehearsalStop(first.findings.map(finding => `${finding.subject}: ${finding.condition}`).join("\n"));
   const merges = [...new Set(first.failures.filter(failure => !failure.target.branchTip)
     .map(failure => readCopyBranch(failure.result.readCopyRef, failure.result.path, failure.result.workUnit)))].sort();
   for (const branch of merges) await mergeRehearsalMain(context, branch, first.parked);
@@ -70,9 +72,11 @@ export async function remedyRehearsalSeals(context: WindowRehearsalContext): Pro
   const io = { repo: context.layout.repo, exec: context.exec };
   const anchor = await readWindowSealAnchor(io, context.anchor);
   const checkouts = await readWindowCheckouts(io);
-  const lacking = new Set((await readWindowCheckoutAncestryFindings(io, checkouts, anchor)).map(finding => finding.subject));
+  const ancestry = await readWindowCheckoutAncestry(io, checkouts, anchor);
+  const unreadable = ancestry.flatMap(entry => entry.state === "unreadable" ? [`${entry.checkout.path}: ${entry.error}`] : []);
+  if (unreadable.length > 0) throw new WindowRehearsalStop(`Sealing ancestry could not be proved:\n${unreadable.join("\n")}`);
   const branches: string[] = [];
-  for (const checkout of checkouts.filter(row => lacking.has(row.path))) {
+  for (const { checkout } of ancestry.filter(entry => entry.state === "lacks")) {
     if (checkout.branch === null) throw new WindowRehearsalStop(`The checkout ${checkout.path} lacks the sealing anchor and holds no branch.`);
     branches.push(checkout.branch);
   }
@@ -104,14 +108,12 @@ export async function abandonRehearsalErrands(context: WindowRehearsalContext): 
 
 /** Drop each stash entry that changes tracked state, last position first. */
 export async function dropRehearsalStashes(context: WindowRehearsalContext): Promise<string> {
-  const findings = await readWindowStashFindings({ repo: context.layout.repo, exec: context.exec });
-  const positions = findings.map(finding => {
-    const match = /^(stash@\{(\d+)\}): /u.exec(finding.subject);
-    if (!match?.[1] || !finding.condition.startsWith("The stash changes tracked state")) {
-      throw new WindowRehearsalStop(`${finding.subject}: ${finding.condition}`);
-    }
-    return { position: match[1], index: Number(match[2]) };
-  }).sort((left, right) => right.index - left.index);
+  const inventory = await readWindowStashInventory({ repo: context.layout.repo, exec: context.exec });
+  if ("findings" in inventory) throw new WindowRehearsalStop(inventory.findings.map(finding => `${finding.subject}: ${finding.condition}`).join("\n"));
+  const unreadable = inventory.entries.flatMap(entry => "error" in entry ? [`${entry.position}: ${entry.error}`] : []);
+  if (unreadable.length > 0) throw new WindowRehearsalStop(`Cannot inspect stash snapshots:\n${unreadable.join("\n")}`);
+  const positions = inventory.entries.flatMap((entry, index) => "changes" in entry && entry.changes.length > 0 ? [{ position: entry.position, index }] : [])
+    .sort((left, right) => right.index - left.index);
   for (const { position } of positions) await context.sync.copy(context.layout.repo, ["stash", "drop", "--quiet", position]);
   return `Dropped ${positions.length} stash entr${positions.length === 1 ? "y" : "ies"}.`;
 }
@@ -170,13 +172,12 @@ async function inspectTrackedState(context: WindowRehearsalContext): Promise<Win
 }
 
 function selectBranches(refs: ReadonlyMap<string, string>, prefix: string): Record<string, string> {
-  return Object.fromEntries([...refs].filter(([ref]) => ref.startsWith(prefix) && ref !== "refs/remotes/origin/HEAD")
-    .map(([ref, tip]) => [ref.slice(prefix.length), tip]));
+  return selectWindowRefs(refs, prefix, true);
 }
 
 function readCopyBranch(ref: string | null, path: string, workUnit: string | null): string {
   const branch = ref === null ? null : branchName(ref);
-  if (branch !== null && branch !== "main" && branch !== "HEAD" && !/^[a-f0-9]{40,64}$/u.test(branch)) return branch;
+  if (branch !== null && branch !== "main" && branch !== "HEAD" && !isGitObjectId(branch)) return branch;
   throw new WindowRehearsalStop(`Main's ${path} fails the read rule${workUnit === null ? "" : ` for work unit ${workUnit}`}, `
     + `read at ${ref ?? "no revision"}, with no other branch to merge main into.`);
 }

@@ -1,12 +1,12 @@
 /** The rehearsal's sync: a reset on the mirror and in the copy, and a branch held apart from the mirror until released. */
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { rehearsalMirrorRepository } from "../helpers/cutover-window/rehearse-mirror.js";
 
 /** A mirror whose main has two commits, checked out in the primary, and a side branch no checkout holds at the first. */
-async function syncedRepository() {
-  const r = await rehearsalMirrorRepository("arc-window-rehearse-sync-");
+async function syncedRepository(rebuild?: (checkout: string) => Promise<void>) {
+  const r = await rehearsalMirrorRepository("arc-window-rehearse-sync-", rebuild);
   const tip = async (run: Promise<{ stdout: string }>) => (await run).stdout.trim();
   await r.write("base.txt", "base\n");
   await r.git("add", "."); await r.git("commit", "--quiet", "-m", "Base");
@@ -75,4 +75,18 @@ it("moves the mirror alone while a checkout's branch is held apart, and carries 
   r.sync.release("main");
   await r.sync.sync();
   expect([await r.localTip("main"), await r.tip(r.git("rev-parse", "HEAD"))]).toEqual([ahead, ahead]);
+}, 60_000);
+
+// Windows reports a path through a regular file as absent rather than unreadable.
+it.skipIf(process.platform === "win32")("stops a sync on a build it cannot read instead of rebuilding it, and completes once the path is repaired", async () => {
+  const rebuild = vi.fn(async () => undefined);
+  const r = await syncedRepository(rebuild);
+  const dist = join(r.repo, "packages", "arc-framework", "dist");
+  await mkdir(join(dist, ".."), { recursive: true });
+  await writeFile(dist, "not a build directory\n");
+  await expect(r.sync.sync()).rejects.toThrow("Built CLI freshness could not be established");
+  expect(rebuild).not.toHaveBeenCalled();
+  await rm(dist);
+  await r.sync.sync();
+  expect(rebuild).not.toHaveBeenCalled();
 }, 60_000);

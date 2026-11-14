@@ -1,5 +1,5 @@
 /** Resolve tracked paths through the import's record discovery and operational source selection. */
-import type { WindowImportContext } from "./import-context.js";
+import { windowImportReport, type WindowImportContext } from "./import-context.js";
 import type { ComposedLifecycleIndexResult } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { RecordReferenceSchema, type RecordReference } from "../../lib/store/identity.js";
 import { WindowRefusal, type WindowFinding } from "./result.js";
@@ -18,8 +18,8 @@ export interface WindowPathRead {
   readRevision: string | null; readCopyRef: string | null;
   pointerBranch?: string | null;
 }
-/** A parked unit's committed pointer on main and the branch it names. */
-export interface WindowParkedPointer { slug: string; path: string; branch: string | null }
+/** A parked unit's committed pointer on main, the branch it names, and whether the import can read the unit's source. */
+export interface WindowParkedPointer { slug: string; path: string; branch: string | null; available: boolean }
 /** Operation-owned discovery, including explicit unavailable import sources. */
 export interface WindowReadMap {
   main: string; findings: WindowFinding[];
@@ -69,16 +69,17 @@ async function readSources(context: WindowImportContext, internal: InRepoContext
     sources: Map<string, ReadCoordinate>; pointers: Map<string, string | null>; parked: WindowParkedPointer[]; findings: WindowFinding[];
   }> {
   const sources = await readComposedSources(context, internal, selectedComposition, main);
-  const report: MigrateReport = { move: "import", refs: [], refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices: [] };
+  const report = windowImportReport();
   const parked = await readImportParkedSources(context, internal, report, main);
   for (const slug of parked.names) sources.set(slug, { readRevision: null, readCopyRef: null });
   const pointers = new Map<string, string | null>(), pointerBranches = new Map<string, string | null>();
+  const available = new Set<string>(parked.available.map(entry => entry.meta.reference.owner.name));
   const parkedPointers: WindowParkedPointer[] = [];
   for (const meta of await heldMetaSources(internal, main)) {
     if (!parked.names.has(meta.slug) || meta.content === null) continue;
     const branch = parseMetaRecord(meta.content).branch;
     pointers.set(meta.path, branch); pointerBranches.set(meta.slug, branch);
-    parkedPointers.push({ slug: meta.slug, path: meta.path, branch });
+    parkedPointers.push({ slug: meta.slug, path: meta.path, branch, available: available.has(meta.slug) });
   }
   for (const entry of parked.available) {
     const branch = pointerBranches.get(entry.meta.reference.owner.name);
@@ -90,7 +91,6 @@ async function readSources(context: WindowImportContext, internal: InRepoContext
     sources.set(entry.meta.reference.owner.name, { readRevision: entry.revision,
       readCopyRef: local === entry.revision ? localRef : `refs/remotes/origin/${branch}` });
   }
-  const available = new Set(parked.available.map(entry => entry.meta.reference.owner.name));
   return { sources, pointers, parked: parkedPointers, findings: parkedSourceFindings(parked.names, available, pointerBranches, report.notices) };
 }
 

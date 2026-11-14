@@ -32,7 +32,11 @@ export async function mergeRehearsalMain(context: WindowRehearsalContext, branch
   await sync.publish(branch, "HEAD");
 }
 
-/** Commit, on the branch, each path's content at its merge base with main, absence included, and publish it. */
+/**
+ * Commit, on the branch, each path's content at its merge base with main, absence included, and publish it. The mirror's
+ * tip may already hold that content when only an older local or fetched tip failed; nothing is committed then, and the
+ * publication still lets the next sync move a behind local copy to the mirror's tip.
+ */
 export async function returnRehearsalPaths(context: WindowRehearsalContext, branch: string, paths: readonly string[]): Promise<void> {
   const { sync } = context;
   await sync.carryLocal(branch);
@@ -43,8 +47,18 @@ export async function returnRehearsalPaths(context: WindowRehearsalContext, bran
   const restore = paths.filter(path => present.has(path)), remove = paths.filter(path => !present.has(path));
   if (restore.length > 0) await sync.scratch(["checkout", "--quiet", base, "--", ...restore]);
   if (remove.length > 0) await sync.scratch(["rm", "--quiet", "--ignore-unmatch", "--", ...remove]);
-  await sync.scratch(["commit", "--quiet", "-m", "Return tracked state to its merge base with main"]);
+  if (await stagedChanges(context)) await sync.scratch(["commit", "--quiet", "-m", "Return tracked state to its merge base with main"]);
   await sync.publish(branch, "HEAD");
+}
+
+async function stagedChanges(context: WindowRehearsalContext): Promise<boolean> {
+  try {
+    await context.sync.scratch(["diff", "--cached", "--quiet"]);
+    return false;
+  } catch (error) {
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return true;
+    throw error;
+  }
 }
 
 function branchSidePaths(branch: string, parked: readonly WindowParkedPointer[]): Set<string> {

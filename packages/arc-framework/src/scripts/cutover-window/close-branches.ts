@@ -4,7 +4,7 @@ import type { WindowHostPort } from "./host.js";
 import type { WindowHeldComparisons } from "./held-comparisons.js";
 import { listWindowRefs } from "./git.js";
 import { acquireWindowHostCommit } from "./merged-flip.js";
-import { isWindowRecordedBranch, readWindowTrackedPaths } from "./branch-observations.js";
+import { isWindowRecordedBranch, windowTipsTrackState } from "./branch-observations.js";
 import type { WindowFinding } from "./result.js";
 
 /** Require present sides of an unrecorded state-bearing branch to have retained comparison marks. */
@@ -27,12 +27,7 @@ async function unrecordedFindings(io: WindowHoldIO, state: WindowHeldComparisons
     && !state.marks.some(mark => mark.branch === branch && mark.side === side));
   if (!missing.length) return [];
   if (tips.origin !== null) await acquireWindowHostCommit(io, branch, tips.origin);
-  if (!await tracksState(io, tips)) return [];
+  if (!await windowTipsTrackState(io, [tips.local, tips.origin])) return [];
   return missing.map(side => ({ subject: `${side}/${branch}`, condition: `Unrecorded state-bearing tip ${tips[side]} has no comparison mark.`,
     remedy: `Run compare --branch ${branch}, reapply and confirm every range it reports, then retry close.` }));
-}
-
-async function tracksState(io: WindowHoldIO, tips: { local: string | null; origin: string | null }): Promise<boolean> {
-  for (const tip of Object.values(tips)) if (tip !== null && (await readWindowTrackedPaths(io, tip)).length) return true;
-  return false;
 }

@@ -24,8 +24,9 @@ it("refuses a target that is not a repository copy before writing anything", asy
   const { exit, result } = await invokeWindow(h.root, "rehearse", ["--anchor", "HEAD"],
     { rehearse: request => rehearseWindow(request, { host: rehearsalHost }) });
   expect(exit).toBe(1);
-  expect(result).toMatchObject({ operation: "rehearse", status: "refused",
-    findings: [expect.objectContaining({ condition: expect.stringContaining("does not name the copy's mirror") })] });
+  expect(result).toMatchObject({ operation: "rehearse", status: "refused", findings: [
+    expect.objectContaining({ subject: join(dirname(h.root), "mirror.git"), condition: "The copy has no mirror repository." }),
+    expect.objectContaining({ condition: expect.stringContaining("does not name the copy's mirror") })] });
   expect(await state()).toEqual(before);
   await expect(lstat(join(dirname(h.root), "rehearsal"))).rejects.toMatchObject({ code: "ENOENT" });
 }, 60_000);

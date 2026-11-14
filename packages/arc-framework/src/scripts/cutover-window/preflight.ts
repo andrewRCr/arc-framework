@@ -45,9 +45,12 @@ async function configurationFindings(context: RefBackendContext, commonDir: stri
   return findings;
 }
 
+/** The store directories under `<commonDir>/arc/` that C9 refuses and a restore removes. */
+export const WINDOW_STORE_DIRECTORIES = ["store", "store-migrate-build", "store-migrate-old"] as const;
+
 async function directoryFindings(context: RefBackendContext, commonDir: string): Promise<WindowFinding[]> {
   const findings: WindowFinding[] = [];
-  for (const name of ["store", "store-migrate-build", "store-migrate-old"]) {
+  for (const name of WINDOW_STORE_DIRECTORIES) {
     const path = join(commonDir, "arc", name);
     if (await directoryExists(context, path)) findings.push({ subject: path, condition: "The store directory already exists.",
       remedy: "Have the Owner settle the pre-window store and remove this directory before retrying check." });

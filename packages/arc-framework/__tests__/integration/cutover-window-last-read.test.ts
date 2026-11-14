@@ -5,17 +5,12 @@ import { expect, it } from "vitest";
 import { lastReadWindow, type WindowLastReadOptions } from "../../src/scripts/cutover-window/last-read.js";
 import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { runWindow } from "../../src/scripts/cutover-window/main.js";
+import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { lastReadFixture, deleteWindowFile } from "../helpers/cutover-window/last-read.js";
 
-async function lastRead(h: Awaited<ReturnType<typeof lastReadFixture>>, options: WindowLastReadOptions = {}, supplied = true) {
-  const stdout: string[] = [], stderr: string[] = [];
-  const exit = await runWindow(["last-read", "--repo", h.root, "--flip-branch", h.flip.branch,
-    "--flip-pr", String(h.flip.pullRequest), ...(supplied ? ["--pull-requests", h.listingPath] : []), "--json"],
-  { "last-read": request => lastReadWindow(request, options) }, {
-    stdout: value => { stdout.push(value); }, stderr: value => { stderr.push(value); },
-  });
-  return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
+function lastRead(h: Awaited<ReturnType<typeof lastReadFixture>>, options: WindowLastReadOptions = {}, supplied = true) {
+  return invokeWindow(h.root, "last-read", ["--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest),
+    ...(supplied ? ["--pull-requests", h.listingPath] : [])], { "last-read": request => lastReadWindow(request, options) });
 }
 
 it("passes a published deletion commit on the recorded branch and checkout without changing refs", async () => {
@@ -46,6 +41,21 @@ it.each([{ headBranch: "feat/other" }, { baseBranch: "release" }])("refuses a re
     subject: "flip pull request", condition: expect.stringContaining("not the recorded flip into main"),
     remedy: "Repair the request to name the recorded flip into main, then retry last-read." })] } });
   await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  const repaired = await lastRead(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 60_000);
+
+it("reports unreadable host facts beside the shared comparisons, and passes once both are repaired", async () => {
+  const h = await lastReadFixture();
+  await deleteWindowFile(h, false);
+  await writeFile(h.listingPath, "{}");
+  const refused = await lastRead(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: "pull-request listing" }),
+    expect.objectContaining({ subject: `host:${h.flip.branch}`, condition: expect.stringContaining(h.flip.head) }),
+  ]) } });
+  await writeFile(h.listingPath, JSON.stringify(h.pullRequests));
+  await h.git("git", ["push", "origin", h.flip.branch]);
   const repaired = await lastRead(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 60_000);

@@ -2,15 +2,12 @@
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { runWindow } from "../../src/scripts/cutover-window/main.js";
+import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 
-async function compare(h: Awaited<ReturnType<typeof windowFixture>>, ...args: string[]) {
-  const stdout: string[] = [], stderr: string[] = [];
-  const exit = await runWindow(["compare", "--repo", h.root, "--json", ...args], undefined,
-    { stdout: text => { stdout.push(text); }, stderr: text => { stderr.push(text); } });
-  return { exit, result: stdout.length ? JSON.parse(stdout.join("")) as unknown : null, report: stderr.join("") };
+function compare(h: Awaited<ReturnType<typeof windowFixture>>, ...args: string[]) {
+  return invokeWindow(h.root, "compare", args);
 }
 
 it("marks both recorded branch sides even when neither moved", async () => {

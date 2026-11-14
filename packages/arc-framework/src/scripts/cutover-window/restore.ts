@@ -1,6 +1,6 @@
 /** Admission and named mutation boundaries for restoring a cutover window before its flip merges. */
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
-import { WindowRefusal } from "./result.js";
+import { WindowRefusal, type WindowFinding } from "./result.js";
 import { isWindowFlipMerged } from "./merged-flip.js";
 import { createWindowHost } from "./native-host.js";
 import { readSuppliedWindowRequests } from "./supplied.js";
@@ -33,14 +33,14 @@ export async function admitWindowRestore(request: WindowRequest, options: Window
   const listing = input.listing;
   const facts = await readWindowHostFacts({ exec: io.exec, host }, input.pullRequest,
     listing === undefined ? {} : { pullRequests: () => readSuppliedWindowRequests(request.repo, listing, input.pullRequest) });
-  if (facts.pullRequests.flip.headBranch !== record.flip.branch || facts.pullRequests.flip.baseBranch !== "main") {
-    throw new WindowRefusal([{ subject: "flip pull request",
-      condition: `Request #${record.flip.pullRequest} now names ${facts.pullRequests.flip.headBranch} into ${facts.pullRequests.flip.baseBranch}, not the recorded flip into main.`,
-      remedy: "Repair the flip request to identify its recorded branch into main, then retry restore." }]);
-  }
-  if (facts.pullRequests.flip.autoMergeArmed) throw new WindowRefusal([{ subject: "flip pull request",
+  const flip = facts.pullRequests.flip, findings: WindowFinding[] = [];
+  if (flip.headBranch !== record.flip.branch || flip.baseBranch !== "main") findings.push({ subject: "flip pull request",
+    condition: `Request #${record.flip.pullRequest} now names ${flip.headBranch} into ${flip.baseBranch}, not the recorded flip into main.`,
+    remedy: "Repair the flip request to identify its recorded branch into main, then retry restore." });
+  if (flip.autoMergeArmed) findings.push({ subject: "flip pull request",
     condition: "Auto-merge is armed on the flip request; it could merge while the window restores.",
-    remedy: "Disarm auto-merge on the flip request, then retry restore." }]);
+    remedy: "Disarm auto-merge on the flip request, then retry restore." });
+  if (findings.length > 0) throw new WindowRefusal(findings);
   const context: WindowRestoreContext = { io, record, tip, host, facts, input, ...options.step ? { step: options.step } : {} };
   await requireWindowRestoreUnmerged(context, "restore.merged.initial");
   return context;

@@ -1,5 +1,7 @@
 /** The repository-only source entry propagates refusals to the native process. */
-import { resolve } from "node:path";
+import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { execa } from "execa";
 import { expect, it, onTestFinished } from "vitest";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
@@ -16,6 +18,18 @@ it("exits nonzero with usage for an unsupported source operation", async () => {
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("Unsupported operation: unknown");
   expect(result.stderr).toContain("Usage:");
+}, 15_000);
+
+it("runs and refuses when the entry is invoked through a symlinked directory", async () => {
+  const target = await createTempRepo(), links = await mkdtemp(join(tmpdir(), "arc-window-entry-"));
+  onTestFinished(async () => { await cleanupTempDir(target); await rm(links, { recursive: true, force: true }); });
+  const linked = join(links, "cutover-window");
+  await symlink(dirname(entry), linked, "junction");
+  const result = await execa(process.execPath, ["--import", "tsx", join(linked, "main.ts"), "unknown", "--repo", target], {
+    cwd: repository, reject: false, env: { FORCE_COLOR: undefined, NO_COLOR: "1" },
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("Unsupported operation: unknown");
 }, 15_000);
 
 it("refuses an operation's unknown option with an options remedy and its usage", async () => {

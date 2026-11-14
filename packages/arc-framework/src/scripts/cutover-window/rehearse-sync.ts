@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { ExecResult, GitExec } from "../../lib/git/exec.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 import { readWindowCheckouts, type WindowCheckout } from "./checkouts.js";
-import { readWindowBuildFindings } from "./seals.js";
+import { readWindowBuildStates } from "./seals.js";
 import { readWindowRefTip } from "./git.js";
 import type { WindowCopyBounds } from "./copy-safety.js";
 
@@ -158,9 +158,10 @@ export class WindowRehearsalSync {
 
   private async settleBuilds(checkouts: readonly WindowCheckout[], moved: readonly WindowCheckout[]): Promise<void> {
     for (const checkout of moved.filter(checkout => !checkout.primary)) await removeBuild(checkout.path);
-    const stale = new Set((await readWindowBuildFindings(checkouts)).map(finding => finding.subject));
-    for (const checkout of checkouts) {
-      if (!stale.has(join(checkout.path, "packages", "arc-framework", "dist", "cli.js"))) continue;
+    const builds = await readWindowBuildStates(checkouts);
+    const unreadable = builds.flatMap(build => build.state === "unreadable" ? [`${build.bundle}: ${build.error}`] : []);
+    if (unreadable.length > 0) throw new Error(`Built CLI freshness could not be established:\n${unreadable.join("\n")}`);
+    for (const { checkout } of builds.filter(build => build.state === "stale")) {
       if (checkout.primary) await this.rebuild(checkout.path);
       else await removeBuild(checkout.path);
     }
