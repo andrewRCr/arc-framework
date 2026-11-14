@@ -9,7 +9,9 @@ import { makeUserIO } from "../integration.js";
 import { makeGitExec } from "../integration.js";
 import { prepareRepositoryTemplate, copyPreparedRepository, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
 import { makeMetaFixture } from "../meta-fixture.js";
-import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
+import { createDefaultRefStorePorts, createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { readConfigSettings } from "../../../src/lib/config/status-reader.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../../src/lib/store/selection.js";
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { scanCommanderSource } from "../../../src/lib/command-input/source-scanner.js";
@@ -19,6 +21,7 @@ import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 import type { StoreMigrateResult } from "../../../src/lib/store/commands.js";
 import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
 import { inRepoContent } from "./in-repo-fixture.js";
+import { inRepoStore } from "./in-repo-ports.js";
 import { seedImportArchives } from "./import-archives.js";
 import { seedImportLineage } from "./import-lineage.js";
 
@@ -83,8 +86,27 @@ export async function importFixture(layout: "default" | "separate" = "default", 
   await git("git", ["config", "remote.origin.arc-state", layout === "default" ? "push" : "off"]);
   const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
   const origin = join(root, PREPARED_REMOTE_PATH);
-  return { root, git, ports, origin, remote: makeGitExec(origin), migrate: (trial = false) => invokeImport({ ports }, trial),
-    migrateCommand: (trial = false) => invokeImport({ cwd: root }, trial) };
+  return { root, git, ports, origin, remote: makeGitExec(origin),
+    migrate: async (trial = false) => invokeImport({ ports: await withInRepoImportSource(ports) }, trial),
+    migrateCommand: (trial = false) => withInRepoOverride(() => invokeImport({ cwd: root }, trial)) };
+}
+
+/** Bind the import's source to the in-repo store explicitly, composed as the import composes its own source. */
+async function withInRepoImportSource(ports: RefStorePorts): Promise<RefStorePorts> {
+  if (ports.importSource !== undefined) return ports;
+  const sourcePorts = { ...createDefaultStorePorts({ checkoutRoot: ports.checkoutRoot, exec: ports.exec, execInput: ports.execInput }), ...ports };
+  const baseBranch = (await readConfigSettings(ports.checkoutRoot)).settings["branch.base"];
+  return { ...ports, importSource: { store: inRepoStore(sourcePorts), ports: sourcePorts, baseBranch } };
+}
+
+/** Run the production command with the in-repo override set, so the import's source stays in-repo, then restore it. */
+async function withInRepoOverride<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = process.env[IN_REPO_STORE_OVERRIDE];
+  process.env[IN_REPO_STORE_OVERRIDE] = "1";
+  try { return await operation(); } finally {
+    if (previous === undefined) Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
+    else process.env[IN_REPO_STORE_OVERRIDE] = previous;
+  }
 }
 
 /** Injected ports run the import as given; a checkout alone runs it through the command's own production ports. */

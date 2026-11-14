@@ -73,7 +73,7 @@ the ref backend while the default store stays in-repo.
           and dispatched runs over a tree that tracks state, and nowhere else. The lane-attestation workflow and the
           routed checks' declared inputs are unchanged.
 
-### `[ ]` **1.3 The store test helpers build the in-repo backend explicitly — § 7.2**
+### `[x]` **1.3 The store test helpers build the in-repo backend explicitly — § 7.2**
 
 - _Goal:_ Every shared store helper whose subject is the in-repo arm builds it through `createInRepoBackend`
   (`lib/store/in-repo/backend.ts`) or selects it through the override, so the switch changes no test that imports one.
@@ -94,12 +94,11 @@ the ref backend while the default store stays in-repo.
         - `review-differential`'s in-repo side and `import-comparison`'s source store build through `inRepoStore`; the
           reference and ref sides are unchanged.
 
-    - `[ ]` **1.3.c The import fixture**
-        - Both of `import-fixture`'s import paths build the import's source through `createStore` (`runStoreMigrate`,
-          `lib/store/create.ts`). Its injected-ports path (`migrate`) sets `ports.importSource` over an explicit in-repo
-          store; its production-command path (`migrateCommand`), which builds its own ports from the checkout
-          (`createStoreCommandPorts`), sets the override for its call and restores it after. `migrateCommand`'s callers
-          are `integration/store-ref-import-review-current.test.ts` and `store-ref-import-review-mapping.test.ts`.
+    - `[x]` **1.3.c The import fixture**
+        - `migrate` passes ports carrying an explicit `importSource` over `inRepoStore`, composed as `runStoreMigrate`
+          composes its own source. `migrateCommand` sets the override around its call and restores the prior value
+          after, so the production command's source stays in-repo once `createStore` follows the selection. The 41
+          suites that import the fixture pass unchanged.
 
 ### `[ ]` **1.4 Callers whose subject is the in-repo arm build it explicitly — § 7.2**
 
