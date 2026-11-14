@@ -8,8 +8,9 @@ before resolving engine dependencies. With state off branch, start takes the pro
 configuration, state-version read, and shared-root walk together; personal discovery waits for the identity. It sweeps
 before scanning edits, rereads recovered paths, and sends an ignore-refused root's edits without replacing its files.
 Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks type entries from
-each folder listing without following links, `lstat` each survivor of a listing whose untyped entry vanished mid-read,
-skip machine-local folders, and return newly discovered files unsent.
+each folder listing without following links, `lstat` each entry the listing types as a link, since a Windows listing
+types every reparse point as one, and each survivor of a listing whose untyped entry vanished mid-read, skip
+machine-local folders, and return newly discovered files unsent.
 
 `process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
 memo, per-root capability and bindings, and copy bookkeeping. Each command starts with fresh bindings and history.
