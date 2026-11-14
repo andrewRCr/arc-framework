@@ -11,7 +11,8 @@ import { createAdoptionFixture } from "../../../helpers/store/projection/adoptio
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
-import { initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
+import { initializeEngineCheckout, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
@@ -172,4 +173,42 @@ it.each([true, false])("ignores a symbolic link at indexed=%s without reading it
   await rm(join(f.root, path));
   if (original !== null) await writeFile(join(f.root, path), original);
   expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
+});
+
+it("keeps unreadable prospective metadata unobservable until it can be read", async () => {
+  const { f } = await createAdoptionFixture();
+  const folder = join(f.root, ".arc/backlog/planned/prospective");
+  await mkdir(folder, { recursive: true });
+  access.path = join(folder, "meta-prospective.md");
+  await writeFile(access.path, makeMetaFixture("prospective", { owner: "andrew", state: "Planning", workClass: "Light", priority: "P1",
+    currentWorkflow: null }));
+  await writeFile(join(folder, "notes-prospective.md"), "New owner's prose.\n");
+  const context = { store: f.store, identity: SlugSchema.parse("andrew") };
+  access.denied = true;
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable",
+    detail: expect.stringContaining("Restore readable metadata") });
+  access.denied = false;
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
+});
+
+it("keeps an unreadable or incomplete archive listing unobservable until the inventory is restored", async () => {
+  const { f } = await createAdoptionFixture();
+  const path = ".arc/completed/2026-q4/01_gone/notes-gone.md";
+  await mkdir(join(f.root, dirname(path)), { recursive: true });
+  await writeFile(join(f.root, path), "Archived prose with no record.\n");
+  let listing: "unreadable" | "incomplete" | "restored" = "unreadable";
+  const store = overrideEngineStore(f.store, { list: async input => {
+    const listed = await f.store.list(input);
+    if (listing === "restored" || input.filter?.locations?.includes("completed") !== true || listed.status !== "ok") return listed;
+    return listing === "unreadable" ? { status: "ok", result: { status: "unreadable", condition: "The archive inventory cannot be read.",
+      remedy: { text: "Restore the archive inventory, then retry." } } }
+      : { status: "ok", result: { status: "complete", records: listed.result.status === "complete" ? listed.result.records : [],
+        diagnostics: [], missed: true } };
+  } });
+  const context = { store, identity: SlugSchema.parse("andrew") };
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable" });
+  listing = "incomplete";
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable" });
+  listing = "restored";
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining("Move the file") } });
 });

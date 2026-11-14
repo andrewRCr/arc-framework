@@ -36,7 +36,7 @@ export interface BacklogOwnershipInput {
 export type BacklogOwnership = { readonly kind: "owned"; readonly container: WorkItemContainer; readonly record: StoreRecord }
   | { readonly kind: "prospective"; readonly container: WorkItemContainer; readonly metaPath: string;
       readonly params: Extract<ProspectiveStub, { kind: "stub" }>["params"] }
-  | { readonly kind: "refused"; readonly mark: RefusedMark };
+  | { readonly kind: "refused"; readonly mark: RefusedMark; readonly readFailure?: true };
 
 type OwnedContainer = Exclude<BacklogOwnership, { kind: "refused" }>;
 type StoredOwner = Extract<BacklogOwnership, { kind: "owned" }>;
@@ -196,7 +196,7 @@ async function readProspectiveOwner(input: BacklogOwnershipInput, container: Wor
     return inspected.kind === "refused" ? { kind: "invalid", mark: inspected.mark }
       : { kind: "prospective", container, metaPath, params: inspected.params };
   } catch (error) {
-    return { kind: "refused", mark: { reason: `Cannot read prospective metadata ${metaPath}: ${error instanceof Error ? error.message : String(error)}`,
+    return { kind: "refused", readFailure: true, mark: { reason: `Cannot read prospective metadata ${metaPath}: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Restore readable metadata at the named path, then retry adoption." } } };
   }
 }

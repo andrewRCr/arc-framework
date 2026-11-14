@@ -52,11 +52,11 @@ async function resolveArchivedCohort(root: ProjectionSelectionContext, path: str
   const listing = await root.store.list({ family: "cohort", kind: "cohort/document", filter: { locations: ["completed"] } });
   if (listing.status === "refused") return { kind: "refused", mark: markStoreRefusal(listing.refusal, root.context.verb) };
   const result = listing.result;
-  if (result.status === "unreadable") return { kind: "refused", mark: { reason: result.condition, remedy: result.remedy } };
+  if (result.status === "unreadable") return { kind: "refused", readFailure: true, mark: { reason: result.condition, remedy: result.remedy } };
   if (result.status === "absent") return missingArchive(path);
   if (result.missed || result.diagnostics.length > 0) {
     const first = result.diagnostics[0];
-    return first === undefined ? missingArchive(path) : { kind: "refused", mark: { reason: first.condition, remedy: first.remedy } };
+    return { kind: "refused", readFailure: true, mark: first === undefined ? missingArchive(path).mark : { reason: first.condition, remedy: first.remedy } };
   }
   const matching: StoreRecord[] = [];
   for (const record of result.records) {

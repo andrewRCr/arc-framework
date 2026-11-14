@@ -65,7 +65,9 @@ async function readRemovalAdoptionTarget(root: ReadOnlyProjectionRoot, index: Pr
     target = resolveOwnedAdoptionReference(index, path, ownership);
   } else target = intent;
   if (target.kind === "bound") return { kind: "passes" };
-  if (target.kind === "refused") return { kind: "would-refuse", remedy: target.mark.remedy };
+  // A refusal resting on a failed read leaves the file unjudged.
+  if (target.kind === "refused") return target.readFailure === true ? { kind: "unobservable", detail: target.mark.remedy.text }
+    : { kind: "would-refuse", remedy: target.mark.remedy };
   return target;
 }
 
