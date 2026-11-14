@@ -42,6 +42,14 @@ Consult this doc when authoring or iterating any plan / PRD / WU that touches:
 shape, or does it lock in placement, naming, or loading choices that model would have to undo?_ If the
 latter, surface the tension explicitly during authoring rather than deferring it.
 
+Before deciding rule placement, demotion, or always-loaded membership, load
+[Analysis: Load-Set Scoping by Lifecycle Position][load-set-scoping] rather than re-deriving its findings. It records
+the two-clause demotion precondition (reachability or never-needed), the unsafe-versus-pointless distinction, and
+the residual-question rule; its irrelevance sub-case remains unresolved. `loadset-composition` holds the companion
+adherence bands and demote-only-to-an-explicit-trigger rule. Consumers include `rules-restructure`,
+`loadset-composition`, `composable-workflows`, `orientation-surface-compression`, and work touching `DEV-RULES`
+placement.
+
 ---
 
 ## The Target Model (in brief)
@@ -145,3 +153,7 @@ Demotion from always-loaded goes only to an _explicit trigger_, and constraints 
   external-PM composition; its authority boundary consumes Principle 9's authored-once, audience-aware projection.
 - **`draft-skill-infrastructure-cleanup.md`** — the skill-side rewrite pass consuming Principle 2's
   firing-condition authoring standard.
+
+---
+
+[load-set-scoping]: ../../supplemental/analysis/analysis-load-set-scoping.md
