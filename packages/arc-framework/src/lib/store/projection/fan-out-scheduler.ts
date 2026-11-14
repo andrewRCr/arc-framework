@@ -60,6 +60,8 @@ export async function settleUnmarkedOwnWrites(checkout: string): Promise<void> {
   } finally {
     state.fanOutRunning = false;
   }
+  // An edit the visit's refresh took in asked for a round, which this visit's own run kept from starting.
+  await flushProjectionFanOut();
   if (unmarked.length > 0) state.diagnostics.push({ path: checkout, copy: null, mark: {
     reason: "Changed marks not recorded: this command's fan-out could not mark its writes in this checkout.",
     remedy: { text: "`arc selection --changed` may omit the files this command wrote here; run `arc selection` without "

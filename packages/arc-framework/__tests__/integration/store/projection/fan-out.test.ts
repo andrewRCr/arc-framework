@@ -263,3 +263,18 @@ it("reports a verb's changed marks as unrecorded when its own lease stays held t
       remedy: { text: expect.stringContaining("arc selection") } }) })]));
   expect((await h.disk()).entries[h.path]).toMatchObject({ changed: false });
 });
+
+it("fans out an edit the command's end takes in while it marks the writes its own visit could not", async () => {
+  const holder = holdOwnLeaseAtVisit(() => fixture.h.location, () => fixture.h.checkout, 1);
+  const fixture = await createFanOutFixture(directories, { ports: holder.ports });
+  const { h, store, input, file } = fixture;
+  const current = await h.stored();
+  expect((await store.write({ action: "put", reference: current.reference, content: "opening\nbase\nclosing\nverb tail\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  await holder.release();
+  await h.edit("hand head\nopening\nbase\nclosing\n");
+  await endProjection(input);
+  expect((await h.stored()).content).toBe("hand head\nopening\nbase\nclosing\nverb tail\n");
+  expect(await file()).toContain("hand head");
+  expect((await h.disk()).entries[h.path]).toMatchObject({ changed: true });
+});
