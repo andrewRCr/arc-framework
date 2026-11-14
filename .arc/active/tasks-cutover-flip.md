@@ -246,21 +246,16 @@ the fence harness pass over the ref backend; and the full suite passes with no b
           unpushed commit, so no reader changes. It states that it supersedes the 2026-09-29 amendment's order, code leg
           first, for when `--atomic` is unavailable.
 
-### `[ ]` **2.4 The capture gates' `arc inbox` reads over the ref backend — § 4.2**
+### `[x]` **2.4 The capture gates' `arc inbox` reads over the ref backend — § 4.2**
 
 - _Goal:_ On an off-branch store, `arc inbox <list> --target <slug>` returns the `clear` / `named` / `refused` result
   with each row's ID and version, and `arc inbox <slug>` lists a work unit's inbound list with its pending count and
   oldest age, which is all the three capture gates need from the flip.
 
-- _Context:_ The store arm exists: `openInboxRuntime` (`handlers/inbox-runtime.ts`) selects it off the branch, and
-  `listInbox` (`lib/inbox/listing.ts`) returns those shapes, tested over the reference backend
-  (`unit/lib/inbox/listing.test.ts`).
-
-    - Build `test-first` (one behavior at a time), over the ref backend:
-        - a target with no captures returns `clear`, one with a capture `named` with its ID and version, and a malformed
-          target `refused`
-        - `--target` on a list other than `personal` refuses
-        - a work unit's inbound list reports its pending count and oldest age
+- _Outcome:_ The store arm needed no change. `integration/store-ref-inbox-cli.test.ts` drives the registered
+  `arc inbox` over real refs: a personal target answers `clear`, `named` with each capture's ID and version, or
+  `refused` for a malformed slug; `--target` on the project list or a work unit's slug refuses; and a work unit's
+  inbound list reports its pending count and oldest age.
 
 ### `[ ]` **2.5 The delivery rename source refuses a missing folder off the branch — § 4.3**
 
