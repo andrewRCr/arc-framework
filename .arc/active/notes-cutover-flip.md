@@ -160,7 +160,10 @@ override whatever the default builds.
       `lifecycle-index-aliases`, `lifecycle-storage-layout`, and `kinds/review/candidate/history`;
       `unit/lib/checks/projected-selection`'s four starts, which need the in-repo store's disabled start;
       `unit/store/projection/status`; and `integration/store-lifecycle-storage`, `store-passive-object-access`,
-      `store-imported-seal`, `store-default-identity`, `store/projection/engine`'s and `engine-end`'s in-repo cases;
+      `store-imported-seal`, `store-default-identity`, `store/projection/engine`'s and `engine-end`'s in-repo cases.
+      `store-default-identity` and `store-passive-object-access` state contracts the ref store keeps too, identity-owned
+      personal reads and passive listing, but seed tracked and personal files, so they test the in-repo implementation;
+      whether the ref suites cover each contract is checked when that implementation leaves;
     - work-unit and recovery tests of the in-repo arm: `unit/work-unit/design-export`'s in-repo mode,
       `unit/work-unit/store-read-consumers`, `integration/unclosed-task-actions`,
       `integration/recovery-personal-address`'s `offBranch=false` case, and
@@ -194,6 +197,9 @@ each test of a file or `describe` block, so the CLI the test spawns and the Git 
     - the in-repo refusals: `e2e/store-command-dormancy`'s dormant-command cases, `e2e/review-cli-surfaces`'s
       adversarial-recording case, `e2e/projection-save`'s unsupported `arc save`, `e2e/editor-settings`' dark editor
       setup, and every case of `e2e/decompose-dormant`;
+    - the in-repo store's dark projection: every case of `e2e/projection-selection`, `e2e/projection-hooks`, and
+      `e2e/projection-status`;
+    - the in-repo slug boundary: `e2e/identity-operand-input`'s case keeping lower-case UUIDs as slugs;
     - the old decomposition machine: every case of `e2e/decompose-command-modes` and
       `integration/schema-command/decomposition-provisioning`, and `e2e/lifecycle-exit`'s decomposition fixture case;
     - park: `e2e/lifecycle-exit`'s park and `park --land` cases, its historical abandon evidence case, and its
@@ -204,7 +210,8 @@ each test of a file or `describe` block, so the CLI the test spawns and the Git 
       reconciliation advances neither the notes ref nor the materialized baseline.
 - **Move at Task 3.4 by family:** the spawned tests seeding tracked state whose subject survives, listed above, among
   them `e2e/lifecycle-exit`'s abandon and teardown cases, `e2e/base-merge-hooks`' clean mode, `e2e/wu-reconcile`'s
-  other cases, and `e2e/view` with its completed-viewing refusal. `e2e/lifecycle-exit`'s shared `beforeEach` runs
+  other cases, `e2e/view` with its completed-viewing refusal, `e2e/agenda-errand`'s reads of the personal inbox file,
+  and `e2e/rename`'s same-name refusal. `e2e/lifecycle-exit`'s shared `beforeEach` runs
   `arc init --pm-mode arc-in-git` and commits it before any case sets the override, so its in-repo cases meet that
   fixture as the switch builds it; Task 3.4.b settles the fixture with the cases that move.
 - **Outside this classification:** `integration/scripts/remedy-roadmap-conflict` spawns the remedy script, which builds

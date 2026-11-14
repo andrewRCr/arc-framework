@@ -1,6 +1,7 @@
 /** Identity subjects preserve the in-repo slug boundary and earlier refusals. */
 import { describe, expect, it, onTestFinished } from "vitest";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const upper = "ABCDEF01-2345-4678-9ABC-DEF012345678";
 const lower = upper.toLowerCase();
@@ -39,6 +40,7 @@ describe("identity operands before the store capability flip", () => {
     expect(result.stdout + result.stderr).not.toContain(input);
   });
   it.each(cases)("$command keeps lower-case UUIDs as slugs and rejects upper-case UUIDs after opening", async ({ args, input }) => {
+    useInRepoStore();
     const root = await fixture(true);
     const before = await git(root, ["status", "--porcelain"]);
     const accepted = await runArcNoTty(["--no-input", ...args(lower)], root);

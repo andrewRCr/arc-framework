@@ -3,6 +3,9 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createTempRepo, cleanupTempDir, runArc } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+useInRepoStoreForEach();
 
 it("leaves projection disabled while a nested config command emits whole JSON", async () => {
   const checkout = await createTempRepo("arc-projection-hooks-");

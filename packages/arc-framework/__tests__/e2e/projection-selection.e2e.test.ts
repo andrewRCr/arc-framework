@@ -3,6 +3,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+useInRepoStoreForEach();
 
 it("prints empty text and JSON selections over the in-repo backend and advertises both options", async () => {
   const checkout = await createTempRepo("arc-projection-selection-");
