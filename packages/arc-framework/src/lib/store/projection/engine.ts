@@ -13,6 +13,7 @@ import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapabi
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { bindProjectionFanOut, disposeProjectionFanOut } from "./fan-out-binding.js";
 import { runProjectionFanOut } from "./fan-out.js";
+import { settleUnmarkedOwnWrites } from "./fan-out-scheduler.js";
 import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 import { projectionTimingNow } from "./timings.js";
@@ -87,7 +88,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     location = await locateProjection(input.checkout, ports);
   }
   await bindProjectionFanOut({ checkout: input.checkout, location, ports,
-    run: ownWrites => runProjectionFanOut({ ...input, ports: () => ports, location }, ownWrites) });
+    run: (ownWrites, _round, scope) => runProjectionFanOut({ ...input, ports: () => ports, location }, ownWrites, scope) });
   const result = await withProjectionFanOutLock(location, async session => {
     const started = await startUnderLease(effective, ports, location, session, unsent, startedAt);
     const root = state.roots.get(input.checkout);
@@ -113,6 +114,7 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionStartInput 
 
 /** Settle the copies accumulated by this command under freshly acquired locks. */
 export async function endProjection(input: ProjectionCommandInput): Promise<void> {
+  await settleUnmarkedOwnWrites(input.checkout);
   disposeProjectionFanOut();
   const state = projectionProcessState();
   state.materializeSpawn = null;

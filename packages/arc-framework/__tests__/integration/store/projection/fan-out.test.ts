@@ -193,6 +193,8 @@ it("fans out from an unclaimed writer whose own checkout has no projection", asy
   expect(await file()).toContain("Written from an unclaimed checkout.");
   expect((await h.disk()).entries[h.path]).toMatchObject({ changed: false });
   expect(await readProjectionIndex(location, false)).toEqual({ kind: "no-projection" });
+  await endProjection({ store, checkout, location, ports: () => ports });
+  expect(projectionProcessState().diagnostics.filter(each => each.mark.reason.startsWith("Changed marks not recorded"))).toEqual([]);
 });
 
 it("keeps a linked inbox copy separate and propagates its saved capture back to primary", async () => {
@@ -213,4 +215,51 @@ it("keeps a linked inbox copy separate and propagates its saved capture back to 
   expect((await h.stored()).content).toContain("Linked capture");
   expect(await h.file()).toContain("Linked capture");
   expect(await h.file()).toContain("Preserve this saved capture.");
+});
+
+/** Ports whose writer-side visit finds its own lease held by another holder until the test releases it. */
+function holdOwnLeaseAtVisit(location: () => import("../../../../src/lib/store/projection/location.js").ProjectionLocation,
+  own: () => string, visits: number) {
+  let release: () => void = () => undefined;
+  const released = new Promise<void>(done => { release = done; });
+  const holders: Promise<unknown>[] = [];
+  let held = 0;
+  return { release: async () => { release(); await Promise.all(holders); },
+    ports: (ports: ReturnType<typeof createProjectionEnginePorts>) => ({ ...ports, beforeFanOutTarget: async (checkout: string) => {
+      if (checkout !== own() || held >= visits) return;
+      held += 1;
+      await new Promise<void>(acquired => {
+        holders.push(withProjectionLock(location(), async () => { acquired(); await released; }, { maxWaitMs: 0 }));
+      });
+    } }) };
+}
+
+it("marks a verb's write at the command's end when its own fan-out visit found the lease held", async () => {
+  const holder = holdOwnLeaseAtVisit(() => fixture.h.location, () => fixture.h.checkout, 1);
+  const fixture = await createFanOutFixture(directories, { ports: holder.ports });
+  const { h, store, input, file } = fixture;
+  const current = await h.stored();
+  expect((await store.write({ action: "put", reference: current.reference, content: "A verb write its own visit could not mark.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  await holder.release();
+  expect(await file()).toContain("A verb write its own visit could not mark.");
+  expect((await h.disk()).entries[h.path]).toMatchObject({ changed: false });
+  await endProjection(input);
+  expect((await h.disk()).entries[h.path]).toMatchObject({ changed: true });
+  expect(await h.file()).toContain("A verb write its own visit could not mark.");
+});
+
+it("reports a verb's changed marks as unrecorded when its own lease stays held through the command's end", async () => {
+  const holder = holdOwnLeaseAtVisit(() => fixture.h.location, () => fixture.h.checkout, 1);
+  const fixture = await createFanOutFixture(directories, { ports: holder.ports });
+  const { h, store, input } = fixture;
+  const current = await h.stored();
+  expect((await store.write({ action: "put", reference: current.reference, content: "A verb write no visit can mark.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } })).status).toBe("ok");
+  await endProjection(input);
+  await holder.release();
+  expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ path: h.checkout,
+    mark: expect.objectContaining({ reason: expect.stringContaining("Changed marks not recorded"),
+      remedy: { text: expect.stringContaining("arc selection") } }) })]));
+  expect((await h.disk()).entries[h.path]).toMatchObject({ changed: false });
 });

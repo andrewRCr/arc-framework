@@ -45,6 +45,27 @@ export async function flushProjectionFanOut(): Promise<void> {
   }
 }
 
+/** Own writes a round could not mark get one visit to the writer's checkout alone before the command ends. */
+export async function settleUnmarkedOwnWrites(checkout: string): Promise<void> {
+  const state = projectionProcessState();
+  const writes = [...state.fanOutOwnWrites];
+  if (writes.length === 0 || state.fanOut === undefined || disabled(state.skip) || state.lockHeld || state.fanOutRunning) return;
+  state.fanOutOwnWrites = [];
+  state.fanOutRunning = true;
+  let unmarked: readonly RecordReference[] = writes;
+  try {
+    unmarked = await state.fanOut(writes, 0, "own") ?? [];
+  } catch (cause) {
+    reportProjectionFanOutFailure(checkout, cause);
+  } finally {
+    state.fanOutRunning = false;
+  }
+  if (unmarked.length > 0) state.diagnostics.push({ path: checkout, copy: null, mark: {
+    reason: "Changed marks not recorded: this command's fan-out could not mark its writes in this checkout.",
+    remedy: { text: "`arc selection --changed` may omit the files this command wrote here; run `arc selection` without "
+      + "`--changed` to include them." } } });
+}
+
 function retainOwnWrite(writes: RecordReference[], reference: RecordReference): void {
   if (!writes.some(previous => sameReference(previous, reference))) writes.push(reference);
 }

@@ -19,6 +19,9 @@ import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
 import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 
+/** A round visits every registered checkout; `own` visits the writer's checkout alone. */
+export type FanOutScope = "all" | "own";
+
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
 export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
 
@@ -73,8 +76,8 @@ export interface ProjectionProcessState {
   resolution: ProjectionResolution | null;
   skip: ProjectionSkip | null;
   lockHeld: boolean;
-  /** Runs one fan-out round, answering the own writes the writer's checkout could not mark. */
-  fanOut?: (ownWrites: readonly RecordReference[], round: number) => Promise<readonly RecordReference[] | undefined>;
+  /** Runs one fan-out round, or a visit to the writer's checkout alone, answering the own writes it could not mark. */
+  fanOut?: (ownWrites: readonly RecordReference[], round: number, scope?: FanOutScope) => Promise<readonly RecordReference[] | undefined>;
   fanOutBinding?: ProjectionFanOutBinding;
   fanOutRunning: boolean;
   fanOutHolds: number;

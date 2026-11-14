@@ -10,7 +10,7 @@ import { sameReference, type RecordReference, type StateVersion } from "../ident
 import type { ProjectionCommandInput } from "./engine.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { PROJECTION_STATE_FOLDER, type ProjectionLocation } from "./location.js";
-import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
+import { projectionProcessState, type FanOutScope, type ProjectionRootState } from "./process-state.js";
 import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { createProjectionReadMemo, type ProjectionSource } from "./record-source.js";
@@ -41,10 +41,12 @@ interface FanOutRound {
 interface FanOutTarget { readonly checkout: string; readonly location: ProjectionLocation; readonly index: ProjectionIndex }
 
 /**
- * Visit the writer's native root and registered siblings using one source read memo per round.
+ * Visit the writer's native root and, unless the scope is its own checkout alone, registered siblings using one source
+ * read memo per round.
  * @returns The writer's own writes its checkout could not mark this round, for the next round to mark.
  */
-export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrites: readonly RecordReference[]): Promise<readonly RecordReference[]> {
+export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrites: readonly RecordReference[],
+  scope: FanOutScope = "all"): Promise<readonly RecordReference[]> {
   if (input.location === undefined || input.ports === undefined) return [];
   const ports = input.ports();
   const configuration = await observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
@@ -56,6 +58,7 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
   const evidence = createProjectionProtectionEvidence({ source, checkout: input.checkout, exec: ports.exec, checkouts });
   const round: FanOutRound = { input, ports, configuration, source, version: version.result, ownWrites, evidence };
   const unmarked = await visitTarget(round, input.checkout, input.location) ? [] : ownWrites;
+  if (scope === "own") return unmarked;
   if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return unmarked; }
   let ownGitDir: Promise<string> | undefined;
   for (const checkout of roster.worktrees) {
@@ -92,6 +95,8 @@ async function visitTarget(round: FanOutRound, checkout: string, location: Proje
   try {
     await round.ports.beforeFanOutTarget?.(checkout);
     const disk = await readProjectionIndex(location, false, { retry: true });
+    // A checkout that holds no projection has no marks to record.
+    if (disk.kind === "no-projection") return true;
     if (disk.kind !== "index") return false;
     const target: FanOutTarget = { checkout, location, index: disk.index };
     const result = await withProjectionFanOutLock(location, session => refreshTarget(round, target, session),

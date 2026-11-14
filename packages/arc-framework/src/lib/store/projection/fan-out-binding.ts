@@ -5,7 +5,7 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { FanOutDependencies } from "./with-fan-out.js";
 import { resolve } from "node:path";
 import { readGitDirectories } from "../../git/directories.js";
-import { projectionProcessState } from "./process-state.js";
+import { projectionProcessState, type FanOutScope } from "./process-state.js";
 import { requestProjectionFanOut, reportProjectionFanOutFailure } from "./fan-out-scheduler.js";
 
 /** The source checkout and native metadata established by command entry. */
@@ -13,7 +13,7 @@ export interface ProjectionFanOutBindingInput {
   readonly checkout: string;
   readonly location: ProjectionLocation;
   readonly ports: Pick<ProjectionEnginePorts, "fs">;
-  readonly run: (ownWrites: readonly RecordReference[], round: number) => Promise<readonly RecordReference[] | undefined>;
+  readonly run: (ownWrites: readonly RecordReference[], round: number, scope?: FanOutScope) => Promise<readonly RecordReference[] | undefined>;
 }
 
 /** Ephemeral command authority; stores capture the object rather than a later command's current runner. */
