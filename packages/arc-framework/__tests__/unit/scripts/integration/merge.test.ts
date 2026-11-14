@@ -198,9 +198,9 @@ async function storedLifecycleMerge(native = false) {
   if (initial === null) throw new Error("Missing initial checkpoint fixture");
   const { workUnit, approvedHead, target, settlementPlan, mergeMethod } = initial;
   const checkpoint = async (lifecycleVersion: string) => ({ schemaVersion: 1 as const, workUnit,
-    checkpointHandle: await persistIntegrationCheckpointComposition(root,
+    checkpointHandle: await persistIntegrationCheckpointComposition({ kind: "workspace", root, workUnit },
       { workUnit, approvedHead, target, settlementPlan, mergeMethod, lifecycleVersion }) });
-  value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition(root, workUnit, handle);
+  value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition({ kind: "workspace", root, workUnit }, handle);
   value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: native ? undefined : storage,
     ...(native ? { store: h.store, workItem: meta.reference.owner } : {}),
     changeRequestPort: { resolveRepository: async () => target.repository,

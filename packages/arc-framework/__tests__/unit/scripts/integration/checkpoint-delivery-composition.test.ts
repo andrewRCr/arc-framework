@@ -129,7 +129,8 @@ vi.mock("../../../../src/scripts/review-gate/policy/hosted-reservation-discharge
 vi.mock("../../../../src/scripts/integration/delivery-checkpoint.js", () => ({
   composeDeliveryCheckpointArm: mocks.composeDeliveryCheckpointArm,
 }));
-vi.mock("../../../../src/scripts/integration/checkpoint-store.js", () => ({
+vi.mock("../../../../src/scripts/integration/checkpoint-store.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../../../src/scripts/integration/checkpoint-store.js")>(),
   persistIntegrationCheckpointComposition: mocks.persistIntegrationCheckpointComposition,
 }));
 

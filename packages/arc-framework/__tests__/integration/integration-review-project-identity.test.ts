@@ -7,9 +7,8 @@ import { handleIntegrationCheckpoint, handleIntegrationMerge } from "../../src/h
 import { IntegrationCheckpointResultSchema } from "../../src/scripts/integration/checkpoint.js";
 import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merge.js";
 import { ProjectIdentityError } from "../../src/lib/store/project-identity.js";
-import { persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
+import { integrationCheckpointLocation, persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
-import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -34,8 +33,8 @@ async function fixture() {
   });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
   if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected work-item UID");
-  const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
-  const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
+  const checkpoint = await persistIntegrationCheckpointComposition(integrationCheckpointLocation({ cwd,
+    identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.reference.store }), {
     workUnit: "example", approvedHead: head, lifecycleVersion: primary.version,
     nativeOwnership: { projectId, workItemUid: primary.reference.owner.uid },
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "topic/opaque", headSha: head },

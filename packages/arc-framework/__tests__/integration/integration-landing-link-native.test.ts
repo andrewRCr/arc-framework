@@ -1,12 +1,12 @@
 /** Already-landed native integration repairs durable traceability through the ordinary handler. */
-import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
+import { basename, delimiter, join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { handleIntegrationMerge } from "../../src/handlers/integration.js";
 import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merge.js";
-import { persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
+import { integrationCheckpointLocation, persistIntegrationCheckpointComposition,
+  type IntegrationCheckpointCompositionInput } from "../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
-import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -15,6 +15,17 @@ import type { Store } from "../../src/lib/store/index.js";
 import { RecordReferenceSchema, sameOwner } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
+
+/** Place a record that carries no work-item binding in that work item's folder, as no checkpoint writes one. */
+async function placeUnbound(cwd: string, uid: string, composition: IntegrationCheckpointCompositionInput): Promise<string> {
+  const root = join(cwd, "..", "unbound-checkpoint"), handle = await persistIntegrationCheckpointComposition(
+    { kind: "workspace", root, workUnit: composition.workUnit }, composition);
+  const file = `${handle.slice(handle.lastIndexOf(":") + 1)}.json`;
+  const folder = join(cwd, ".arc", "user", "test-user", ".internal", "integration-checkpoints", uid);
+  await mkdir(folder, { recursive: true });
+  await rename(join(root, ".internal", "integration-checkpoints", file), join(folder, basename(file)));
+  return handle;
+}
 
 async function landed(archived = false, binding = true) {
   const h = await createReviewRepositoryHarness();
@@ -44,15 +55,17 @@ async function landed(archived = false, binding = true) {
   archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
   const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
   if (uid === undefined) throw new Error("Expected native work-item UID");
-  const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
-  const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
+  const composition: IntegrationCheckpointCompositionInput = {
     workUnit: "example", approvedHead: head, lifecycleVersion: meta.version,
     ...(binding ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: branch, headSha: head },
     settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1, mode: "review-merge-method-resolve",
       repository: "owner/repo", stackPosition: "non-delivery", state: "validated", nextAction: "use-method",
       method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) },
-  });
+  };
+  const checkpoint = binding ? await persistIntegrationCheckpointComposition(integrationCheckpointLocation({ cwd,
+    identity: SlugSchema.parse("test-user"), workUnit: "example", store: h.reference.store }), composition)
+    : await placeUnbound(cwd, uid, composition);
   const bin = join(cwd, "..", "landing-host-bin");
   await mkdir(bin, { recursive: true });
   const host = async (identity: string | null, confirmedHead = head) => {
@@ -69,13 +82,13 @@ async function landed(archived = false, binding = true) {
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}${delimiter}${oldPath ?? ""}`;
   onTestFinished(() => { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; });
-  const run = async (store: Store = h.reference.store, readProjectId = h.reference.projectId, bindOwner = true) => {
+  const run = async (store: Store = h.reference.store, readProjectId = h.reference.projectId, bindOwner = true, name = "example") => {
     let output = "";
     const exits: number[] = [];
     const originalCwd = process.cwd();
     try {
       process.chdir(cwd);
-      await handleIntegrationMerge("example", { checkpoint }, undefined, { resolveRoot: () => cwd,
+      await handleIntegrationMerge(name, { checkpoint }, undefined, { resolveRoot: () => cwd,
         write: value => { output += value; }, setExitCode: value => exits.push(value) },
       { store, projectId: readProjectId, ...(bindOwner ? { workItem: meta.reference.owner } : {}) });
     } finally { process.chdir(originalCwd); }
@@ -154,7 +167,7 @@ it("retains the original UID after its work unit is renamed", async () => {
   lifecycleSuccess(await h.reference.store.write({ ...recordPut(meta, { content: meta.content.replaceAll("example", "renamed") }),
     reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
   await host(mergeCommit);
-  expect(await run(h.reference.store, h.reference.projectId, false)).toMatchObject({ state: "merged",
+  expect(await run(h.reference.store, h.reference.projectId, false, "renamed")).toMatchObject({ state: "merged",
     payload: { landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
     .toEqual({ repository: projectId, sha: mergeCommit });

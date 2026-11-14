@@ -86,7 +86,8 @@ describe("store lifecycle snapshot", () => {
     expect(result.status).toBe("created");
     if (result.status !== "created") throw new Error("Candidate unexpectedly moved");
     const surfaces = createUserSurfaceResolver({ cwd: h.root, identity: SlugSchema.parse("andrew") });
-    const record = await readIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), "example", result.handle);
+    const record = await readIntegrationCheckpointComposition({ kind: "workspace",
+      root: surfaces.workUnitRoot(SlugSchema.parse("example")), workUnit: "example" }, result.handle);
     expect(record?.lifecycleVersion).toBe(meta.version);
     expect(record?.lifecycleVersion).not.toBe(head);
   });

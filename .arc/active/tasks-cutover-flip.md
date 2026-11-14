@@ -291,23 +291,18 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   and the store arm writes them into the meta content its one batch already carries, adding the absent-URL warning to
   its result.
 
-### `[ ]` **2.8 Integration checkpoint records keyed by work-unit UID — § 4.6**
+### `[x]` **2.8 Integration checkpoint records keyed by work-unit UID — § 4.6**
 
 - _Goal:_ On the store path, the integration checkpoint writes and reads its records under the identity's
   `.internal/integration-checkpoints/<work-unit-uid>/`, machine-local, and matches them by that UID, so `arc rename`
   orphans none and the retired per-work-unit workspace holds none.
 
-    - `recordPath` (`scripts/integration/checkpoint-store.ts`) takes the work unit's UID on the store path; the path
-      stays in the machine-local set (`MACHINE_LOCAL_PATHS`, `lib/store/registry.ts`), never stored, synced, or
-      projected.
-    - On the store path, the reader (`readIntegrationCheckpointComposition`) and the ownership check
-      (`validateCheckpointOwnership`, `scripts/integration/merge-composition.ts`) match the record's work-item UID
-      (`NativeCheckpointOwnershipSchema`'s `workItemUid`) rather than its slug, since a rename is a store write that
-      leaves the approved head where it was.
-    - Build `test-first` (one behavior at a time):
-        - a checkpoint written on the store path lands under the UID folder
-        - a renamed work unit's checkpoint is found and admitted at its unchanged head
-        - the path is excluded from the store, sync, and the projection
+- _Outcome:_ The writer and the merge's reader take one `IntegrationCheckpointLocation`, resolved from the store's
+  capability (`integrationCheckpointLocation`): the workspace, matched by slug, before the flip; on the store path the
+  identity root, where the writer files a record under its binding's UID and the reader finds the handle's record in
+  whichever UID folder holds it, refusing a binding that names another folder. So a completed generation's record is
+  still found after its slug is reused. The ownership check resolves the invoked work unit rather than the record's
+  slug. A Candidate blocks a store rename, so the renamed case arises at a landed merge's link retry.
 
 ### `[ ]` **2.9 `arc init` designates the state remote and mints the project ID — § 4.7**
 

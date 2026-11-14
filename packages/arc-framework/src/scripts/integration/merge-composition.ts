@@ -22,7 +22,6 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import {
   ChangeRequestMergeObservationSchema,
   observeChangeRequestMergeAdmission,
@@ -57,7 +56,7 @@ import { MergeMethodSchema, resolveMergeMethod } from "../review-gate/merge-meth
 import { createRespondDependencies } from "../review-gate/runtime/respond-composition.js";
 import { respondToReviewCommand } from "../review-gate/runtime/respond-command.js";
 import { confirmCandidateResponseAction } from "./candidate-response-confirmation.js";
-import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { integrationCheckpointLocation, readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import {
   checkpointMovementCause,
   composeCheckpointMovementPlan,
@@ -291,7 +290,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     ...(input.store.capabilities.stateOffBranch ? {
       validateCheckpointOwnership: async checkpoint => {
         const owner = await nativeCheckpointOwner(checkpoint, input.projectId);
-        const selected = await resolveNamedReviewWorkUnitInvocation(input, checkpoint.workUnit);
+        const selected = await resolveNamedReviewWorkUnitInvocation(input, input.workUnit);
         if (selected.workItem?.type !== "work-item" || owner.type !== "work-item" || selected.workItem.uid !== owner.uid) {
           throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
         }
@@ -303,10 +302,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     readCheckpoint: async (workUnit, handle) => {
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");
-      const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity });
       return readIntegrationCheckpointComposition(
-        surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
-        workUnit,
+        integrationCheckpointLocation({ cwd: input.cwd, identity, workUnit, store: input.store }),
         handle,
       );
     },
