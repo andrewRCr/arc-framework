@@ -332,10 +332,11 @@ the fence harness pass over the ref backend; and the full suite passes with no b
 - _Note:_ The search § 4.8 asks for, at `a7c65b4239`, and each traced reader's outcome are in `notes-cutover-flip.md`
   § Errand branch readers.
 
-    - `[ ]` **2.10.a The builders**
-        - `lib/errand/open.ts` mints the suffix on the store path, types from `ERRAND_BRANCH_TYPES`
-          (`lib/errand/branch-type.ts`); `lib/session-init/errand-branch-cut.ts` cuts the branch the record names rather
-          than rebuilding it.
+    - `[x]` **2.10.a The builders**
+        - Open names a new branch through `errandBranch` (`lib/errand/branch-type.ts`), with the suffix
+          `mintErrandBranchSuffix` mints, which the runtime supplies only when its store keeps state off the branch;
+          `cutErrandBranch` takes the record's branch. Five store-path CLI suites fix the minted suffix to name the
+          branch they plant or assert.
 
     - `[x]` **2.10.b The record's validation and resume's recorded-branch check**
         - `errandBranchType` (`lib/errand/branch-type.ts`) reads the type from `<type>/<slug>` or

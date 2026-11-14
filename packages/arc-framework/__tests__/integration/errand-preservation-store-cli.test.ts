@@ -17,6 +17,9 @@ import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+const BRANCH_SUFFIX = vi.hoisted(() => "0a1b2c3d");
+vi.mock("../../src/lib/errand/branch-type.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../src/lib/errand/branch-type.js")>(), mintErrandBranchSuffix: () => BRANCH_SUFFIX }));
 
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
@@ -60,7 +63,7 @@ async function saved(h: Awaited<ReturnType<typeof fixture>>, slug: string) {
 }
 
 it("refuses dirty removal, leaves after preservation repair, and rematerializes the same generation after its code ref is restored", async () => {
-  const h = await fixture(), slug = "preserve-cli", branch = `chore/${slug}`;
+  const h = await fixture(), slug = "preserve-cli", branch = `chore/${slug}-${BRANCH_SUFFIX}`;
   const opened = await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--intent", "Preserve this code", "--json"]);
   expect(opened, JSON.stringify(opened)).toMatchObject({ result: { outcome: "applied" } });
   const result = ErrandOperationResultSchema.parse(opened.result);

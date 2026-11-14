@@ -1,10 +1,13 @@
 /** Explicit Errand subjects stay distinct from public inbox selectors. */
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { repairCliFixture, repairCli, cliRows } from "../helpers/repair-cli.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { addBareRemote } from "../helpers/integration.js";
+const BRANCH_SUFFIX = vi.hoisted(() => "0a1b2c3d");
+vi.mock("../../src/lib/errand/branch-type.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../src/lib/errand/branch-type.js")>(), mintErrandBranchSuffix: () => BRANCH_SUFFIX }));
 
 it.each(["personal", "project"])("opens, resumes and abandons an Errand named %s through registered options", async slug => {
   const f = await repairCliFixture(), capture = (await cliRows(f, "project"))[0];
@@ -21,7 +24,7 @@ it.each(["personal", "project"])("opens, resumes and abandons an Errand named %s
   expect(await cliRows(f, "project")).toEqual([]);
   const repeated = await repairCli(f, args);
   expect(repeated, JSON.stringify(repeated)).toMatchObject({ result: { outcome: "refused", reason: "role-conflict" } });
-  await f.exec("git", ["push", "-u", "origin", `chore/${slug}`]);
+  await f.exec("git", ["push", "-u", "origin", `chore/${slug}-${BRANCH_SUFFIX}`]);
   const left = await repairCli(f, ["errand", "leave", slug, "--state", "paused", "--json"]);
   expect(left, JSON.stringify(left)).toMatchObject({ result: { outcome: "applied" } });
   const resumed = await repairCli(f, args);

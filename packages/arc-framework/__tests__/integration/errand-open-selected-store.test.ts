@@ -39,6 +39,14 @@ it("opens from a Store-only parent without changing the default Store factory", 
   expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("parent"), uid: boundWorkUnitSubject(h.meta).uid } })).toMatchObject({ status: "ok" });
 });
 
+it("names the Errand's branch with a minted suffix where state lives off the branch, and cuts that branch", async () => {
+  const h = await fixture();
+  const result = await h.open();
+  if (result.outcome !== "applied" || result.identity === null) throw new Error(JSON.stringify(result));
+  expect(result.identity.branch).toMatch(/^chore\/child-[0-9a-f]{8}$/u);
+  await expect(h.exec("git", ["show-ref", "--verify", `refs/heads/${result.identity.branch}`])).resolves.toBeDefined();
+});
+
 it("locks the checkout an isolated Errand spawns with the projection's reason", async () => {
   const h = await fixture();
   const result = await h.open();

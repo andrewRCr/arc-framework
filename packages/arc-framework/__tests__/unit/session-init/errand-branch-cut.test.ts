@@ -1,9 +1,7 @@
 /**
- * Unit tests for `cutErrandBranch` — the errand-launch branch-cut mechanic. It
- * cuts `chore/<slug>` off a resolved base, consuming the slug as logical
- * identity (never recovering it by parsing a branch), and no-clobbers an
- * already-existing branch of that name (a force-create would move the ref and
- * drop its commits). The git seam is injected.
+ * Unit tests for `cutErrandBranch` — the errand-launch branch-cut mechanic. It cuts the branch an errand's record names
+ * off a resolved base, never rebuilding the name, and no-clobbers an already-existing branch of that name (a
+ * force-create would move the ref and drop its commits). The git seam is injected.
  */
 
 import { describe, it, expect } from "vitest";
@@ -30,59 +28,26 @@ function fakeExec(existing: Set<string>): ReturnType<typeof scriptGitExec> {
 }
 
 describe("cutErrandBranch", () => {
-  it("cuts chore/<slug> off the base when the branch does not exist", async () => {
-    const { exec, calls } = fakeExec(new Set());
+  it.each(["chore/fix-flaky-test", "fix/flaky-login", "chore/fix-flaky-test-0a1b2c3d"])(
+    "cuts %s off the base when the branch does not exist", async (branch) => {
+      const { exec, calls } = fakeExec(new Set());
 
-    const result = await cutErrandBranch({ exec }, { slug: "fix-flaky-test", base: "main" });
-
-    expect(result).toEqual({ branch: "chore/fix-flaky-test", created: true });
-    expect(calls).toContainEqual(expect.objectContaining({
-      command: "git", args: ["branch", "chore/fix-flaky-test", "main"],
-    }));
-  });
+      expect(await cutErrandBranch({ exec }, { branch, base: "main" })).toEqual({ branch, created: true });
+      expect(calls).toContainEqual(expect.objectContaining({ command: "git", args: ["branch", branch, "main"] }));
+    });
 
   it("is a no-clobber no-op when a branch of that name already exists", async () => {
-    const { exec, calls } = fakeExec(new Set(["chore/fix-flaky-test"]));
+    const { exec, calls } = fakeExec(new Set(["refactor/extract-io-0a1b2c3d"]));
 
-    const result = await cutErrandBranch({ exec }, { slug: "fix-flaky-test", base: "main" });
+    const result = await cutErrandBranch({ exec }, { branch: "refactor/extract-io-0a1b2c3d", base: "main" });
 
-    expect(result).toEqual({ branch: "chore/fix-flaky-test", created: false });
+    expect(result).toEqual({ branch: "refactor/extract-io-0a1b2c3d", created: false });
     expect(calls.some((call) => call.args[0] === "branch")).toBe(false);
   });
 
-  it("rejects an empty slug rather than cutting a bare `chore/` branch", async () => {
+  it("rejects an empty branch rather than cutting one", async () => {
     const { exec } = fakeExec(new Set());
 
-    await expect(cutErrandBranch({ exec }, { slug: "  ", base: "main" })).rejects.toThrow(/slug/);
-  });
-
-  it("cuts a nature-typed branch when a type is given", async () => {
-    const { exec, calls } = fakeExec(new Set());
-
-    const result = await cutErrandBranch({ exec }, { slug: "flaky-login", base: "main", type: "fix" });
-
-    expect(result).toEqual({ branch: "fix/flaky-login", created: true });
-    expect(calls).toContainEqual(expect.objectContaining({
-      command: "git", args: ["branch", "fix/flaky-login", "main"],
-    }));
-  });
-
-  it("defaults to a chore/ branch when no type is given (the unchanged cut behavior)", async () => {
-    const { exec, calls } = fakeExec(new Set());
-
-    await cutErrandBranch({ exec }, { slug: "bump-deps", base: "main" });
-
-    expect(calls).toContainEqual(expect.objectContaining({
-      command: "git", args: ["branch", "chore/bump-deps", "main"],
-    }));
-  });
-
-  it("no-clobbers a nature-typed branch independently of the chore default", async () => {
-    const { exec, calls } = fakeExec(new Set(["refactor/extract-io"]));
-
-    const result = await cutErrandBranch({ exec }, { slug: "extract-io", base: "main", type: "refactor" });
-
-    expect(result).toEqual({ branch: "refactor/extract-io", created: false });
-    expect(calls.some((call) => call.args[0] === "branch")).toBe(false);
+    await expect(cutErrandBranch({ exec }, { branch: "  ", base: "main" })).rejects.toThrow(/branch/);
   });
 });

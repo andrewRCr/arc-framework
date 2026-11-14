@@ -15,6 +15,8 @@
  * @module
  */
 
+import { randomBytes } from "node:crypto";
+
 /** Branch nature-types an errand may carry — the `branch-format` set minus `feat`. */
 export const ERRAND_BRANCH_TYPES = ["fix", "chore", "refactor", "hotfix"] as const;
 
@@ -31,6 +33,27 @@ export function isErrandBranchType(value: string): value is ErrandBranchType {
 
 /** Eight lowercase hex characters after the slug, which keep two same-slug errands' branches apart. */
 const BRANCH_SUFFIX = /^[0-9a-f]{8}$/u;
+
+/**
+ * Mint the suffix that keeps two same-slug errands from different clones off one remote branch.
+ *
+ * @returns Eight lowercase hex characters.
+ */
+export function mintErrandBranchSuffix(): string {
+  return randomBytes(4).toString("hex");
+}
+
+/**
+ * Name an errand's branch from its type and slug, with the suffix where one was minted.
+ *
+ * @param type - The branch nature-type.
+ * @param slug - The errand's slug.
+ * @param suffix - The minted suffix, or none.
+ * @returns `<type>/<slug>`, or `<type>/<slug>-<suffix>`.
+ */
+export function errandBranch(type: ErrandBranchType, slug: string, suffix?: string): string {
+  return suffix === undefined ? `${type}/${slug}` : `${type}/${slug}-${suffix}`;
+}
 
 /**
  * The nature-type an errand branch names for its slug, as `<type>/<slug>` or `<type>/<slug>-<suffix>`.

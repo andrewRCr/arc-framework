@@ -20,6 +20,9 @@ import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js"
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import { listInbox } from "../../src/lib/inbox/listing.js";
+const BRANCH_SUFFIX = vi.hoisted(() => "0a1b2c3d");
+vi.mock("../../src/lib/errand/branch-type.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../src/lib/errand/branch-type.js")>(), mintErrandBranchSuffix: () => BRANCH_SUFFIX }));
 it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed ID/version", async () => {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
@@ -111,7 +114,7 @@ it("opens a full Errand from the project queue, then abandons it back through re
   expect(await invokeRegistered(h, ["errand", "queue", "set", queue])).toMatchObject({ result: { state: "set" } });
   const opened = await invokeRegistered(h, ["errand", "open", "cli-full", "--from-inbox", "project:12345678", "--json"]);
   expect(opened).toMatchObject({ result: { outcome: "applied", identity: { originEntry: "project:12345678", originEntrySourceDigest: null } } });
-  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-full");
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/cli-full-${BRANCH_SUFFIX}`);
   expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "cli-full" } } });
   expect(await listInbox({ list: "project" }, h.h.context)).toMatchObject({ entries: [] });
   expect(await listInbox({ list: "cli-full" }, h.h.context)).toMatchObject({ entries: [{ id: "12345678", fields: { Created: "2026-01-01" } }] });
@@ -156,7 +159,7 @@ it("mints a text description and links a project capture beside it from register
   expect(await invokeRegistered(h, ["errand", "link", "cli-linked", "--from-inbox", "project:12345678", "--json"])).toMatchObject({ result: { outcome: "applied", identity: { originEntry: "project:12345678", originEntrySourceDigest: null } } });
   expect(await listInbox({ list: "cli-linked" }, h.h.context)).toMatchObject({ entries: [{ title: "cli-linked", raw: expect.stringContaining("Free typed text") }, { id: "12345678", fields: { Created: "2026-01-01" } }] });
   expect(await listInbox({ list: "project" }, h.h.context)).toMatchObject({ entries: [] });
-  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-linked");
+  expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/cli-linked-${BRANCH_SUFFIX}`);
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
   expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "cli-linked" } } });
 }, 30000);

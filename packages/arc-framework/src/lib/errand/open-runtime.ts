@@ -29,7 +29,7 @@ import {
 } from "./change-request-lifecycle.js";
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandOperationResult } from "./operation-result.js";
-import type { ErrandBranchType } from "./branch-type.js";
+import { mintErrandBranchSuffix, type ErrandBranchType } from "./branch-type.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly cwd: string;
@@ -92,6 +92,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
     repo: options.repo,
     isolation: options.isolation,
     dependencies: {
+      ...(options.store?.capabilities.stateOffBranch ? { mintBranchSuffix: mintErrandBranchSuffix } : {}),
       readFrame: () => runDerivedLocusStateProbe({
         cwd: options.cwd,
         store: options.store,

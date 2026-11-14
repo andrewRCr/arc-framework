@@ -336,7 +336,7 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
 });
 
 
-function newOpenFixture() {
+function newOpenFixture(mintBranchSuffix?: () => string) {
   let record: OrdinaryErrandRecord | null = null;
   let provisioned = false;
   let authority: unknown;
@@ -351,6 +351,7 @@ function newOpenFixture() {
     createdAt: "2026-07-20T12:00:00.000Z", identityName: "andrew", locationTemplate: "../{name}", repo: "repo",
     dependencies: {
       mintClaimId: () => "c".repeat(32),
+      ...(mintBranchSuffix === undefined ? {} : { mintBranchSuffix }),
       readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
         primaryAvailability: { kind: "free", checkoutPath: "/repo" },
         identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
@@ -383,6 +384,12 @@ describe("ordinary Errand branch types", () => {
     const fixture = newOpenFixture();
     expect(await fixture.run({ type })).toMatchObject({ outcome: "applied", identity: { branch: `${type}/fix-output` } });
     expect(fixture.read()).toMatchObject({ record: { branch: `${type}/fix-output` }, provisioned: true });
+  });
+
+  it("names a new identity's branch with the suffix it mints, and provisions that branch", async () => {
+    const fixture = newOpenFixture(() => "0a1b2c3d");
+    expect(await fixture.run({ type: "fix" })).toMatchObject({ outcome: "applied", identity: { branch: "fix/fix-output-0a1b2c3d" } });
+    expect(fixture.read()).toMatchObject({ record: { branch: "fix/fix-output-0a1b2c3d" }, provisioned: true });
   });
 });
 
