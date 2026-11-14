@@ -269,23 +269,17 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   `handlers/delivery.ts`, and `delivery-transfer.ts` build it through `createCheckoutDeliveryRenameTransitionSource`.
   The native delivery fixtures commit a transition record at their base (`notes-cutover-flip.md` § Test callers).
 
-### `[ ]` **2.6 The base-drift resolver onto stored completed records — § 4.4**
+### `[x]` **2.6 The base-drift resolver onto stored completed records — § 4.4**
 
 - _Goal:_ On an off-branch store, `createCompletedMetaResolver` (`lib/base-drift/current-adapters.ts`) names each
   integration from the store's completed records, so base drift and a squash or rebase project's checkpoint keep naming
   the work unit after no completed meta lands on base.
 
-    - Read the completed records (`readStoreCompletedEvidence`, `lib/store/lifecycle-completed.ts`) and match a pull
-      request by the number in the archived meta's `PR URL`. An ambiguous match names no work unit, as an absent one
-      does (`uniqueRecordByPr`), and a consumer that needs a name refuses as it does for an absent one.
-    - The store reaches the resolver through `createCurrentBaseDriftAdapters`, whose importers pass the store they hold:
-      `handlers/base.ts`, `handlers/status.ts`, and `scripts/integration/checkpoint-composition.ts`,
-      `errand-merge-composition.ts`, and `merge-composition.ts`.
-    - Build `test-first` (one behavior at a time):
-        - a merge whose pull request one archived meta names resolves to that work unit
-        - two archived metas naming one pull request resolve to none, as a pull request no archived meta names does
-        - the integration evidence (`analyzeIntegrationEvidence`, `lib/git/base-integration-evidence.ts`) reconciles a
-          squash merge through the stored record
+- _Outcome:_ `createCurrentBaseDriftAdapters` takes the caller's store, and with state off the branch builds
+  `createStoreCompletedResolver`, which names a merge or proves a squash by the pull request number in an archived
+  meta's `PR URL`, reading the completed records once and naming none for a number two records share. The five
+  importers pass the store they hold; `handleBaseDrift`, which held none, composes the default store as
+  `handleBaseSync` does.
 
 ### `[ ]` **2.7 The store archive records `PR URL` and `Completed` — § 4.5**
 

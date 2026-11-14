@@ -496,6 +496,7 @@ export async function composeSessionInitStatus(
         history: prerequisites.history,
         ...createCurrentBaseDriftAdapters(
           localOnlyExec,
+          store,
           workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
         ),
       });

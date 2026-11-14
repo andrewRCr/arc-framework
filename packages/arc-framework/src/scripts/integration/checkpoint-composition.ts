@@ -566,7 +566,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         exec: input.exec,
         baseBranch: config.settings["branch.base"],
         mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(input.exec, workUnitPathTreatmentContext(workUnit)),
+        ...createCurrentBaseDriftAdapters(input.exec, reviewRecordStore, workUnitPathTreatmentContext(workUnit)),
       });
     },
     classifyDeliveryDrift: async (workUnit, drift) => {
@@ -768,6 +768,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         head: coordinates.head,
         classify: createCurrentBaseDriftAdapters(
           input.exec,
+          reviewRecordStore,
           workUnitPathTreatmentContext(workUnit),
         ).classifyReconciliation,
       });

@@ -216,7 +216,7 @@ export function createErrandMergeDependencies(input: {
     ...(input.changeRequestPort === undefined ? {} : { changeRequestPort: input.changeRequestPort }),
   });
   const rawExec = createRawGitExec(input.cwd);
-  const treatment = createCurrentBaseDriftAdapters(input.exec);
+  const treatment = createCurrentBaseDriftAdapters(input.exec, store);
   const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
   const lockPort = new GhMergeLockPort(
     runner,

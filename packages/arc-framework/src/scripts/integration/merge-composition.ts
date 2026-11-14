@@ -416,6 +416,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           mode: "authoritative",
           ...createCurrentBaseDriftAdapters(
             input.exec,
+            input.store,
             workUnitPathTreatmentContext(input.workUnit),
           ),
         }),
@@ -443,6 +444,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
         head: coordinates.head,
         classify: createCurrentBaseDriftAdapters(
           input.exec,
+          input.store,
           workUnitPathTreatmentContext(input.workUnit),
         ).classifyReconciliation,
       });
@@ -515,6 +517,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
             mode: "authoritative",
             ...createCurrentBaseDriftAdapters(
               input.exec,
+              input.store,
               workUnitPathTreatmentContext(input.workUnit),
             ),
           });

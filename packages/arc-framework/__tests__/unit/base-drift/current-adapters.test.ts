@@ -7,7 +7,11 @@ import {
 } from "../../../src/lib/base-drift/current-adapters.js";
 import type { BaseDriftCommitInput, IntegrationEvent } from "../../../src/lib/git/base-drift-types.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { analyzeIntegrationEvidence } from "../../../src/lib/git/base-integration-evidence.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 
 const BASE = "b".repeat(40);
 const COMMIT = "c".repeat(40);
@@ -41,6 +45,7 @@ describe("current path-treatment adapter", () => {
   it("binds explicit work-unit and projection coordinates without ambient identity", () => {
     const classify = createCurrentBaseDriftAdapters(
       vi.fn() as unknown as GitExec,
+      createLifecycleHarness().store,
       workUnitPathTreatmentContext("example"),
     ).classifyReconciliation;
 
@@ -52,7 +57,7 @@ describe("current path-treatment adapter", () => {
   });
 
   it("leaves work-unit paths reviewable when no identity is supplied", () => {
-    const classify = createCurrentBaseDriftAdapters(vi.fn() as unknown as GitExec)
+    const classify = createCurrentBaseDriftAdapters(vi.fn() as unknown as GitExec, createLifecycleHarness().store)
       .classifyReconciliation;
 
     expect(classify(".arc/active/tasks-example.md")).toBe("reviewable");
@@ -160,6 +165,51 @@ describe("completed-meta integration resolver", () => {
     await expect(resolver.proveSingleParentEvents([input("delivery (#9)", 9)])).resolves.toEqual({
       status: "partial",
       value: [],
+    });
+  });
+});
+
+describe("stored completed-record integration resolver", () => {
+  const offBranchExec = vi.fn<GitExec>(async (_cmd, args) => { throw new Error(`unexpected: ${args.join(" ")}`); });
+  async function archived(prs: Readonly<Record<string, number>>): Promise<Store> {
+    const h = createLifecycleHarness();
+    for (const [name, pr] of Object.entries(prs)) {
+      await h.seedMeta(name, { state: "Shipped", currentWorkflow: null, prUrl: `https://github.com/o/r/pull/${pr}` },
+        { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    }
+    return h.store;
+  }
+  const topology = (prNumber: number): IntegrationEvent => ({ commits: [COMMIT], proof: "topology", prNumber });
+
+  it("names a merge by the pull request one archived meta names", async () => {
+    const resolver = createCurrentBaseDriftAdapters(offBranchExec, await archived({ widget: 7 })).resolverFactory(BASE);
+    await expect(resolver.enrichTopologyEvent(topology(7), input("merge", 7))).resolves.toEqual({
+      status: "available",
+      value: { slug: "widget", prNumber: 7, prUrl: "https://github.com/o/r/pull/7" },
+    });
+  });
+
+  it("names no work unit for a pull request two archived metas name, as for one no archived meta names", async () => {
+    const resolver = createCurrentBaseDriftAdapters(offBranchExec, await archived({ widget: 7, gadget: 7, other: 8 }))
+      .resolverFactory(BASE);
+    for (const prNumber of [7, 9]) {
+      await expect(resolver.enrichTopologyEvent(topology(prNumber), input("merge", prNumber)))
+        .resolves.toEqual({ status: "available", value: null });
+      await expect(resolver.proveSingleParentEvents([input(`delivery (#${prNumber})`, prNumber)]))
+        .resolves.toEqual({ status: "available", value: [] });
+    }
+  });
+
+  it("reconciles a squash merge through the stored record", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "log") return { stdout: `${COMMIT}\0${PARENT}\0delivery (#9)\0` };
+      throw new Error(`unexpected: ${args.join(" ")}`);
+    };
+    const resolver = createCurrentBaseDriftAdapters(exec, await archived({ widget: 9 })).resolverFactory(BASE);
+    await expect(analyzeIntegrationEvidence({ exec, baseOid: BASE, headOid: PARENT, resolver })).resolves.toMatchObject({
+      coverage: "complete",
+      unclassifiedCommitCount: 0,
+      events: [{ commits: [COMMIT], proof: "resolver", slug: "widget", prNumber: 9 }],
     });
   });
 });

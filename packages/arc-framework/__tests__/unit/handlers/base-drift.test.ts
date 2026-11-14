@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   runDerivedLocusStateProbe: vi.fn(),
 }));
 
+const heldStore = expect.objectContaining({ capabilities: expect.objectContaining({ stateOffBranch: expect.any(Boolean) }) });
 vi.mock("../../../src/lib/base-drift/current-adapters.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../src/lib/base-drift/current-adapters.js")>(),
   createCurrentBaseDriftAdapters: (...args: unknown[]) => mocks.createCurrentBaseDriftAdapters(...args),
@@ -82,7 +83,7 @@ describe("base drift handler", () => {
 
     await handleBaseDrift({ json: true });
 
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), {
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore, {
       workUnit: "example",
       projectionPaths: new Set([
         ".arc/system/.internal/candidates/example.json",
@@ -100,7 +101,7 @@ describe("base drift handler", () => {
 
     await expect(handleBaseDrift({ json: true })).resolves.toBeUndefined();
 
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), {});
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore, {});
     expect(mocks.runBaseDrift).toHaveBeenCalledOnce();
   });
 
@@ -123,7 +124,7 @@ describe("base drift handler", () => {
       process.exitCode = undefined;
     }
     expect(await emitted()).toEqual({ verdict: "clean" });
-    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function),
+    expect(mocks.createCurrentBaseDriftAdapters).toHaveBeenCalledWith(expect.any(Function), heldStore,
       expect.objectContaining({ workUnit: "example" }));
   });
 });
