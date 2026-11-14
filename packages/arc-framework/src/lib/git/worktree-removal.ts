@@ -15,7 +15,9 @@ export const PROJECTION_LOCK_REASON = "arc: remove with 'arc teardown' (work uni
 /** Projection hooks; dormant until the projection binds them. */
 export interface ProjectionRemovalSlots {
   check: (checkout: string) => Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy } | { kind: "unobservable"; detail: string }>;
+  /** Repeat safely for the same checkout, including a terminal retry after release. */
   persist: (checkout: string) => Promise<{ kind: "persisted" } | { kind: "refused"; remedy: Remedy }>;
+  /** Accept a stamped detached checkout; repeat safely after success or an ambiguous failure. */
   release: (checkout: string, isPrimary: boolean) => Promise<{ kind: "released" } | { kind: "refused"; remedy: Remedy }>;
 }
 /** Default hooks preserve behavior before projection installation. */
@@ -146,6 +148,16 @@ export async function lockSpawnedCheckout(exec: GitExec, checkoutPath: string): 
     await exec("git", ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, checkoutPath]);
     return { kind: "locked" };
   } catch (error) { return { kind: "failed", detail: message(error) }; }
+}
+
+/** Release only ARC's projection lock after the caller has proved a terminal husk. */
+export async function unlockProjectionCheckout(exec: GitExec, checkoutPath: string): Promise<void> {
+  const registration = await readRegistration(exec, checkoutPath);
+  if (registration?.locked === undefined) return;
+  if (registration.locked !== PROJECTION_LOCK_REASON) {
+    throw new Error(`The husk is locked by another tool; its owner may run git worktree unlock ${quoteShellArgument(checkoutPath)}`);
+  }
+  await exec("git", ["worktree", "unlock", checkoutPath]);
 }
 /** The warning a spawn prints where its checkout lacks the projection's lock, or null where it carries it. */
 export function describeSpawnLock(checkoutPath: string, lock: SpawnLock): string | null {

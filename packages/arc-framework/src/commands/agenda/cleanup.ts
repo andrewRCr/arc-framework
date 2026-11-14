@@ -27,8 +27,8 @@ function currentHuskSurface(input: AgendaCompileInput): OrientationSurface | nul
   const { subject, branch, stamp, worktreePath } = slot.value;
   if (stamp.kind === "manual-only") return { id: "husk", steps: [{ type: "render", surface: "husk",
     text: `**Husk:** ${stamp.reason}. ${manualHuskCleanup(worktreePath)}` }] };
-  const argv = ["arc", "teardown", subject.name, "--husk", worktreePath];
-  const command = `${workUnitTeardownAction(subject.name).text} --husk ${quoteShellArgument(worktreePath)}`;
+  const argv = ["arc", "teardown", subject.uid ?? subject.name, "--husk", worktreePath];
+  const command = `${workUnitTeardownAction(subject.uid ?? subject.name).text} --husk ${quoteShellArgument(worktreePath)}`;
   const authorization = stamp.authorization;
   const remote = stamp.remoteRef?.disposition ?? "absent";
   const steps: AgendaStep[] = [{ type: "render", surface: "husk",

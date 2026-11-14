@@ -24,6 +24,8 @@ import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
 import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
+import { validateStoreHuskEvidence } from "../work-unit/store-retirement-husk.js";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
@@ -445,7 +447,7 @@ async function inspectHuskRemoval(context: {
   const removalBlocked = removalCheck.kind === "refused"
     && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked");
   if (decoded.kind === "current" && !removalBlocked) {
-    const evidence = await inspectCurrentHuskEvidence({ entry, stamp, decoded, options, exactBaseOid, warnings });
+    const evidence = await inspectCurrentHuskEvidence({ entry, marker, stamp, decoded, options, exactBaseOid, warnings });
     if (evidence === "unavailable") decision = { action: "blocked", reason: "evidence-unavailable" };
     if (evidence === "invalid") {
       decoded = { kind: "manual-only", reason: "evidence-mismatch" };
@@ -482,6 +484,7 @@ function observedHuskDecision(input: { marker: WorktreeMarkerReadResult; head: s
 
 async function inspectCurrentHuskEvidence(context: {
   entry: RegisteredWorktree;
+  marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>;
   stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>;
   decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>;
   options: RunStaleWorktreeSweepOptions;
@@ -493,9 +496,10 @@ async function inspectCurrentHuskEvidence(context: {
     warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
     return "unavailable";
   }
-  const valid = await (options.revalidateEvidence === undefined
-    ? revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob)
-    : options.revalidateEvidence(stamp, decoded, exactBaseOid));
+  const valid = await (options.revalidateEvidence !== undefined ? options.revalidateEvidence(stamp, decoded, exactBaseOid)
+    : options.store?.capabilities.stateOffBranch && stamp.subject.kind === "work-unit" ? validateStoreHuskEvidence({ store: options.store, exec: options.exec,
+      marker: context.marker.marker, baseOid: exactBaseOid })
+      : revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob));
   return valid ? "valid" : "invalid";
 }
 
@@ -509,9 +513,9 @@ function withHuskActions(
   if (report.decision.action !== "removable") return report;
   const subject = report.subject;
   if (subject.kind === "work-unit") {
-    const argv = ["arc", "teardown", subject.name,
-      ...(locus.kind === "linked" ? ["--husk", report.worktreePath] : [])];
-    return { ...report, actions: [{ text: argv.join(" "), argv }] };
+    const argv = ["arc", "teardown", subject.uid ?? subject.name,
+      ...(locus.kind === "linked" || subject.uid !== undefined ? ["--husk", report.worktreePath] : [])];
+    return { ...report, actions: [{ text: ["arc teardown", ...argv.slice(2).map(quoteShellArgument)].join(" "), argv }] };
   }
   if (subject.kind === "branch" && locus.kind === "primary") {
     return { ...report, actions: [{ text: `arc teardown --branch ${subject.ref}`,

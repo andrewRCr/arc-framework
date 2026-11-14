@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { assessReapSafety, isLandedInBase, isContainedIn } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
-import { decodeWorktreeMarkerOwnership, readWorktreeMarker, removeWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker, removeWorktreeMarker, resolveWorktreeMarkerPath, type WorktreeMarker } from "../../git/worktree-marker.js";
 import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
 import { sameOwner, type OwnerIdentity } from "../../store/identity.js";
 import type { Store } from "../../store/contract.js";
@@ -20,14 +20,18 @@ import { missingRegistrationActions } from "../../session-init/missing-worktree-
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
+import { createStoreSelfTeardownHusk, releaseStoreTerminalHusk } from "../store-self-teardown-husk.js";
+import { unlockTerminalHusk } from "../terminal-husk-unlock.js";
 
 type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
-type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
+type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string;
+  husk?: NonNullable<Extract<TeardownResult, { status: "torn-down" }>["husk"]> };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Teardown requires its operational store." };
   let cleanupStarted = false;
+  let bound: Bound | undefined;
   try {
     const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
     if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
@@ -38,16 +42,18 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
-    const bound: Bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
+    bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
     const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
+    if (selected !== undefined) await releaseSelectedHusk(bound, selected);
     let worktreeRemoved = selected === undefined ? await retireHolder(bound, ctx.cwd) : null;
     const { branchDeleted, remoteBranchDeleted } = await reapRetirementLinks(bound, links, retiring, generation);
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
     return { status: "torn-down", mode: evidence.rule === "discard" ? "abandoned" : "shipped", branch: retiring,
-      branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
-  } catch (error) { return teardownRejection(error, cleanupStarted, params); }
+      branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: bound.husk ?? null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
+  } catch (error) { return teardownRejection(error, cleanupStarted,
+    bound?.husk === undefined ? params : { ...params, huskPath: bound.husk.worktreePath }); }
 }
 function teardownRejection(error: unknown, cleanupStarted: boolean, params: TeardownParams): Extract<TeardownResult, { status: "rejected" }> {
   return { status: "rejected", reason: error instanceof Error ? error.message : String(error),
@@ -89,12 +95,44 @@ async function retirementHolder(ctx: Bound, path: string, request: ReturnType<ty
   return { kind: "unbound", path, exits: classified.exits, reason: classified.reason };
 }
 
+async function retainSelfHusk(ctx: Bound, path: string, invokingPath: string, marker: WorktreeMarker,
+  selected?: SelectedStoreRetirementHusk): Promise<boolean> {
+  const windowsFallback = ctx.selfTeardownMode === "remove" && (ctx.platform ?? process.platform) === "win32";
+  if (!marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)
+    || !(ctx.selfTeardownMode === "husk" || windowsFallback) || !await isSelfTeardown(path, invokingPath)) return false;
+  if (selected === undefined) {
+    const retained = await createStoreSelfTeardownHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence });
+    ctx.husk = retained.husk;
+    await releaseStoreTerminalHusk({ ctx, path, primaryPath: ctx.primaryPath, evidence: ctx.evidence, stamp: retained.stamp });
+    const notice = await unlockTerminalHusk(ctx, path, retained.stamp);
+    if (notice !== null) ctx.notices.push(notice);
+  } else {
+    await selected.revalidate();
+    const stamp = marker.husk;
+    if (stamp === undefined) throw new Error("The selected terminal stamp changed; inspect it and retry teardown.");
+    ctx.husk = { worktreePath: path, subject: stamp.subject, branch: stamp.branch, stamped: true, outcome: "already-husked" };
+    const notice = await unlockTerminalHusk(ctx, path, stamp);
+    if (notice !== null) ctx.notices.push(notice);
+  }
+  if (windowsFallback) ctx.notices.push("Windows cannot remove the invoking shell's occupied directory; left a stamped husk instead.");
+  return true;
+}
+
+async function releaseSelectedHusk(ctx: Bound, selected: SelectedStoreRetirementHusk): Promise<void> {
+  await selected.revalidate();
+  const marker = await (ctx.readMarker ?? readWorktreeMarker)(selected.path);
+  if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("The selected terminal stamp changed before projection release.");
+  await releaseStoreTerminalHusk({ ctx, path: selected.path, primaryPath: ctx.primaryPath,
+    evidence: ctx.evidence, stamp: marker.marker.husk, revalidateSelection: selected.revalidate });
+}
+
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {
   const path = selected?.path ?? await holdingCheckout(ctx);
   if (path === null) return null;
   const marker = await (ctx.readMarker ?? readWorktreeMarker)(path);
   if (marker.kind !== "present") throw new Error("The selected checkout claim changed before retirement.");
   const fs = ctx.worktreeFs ?? nodeReconcileWorkUnitWorktreeFs;
+  if (await retainSelfHusk(ctx, path, invokingPath, marker.marker, selected)) return null;
   const revalidate = async () => { await ctx.evidence.revalidate(); await selected?.revalidate(); };
   const operation = async () => {
     if (!marker.marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)) {
@@ -105,10 +143,12 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       return null;
     }
     if (await fs.directoryExists(path)) await reconcileUserSurfacesForRemoval({ exec: ctx.exec, fs, chdir: ctx.chdir }, path);
-    if (await isSelfTeardown(path, invokingPath)) ctx.chdir(ctx.primaryPath);
+    const self = await isSelfTeardown(path, invokingPath);
+    if (self) ctx.chdir(ctx.primaryPath);
     const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots, folderExists: (target) => fs.directoryExists(target) });
     if (removed.kind === "refused") throw new Error(describeRemovalRefusal(removed.check));
     if (removed.kind === "failed") throw new Error(`Checkout removal failed at ${removed.step}: ${removed.detail}`);
+    if (self) ctx.notices.push(`The invoking shell or agent session is now in a deleted directory; start any next command from ${ctx.primaryPath}.`);
     return path;
   };
   if (ctx.readTeardownSelection !== undefined && ctx.teardownWorktree !== undefined) {

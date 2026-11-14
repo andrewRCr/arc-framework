@@ -253,3 +253,16 @@ it("preserves manual orientation for a pre-store husk whose Git evidence cannot 
     branch: "feat/shipped-widget", stamp: { kind: "manual-only", reason: "pre-store-husk" } });
   assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
 });
+
+it("requires current evidence for a UID-bearing native husk and preserves its exact subject", async () => {
+  const subject = { kind: "work-unit" as const, name: "shipped-widget", uid: "00000000-0000-4000-8000-000000000001" };
+  const marker: WorktreeMarkerReadResult = { kind: "present", marker: { ...stampedMarker.marker, createdFor: subject,
+    wuName: subject.name, provisioning: undefined,
+    husk: { ...stampedMarker.marker.husk!, subject, authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: `sha256:${"a".repeat(64)}`, baseProofOid: "abc123" } } } };
+  const options = { worktreePath: "/wt/shipped-widget", branch: null, head: "abc123", marker, stateOffBranch: true };
+  expect(await resolveCurrentHuskAdvisory(options, async () => false)).toBeNull();
+  const result = await resolveCurrentHuskAdvisory(options, async () => true);
+  expect(result).toMatchObject({ subject, stamp: { kind: "current" } });
+  assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
+});

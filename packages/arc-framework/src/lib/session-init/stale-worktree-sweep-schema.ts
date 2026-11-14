@@ -7,7 +7,7 @@ import { MissingWorktreeFolderSchema } from "./missing-worktree-folders.js";
 import { CurrentHuskAdvisorySchema } from "./current-husk-advisory.js";
 
 const WorktreeSubjectSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("work-unit"), name: z.string() }),
+  z.strictObject({ kind: z.literal("work-unit"), name: z.string(), uid: z.uuid().optional() }),
   z.strictObject({ kind: z.literal("errand"), slug: z.string() }),
   z.strictObject({ kind: z.literal("branch"), ref: z.string() }),
 ]);

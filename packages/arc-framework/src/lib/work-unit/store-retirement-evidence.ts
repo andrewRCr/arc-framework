@@ -51,6 +51,8 @@ export interface StoreRetirementEvidence {
   evidence: RetirementEvidenceRef;
   revalidate: () => Promise<void>;
 }
+/** A readable primary that has not ended supplies no retirement authority. */
+export class NonTerminalRetirementError extends Error {}
 /** Read completed placement or terminal lineage, never guessing authority from a branch name. */
 export async function readStoreRetirementEvidence(store: Store, subject: RecordReference, baseOid: string): Promise<StoreRetirementEvidence> {
   const owner = subject.owner;
@@ -59,7 +61,7 @@ export async function readStoreRetirementEvidence(store: Store, subject: RecordR
   const name = owner.name;
   const primary = await store.read({ reference: subject });
   if (primary.status === "ok") {
-    if (primary.result.placement?.kind !== "completed") throw new Error(`${name} has not ended; abandon or archive it before teardown.`);
+    if (primary.result.placement?.kind !== "completed") throw new NonTerminalRetirementError(`${name} has not ended; abandon or archive it before teardown.`);
     return bind(store, primary.result, "landed", primary.result.links?.branches ?? [], {
       kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest(primary.result.content), baseProofOid: baseOid,
     });
