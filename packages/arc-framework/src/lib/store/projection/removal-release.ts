@@ -129,7 +129,8 @@ async function remainingCopies(root: ProjectionRootState, path: string, entry: R
   links: ProjectionLinkBoundary): Promise<Remedy | undefined> {
   for (const copy of entry.copies) {
     if (links(copy.name) !== null) continue;
-    if (links(path) !== null) {
+    // Persist leaves a copy it may not take over recorded; one holding no edit goes with the aside folder.
+    if (links(path) !== null || !root.writable(path) || !root.writable(copy.name)) {
       const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
       if (observed.kind === "no-edit" || observed.kind === "gone") continue;
     }

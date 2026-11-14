@@ -7,6 +7,7 @@ import { afterEach, expect, it, onTestFinished } from "vitest";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
+import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -1005,4 +1006,20 @@ it("holds an edited aside copy in a root its ignore guard refuses, as persistenc
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
   expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
   expect(success(await target.h.store.read({ reference: target.h.record.reference })).content).toContain("Aside prefix.");
+});
+
+it("releases past an unedited aside copy in a root its ignore guard refuses, as the check predicts, and holds an edited one", async () => {
+  const { target, entry, copy } = await interruptedCopy();
+  const at = join(target.checkout, copy.name);
+  const unedited = await readFile(at);
+  await writeFile(join(target.checkout, ".gitignore"), "");
+  const original = parseStampedFile(unedited.toString("utf8")).content;
+  await writeFile(at, renderStampedFile({ content: `Aside prefix.\n${original}`, stamp: entry.base.blob }));
+  const checked = await checkProjectionRemoval(target.checkout, target.context, "release");
+  if (checked.kind !== "would-refuse") throw new Error("The edited copy was not held");
+  expect(await releaseProjectionRemoval(target.checkout, false, target.context)).toEqual({ kind: "refused", remedy: checked.remedy });
+  await writeFile(at, unedited);
+  expect(await checkProjectionRemoval(target.checkout, target.context, "release")).toEqual({ kind: "passes" });
+  expect(await releaseProjectionRemoval(target.checkout, false, target.context)).toEqual({ kind: "released" });
+  expect(await readFile(at).then(() => "present", () => "absent")).toBe("absent");
 });
