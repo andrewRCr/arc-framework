@@ -31,10 +31,9 @@
 
 ## Spike evidence
 
-Each spike's harness and raw logs stay on the machine that ran it, under `~/dev/scratch/arc-storage-spike/projection/`;
-this file keeps the results and what they settle. Linux runs are WSL2 on ext4; Windows runs use `node.exe` on NTFS.
-Spikes 3, 4, and 5 keep theirs under `~/dev/arc-evidence/projection-worktrees/` instead.
-The September spikes behind `storage-contract`'s Part B are in its notes, § Evidence behind Part B.
+Each spike's harness and raw logs stay on the machine that ran it; this file keeps the results and what they settle.
+Linux runs are WSL2 on ext4; Windows runs use `node.exe` on NTFS. The September spikes behind `storage-contract`'s
+Part B are in its notes, § Evidence behind Part B.
 
 ## Spike 2 — command-start cost in Node
 
@@ -148,7 +147,8 @@ work unit's claim and a refresh's renders observe protection through the round's
 
 Run 2026-11-07 on this machine (WSL2, ext4) and the `desktop-windows` runner (NTFS, Windows Git and Node, below-normal
 priority; one root inside the Defender exclusion and one outside it), medians of three to five runs. Benchmarks, data,
-and model: `bench/`, `scale-linux.json`, `scale-win32.json`, `scale-model.py`, and `SCALE-SUMMARY.md`.
+and model, kept with its harness: `bench/`, `scale-linux.json`, `scale-win32.json`, `scale-model.py`, and
+`SCALE-SUMMARY.md`.
 
 | Per unit                                  | Linux        | Windows runner                                          |
 | ----------------------------------------- | ------------ | ------------------------------------------------------- |
@@ -214,13 +214,13 @@ measurement of the engine (`spec-projection-worktrees.md` § 15.3).
 
 Run 2026-11-07 on the `desktop-windows` runner (NTFS, the runner's Git 2.56 and Node, below-normal priority; arc-offload
 run `e953e5b15937459d89b1f6d675fb970a`), three warm-ups then 20 runs, the variants interleaved, medians and p90 in
-milliseconds. Benchmark and data: `bench/scale-overlap.test.ts` and `overlap-win32.json`. The dataset is this
-repository's checked set: 309 files, `backlog/`'s 298 in 156 folders, mostly two to a folder, `active/`'s 3, and the
-identity root's 8; 300 loose refs under `refs/arc/`; a header and three partitions, `backlog/`'s about 155 KB, against
-about 185 KB at § Spike 4's 620 bytes an entry. Each start takes a lock by exclusive create, makes the two Git calls the
-projection makes (`for-each-ref` over `refs/arc/` and one `git config --get-regexp`), reads the header and the
-partitions as plain JSON, walks with `readdirSync` and file types, stats every file through a pool of 32, writes the
-header by temp and rename and a reference stamp, and releases the lock.
+milliseconds. Benchmark and data, kept with its harness: `bench/scale-overlap.test.ts` and `overlap-win32.json`. The
+dataset is this repository's checked set: 309 files, `backlog/`'s 298 in 156 folders, mostly two to a folder,
+`active/`'s 3, and the identity root's 8; 300 loose refs under `refs/arc/`; a header and three partitions, `backlog/`'s
+about 155 KB, against about 185 KB at § Spike 4's 620 bytes an entry. Each start takes a lock by exclusive create, makes
+the two Git calls the projection makes (`for-each-ref` over `refs/arc/` and one `git config --get-regexp`), reads the
+header and the partitions as plain JSON, walks with `readdirSync` and file types, stats every file through a pool of 32,
+writes the header by temp and rename and a reference stamp, and releases the lock.
 
 | Variant                                                                      | Median | p90   |
 | ---------------------------------------------------------------------------- | ------ | ----- |
