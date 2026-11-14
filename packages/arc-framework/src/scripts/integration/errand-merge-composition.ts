@@ -226,6 +226,7 @@ export function createErrandMergeDependencies(input: {
         revision: request.target.headSha,
         exec: input.exec,
       }),
+      store,
     }),
     readMergeLockSetting,
   );

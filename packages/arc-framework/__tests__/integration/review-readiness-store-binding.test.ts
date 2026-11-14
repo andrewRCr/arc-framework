@@ -14,6 +14,8 @@ import { MergeLockTransitionRequestSchema, releaseMergeLock } from "../../src/sc
 import { createIntegrationMergeDependencies } from "../../src/scripts/integration/merge-composition.js";
 import { IntegrationMergeTargetSchema } from "../../src/scripts/integration/merge.js";
 import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
+import { createErrandMergeDependencies } from "../../src/scripts/integration/errand-merge-composition.js";
+import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 
@@ -110,4 +112,48 @@ it.each(["command", "integration"] as const)("%s lock names a missing project ID
         message: expect.stringContaining("Restore the project's unique, valid identity record") })]) });
     await h.reference.seedProject(projectId);
     expect(await release()).toMatchObject({ state: "released" });
+  }, 30_000);
+
+async function errandLockFixture(root: "command" | "integration", linked: string) {
+  const h = await createReviewRepositoryHarness();
+  onTestFinished(h.cleanup);
+  const { cwd, exec } = h.native, slug = "fix-thing", branch = "chore/fix-thing-0a1b2c3d";
+  await mkdir(join(cwd, ".arc/system"), { recursive: true });
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\nmerge.lock: draft\n");
+  await exec("git", ["add", "."], { cwd });
+  await exec("git", ["commit", "-m", "Configure readiness fixture"], { cwd });
+  await exec("git", ["switch", "-c", branch], { cwd });
+  const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
+  await h.reference.seedProject(projectId);
+  const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId: "1".repeat(32),
+    intent: "Fix the thing", origin: "description", originEntry: null, branch, state: "open", savedHead: null,
+    changeRequest: null, createdAt: "2026-11-13T12:00:00Z", updatedAt: "2026-11-13T12:00:00Z" });
+  if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
+  await h.reference.seedErrand(record, { branches: [{ repository: projectId, ref: linked, linkedAs: "created", excluded: [] }] });
+  const runner: HostedProcessRunner = { run: async args => {
+    if (args[0] === "repo") return { stdout: JSON.stringify({ nameWithOwner: "owner/repo", defaultBranchRef: { name: "main" } }), stderr: "" };
+    if (args[0] === "api") return { stdout: JSON.stringify({ number: 42, state: "open", draft: true,
+      head: { ref: branch, sha: head }, base: { repo: { full_name: "owner/repo" } } }), stderr: "" };
+    if (args[0] === "pr" && args[1] === "ready") return { stdout: "", stderr: "" };
+    throw new Error(`Unexpected host call: ${args.join(" ")}`);
+  } };
+  const target = IntegrationMergeTargetSchema.parse({ repository: "owner/repo", pullRequest: 42, baseRef: "main",
+    headRef: branch, headSha: head });
+  const request = MergeLockTransitionRequestSchema.parse({ schemaVersion: 1, treeRoot: cwd,
+    target: { repository: "owner/repo", pullRequest: 42, headSha: head }, vehicle: { kind: "errand", slug } });
+  return { release: () => root === "command" ? releaseMergeLock(request, defaultMergeLockPort(cwd, exec, runner, h.native))
+    : createErrandMergeDependencies({ cwd, exec, identity: "test-user", slug, hostedRunner: runner, store: h.reference.store })
+      .releaseLock(target) };
+}
+
+it.each(["command", "integration"] as const)("%s lock releases a suffixed Errand whose head branch is its record's branch link",
+  async root => {
+    expect(await (await errandLockFixture(root, "chore/fix-thing-0a1b2c3d")).release()).toMatchObject({ state: "released" });
+  }, 30_000);
+
+it.each(["command", "integration"] as const)("%s lock refuses an Errand whose head branch differs from its record's branch link",
+  async root => {
+    expect(await (await errandLockFixture(root, "chore/fix-thing-ffffffff")).release()).toMatchObject({ state: "blocked",
+      payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code: "errand-branch-mismatch" })]) });
   }, 30_000);

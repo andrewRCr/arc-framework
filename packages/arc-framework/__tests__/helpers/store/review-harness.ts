@@ -6,6 +6,7 @@ import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } fro
 import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
+import type { Links } from "../../../src/lib/store/links.js";
 
 /** Seed review records through production schemas and semantic write admission. */
 export function createReviewHarness() {
@@ -17,9 +18,9 @@ export function createReviewHarness() {
   return { ...lifecycle, projectId: createProjectIdentityReader(lifecycle.store), seedCandidate, seedBoundary,
     seedProject: async (projectId: string) => lifecycle.seed(recordReferences["project-registry/identity"](
       OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: projectId })), "{}"),
-    seedErrand: async (record: Extract<TransientIdentityRecord, { kind: "errand" }>) => lifecycle.seed(
+    seedErrand: async (record: Extract<TransientIdentityRecord, { kind: "errand" }>, links?: Links) => lifecycle.seed(
       recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: record.slug })),
-      serializeTransientIdentityRecord(record), { kind: "active" }),
+      serializeTransientIdentityRecord(record), { kind: "active" }, links),
     seedReviewWorkUnit: async (candidate: CandidateManagedRecordV1, boundary: IntegrationBoundaryLocusV2) => {
       const meta = await lifecycle.seedMeta(candidate.attestation.workUnit);
       await seedCandidate(meta.reference.owner, candidate);

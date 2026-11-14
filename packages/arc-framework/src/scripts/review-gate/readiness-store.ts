@@ -1,5 +1,7 @@
-/** Work-unit readiness over current operational records and repository-qualified branch links. */
+/** Work-unit and Errand readiness over current operational records and repository-qualified branch links. */
+import { SlugSchema } from "../../lib/kernel/index.js";
 import { storeRemedyText } from "../../lib/store/native-refusal.js";
+import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { ReviewReadinessFact, ReviewReadinessRequest } from "./readiness-contract.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
@@ -14,15 +16,16 @@ import { describeRecordConflicts } from "../../lib/store/conflict-diagnostics.js
 type WorkUnitRequest = Omit<ReviewReadinessRequest, "vehicle"> & {
   vehicle: Extract<ReviewReadinessRequest["vehicle"], { kind: "work-unit" }>;
 };
+type ErrandRequest = Omit<ReviewReadinessRequest, "vehicle"> & {
+  vehicle: Extract<ReviewReadinessRequest["vehicle"], { kind: "errand" }>;
+};
 
 function fact(code: string, path: string, message: string): ReviewReadinessFact { return { code, path, message }; }
 
 /** Read lifecycle readiness from the selected store without consulting projected metadata. */
 export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, store: Store): Promise<ReviewReadinessFact[]> {
   const selected = await readWorkUnit(store, request.vehicle.slug);
-  if (selected.status === "refused") return [fact(selected.refusal.code === "not-found" ? "missing-artifact"
-    : selected.refusal.code === "record-malformed" ? "malformed-artifact" : "unreadable-artifact",
-  `work-item/meta:${request.vehicle.slug}`, `${selected.refusal.condition} ${storeRemedyText(store, selected.refusal.remedy)}`)];
+  if (selected.status === "refused") return [refusedFact(store, selected.refusal, `work-item/meta:${request.vehicle.slug}`)];
   // A planned meta's projected path reads its fields, so unreadable fields are reported under the record itself.
   const record = selected.result, fields = readLifecycleMetaFields(record);
   if (fields.status === "refused") return [fact("malformed-artifact", `work-item/meta:${request.vehicle.slug}`,
@@ -42,6 +45,30 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
     if (facts.length === 0) facts.push(...await storedCohortReadinessFacts(store, inventory.entries, fields.result.cohort));
   }
   return facts;
+}
+
+/** Match an Errand's pull-request head branch with the branch link its stored record holds. */
+export async function evaluateStoredErrandReadiness(request: ErrandRequest, store: Store): Promise<ReviewReadinessFact[]> {
+  const path = `work-item/record:${request.vehicle.slug}`;
+  const found = await store.lookup({ kind: "slug", slug: SlugSchema.parse(request.vehicle.slug) });
+  if (found.status === "refused") return [refusedFact(store, found.refusal, path)];
+  if (found.result.reference.kind !== "work-item/record") {
+    return [fact("missing-artifact", path, `\`${request.vehicle.slug}\` does not resolve to an Errand.`)];
+  }
+  const read = await store.read({ reference: found.result.reference });
+  if (read.status === "refused") return [refusedFact(store, read.refusal, path)];
+  const project = await resolveProjectIdentity(createProjectIdentityReader(store));
+  if (project.status !== "ready") throw new ProjectIdentityError(project);
+  const branch = selectWorkBranchLink(read.result, { repository: project.id });
+  if (branch.kind === "linked" && workBranchName(branch.link.ref) === workBranchName(request.pullRequest.headBranch)) return [];
+  return [fact("errand-branch-mismatch", "pullRequest.headBranch", branch.kind === "ambiguous" ? branch.reason
+    : "The pull-request head branch is not the branch the Errand's record links.")];
+}
+
+function refusedFact(store: Store, refusal: StoreRefusal, path: string): ReviewReadinessFact {
+  const code = refusal.code === "not-found" ? "missing-artifact" : refusal.code === "record-malformed" ? "malformed-artifact"
+    : "unreadable-artifact";
+  return fact(code, path, `${refusal.condition} ${storeRemedyText(store, refusal.remedy)}`);
 }
 
 function storedPositionFacts(record: StoreRecord, state: string | null, manual: boolean, path: string): ReviewReadinessFact[] {

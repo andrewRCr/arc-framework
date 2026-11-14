@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
@@ -1374,14 +1375,33 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
   });
 });
 
-it.each(["errand", "delivery-member"] as const)("keeps %s readiness independent of the native lifecycle store", async kind => {
+it("keeps delivery-member readiness independent of the native lifecycle store", async () => {
   const h = createReviewHarness();
   h.store.read = async () => { throw new Error("Unexpected lifecycle read"); };
   h.store.list = async () => { throw new Error("Unexpected lifecycle listing"); };
-  const request = kind === "errand"
-    ? readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" })
-    : readinessRequest(memberVehicle());
-  expect((await evaluateReviewReadiness(request, {
+  expect((await evaluateReviewReadiness(readinessRequest(memberVehicle()), {
     fs: buildFs({}), store: h.store, deliveryMemberLookup: memberLookup(resolvedMember()),
+  })).state).toBe("ready");
+});
+
+it("reads a native Errand's own record and no lifecycle record", async () => {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099", branch = "fix/demo-0a1b2c3d";
+  await h.seedProject(projectId);
+  const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "demo",
+    claimId: "1".repeat(32), intent: "Fix the demo", origin: "description", originEntry: null, branch, state: "open",
+    savedHead: null, changeRequest: null, createdAt: "2026-11-13T12:00:00Z", updatedAt: "2026-11-13T12:00:00Z" });
+  if (record.kind !== "errand" || record.purpose !== "errand") throw new Error("Expected ordinary Errand");
+  await h.seedErrand(record, { branches: [{ repository: projectId, ref: branch, linkedAs: "created", excluded: [] }] });
+  const read = h.store.read.bind(h.store), list = h.store.list.bind(h.store);
+  h.store.read = async input => {
+    if (input.reference.kind !== "work-item/record") throw new Error("Unexpected lifecycle read");
+    return read(input);
+  };
+  h.store.list = async input => {
+    if (input.kind !== "project-registry/identity") throw new Error("Unexpected lifecycle listing");
+    return list(input);
+  };
+  expect((await evaluateReviewReadiness(readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: branch }), {
+    fs: buildFs({}), store: h.store,
   })).state).toBe("ready");
 });

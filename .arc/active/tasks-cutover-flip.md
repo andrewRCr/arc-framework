@@ -344,14 +344,11 @@ the fence harness pass over the ref backend; and the full suite passes with no b
           and the housekeep routing and grooming validators keep their checks. Done ahead of 2.10.a, whose suffixed
           branch the record's schema must first admit.
 
-    - `[ ]` **2.10.c Review readiness's identity facts**
-        - `identityFacts` (`scripts/review-gate/readiness.ts`): for an Errand vehicle the head branch equals the
-          record's branch link, read through the store as the work-unit arm reads the stored work unit, and the
-          work-unit slug test (`branchToWorkUnitSlug`, `lib/work-unit/work-unit-slug.ts`) no longer applies to it.
-        - Build `test-first` (one behavior at a time):
-            - a suffixed Errand's pull request passes readiness, as `arc errand merge` reaches it through
-              `releaseMergeLock` (`scripts/review-gate/merge-lock.ts`)
-            - a head branch differing from the record's branch link refuses
+    - `[x]` **2.10.c Review readiness's identity facts**
+        - On an off-branch store, `identityFacts` (`scripts/review-gate/readiness.ts`) skips both the slug test and
+          the Errand split-shape check, and `evaluateStoredErrandReadiness` (`readiness-store.ts`) refuses
+          `errand-branch-mismatch` unless the head branch is the record's branch link for the project. The Errand
+          merge's lock and `arc review readiness` now pass their store for Errand vehicles; both lock roots are tested.
 
     - `[ ]` **2.10.d The remaining readers**
         - Each reader the search marks as reaching an Errand's branch changes with its arm, and each it marked unclear
