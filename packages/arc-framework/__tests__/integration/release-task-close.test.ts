@@ -17,6 +17,7 @@ import { renderCommitMessageRemedy } from "../../src/lib/release/commit-message-
 import { TaskCloseCommandInputSchema } from "../../src/handlers/task.js";
 import { runTaskClose, type TaskVerbContext } from "../../src/lib/work-unit/verbs/task-close.js";
 import { AuditEntrySchema, type AuditEntry } from "../../src/lib/release/schema.js";
+import { releaseCloseStep } from "../../src/lib/store/pre-flip-steps.js";
 let cwd: string;
 beforeEach(async () => { cwd = await createTempRepo("arc-release-capture-"); });
 afterEach(async () => { await cleanupTempDir(cwd); });
@@ -110,6 +111,17 @@ it.each(["paused", "base", "unsupported", "no-open-task", "no-link-planning", "n
   const check = condition === "base" ? "base-unavailable" : condition === "no-open-task" ? "task-invalid"
     : ["detached", "unlinked", "no-link-planning", "no-link-active"].includes(condition) ? "branch-unlinked" : condition;
   expect(h.audit).toMatchObject([{ decision: "refused", refusalCode: 17, outcome: { kind: "close-precheck-failed", check } }]);
+});
+it("the unsupported precheck names the staged hand mark and the commit without --close, and commits nothing", async () => {
+  const h = await fixture(); await h.prepare("increment\n");
+  h.ctx.store = { ...h.ctx.store!, capabilities: { stateOffBranch: false } };
+  const errors: string[] = []; h.deps.writeStderr = (text) => { errors.push(text); };
+  const before = await h.exec("git", ["rev-parse", "HEAD"], { cwd });
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 17 });
+  expect(await h.exec("git", ["rev-parse", "HEAD"], { cwd })).toEqual(before);
+  const output = errors.join("");
+  expect(output).toContain(releaseCloseStep());
+  expect(output).not.toMatch(/Run arc task close|--close=|Mark tasks by hand/u);
 });
 it("the close reuses its precommit bounded base refresh", async () => {
   const h = await fixture();

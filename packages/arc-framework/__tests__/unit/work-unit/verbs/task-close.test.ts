@@ -6,6 +6,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import { recordReferences, type Links, type Store } from "../../../../src/lib/store/index.js";
 import { runTaskClose, runTaskDefer, type TaskVerbContext } from "../../../../src/lib/work-unit/verbs/task-close.js";
+import { taskMarkStep } from "../../../../src/lib/store/pre-flip-steps.js";
 
 const first = "a".repeat(40), second = "b".repeat(40), base = "c".repeat(40);
 const tasks = (parent = " ", a = " ", b = " ") => `# Task List: demo\n\n### \`[${parent}]\` **1.1 Work**\n\n- _Goal:_ Build the work.\n\n    - \`[${a}]\` **1.1.a First**\n    - \`[${b}]\` **1.1.b Second**\n\n### \`[ ]\` **1.2 Later**\n\n- _Goal:_ Finish.\n`;
@@ -115,10 +116,10 @@ it("no cursor task refuses and names a deferred task's close", async () => {
   const h = await harness(tasks("~", "~", "~").replace("### `[ ]` **1.2", "### `[~]` **1.2"));
   expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", remedy: { text: expect.stringContaining("arc task close 1.1") } });
 });
-it.each(["close", "defer"])("%s refuses unsupported before the flip", async (operation) => {
+it.each(["close", "defer"] as const)("%s refuses unsupported before the flip, naming the hand mark and its commit", async (operation) => {
   const h = await harness(); h.ctx.store = { ...facade(h.store), capabilities: { stateOffBranch: false } };
   const result = operation === "close" ? await runTaskClose(h.ctx) : await runTaskDefer(h.ctx, "1.1");
-  expect(result).toMatchObject({ status: "refused", code: "unsupported", remedy: { text: expect.stringContaining(operation === "close" ? "[x]" : "[~]") } });
+  expect(result).toMatchObject({ status: "refused", code: "unsupported", remedy: { text: taskMarkStep(operation) } });
 });
 it.each(["Planning", "Active"] as const)("no branch link on %s names the activation repair", async (state) => {
   const h = await harness(tasks(), {});

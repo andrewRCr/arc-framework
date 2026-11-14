@@ -9,6 +9,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
+import { handoverStep, resumeParkedStep } from "../../../../src/lib/store/pre-flip-steps.js";
 const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }),
   writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 function context(store: Store) { return { store, identity: "test-user", cwd: "/checkout", baseBranch: "main", locusPorts,
@@ -79,10 +80,11 @@ it.each(["another-person", undefined])("handover refuses invoking identity %s be
   expect(observations).toBe(0);
   expect(await runHandover(context(store), { name: "example", to: "another-person" })).toMatchObject({ status: "handed-over" });
 });
-it("pre-flip pause and handover refuse unsupported with the existing path", async () => {
+it("pre-flip pause, resume, and handover refuse unsupported, naming their pre-flip steps", async () => {
   const inRepo = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/checkout", exec: scriptGitExec([]).exec }));
   expect(await runPause(context(inRepo), { name: "example", identity: "andrew", reason: "Wait." })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("arc park") });
-  expect(await runHandover(context(inRepo), { name: "example", to: "another-person" })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("Owner") });
+  expect(await runHandover(context(inRepo), { name: "example", to: "another-person" })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining(handoverStep()) });
+  expect(await runResumePaused(context(inRepo), { name: "example" })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining(resumeParkedStep("example")) });
 });
 
 it("rejects a reserved resume-notes heading with an actionable correction and accepts the repaired notes", async () => {

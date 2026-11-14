@@ -191,7 +191,7 @@ each test of a file or `describe` block, so the CLI the test spawns and the Git 
 
 - **Set the override now, since their subject leaves with the in-repo arm:**
     - the spawned imports: `e2e/store-import-errands` and `integration/store-ref-import-personal-batch`;
-    - the in-repo refusals: `e2e/store-command-dormancy`'s twelve dormant-command cases, `e2e/review-cli-surfaces`'s
+    - the in-repo refusals: `e2e/store-command-dormancy`'s dormant-command cases, `e2e/review-cli-surfaces`'s
       adversarial-recording case, `e2e/projection-save`'s unsupported `arc save`, `e2e/editor-settings`' dark editor
       setup, and every case of `e2e/decompose-dormant`;
     - the old decomposition machine: every case of `e2e/decompose-command-modes` and
@@ -211,6 +211,50 @@ each test of a file or `describe` block, so the CLI the test spawns and the Git 
   no store; and the notes commands' spawned tests that seed no tracked state and assert no in-repo refusal
   (`e2e/user`, whose committed default `arc init` tracks none of the state roots, `sync-inbound`, `sync-purity`,
   `sync-state-producer`, and `materializing-fetch`) go with Task 3.4.h's `user` assertions.
+
+## Pre-flip steps
+
+The inventory Task 1.6 took at `b8aa33d239`, which Task 5.12 re-runs over the verbs the rewrite actually names. The
+verbs the rewritten text names (§ 3.1, § 8) were run through the built CLI over the in-repo implementation, except
+where the last two items below say otherwise. Each one that refuses `unsupported` names, in its remedy, the step below,
+from one source, `lib/store/pre-flip-steps.ts`, so every site refusing a verb names the same step. The step is the one
+today's text takes:
+
+- **`arc task close` and `arc task defer`:** mark the task `[x]` or `[~]` by hand and commit the mark, staged with the
+  task's own commit when that is still to come. From `process-task-loop.md` § Completion protocol and `DEV-RULES.ARC`
+  § Commit Discipline's task list accuracy.
+- **`arc release commit --close`:** the precheck refuses before committing, naming the hand mark staged with this
+  commit and the commit without `--close`; no task-close continuation prints beside it.
+- **`arc save`:** commit edited tracked ARC files, and save personal files with `arc user save`. The remedy carries no
+  `argv`, since no one command does both.
+- **`arc handoff write`**, at the dormant command and `runHandoffWrite`: update and commit the active meta's progress
+  fields, then write SESSION-NOTES with that commit as its Commit at Handoff, saved with `arc user save`. From
+  `session-handoff.md` § 2 and its SESSION-NOTES write.
+- **`arc inbox`**, by list form: the personal inbox file; `arc user inbox-list --target <slug>` for a personal target;
+  the project inbox file; and for a work unit's slug, that listing beside its draft's Inbound Buffer section. From the
+  capture gates § 4.2 replaces.
+- **`arc route`:** a capture written by hand with its `WU_Target` and `_Shapes:_` lines, a draft's Inbound Buffer
+  entry, or the project inbox. From `route-discovered-work.md` § Binding: carrying out outcomes.
+- **`arc errand queue` and `queue set`:** the execute-bound entries in the personal inbox's Errand section, in file
+  order, whose head `arc errand next` offers; and `arc user inbox-mark-execute-bound`. From `drain-inbox.md`'s marks.
+- **`arc cohort close` and `remove`:** archiving the final member sweeps the tracked cohort file into its closeout
+  sidecar; an empty cohort's file is deleted and the deletion committed. From `archive-work-unit.md`.
+- **`arc decompose --revise` and `--discard`:** leave the cut and ask the Owner how to clean it up; for a revision,
+  then plan it with `--preflight`. From `decompose-work-unit.md` § 5 and the decompose remedies' re-run of preflight.
+- **`arc review adversarial record`:** the pass's entry in `ADVERSARIAL-PASSES.md` in the work unit's personal
+  workspace, or with the criteria report in the verification record. From `adversarial-review.md` § Pass record.
+- **`arc resume` of a paused work unit, `arc handover`, and `arc user inbox-remove --id`:** `arc resume <name>`
+  for the parked work unit; Owner edited in the meta and the edit committed; and title removal through
+  `--inbox-title-file`. These sit outside the task's list of remedies to rewrite. Each named an existing path, an
+  uncommitted edit, or a form with no flag. `arc review adversarial record` and the resume of a paused work unit were
+  not run through the CLI: the probe's fixture never reached the resume's refusal, and the record's step rests on its
+  unit and end-to-end tests.
+- **Unchanged:** `arc pause` names `arc park <name> --reason <text>`, `arc locus release` names `arc park` or
+  `arc teardown`, and `arc status --conflicts` names `git status`.
+- **Not refusing in-repo:** `arc errand open --from-inbox personal:<id>`, which reads the personal inbox file, and
+  `arc store remote`, which answers. `arc attest` and `arc materialize` were not run: a search of their source found
+  no capability-gated `unsupported` refusal. The in-repo store's own `unsupported` refusals
+  (`lib/store/in-repo/**`) answer its internal callers; each verb above refuses before it writes through one.
 
 ## Errand branch readers
 

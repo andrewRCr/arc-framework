@@ -139,48 +139,18 @@ the ref backend while the default store stays in-repo.
   ROADMAP remedy; the planning-lane classifier; and the notes commands' reference reconciliation. The classification
   by file is in `notes-cutover-flip.md` § Test callers.
 
-### `[ ]` **1.6 The in-repo refusals name their pre-flip steps — § 3.1**
+### `[x]` **1.6 The in-repo refusals name their pre-flip steps — § 3.1**
 
 - _Goal:_ Every verb the rewritten workflows name that refuses `unsupported` on the in-repo implementation names, in its
   remedy, the concrete pre-flip step that does its job, independent of any workflow's text.
 
-- _Context:_ The flip's own checkout runs the in-repo implementation until its merge while its synced `.arc/` text names
-  the store's verbs.
-
-    - Inventory the verbs the rewritten text names and run each against the in-repo implementation; Task 5.12 re-runs
-      the inventory over the verbs the rewrite actually names.
-    - Rewrite each remedy that points to "the existing" workflow, to a method's binding the rewrite changes, or to a
-      command that does not carry the state the verb would have saved, or that names no step:
-        - `arc save` (`projectionSaveResult`, `lib/store/projection/save.ts`);
-        - the dormant commands' serving paths (`runDormantStoreCommand`, `commands/store-command-support.ts`): `handoff
-          write`, `route`, `cohort close`, and `cohort remove`; `inbox` for each of its list forms — `personal`,
-          `project`, and a work unit's slug — where today only the personal list by target is named; and `errand queue`,
-          whose read form names the queue's write;
-        - `handoff write`'s own backstop in `runHandoffWrite` (`lib/handoff/write.ts`), kept in step with the dormant
-          remedy;
-        - `arc decompose --revise` and `--discard` (`inRepoDecomposeDispatchRefusal`, `handlers/decompose.ts`), which
-          describe the cut's state and name no step;
-        - `arc task close` and `arc task defer` (`readTaskBasis`, `lib/work-unit/verbs/task-close.ts`), whose "Mark
-          tasks by hand [x] until the flip." names no commit, so a mark made after the task's commit stays out of the
-          head the next step reads, such as the rewritten verification's `arc attest`: mark the task by hand and commit
-          the mark, staged with the task's own commit where that is still to come;
-        - `arc review adversarial record` (`recordApprovedAdversarialPass`,
-          `scripts/review-gate/runtime/adversarial-record-command.ts`), whose remedy names `ADVERSARIAL-PASSES.md` or
-          the criteria report, records the rewritten text (Tasks 5.3.c, 5.6.d) no longer describes: it names the
-          pre-flip record concretely, `ADVERSARIAL-PASSES.md` in the work unit's personal workspace or the criteria
-          report for a verification or criteria pass, and the entry that record holds;
-        - `arc release commit --close`, whose precheck (`createTaskCloseOperations`, `handlers/release/task-close.ts`)
-          refuses before committing with task close's remedy and does not name the commit it blocked: that remedy, the
-          hand mark staged with the commit, which is made without `--close`.
-    - Build `test-first` (one behavior at a time):
-        - each in-repo refusal's remedy names its pre-flip step, asserted by its text
-        - `arc task close` and `arc task defer` name the hand mark and its commit, staged with the task's own commit
-          where that is still to come
-        - `arc release commit --close` refuses before committing, naming the staged hand mark and then the commit
-          without `--close`
-        - `arc review adversarial record` names the pre-flip record's place and the entry it holds
-          (`e2e/review-cli-surfaces.e2e.test.ts`'s case, under the override from Task 1.5, and
-          `unit/handlers/review-adversarial.test.ts`)
+- _Outcome:_ Every in-repo refusal of a verb the rewritten text names takes its remedy from one source,
+  `lib/store/pre-flip-steps.ts`, which names the concrete step that does the verb's job while state stays in the
+  checkout: hand marks and their commits for task close, defer, and `release commit --close`, the tracked commit beside
+  the personal save, the hand-written handoff, each inbox list form, the hand-written route, the queue's read and
+  write, the cohort archive sweep and deletion, the decomposition cleanup direction, and the adversarial pass's record
+  and entry. Resume of a paused work unit, handover, and removal by ID take steps too. The inventory, each step, and
+  the text it comes from are in `notes-cutover-flip.md` § Pre-flip steps.
 
 ## **Phase 2:** Store paths the flip completes, and the fence
 

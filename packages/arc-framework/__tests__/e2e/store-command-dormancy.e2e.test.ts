@@ -6,6 +6,7 @@ import { RouteResultSchema } from "../../src/lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../../src/lib/inbox/queue.js";
 import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { cohortCloseStep, cohortRemoveStep, errandQueueStep, handoffWriteStep, inboxListStep, routeStep } from "../../src/lib/store/pre-flip-steps.js";
 
 describe("dormant store command registrations", () => {
   let root: string;
@@ -15,19 +16,22 @@ describe("dormant store command registrations", () => {
   });
   afterEach(async () => { await cleanupTempDir(root); });
   it.each([
-    { args: ["inbox", "personal", "--json"], serving: "arc user inbox-list --target", schema: InboxResultSchema },
-    { args: ["route", "--to", "project"], serving: "Binding: carrying out outcomes", schema: RouteResultSchema },
-    { args: ["route", "12345678", "--from", "personal", "--expected-version", "v1:1234567890abcdef", "--to", "project"], serving: "Binding: carrying out outcomes", schema: RouteResultSchema },
+    { args: ["inbox", "personal", "--json"], serving: inboxListStep("personal"), schema: InboxResultSchema },
+    { args: ["inbox", "personal", "--target", "example", "--json"], serving: inboxListStep("personal", "example"), schema: InboxResultSchema },
+    { args: ["inbox", "project", "--json"], serving: inboxListStep("project"), schema: InboxResultSchema },
+    { args: ["inbox", "example", "--json"], serving: inboxListStep("example"), schema: InboxResultSchema },
+    { args: ["route", "--to", "project"], serving: routeStep(), schema: RouteResultSchema },
+    { args: ["route", "12345678", "--from", "personal", "--expected-version", "v1:1234567890abcdef", "--to", "project"], serving: routeStep(), schema: RouteResultSchema },
     { args: ["locus", "release"], serving: "arc park", schema: undefined },
     { args: ["locus", "release", "example"], serving: "arc teardown", schema: undefined },
-    { args: ["errand", "queue", "--json"], serving: "arc user inbox-mark-execute-bound", schema: ErrandQueueResultSchema },
-    { args: ["errand", "queue", "set", "-"], serving: "arc user inbox-mark-execute-bound", schema: ErrandQueueResultSchema },
-    { args: ["handoff", "write", "-"], serving: "SESSION-NOTES", schema: HandoffWriteResultSchema },
-    { args: ["cohort", "close", "example"], serving: "tracked cohort", schema: undefined },
-    { args: ["cohort", "close", "example", "--json"], serving: "archive", schema: undefined },
-    { args: ["cohort", "remove", "example"], serving: "tracked cohort", schema: undefined },
-    { args: ["cohort", "remove", "example", "--json"], serving: "archive", schema: undefined },
-  ])("refuses $args with its serving path", async ({ args, serving, schema }) => {
+    { args: ["errand", "queue", "--json"], serving: errandQueueStep("read"), schema: ErrandQueueResultSchema },
+    { args: ["errand", "queue", "set", "-"], serving: errandQueueStep("set"), schema: ErrandQueueResultSchema },
+    { args: ["handoff", "write", "-"], serving: handoffWriteStep(), schema: HandoffWriteResultSchema },
+    { args: ["cohort", "close", "example"], serving: cohortCloseStep(), schema: undefined },
+    { args: ["cohort", "close", "example", "--json"], serving: cohortCloseStep(), schema: undefined },
+    { args: ["cohort", "remove", "example"], serving: cohortRemoveStep(), schema: undefined },
+    { args: ["cohort", "remove", "example", "--json"], serving: cohortRemoveStep(), schema: undefined },
+  ])("refuses $args, naming its pre-flip step", async ({ args, serving, schema }) => {
     useInRepoStore();
     const result = await runArcNoTty(["--no-input", ...args], root);
     expect(result.exitCode).toBe(1);

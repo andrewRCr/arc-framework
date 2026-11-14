@@ -7,6 +7,7 @@ import type { InboxContext, InboxRefusal } from "./types.js";
 import { resolveEntryList, withProvenance } from "./lists.js";
 import { acceptsEntries } from "./admission.js";
 import { prepareRoute } from "./route-prepare.js";
+import { routeStep } from "../store/pre-flip-steps.js";
 /** Move form fields and insert form stdin bytes. */
 export interface RouteEntryInput { entryId?: string; from?: string; expectedVersion?: string; to: string; section?: string; content?: string }
 /** The registered route result never reports success for a refused batch. */
@@ -22,7 +23,7 @@ export type RouteResult = z.infer<typeof RouteResultSchema>;
  * @returns Atomic move result or refusal.
  */
 export async function routeEntry(input: RouteEntryInput, context: InboxContext): Promise<RouteResult> {
-  if (!context.store.capabilities.stateOffBranch) return routeRefusal({ code: "unsupported", condition: "arc route requires stateOffBranch capability.", remedy: { text: 'Use route-discovered-work, "Binding: carrying out outcomes", and its until-the-flip hold-and-route binding.' } });
+  if (!context.store.capabilities.stateOffBranch) return routeRefusal({ code: "unsupported", condition: "arc route requires stateOffBranch capability.", remedy: { text: routeStep() } });
   if (!SlugSchema.safeParse(context.identity).success) return routeRefusal({ code: "identity-missing", condition: "Routing requires a valid ARC identity.", remedy: { text: "Configure your ARC identity, then retry." } });
   const destination = await resolveEntryList(input.to, context);
   if (destination.status === "refused") return routeRefusal(destination.refusal);

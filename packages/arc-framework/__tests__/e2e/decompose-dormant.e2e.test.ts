@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc, runArcNoTty } from "./helpers.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { decomposeDiscardStep, decomposeRevisionStep } from "../../src/lib/store/pre-flip-steps.js";
 
 let root: string;
 useInRepoStoreForEach();
@@ -13,11 +14,11 @@ beforeEach(async () => {
 afterEach(async () => { await cleanupTempDir(root); });
 const authority = `sha256:${"a".repeat(64)}`;
 it.each([
-  { args: ["--revise"], reason: "unsupported", remedy: "explicit cleanup direction" },
-  { args: ["--revise", "cut.json"], reason: "unsupported", remedy: "explicit cleanup direction" },
-  { args: ["--revise", "cut.json", "--apply", authority], reason: "unsupported", remedy: "explicit cleanup direction" },
-  { args: ["--discard"], reason: "unsupported", remedy: "explicit cleanup direction" },
-  { args: ["--discard", "--apply", authority], reason: "unsupported", remedy: "explicit cleanup direction" },
+  { args: ["--revise"], reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { args: ["--revise", "cut.json"], reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { args: ["--revise", "cut.json", "--apply", authority], reason: "unsupported", remedy: decomposeRevisionStep("origin") },
+  { args: ["--discard"], reason: "unsupported", remedy: decomposeDiscardStep() },
+  { args: ["--discard", "--apply", authority], reason: "unsupported", remedy: decomposeDiscardStep() },
   { args: ["--finish"], reason: "finish-map-operand", remedy: "arc decompose origin --finish <cut-map>" },
   { args: ["--finish", "--apply", authority], reason: "finish-map-operand", remedy: "arc decompose origin --finish <cut-map>" },
 ])("refuses $args as clean canonical JSON", async ({ args, reason, remedy }) => {

@@ -5,6 +5,7 @@ import type { Remedy, StoreRefusal } from "../refusal.js";
 import { projectionProcessState } from "./process-state.js";
 import { projectionStartRefusal } from "./start-refusal.js";
 import { saveProjectionChanges } from "./save-changed.js";
+import { projectionSaveStep } from "../pre-flip-steps.js";
 
 /** A save-specific stop, independent of the backend's closed refusal vocabulary. */
 export interface ProjectionSaveRefusal {
@@ -24,7 +25,7 @@ export async function projectionSaveResult(store: Store): Promise<ProjectionSave
     condition: skip.mark.reason, remedy: skip.mark.remedy } };
   if (!store.capabilities.stateOffBranch) return { status: "refused", refusal: { code: "unsupported",
     condition: "Projection save is unavailable with the current storage backend.",
-    remedy: { text: "Use arc user save to save personal state.", argv: ["arc", "user", "save"] } } };
+    remedy: { text: projectionSaveStep() } } };
   const startRefusal = projectionStartRefusal("arc save");
   if (startRefusal !== null) return { status: "refused", refusal: startRefusal };
   const intent = projectionProcessState().resolution;

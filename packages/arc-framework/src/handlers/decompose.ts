@@ -42,6 +42,7 @@ import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
 import type { Store } from "../lib/store/contract.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
+import { decomposeDiscardStep, decomposeRevisionStep } from "../lib/store/pre-flip-steps.js";
 
 export {
   DECOMPOSE_MACHINE_READABLE_KEYS,
@@ -167,7 +168,7 @@ function emitDecomposeOutcome(result: { status: "ok"; result: unknown } | Decomp
 function inRepoDecomposeDispatchRefusal(input: z.infer<typeof DecomposeCommandInputSchema>): DecomposeDispatchRefusal | undefined {
   if (input.revise !== undefined || input.discard === true) return DecomposeDispatchRefusalSchema.parse({
     status: "refused", reason: "unsupported", class: "recoverable",
-    remedy: { text: "Until the flip a rejected cut stays staged, or as its ARC-owned candidate, for explicit cleanup direction." },
+    remedy: { text: input.discard === true ? decomposeDiscardStep() : decomposeRevisionStep(input.origin) },
   });
   if (input.finish === true) return DecomposeDispatchRefusalSchema.parse({
     status: "refused", reason: "finish-map-operand", class: "recoverable", locus: "finish",

@@ -6,6 +6,10 @@ import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js"
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { boundWorkUnitCheckout, boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { runDormantStoreCommand } from "../../../src/commands/store-command-support.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { handoffWriteStep } from "../../../src/lib/store/pre-flip-steps.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 it("reports binding and release exits, then writes handoff after the marker is bound", async () => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("example"), cwd = await boundWorkUnitCheckout(primary);
@@ -26,4 +30,11 @@ it("reports binding and release exits, then writes handoff after the marker is b
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({
     sessionContext: request.sessionContext, nextAction: request.nextAction, commitAtHandoff: head, stateAtHandoff: before,
   });
+});
+
+it("refuses before the flip with the same hand-written handoff step the dormant command names", async () => {
+  const exec = scriptGitExec([]).exec, store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/checkout", exec }));
+  expect(await runHandoffWrite({ cwd: "/checkout", store, exec, request: {} }))
+    .toMatchObject({ status: "refused", refusal: { code: "unsupported-handoff", remedy: { text: handoffWriteStep() } } });
+  expect(runDormantStoreCommand("handoff write", store).refusal.remedy.text).toBe(handoffWriteStep());
 });

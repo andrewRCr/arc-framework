@@ -15,6 +15,7 @@ import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 import { runCli } from "../helpers/run-cli.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { adversarialRecordStep } from "../../src/lib/store/pre-flip-steps.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const run = promisify(execFile);
@@ -57,7 +58,7 @@ describe("packaged review CLI surfaces", () => {
     expect(repaired.exitCode).toBe(1);
     expect(repaired.stderr).toBe("");
     expect(JSON.parse(repaired.stdout)).toMatchObject({ mode: "review-adversarial-record", error: { code: "unsupported" },
-      remedy: { text: expect.stringContaining("ADVERSARIAL-PASSES.md") } });
+      remedy: { text: adversarialRecordStep("draft-readiness", "example") } });
   });
 
   it("exposes every public review verb through packaged help", async () => {

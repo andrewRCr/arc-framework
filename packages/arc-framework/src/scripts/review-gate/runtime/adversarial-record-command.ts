@@ -12,6 +12,7 @@ import { ReviewAdversarialRecordEnvelopeSchema } from "../core/adversarial-recor
 import type { ReviewAdversarialRecordRequest, ReviewAdversarialRecordEnvelope } from "../core/adversarial-record-schema.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveReviewInvocation } from "./invocation.js";
+import { adversarialRecordStep } from "../../../lib/store/pre-flip-steps.js";
 
 /** Recoverable input or storage failure at the adversarial recording boundary. */
 class AdversarialRecordError extends Error {
@@ -23,11 +24,8 @@ class AdversarialRecordError extends Error {
 export async function recordApprovedAdversarialPass(request: ReviewAdversarialRecordRequest, options: ReviewInvocationInput): Promise<ReviewAdversarialRecordEnvelope> {
   const input = resolveReviewInvocation(options);
   if (!input.store.capabilities.stateOffBranch) {
-    const location = request.activity === "verification" || request.activity === "criteria"
-      ? `the criteria report for work unit \`${request.workUnit}\``
-      : `work unit \`${request.workUnit}\`'s ADVERSARIAL-PASSES.md`;
     throw new AdversarialRecordError("unsupported", "Adversarial pass records require off-branch state.",
-      { text: `Keep this approved pass in ${location} until off-branch state is enabled.` });
+      { text: adversarialRecordStep(request.activity, request.workUnit) });
   }
   const primary = requireRead(input.store, await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
   if (primary.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", "Resolve the work unit's metadata conflicts, then retry.");

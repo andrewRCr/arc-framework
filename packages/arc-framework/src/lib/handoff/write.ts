@@ -11,6 +11,7 @@ import { writeMetaStateAtHandoff, writeMetaCommitAtHandoff, writeMetaSessionType
 import { reportHandoffTripwires } from "./tripwires.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { CommitShaSchema } from "../store/links.js";
+import { handoffWriteStep } from "../store/pre-flip-steps.js";
 
 /** Write one current work unit's handoff and maintain its selected store locally.
  * @param input - Authored request and invocation-scoped runtime ports.
@@ -18,7 +19,7 @@ import { CommitShaSchema } from "../store/links.js";
  */
 export async function runHandoffWrite(input: { cwd: string; request: unknown; store: Store; exec: GitExec; sync?: StoreSyncPort }): Promise<HandoffWriteServiceResult> {
   const { store } = input;
-  if (!store.capabilities.stateOffBranch) return refused("unsupported-handoff", "arc handoff write requires a store with stateOffBranch capability.", "Write SESSION-NOTES through the existing handoff workflow.");
+  if (!store.capabilities.stateOffBranch) return refused("unsupported-handoff", "arc handoff write requires a store with stateOffBranch capability.", handoffWriteStep());
   const request = HandoffWriteRequestSchema.safeParse(input.request);
   if (!request.success) return refused("invalid-handoff-request", request.error.message, "Use arc schema get handoff-write-request and repair the request.");
   const boundary = findMetaSessionContextBoundary(request.data.sessionContext);

@@ -17,6 +17,7 @@ import { workBranchName } from "../../store/lifecycle-branch.js";
 import { usesOffBranchState, readWorkUnit, recordPut, batchLifecycleWrites, mergeLifecycleLinks } from "../../store/lifecycle-write.js";
 import { prepareTaskTargets, refuseTask, type PreparedTaskTargets, type TaskRefusal } from "../task-targets.js";
 import { planTaskCaptures, type TaskAttribution } from "../task-attribution.js";
+import { taskMarkStep } from "../../store/pre-flip-steps.js";
 
 /** Store, clone identity, and bounded Git boundaries for the work unit holding this checkout. */
 export interface TaskVerbContext { store?: Store; projectId?: () => Promise<string>; cwd: string; slug: string; exec: GitExec; execRaw?: RawGitExec; baseBranch: string }
@@ -97,7 +98,7 @@ async function readTaskBasis(ctx: TaskVerbContext, ids: readonly string[], opera
 } | TaskRefusal> {
   const store = ctx.store;
   if (store === undefined || !usesOffBranchState(store)) return refuseTask(`arc task ${operation} is unsupported before the storage flip.`,
-    `Mark tasks by hand ${operation === "close" ? "[x]" : "[~]"} until the flip.`, "unsupported");
+    taskMarkStep(operation), "unsupported");
   const meta = await readWorkUnit(store, ctx.slug);
   if (meta.status === "refused") return taskStoreRefusal(meta.refusal);
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);

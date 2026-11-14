@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { projectionSaveStep } from "../../src/lib/store/pre-flip-steps.js";
 
 it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("refuses unsupported projection save with $args as whole JSON", async ({ args }) => {
   useInRepoStore();
@@ -16,7 +17,8 @@ it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("
     const result = await runArc(["save", ...args, "--json"], checkout);
     expect(result.exitCode).toBe(1);
     expect(JSON.parse(result.stdout)).toMatchObject({ status: "refused", refusal: { code: "unsupported",
-      remedy: { text: expect.stringContaining("arc user save"), argv: ["arc", "user", "save"] } } });
+      remedy: { text: projectionSaveStep() } } });
+    expect(JSON.parse(result.stdout).refusal.remedy).not.toHaveProperty("argv");
     expect(await readFile(index, "utf8")).toBe("unreadable projection index");
     expect((await runArc(["--help"], checkout)).stdout).toMatch(/^\s+save\s+/mu);
     expect((await runArc(["save", "--help"], checkout)).stdout).toContain("--resolve <conflict>");

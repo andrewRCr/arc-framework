@@ -12,6 +12,8 @@ import { InboxResultSchema } from "../../../src/lib/inbox/types.js";
 import { RouteResultSchema } from "../../../src/lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../../../src/lib/inbox/queue.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+import { errandQueueStep, inboxListStep, inboxRemoveByIdStep, routeStep } from "../../../src/lib/store/pre-flip-steps.js";
+import { handleStoreInboxRemove } from "../../../src/handlers/user-inbox-remove-store.js";
 
 function sink() {
   let stdout = "", stderr = "", exit = -1;
@@ -20,11 +22,12 @@ function sink() {
 
 it.each([
   { name: "inbox", schema: InboxResultSchema, mode: "inbox", run: (ports: InboxHandlerPorts) => handleInbox("selected-work-item", { json: true }, undefined, ports) },
+  { name: "inbox target", schema: InboxResultSchema, mode: "inbox", run: (ports: InboxHandlerPorts) => handleInbox("personal", { json: true, target: "example" }, undefined, ports) },
   { name: "route", schema: RouteResultSchema, mode: "route", run: (ports: InboxHandlerPorts) => handleRoute(undefined, { to: "personal", section: "Errand" }, undefined, ports) },
   { name: "queue listing", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueue({ json: true }, undefined, ports) },
   { name: "queue file", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueueSet("/absent/request.json", undefined, ports) },
   { name: "queue stdin", schema: ErrandQueueResultSchema, mode: "errand-queue", run: (ports: InboxHandlerPorts) => handleErrandQueueSet("-", undefined, ports) },
-])("returns the published dormant $name result before acquiring request bytes", async ({ schema, mode, run }) => {
+])("returns the published dormant $name result before acquiring request bytes", async ({ name, schema, mode, run }) => {
   const h = createInboxHarness(), out = sink();
   const store: Store = Object.create(h.context.store) as Store;
   Object.defineProperty(store, "capabilities", { value: { stateOffBranch: false } });
@@ -35,7 +38,10 @@ it.each([
   const result: unknown = JSON.parse(out.value().stdout);
   assertSchemaAccepts(schema, result);
   expect(result).toMatchObject({ schemaVersion: 1, mode, state: "refused", code: "unsupported" });
-  if (mode === "inbox") expect(result).toMatchObject({ list: "selected-work-item" });
+  const step = { inbox: inboxListStep("selected-work-item"), "inbox target": inboxListStep("personal", "example"), route: routeStep(),
+    "queue listing": errandQueueStep("read") }[name] ?? errandQueueStep("set");
+  expect(result).toMatchObject({ remedy: { text: step } });
+  if (name === "inbox") expect(result).toMatchObject({ list: "selected-work-item" });
   expect(out.value().exit).toBe(1);
   expect(readFile).not.toHaveBeenCalled();
   expect(readStdin).not.toHaveBeenCalled();
@@ -112,4 +118,12 @@ it("removes a listed entry by ID/version and refuses title-file removal before r
  expect(JSON.parse(removed.value().stdout)).toMatchObject({status:"ok",result:{disposition:"removed"}});
  const refused=sink();await handleUserInboxRemove(undefined,{inboxTitleFile:"title.md"},undefined,{...ports,output:refused.output});
  expect(refused.value()).toMatchObject({exit:1,stderr:expect.stringContaining("--id <id> --expected-version <version>")});
+});
+
+it("refuses ID removal before the flip, naming the title removal command", async () => {
+  const out = sink(), store: Store = Object.create(createInboxHarness().context.store) as Store;
+  Object.defineProperty(store, "capabilities", { value: { stateOffBranch: false } });
+  expect(await handleStoreInboxRemove(undefined, { id: "12345678", expectedVersion: "v1:1234567890abcdef" }, undefined,
+    { store, cwd: "/repo", output: out.output })).toBe(true);
+  expect(out.value()).toMatchObject({ stderr: `ID removal requires stateOffBranch. ${inboxRemoveByIdStep()}\n`, exit: 1 });
 });
