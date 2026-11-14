@@ -29,8 +29,8 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 `recommendedActionText` and stops; any other result stops as an execution-entry contract violation.
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
-  autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
-  for user approval.
+  autonomous execution between human review points. Complete one, write its completion note, report, and
+  **stop** for user approval. The task closes with its commit (item 5).
 
 - **Review vocabulary:** In this workflow, "review increment" and "deferred review" name task-interlock scope.
   Any evaluator review run before Candidate preparation is working review: it binds to no Candidate target and
@@ -74,13 +74,14 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
-     - **First**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
-       delivery-member checks have completed
+     - **First**: Prepare the task's completion note; finish it in item 4 after any coherent-unit and
+       delivery-member checks have completed. Never close a task by hand: it closes through `arc task close` after
+       its commit (item 5)
        - Update task description to reflect actual work done (not just original plan)
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_`, every `_Retired in:_ Phase N`
+       - **Completion notes — content discipline.** At completion, **`_Goal:_`, every `_Retired in:_ Phase N`
          detail bullet, and every `_Amended in:_ X.R (An)` detail bullet are preserved verbatim**.
          **Replace** pre-completion peer descriptors (`_Note:_`, `_Rationale:_`, `_Approach:_`,
          `_Context:_`, `_Shape:_`) and all other Goal-children (description bullets, Build test-first lists)
@@ -94,8 +95,8 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          notes or Goal? No → skip.
 
          **Granularity:** at most one Outcome per closing cascade, at the deepest parent whose
-         scope matches the work-unit-of-this-commit. Ancestors that mechanically `[x]` from cascade
-         take no new Outcome.
+         scope matches the work-unit-of-this-commit. Ancestors that close by cascade take no new
+         Outcome.
 
          See [strategy-task-list-formatting § Goal/Note Lines][strat-tlf] for full pre/post shape.
 
@@ -103,7 +104,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
          `notes-{name}.md` for deeper context.
 
-         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests" are noise);
+         **Exclude:** quality-gate outcomes (the close already implies they passed; metrics like "840/840 tests" are noise);
          per-decision rationale already in the commit body or `notes-{name}.md` (link, don't restate); test-batching /
          sequencing narrative (mention only if deviating from project default); process narration (what was tried,
          debugging steps, mid-task discoveries); forward planning
@@ -113,15 +114,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          Longer content belongs in `notes-{name}.md`.
 
          **Per-subtask outcome content:** the indented description bullet under each subtask shifts from plan
-         to outcome at `[x]`. Same shape, no label change — the indent under a `[x]` already signals "what
-         got done." A `_Retired in:_ Phase N` or `_Amended in:_ X.R (An)` detail bullet stays verbatim instead of
-         shifting.
+         to outcome at completion. Same shape, no label change — the indent under a closed task already signals
+         "what got done." A `_Retired in:_ Phase N` or `_Amended in:_ X.R (An)` detail bullet stays verbatim instead
+         of shifting.
        - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
-         unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
-         instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
-         ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
-       - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
-         § Meta-file timing.
+         unit, made irrelevant by a design decision, or superseded by a different approach — defer it with
+         `arc task defer <id>`, which cascades its parent, and add a brief outcome note by hand explaining why (e.g.,
+         "Deferred to WU3", "Superseded by ADR-011"). This distinguishes deliberate deferrals from incomplete work
+         (`[ ]`).
+       - **Do not update the meta at this step.** See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
      - **Second**: Verify the task work before the boundary checks below.
 
      **Segment-verifier scenario (conditional).** A task carrying the `— validate exit criterion at segment scope`
@@ -138,9 +139,11 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      The deferral changes only item 4's task-interlock cadence. Delivery-member and work-unit verification methods,
      including any advisory companions they invoke, still fire at their ordinary boundaries.
-     Complete only the specified work — update the task list and run the quality request after each task's `[x]` and
-     completion note, then continue without waiting for approval. Leave the task list updated, quality gates passing,
-     and changes uncommitted (user decides commit boundaries when they return). Under
+     Complete only the specified work — write each task's completion note and run the quality request after it, then
+     continue without waiting for approval. Leave the completion notes written, quality gates passing, and changes
+     uncommitted and unsaved (user decides commit boundaries when they return). The range's tasks stay open until the
+     commit made on return closes them (`--close=<ids>`, item 5), so the cursor stays on the range's first task and
+     the completion notes carry the progress. Under
      `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
      safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
@@ -254,9 +257,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      - `evidence-unavailable / continue-review` and every malformed or unsupported result stop before member
        advancement; absence of a measurement is not a below-threshold result.
 
-     Add the result and disposition to the closing task's outcome and close that task-list edit through the ordinary
-     task interlock before advancing. This completed-span result does not claim later work cannot enlarge the member;
-     private materialization performs a fresh exact-target check.
+     Add the result and disposition to the closing task's outcome before advancing: item 5's save persists that edit,
+     or, for a closeout deferred past the commit, a save of its own. This completed-span result does not claim later
+     work cannot enlarge the member; private materialization performs a fresh exact-target check.
 
   4. **Report and stop:** Use the resolved completion branch when item 3 does not apply or reports no unresolved
      criterion. Use the unresolved member-report branch only when item 3 returns an unresolved `[ ]`. Then stop
@@ -280,29 +283,29 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
-     - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
-       prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
-     - **Quality request**: Run the request once over the final tracked edits, including this completion edit.
+     - **First**: Finish the prepared completion note; the task, and any parent it completes, close with its commit
+       (item 5). When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Quality request**: Run the request once over the final edits, including this completion note.
        Report feedback failures; failed enforcement holds the increment and follows the quality-gate-failure prompt
-       below. Re-run after obvious fixes. If the segment request remains red, remove this task's `[x]` and completion
-       note, leave the segment open, and skip the completion-only checklist. Whichever answer
+       below. Re-run after obvious fixes. If the segment request remains red, remove this task's completion note
+       alone, leave the segment open, and skip the completion-only checklist. Whichever answer
        the failure prompt receives, it does not close the segment; this gate failure uses the ordinary failure path,
        while a failed verifier scenario still enters `amend-design` as above.
      - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned
-       `verification-required`, complete the scoped result, close this task, and invoke its `resumeAction` with only
-       that result added as `verification`. Dispatch the returned exact acknowledgment action, re-enter the same
-       continuation, invoke its Candidate-renewal authority action and require `status: unchanged`, then re-enter and
-       require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
-       or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
-       verification, frontline review, or generic prepublication.
+       `verification-required`, complete the scoped result, close this task with `arc task close <id>`, since
+       delivery has already committed its correction, and invoke its `resumeAction` with only that result added as
+       `verification`. Dispatch the returned exact acknowledgment action, re-enter the same continuation, invoke its
+       Candidate-renewal authority action and require `status: unchanged`, then re-enter and require the
+       retained hosted-review authority action. Any refusal, malformed action, other attestation result, or other
+       continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU verification,
+       frontline review, or generic prepublication.
      - **Second**: Verify completion against the pre-report checklist.
 
      **Pre-Report Checklist** (verify before generating the completion report):
 
      ```
      - [ ] Quality request completed; enforcement passed and feedback failures reported
-     - [ ] Task list file edited and saved
-     - [ ] Task marked [x] and description updated to reflect actual work
+     - [ ] Completion note written and description updated to reflect actual work
      - [ ] Member report recorded and Success Criteria unchanged (when item 3 applied)
      - [ ] Ready to report completion to user
      ```
@@ -342,10 +345,22 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      releases on task approval per [Configurability Architecture Strategy][config-arch]
      § Session interlocks; on approval signal, invoke the [arc-commit skill][arc-commit-skill]
      — it owns the simple-vs-complex path decision and loads the format methods.
+
+     **The commit closes the task.** Where `taskCommit` routes to the wrapper, commit with
+     `arc release commit --close`, which commits and then closes the cursor's task. Name the IDs (`--close=<ids>`)
+     for a deferred range, a batched parent, or any other task, and put the flag on a split's last commit. On the raw
+     route, run `arc task close <ids>` right after the commit. When the wrapper's commit lands and its close fails, run
+     the `arc task close <ids>` it names, never the commit again. A task whose increment changed no tracked file closes
+     with `arc task close` alone, and a task item 4 already closed takes no close. Then save the increment's state:
+
+     ```bash
+     arc save
+     ```
+
      A deferred delivery-member scale closeout is the bounded exception to ordinary
      advancement: in manual mode, stop for the explicit commit invocation; in an
-     auto-fire mode, commit on approval. After that commit lands, return to item 3, record and close the scale result,
-     then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
+     auto-fire mode, commit on approval. After that commit lands, return to item 3, record the scale result and save it
+     with `arc save`, then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
      rather than invoking prepare-commits silently.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
@@ -353,12 +368,14 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
 ## Crash Recovery
 
-On session resume after a suspected agent crash mid-cascade, run the recovery scan: read the active
-meta file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
-`git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any mismatch between
-the workflow pointer, staged changes, and commit history; prompt the user to continue the interrupted
-cascade or roll it back. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops]
-§ Failure-Mode Recovery.
+On session resume after a suspected agent crash mid-cascade, run the recovery scan. Read the meta's `**Next Action:**`
+workflow-step pointer and session-init's freshness note, which lists each state change since the handoff's state
+version with the verb that wrote it; list the state edited since the last save with `arc selection --changed`; and
+read the commits no task has closed yet, `arc locus --json`'s `active.context.unclosedTaskCommits`. Then inspect
+`git status --porcelain`, `git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any
+mismatch between the workflow pointer, the state, staged changes, and commit history, and prompt the user to continue
+the interrupted cascade or roll it back; a commit no task has closed continues with the close that listing's `actions`
+name. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops] § Failure-Mode Recovery.
 
 ## Verification Phase
 
@@ -378,22 +395,16 @@ publication transition. Public integration follows through `integrate-work-unit.
 ## Incidental Work Management
 
 When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline (same concern), message
-a live work unit's session (its concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
+a live work unit's session (its concern), run an Errand (out-of-WU), or capture through `arc-inbox` for later. See
 [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the atomic-vs-multi-step call,
 capture routing, and where captures drain.
 
 ### Atomic Task Completion
 
-When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBOX § Errand`), follow this protocol:
-
-1. **Mark `[x]`** and update the description — trim planning scaffolding (problem statement,
-   research steps, options to evaluate) to outcomes (what was done, key decisions, files changed).
-   Same principle as task list completion notes.
-2. **Reorder** — move the completed task below all incomplete tasks (`[ ]`). Among completed tasks,
-   maintain completion order: oldest completed first, most recently completed last. This keeps
-   pending work immediately visible when the file is opened.
-3. **Verify ordering** — incomplete tasks at the top, then a visual gap (blank line), then
-   completed tasks in chronological completion order.
+An atomic task from an inbox runs as an Errand, and closing the Errand with `arc errand close <slug>` completes it.
+Under full protection, the close archives the Errand's description, which holds the entry its start took from the
+inbox. Under partial protection, which keeps no record, the close removes the entry from its inbox by ID and version,
+reporting one another session already removed. Mark and reorder nothing: an inbox holds only work nobody has started.
 
 ### Incidental Commit Discipline
 

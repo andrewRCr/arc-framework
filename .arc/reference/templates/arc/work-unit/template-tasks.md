@@ -10,8 +10,8 @@ reference, test-first patterns, and annotated examples. The Quick Format Checkli
 
 ## Work Unit Task List
 
-`Design` is a bare filename — path is derived from the task list's directory, so backlog → active rotation needs
-no field edit. The design is canonical for Scope (Will Do / Won't Do); the task list focuses on execution.
+`Design` is a bare filename naming the work unit's own record, wherever its lifecycle projects it, so a lifecycle
+move needs no field edit. The design is canonical for Scope (Will Do / Won't Do); the task list focuses on execution.
 
 ```markdown
 # Task List: {Work Name}
@@ -47,7 +47,7 @@ _Exit criterion:_ {specific scenario that proves the segment's capability}
 
 - **Additional Context:** `{context-file.md}` § {specific section}
 
-    - {description bullet — replaced by `_Outcome:_` at `[x]`}
+    - {description bullet — replaced by `_Outcome:_` at completion}
     - {another description bullet}
 
 ### `[ ]` **1.2 {Parent-with-subtasks task title}**
@@ -61,7 +61,7 @@ _Exit criterion:_ {specific scenario that proves the segment's capability}
     - _Amended in:_ {corrective-parent-id} ({amendment-id})
 
     - `[ ]` **1.2.a {Subtask description}**
-        - {detail bullet — plan now, outcome at `[x]`}
+        - {detail bullet — plan now, outcome at completion}
 
     - `[ ]` **1.2.b {Subtask description}**
         - {detail bullet}

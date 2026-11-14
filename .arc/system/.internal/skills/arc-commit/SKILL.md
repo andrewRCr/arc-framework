@@ -14,13 +14,11 @@ disable-model-invocation: false
        commit (one problem solved). Volume of changed lines is not the metric.
      - **Reversibility.** If reverting one change would force reverting others,
        they belong together. If they fail or succeed independently, they split.
-     - **Task list checkboxes ride with content commits.** They are derived state —
-       don't put them in a separate meta-commit, and don't hunk-split them across
-       content commits to preserve 1:1 task-ID-to-checkbox granularity.
-     - **Meta-file updates do not ride with code commits.** They fire only at
-       handoff or workflow-ceremony boundaries; shape (dedicated vs bundled with
-       concurrent ceremony content) follows DEV-RULES.ARC § Meta-file timing and
-       § Meta-file commit shape.
+     - **Tasks close with the commit that carries their work.** A task-loop commit
+       closes them at its fire site (`arc release commit --close`, or `arc task close`
+       right after a raw commit); an incidental commit closes none.
+     - **ARC state rides with no commit.** The task list, the meta, and the other ARC
+       records persist with `arc save`; commits carry tracked files only.
 
 2. Choose the path.
 

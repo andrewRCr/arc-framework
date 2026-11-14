@@ -790,27 +790,49 @@ command declares it (`integration/command-surface-documentation.test.ts`).
 - _Outcome:_ Each stage saves its authored text before the verbs that repoint, finalize, or advance it, and commits only
   tracked files. Kept sites are in `notes-cutover-flip.md` § Kept sites.
 
-### `[ ]` **5.4 The task loop and commit text — § 8.4, § 8.15**
+### `[x]` **5.4 The task loop and commit text — § 8.4, § 8.15**
 
 - _Goal:_ The task loop closes tasks through `arc task close` after the commit and writes no `[x]` or `[~]` by hand, and
   the commit methods and skills describe saves for state and commits for tracked content.
 
-    - `[ ]` **5.4.a `process-task-loop.template.md`**
-        - `arc release commit --close` at the commit fire site; a red segment request removes the completion note alone;
-          the pre-report checklist's "Task marked [x]" goes; deferred review closes its range in one call; a hand `[~]`
-          becomes `arc task defer`; delivery's correction acknowledgment is reordered around the close; crash recovery
-          reads the store's version, changes, and history while keeping its `HEAD`, recent-commit, index, and
-          working-tree probes.
+    - `[x]` **5.4.a `process-task-loop.template.md`**
+        - The loop writes the completion note and closes no task by hand: item 5's commit closes it, through
+          `arc release commit --close` (`--close=<ids>` for a deferred range, a batched parent, or another task, and
+          on a split's last commit) or `arc task close` after a raw commit, then runs `arc save`; a task with no
+          tracked change closes with `arc task close` alone, and a member scale closeout deferred past the commit saves
+          its own record. A red segment request removes the completion note alone,
+          the checklist's hand-mark line goes, deferred review leaves its range open until the return commit closes
+          it, and a skipped task takes `arc task defer`. Delivery's correction acknowledgment closes the task with
+          `arc task close <id>` before `resumeAction`, delivery having committed the correction. Crash recovery adds
+          session-init's freshness note, `arc selection --changed`, and the commits no task has closed
+          (`arc locus --json`) to its Git probes; the note's changes since the handoff's state version, each with the
+          verb that wrote it, are the store history it reads, since no command reads history directly. Atomic
+          completion closes the Errand with `arc errand close`.
+        - Tests: `integration/delivery-workflow.test.ts` anchors the acknowledgment on the close verb and forbids the
+          hand mark.
 
-    - `[ ]` **5.4.b `prepare-commits.md`, `template-tasks.md`, and the commit methods and skills**
-        - `commit-footer`, `commit-format`'s ceremony-commit wording, `code-review`, the `arc-commit` skill's meta-file
-          rule, and the `arc-task-review` skill's comparison against Git, which reads the prior version through
-          `history`.
+    - `[x]` **5.4.b `prepare-commits.md`, `template-tasks.md`, and the commit methods and skills**
+        - `prepare-commits.md` and the `arc-commit` skill close tasks with the commit that carries their work and
+          persist ARC state with `arc save`; the complex path reads the session context and the task list through
+          `arc view`. `template-tasks.md` lands outcomes at completion and names `Design` as the work unit's own
+          record. `commit-footer` names the artifact a commit's work serves and drops the footers whose only commits
+          were state: `handoff`, `activation`, `archival`, `deactivation`, the meta's and task list's `maintenance`,
+          and the task list's and standalone `planning`; `commit-format` follows, and `code-review`'s response commit
+          carries the re-exported review copy (§ 8.7).
+        - The `arc-task-review` skill reads the task's starting plan from its verbatim `_Goal:_`, `_Retired in:_`, and
+          `_Amended in:_` lines and any design element its title cites, and lists state edits with
+          `arc selection --changed`; no command reads a record's prior version, so § 8.15 takes this reading (A2).
+
+- _Outcome:_ The task loop, the commit skills, and the commit methods close tasks through the close verb and save state
+  rather than committing it. Kept sites are in `notes-cutover-flip.md` § Kept sites.
 
 ### `[ ]` **5.5 Work-unit lifecycle from init to reopen — § 8.5, § 8.6, § 8.11**
 
 - _Goal:_ Each lifecycle workflow runs its verb and saves, with no planning branch, hand-edited verb-owned field, park,
   or remote branch delete the store makes the verb's job.
+
+- _Note:_ From Task 5.4, `commit-footer` lists no `(activation)`, `(deactivation)`, or `(maintenance)` footer, since
+  those commits carried only state; each commit block naming one goes with its save.
 
     - `[ ]` **5.5.a `init-work-unit.md`**
         - Base-parity and write-context preconditions, the `plan/` branch's purpose, push, and SESSION-NOTES seed go;
@@ -851,6 +873,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
 
 - _Goal:_ Verification, pre-publication, integration, and archival make no record-only commit, record passes and reports
   in the store and scratch, and archive through the store in both cadences.
+
+- _Note:_ From Task 5.4, `commit-footer` lists no `(archival)` footer, since archival is a store write; the archive
+  commit block naming it goes.
 
     - `[ ]` **5.6.a `verify-work-unit.md` and the verification record**
         - Save the verification task's edits, close it with `arc task close` or `arc release commit --close`, then `arc

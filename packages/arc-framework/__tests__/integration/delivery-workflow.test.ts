@@ -321,7 +321,8 @@ describe("packaged delivery workflow", () => {
       expect(workflow).toContain("selector-free");
       expect(workflow).toContain("invoke its `resumeAction`");
       expect(workflow).not.toContain("arc delivery review-fix acknowledge -");
-      const closeTask = workflow.indexOf("Mark the task `[x]`");
+      expect(workflow).not.toContain("Mark the task `[x]`");
+      const closeTask = workflow.indexOf("close this task with `arc task close <id>`");
       const resume = workflow.indexOf("invoke its `resumeAction`", closeTask);
       const renew = workflow.indexOf("Candidate-renewal authority action", resume);
       const hosted = workflow.indexOf("retained hosted-review authority action", renew);

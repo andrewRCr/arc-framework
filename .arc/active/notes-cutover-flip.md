@@ -425,6 +425,24 @@ kept, in the task named.
 | `reference/supplemental/analysis/README.md`                           | —          | 1           | 5.11 |
 | `system/.internal/githooks/README.md`                                 | —          | 4           | 5.11 |
 
+## A2 — the task review's starting plan
+
+§ 8.15 read: "the `arc-task-review` skill's comparison of a task list against Git, which reads its prior version through
+`history`". No command reads a record's prior version: the store's `history` serves the CLI's own readers, and a verb
+for this one read would be machinery the deletion units remove. The task loop keeps a task's `_Goal:_`, `_Retired in:_`,
+and `_Amended in:_` lines verbatim through completion, and a title may cite the design element its task realizes
+(`strategy-task-list-formatting.md`), so the skill reads the starting plan there and lists state edits with
+`arc selection --changed`.
+
+§ 8.4's crash-recovery read of "the store's version, changes, and history" stands unamended: session-init's freshness
+note compares the meta's `State at Handoff` with the store's current version and lists each change since as a history
+entry with the verb that wrote it (`compileStateFreshness`, `commands/agenda/context.ts`), and the loop reads it there.
+
+A2's checks, run by the author: depth `low`; `spec-review` over the revised § 8.15 sentence and the row, with § 8.4 and
+§ 8.1's site list as the surrounding contract, whose grounding narrowed "the design section its title cites" to any
+design element a title cites, since the citation is recommended rather than required; the coherence reread after that
+fold found nothing further; no revision tasks for a grounding check; no independent pass at `low`.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
@@ -453,3 +471,11 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   not a task close; "fix commit" there is the review fix's code commit.
 - "park it as an open question" in `create-spec.md`, and "branch" in `create-spec.md`, `generate-tasks.template.md`,
   and `assess-draft-readiness`: prose, the work branch, and the base branch, not a planning branch.
+
+**Task loop and commit text (Task 5.4):**
+
+- "completion notes", "notes", and `notes-{name}.md` in `process-task-loop.template.md`, `prepare-commits.md`, and the
+  `arc-task-review` skill: task-list completion notes and the notes companion, not Git notes.
+- `meta-{name}` in `commit-footer`'s chain naming: a footer names the meta record by its filename, not a tracked path;
+  "plan/PRD" there is prose, not a planning branch.
+- `git commit` in `commit-format`: the raw route's commit of tracked files and its message transport.

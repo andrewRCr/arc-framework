@@ -1102,7 +1102,9 @@ from it. The check stays for the task-list template it also lints, and only its 
 
 The `arc-commit` skill's meta-file rule; the `commit-format` method's ceremony-commit wording;
 `initial-setup/01_verify-and-configure.md`'s `user.notes_push` text; the `arc-task-review` skill's comparison of a task
-list against Git, which reads its prior version through `history`; and the `arc-inbox` skill's USER-INBOX rooting text.
+list against Git, which reads the task's starting plan from its verbatim `_Goal:_`, `_Retired in:_`, and `_Amended in:_`
+lines and any design element its title cites, since no command reads a record's prior version (A2); and the
+`arc-inbox` skill's USER-INBOX rooting text.
 
 #### 8.16 The always-loaded text
 
@@ -2159,5 +2161,7 @@ None.
 
 - **A1** — 2026-11-14 — task: `arc repoint-design spec-finalized` removes the draft record in its own store write.
   _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.3.R. _Revalidated:_ pending → 5.12.
+- **A2** — 2026-11-14 — design: the task review reads a task's starting plan from its verbatim lines, not `history`.
+  _Supersedes:_ § 8.15 ¶1. _Trigger:_ 5.4 must-stop. _Work:_ none. _Revalidated:_ pending → 5.12.
 
 ---

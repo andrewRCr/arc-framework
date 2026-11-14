@@ -32,7 +32,7 @@ workflow's frontmatter) plus git hook validation are sufficient.
 1. Core functionality (new features, major logic)
 2. Configuration/infrastructure (settings, configs)
 3. Tests (test files, test configurations)
-4. Documentation (task list updates, strategy docs)
+4. Documentation (strategy docs, READMEs)
 5. Code formatting (linting fixes, style)
 6. Dependencies (package manifests, lock files)
 7. Cleanup (removals, refactoring)
@@ -48,17 +48,13 @@ updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the 
   would otherwise tangle across the code commits.
 - **Does NOT apply** to pure-docs WUs where the docs ARE the work (audits, restructures, writing
   sweeps). Commit groupings follow § Granularity guidance below.
-- **Does NOT apply** to task list updates. These are derived state that rides with the content
-  commit that triggered them — see § Granularity guidance.
-- **Does NOT apply** to meta-file updates. These fire only at handoff or workflow-ceremony
-  boundaries; the exact commit shape (dedicated `chore(arc):` vs. bundled with concurrent
-  ceremony content) follows [DEV-RULES.ARC][dev-rules-arc] § Meta-file timing and § Meta-file
-  commit shape.
+- **Does NOT apply** to task list or meta updates. These are ARC state, saved with `arc save` and
+  never committed — see § Granularity guidance.
 
 ### Parent Task Completion
 
-When all subtasks of a parent are complete, mark the parent `[x]` and add this line before
-the `Context:` footer in the commit that completes the final subtask:
+The close that completes a parent's last subtask closes the parent too. In the commit that
+completes the final subtask, add this line before the `Context:` footer:
 
 ```text
 Completes parent task X.0: [Parent Task Name]
@@ -68,11 +64,11 @@ Completes parent task X.0: [Parent Task Name]
 
 For accumulated work, multi-session commits, or interleaved changes — follow these steps.
 
-### 1. Check Session Handoff Notes
+### 1. Check the Session Context
 
-Read SESSION-NOTES.md for uncommitted work documentation. If the previous session documented
-uncommitted work at commit-level granularity (file mappings, task references, commit groupings),
-use that as your commit plan rather than reconstructing from scratch.
+Read the meta's session context (`arc view meta`) for its Uncommitted Work section. If the previous
+session documented uncommitted work at commit-level granularity (file mappings, task references,
+commit groupings), use that as your commit plan rather than reconstructing from scratch.
 
 See [Session Handoff](../session-lifecycle/session-handoff.md) for the format that enables this.
 
@@ -83,23 +79,23 @@ git status
 git --no-pager diff --name-only
 ```
 
-Examine changes that might not be immediately obvious — config files, documentation, task lists.
+Examine changes that might not be immediately obvious — config files and documentation. The task
+list and other ARC state never stage; `arc selection --changed` lists the state edited since the
+last save.
 
 ### 3. Map Changes to Tasks
 
-- Find relevant task lists in `.arc/active/`
+- Read the active task list (`arc view tasks`)
 - Compare actual changes against task documentation
 - Identify which tasks each change belongs to
 - Check if completing subtasks makes any parent tasks complete
 
 ### 4. Update Task Documentation
 
-- Mark completed subtasks as `[x]` in task files
-- Mark parent tasks `[x]` ONLY if ALL subtasks are complete
-- Update progress notes and add any discovered tasks
+- Write each completed task's completion note and add any discovered tasks
+- Close no task by hand: each closes with the commit that carries its work (step 6)
 
-The active meta file is **not** updated here — see [DEV-RULES.ARC][dev-rules-arc]
-§ Meta-file timing.
+The meta is **not** updated here — see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
 
 ### 5. Plan Commit Sequence
 
@@ -114,19 +110,20 @@ guidance below.
   belong together. If they fail or succeed independently, they split.
 - **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
   commit together; note the overlap in the body.
-- **Task list checkboxes ride with content commits.** They are derived state that belongs with
-  the commit that produced the content change — not a separate meta-commit and not hunk-split to
-  keep 1:1 task-ID-to-checkbox granularity.
-- **Meta-file updates do not ride with code commits.** They fire only at handoff or
-  workflow-ceremony boundaries; shape (dedicated vs bundled with concurrent ceremony content)
-  follows [DEV-RULES.ARC][dev-rules-arc] § Meta-file timing and § Meta-file commit shape.
+- **Tasks close with the commit that carries their work.** A commit that completes tasks closes
+  them by ID; a task whose work spans several commits closes on the last of them.
+- **ARC state rides with no commit.** The task list, the meta, and the other ARC records persist
+  with `arc save`; commits carry tracked files only.
 
 ### 6. Execute and Verify
 
 Stage and commit each group using the [commit-format][arc-methods-cf] and [commit-footer][arc-methods-ccf]
-methods. After all commits:
+methods. A group that completes tasks closes them: commit it with `arc release commit --close=<ids>` where
+the commit routes to the wrapper, or run `arc task close <ids>` right after a raw commit. After all commits,
+save the state the tasks' completion notes changed:
 
 ```bash
+arc save
 git log --oneline -10    # Review commit messages
 git status               # Verify clean state
 ```
