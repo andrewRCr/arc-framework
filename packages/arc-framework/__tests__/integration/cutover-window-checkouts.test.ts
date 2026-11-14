@@ -7,6 +7,7 @@ import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { readWindowCheckouts, type WindowCheckoutKind } from "../../src/scripts/cutover-window/checkouts.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { makeHuskStamp } from "../helpers/worktree-husk-fixture.js";
 
 it("classifies real linked registrations, including adopted work-unit markers and missing folders, without writes", async () => {
   const h = await windowFixture();
@@ -20,8 +21,8 @@ it("classifies real linked registrations, including adopted work-unit markers an
     { name: "unmarked", kind: "no-marker" },
     { name: "branch", kind: "branch-subject", marker: { ...base, createdFor: { kind: "branch", ref: "spike/example" } } },
     { name: "pending", kind: "pending", marker: { ...base, createdFor: claim, provisioning: "pending" } },
-    { name: "husk", kind: "husk", marker: { ...unit, husk: { sha: h.flip.head, at: base.createdAt,
-      subject: { kind: "work-unit", name: "alpha" }, branch: "case/husk" } } },
+    { name: "husk", kind: "husk", marker: { ...unit, husk: makeHuskStamp({ sha: h.flip.head, at: base.createdAt,
+      subject: { kind: "work-unit", name: "alpha" }, branch: "case/husk" }) } },
     { name: "malformed", kind: "malformed-marker" },
     { name: "missing", kind: "missing-folder" },
   ];

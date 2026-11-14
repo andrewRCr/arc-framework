@@ -2,7 +2,7 @@
 import type { WindowCheckout } from "./checkouts.js";
 import type { WindowFinding } from "./result.js";
 import type { DerivedCheckoutRow } from "../../lib/locus/derived-roster.js";
-import { decodeWorktreeMarkerOwnership, type WorktreeMarkerSubject } from "../../lib/git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, type WorktreeSubject } from "../../lib/git/worktree-marker.js";
 import { readStatusCheckoutRoster } from "../../handlers/status/checkout-roster.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import type { WindowGitReadIO } from "./git.js";
@@ -64,7 +64,7 @@ export function windowEndedCheckoutFindings(checkouts: readonly WindowCheckout[]
   return findings;
 }
 
-function markerSubjectName(subject: WorktreeMarkerSubject): string {
+function markerSubjectName(subject: WorktreeSubject): string {
   return subject.kind === "work-unit" ? subject.name : subject.kind === "branch" ? subject.ref : subject.slug;
 }
 

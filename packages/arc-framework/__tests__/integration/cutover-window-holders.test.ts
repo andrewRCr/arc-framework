@@ -7,6 +7,7 @@ import { readStatusCheckoutRoster } from "../../src/handlers/status/checkout-ros
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { retireFixtureErrand } from "../helpers/cutover-window/identity-inputs.js";
 import { ordinaryErrand, seedTransients } from "../helpers/store/import-transients.js";
+import { makeHuskStamp } from "../helpers/worktree-husk-fixture.js";
 
 it("refuses an unmarked linked checkout and passes after it is removed", async () => {
   const h = await windowFixture();
@@ -52,8 +53,8 @@ it("refuses a husked marked checkout and passes after its registration is remove
   await h.git("git", ["worktree", "add", path, "feat/alpha"]);
   const head = (await h.git("git", ["rev-parse", "feat/alpha"])).stdout.trim();
   await writeWorktreeMarker(path, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
-    createdFor: { kind: "work-unit", name: "alpha" }, husk: { sha: head, at: "2026-01-01T00:00:00.000Z",
-      subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha" } });
+    createdFor: { kind: "work-unit", name: "alpha" }, husk: makeHuskStamp({ sha: head, at: "2026-01-01T00:00:00.000Z",
+      subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha" }) });
   const refused = await checkFixture(h);
   expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
     expect.objectContaining({ subject: path, condition: expect.stringMatching(/husk.*alpha/u), remedy: expect.stringContaining("arc teardown alpha") }),

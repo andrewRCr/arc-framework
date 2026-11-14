@@ -7,6 +7,7 @@ import { classifyWindowCheckout } from "../../../../src/scripts/cutover-window/c
 import { ordinaryErrand } from "../../../helpers/store/import-transients.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../../../src/lib/errand/identity-record.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 
 const row: WindowCheckout = { path: "/linked", head: "a".repeat(40), branch: "feat/example", detached: false,
   primary: false, folderPresent: true, kind: "no-marker", marker: { kind: "absent" } };
@@ -43,7 +44,7 @@ it("preserves an unresolved checkout's diagnostic instructions", () => {
 it("refuses a husked work-unit marker even when the roster has no lifecycle refusal", () => {
   const checkout: WindowCheckout = { ...row, kind: "husk", marker: { kind: "present", marker: { spawnedByArc: true,
     spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z", createdFor: { kind: "work-unit", name: "example" },
-    husk: { sha: row.head, at: "2026-01-01T00:00:00.000Z", subject: { kind: "work-unit", name: "example" }, branch: "feat/example" } } } };
+    husk: makeHuskStamp({ sha: row.head, at: "2026-01-01T00:00:00.000Z", subject: { kind: "work-unit", name: "example" }, branch: "feat/example" }) } } };
   expect(windowEndedCheckoutFindings([checkout], [])).toEqual([expect.objectContaining({ subject: row.path,
     condition: expect.stringMatching(/husk.*example/u), remedy: expect.stringContaining("arc teardown") })]);
 });

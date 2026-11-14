@@ -7,6 +7,7 @@ import { classifyWindowCheckout, readWindowCheckouts, type WindowCheckoutKind } 
 import { isWorktreeMarker, type WorktreeMarker, type WorktreeMarkerReadResult } from "../../../../src/lib/git/worktree-marker.js";
 import type { RegisteredWorktree } from "../../../../src/lib/git/worktree-roster.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 
 const row: RegisteredWorktree = { path: "/checkout", head: "a".repeat(40), branch: "feat/alpha", detached: false,
   primary: false, folderPresent: true };
@@ -15,8 +16,8 @@ const unit: WorktreeMarker = { ...base, createdFor: { kind: "work-unit", name: "
 const claim = { kind: "errand" as const, slug: "example", claimId: "a".repeat(32) };
 const partial: WorktreeMarker = { ...base, spawnedByArc: false, createdFor: { kind: "partial-errand", slug: "example", claimId: null },
   provisioning: "ready", parentCheckoutPath: "/parent", originEntry: "Example", originEntrySourceDigest: `sha256:${"b".repeat(64)}` };
-const husked: WorktreeMarker = { ...unit, husk: { sha: row.head, at: base.createdAt,
-  subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha" } };
+const husked: WorktreeMarker = { ...unit, husk: makeHuskStamp({ sha: row.head, at: base.createdAt,
+  subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha" }) };
 const present = (marker: WorktreeMarker): WorktreeMarkerReadResult => {
   expect(isWorktreeMarker(marker)).toBe(true);
   return { kind: "present", marker };
@@ -34,7 +35,6 @@ it.each<{ kind: WindowCheckoutKind; marker: WorktreeMarkerReadResult; registrati
   { kind: "no-marker", marker: { kind: "absent" } },
   { kind: "branch-subject", marker: present({ ...base, createdFor: { kind: "branch", ref: "spike/example" } }) },
   { kind: "partial-errand", marker: present(partial) },
-  { kind: "manual-only", marker: present({ ...base, createdFor: { kind: "errand", slug: "legacy" } }) },
   { kind: "manual-only", marker: present({ ...base, createdFor: claim, provisioning: "future" }) },
   { kind: "pending", marker: present({ ...base, createdFor: claim, provisioning: "pending" }) },
   { kind: "malformed-marker", marker: { kind: "malformed", path: "/checkout/marker.json", message: "worktree marker contains malformed JSON" } },
@@ -44,7 +44,7 @@ it.each<{ kind: WindowCheckoutKind; marker: WorktreeMarkerReadResult; registrati
 });
 
 it("keeps a husk separate from unmarked checkout kinds and decodes its trust", () => {
-  expect(classifyWindowCheckout(row, present(husked))).toMatchObject({ kind: "husk", husk: { kind: "legacy" } });
+  expect(classifyWindowCheckout(row, present(husked))).toMatchObject({ kind: "husk", husk: { kind: "current", authorization: "discard-confirmed" } });
 });
 
 it("reports an unreadable registration inventory with a retry route", async () => {
