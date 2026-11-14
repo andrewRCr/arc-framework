@@ -108,6 +108,7 @@ export default defineConfig({
         test: {
           ...integrationTest,
           name: "integration",
+          setupFiles: ["__tests__/helpers/store/projection/index-schema-guard.ts"],
           include: ["__tests__/integration/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...timingTests, ...burstTests],
         },
