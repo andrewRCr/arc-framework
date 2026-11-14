@@ -1,14 +1,23 @@
-/** Session-notes inputs and freshness for work-unit context compilation. */
+/** Handoff fields and freshness for work-unit context compilation, from SESSION-NOTES or, off the branch, the meta. */
 
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { resolveLoadSetManifest, type LoadSetSessionType } from "../../lib/load-set/projection.js";
 import { readSessionNotesFields } from "../../lib/store/session-notes-fields.js";
 import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-content.js";
+import type { HistoryEntry, Store } from "../../lib/store/contract.js";
+import type { StateVersion } from "../../lib/store/identity.js";
 import type { AgendaCompileInput } from "./compile-input.js";
-import { compileResumeReads, selectedAgendaContext, type AgendaResumeReadContext, type AgendaReadOptions } from "./reads.js";
+import { compileResumeReads, renderCheckoutHistory, selectedAgendaContext, type AgendaResumeReadContext, type AgendaReadOptions } from "./reads.js";
 import type { AgendaStep } from "./schema.js";
 
 type Note = Extract<AgendaStep, { type: "note" }>;
+type ResolvedContext = NonNullable<ReturnType<typeof selectedAgendaContext>>;
+
+/**
+ * The handoff fields one compile reads: SESSION-NOTES in the in-repo implementation, the meta off the branch, where
+ * a meta recording no session context takes the checkout's history in its place.
+ */
+interface HandoffFields { sessionType: string | null; sessionContextAbsent: boolean; freshness: () => Promise<Note | null> }
 
 /** Context reads and metadata retained for orientation decisions. */
 export interface AgendaResumeContext { steps: AgendaStep[]; metaContent: string | null }
@@ -31,17 +40,40 @@ export async function compileResumeContext(input: AgendaCompileInput, options: A
   const context = selectedAgendaContext(input);
   if (context === null) return { steps: [], metaContent: null };
   const metaContent = await optionalContent(input, context.metaPath);
-  const notesPath = context.loadSet.entries.find(entry => isDocument(entry.path, "SESSION-NOTES.md"))?.path;
-  const notes = readSessionNotesFields(await optionalContent(input, notesPath) ?? "");
-  const authored = notes.sessionType;
+  const fields = await readHandoffFields(input, context, () => Promise.resolve(metaContent));
+  const authored = fields.sessionType;
   const override = resolveAgendaSessionType(context.sessionType, authored);
   const effective = override.warning === null && authored !== null
     ? overriddenContext(input, override.sessionType, metaContent ?? "") : context;
   const steps = await compileResumeReads(input, effective, options);
+  if (fields.sessionContextAbsent) {
+    const meta = steps.findIndex(step => step.type === "read" && step.path === context.metaPath);
+    steps.splice(meta < 0 ? steps.length : meta + 1, 0, await renderCheckoutHistory(input, "The work unit's meta records no session context."));
+  }
   if (override.warning !== null) steps.push(override.warning);
-  const freshness = await compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath);
+  const freshness = await fields.freshness();
   if (freshness !== null) steps.push(freshness);
   return { steps, metaContent };
+}
+
+async function readHandoffFields(input: AgendaCompileInput, context: ResolvedContext, readMeta: () => Promise<string | null>): Promise<HandoffFields> {
+  const store = input.entry.store;
+  if (store?.capabilities.stateOffBranch !== true) {
+    const notesPath = context.loadSet.entries.find(entry => isDocument(entry.path, "SESSION-NOTES.md"))?.path;
+    const notes = readSessionNotesFields(await optionalContent(input, notesPath) ?? "");
+    return { sessionType: notes.sessionType, sessionContextAbsent: false,
+      freshness: () => compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath) };
+  }
+  const parsed = parseLifecycleMetaContent(await readMeta() ?? "");
+  const meta = parsed.success ? parsed.data : null;
+  return { sessionType: meta?.sessionType ?? null, sessionContextAbsent: meta !== null && (meta.sessionContext ?? "").trim() === "",
+    freshness: () => compileStateFreshness(store, meta?.stateAtHandoff ?? null, enteringWorkUnit(input)) };
+}
+
+function enteringWorkUnit(input: AgendaCompileInput): string | null {
+  const frame = input.envelope.derivedLocusState;
+  const subject = frame.ok && frame.value.entering.kind === "selected" ? frame.value.entering.row.subject : null;
+  return subject?.kind === "work-unit" ? subject.key : null;
 }
 
 function overriddenContext(input: AgendaCompileInput, sessionType: LoadSetSessionType | null, meta: string): AgendaResumeReadContext | null {
@@ -70,9 +102,42 @@ export async function compileCheckoutFreshness(input: AgendaCompileInput): Promi
   if (!frame.ok || frame.value.entering.kind !== "selected" || frame.value.entering.row.kind !== "work-unit") return null;
   const context = selectedAgendaContext(input);
   if (context === null) return null;
-  const notesPath = context.loadSet.entries.find(entry => isDocument(entry.path, "SESSION-NOTES.md"))?.path;
-  const notes = readSessionNotesFields(await optionalContent(input, notesPath) ?? "");
-  return compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath);
+  return (await readHandoffFields(input, context, () => optionalContent(input, context.metaPath))).freshness();
+}
+
+/**
+ * Compare the meta's recorded handoff state with the store's current version, listing each change since.
+ *
+ * The handoff write that recorded the baseline lands after it, so it is not a change since the handoff.
+ * @param store - The off-branch store the meta lives in.
+ * @param baseline - The meta's `State at Handoff`.
+ * @param workUnit - The entering work unit's name, to say whether its meta changed.
+ * @returns A freshness note, or nothing when no change landed since the handoff.
+ */
+export async function compileStateFreshness(store: Pick<Store, "version" | "changes">, baseline: StateVersion | null, workUnit: string | null): Promise<Note | null> {
+  const note = (text: string): Note => ({ type: "note", surface: "freshness-gap", text });
+  if (baseline === null) return note("There is no handoff baseline for this session.");
+  const current = await store.version();
+  if (current.status === "refused") return note(`The store's current state is unreadable; freshness cannot be compared. ${current.refusal.condition}`);
+  if (current.result === baseline) return null;
+  const changes = await store.changes({ from: baseline, to: current.result });
+  if (changes.status === "refused") return note(`The handoff baseline '${baseline}' is unreachable; freshness cannot be compared.`);
+  const since = changes.result.filter(entry => !recordsBaseline(entry, baseline));
+  if (since.length === 0) return null;
+  const metaChanged = since.some(entry => entry.reference.kind === "work-item/meta" && entry.reference.owner.name === workUnit);
+  return note(`State changes since handoff ${baseline}:\n${since.map(describeChange).join("\n")}\nMeta changed: ${metaChanged ? "yes" : "no"}.`);
+}
+
+function recordsBaseline(entry: HistoryEntry, baseline: StateVersion): boolean {
+  if (entry.reference.kind !== "work-item/meta" || entry.content === null || !("verb" in entry.provenance) || entry.provenance.verb !== "handoff-write") return false;
+  const parsed = parseLifecycleMetaContent(entry.content);
+  return parsed.success && parsed.data.stateAtHandoff === baseline;
+}
+
+function describeChange(entry: HistoryEntry): string {
+  const { kind, owner, key } = entry.reference;
+  const by = "verb" in entry.provenance ? ` by ${entry.provenance.verb}` : "";
+  return `${kind} ${owner.name}${key === undefined ? "" : ` ${typeof key === "string" ? key : JSON.stringify(key)}`}${entry.version === null ? " (removed)" : ""}${by}`;
 }
 
 /** Compare a recorded handoff with the checkout's current commit and history. */

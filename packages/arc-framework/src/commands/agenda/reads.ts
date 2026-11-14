@@ -43,6 +43,12 @@ function cursorNote(text: string): AgendaCursorRead {
   return { cursor: null, note: { type: "note", surface: "task-cursor", text } };
 }
 
+/** Render the checkout's recent history where no session notes carry the last session's context. */
+export async function renderCheckoutHistory(input: AgendaCompileInput, lead: string): Promise<AgendaStep> {
+  const history = await input.read.git(["log", "--oneline", "-10"]);
+  return { type: "render", surface: "notes-history", text: `${lead} Recent checkout history:\n${history.trim()}` };
+}
+
 /** Compile existing context documents in manifest order. */
 export async function compileResumeReads(
   input: AgendaCompileInput, context: AgendaResumeReadContext | null = selectedAgendaContext(input), options: AgendaReadOptions = {},
@@ -95,8 +101,7 @@ async function missingRead(input: AgendaCompileInput, path: string, options: Age
   const normalized = path.replaceAll("\\", "/");
   if (normalized.endsWith("/WORKING-MEMORY.md")) return [];
   if (normalized.endsWith("/SESSION-NOTES.md") && (options.notesLoadCanRestore === false || compileNotesSync(input).length === 0)) {
-    const history = await input.read.git(["log", "--oneline", "-10"]);
-    return [{ type: "render", surface: "notes-history", text: `No session notes are available. Recent checkout history:\n${history.trim()}` }];
+    return [await renderCheckoutHistory(input, "No session notes are available.")];
   }
   return [{ type: "note", surface: "missing-file", text: `Expected context file is absent: ${path}` }];
 }

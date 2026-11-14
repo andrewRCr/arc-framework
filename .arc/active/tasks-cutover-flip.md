@@ -420,27 +420,18 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   reads; only a write outside every family admits there. The harness also found that check refusing a merged retry
   (fixed under Task 2.11).
 
-### `[ ]` **2.14 Session-init's handoff anchor on the store — § 8.9**
+### `[x]` **2.14 Session-init's handoff anchor on the store — § 8.9**
 
 - _Goal:_ On an off-branch store, the agenda takes its handoff freshness baseline and Session Type from the meta's
   handoff fields, so a resume after the switch keeps both though the load set omits SESSION-NOTES there
   (`resolveLoadSetManifest`, `lib/load-set/projection.ts`).
 
-    - The compiler's field reader (`readSessionNotesFields`, `lib/store/session-notes-fields.ts`, read in
-      `commands/agenda/context.ts`) and its freshness note (`compileHandoffFreshness`) select the store arm by the
-      capability: the baseline is the meta's `State at Handoff`, which `arc handoff write` records (`runHandoffWrite`,
-      `lib/handoff/write.ts`), compared with the store's current version, the gap rendered from the store's `changes`;
-      Session Type is the meta's `Session Type`; the `git log` render for an absent SESSION-NOTES fires on an empty
-      session context.
-    - The notes module (`commands/agenda/notes.ts`) and the in-place materialize before the flip
-      (`commands/agenda/legacy-materialize.ts`) go in the switch's commit (Task 3.3), with their tests
-      (`unit/agenda/notes.test.ts`, `notes-surfaces.test.ts`, and the agenda tests naming `notes:pull` or `notes:load`).
-    - Build `test-first` (one behavior at a time):
-        - a meta whose `State at Handoff` is the current version reports no gap
-        - an advanced version reports the gap and whether the work unit's meta changed since
-        - the meta's `Session Type` reaches the agenda as the session-type override
-        - an empty session context renders the `git log` fallback
-        - on the in-repo implementation, the agenda reads SESSION-NOTES as today
+- _Outcome:_ The agenda's context compiler (`commands/agenda/context.ts`) reads SESSION-NOTES unless the entry's store
+  reports `stateOffBranch`, and then the projected meta: its `Session Type` as the override, and its `State at Handoff`
+  compared with the store's version (`compileStateFreshness`), listing each change the store's `changes` returns and
+  whether the meta changed. The handoff write that recorded the baseline lands after it and is left out, so a resume
+  with nothing since reports no gap. A meta with no session context renders the checkout's history after its read
+  (`renderCheckoutHistory`, `commands/agenda/reads.ts`).
 
 ## **Phase 3:** The switch
 
