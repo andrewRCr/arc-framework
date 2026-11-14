@@ -75,8 +75,7 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
   return { local, tracking, changes, pending, kept };
 }
 
-/** A ref the state push publishes: a state ref, and under `refs/arc/user/` only the identity's personal and claims refs. */
-export function publishableRef(ref: string, identity: string | null): boolean {
+function publishableRef(ref: string, identity: string | null): boolean {
   if (!isStateRef(ref)) return false;
   return !ref.startsWith("refs/arc/user/") || identity !== null
     && (ref === `refs/arc/user/${identity}/personal` || ref === `refs/arc/user/${identity}/claims`);

@@ -41,7 +41,7 @@ export function planWindowRestoreLeases(record: WindowRecord, decision: WindowRe
 function originAllowedValues(record: WindowRecord, decision: WindowRestoreDecision,
   snapshot: WindowRestoreSnapshot, ref: string): (string | null)[] {
   const allowed = allowedValues(record.refs.origin, decision, ref);
-  if (!publishable(ref, snapshot.identity)) return allowed;
+  if (!isWindowPublishableRef(ref, snapshot.identity)) return allowed;
   const tracking = snapshot.tracking[`refs/arc-remotes/origin/${ref.slice("refs/arc/".length)}`];
   return [...allowed, ...[tracking, snapshot.local[ref]].filter((tip): tip is string => tip !== undefined)];
 }
@@ -53,7 +53,8 @@ function allowedValues(held: Readonly<Record<string, string>>, decision: WindowR
   return allowed;
 }
 
-function publishable(ref: string, identity: string | null): boolean {
+/** A ref the state push publishes: a state ref, and under `refs/arc/user/` only the identity's personal and claims refs. */
+export function isWindowPublishableRef(ref: string, identity: string | null): boolean {
   return isStateRef(ref) && (!ref.startsWith("refs/arc/user/") || identity !== null
     && (ref === `refs/arc/user/${identity}/personal` || ref === `refs/arc/user/${identity}/claims`));
 }

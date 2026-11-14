@@ -7,7 +7,7 @@ import { parseArgs } from "node:util";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
 import { readGitDirectories } from "../../lib/git/directories.js";
-import { localPathContains } from "../../lib/local-path-identity.js";
+import { windowPathContains } from "./paths.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { assertWindowCopySafety, type WindowCopySafetyOptions } from "./copy-safety.js";
 import type { WindowResult } from "./result.js";
@@ -40,7 +40,7 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   if (!roster.ok) refuse("worktree registrations", roster.message);
   const destination = await futurePhysicalPath(resolve(values.destination));
   for (const row of roster.worktrees) {
-    if (await localPathContains(row.path, destination)) refuse(destination, `The destination is inside live checkout ${row.path}.`);
+    if (await windowPathContains(row.path, destination)) refuse(destination, `The destination is inside live checkout ${row.path}.`);
     if (!row.folderPresent) refuse(row.path, "A registered checkout has no folder; restore it or prune its registration before copying.");
   }
   const primary = roster.worktrees.find(row => row.primary);
@@ -64,7 +64,7 @@ export async function prepareWindowCopy(request: WindowRequest, hooks: WindowCop
   await cp(commonDir, copiedCommon, { recursive: true, verbatimSymlinks: true });
   for (const row of layout.worktrees.filter(row => !row.primary)) {
     const { gitDir } = await readGitDirectories(row.source, fs);
-    if (!await localPathContains(commonDir, gitDir)) refuse(row.source, "The linked checkout metadata is outside the common Git directory.");
+    if (!await windowPathContains(commonDir, gitDir)) refuse(row.source, "The linked checkout metadata is outside the common Git directory.");
     const copiedGit = join(copiedCommon, relative(commonDir, gitDir));
     await writeFile(join(row.path, ".git"), `gitdir: ${copiedGit}\n`);
     await writeFile(join(copiedGit, "gitdir"), `${join(row.path, ".git")}\n`);
@@ -89,7 +89,7 @@ async function refuseLateRegistrations(copiedCommon: string, destination: string
     let checkout: string;
     try { checkout = dirname(resolve(admin, (await readFile(join(admin, "gitdir"), "utf8")).trim())); }
     catch { refuse(admin, "A checkout registered while the copy ran has no readable gitdir in the copy."); }
-    if (!await localPathContains(destination, checkout)) {
+    if (!await windowPathContains(destination, checkout)) {
       refuse(checkout, "This checkout was registered while the copy ran, so the copy holds its registration without its folder; repairing the copy would rewrite the live checkout's pointer.");
     }
   }

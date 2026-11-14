@@ -4,7 +4,7 @@ import type { WindowFinding } from "./result.js";
 import { access, stat, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
 import { delimiter, resolve } from "node:path";
-import { localPathContains } from "../../lib/local-path-identity.js";
+import { windowPathContains } from "./paths.js";
 
 /** Refuse PATH executables whose resolved targets belong to no permitted checkout. */
 export async function readWindowExecutableFindings(checkouts: readonly Pick<WindowCheckout, "path">[],
@@ -37,7 +37,7 @@ async function executableFindings(path: string, roots: readonly string[]): Promi
   try {
     const target = await resolveExecutable(path);
     if (target === null) return [];
-    if ((await Promise.all(roots.map(root => localPathContains(root, target)))).some(Boolean)) return [];
+    if ((await Promise.all(roots.map(root => windowPathContains(root, target)))).some(Boolean)) return [];
     return [{ subject: path, condition: `ARC executable resolves outside every permitted checkout: ${target}.`,
       remedy: "Uninstall this executable or take its directory off PATH for the window, then retry check." }];
   } catch (error) {

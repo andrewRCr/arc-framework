@@ -7,7 +7,7 @@ import { createWindowHost } from "./native-host.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { readGitDirectories } from "../../lib/git/directories.js";
-import { localPathContains } from "../../lib/local-path-identity.js";
+import { windowPathContains } from "./paths.js";
 import { scanRegisteredWorktrees } from "../../lib/git/worktree-roster.js";
 import { readBackingRepository } from "../../lib/config/status-reader.js";
 import { listWindowRefs } from "./git.js";
@@ -52,7 +52,7 @@ async function assertNoAwaitingErrands(repo: string, exec: GitExec): Promise<voi
 async function assertCopiedPointers(layout: WindowCopyBounds, boundary: GitExec): Promise<string[]> {
   const fs = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
   const inside = async (path: string) => {
-    if (!await localPathContains(layout.destination, path)) refuse(path, "A Git pointer names a path outside the copy.");
+    if (!await windowPathContains(layout.destination, path)) refuse(path, "A Git pointer names a path outside the copy.");
   };
   const checkout = async (path: string) => {
     await inside(path);

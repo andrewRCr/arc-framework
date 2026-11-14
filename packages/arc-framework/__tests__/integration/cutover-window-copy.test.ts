@@ -7,7 +7,7 @@ import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { prepareWindowCopy } from "../../src/scripts/cutover-window/copy.js";
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
-import { localPathContains } from "../../src/lib/local-path-identity.js";
+import { windowPathContains } from "../../src/scripts/cutover-window/paths.js";
 import { makeGitExec } from "../helpers/integration.js";
 
 async function snapshot(root: string) {
@@ -51,7 +51,7 @@ it("copies all registered checkouts and a mirror without changing live registrat
   expect(copied.worktrees).toHaveLength(3);
   const sentinels: string[] = [];
   for (const row of copied.worktrees) {
-    expect(await localPathContains(destination, row.path)).toBe(true);
+    expect(await windowPathContains(destination, row.path)).toBe(true);
     sentinels.push(await readFile(join(row.path, ".arc-fixture/copy-sentinel.txt"), "utf8"));
   }
   expect(sentinels.sort()).toEqual(["linked", "nested", "primary"]);
