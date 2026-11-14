@@ -54,8 +54,9 @@ before reading the file or contacting the host.
 A hostless rehearsal that predates the tooling's landing may also supply `--anchor <commit>`. Hosted repositories
 derive the anchor from `main` and refuse a supplied one.
 
-The hold `check` retains stays until `close` releases it or `restore` uses it. Every operation below reads that hold
-and refuses without it.
+The hold `check` retains stays until `close` releases it or `restore` uses it. `recompute`, `last-read`, `compare`,
+`confirm`, and `restore` read that hold and refuse without it; `account` and `chain` read the repository and the store
+alone. `close` with no hold to release passes as a cleanup only, so run it from the checkout that holds the window.
 
 After the import, `recompute` compares every input the check recorded with what is there now: local and `origin` branch
 and store-ref tips, the host's branch tips, and each checkout's head, cleanliness, and personal files. It fetches and
@@ -69,10 +70,10 @@ npm run -s cutover-window -- account --repo /path/to/checkout
 npm run -s cutover-window -- chain --repo /path/to/checkout --report /path/to/import-report.json
 ```
 
-Immediately before the merge, `last-read` repeats recompute's comparison with the flip exempted. It requires the flip's
-local, `origin`, and host tips and its checkout to name one commit whose only parent is the recorded flip head and which
-only deletes tracked-state files, and it refuses while auto-merge is armed on the flip request. It takes the flip
-options `check` took, with `--pull-requests` for a hostless rehearsal:
+Immediately before the merge, `last-read` repeats recompute's comparison with the flip exempted. It requires each side
+of the flip the record holds, among its local, `origin`, and host tips and its checkout, to name one commit whose only
+parent is the recorded flip head and which only deletes tracked-state files, and it refuses while auto-merge is armed on
+the flip request. It takes the flip options `check` took, with `--pull-requests` for a hostless rehearsal:
 
 ```sh
 npm run -s cutover-window -- last-read --repo /path/to/checkout --flip-branch feat/flip --flip-pr 7
@@ -98,10 +99,11 @@ It deletes the completion marker before the remaining hold refs, and it removes 
 
 To abort before the merge, `restore` returns every recorded ref locally and on `origin`, verifies them, and deletes the
 hold. It takes the recorded flip's options, and refuses while auto-merge is armed or once the flip has merged, which is
-then fixed forward from the landed store. When a `refs/arc/` ref changed after the import consumed it, settle the change
-and name the value found with `--accept <ref>=<object ID or absent>`, repeated as needed. A restore interrupted before
-it deletes the completion marker resumes when run again; one interrupted after leaves an incomplete hold for `close`
-to remove:
+then fixed forward from the landed store. When another writer changed a `refs/arc/` ref on either side after the check
+or the import read it, settle the change and name the value the restore should keep with
+`--accept <ref>=<object ID or absent>`, repeated as needed: the value found, or, for a consumed identity ref whose kept
+tip remains, that kept tip. The refusal names the ref and the value to give. A restore interrupted before it deletes
+the completion marker resumes when run again; one interrupted after leaves an incomplete hold for `close` to remove:
 
 ```sh
 npm run -s cutover-window -- restore --repo /path/to/checkout --flip-branch feat/flip --flip-pr 7
