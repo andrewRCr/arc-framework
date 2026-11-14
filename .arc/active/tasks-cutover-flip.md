@@ -391,30 +391,34 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   conditions rather than running the check, which `cutover-window-tooling` has not landed; Task 6.1 re-checks that
   contract.
 
-### `[ ]` **2.13 The fence harness over the take-in, the archive, and the register closures — § 14**
+### `[x]` **2.13 The fence harness over the take-in, the archive, and the register closures — § 14**
 
 - _Goal:_ One harness on the ref and reference backends injects a store change between preparation and the batch, per
   read family each writer takes, and every case either refuses with nothing written and then retries correctly, or
   admits only what fresh preparation would write; an unrelated write admits.
 
-    - `[ ]` **2.13.a Each writer's read families**
-        - Inventory into `notes-cutover-flip.md` § Fence read families: write-back's take-in
-          (`checkProjectionAdmission`, `lib/store/projection/admission-check.ts`, over `planProjectionWrite`, with the
-          batch built by `prepareStable`, `lib/store/projection/submission.ts`), which also carries the register
-          closures; and the store archive (`runStoreArchive`: `readWorkUnit`, `readLifecycleView`,
-          `prepareArchiveCohorts`, and `observeArchiveHoldings`).
+    - `[x]` **2.13.a Each writer's read families**
+        - Recorded in `notes-cutover-flip.md` § Fence read families: a meta's take-in reads the meta, each cohort on its
+          path, and its slug; a cohort record's, with member sections, every work unit's meta as well; the archive its
+          subject, both inventories, each open cohort, the cohorts on its path, and each record holding one of them.
 
-    - `[ ]` **2.13.b The harness**
-        - It injects at batch submission, wrapping the store's `batch`, so a change lands after the archive's
-          revalidation (`revalidateLifecycleRecords`, which reads before `batchLifecycleWrites`,
-          `lib/work-unit/lifecycle-store-executor.ts`) and the batch's own observations decide it (`observeRecords`).
-        - Build `test-first` (one behavior at a time):
-            - each read family of the take-in, changed after preparation, refuses or admits equal to fresh preparation
-            - each read family of the archive, each prospective member's lifecycle record among them, the same
-            - an unrelated write between preparation and the batch admits
-        - A read family the harness shows the archive leaves unobserved is added to its observations here.
-        - The harness also takes a repository path and runs over a copy of that repository's flipped store, so Stage 2
-          runs it over the window's prepared writes (Task 6.5.d) without injecting into the built CLI.
+    - `[x]` **2.13.b The harness**
+        - `runFenceCase` (`__tests__/helpers/store/fence-harness.ts`) lands the change when the writer submits its
+          first batch, after the archive's revalidation. A refusal must leave the store as the change left it, and a
+          fresh run then decides; an admission must leave each record as a fresh dry run's batch writes it, since the
+          store merges a stale expected version rather than refusing it. `store-ref-fence.test.ts` runs every family
+          on both backends.
+        - Unobserved, now observed: each member's meta and open subcohort holding a cohort on the archive subject's
+          path, in both of the archive's batches (`observeArchiveHoldings`, `archive-store.ts`). The stale
+          final-member case in `archive-store.test.ts` now refuses on that observation before `cohort.archive-closeout`.
+        - `runFenceOverRepository` (`__tests__/helpers/store/fence-repository.ts`) fetches a repository's `refs/arc/*`
+          into a scratch repository with no remote, runs one case per record the writer reads and one unrelated
+          write, and fails if the source's refs moved.
+
+- _Outcome:_ Every family refuses with nothing written and then decides afresh, or admits what fresh preparation
+  lands. A cohort record's take-in also refuses on a change to any work unit's meta, which its member-sections check
+  reads; only a write outside every family admits there. The harness also found that check refusing a merged retry
+  (fixed under Task 2.11).
 
 ### `[ ]` **2.14 Session-init's handoff anchor on the store — § 8.9**
 

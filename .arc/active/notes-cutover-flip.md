@@ -302,6 +302,37 @@ changed, the search finds the same readers in the same files, each still as clas
     - `isShippedWorkUnit` (`lib/work-unit/completed-index.ts`, read by the stale-worktree sweep) does see Errand
       branches on the store path, but matches only completed work-unit names, so a suffixed Errand branch never matches.
 
+## Fence read families
+
+Each writer's reads before its batch, as the fence harness's dry run records them, and what holds each family. The
+harness holds an admitted batch to the records it leaves, not to its submitted bytes: the store merges a write whose
+expected version is stale rather than refusing it, so an admission is correct when each record lands as fresh
+preparation would write it.
+
+- **Write-back's take-in of a work unit's meta:** the meta, each cohort on its `Cohort` path, leaf first, and a lookup
+  of its slug. The batch observes the meta and both cohorts, and `checkProjectionAdmission` re-runs
+  `planProjectionWrite` over `before`. A change to the meta refuses, and the fresh run reports the clash to its author;
+  a rename or a change to a cohort on the path refuses, and the fresh run lands, or is held by the path's rules when
+  the cohort's Parent moved. A write to an unrelated work unit admits.
+- **Write-back's take-in of a cohort record, the register closures among them:** the record, and, when it keeps member
+  sections, the work-item inventory and every work unit's meta, which `cohort.member-sections` reads to find the
+  cohort's members. The batch observes each of them, so a concurrent change to any work unit's meta refuses and the
+  fresh run lands; when that change takes a member out of the cohort, the rule holds the fresh run before its batch. A
+  change to the record itself refuses, and the fresh run lands the edit merged, keeping any conflict as its record.
+    - The harness found the rule refusing that merged retry: it resolved holdings through every cohort's Parent, and a
+      cohort with an open conflict made the evidence unavailable. It now reads work units' holdings alone (Task 2.11).
+- **The store archive:** a lookup of the subject and its meta (`readWorkUnit`), the work-item inventory
+  (`readLifecycleView`), the cohort inventory and each open cohort (`observeOpenCohorts`), each cohort on the subject's
+  path (`prepareArchiveCohorts`), and the meta of each work unit holding one of them (`observeArchiveHoldings`). It
+  writes the subject and each cohort on the path at its expected version and observes each cohort it completes.
+    - Unobserved until Task 2.13: each record holding a cohort on the path, a member's meta or an open subcohort, whose
+      change the batch admitted. Both of the archive's batches now observe them.
+    - Held by rules over the resulting state rather than by observation: a work unit joining a cohort on the path, which
+      `cohort.open-members` refuses when the archive completes that cohort and which leaves the writes unchanged
+      otherwise; and a holder leaving, which `cohort.archive-closeout` refuses when the archive leaves the cohort open.
+    - A change to a cohort the archive leaves open merges into the archive's write of it, and the record lands as fresh
+      preparation writes it.
+
 ## Site inventory
 
 The floor § 8.1 sets and the closure search at `a7c65b4239`, by file. Spec sites are the sweep's classified sites;

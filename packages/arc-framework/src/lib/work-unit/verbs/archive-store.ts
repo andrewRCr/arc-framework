@@ -62,7 +62,7 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const content = writeMetaCompleted(writeMetaPrUrl(cleared, facts.prUrl), facts.completed);
   const outcome = await executeTransition(ctx.executor, { verb: "archive", slug: params.name, inputs: {
     suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records,
-      observations: observeRecords(cohorts.completed) },
+      observations: observeRecords([...cohorts.completed, ...cohorts.holders]) },
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...("refusal" in outcome && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
@@ -98,8 +98,7 @@ async function settleStoredArchiveSteps(checkoutRoot: string, store: Store, prim
 }
 
 async function prepareStoredCloseout(checkoutRoot: string, store: Store, primary: StoreRecord): Promise<
-  { status: "ready"; primary: StoreRecord; cohort: string | null; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] }
-  | Extract<ArchiveResult, { status: "rejected" }>> {
+  { status: "ready"; primary: StoreRecord; cohort: string | null } & PreparedArchiveCohorts | Extract<ArchiveResult, { status: "rejected" }>> {
   const name = primary.reference.owner.name;
   const current = await store.read({ reference: primary.reference });
   if (current.status === "refused") return reportFailure(name, current.refusal);
@@ -123,12 +122,13 @@ function archiveMemberCandidates(entries: readonly LifecycleEntry[], completing?
   return candidates;
 }
 
-async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[] },
+async function publishCohortCloseout(store: Store, name: string, cohorts: PreparedArchiveCohorts,
   notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   if (cohorts.writes.length === 0) return undefined;
   const valid = await revalidateLifecycleRecords(store, cohorts.records);
   if (valid.status === "refused") return reportFailure(name, valid.refusal);
-  const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" }, observeRecords(cohorts.completed));
+  const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" },
+    observeRecords([...cohorts.completed, ...cohorts.holders]));
   return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name, notices);
 }
 
@@ -201,12 +201,20 @@ async function reportStoredArchive(checkoutRoot: string, store: Store, primary: 
     cohortSwept: paths[0] ?? null, nestedParentSwept: paths[1] ?? null, warnings: [...notices] };
 }
 
+/**
+ * The writes and evidence of one cohort closeout: the records revalidated before the batch, the cohorts it completes,
+ * and every record holding a cohort on the member's path, each observed so the batch refuses if one changes.
+ */
+interface PreparedArchiveCohorts {
+  status: "ready"; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; holders: StoreRecord[]; notices: string[];
+}
+
 async function prepareArchiveCohorts(store: Store, member: StoreRecord, prospective: readonly CohortHoldingCandidate[],
   quarter: Extract<WritePlacement, { kind: "completed" }>["quarter"], protectOpen = true): Promise<
-  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
+  PreparedArchiveCohorts | Extract<ArchiveResult, { status: "rejected" }>> {
   const cohort = ParsedMetaRecordSchema.parse(member.fields).cohort;
   const cohortPaths = cohort === null ? [] : [cohort, ...(cohort.includes("/") ? [cohort.split("/")[0] ?? ""] : [])];
-  if (cohortPaths.length === 0) return { status: "ready", writes: [], records: [], completed: [], notices: [] };
+  if (cohortPaths.length === 0) return { status: "ready", writes: [], records: [], completed: [], holders: [], notices: [] };
   const open = await observeOpenCohorts(store);
   if (open.status !== "known") return { status: "rejected", reason: open.status === "unavailable" ? open.condition : "Open cohort inventory is unavailable.",
     remedy: { text: "Repair the cohort inventory, then retry archive." } };
@@ -220,8 +228,8 @@ interface ArchiveCohortSnapshot {
 }
 
 async function prepareObservedCohorts(store: Store, cohortPaths: readonly string[], snapshot: ArchiveCohortSnapshot): Promise<
-  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
-  const writes: Mutation[] = [], records: StoreRecord[] = [], notices: string[] = [];
+  PreparedArchiveCohorts | Extract<ArchiveResult, { status: "rejected" }>> {
+  const writes: Mutation[] = [], records: StoreRecord[] = [], holders: StoreRecord[] = [], notices: string[] = [];
   const completing = new Set<string>();
   for (const path of cohortPaths) {
     const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: path.split("/").at(-1) }));
@@ -234,6 +242,7 @@ async function prepareObservedCohorts(store: Store, cohortPaths: readonly string
     const held = await observeArchiveHoldings(store, cohort.result.reference, snapshot, completing);
     if (held.status === "rejected") return held;
     records.push(...held.children);
+    holders.push(...held.holders);
     const closing = held.holdings.length === 0;
     if (closing) completing.add(identityKey(cohort.result.reference.owner));
     if (!snapshot.protectOpen && !closing) {
@@ -243,7 +252,8 @@ async function prepareObservedCohorts(store: Store, cohortPaths: readonly string
     records.push(cohort.result);
     writes.push(recordPut(cohort.result, closing ? { placement: { kind: "completed", quarter: snapshot.quarter } } : {}));
   }
-  return { status: "ready", writes, records, completed: completedCohorts(records, writes), notices };
+  return { status: "ready", writes, records, completed: completedCohorts(records, writes),
+    holders: [...new Map(holders.map(holder => [identityKey(holder.reference.owner), holder])).values()], notices };
 }
 
 /** The cohort documents a closeout completes: a conflict arriving by pull leaves a version unchanged, so each is observed. */
@@ -252,16 +262,23 @@ function completedCohorts(records: readonly StoreRecord[], writes: readonly Muta
     : records.filter(record => record.reference.kind === "cohort/document" && sameReference(record.reference, write.reference)).slice(0, 1));
 }
 
+/** Resolve one cohort's holdings, and read every record holding it: its members' metas and its open subcohorts. */
 async function observeArchiveHoldings(store: Store, cohort: RecordReference, snapshot: ArchiveCohortSnapshot, completing: ReadonlySet<string>): Promise<
-  { status: "ready"; holdings: readonly CohortHolding[]; children: StoreRecord[] } | Extract<ArchiveResult, { status: "rejected" }>> {
+  { status: "ready"; holdings: readonly CohortHolding[]; children: StoreRecord[]; holders: StoreRecord[] } | Extract<ArchiveResult, { status: "rejected" }>> {
   const parents: CohortHoldingCandidate[] = snapshot.open.flatMap(({ record, fields }) => fields.parent === null
     || completing.has(identityKey(record.reference.owner)) ? [] : [{ reference: record.reference, field: "parent", path: fields.parent, completed: false }]);
   const held = await observeCohortHoldings([...snapshot.prospective, ...parents], store, cohort);
   if (held.status !== "known") return { status: "rejected", reason: held.status === "unavailable" ? held.condition : "Cohort holding evidence is unavailable.",
     remedy: { text: "Repair the cohort holding evidence, then retry archive." } };
   const children = new Set(held.value.filter(holding => holding.candidate.field === "parent").map(holding => identityKey(holding.candidate.reference.owner)));
-  return { status: "ready", holdings: held.value,
-    children: snapshot.open.filter(child => children.has(identityKey(child.record.reference.owner))).map(child => child.record) };
+  const subcohorts = snapshot.open.filter(child => children.has(identityKey(child.record.reference.owner))).map(child => child.record);
+  const members: StoreRecord[] = [];
+  for (const { candidate } of held.value.filter(holding => holding.candidate.field === "cohort")) {
+    const member = await store.read({ reference: candidate.reference });
+    if (member.status === "refused") return { status: "rejected", reason: member.refusal.condition, refusal: member.refusal };
+    members.push(member.result);
+  }
+  return { status: "ready", holdings: held.value, children: subcohorts, holders: [...members, ...subcohorts] };
 }
 
 function formerHoldingNotices(holdings: readonly CohortHolding[], cohort: StoreRecord): string[] {

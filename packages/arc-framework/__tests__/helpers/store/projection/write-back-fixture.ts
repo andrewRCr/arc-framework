@@ -27,6 +27,7 @@ import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identi
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { boundWorkUnitSubject } from "../bound-checkout.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 import { type RecordReference, RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { companionStoredName } from "../../../../src/lib/store/companion-name.js";
@@ -72,13 +73,26 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
   const read = await fixture.store.read({ reference: seeded.result.reference });
   if (read.status !== "ok") throw new Error("seed read refused");
   if (reference.kind === "work-item/meta") primaryRecord = read.result;
+  const projected = await projectRecordForWriteBack({ store: fixture.store, record: read.result, identity, checkout, location,
+    primary: primaryRecord, ...(input.path?.startsWith(".arc/user/") || input.path?.startsWith(".arc/active/") ? { path: input.path } : {}) });
+  return { ...fixture, ...projected };
+}
+
+/** Project one stored record into a checkout's index, ready for an edit to it to be taken in. */
+export async function projectRecordForWriteBack(input: { store: Store; record: StoreRecord; identity: string; checkout?: string;
+  location?: ProjectionLocation; primary?: Pick<StoreRecord, "reference"> | null; path?: string }) {
+  const checkout = input.checkout ?? await mkdtemp(join(tmpdir(), "arc-read-back-"));
+  const gitDir = join(checkout, ".git");
+  const location: ProjectionLocation = input.location ?? { gitDir, commonDir: gitDir, primary: true, stateDir: join(gitDir, "arc-projection") };
+  await mkdir(location.stateDir, { recursive: true });
+  const identity = SlugSchema.parse(input.identity), read = { result: input.record }, primaryRecord = input.primary ?? null;
   const claim = primaryRecord?.reference.kind === "work-item/meta" ? primaryRecord.reference.owner.name : null;
   if (primaryRecord?.reference.kind === "work-item/meta") await writeWorktreeMarker(checkout, {
     spawnedByArc: false, spawningIdentity: identity, createdAt: "2026-11-01T00:00:00Z",
     createdFor: boundWorkUnitSubject(primaryRecord),
   });
-  const path = input.path?.startsWith(".arc/user/") || input.path?.startsWith(".arc/active/")
-    ? input.path : writeBackFixturePath(read.result.reference);
+  const path = input.path ?? writeBackFixturePath(read.result.reference);
+  const store = input.store;
   const blob = gitBlobId(read.result.content, "sha1");
   const rendered = (content: string, stamp = blob) => path.endsWith(".md") ? renderStampedFile({ content, stamp }) : content;
   await mkdir(dirname(join(checkout, path)), { recursive: true });
@@ -92,13 +106,13 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];
-  const memo = createHistoryMemo(fixture.store);
-  const context = { renderer: createRecordRenderer({ store: fixture.store, memo }), store: fixture.store, location, format: "sha1" as const, memo, actor: `${identity}@fixture-machine`,
+  const memo = createHistoryMemo(store);
+  const context = { renderer: createRecordRenderer({ store, memo }), store, location, format: "sha1" as const, memo, actor: `${identity}@fixture-machine`,
     writer: { pid: process.pid, processInstance: "read-back-test", processScope: "unit" },
     report: (diagnostic: WriteBackDiagnostic) => { reports.push(diagnostic); } };
   const request = { checkout, path, copy: null, entry, base: path.endsWith(".md")
     ? { kind: "stamp" as const, stamp: blob } : { kind: "blob" as const, blob } };
-  return { ...fixture, checkout, location, path, entry, index, context, request, reports,
+  return { checkout, location, path, entry, index, context, request, reports,
     edit: (content: string, stamp?: string) => writeFile(join(checkout, path), rendered(content, stamp)),
     file: () => readFile(join(checkout, path), "utf8"),
     dispose: () => rm(checkout, { recursive: true, force: true }),

@@ -299,8 +299,9 @@ it.each([false, true])("refuses a stale final-member batch and retries atomic cl
   expect(results.filter((result) => result.status === "archived")).toHaveLength(1);
   const refused = results.findIndex((result) => result.status === "rejected");
   expect(refused).toBeGreaterThanOrEqual(0);
-  expect(results[refused]).toMatchObject({ status: "rejected", refusal: { rule: "cohort.archive-closeout" } });
-  const last = refused === 0 ? h.alpha : h.beta;
+  const last = refused === 0 ? h.alpha : h.beta, winner = refused === 0 ? h.beta : h.alpha;
+  expect(results[refused]).toMatchObject({ status: "rejected", refusal: { code: "version-conflict",
+    records: expect.arrayContaining([expect.objectContaining({ owner: expect.objectContaining({ name: winner.reference.owner.name }) })]) } });
   expect(lifecycleSuccess(await h.store.read({ reference: last.reference }))).toEqual(last);
   expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement?.kind).not.toBe("completed");
   expect(await archive(h.store, last.reference.owner.name)).toMatchObject({ status: "archived", destination: { sequence: "02" } });
