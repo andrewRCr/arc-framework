@@ -13,9 +13,21 @@ import {
 } from "./transition-record-enumeration.js";
 import { TRANSITION_RECORD_NAMESPACE } from "./transition-record-store.js";
 
+export { TRANSITION_RECORD_NAMESPACE };
+
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const TREE_ENTRY_PATTERN = /^([0-7]{6}) ([^ ]+) ([0-9a-f]{40}(?:[0-9a-f]{24})?)\t(.+)$/u;
 const INDEX_ENTRY_PATTERN = /^([0-7]{6}) ([0-9a-f]{40}(?:[0-9a-f]{24})?) ([0-3])\t(.+)$/u;
+/** Find whether one selected Git tree holds the transition record folder.
+ * @param exec - Byte-preserving Git executor.
+ * @param ref - The tree to read.
+ * @returns Whether the folder is present; reading a missing path succeeds empty, so absence is not an error.
+ */
+export async function hasGitTransitionNamespace(exec: RawGitExec, ref: string): Promise<boolean> {
+  const { stdout } = await exec(["ls-tree", "-z", "--full-tree", ref, "--", TRANSITION_RECORD_NAMESPACE]);
+  return stdout.byteLength > 0;
+}
+
 /** Enumerate transition records from exactly one selected Git tree. */
 export async function enumerateGitTransitionRecords(
   exec: RawGitExec,

@@ -180,8 +180,15 @@ override whatever the default builds.
   `recovery-snapshot-consistency`, `recovery-warm-verification`, `start-cold-store`, `store-public-readers-cli`,
   `store-ref-errand-uid-cli`, `store-ref-projection-changed-mark`, `-selection`, `-selection-reader`, and `-stub-mint`,
   `store/projection/save`, `save-round-trip`, `status`, and `status-command`, and `user-reference-scratch-cli`;
-  `unit/lib/store/kinds/review/access-shared`'s, whose default is the real factory; and
-  `integration/view-store-cli`'s, which replaces only `openDefaultStore`.
+  `unit/lib/store/kinds/review/access-shared`'s, whose default is the real factory;
+  `integration/view-store-cli`'s, which replaces only `openDefaultStore`; and
+  `integration/review-delivery-member-lookup`'s, which binds the selection around one member lookup's construction.
+- **Seed a rename at the base, so delivery's rename history reads there off the branch (Task 2.5):** the native delivery
+  fixtures, `helpers/store/native-delivery-repository`, `integration/delivery-boundary-store`, and
+  `integration/delivery-review-fix-native`, commit one transition record at `main` (Owner, 2026-11-13), keeping their
+  subject, delivery's records, rather than asserting the refusal a base without the folder now gets. The record is
+  tracked state, so at the switch a default store composed over those checkouts meets the tracked-state refusal at its
+  first operation; Task 3.3 settles any that does.
 - **Move at Task 3.3.c:** `repair-cli`'s mock and `integration/handoff-write-store` (§ 7.2).
 - **Not the default factory:** `createStore` names a local builder in the `lane-progress*` suites,
   `integration/delivery-authoring-store`, and `unit/lib/release/commit-message-retry-store`; an injected port in

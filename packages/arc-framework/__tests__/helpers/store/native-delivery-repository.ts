@@ -18,6 +18,7 @@ import { resolveReviewRouting } from "../../../src/scripts/review-gate/policy/ro
 import { writeSubmissionBoundary } from "../../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { createStandardReviewReservation, projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { stageUnrelatedTransitionRecord } from "../delivery-transition-record.js";
 
 /** Seed a published local stack, a native Candidate and reservation, and an isolated GitHub executable. */
 export async function createNativeDeliveryReviewRepository(firstBranch = "member-1", sourceId = "delegated-agent") {
@@ -30,6 +31,7 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), `branch.base: main\nreview.standard_sources: [${sourceId}]\n`);
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
   await git("add", ".");
+  await stageUnrelatedTransitionRecord(cwd);
   await git("commit", "-m", "Configure delivery review");
   await git("push", "origin", "main");
   const base = await git("rev-parse", "HEAD"), baseTree = await git("rev-parse", "HEAD^{tree}");

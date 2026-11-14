@@ -257,24 +257,17 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   `refused` for a malformed slug; `--target` on the project list or a work unit's slug refuses; and a work unit's
   inbound list reports its pending count and oldest age.
 
-### `[ ]` **2.5 The delivery rename source refuses a missing folder off the branch — § 4.3**
+### `[x]` **2.5 The delivery rename source refuses a missing folder off the branch — § 4.3**
 
 - _Goal:_ On an off-branch store, `GitDeliveryRenameTransitionSource` (`lib/delivery/plan-resolution.ts`) refuses when
   the transition folder is absent at the ref, rather than reading empty and resolving a plan under a former name as
   `no-match`, while before the flip a ref with no folder resolves as today.
 
-    - The source requires the store's capability beside its `exec`, so no construction falls back to the pre-flip
-      reading: a caller holding a store passes its capability, and the member lookup's default
-      (`RepositoryDeliveryMemberLookup`, `scripts/review-gate/hosts/local/delivery-member-lookup.ts`) and the direct
-      constructions (`handlers/delivery.ts`, `delivery-transfer.ts`, `delivery-execution.ts`, and
-      `lib/delivery/repository-entry.ts`) build it through one constructor that reads the capability of the default
-      store composed for that checkout. Its tests bind that composition to Task 1.1's selection, as Task 2.2's do, and
-      the two direct constructions in `integration/delivery-linked-worktree.test.ts` pass the capability.
-    - Build `test-first` (one behavior at a time):
-        - off the branch, a ref with no transition folder refuses, naming the missing folder
-        - a member lookup's default source refuses the same way off the branch
-        - a ref with the folder resolves as today
-        - before the flip, a ref with plans and no transition ever recorded resolves as today
+- _Outcome:_ The source takes the store's capability, and off the branch probes the folder before reading
+  (`hasGitTransitionNamespace`), refusing `substrate-unreachable` with a condition that names it. The delivery
+  execution and repository entry pass the capability of the store they hold; the member lookup's default,
+  `handlers/delivery.ts`, and `delivery-transfer.ts` build it through `createCheckoutDeliveryRenameTransitionSource`.
+  The native delivery fixtures commit a transition record at their base (`notes-cutover-flip.md` § Test callers).
 
 ### `[ ]` **2.6 The base-drift resolver onto stored completed records — § 4.4**
 

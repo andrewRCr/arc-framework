@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DeliveryStateV1Schema,
@@ -23,7 +23,15 @@ import {
   deliveryStackPlanWithMemberTitlesFixture,
 } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
-import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { cleanupTempDir, createTempRepo, makeCommit, makeGitExec } from "../helpers/integration.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+
+const selection = vi.hoisted(() => ({ environment: null as Record<string, string> | null }));
+vi.mock("../../src/lib/store/create.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
+  return { ...original, createStore: (...args: Parameters<typeof original.createStore>) => selection.environment === null
+    ? original.createStore(...args) : original.selectStore(args[0], selection.environment) };
+});
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const OTHER_PLAN_ID = "f7f35d3f-8d46-4443-b36b-c4e7d463d5b8";
@@ -111,6 +119,23 @@ function state(options: {
 }
 
 describe("repository delivery member lookup", () => {
+  it("leaves a plan's rename resolution unavailable off the branch through its default source, and resolves it before the flip", async () => {
+    const cwd = await createTempRepo("arc-review-delivery-lookup-");
+    roots.push(cwd);
+    await makeCommit(cwd, "initial");
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    const lookup = (environment: Record<string, string>): RepositoryDeliveryMemberLookup => {
+      selection.environment = environment;
+      try { return new RepositoryDeliveryMemberLookup({ exec: makeGitExec(cwd), cwd }); } finally { selection.environment = null; }
+    };
+
+    await expect(lookup({}).resolveReservationRecords(plan.workUnitId, authority))
+      .resolves.toEqual({ status: "unavailable" });
+    await expect(lookup({ [IN_REPO_STORE_OVERRIDE]: "1" }).resolveReservationRecords(plan.workUnitId, authority))
+      .resolves.toEqual({ status: "planned", plan });
+  });
+
   it("distinguishes absent, planned, and coherently bound reservation records", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();

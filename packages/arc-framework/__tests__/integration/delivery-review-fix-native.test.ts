@@ -4,6 +4,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
+import { stageUnrelatedTransitionRecord } from "../helpers/delivery-transition-record.js";
 import { deliverySingleMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { handleDeliveryExecution } from "../../src/handlers/delivery-execution.js";
@@ -36,6 +37,7 @@ it.each(["none", "state", "boundary"] as const)("recovers and replays native del
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\n");
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
   await git("add", ".");
+  await stageUnrelatedTransitionRecord(cwd);
   await git("commit", "-m", "Configure project");
   const base = await git("rev-parse", "HEAD"), baseTree = await git("rev-parse", "HEAD^{tree}");
   await git("switch", "-c", branch);

@@ -15,7 +15,7 @@ import {
 } from "../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
-  GitDeliveryRenameTransitionSource,
+  createCheckoutDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
   resolveForwardDeliverySubject,
 } from "../lib/delivery/plan-resolution.js";
@@ -26,7 +26,7 @@ import {
   classifyDeliveryTransferImport,
 } from "../lib/delivery/transfer.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { createGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -288,7 +288,7 @@ async function resolveDeliveryTransferContext(interaction?: InteractionContext) 
     authority,
     planStore: new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec),
     stateStore: new RepositoryDeliveryStateStore(publisher),
-    transitionSource: new GitDeliveryRenameTransitionSource(createRawGitExec(cwd)),
+    transitionSource: createCheckoutDeliveryRenameTransitionSource(cwd),
   };
 }
 

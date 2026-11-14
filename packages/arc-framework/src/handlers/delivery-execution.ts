@@ -4119,7 +4119,7 @@ async function executeDeliveryCommand(
       renameAuthority: baseBranch === ""
         ? { status: "unestablished" }
         : { status: "established", ref: `refs/heads/${baseBranch}` },
-      renameTransitionSource: new GitDeliveryRenameTransitionSource(createRawGitExec(cwd)),
+      renameTransitionSource: new GitDeliveryRenameTransitionSource(createRawGitExec(cwd), reviewRecordStore.capabilities),
       residue: {
         observeRefreshCandidates: (planId) => observeDeliveryRefreshCandidateRefs(exec, planId),
         observeCandidate: (ref) => observeDeliveryLocalRef(exec, ref),

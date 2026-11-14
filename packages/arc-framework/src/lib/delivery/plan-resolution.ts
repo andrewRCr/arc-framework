@@ -1,8 +1,12 @@
 /** Resolve a current work unit's stored delivery plan through authenticated rename history. */
 
 import type { RawGitExec } from "../git/exec.js";
+import { createRawGitExec } from "../io-context.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-ports.js";
+import type { StoreCapabilities } from "../store/read.js";
 import {
-  enumerateGitTransitionRecords,
+  enumerateGitTransitionRecords, hasGitTransitionNamespace, TRANSITION_RECORD_NAMESPACE,
 } from "../work-unit/git-transition-record-enumeration.js";
 import {
   enumerateTransitionReferenceTransitions,
@@ -21,6 +25,7 @@ export type DeliveryRenameTransitionResult =
   | {
       readonly status: "refused";
       readonly reason: "ambiguous-subject" | "namespace-corrupt" | "substrate-unreachable";
+      readonly condition?: string;
     };
 
 /** Storage-independent source of authenticated reachable rename transitions. */
@@ -77,10 +82,26 @@ export type ForwardDeliverySubjectTransitionResolution<TRecord> =
 
 /** Git-backed source of authenticated transitions from one established ref. */
 export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransitionSource {
-  constructor(private readonly exec: RawGitExec) {}
+  /**
+   * @param exec - Byte-preserving Git executor in the checkout.
+   * @param capability - The store's capability. Off the branch, a ref without the transition folder refuses rather
+   *   than reading as a ref on which no work unit was ever renamed.
+   */
+  constructor(
+    private readonly exec: RawGitExec,
+    private readonly capability: Pick<StoreCapabilities, "stateOffBranch">,
+  ) {}
 
   async enumerate(ref: string): Promise<DeliveryRenameTransitionResult> {
     try {
+      if (this.capability.stateOffBranch && !await hasGitTransitionNamespace(this.exec, ref)) {
+        return {
+          status: "refused",
+          reason: "substrate-unreachable",
+          condition: `${TRANSITION_RECORD_NAMESPACE} is absent at ${ref}; with state off the branch, rename `
+            + "transitions are not read from a branch's tree.",
+        };
+      }
       const transitions = enumerateTransitionReferenceTransitions(
         await enumerateGitTransitionRecords(this.exec, ref),
       );
@@ -94,6 +115,18 @@ export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransiti
       return { status: "refused", reason: "substrate-unreachable" };
     }
   }
+}
+
+/**
+ * Build a checkout's rename source from the capability of the default store composed for it, so a caller holding no
+ * store reads transitions as that store keeps them.
+ *
+ * @param cwd - The checkout.
+ * @returns The Git-backed source bound to the checkout.
+ */
+export function createCheckoutDeliveryRenameTransitionSource(cwd: string): GitDeliveryRenameTransitionSource {
+  return new GitDeliveryRenameTransitionSource(createRawGitExec(cwd),
+    createStore(createDefaultStorePorts({ checkoutRoot: cwd })).capabilities);
 }
 
 /**
