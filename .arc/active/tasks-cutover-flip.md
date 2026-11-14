@@ -826,48 +826,53 @@ command declares it (`integration/command-surface-documentation.test.ts`).
 - _Outcome:_ The task loop, the commit skills, and the commit methods close tasks through the close verb and save state
   rather than committing it. Kept sites are in `notes-cutover-flip.md` § Kept sites.
 
-### `[ ]` **5.5 Work-unit lifecycle from init to reopen — § 8.5, § 8.6, § 8.11**
+### `[x]` **5.5 Work-unit lifecycle from init to reopen — § 8.5, § 8.6, § 8.11**
 
 - _Goal:_ Each lifecycle workflow runs its verb and saves, with no planning branch, hand-edited verb-owned field, park,
   or remote branch delete the store makes the verb's job.
 
-- _Note:_ From Task 5.4, `commit-footer` lists no `(activation)`, `(deactivation)`, or `(maintenance)` footer, since
-  those commits carried only state; each commit block naming one goes with its save.
+    - `[x]` **5.5.a `init-work-unit.md`**
+        - The start writes records alone: Step 1 keeps only the inbox backstop, and the `plan/` branch, its push, the
+          ROADMAP render, and the SESSION-NOTES seed go. The start records its starter as `Owner`; `Class` goes through
+          `--class` or `arc set-class`, a stub specified before its start through `arc repoint-design spec-finalized`,
+          and the re-run's stage through `arc set-stage`. Promotion settles in its one write, its Errand branch linked.
 
-    - `[ ]` **5.5.a `init-work-unit.md`**
-        - Base-parity and write-context preconditions, the `plan/` branch's purpose, push, and SESSION-NOTES seed go;
-          the post-init and Errand-promotion `Class` steps move onto `arc set-class`; the `Owner`-preserving step and
-          the re-run's `Branch` edit go to verbs.
+    - `[x]` **5.5.b `activate-work-unit.md` and `deactivate-work-unit.md`**
+        - Activation's gate reads `arc locus`, `arc view`, and both inbox listings, removing captures by ID and version
+          and recording each one it rejects or dismisses in the notes companion (A4); `Class` settles through `arc
+          set-class` before `arc activate`, which takes no `--task`, and Step 4 pushes the work branch and runs the
+          deletion its result names. The draft removal moves into the verb (5.5.R).
+        - Deactivation keeps the work branch. A-delete is the abandon's one write, `arc teardown` its continuation, and
+          its cleanup keeps only the `external` tracker update; Case C reverses through the verb; and a partial-scope
+          `[~]` becomes `arc task defer`.
 
-    - `[ ]` **5.5.b `activate-work-unit.md` and `deactivate-work-unit.md`**
-        - Activation's Step 3 `Class` edit moves onto `arc set-class`; Step 4 runs the actions its result names rather
-          than `git push origin --delete`; the workspace step goes.
-        - Step 3's residual-draft removal: § 8.11 keeps it inside the verb at activation, yet a search of `src` and
-          `spec-seam-lifecycle.md` § 6.1 found no draft removal on the activation path. A stub specified before its
-          start reaches activation with its draft record, since create-spec's repoint runs only in `Planning`.
-        - Deactivate: Case A's Step 3 remote delete goes to the verb's actions; Case A-delete's Step 3 abandonment
-          commit becomes the abandon's write, and its Step 5 keeps only the `external` and `none` arms, since no stub
-          folder stays on base and ROADMAP is not stored; Case C's `Branch` edit goes to the verb; a partial-scope `[~]`
-          becomes `arc task defer`.
+    - `[x]` **5.5.c `park-work-unit.md` and `resume-work-unit.md`**
+        - Both shrink to the verbs, keeping their filenames: pause writes its section in place, `arc locus release`
+          freeing the checkout; resume clears it, `arc materialize` giving a released unit a checkout, and keeps the
+          reconcile with no commit. `integration/review-gate-workflows.test.ts` loses their merge commands.
 
-    - `[ ]` **5.5.c `park-work-unit.md` and `resume-work-unit.md`**
-        - Both shrink to `arc pause` and `arc resume`; the pointer record, park from Planning's landing, and the parked
-          position go; resume's Locus sentence follows the brief's (§ 8.16), naming `arc locus release`.
-        - Tests that change with it: `integration/resume-reconcile-workflow.test.ts`'s `chore(arc): resume {name}`
-          commit, and `integration/locus-methodology-contracts.test.ts`'s resume case forbidding `arc locus release`.
+    - `[x]` **5.5.d `promote-work-unit.md`, `reopen-work-unit.md`, `clean-work-unit.md`, and the lifecycle methods**
+        - Promote takes `arc promote --class` and reopen drops its commit, push, and `(maintenance)` footer;
+          `run-errand.md`'s promotion is one write; clean-work-unit saves; `branch-format`'s `plan/` prefix and its
+          `[invariant]` go; the methods read `arc view --for` and `arc locus`, and name pausing and the record's
+          lifecycle; the cohort template's `Parent` records the nesting.
 
-    - `[ ]` **5.5.d `promote-work-unit.md`, `reopen-work-unit.md`, `clean-work-unit.md`, and the lifecycle methods**
-        - `arc promote --class` covers promote's Step 2; promotion's `commit-required` prose goes, in `run-errand.md`'s
-          promotion paragraph too; `branch-format`'s `plan/` prefix and its `[invariant]` go; `assess-parallel-fit`,
-          `discover-next-work`, and `assess-start-readiness` read the store or the projection; `classify-work-unit`'s
-          lifecycle positions name the record's lifecycle rather than `backlog/` folders; the cohort template's `Parent`
-          note is rewritten.
-        - Tests that change with it: `integration/locus-methodology-contracts.test.ts`'s `settlement.state:
-          commit-required` cases.
+    - `[x]` **5.5.e Cohort identity steps**
+        - No shipped workflow, method, or skill renames, closes, or removes a cohort, or resolves a slug clash, by hand:
+          archive's sidecar sweep goes in Task 5.6, and the quick reference's verb lines in Task 5.10.
 
-    - `[ ]` **5.5.e Cohort identity steps**
-        - Every step that renames, closes, or removes a cohort, or resolves a slug clash, by hand edit moves onto `arc
-          rename <slug|uid>`, `arc cohort close`, and `arc cohort remove`.
+    - `[x]` **5.5.R `arc activate` removes a superseded draft record**
+        - _Goal:_ From the flip, activation removes the work unit's draft record in the write that flips it to Active
+          unless `Design` still names the draft, so activation's residual-draft removal stays inside the verb (A3).
+        - `runStoreActivate` (`lib/work-unit/verbs/activate-deactivate-store.ts`) adds the draft's expected-version
+          removal to the activation batch through `readOwnDraft`, now shared from `lib/store/lifecycle-write.ts`; the
+          result and the handler's report name the removed draft (`integration/activation-draft-retire.test.ts`). The
+          in-repo arm still leaves the draft.
+
+- _Outcome:_ Each lifecycle workflow runs its verb and saves only the fields it edits by hand; none commits state,
+  pushes a planning branch, or deletes a remote branch its verb's result does not name, so
+  `integration/commit-check-corpus.test.ts` counts 13 commit subjects where it counted 26. Kept sites are in
+  `notes-cutover-flip.md` § Kept sites.
 
 ### `[ ]` **5.6 Delivery, review, and archive, with the errata convention — § 8.7, § 8.12**
 
@@ -942,6 +947,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
     - `[ ]` **5.8.c `route-discovered-work` and `issue-triage`**
         - The binding section takes the from-the-flip binding through `arc route`, `_Routed from:_`'s date moving to
           `_Created:_`; the planning-grooming lane selection goes.
+        - _Note:_ From Task 5.5, the owner's-pass paragraph still records activation's and verification's rejected or
+          dismissed captures in a ceremony commit body; `activate-work-unit.md` Step 1 and § 8.7's `_Captures:_` name
+          their homes from the flip.
         - Tests that change with it: `integration/review-gate-workflows-code-review.test.ts`'s `arc review
           planning-grooming resolve -` cases, and `integration/framework-sync.test.ts`, whose manifest hash for
           `route-discovered-work.md` moves with it.
@@ -972,6 +980,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
 
 - _Goal:_ Every sentence in the brief, `DEV-RULES.ARC.md`, and QUICK-REFERENCE's verb index that the flip makes false
   states what is true from the flip.
+
+- _Note:_ From Task 5.5, the verb index's `arc rename` takes `<slug|uid>`, `arc cohort close` and `arc cohort remove`
+  join it, and `arc resume` loses `--here`.
 
     - `[ ]` **5.10.a `AGENT-BRIEF.ARC.md`**
         - The Locus definition: exclusive "through exact teardown or release", the role deriving from the marker and the
@@ -1247,6 +1258,9 @@ landing after verification).
 
 - `[ ]` The first Errand and the first work unit after the window each land through the hosted steps it exists to test
   (§ 9.11).
+
+- `[ ]` `activate-work-unit.md` records each capture its gate rejects or dismisses, with its reason, in the work unit's
+  notes companion (A4).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

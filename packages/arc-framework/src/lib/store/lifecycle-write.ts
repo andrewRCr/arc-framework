@@ -140,3 +140,13 @@ export function workUnitArtifactName(slug: string, artifact: "meta" | "draft" | 
   return posix.basename(resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug),
     placement: { kind: "active", scope: { kind: "project" } } }));
 }
+
+/** Read a work unit's own draft for retirement; a work unit that never drafted has none to remove.
+ * @param store - Store holding the work unit's records.
+ * @param meta - The work unit's meta record, whose owner names the draft.
+ * @returns The draft read, a refusal other than its absence, or `undefined` when no draft exists.
+ */
+export async function readOwnDraft(store: Pick<Store, "read">, meta: StoreRecord): Promise<StoreResult<StoreRecord> | undefined> {
+  const read = await store.read({ reference: recordReferences["work-item/draft"](meta.reference.owner) });
+  return read.status === "refused" && read.refusal.code === "not-found" ? undefined : read;
+}

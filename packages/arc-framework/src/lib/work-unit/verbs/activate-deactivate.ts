@@ -76,7 +76,8 @@ export interface DeactivateParams {
 /** The outcome of an `activate` attempt — a rejection, or the activated meta path. */
 export type ActivateResult =
   | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
-  | { status: "activated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult; branch?: string; report?: string[]; remoteDelete?: { text: string; argv?: string[] } }
+  | { status: "activated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult; branch?: string; report?: string[];
+      remoteDelete?: { text: string; argv?: string[] }; removedDraft?: string }
   | {
       status: "reconcile-failed";
       reason: string;

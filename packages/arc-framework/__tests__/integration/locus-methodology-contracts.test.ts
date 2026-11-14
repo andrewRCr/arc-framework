@@ -173,7 +173,7 @@ describe("locus methodology contracts", () => {
       );
 
       for (const workflow of [runErrand, initWorkUnit]) {
-        expect(workflow).toContain("`settlement.state: commit-required`");
+        expect(workflow).not.toContain("`settlement.state: commit-required`");
         expect(workflow).toContain("`settlement.state: settled`");
       }
       expect(initWorkUnit).toMatch(softWrappedProse("same exact `subject` and `generation`"));
@@ -201,17 +201,21 @@ describe("locus methodology contracts", () => {
     for (const base of [packageArc, projectArc]) {
       const surfaces = await Promise.all([
         readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
-        readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
         readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8"),
       ]);
+      const resume = await readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8");
 
       for (const surface of surfaces) {
         expect(surface).not.toMatch(
           /arc locus (?:attach|release|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
         );
       }
+      expect(resume).toMatch(softWrappedProse("exact teardown, or a release (`arc locus release`), removes its marker"));
+      expect(resume).not.toMatch(
+        /arc locus (?:attach|resolve)|--confirm-no-live-session|session locus record|dead lease|live lease|record-free/u,
+      );
     }
   });
 });

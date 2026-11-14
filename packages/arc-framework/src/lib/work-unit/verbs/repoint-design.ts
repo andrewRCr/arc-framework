@@ -30,11 +30,9 @@ import { posix } from "node:path";
 
 import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
-import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath, workUnitArtifactName } from "../../store/lifecycle-write.js";
-import { recordReferences } from "../../store/identity.js";
+import { readWorkUnit, readOwnDraft, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath, workUnitArtifactName } from "../../store/lifecycle-write.js";
 import type { Mutation } from "../../store/write.js";
-import type { StoreRefusal, StoreResult } from "../../store/refusal.js";
-import type { StoreRecord } from "../../store/read.js";
+import type { StoreRefusal } from "../../store/refusal.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { BEGIN_CURRENT_WORKFLOW_SENTINEL } from "../../active/current-workflow-consistency.js";
 import { writeMetaCurrentWorkflow, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
@@ -126,12 +124,6 @@ async function repointThroughStore(ctx: RepointDesignContext, name: string, even
   if (written.status === "refused") return { status: "rejected", reason: written.refusal.condition, refusal: written.refusal };
   return { status: "ok", metaPath, design: next.length === 0 ? "[none]" : next.join(", "),
     ...(retired === undefined ? {} : { removedDraft: draft }) };
-}
-
-/** Read the work unit's own draft for retirement; a work unit that never drafted has none to remove. */
-async function readOwnDraft(store: NonNullable<RepointDesignContext["store"]>, meta: StoreRecord): Promise<StoreResult<StoreRecord> | undefined> {
-  const read = await store.read({ reference: recordReferences["work-item/draft"](meta.reference.owner) });
-  return read.status === "refused" && read.refusal.code === "not-found" ? undefined : read;
 }
 
 function repointedDesign(current: readonly string[], draft: string, spec: string, event: RepointDesignEvent): string[] {

@@ -9,9 +9,11 @@ import type { LifecycleEntry } from "../../store/lifecycle-index.js";
 import { computeDefaultCaptureSet } from "../../git/default-capture-set.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { lifecycleArtifactPath, requireCompleteInventory } from "../../store/lifecycle-storage.js";
-import { mergeLifecycleLinks, readWorkUnit } from "../../store/lifecycle-write.js";
+import { mergeLifecycleLinks, readOwnDraft, readWorkUnit, workUnitArtifactName } from "../../store/lifecycle-write.js";
+import type { Mutation } from "../../store/write.js";
 import { executeTransition } from "../lifecycle-executor.js";
 import { activationCaptureReport, planActivationBranch } from "./activation-branch-plan.js";
+import type { CurrentWuReconcileResult } from "../side-effects/discharge-dep-edges.js";
 import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext, DeactivateParams, DeactivateResult } from "./activate-deactivate.js";
 
 /** Activate only after branch preflight, fetches and inventory refusals have all resolved. */
@@ -32,22 +34,45 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   const plan = await planActivationBranch({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, name: params.name,
     toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
-  const metaPath = await lifecycleArtifactPath(ctx.cwd, entry, "meta");
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: primary.reference });
-  if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${params.name}: current-WU reconcile refused (${prepared.reason}).` };
-  const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
-  if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${params.name}.`, metaPath, reconcile };
-  const updated = await store.read({ reference: primary.reference });
-  if (updated.status === "refused") return { status: "rejected", reason: updated.refusal.condition, refusal: updated.refusal };
-  const links = mergeLifecycleLinks(updated.result.links, { branches: [plan.link] },
+  const retired = await supersededDraftRemoval(store, primary, record.design);
+  if (retired.status === "rejected") return retired;
+  const reconciled = await reconcileForActivation(ctx, store, { name: params.name, entry, primary });
+  if (reconciled.status !== "ready") return reconciled;
+  const { metaPath, reconcile, updated } = reconciled;
+  const links = mergeLifecycleLinks(updated.links, { branches: [plan.link] },
     plan.priorRef === null ? {} : { branches: [{ repository: plan.link.repository, ref: plan.priorRef }] });
   const outcome = await executeTransition(ctx, { verb: "activate", slug: params.name, inputs: {
-    storeTransition: { primary: updated.result, links, gitSteps: [plan.step] }, softFields: { nextAction: params.nextAction },
+    storeTransition: { primary: updated, links, gitSteps: [plan.step], additionalWrites: retired.writes },
+    softFields: { nextAction: params.nextAction },
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...(outcome.status === "rejected" ? { refusal: outcome.refusal, remedy: outcome.remedy } : {}) };
   return { status: "activated", outcome, metaPath, reconcile, branch: plan.link.ref, report: plan.report,
-    ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }) };
+    ...(plan.remoteDelete === undefined ? {} : { remoteDelete: plan.remoteDelete }), ...retired.result };
+}
+
+/** A draft the design no longer names rides the activation batch as its removal; one it still names is the design. */
+async function supersededDraftRemoval(store: Store, primary: StoreRecord, design: readonly string[]):
+  Promise<{ status: "ready"; writes: Mutation[]; result: { removedDraft?: string } } | Rejected> {
+  const name = workUnitArtifactName(primary.reference.owner.name, "draft");
+  const draft = design.includes(name) ? undefined : await readOwnDraft(store, primary);
+  if (draft === undefined) return { status: "ready", writes: [], result: {} };
+  if (draft.status === "refused") return { status: "rejected", reason: draft.refusal.condition, refusal: draft.refusal };
+  return { status: "ready", writes: [{ action: "remove", reference: draft.result.reference, expected: draft.result.version }],
+    result: { removedDraft: name } };
+}
+
+/** Reconcile the current work unit onto the activating one, then re-read the primary the reconcile may have touched. */
+async function reconcileForActivation(ctx: ActivateContext, store: Store, { name, entry, primary }: { name: string; entry: LifecycleEntry; primary: StoreRecord }):
+  Promise<{ status: "ready"; metaPath: string; reconcile: CurrentWuReconcileResult; updated: StoreRecord } | Exclude<ActivateResult, { status: "activated" }>> {
+  const metaPath = await lifecycleArtifactPath(ctx.cwd, entry, "meta");
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: name, metaPath, reference: primary.reference });
+  if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${name}: current-WU reconcile refused (${prepared.reason}).` };
+  const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
+  if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${name}.`, metaPath, reconcile };
+  const updated = await store.read({ reference: primary.reference });
+  if (updated.status === "refused") return { status: "rejected", reason: updated.refusal.condition, refusal: updated.refusal };
+  return { status: "ready", metaPath, reconcile, updated: updated.result };
 }
 
 /** Keep the branch and its link, reporting task work while returning the work unit to Planning. */

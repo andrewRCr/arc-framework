@@ -111,8 +111,12 @@ For each match: read context, verify it's temporal noise (not substantive), remo
 
 ## Quality Checks
 
-After invoking any section, request `arc check increment` once over the final cleanup edits. Review the diff to
-ensure no accidental task-checkbox edits.
+After invoking any section, request `arc check increment` once over the final cleanup edits. Review the edits to
+ensure no accidental task-checkbox edits, then save them:
+
+```bash
+arc save
+```
 
 **Verify temporal noise removed (after § Task List Temporal-Noise Pass):**
 

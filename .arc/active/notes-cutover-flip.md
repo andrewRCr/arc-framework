@@ -267,7 +267,7 @@ today's text takes:
   `arc teardown`, and `arc status --conflicts` names `git status`.
 - **Not refusing in-repo:** `arc errand open --from-inbox personal:<id>`, which reads the personal inbox file, and
   `arc store remote`, which answers. `arc repoint-design spec-finalized` repoints in-repo without removing the draft,
-  so create-spec's draft stays tracked there until activation's residual-draft removal. `arc attest` and
+  so create-spec's draft stays tracked there; activation removes a draft only over the ref backend (A3). `arc attest` and
   `arc materialize` were not run: a search of their source found no capability-gated `unsupported` refusal. The
   in-repo store's own `unsupported` refusals (`lib/store/in-repo/**`) answer its internal callers; each verb above
   refuses before it writes through one.
@@ -443,6 +443,18 @@ A2's checks, run by the author: depth `low`; `spec-review` over the revised § 8
 design element a title cites, since the citation is recommended rather than required; the coherence reread after that
 fold found nothing further; no revision tasks for a grounding check; no independent pass at `low`.
 
+## A4 — activation's capture record
+
+Activation's capture gate recorded each rejected or dismissed capture, with its reason, in the activation commit body
+(`route-discovered-work`'s owner's-pass paragraph). From the flip activation makes no commit, and § 8 named no home for
+the record, while § 8.7 gives verification's the verification task's `_Captures:_` category. Activation has no
+verification task to carry it, so the record goes into the notes companion, which travels with the work unit to its
+archive; the gate saves it before the activation runs. Task 5.8.c carries the method's sentence.
+
+A4's checks, run by the author: depth `low`; `spec-review` over the § 8.6 bullet, the row, and the appended criterion,
+with § 8.7's `_Captures:_` and § 8.10's capture removal as the surrounding contract, and `activate-work-unit.md` Step 1
+and Step 3 read against them, found nothing to fold; no independent pass at `low`.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
@@ -479,3 +491,13 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
 - `meta-{name}` in `commit-footer`'s chain naming: a footer names the meta record by its filename, not a tracked path;
   "plan/PRD" there is prose, not a planning branch.
 - `git commit` in `commit-format`: the raw route's commit of tracked files and its message transport.
+
+**Work-unit lifecycle (Task 5.5):**
+
+- `arc user inbox-remove --id <id> --expected-version <version>` in `activate-work-unit.md`: the removal verb the flip
+  keeps, by ID and version.
+- `notes-{name}.md`, "notes", "notes file", "completion notes", and "resume notes" in `activate-work-unit.md`,
+  `init-work-unit.md`, `clean-work-unit.md`, and `park-work-unit.md`: the notes companion, task-list completion notes,
+  and the pause's resume notes, not Git notes.
+- `- [x] 4.3.3` in `clean-work-unit.md`: an example of a closed task line the pass keeps verbatim, not a close.
+- `park-work-unit` in `resume-work-unit.md`: the pause workflow's filename, which the rewrite keeps.

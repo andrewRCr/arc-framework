@@ -793,8 +793,6 @@ describe("trusted review-gate workflows", () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
       ["integrate-work-unit.md", "arc integrate checkpoint {name}"],
-      ["park-work-unit.md", "arc park"],
-      ["resume-work-unit.md", "arc resume"],
     ]);
     let commandCount = 0;
     for (const name of (await readdir(directory)).filter((entry) => entry.endsWith(".md"))) {
@@ -808,7 +806,7 @@ describe("trusted review-gate workflows", () => {
         expect(prefix.lastIndexOf("`integration-interlock`")).toBeGreaterThan(prefix.lastIndexOf(product ?? ""));
       }
     }
-    expect(commandCount).toBe(3);
+    expect(commandCount).toBe(1);
   });
 
   it("gates full-protection decomposition merge after PR status", async () => {

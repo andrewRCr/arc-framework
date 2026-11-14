@@ -864,6 +864,7 @@ export async function handleActivate(
     return;
   }
   reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${result.branch ?? `${type}/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []),
+    ...(result.removedDraft === undefined ? [] : [`Removed:   ${result.removedDraft}`]),
     ...(result.report ?? []), ...(result.remoteDelete === undefined ? [] : [result.remoteDelete.text])], result.outcome);
 }
 

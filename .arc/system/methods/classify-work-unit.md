@@ -11,9 +11,9 @@ override-active: false
 > - **Workflow:** [init-work-unit.md][init-work-unit], [activate-work-unit.md][activate-work-unit],
 >   [draft-design.md][draft-design], [create-spec.md][create-spec],
 >   [generate-tasks.md][generate-tasks], [run-errand.md][run-errand]
-> - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — promotion into
->   `backlog/planned/` (the forcing point), `init` as the WU enters active planning, `activate` at the
->   pre-implementation settle, the planning stages, and an Errand’s Launch classification or promote trigger.
+> - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — promotion to planned (the
+>   forcing point), `init` as the WU starts planning, `activate` at the pre-implementation settle, the planning stages,
+>   and an Errand’s Launch classification or promote trigger.
 >
 > - **Contract:** Given a work unit, return its `Class` — `Light` / `Heavy` / `Novel`, or `[TBD]` when its
 >   weight is genuinely not yet knowable — by applying the boundary tests, never resolving below the floor the
@@ -94,8 +94,8 @@ the depth or care the work demands.
 ### Resolving the estimate (and `[TBD]`)
 
 `[TBD]` is the pre-classification sentinel: every WU _has_ a `Class`, and `[TBD]` means it is merely unresolved
-(distinct from `[none]`). It is legal only in `backlog/provisional/`. Wherever a start decision is imminent —
-entry into `backlog/planned/` and everything downstream — resolve it to a real value.
+(distinct from `[none]`). It is legal only on a provisional stub. Wherever a start decision is imminent — promotion
+to planned and everything downstream — resolve it to a real value.
 
 When resolving without complete information, set a **best estimate** against the boundary tests — never a
 blanket `Heavy` stamp. A blanket stamp fabricates the very signal `Class` exists to carry, and the ratchet

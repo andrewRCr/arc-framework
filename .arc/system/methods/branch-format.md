@@ -42,14 +42,7 @@ override-active: false
   distinct from one-off maintenance)
 - `hotfix/<name>` — urgent production-bypass fix; typically atomic in character, light-ceremony
 
-**Planning life-phase prefix:** `plan/<branch-name>` — used during the planning life-phase of a
-WU (discovery, draft-doc iteration, spec authoring, task generation). Rotates to one of the type
-prefixes above at activation. See `strategy-work-organization.md` § Branching for the rotation
-mechanics.
-
-**The `plan/` prefix is not overridable** · `[invariant]` — the type set above is the overridable
-surface, but the planning prefix carries semantic coupling to ARC's `State: Planning` state-machine
-value and session-init's branch-pattern fallback.
+**A WU plans with no branch.** Activation gives it a branch under one of the type prefixes above.
 
 **The `delivery/` prefix is a reserved presentation namespace, not a work-unit type** · `[invariant]`.
 Delivery member refs use `delivery/{wu-slug}/{chunk-key}` for human legibility, but ARC excludes them from
@@ -62,8 +55,8 @@ work-unit branch parsing and resolves member identity only from exact delivery-s
 - No trailing slashes; no characters beyond `[a-z0-9-]`
 
 **Worktree branch posture:** A work unit's branch is the same branch regardless of which worktree checks it
-out, so worktrees introduce no new naming surface — the type set, the `plan/` prefix, and the override
-mechanism below govern ARC-created branches in linked worktrees exactly as in the primary checkout. A branch
+out, so worktrees introduce no new naming surface — the type set and the override mechanism below govern
+ARC-created branches in linked worktrees exactly as in the primary checkout. A branch
 that arrives in a worktree ARC did not create is advisory only: ARC warns when its name does not match this
 convention but never refuses or relocates it, so ARC composes with externally-created branches rather than
 rejecting them.

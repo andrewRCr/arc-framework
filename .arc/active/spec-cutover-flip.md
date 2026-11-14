@@ -965,6 +965,8 @@ retire (`spec-seam-lifecycle.md` § 8.1, § 8.9). The two workflows shrink to th
 - Every step that renames, closes, or removes a cohort by hand edit, or resolves a slug clash by hand, moves onto
   `arc rename <slug|uid>`, `arc cohort close`, and `arc cohort remove`, since from the flip write-back cannot rename a
   cohort: each edited file persists as its own write (`spec-cohort-identity-verbs.md` § 10).
+- Activation's record of each capture its gate rejects or dismisses, with its reason, today in the activation commit
+  body, goes into the work unit's notes companion, saved before the activation, since activation makes no commit (A4).
 
 #### 8.7 Delivery and review
 
@@ -2163,5 +2165,9 @@ None.
   _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.3.R. _Revalidated:_ pending → 5.12.
 - **A2** — 2026-11-14 — design: the task review reads a task's starting plan from its verbatim lines, not `history`.
   _Supersedes:_ § 8.15 ¶1. _Trigger:_ 5.4 must-stop. _Work:_ none. _Revalidated:_ pending → 5.12.
+- **A3** — 2026-11-14 — task: `arc activate` removes a draft that `Design` no longer names in the activation write.
+  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.5.R. _Revalidated:_ pending → 5.12.
+- **A4** — 2026-11-14 — spec-depth: activation records each rejected or dismissed capture in the notes companion.
+  _Supersedes:_ none. _Trigger:_ 5.5 must-stop. _Work:_ 5.5. _Revalidated:_ pending → 5.12.
 
 ---

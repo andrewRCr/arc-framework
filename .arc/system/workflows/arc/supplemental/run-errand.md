@@ -46,11 +46,9 @@ consume the exact updated subject and identity/origin evidence. For terminal `cl
   authorizes only that named act in that request.
 - On `refused` / `error`, render `recommendedPromptText` and stop.
 
-Promotion is a two-call transition owned by [`init-work-unit`][promote-errand-to-wu]. Consume the typed result rather
-than inspecting the renamed branch, meta, identity, or marker: `settlement.state: commit-required` retains the exact
-identity while the returned `metaPath` is committed; rerun the same command and continue only from the same exact
-`subject` and `generation` with `settlement.state: settled`. Render `recommendedPromptText` and stop on
-`confirmation-required`, `refused`, or `error`.
+Promotion is one write owned by [`init-work-unit`][promote-errand-to-wu]. Consume the typed result rather than
+inspecting the work branch, meta, identity, or marker: continue only from the exact `subject` and `generation` with
+`settlement.state: settled`. Render `recommendedPromptText` and stop on `confirmation-required`, `refused`, or `error`.
 
 Never reconstruct allocation, terminal authority, preservation, cleanup, or continuation from Git branch shape.
 
@@ -135,8 +133,8 @@ work-unit signal; needing a _durable plan_ is.
 
 **Spec-worthy → promote.** The moment any answer in [classify-work-unit][classify-work-unit] boundary test 1 flips
 Yes, stop and continue through the [Promote Errand path][promote-errand-to-wu]. Design worth recording or a durable
-cross-session plan crosses the floor; that path owns the floor judgment, generation-checked conversion, meta commit,
-and capture settlement. Do not promote inline.
+cross-session plan crosses the floor; that path owns the floor judgment, generation-checked conversion, and capture
+settlement. Do not promote inline.
 
 **A discovered concern** runs the Errand route-to-home door before placement:
 

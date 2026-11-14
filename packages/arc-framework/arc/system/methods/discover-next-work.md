@@ -27,11 +27,12 @@ When a seed names a backlog work unit, pre-focus it as the candidate and offer t
 never automatic initialization. Resolve work-unit state by slug with `arc status <slug>`. Otherwise follow `pmMode`:
 
 - **`arc-in-git`:** Render the live project view with `arc status --project` and identify the next queued or suggested
-  item. Check `.arc/backlog/` for its source artifacts — PRDs, drafts and meta. Report what exists and its readiness;
-  propose the next step, typically `arc start` to initialize the chosen unit or continued drafting, and ask before acting.
-- **Any other mode:** Check `.arc/active/` for the candidate's artifacts. Report readiness: a draft PRD needs refinement,
-  a complete PRD is ready for task generation, and a task list is ready for activation. Propose the next step; with no
-  artifacts, propose [create-spec][create-spec]. Ask before acting.
+  item. Read its records with `arc view <kind> --for <slug>` — PRDs, drafts and meta. Report what exists and its
+  readiness; propose the next step, typically `arc start` to initialize the chosen unit or continued drafting, and ask
+  before acting.
+- **Any other mode:** Read the candidate's records with `arc view <kind> --for <slug>`. Report readiness: a draft PRD
+  needs refinement, a complete PRD is ready for task generation, and a task list is ready for activation. Propose the
+  next step; with no artifacts, propose [create-spec][create-spec]. Ask before acting.
 
 With more than one candidate, load [assess-parallel-fit][assess-parallel-fit] and apply its multi-candidate selection
 over the in-flight set. Surface its posture as advisory input, preserving the person's choice.
