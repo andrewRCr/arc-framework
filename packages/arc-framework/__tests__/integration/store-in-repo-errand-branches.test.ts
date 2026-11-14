@@ -2,9 +2,9 @@
 import { expect, it, onTestFinished } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 it.each(["fix", "refactor", "hotfix"])("resolves a recorded %s branch as its Errand", async (type) => {
   const root = await createTempRepo();
@@ -19,7 +19,7 @@ it.each(["fix", "refactor", "hotfix"])("resolves a recorded %s branch as its Err
   const blob = await hashBlob(execInput, serializeTransientIdentityRecord(record));
   await writeTreeCommit({ exec, execInput, identity: "andrew" }, new Map([[record.slug, blob]]), "Create authority", [], null);
   await exec("git", ["branch", record.branch]);
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: root }));
   expect(await store.lookup({ kind: "ref", repository: root, ref: `refs/heads/${record.branch}` })).toMatchObject({
     status: "ok", result: { reference: { kind: "work-item/record", owner: { type: "work-item", name: record.slug } } },
   });

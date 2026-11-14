@@ -1,6 +1,5 @@
 /** Local identity failures retain their original cause rather than inventing byte corruption. */
 import { expect, it, onTestFinished } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { ArcError } from "../../src/lib/kernel/errors.js";
@@ -9,7 +8,7 @@ import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from 
 import { errandsRef, readRefTip } from "../../src/lib/errand/ref-tree.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 type Stage = "hash" | "tip" | "tree" | "blob" | "common-base" | "cleanup";
@@ -46,7 +45,7 @@ it.each(cases)("keeps the original $kind from $stage and leaves the identity tip
   ports.remote = async()=>stage === "common-base" || stage === "cleanup" ? "origin" : null;
   const original = kind === "EIO" ? Object.assign(new Error(`Local ${stage} IO failed`),{code:"EIO"})
     : new GitProcessError({kind:"spawn-failure",command:"git",args:[stage],stderr:"Local process could not start"});
-  const store = createStore(ports);
+  const store = inRepoStore(ports);
   const alpha = success(await store.write(input("alpha")));
   if (stage === "common-base") { ports.remote = async()=>null; success(await store.write(input("beta"))); ports.remote = async()=>"origin"; }
   const before = await readRefTip(exec,errandsRef("andrew"));
@@ -65,7 +64,7 @@ it.each(readCases)("preserves the original $stage $operation failure", async ({s
   const exec = makeGitExec(clones.cloneA);
   const ports = testStorePorts(clones.cloneA,exec,makeGitExecInput(clones.cloneA));
   ports.identity = async()=>SlugSchema.parse("andrew");
-  const store = createStore(ports),write = input("alpha");
+  const store = inRepoStore(ports),write = input("alpha");
   success(await store.write(write));
   const original = Object.assign(new Error(`Local ${stage} read failed`),{code:"EIO"});
   ports.exec = async(command,args,options)=>{if (matches(stage,args)) throw original;return exec(command,args,options);};
@@ -79,7 +78,7 @@ it("preserves a failure resolving an immutable historical identity snapshot", as
   const exec = makeGitExec(clones.cloneA);
   const ports = testStorePorts(clones.cloneA,exec,makeGitExecInput(clones.cloneA));
   ports.identity = async()=>SlugSchema.parse("andrew");
-  const store = createStore(ports),write = input("alpha");
+  const store = inRepoStore(ports),write = input("alpha");
   success(await store.write(write));
   const original = Object.assign(new Error("Historical identity tip unreadable"),{code:"EIO"});
   ports.exec = async(command,args,options)=>{

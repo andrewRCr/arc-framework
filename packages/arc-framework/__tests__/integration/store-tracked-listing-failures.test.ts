@@ -2,7 +2,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { ListInputSchema } from "../../src/lib/store/read.js";
 import { StateVersionSchema } from "../../src/lib/store/identity.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
@@ -11,6 +10,7 @@ import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 async function fixture(kind: "lineage/transition" | "review/candidate" | "review/integration-boundary" | "work-item/meta" | "work-item/companion" | "cohort/document") {
   const h = await trackedWriteFixture();
@@ -149,8 +149,8 @@ describe("tracked listing acquisition", () => {
     await expect(h.store.list({ ...h.input, asOf: h.asOf })).rejects.toBe(failure);
     await expect(h.store.changes({from:h.asOf,to:h.asOf})).rejects.toBe(failure);
     h.ports.exec = actual;
-    expect(success(await createStore(h.ports).list({ ...h.input, asOf: h.asOf }))).toMatchObject({ status: "complete", missed: false });
-    expect(success(await createStore(h.ports).changes({from:h.asOf,to:h.asOf}))).toEqual([]);
+    expect(success(await inRepoStore(h.ports).list({ ...h.input, asOf: h.asOf }))).toMatchObject({ status: "complete", missed: false });
+    expect(success(await inRepoStore(h.ports).changes({from:h.asOf,to:h.asOf}))).toEqual([]);
   });
 
   it("reports a denied companion directory after acquiring its meta", async () => {

@@ -108,9 +108,11 @@ the ref backend while the default store stays in-repo.
 - _Note:_ About 85 test files call `createStore` directly; the classification by file is recorded in
   `notes-cutover-flip.md` § Test callers as this task runs.
 
-    - `[ ]` **1.4.a The in-repo store suites**
-        - `store-tracked-*`, `store-transient*`, `store-in-repo-*`, `in-repo-*`, `store-personal-*`, and the
-          integration and unit tests that expect `unsupported` from the in-repo store.
+    - `[x]` **1.4.a The in-repo store suites**
+        - The eleven `store-tracked-*`, `store-transient*`, `store-in-repo-*`, and `store-personal-*` integration
+          suites and the four `in-repo-*` unit suites build their stores through `inRepoStore`. So do the unit tests
+          that expect `unsupported` from the in-repo store outside those names: `handlers/review-adversarial`,
+          `work-unit/verbs/pause-handover`, and `store-command-registration`.
 
     - `[ ]` **1.4.b Default-factory tests of the in-repo arm**
         - `integration/errand-store-imported-cli.test.ts` asserts the sealing refusal from an in-repo build;

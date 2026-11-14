@@ -1,13 +1,12 @@
 /** Publication failures preserve local causes rather than inventing remote refusals. */
 import { expect, it, onTestFinished } from "vitest";
-import { createStore } from "../../src/lib/store/create.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { errandsRef, hashBlob, readRefTip, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { readTransientIdentitySnapshotAtRef } from "../../src/lib/errand/identity-snapshot.js";
 
@@ -26,7 +25,7 @@ it.each(cases)("throws the original $kind cause from $stage instead of a remote 
     : kind === "signal" ? new GitProcessError({ kind: "nonzero-exit", command: "git", args: [stage, "origin"], signal: "SIGTERM", stderr: "Could not read from remote: process was terminated" })
     : new GitProcessError({ kind, command: "git", args: [stage, "origin"], stderr: "Could not read from remote: local failure", isCanceled: kind === "canceled", isMaxBuffer: kind === "output-limit" });
   ports.exec = async (command, args, options) => { if (args[0] === stage) throw original; return exec(command, args, options); };
-  await expect(createStore(ports).write({ action: "put", reference, content, expected: null, placement: { kind: "active" }, provenance: { verb: "arc errand", lifecycleAction: "create" } })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });
+  await expect(inRepoStore(ports).write({ action: "put", reference, content, expected: null, placement: { kind: "active" }, provenance: { verb: "arc errand", lifecycleAction: "create" } })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });
 });
 
 it("names every actual invalid key without implying the unrelated requested entry is corrupt", async () => {
@@ -36,7 +35,7 @@ it("names every actual invalid key without implying the unrelated requested entr
   for (const key of ["alpha", "groom-routing"]) objects.set(key, await hashBlob(io.execInput, "broken machine JSON"));
   const tip = await writeTreeCommit(io, objects, "Plant invalid entries", [], null);
   const ports = testStorePorts(clones.cloneA, io.exec, io.execInput); ports.identity = async () => SlugSchema.parse("andrew");
-  const store = createStore(ports);
+  const store = inRepoStore(ports);
   const betaReference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "beta" }));
   const betaContent = content.replaceAll('"alpha"', '"beta"').replace('"chore/alpha"', '"chore/beta"');
   const input = { action: "put" as const, reference: betaReference, content: betaContent, expected: null, placement: { kind: "active" as const }, provenance: { verb: "arc errand", lifecycleAction: "create" } };
@@ -55,7 +54,7 @@ it.each(["fetch", "push"])("classifies an actual %s timeout as unreachable with 
   const ports = testStorePorts(clones.cloneA, exec, makeGitExecInput(clones.cloneA));
   ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin";
   ports.exec = async (command, args, options) => { if (args[0] === stage) throw new GitProcessError({ kind: "timed-out", timedOut: true, command, args, stderr: "Git operation timed out" }); return exec(command, args, options); };
-  expect(await createStore(ports).write({ action: "put", reference, content, expected: null, placement: { kind: "active" }, provenance: { verb: "arc errand", lifecycleAction: "create" } })).toMatchObject({ status: "refused", refusal: { code: "unreachable", cause: "timeout" } });
+  expect(await inRepoStore(ports).write({ action: "put", reference, content, expected: null, placement: { kind: "active" }, provenance: { verb: "arc errand", lifecycleAction: "create" } })).toMatchObject({ status: "refused", refusal: { code: "unreachable", cause: "timeout" } });
 });
 
 const lookupFailures = (["show-ref", "rev-parse"] as const).flatMap((stage) =>
@@ -81,7 +80,7 @@ it.each(lookupFailures)("preserves an absent-looking $kind at $stage and reads a
     if (fail && requested[0] === stage) throw original;
     return exec(command, requested, options);
   };
-  const store = createStore(ports);
+  const store = inRepoStore(ports);
   await expect(store.read({ reference })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });
   expect(await store.list({ family: "work-item", kind: "work-item/record" })).toMatchObject({ status: "ok", result: { status: "unreadable" } });
   await expect(store.history({ reference })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });

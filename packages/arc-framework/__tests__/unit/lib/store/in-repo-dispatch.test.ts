@@ -1,18 +1,17 @@
 /** Registry dispatch through the public factory, including unclassified failure identity. */
 import { describe, expect, it } from "vitest";
 import { ArcError } from "../../../../src/lib/kernel/errors.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { KIND_REGISTRY } from "../../../../src/lib/store/registry.js";
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { newPersonalAdmission } from "../../../helpers/store/projection/admission-request.js";
-import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 
 const unavailable = async (): Promise<never> => { throw new Error("No Git repository exists"); };
 const provenance = { verb: "test", lifecycleAction: "update" };
 describe("repository store registry dispatch", () => {
   it("lists every unhomed kind as absent and rejects persistence before consulting I/O", async () => {
-    const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+    const store = inRepoStore(testStorePorts("/unavailable", unavailable, unavailable));
     const fixture = createReferenceFixture();
     for (const descriptor of Object.values(KIND_REGISTRY)) {
       if (descriptor.inRepo.substrate !== "none") continue;
@@ -24,7 +23,7 @@ describe("repository store registry dispatch", () => {
     }
   });
   it("lists implemented identity families as absent without configured identity or I/O", async () => {
-    const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+    const store = inRepoStore(testStorePorts("/unavailable", unavailable, unavailable));
     for (const family of ["personal", "claims"] as const) {
       expect(await store.list({ family })).toEqual({ status: "ok", result: { status: "absent" } });
     }
@@ -33,7 +32,7 @@ describe("repository store registry dispatch", () => {
     const ports = testStorePorts("/unavailable", unavailable, unavailable);
     const original = new Error("Filesystem observer is broken");
     ports.fs.lstat = async () => { throw original; };
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     const reference = createReferenceFixture().reference("work-item/meta");
     await expect(store.read({ reference })).rejects.toBeInstanceOf(ArcError);
     await expect(store.read({ reference })).rejects.toMatchObject({ cause: original });
@@ -41,7 +40,7 @@ describe("repository store registry dispatch", () => {
 });
 
 it("explicitly refuses nonempty read observations before dispatch and preserves empty requests", async () => {
-  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const store = inRepoStore(testStorePorts("/unavailable", unavailable, unavailable));
   const fixture = createReferenceFixture();
   const input = { writes: [{ action: "put" as const, reference: fixture.reference("work-item/cut-map"),
     expected: null, content: "unhomed" }], provenance,
@@ -58,7 +57,7 @@ it("explicitly refuses nonempty read observations before dispatch and preserves 
 
 
 it("explicitly refuses prepared projection admission before consulting checkout I/O", async () => {
-  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const store = inRepoStore(testStorePorts("/unavailable", unavailable, unavailable));
   const fixture = createReferenceFixture();
   const reference = fixture.reference("personal/working-memory");
   const content = fixture.content(reference);

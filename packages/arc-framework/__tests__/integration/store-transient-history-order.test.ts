@@ -2,12 +2,11 @@
 import { execa } from "execa";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { environmentForGitCwd } from "../../src/lib/git/process-executor.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { hashBlob } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { syncErrand, syncErrandRef, syncRecord } from "../helpers/store/sync-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 
@@ -18,7 +17,7 @@ describe.each(["tied", "skewed"] as const)("identity history with %s dates", (da
     const exec = makeGitExec(root), execInput = makeGitExecInput(root);
     const ports = testStorePorts(root, exec, execInput);
     ports.identity = async () => SlugSchema.parse("andrew");
-    const store = createStore(ports);
+    const store = inRepoStore(ports);
     const saved = new Map<string, { content: string | null; version: string | null }>();
     const commit = async (name: string, parents: string[], year: number) => {
       const content = name === "remove" ? null : serializeTransientIdentityRecord(syncRecord(name));

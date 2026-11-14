@@ -2,13 +2,13 @@
 import { expect, it } from "vitest";
 import { runPause, runResumePaused, runHandover } from "../../../../src/lib/work-unit/verbs/pause-handover.js";
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
-import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-ports.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
+import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }),
   writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 function context(store: Store) { return { store, identity: "test-user", cwd: "/checkout", baseBranch: "main", locusPorts,
@@ -80,7 +80,7 @@ it.each(["another-person", undefined])("handover refuses invoking identity %s be
   expect(await runHandover(context(store), { name: "example", to: "another-person" })).toMatchObject({ status: "handed-over" });
 });
 it("pre-flip pause and handover refuse unsupported with the existing path", async () => {
-  const inRepo = createStore(createDefaultStorePorts({ checkoutRoot: "/checkout", exec: scriptGitExec([]).exec }));
+  const inRepo = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/checkout", exec: scriptGitExec([]).exec }));
   expect(await runPause(context(inRepo), { name: "example", identity: "andrew", reason: "Wait." })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("arc park") });
   expect(await runHandover(context(inRepo), { name: "example", to: "another-person" })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("Owner") });
 });

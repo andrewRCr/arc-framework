@@ -4,7 +4,6 @@ import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { ReviewAdversarialRecordRequestSchema } from "../../../src/scripts/review-gate/core/adversarial-record-schema.js";
 import { expect, it } from "vitest";
 import { handleReviewAdversarialRecord } from "../../../src/handlers/review-adversarial.js";
-import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { ReviewCommandErrorEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -16,6 +15,7 @@ import type { ReviewInvocationOptions } from "../../../src/scripts/review-gate/r
 import { adversarialPassFixture } from "../../fixtures/review-adversarial-pass.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
+import { inRepoStore } from "../../helpers/store/in-repo-ports.js";
 
 function request(activity: Parameters<typeof adversarialPassFixture>[0] = "draft-readiness") {
   const { artifacts, codeHead, ...header } = adversarialPassFixture(activity);
@@ -29,7 +29,7 @@ async function record(store: Store, input: unknown, invocation: ReviewInvocation
   return { envelope: JSON.parse(output), exitCode };
 }
 it.each(["draft-readiness", "verification", "criteria"] as const)("refuses %s before the flip with its text-only remedy", async activity => {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/test" }));
+  const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: "/test" }));
   const result = await record(store, request(activity));
   expect(result.exitCode).toBe(1);
   expect(result.envelope).toMatchObject({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [], error: { code: "unsupported" },

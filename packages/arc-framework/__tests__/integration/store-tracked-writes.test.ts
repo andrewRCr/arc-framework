@@ -3,8 +3,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
-import { testStorePorts } from "../helpers/store/in-repo-ports.js";
-import { createStore } from "../../src/lib/store/create.js";
+import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { withTrackedWriteLock } from "../../src/lib/store/tracked-lock.js";
 import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { OwnerIdentitySchema, recordReferences, RecordVersionSchema } from "../../src/lib/store/identity.js";
@@ -25,7 +24,7 @@ async function harness() {
   const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }));
   const path = join(root, ".arc/active/meta-example.md");
   await mkdir(join(root, ".arc/active"), { recursive: true });
-  return { root, exec, store: createStore(ports), ports, reference, path };
+  return { root, exec, store: inRepoStore(ports), ports, reference, path };
 }
 const provenance = { verb: "edit", lifecycleAction: "edit" };
 function digest(content: string) { return RecordVersionSchema.parse(digestBytes(Buffer.from(content))); }

@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 import { personalFixture, personalReference, personalDigest, inboxBytes, personalProvenance } from "../helpers/store/personal-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { parseCrossWuEntries } from "../../src/lib/user-sync/parser.js";
-import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { holdPersonalLockInProcess } from "../helpers/store/personal-lock-holder.js";
 import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
 describe("personal reads", () => {
   it("reads inbox bytes and entries exactly as the existing file reader", async () => {
@@ -45,7 +45,7 @@ describe("personal reads", () => {
     await mkdir(join(linked, ".arc/user/andrew/example"), { recursive: true });
     await writeFile(join(linked, ".arc/user/andrew/USER-INBOX.md"), "stale inbox");
     await writeFile(join(linked, ".arc/user/andrew/example/SESSION-NOTES.md"), "linked notes\n\n");
-    const store = createStore(createDefaultStorePorts({ checkoutRoot: linked, exec: makeGitExec(linked), execInput: makeGitExecInput(linked) }));
+    const store = inRepoStore(createDefaultStorePorts({ checkoutRoot: linked, exec: makeGitExec(linked), execInput: makeGitExecInput(linked) }));
     expect(success(await store.read({ reference: personalReference("personal/inbox") })).content).toBe(inboxBytes);
     expect(success(await store.read({ reference: personalReference("personal/session-context", "example") })).content).toBe("linked notes\n\n");
   });
