@@ -8,8 +8,8 @@ import { WindowRefusal } from "./result.js";
 interface MergeIO { exec: GitExec; repo: string; host: WindowHostPort; hosted: boolean }
 const oidPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
-function refuse(condition: string, remedy = "Repair access or resolve the changed main tip, then retry."): never {
-  throw new WindowRefusal([{ subject: "merged flip", condition, remedy }]);
+function refuse(condition: string, remedy = "Repair access or resolve the changed main tip, then retry.", subject = "merged flip"): never {
+  throw new WindowRefusal([{ subject, condition, remedy }]);
 }
 
 function completedOne(error: unknown): boolean {
@@ -35,8 +35,11 @@ export async function acquireWindowHostCommit(io: Pick<MergeIO, "exec" | "repo">
   try {
     await io.exec("git", ["fetch", "--refmap=", "origin", `refs/heads/${branch}:${scratch}`],
       { cwd: io.repo, signal: AbortSignal.timeout(30_000) });
-    if (await resolveCommit(io, scratch) !== tip) refuse(`Origin's ${branch} tip changed after it was read.`);
-    if (await resolveCommit(io, tip) !== tip) refuse(`Origin's ${branch} tip still cannot be resolved after fetching it.`);
+    const remedy = `Repair access to origin's ${branch}, or wait until it stops moving, then retry.`;
+    if (await resolveCommit(io, scratch) !== tip) refuse(`Origin's ${branch} tip changed after it was read.`, remedy, `origin/${branch}`);
+    if (await resolveCommit(io, tip) !== tip) {
+      refuse(`Origin's ${branch} tip still cannot be resolved after fetching it.`, remedy, `origin/${branch}`);
+    }
   } finally {
     const fetched = await resolveCommit(io, scratch);
     if (fetched !== null) await io.exec("git", ["update-ref", "-d", scratch, fetched], { cwd: io.repo });

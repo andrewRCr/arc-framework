@@ -1,6 +1,6 @@
 /** Only proven ancestry on a merge-commit host establishes that the flip merged. */
 import { expect, it } from "vitest";
-import { isWindowFlipMerged } from "../../../../src/scripts/cutover-window/merged-flip.js";
+import { acquireWindowHostCommit, isWindowFlipMerged } from "../../../../src/scripts/cutover-window/merged-flip.js";
 import type { WindowHostPort } from "../../../../src/scripts/cutover-window/host.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { GitExecScriptEntry } from "../../../helpers/git-exec-fake.js";
@@ -68,4 +68,17 @@ it("refuses interrupted ancestry instead of calling it not merged", async () => 
 
 it("refuses when origin has no main tip", async () => {
   await expect(isWindowFlipMerged(io([], { ...host, refs: async () => ({}) }), head)).rejects.toMatchObject(refusal);
+});
+
+it.each(["still missing", "moved"])("names the branch it acquires when its host tip is %s", async outcome => {
+  const target = io([
+    { match: resolveTip, responses: [{ failure: { exitCode: 1 } }, { failure: { exitCode: 1 } }] },
+    { match: { predicate: args => args[0] === "fetch" && args[3]?.startsWith("refs/heads/feat/x:") === true }, responses: [{ stdout: "" }] },
+    { match: { predicate: args => args[0] === "--no-replace-objects" && args[1] === "rev-parse" &&
+      args.at(-1)?.startsWith("refs/arc-window-scratch/") === true }, responses: [{ stdout: outcome === "moved" ? "c".repeat(40) : tip }] },
+    { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },
+  ]);
+  await expect(acquireWindowHostCommit(target, "feat/x", tip)).rejects.toMatchObject({ findings: [{
+    subject: "origin/feat/x", condition: expect.stringContaining("feat/x"), remedy: expect.stringContaining("origin's feat/x"),
+  }] });
 });
