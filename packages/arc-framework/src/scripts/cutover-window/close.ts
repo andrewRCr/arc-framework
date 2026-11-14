@@ -10,7 +10,7 @@ import { readWindowHold, discardUnfinishedWindowHold, type WindowHoldIO } from "
 import { createWindowHost } from "./native-host.js";
 import { hasWindowHost, type WindowHostPort } from "./host.js";
 import { isWindowFlipMerged } from "./merged-flip.js";
-import { WindowRefusal, type WindowResult, type WindowFinding } from "./result.js";
+import { WindowRefusal, windowRefusalFindings, type WindowResult, type WindowFinding } from "./result.js";
 import type { WindowRequest } from "./main.js";
 
 /** Observe the cleanup boundary immediately after the completion marker is deleted. */
@@ -32,11 +32,10 @@ export async function closeWindow(request: WindowRequest, options: WindowCloseOp
   try {
     const flip = await readMergedFlip(io, host, record.flip.head);
     merged = flip.merged;
-    // A refused merged-flip test has already reported an unreadable host; the branch read would only repeat it.
-    const branches = await readWindowCloseBranchFindings(io, record, state, host).catch((error: unknown) => {
-      if (flip.merged === null) return [];
-      throw error;
-    });
+    // Both reads reach the host, so an unreadable host refuses each with the same finding: report it once.
+    const branches = (await windowRefusalFindings(() => readWindowCloseBranchFindings(io, record, state, host)))
+      .filter(finding => !flip.findings.some(reported => reported.subject === finding.subject
+        && reported.condition === finding.condition && reported.remedy === finding.remedy));
     const findings: WindowFinding[] = [...flip.findings, ...windowCloseHeldFindings(record.branches.live, record.flip.branch, state),
       ...await readWindowCloseCheckoutFindings(io), ...branches];
     if (findings.length) return { operation: "close", status: "refused", findings, messages, data: { merged, ...state } };

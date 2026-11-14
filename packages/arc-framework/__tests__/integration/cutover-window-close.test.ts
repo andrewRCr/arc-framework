@@ -181,6 +181,7 @@ it("reports an unreadable host beside an unconfirmed range and closes once both 
       expect.objectContaining({ subject: "git ls-remote", condition: expect.stringContaining("unreachable.git") }),
       expect.objectContaining({ subject: "local/feat/alpha", condition: expect.stringContaining("confirmation (missing)") }),
     ]) } });
+  expect(refused.result?.findings.filter(finding => finding.subject === "git ls-remote"), refused.report).toHaveLength(1);
   await h.git("git", ["config", "remote.origin.url", h.origin]);
   expect(await invokeWindow(h.root, "confirm", ["feat/alpha", "--local-tip", tip])).toMatchObject({ exit: 0 });
   expect(await invokeWindow(h.root, "close")).toMatchObject({ exit: 0 });

@@ -2,7 +2,7 @@
 import type { WindowCheckout } from "./checkouts.js";
 import type { WindowFinding } from "./result.js";
 import type { DerivedCheckoutRow } from "../../lib/locus/derived-roster.js";
-import { decodeWorktreeMarkerOwnership, type WorktreeSubject } from "../../lib/git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, resolveWorktreeMarkerPath, type WorktreeSubject } from "../../lib/git/worktree-marker.js";
 import { readStatusCheckoutRoster } from "../../handlers/status/checkout-roster.js";
 import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import type { WindowGitReadIO } from "./git.js";
@@ -19,10 +19,16 @@ export function windowErrandHolderFindings(checkouts: readonly WindowCheckout[],
     if (subject?.kind !== "errand") return [];
     if (identities.some(identity => identity.kind === "errand" && identity.purpose === "errand"
       && identity.key === subject.slug && identity.claimId === subject.claimId)) return [];
-    const path = JSON.stringify(checkout.path), unlock = checkout.locked === undefined ? "" : `git worktree unlock ${path}, then `;
     return [{ subject: checkout.path, condition: `Errand ${subject.slug} claim ${subject.claimId} has no matching acquired identity record.`,
-      remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and run ${unlock}git worktree remove ${path}, then retry check.` }];
+      remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and ${unheldErrandRelease(checkout)}, then retry check.` }];
   });
+}
+
+/** Git cannot remove the main working tree, so the primary gives up an unheld Errand's occupancy by deleting its marker. */
+function unheldErrandRelease(checkout: WindowCheckout): string {
+  if (checkout.primary) return `delete the checkout's worktree marker ${JSON.stringify(resolveWorktreeMarkerPath(checkout.path))}`;
+  const path = JSON.stringify(checkout.path), unlock = checkout.locked === undefined ? "" : `git worktree unlock ${path}, then `;
+  return `run ${unlock}git worktree remove ${path}`;
 }
 
 /** Read status's production roster at the physical primary as its configured reading identity. */

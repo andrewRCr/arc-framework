@@ -35,3 +35,13 @@ export class WindowRefusal extends Error {
     this.name = "WindowRefusal";
   }
 }
+
+/** Report a condition whose input cannot be read as its own findings, so the operation still evaluates every other one. */
+export async function windowRefusalFindings(read: () => Promise<WindowFinding[]>): Promise<WindowFinding[]> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof WindowRefusal) return [...error.findings];
+    throw error;
+  }
+}

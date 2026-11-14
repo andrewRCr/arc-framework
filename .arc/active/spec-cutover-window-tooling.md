@@ -317,8 +317,8 @@ Each refusal names its subject and gives a remedy. The window applies the remedy
   identity that some record holds. The refusal names the checkout and its holder. Remedy: `arc teardown` for an ended or
   husked work unit's checkout, `arc teardown --branch <ref>` for a branch's husk (A5), and `arc errand close`,
   `abandon`, or `leave` for an Errand's (A2); for an Errand marker no record holds, the holder's restored identity
-  record, or `git worktree remove` once wanted work is kept, unlocking the checkout first (A5); for an unresolved row,
-  the remedy its diagnostic names.
+  record, or `git worktree remove` once wanted work is kept, unlocking the checkout first (A5), or on the primary,
+  which Git cannot remove, deleting its worktree marker (A6); for an unresolved row, the remedy its diagnostic names.
 - **C5 — A staged decomposition cut.** No local or fetched branch may sit in the decomposition-candidate namespace
   (`isDecomposeCandidateBranch`, `lib/work-unit/decompose-candidate.ts`) with a tip `main` does not contain, and no
   entry may remain under `<commonDir>/arc/decompose-worktrees/`. The store version reads no candidate branch or staged
@@ -1301,5 +1301,7 @@ None.
   _Supersedes:_ § 5.3 ¶2; § 1.2 `compare` row. _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A5** — 2026-11-13 — design: C4 sends a branch husk to `arc teardown --branch`, an unheld Errand marker to removal.
   _Supersedes:_ § 2.2 C4 remedy (A2). _Trigger:_ F18, F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A6** — 2026-11-14 — spec-depth: C4 sends an unheld Errand marker on the primary to deleting its worktree marker.
+  _Supersedes:_ § 2.2 C4 remedy (A5). _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

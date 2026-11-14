@@ -1,11 +1,11 @@
 /** Native ownership refusals use the same checkout lifecycle view as status. */
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
 import { readStatusCheckoutRoster } from "../../src/handlers/status/checkout-roster.js";
-import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { retireFixtureErrand } from "../helpers/cutover-window/identity-inputs.js";
 import { ordinaryErrand, seedTransients } from "../helpers/store/import-transients.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -186,6 +186,20 @@ it("refuses an Errand marker without its exact record and requires retirement af
   expect(restored.report).not.toContain("no matching acquired identity record");
   await h.git("git", ["worktree", "unlock", path]); await h.git("git", ["worktree", "remove", path]);
   await retireFixtureErrand(h, identityTip);
+  const repaired = await checkFixture(h);
+  expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
+}, 30_000);
+
+it("refuses an unheld Errand marker on the primary and passes once the marker is deleted", async () => {
+  const h = await windowFixture(), marker = resolveWorktreeMarkerPath(h.root);
+  await writeWorktreeMarker(h.root, { spawnedByArc: true, spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z",
+    createdFor: { kind: "errand", slug: "example", claimId: "1".repeat(32) }, provisioning: "ready" });
+  const refused = await checkFixture(h);
+  expect(refused, refused.report).toMatchObject({ exit: 1, result: { status: "refused", findings: expect.arrayContaining([
+    expect.objectContaining({ subject: h.root, condition: expect.stringMatching(/example.*11111111.*no.*record/u),
+      remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and delete the checkout's worktree marker ${JSON.stringify(marker)}, then retry check.` }),
+  ]) } });
+  await rm(marker);
   const repaired = await checkFixture(h);
   expect(repaired, repaired.report).toMatchObject({ exit: 0, result: { status: "passed" } });
 }, 30_000);

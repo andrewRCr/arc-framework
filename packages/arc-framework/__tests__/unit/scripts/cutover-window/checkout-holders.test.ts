@@ -8,6 +8,7 @@ import { ordinaryErrand } from "../../../helpers/store/import-transients.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../../../src/lib/errand/identity-record.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
+import { resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
 
 const row: WindowCheckout = { path: "/linked", head: "a".repeat(40), branch: "feat/example", detached: false,
   primary: false, folderPresent: true, kind: "no-marker", marker: { kind: "absent" } };
@@ -76,10 +77,11 @@ it("requires unlock before removing a locked checkout an unheld Errand marker cl
     remedy: "Restore the exact holder's local or origin identity record, or preserve wanted work and run git worktree unlock \"/linked\", then git worktree remove \"/linked\", then retry check." })]);
 });
 
-it("also refuses an unheld Errand marker on the primary checkout", () => {
+it("sends an unheld Errand marker on the primary checkout to deleting the marker, which Git cannot remove", () => {
   const primary = classifyWindowCheckout({ ...row, primary: true }, errand.marker);
   expect(windowErrandHolderFindings([primary], [])).toEqual([expect.objectContaining({ subject: row.path,
-    condition: expect.stringMatching(/example.*no.*record/u) })]);
+    condition: expect.stringMatching(/example.*no.*record/u),
+    remedy: `Restore the exact holder's local or origin identity record, or preserve wanted work and delete the checkout's worktree marker ${JSON.stringify(resolveWorktreeMarkerPath(row.path))}, then retry check.` })]);
 });
 
 it.each(["andrew", "alex"])("accepts an exact claim held by %s among other acquired records", identity => {

@@ -596,9 +596,9 @@ refusing and then passing after its remedy, with the import's cost recorded from
 - `[x]` The import's wall time and peak resident memory under the cap are recorded from both runs (Task 7.4).
 
   **Deviation:** Both imports ran under the driver's inherited 8 GiB address-space limit with a 4,096 MB heap, the
-  limit the runner-pool session recommended; the spec's 6 GB figure was never updated. Run 4's import under a
-  6,144 MiB wrapper ended `import-refused` on a data notice, not on memory. From the rerun the driver records the
-  limit and heap ceiling its import ran under.
+  limit the runner-pool session recommended; the spec's A3 now makes the cap the caller's, above the heap ceiling.
+  Run 4's import under a 6,144 MiB wrapper ended `import-refused` on a data notice, not on memory. From the rerun the
+  driver records the limit and heap ceiling its import ran under.
 
 - `[x]` The family lands inert: no package `files` entry, recipe entry, or bundle metafile input names it; no existing
   caller reads the provenance field and no existing constructor of the composition's result changed; and the full
@@ -645,6 +645,9 @@ refusing and then passing after its remedy, with the import's cost recorded from
   branch is deleted or merged with `main`.
 
 - `[x]` C4 refuses a branch husk and an Errand marker no record holds, and the check passes after the remedy each names.
+
+- `[x]` C4 refuses an Errand marker no record holds on the primary checkout, and the check passes once the marker is
+  deleted.
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 

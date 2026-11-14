@@ -1,7 +1,7 @@
 /** Quiescence admission and restore-point acquisition for an explicitly named importing checkout. */
 import { windowHostTipFindings } from "./off-host.js";
 import type { WindowRequest } from "./main.js";
-import { WindowRefusal, type WindowFinding, type WindowResult } from "./result.js";
+import { WindowRefusal, windowRefusalFindings, type WindowFinding, type WindowResult } from "./result.js";
 import { readWindowPreconditions, windowPreexistingStoreRefFindings } from "./preflight.js";
 import { parseWindowFlipInput } from "./input.js";
 import { readWindowHostFacts, type WindowHostPort } from "./host.js";
@@ -51,20 +51,20 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     await acquireWindowOriginRefs(io, origin);
     const state = await captureWindowState(io, input, { refs: origin, branches: await host.refs(["refs/heads/*"]) });
     const checkoutFindings = [...requestFindings, ...state.findings, ...windowUnmarkedCheckoutFindings(state.checkouts),
-      ...await refusalFindings(() => readWindowEndedCheckoutFindings(io, state.checkouts)),
+      ...await windowRefusalFindings(() => readWindowEndedCheckoutFindings(io, state.checkouts)),
       ...windowErrandHolderFindings(state.checkouts, state.live.transientInputs.flatMap(input => input.records)),
       ...windowCheckoutLockFindings(state.checkouts), ...await readWindowCheckoutStatusFindings(io, state.checkouts),
       ...await readWindowCheckoutUpstreamFindings(io, state.checkouts), ...await readWindowIgnoredStateFindings(io, state.checkouts),
       ...windowPersonalLinkFindings(state.checkouts, state.personal.disk.links), ...await readWindowStashFindings(io),
       ...await readWindowDecompositionBranchFindings(io, state.record.branches), ...await readWindowDecompositionDirectoryFindings(request.repo),
-      ...await refusalFindings(async () => readWindowCheckoutAncestryFindings(io, state.checkouts, await readWindowSealAnchor(io, facts.anchor))),
+      ...await windowRefusalFindings(async () => readWindowCheckoutAncestryFindings(io, state.checkouts, await readWindowSealAnchor(io, facts.anchor))),
       ...await readWindowBuildFindings(state.checkouts),
       ...await readWindowExecutableFindings(state.checkouts, input.path),
-      ...await refusalFindings(() => readWindowTrackedRecordFindings(state.context, state.record, state.live.composition)),
-      ...await refusalFindings(() => readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition)),
+      ...await windowRefusalFindings(() => readWindowTrackedRecordFindings(state.context, state.record, state.live.composition)),
+      ...await windowRefusalFindings(() => readWindowDivergingCopyFindings(state.context, state.record.branches.local.main, state.live.composition)),
       ...await readWindowFlipAncestryFindings(io, state.record),
       ...windowPullRequestFindings(facts.pullRequests, Object.keys(state.record.branches.live), state.record.flip.branch),
-      ...facts.hosted ? await refusalFindings(async () => windowMergeSettingFindings(await host.mergeSettings())) : [],
+      ...facts.hosted ? await windowRefusalFindings(async () => windowMergeSettingFindings(await host.mergeSettings())) : [],
       ...windowErrandInputFindings(state.live.transientInputs), ...windowIdentityTipFindings(state.record.refs),
       ...windowForeignClaimFindings(state.live.transientInputs, await state.context.importSource.ports.identity()),
       ...windowHostTipFindings(state.record.branches, state.checkouts.find(row => row.primary)?.head)];
@@ -73,16 +73,6 @@ export async function checkWindow(request: WindowRequest, options: WindowCheckOp
     return { operation: "check", status: "passed", findings: [], data: { tip } };
   } catch (error) {
     await discardUnfinishedWindowHold(io);
-    throw error;
-  }
-}
-
-/** Report a condition whose input cannot be read as its own findings, so the check still evaluates every other one. */
-async function refusalFindings(read: () => Promise<WindowFinding[]>): Promise<WindowFinding[]> {
-  try {
-    return await read();
-  } catch (error) {
-    if (error instanceof WindowRefusal) return [...error.findings];
     throw error;
   }
 }
