@@ -11,13 +11,14 @@
 - **Design:** `spec-cutover-window-tooling.md`
 - **Task List:** `tasks-cutover-window-tooling.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:b7a38e11e04e20bca8b715aff8ddcbf689173d2eb50e04caf8533b65f2447c71`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.4 — Stage 1 at the landing head; Phase 7 complete
-- **Next Task:** Task 8.1 — Complete verification (line ~543)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

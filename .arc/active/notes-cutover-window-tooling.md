@@ -3,6 +3,17 @@
 Execution context the task list points to, recorded at task generation from the grounding audit of each phase. The
 specification holds every obligation; these notes hold where the code that meets them lives and what it does.
 
+**Contents**
+
+- Boundaries: [Lint boundary and imports](#lint-boundary-and-imports) · [Host port](#host-port) ·
+  [Load seal callers](#load-seal-callers)
+- The restore point: [Hold, record, and stop points](#hold-record-and-stop-points) ·
+  [Consumed comparison](#consumed-comparison) · [Restore leases](#restore-leases) ·
+  [Restore restart interpretation](#restore-restart-interpretation) · [Test fixtures](#test-fixtures)
+- Checkouts and the copy: [Checkout classification](#checkout-classification) · [Digests](#digests) · [Copy](#copy)
+- Tracked state and Stage 1: [Read map](#read-map) · [Accounting and chain](#accounting-and-chain) ·
+  [Stage 1 driver](#stage-1-driver) · [Deferred execution feedback](#deferred-execution-feedback)
+
 ---
 
 ## Lint boundary and imports
