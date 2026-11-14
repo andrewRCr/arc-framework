@@ -18,7 +18,7 @@ import { guardReplacement } from "../../../../src/lib/store/projection/replace-g
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "../../../../src/lib/store/projection/aside.js";
-import { success } from "../../../helpers/store/suite-tools.js";
+import { seed, success } from "../../../helpers/store/suite-tools.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const access = vi.hoisted(() => ({ path: "", denied: false }));
@@ -211,4 +211,25 @@ it("keeps an unreadable or incomplete archive listing unobservable until the inv
   expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable" });
   listing = "restored";
   expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining("Move the file") } });
+});
+
+it.each(["unreadable", "incomplete"] as const)("keeps a project inbox unobservable while the project identity listing is %s", async failure => {
+  const { f } = await createAdoptionFixture();
+  await seed(f, f.reference("project-registry/identity"));
+  const path = ".arc/backlog/ATOMIC-INBOX.md";
+  await mkdir(join(f.root, dirname(path)), { recursive: true });
+  await writeFile(join(f.root, path), "Shared capture with no record.\n");
+  let restored = false;
+  const store = overrideEngineStore(f.store, { list: async input => {
+    const listed = await f.store.list(input);
+    if (restored || input.family !== "project-registry" || listed.status !== "ok") return listed;
+    return failure === "unreadable" ? { status: "ok", result: { status: "unreadable", condition: "The project registry cannot be read.",
+      remedy: { text: "Restore the project registry, then retry." } } }
+      : { status: "ok", result: { status: "complete", records: listed.result.status === "complete" ? listed.result.records : [],
+        diagnostics: [], missed: true } };
+  } });
+  const context = { store, identity: SlugSchema.parse("andrew") };
+  expect(await checkProjectionRemoval(f.root, context)).toMatchObject({ kind: "unobservable" });
+  restored = true;
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
 });
