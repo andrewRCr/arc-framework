@@ -364,28 +364,30 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   last segment. A verb's write passes, so the retirement's kept section and rename's kept heading are refused by the
   record's next hand edit (`member-sections.test.ts`, `terminal-records.test.ts`, `store-ref-rename-uid-cli.test.ts`).
 
-### `[ ]` **2.12 Import tests over the identity refs' leases and permuted listings — § 7.6, § 13.3, § 13.4**
+### `[x]` **2.12 Import tests over the identity refs' leases and permuted listings — § 7.6, § 13.3, § 13.4**
 
 - _Goal:_ The import's landing and retirement leases, and its independence from listing order, are each shown by a test
   of a refusal and a continuation, over copies the quiesce check admits.
 
-    - `[ ]` **2.12.a The landing lease**
-        - An identity ref advanced between the import's read and its landing makes the landing refuse with nothing
-          landed (`landImportRefs`, `lib/store/ref/import/land.ts`), and a fresh run succeeds.
-          `integration/store-ref-import-transient-observations.test.ts` covers this in both layouts; extend it only
-          where § 7.6 asks more.
+    - `[x]` **2.12.a The landing lease**
+        - `integration/store-ref-import-transient-observations.test.ts` covered the refusal in both layouts but retried
+          only after resetting the ref. A default-layout case now refuses the landing with the lease notice and nothing
+          landed, and a fresh run with the ref still advanced imports its new tip.
 
-    - `[ ]` **2.12.b The retirement lease**
-        - In the default layout, `origin`'s copy advanced between the landing and its retirement makes the retirement
-          refuse ("advanced after the import read it", `retireOriginRefs`, `lib/store/ref/import/transient-cleanup.ts`)
-          with the kept tips preserved, and the import succeeds once the ref is reconciled and the import re-run. The
-          separate layout refuses earlier (`retireImportLocals`), so the case names its layout.
+    - `[x]` **2.12.b The retirement lease**
+        - In the default layout, `origin`'s copy advanced at the remote-delete step refuses "advanced after the import
+          read it" with the kept tips unchanged and the imported records in place; reconciling `origin`'s ref to the
+          tip the import read and re-running retires it and drops the kept tips (same file).
 
-    - `[ ]` **2.12.c Permuted listings**
-        - Listings returning branches, worktrees, and fetched refs in permuted orders yield the same records, keyed by
-          owner slug and path with each minted UID mapped to its owner, a parked unit among them
-          (`readImportParkedSources`, `lib/store/ref/import/parked-source.ts`). In-flight derivation lists through
-          `exec` (`lib/git/in-flight-derivation.ts`), so the test permutes by wrapping the ports' `exec`.
+    - `[x]` **2.12.c Permuted listings**
+        - `integration/store-ref-import-order.test.ts` imports two copies prepared alike, one with every branch,
+          fetched-ref, and linked-worktree listing reversed by wrapping the ports' `exec`, and compares their records
+          keyed by owner and path with each minted UID mapped to its owner, over a parked unit, a fetched-only unit,
+          a branch with matching local and fetched copies, and two linked worktrees.
+
+- _Outcome:_ Test-only: each lease and the order independence already held. The fixtures meet § 1.3's stated quiesce
+  conditions rather than running the check, which `cutover-window-tooling` has not landed; Task 6.1 re-checks that
+  contract.
 
 ### `[ ]` **2.13 The fence harness over the take-in, the archive, and the register closures — § 14**
 
