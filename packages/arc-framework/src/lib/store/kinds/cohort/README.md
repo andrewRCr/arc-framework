@@ -26,7 +26,8 @@ as `conflicting-provenance`.
 
 `member-section-rule.ts` refuses a hand edit whose resulting record keeps a member heading that names no current
 member: a work unit, live or completed, whose Cohort field's last segment names the cohort by its current or a former
-name. A verb's write never refuses over a heading it leaves, so such a heading refuses the record's next hand edit.
+name. It reads work units' holdings alone, never a cohort's Parent, so an open conflict on a cohort record does not
+refuse it. A verb's write never refuses over a heading it leaves, so such a heading refuses the record's next hand edit.
 
 `rules.ts` checks new or changed Purpose and Parent values, and document retirement. `check-support.ts` observes
 complete proposed open membership and nesting without treating unavailable entries as absence. A cohort stays open

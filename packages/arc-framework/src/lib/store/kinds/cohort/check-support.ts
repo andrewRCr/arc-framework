@@ -92,14 +92,25 @@ export function observeAllHoldings(view: StoreView, cohort: RecordReference, res
   return observeHoldings(view, resolve, cohort, "all");
 }
 
+/**
+ * Count every work unit's holding, live or completed, without a cohort document's Parent: a member's holding rests on
+ * its own `Cohort` field and the named cohorts that field resolves through, so a conflict elsewhere does not dispute it.
+ */
+export async function observeAllMemberHoldings(view: StoreView, cohort: RecordReference): Promise<RuleObservation<readonly CohortHolding[]>> {
+  const members = await observeMembers(view, "all");
+  return members.status !== "known" ? members : observeCohortHoldings(memberCandidates(members.value), view, cohort);
+}
+
+function memberCandidates(members: readonly CohortMemberEvidence[]): CohortHoldingCandidate[] {
+  return members.flatMap(({ record, cohort: path }) => path === null ? []
+    : [{ reference: record.reference, field: "cohort" as const, path, completed: record.placement?.kind === "completed" }]);
+}
+
 async function observeHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference, scope: "open" | "all"): Promise<RuleObservation<readonly CohortHolding[]>> {
   const [cohorts, members] = await Promise.all([observeCohorts(view, scope), observeMembers(view, scope)]);
   if (cohorts.status !== "known") return cohorts;
   if (members.status !== "known") return members;
-  const candidates: CohortHoldingCandidate[] = [];
-  for (const { record, cohort: path } of members.value) {
-    if (path !== null) candidates.push({ reference: record.reference, field: "cohort", path, completed: record.placement?.kind === "completed" });
-  }
+  const candidates = memberCandidates(members.value);
   for (const { record, fields } of cohorts.value) {
     if (fields.parent !== null) candidates.push({ reference: record.reference, field: "parent", path: fields.parent, completed: record.placement?.kind === "completed" });
   }

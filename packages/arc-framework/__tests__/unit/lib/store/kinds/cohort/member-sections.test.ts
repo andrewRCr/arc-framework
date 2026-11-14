@@ -78,3 +78,17 @@ it.each(["a member's former name", "a subcohort", "a subcohort's member"] as con
   expect(await h.edit(["member", named])).toMatchObject({ status: "refused", refusal: { rule: "cohort.member-sections",
     condition: expect.stringContaining(`\`${named}\``) } });
 });
+
+it.each(["merges into a conflict with a concurrent edit", "lands while another cohort holds an open conflict"] as const)(
+  "admits a hand edit that %s", async situation => {
+    const h = await fixture();
+    const own = situation === "merges into a conflict with a concurrent edit";
+    if (own) lifecycleSuccess(await h.edit(["member"]));
+    const target = own ? h.cohort
+      : await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "elsewhere" })), cohortDocument("elsewhere", []));
+    const base = lifecycleSuccess(await h.store.read({ reference: target.reference }));
+    lifecycleSuccess(await h.store.write({ ...recordPut(base, { content: `${base.content}\nOne side.\n` }), provenance: handEdit }));
+    const merged = await h.store.write({ ...recordPut(base, { content: `${base.content}\nOther side.\n` }), provenance: handEdit });
+    expect(lifecycleSuccess(merged).conflicts).not.toEqual([]);
+    lifecycleSuccess(await h.edit(["member", "other"]));
+  });

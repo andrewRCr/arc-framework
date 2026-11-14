@@ -360,8 +360,10 @@ the fence harness pass over the ref backend; and the full suite passes with no b
 
 - _Outcome:_ `checkCohortMemberSections` (`lib/store/kinds/cohort/member-section-rule.ts`) joins `checkCohortDocument`:
   a hand edit whose resulting record keeps a `## Members` section naming no current member refuses, naming each slug.
-  Members come from `observeAllHoldings` over the proposed state, kept where the `Cohort` path holds the cohort at its
-  last segment. A verb's write passes, so the retirement's kept section and rename's kept heading are refused by the
+  Members come from work units' holdings alone over the proposed state (`observeAllMemberHoldings`), kept where the
+  `Cohort` path holds the cohort at its last segment, so an open conflict on a cohort record never refuses the edit; the
+  fence harness (Task 2.13) found the first form, which read every cohort's Parent, refusing a retry merged into a
+  conflict. A verb's write passes, so the retirement's kept section and rename's kept heading are refused by the
   record's next hand edit (`member-sections.test.ts`, `terminal-records.test.ts`, `store-ref-rename-uid-cli.test.ts`).
 
 ### `[x]` **2.12 Import tests over the identity refs' leases and permuted listings — § 7.6, § 13.3, § 13.4**
