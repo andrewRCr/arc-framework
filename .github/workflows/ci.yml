@@ -288,6 +288,14 @@ jobs:
     - name: Forecast merge checks
       id: forecast
       run: |
+        # The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.
+        case "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" in
+          */cutover-flip)
+            if [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \
+              .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then
+              export ARC_IN_REPO_STORE=1
+            fi ;;
+        esac
         node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"
         mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json
     - name: Validate check plumbing
@@ -426,6 +434,14 @@ jobs:
         PUSH_BEFORE: ${{ github.event.before }}
       # This check is changed-file-only; the shared merge forecast selects all files.
       run: |
+        # The storage cutover's own branch runs ARC on its in-repo store until a commit stops it tracking state.
+        case "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" in
+          */cutover-flip)
+            if [ -n "$(git ls-tree --name-only HEAD -- .arc/active/ .arc/backlog/ .arc/completed/ \
+              .arc/system/.internal/candidates/ .arc/system/.internal/transitions/)" ]; then
+              export ARC_IN_REPO_STORE=1
+            fi ;;
+        esac
         if [ "$EVENT_NAME" = 'push' ]; then
           base="$PUSH_BEFORE"
           if [ -z "$base" ]; then

@@ -51,7 +51,7 @@ the ref backend while the default store stays in-repo.
   `lib/store/selection.ts` exports the predicate (`findTrackedStateRoots`), the remedy builder (`trackedStateRefusal`),
   and their composite (`findTrackedStateRefusal`) for the root hook in Task 2.2.
 
-### `[ ]` **1.2 The test setup clears the override, and CI sets it only for the flip's tracked tree — § 3.1, § 7.6**
+### `[x]` **1.2 The test setup clears the override, and CI sets it only for the flip's tracked tree — § 3.1, § 7.6**
 
 - _Goal:_ No test, nor any CLI a test spawns, inherits the override from the checkout that runs it, and CI's two
   in-checkout CLI steps carry it only while the flip's branch still tracks state.
@@ -64,15 +64,14 @@ the ref backend while the default store stays in-repo.
           worker in any of the three tiers sees it, and neither does a process an integration or end-to-end test
           spawns.
 
-    - `[ ]` **1.2.b CI's override condition**
-        - `check gate merge --ci --dry-run` and `check run lint:md:underwrap` (`.github/workflows/ci.yml`) each export
-          the override in their own step script, never through `env:` (whose false condition yields an empty string),
-          only when the run's branch ends in `/cutover-flip` and the checked-out tree tracks a file under the five paths
-          (`git ls-tree -r --name-only HEAD -- <paths>`). The branch is `GITHUB_HEAD_REF` on a pull-request run, which
-          checks out the merge ref, and `GITHUB_REF_NAME` on a dispatched run, whose head ref is empty.
-        - The lane-attestation workflow (`.github/workflows/arc-lane-attestation.yml`) runs a build of the base's own
-          checkout and is left as it is; the routed checks take only their declared `environment_inputs`
-          (`.arc/system/arc-checks.yml`), so none is changed.
+    - `[x]` **1.2.b CI's override condition**
+        - Both steps open their own script with the condition: the branch from `GITHUB_HEAD_REF`, falling back to
+          `GITHUB_REF_NAME`, ends in `/cutover-flip`, and `git ls-tree` lists a file under the five roots at `HEAD`.
+          Only then do they export `ARC_IN_REPO_STORE=1`, so it is otherwise unset, never empty.
+        - `integration/ci-in-repo-store-override.test.ts` runs each step's script from `ci.yml` with a stand-in `node`
+          that records the override every ARC invocation sees. Each step gets the override on the flip's pull request
+          and dispatched runs over a tree that tracks state, and nowhere else. The lane-attestation workflow and the
+          routed checks' declared inputs are unchanged.
 
 ### `[ ]` **1.3 The store test helpers build the in-repo backend explicitly — § 7.2**
 
