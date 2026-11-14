@@ -52,6 +52,57 @@ before reading the file or contacting the host.
 A hostless rehearsal that predates the tooling's landing may also supply `--anchor <commit>`. Hosted repositories
 derive the anchor from `main` and refuse a supplied one.
 
+The hold `check` retains stays until `close` releases it or `restore` uses it. Every operation below reads that hold
+and refuses without it.
+
+After the import, `recompute` compares every input the check recorded with what is there now: local and `origin` branch
+and store-ref tips, the host's branch tips, and each checkout's head, cleanliness, and personal files. It fetches and
+writes nothing, and names each moved input. `account` reports every tracked state file the import's own discovery finds
+and refuses any whose state did not land. `chain` compares each Candidate's review chain as the repository held it with
+the chain the store now holds, reading the import's `--json` output:
+
+```sh
+npm run -s cutover-window -- recompute --repo /path/to/checkout
+npm run -s cutover-window -- account --repo /path/to/checkout
+npm run -s cutover-window -- chain --repo /path/to/checkout --report /path/to/import-report.json
+```
+
+Immediately before the merge, `last-read` repeats recompute's comparison with the flip exempted. It requires the flip's
+local, `origin`, and host tips and its checkout to name one commit whose only parent is the recorded flip head and which
+only deletes tracked-state files, and it refuses while auto-merge is armed on the flip request. It takes the flip
+options `check` took, with `--pull-requests` for a hostless rehearsal:
+
+```sh
+npm run -s cutover-window -- last-read --repo /path/to/checkout --flip-branch feat/flip --flip-pr 7
+```
+
+After the merge, `compare` records where one branch or checkout stands against the hold. With `--branch` it marks the
+branch's local and `origin` tips and reports each range changed since the check; with `--checkout` it reports a late
+change to a registered checkout's personal files. Reapply each reported branch range through the store, then `confirm`
+the branch at the exact tip of each reported range:
+
+```sh
+npm run -s cutover-window -- compare --repo /path/to/checkout --branch feat/example
+npm run -s cutover-window -- compare --repo /path/to/checkout --checkout /path/to/linked
+npm run -s cutover-window -- confirm feat/example --repo /path/to/checkout --local-tip <oid> --origin-tip <oid>
+```
+
+`close` releases the hold once `origin` contains the flip, every live or state-bearing branch side has a comparison
+mark, every range is confirmed at its current mark, and no checkout's committed head still tracks state. Otherwise it
+refuses, naming each gap, and keeps the hold. It deletes the completion marker before the remaining hold refs, and it
+removes an incomplete hold on its own.
+
+To abort before the merge, `restore` returns every recorded ref locally and on `origin`, verifies them, and deletes the
+hold. It takes the recorded flip's options, and refuses while auto-merge is armed or once the flip has merged, which is
+then fixed forward from the landed store. When a `refs/arc/` ref changed after the import consumed it, settle the change
+and name the value found with `--accept <ref>=<object ID or absent>`, repeated as needed. A restore interrupted before
+it deletes the completion marker resumes when run again; one interrupted after leaves an incomplete hold for `close`
+to remove:
+
+```sh
+npm run -s cutover-window -- restore --repo /path/to/checkout --flip-branch feat/flip --flip-pr 7
+```
+
 `rehearse` runs the window's sequence on a copy that `copy` made, naming the copy's primary checkout:
 
 ```sh
