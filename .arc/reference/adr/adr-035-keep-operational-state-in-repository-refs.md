@@ -252,6 +252,13 @@ stored meta and its history are the record.
 moves in-flight derivation onto the store: a work unit in planning keeps its own worktree, detached at the base branch's
 tip, and activation creates its work branch there.
 
+**Amendment (2026-11-14):** The cutover refines how item 8 keeps the old notes ref. An archive tag would not keep
+personal notes private: `git push --tags` publishes every tag, so from a public repository it would publish every past
+personal note. The importing machine instead moves its notes ref under a namespace that is neither a tag nor pushed. The
+code remote holds no notes refs, and no other machine keeps a clone past the quiesce, so that local ref is the only
+copy. It is deleted after the quiesce → import → flip window, together with the other leftover notes refs that notes
+sync made. Notes still retire through the one-time import.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md

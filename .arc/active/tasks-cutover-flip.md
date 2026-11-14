@@ -682,7 +682,7 @@ notice, and ADR-035 describe the store's arms.
   as hand edits, and that the commit hook checks links only in staged Markdown, so link targets in state are checked
   only where the link validator is declared as a selection check. No `versions.json` entry is due.
 
-### `[ ]` **4.4 ADR-035's item 8 amendment — § 12, § 16**
+### `[x]` **4.4 ADR-035's item 8 amendment — § 12, § 16**
 
 - _Goal:_ ADR-035 carries a dated amendment for item 8: the old notes ref is kept on the importing machine under a
   namespace that is neither a tag nor pushed, rather than as an archive tag, and is deleted with the notes residue refs
