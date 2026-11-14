@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coordination-routing-boundary",
+  "claimId": "c81402e35810100c105ded4693d7c830",
+  "createdAt": "2026-11-14T01:32:47.809Z",
+  "updatedAt": "2026-11-14T01:32:47.809Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep cross-work-unit coordination routing in planning and place success criteria where their evidence is visible.",
+  "branch": "chore/coordination-routing-boundary",
+  "origin": "inbox",
+  "originEntry": "State that coordination routing stays out of specs, task lists and their success criteria",
+  "originEntrySourceDigest": "sha256:36581efa9ac7ba2c0fd21eca39275ca87e62e828c4c465146613adc8879a65cc",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
