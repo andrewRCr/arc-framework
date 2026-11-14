@@ -6,6 +6,7 @@ import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { identifyArcFileAddress, resolveArcPath, type ActiveLayoutContext, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
 import type { KindId } from "../catalog.js";
+import { KIND_REGISTRY } from "../registry.js";
 import { recordReferences, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import { WorkUnitReadPlacementSchema, ErrandReadPlacementSchema } from "../placement.js";
@@ -100,6 +101,13 @@ const personalPaths: Partial<Record<KindId, (identity: Slug, key: RecordReferenc
   "personal/document": (identity, key) => typeof key === "string" && key.startsWith("scratch/")
     ? resolveArcPath({ kind: "scratch-document", identity, key }) : null,
 };
+
+/** Whether any view could lay a record in a checkout under this identity, before its owner's placement is read. */
+export function projectableRecord(identity: Slug, reference: RecordReference): boolean {
+  if (KIND_REGISTRY[reference.kind].projection === "never") return false;
+  return reference.owner.type !== "person"
+    || reference.owner.name === identity && (personalPaths[reference.kind]?.(identity, reference.key) ?? null) !== null;
+}
 
 function personalProjectionPath(root: ProjectionRootState, record: StoreRecord): string | null {
   const { reference } = record;
