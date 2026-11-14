@@ -1,5 +1,5 @@
 /** The cutover window tools remain repository-only across every publication channel. */
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, matchesGlob, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { referenceBundleInputs, type ReferenceMetafile } from "../helpers/store/ship-guard.js";
@@ -18,7 +18,8 @@ it("excludes the tools from bundle inputs, published files, and the install reci
   const metadata = JSON.parse(await readFile(join(packageRoot, "dist/metafile-esm.json"), "utf8")) as ReferenceMetafile;
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as { files: string[] };
   const recipe: unknown = JSON.parse(await readFile(join(packageRoot, "init-recipe.json"), "utf8"));
-  const prefixes = [".", "src", "src/scripts", family, `${family}/main.ts`];
+  const members = (await readdir(join(packageRoot, family), { recursive: true })).map(path => `${family}/${path}`);
+  const prefixes = [".", "src", "src/scripts", family, ...members];
   const published = manifest.files.filter(pattern => prefixes.some(path =>
     matchesGlob(path, pattern.replace(/^\.\//u, "").replace(/\/$/u, ""))));
   expect({
