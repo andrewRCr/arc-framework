@@ -63,6 +63,8 @@ the ref backend while the default store stays in-repo.
           real unit setup added to the fixture's unit project, under a parent environment that sets the override. No
           worker in any of the three tiers sees it, and neither does a process an integration or end-to-end test
           spawns.
+        - That test reads the nested run's summary without its color codes, which a runner printing color had put
+          between its words (`29c8a88464`).
 
     - `[x]` **1.2.b CI's override condition**
         - Both steps open their own script with the condition: the branch from `GITHUB_HEAD_REF`, falling back to
@@ -72,6 +74,8 @@ the ref backend while the default store stays in-repo.
           that records the override every ARC invocation sees. Each step gets the override on the flip's pull request
           and dispatched runs over a tree that tracks state, and nowhere else. The lane-attestation workflow and the
           routed checks' declared inputs are unchanged.
+        - `integration/classify-change.test.ts`'s verified-tree record pins the forecast step's text as setup
+          preparation, and takes the condition with it (`a03c56b2fb`).
 
 ### `[x]` **1.3 The store test helpers build the in-repo backend explicitly — § 7.2**
 
@@ -619,27 +623,21 @@ _Mode:_ `layer` — closes on no surface outside the workflows reading or descri
 _Exit criterion:_ No test or check reads state from this repository's tree, `arc store` shows in help, and help, the
 notice, and ADR-035 describe the store's arms.
 
-### `[ ]` **4.1 Tests and checks that read this repository's tree — § 7.1**
+### `[x]` **4.1 Tests and checks that read this repository's tree — § 7.1**
 
 - _Goal:_ No test or check reads ARC state from this repository's tree, so CI passes over the post-deletion tree.
 
-    - `[ ]` **4.1.a The transition-record suite goes**
-        - `integration/live-transition-records.test.ts`, its entry in the ARC contract tier (`ARC_CONTRACT_SUITES`,
-          `lib/local-vitest-runner.ts`), and that tier's row in `unit/vitest-controller-logic.test.ts`.
+    - `[x]` **4.1.a The transition-record suite goes**
+        - `integration/live-transition-records.test.ts` is deleted, with its `ARC_CONTRACT_SUITES` entry and that
+          tier's row in `unit/vitest-controller-logic.test.ts`.
 
-    - `[ ]` **4.1.b The legacy sweep's planned-work arm goes**
-        - `integration/review-gate-legacy-sweep.test.ts`'s planned-work case reads `.arc/backlog/planned/configuration/`
-          from disk (`filesBelow`); no CI workflow fetches `refs/arc/*`, so a store read there finds no backlog, and the
-          arm goes.
+    - `[x]` **4.1.b The legacy sweep's planned-work arm goes**
+        - `integration/review-gate-legacy-sweep.test.ts` drops its planned-work case, the one that read
+          `.arc/backlog/planned/` from disk.
 
-    - `[ ]` **4.1.c `format:tables`' state inputs**
-        - `format:tables` in `.arc/system/arc-checks.yml` drops `.arc/active/**/*.md` and `.arc/backlog/**/*.md` with
-          their exclusions (`!.arc/backlog/ROADMAP.md`, `!.arc/active/README.md`, `!.arc/backlog/README.md`), which
-          match nothing once state leaves the tree; its inputs come from Git's tree changes (`matchTreeInputs`,
-          `lib/checks/matching.ts`).
-        - `lint:md` lists through Git (`enumerateTrackedMarkdownPaths`, `lib/markdown/selection.ts`) and
-          `lint:md:underwrap` through the index, and `lint:md:selection`, `lint:md:underwrap:selection`, and
-          `lint:arc:links:selection` already read state, so none changes.
+    - `[x]` **4.1.c `format:tables`' state inputs**
+        - `format:tables` drops `.arc/active/**/*.md` and `.arc/backlog/**/*.md` with the three exclusions under them;
+          the Markdown lint, under-wrap, and selection checks stay as they are.
 
 ### `[ ]` **4.2 Help text describes the store's arms, and `arc store` shows — § 4.9, § 6.1**
 

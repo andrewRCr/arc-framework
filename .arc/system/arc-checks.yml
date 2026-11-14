@@ -13,8 +13,6 @@ checks:
     inputs:
       - '*.md'
       - packages/arc-framework/arc/**/*.md
-      - .arc/active/**/*.md
-      - .arc/backlog/**/*.md
       - .arc/reference/adr/**/*.md
       - .arc/reference/strategies/project/**/*.md
       - .arc/reference/QUICK-REFERENCE.md
@@ -55,7 +53,6 @@ checks:
       - .arc/system/methods/validate-criteria.md
       - .arc/reference/PROJECT-PRD.md
       - .arc/reference/TECHNICAL-OVERVIEW.md
-      - '!.arc/backlog/ROADMAP.md'
       - '!**/node_modules/**'
       - '!**/.venv*/**'
       - '!**/venv/**'
@@ -64,8 +61,6 @@ checks:
       - '!.arc/user/*/USER-INBOX.md'
       - '!.arc/**/temp-*.md'
       - '!arc/**'
-      - '!.arc/active/README.md'
-      - '!.arc/backlog/README.md'
       - '!.arc/reference/adr/README.md'
       - '!.arc/reference/strategies/project/README.md'
       - '!.arc/reference/strategies/project/style/README.md'
