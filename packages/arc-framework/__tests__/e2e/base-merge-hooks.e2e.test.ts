@@ -4,11 +4,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
 import { cleanupTempDir, git, runArcNoTty } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing checks on the new head", async mode => {
+  if (mode === "ROADMAP remedy") useInRepoStore();
   const root = await createHookManagerRepository("core.hooksPath", inject("arcHookManagerTools"));
   roots.push(root);
   const roadmap = join(root, ".arc/backlog/ROADMAP.md");

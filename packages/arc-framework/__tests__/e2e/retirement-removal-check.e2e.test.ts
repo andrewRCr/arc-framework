@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 let repo: string | undefined;
 let remote: string | undefined;
@@ -60,6 +61,7 @@ describe("retirement checkout removal check", () => {
     expect(await readFile(h.path, "utf8")).toBe(content);
   });
   it("refuses dirty Planning park before relocation or staging", async () => {
+    useInRepoStore();
     const h = await prepare("Planning");
     const result = await runArc(["park", "demo", "--reason", "pause"], h.cwd);
     expect(result.exitCode).toBe(1);

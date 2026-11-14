@@ -47,6 +47,7 @@ import {
   removeGitBackedDir,
   unwrapPresentationOutput,
 } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -433,6 +434,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("builds one exact started-planning decomposition fixture through the installed surface", async () => {
+    useInRepoStore();
     const remote = await mkdtemp(join(tmpdir(), "arc-decompose-remote-"));
     externalDirs.push(remote);
     await execFileAsync("git", ["init", "--bare", remote]);
@@ -774,6 +776,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("arc park@Planning relocates to backlog/planned/ and defers branch + worktree teardown", async () => {
+    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);
@@ -799,6 +802,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land stages the exact planning result on a partial-protection base", async () => {
+    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
 
@@ -817,6 +821,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land preserves nested cohort placement", async () => {
+    useInRepoStore();
     const cohort = "portfolio/subgroup";
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo", cohort);
     worktrees.push(worktree);
@@ -830,6 +835,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("full-protection park commit round-trips to a stamped planning husk", async () => {
+    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree!, {
@@ -862,6 +868,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("partial-protection park landing preserves receipt-free teardown authority", async () => {
+    useInRepoStore();
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await git(repo, ["remote", "set-url", "origin", origin]);
@@ -888,6 +895,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a non-tip transition without writing the base", async () => {
+    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
@@ -901,6 +909,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a planning branch without a registered owner", async () => {
+    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await git(repo, ["worktree", "remove", worktree]);
@@ -913,6 +922,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a broken direct-transition relation", async () => {
+    useInRepoStore();
     const { worktree } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
@@ -926,6 +936,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses an outside transition path without writing the base", async () => {
+    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     expect(worktree).toBeDefined();
     worktrees.push(worktree!);
@@ -951,6 +962,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ["a surviving source artifact", "source-survivor"],
     ["an invalid ROADMAP transition", "invalid-roadmap"],
   ] as const)("arc park --land refuses %s without writing the base", async (_label, fault) => {
+    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(
       repo,
       "solo",
@@ -967,6 +979,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a conflicting base slug without a partial write", async () => {
+    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     const conflictDir = join(repo, ".arc/backlog/provisional/solo");
@@ -985,6 +998,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("fails closed when historical abandon evidence does not bind the retiring branch", async () => {
+    useInRepoStore();
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree, {
@@ -1023,6 +1037,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ["abandon", "commit"], ["abandon", "discard"],
     ["park", "commit"], ["park", "discard"],
   ] as const)("%s names staged paths and retries after %s repair", async (verb, repair) => {
+    useInRepoStore();
     await scaffoldStartedWu(repo, "mono", "in-place");
     const paths = ["staged one.txt", "staged-two.txt"];
     for (const path of paths) await writeFile(join(repo, path), "unrelated change\n");

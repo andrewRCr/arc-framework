@@ -14,6 +14,7 @@ import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 import { runCli } from "../helpers/run-cli.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const run = promisify(execFile);
@@ -43,6 +44,7 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it("reports adversarial recording's pre-flip remedy and repairs malformed request input", async () => {
+    useInRepoStore();
     const command = ["review", "adversarial", "record", invalidInputPath];
     const malformed = await runCli(command, { cwd: fixtureRoot });
     expect(malformed.exitCode).toBe(1);

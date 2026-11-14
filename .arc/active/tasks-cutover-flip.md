@@ -127,21 +127,17 @@ the ref backend while the default store stays in-repo.
 - _Outcome:_ Every direct `createStore` caller and § 7.2 handler entry in the test tree is classified by file in
   `notes-cutover-flip.md` § Test callers, which Task 3.3 takes as its list of tests expecting the ref backend.
 
-### `[ ]` **1.5 Spawned tests whose subject is the in-repo arm set the override — § 7.3**
+### `[x]` **1.5 Spawned tests whose subject is the in-repo arm set the override — § 7.3**
 
 - _Goal:_ Each test that spawns the built CLI to assert in-repo behavior sets the override in its spawn environment, so
   it keeps its subject after the switch and leaves with that arm.
 
-    - Classify the spawned tests that seed tracked state, or assert an in-repo `unsupported` refusal or its remedy
-      (`notes-cutover-flip.md` § Test callers), by subject: the in-repo arm, such as the ROADMAP remedy, park, the old
-      decomposition machine, and the notes commands, sets the override now; a surviving subject moves at Task 3.4.
-    - A spawned import (`store migrate --import`) builds its source through `createStore`, so its step sets the
-      override: `e2e/store-import-errands.e2e.test.ts` and `integration/store-ref-import-personal-batch.test.ts`.
-    - `e2e/store-command-dormancy.e2e.test.ts`'s twelve cases assert the in-repo refusals and the pre-flip step each
-      names, so it sets the override, and its expected texts change with Task 1.6's remedies; so does
-      `e2e/review-cli-surfaces.e2e.test.ts`'s adversarial-recording case, which asserts that command's in-repo refusal
-      and its remedy over a fixture that tracks nothing.
-    - Setting the override in a spawn environment changes nothing until the switch, so the suite stays green.
+- _Outcome:_ The cases whose subject is the in-repo arm set the override through `useInRepoStore` or
+  `useInRepoStoreForEach` (`__tests__/helpers/in-repo-store-override.ts`), which scope it to the test process's
+  environment so the spawned CLI and its Git hooks inherit it: the two spawned imports; the dormant-command,
+  adversarial-recording, `arc save`, editor, and dormant-decompose refusals; the old decomposition machine; park; the
+  ROADMAP remedy; the planning-lane classifier; and the notes commands' reference reconciliation. The classification
+  by file is in `notes-cutover-flip.md` § Test callers.
 
 ### `[ ]` **1.6 The in-repo refusals name their pre-flip steps — § 3.1**
 

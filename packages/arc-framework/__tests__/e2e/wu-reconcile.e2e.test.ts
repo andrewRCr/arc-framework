@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -312,6 +313,7 @@ describe("arc wu reconcile", () => {
   });
 
   it("reconciles managed user targets without advancing notes or the materialized baseline", async () => {
+    useInRepoStore();
     const userRoot = join(repo, ".arc", "user", "test-user");
     const sessionRoot = join(userRoot, "dependent");
     const inboxPath = join(userRoot, "USER-INBOX.md");

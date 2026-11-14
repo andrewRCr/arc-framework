@@ -5,6 +5,7 @@ import { InboxResultSchema } from "../../src/lib/inbox/types.js";
 import { RouteResultSchema } from "../../src/lib/inbox/route.js";
 import { ErrandQueueResultSchema } from "../../src/lib/inbox/queue.js";
 import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 describe("dormant store command registrations", () => {
   let root: string;
@@ -27,6 +28,7 @@ describe("dormant store command registrations", () => {
     { args: ["cohort", "remove", "example"], serving: "tracked cohort", schema: undefined },
     { args: ["cohort", "remove", "example", "--json"], serving: "archive", schema: undefined },
   ])("refuses $args with its serving path", async ({ args, serving, schema }) => {
+    useInRepoStore();
     const result = await runArcNoTty(["--no-input", ...args], root);
     expect(result.exitCode).toBe(1);
     expect(result.stdout + result.stderr).toContain("unsupported");

@@ -40,6 +40,7 @@ import {
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -2411,6 +2412,7 @@ describe("Git v3 repository plan", () => {
   });
 
   it("keeps local and hosted exact-ref verdicts aligned for generic transition records", async () => {
+    useInRepoStore();
     const { repo, baseHead, planningHead } = await genericPlanningLaneRepository();
     const runHosted = async (head: string) => await runCli([
       "review",

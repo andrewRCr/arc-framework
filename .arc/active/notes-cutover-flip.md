@@ -185,6 +185,33 @@ override whatever the default builds.
   `unit/lib/checks/projected-selection`, `unit/handlers/check/run`, and
   `integration/store-ref-projection-selection-reader`; and fixture text in `integration/eslint-architecture-rows`.
 
+The spawned tests, classified at Task 1.5. `useInRepoStore` and `useInRepoStoreForEach`
+(`__tests__/helpers/in-repo-store-override.ts`) set the override in the test process's environment for one test, or for
+each test of a file or `describe` block, so the CLI the test spawns and the Git hooks that run inherit it.
+
+- **Set the override now, since their subject leaves with the in-repo arm:**
+    - the spawned imports: `e2e/store-import-errands` and `integration/store-ref-import-personal-batch`;
+    - the in-repo refusals: `e2e/store-command-dormancy`'s twelve dormant-command cases, `e2e/review-cli-surfaces`'s
+      adversarial-recording case, `e2e/projection-save`'s unsupported `arc save`, `e2e/editor-settings`' dark editor
+      setup, and every case of `e2e/decompose-dormant`;
+    - the old decomposition machine: every case of `e2e/decompose-command-modes` and
+      `integration/schema-command/decomposition-provisioning`, and `e2e/lifecycle-exit`'s decomposition fixture case;
+    - park: `e2e/lifecycle-exit`'s park and `park --land` cases, its historical abandon evidence case, and its
+      staged-path cases for both `abandon` and `park`; and `e2e/retirement-removal-check`'s dirty Planning park;
+    - the ROADMAP remedy: `e2e/base-merge-hooks`'s `--regenerate-roadmap` mode;
+    - the tracked-prefix planning classifier: `integration/decompose-v3-repository-plan`'s exact-ref verdict case;
+    - the notes commands: `e2e/wu-reconcile`'s managed-user-target case, which saves notes and asserts that reference
+      reconciliation advances neither the notes ref nor the materialized baseline.
+- **Move at Task 3.4 by family:** the spawned tests seeding tracked state whose subject survives, listed above, among
+  them `e2e/lifecycle-exit`'s abandon and teardown cases, `e2e/base-merge-hooks`' clean mode, `e2e/wu-reconcile`'s
+  other cases, and `e2e/view` with its completed-viewing refusal. `e2e/lifecycle-exit`'s shared `beforeEach` runs
+  `arc init --pm-mode arc-in-git` and commits it before any case sets the override, so its in-repo cases meet that
+  fixture as the switch builds it; Task 3.4.b settles the fixture with the cases that move.
+- **Outside this classification:** `integration/scripts/remedy-roadmap-conflict` spawns the remedy script, which builds
+  no store; and the notes commands' spawned tests that seed no tracked state and assert no in-repo refusal
+  (`e2e/user`, whose committed default `arc init` tracks none of the state roots, `sync-inbound`, `sync-purity`,
+  `sync-state-producer`, and `materializing-fetch`) go with Task 3.4.h's `user` assertions.
+
 ## Errand branch readers
 
 The search § 4.8 asks for, at `a7c65b4239`: `branchToWorkUnitSlug` (20 call sites in 15 files), `isErrandBranchType`

@@ -3,8 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 it.each([{ args: [] }, { args: ["--resolve", "personal/person/andrew/one"] }])("refuses unsupported projection save with $args as whole JSON", async ({ args }) => {
+  useInRepoStore();
   const checkout = await createTempRepo("arc-projection-save-");
   try {
     await mkdir(join(checkout, ".arc"));

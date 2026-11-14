@@ -6,8 +6,10 @@ import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from 
 import { runArcNoTty } from "./helpers.js";
 import { join } from "node:path";
 import { seedTransients, transientCommon, transientSourceRef } from "../helpers/store/import-transients.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 it("retains origin's transient authority when a read source is configured without a publisher", async () => {
+  useInRepoStore();
   const h = await importFixture("separate");
   const base = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   const tip = await seedTransients(h, [{ ...transientCommon, kind: "groom", slug: "groom-beta", anchorStub: "beta", members: ["beta"],
@@ -25,6 +27,7 @@ it("retains origin's transient authority when a read source is configured withou
 
 describe.each(["default", "separate"] as const)("CLI Errand import in %s", (layout) => {
   it("re-homes authority, retires the licensed refs, and can run again", async () => {
+    useInRepoStore();
     const h = await importFixture(layout);
     const record = TransientIdentityRecordSchema.parse({ version: 3, slug: "example", claimId: "1".repeat(32),
       createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", kind: "errand", purpose: "errand",

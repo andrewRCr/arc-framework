@@ -2,8 +2,10 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc, runArcNoTty } from "./helpers.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 let root: string;
+useInRepoStoreForEach();
 beforeEach(async () => {
   root = await createTempRepo();
   expect((await runArc(["init", "--yes", "--name", "test-project"], root)).exitCode).toBe(0);
