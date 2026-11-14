@@ -1,6 +1,7 @@
 /** The test setups keep the in-repo store override a parent environment sets from every worker and spawned process. */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -39,6 +40,6 @@ it("clears an override the parent environment sets before any test runs", async 
       ["run", "--project", "unit", "--project", "integration", "--project", "e2e", "override"],
       { ARC_IN_REPO_STORE: "1", ARC_E2E_SKIP_BUILD: undefined }, "native");
     expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Tests\s+3 passed \(3\)/u);
+    expect(stripVTControlCharacters(result.stdout)).toMatch(/Tests\s+3 passed \(3\)/u);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 }, nestedRunLimit(60_000));
