@@ -1,7 +1,8 @@
 /** The sole composition point for operational state backends. */
 
 import type { Store, ReadOnlyStore } from "./contract.js";
-import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
+import type { StoreConflictInput, StoreConflictResult, StoreCreationDesignationResult, StoreMigrateInput, StoreMigrateResult,
+  StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 import { recordComposedStoreCapability } from "./projection/process-state.js";
 import { composeRefStorePorts, findTrackedStateRefusal, IN_REPO_STORE_OVERRIDE, refusingStore } from "./selection.js";
@@ -89,6 +90,12 @@ export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateI
 export async function runStoreRemote(ports: RefStorePorts, input: StoreRemoteInput = {}): Promise<StoreRemoteResult> {
   const { runRefBackendRemote } = await import("./ref/backend.js");
   return runRefBackendRemote(ports, input);
+}
+
+/** At a project's creation, designate its code remote as the state remote unless a remote already carries a role. */
+export async function runStoreCreationDesignation(ports: RefStorePorts): Promise<StoreCreationDesignationResult> {
+  const { runRefBackendCreationDesignation } = await import("./ref/backend.js");
+  return runRefBackendCreationDesignation(ports);
 }
 
 /** Inspect or explicitly discard one conflict through the ref backend's exact history. */

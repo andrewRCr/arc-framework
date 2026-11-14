@@ -304,33 +304,18 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   still found after its slug is reused. The ownership check resolves the invoked work unit rather than the record's
   slug. A Candidate blocks a store rename, so the renamed case arises at a landed merge's link retry.
 
-### `[ ]` **2.9 `arc init` designates the state remote and mints the project ID — § 4.7**
+### `[x]` **2.9 `arc init` designates the state remote and mints the project ID — § 4.7**
 
 - _Goal:_ From the flip, `arc init` designates the code remote as the state remote at creation where one exists, and
   mints the project ID into the registry's create-only identity record, pulling first and adopting an ID it finds where
   a remote is already designated (`spec-storage-ref-backend.md` § 9.2, § 9.8).
 
-    - `commands/init.ts` does neither today. Both run only on a ref store, since the in-repo implementation refuses the
-      identity record's write; before the switch, the tests inject a ref-backed store.
-    - Both run whatever the identity, in init's own path (`commands/init.ts`) rather than `runPostInitSetup`
-      (`lib/setup.ts`), which `arc join` shares (`commands/join.ts`) and which reaches its store arm only with an
-      identity, since `join` never mints. Designation is a `git config` write; the mint is a project-owned store write,
-      which needs no identity (`refWriteIdentityRefusal`, `lib/store/ref/write-resolution.ts`, refuses only
-      person-owned writes without one).
-    - Designation, and the pull where a remote is already designated, come before the first store read or write in
-      init's own action, its personal identity setup (`preparePersonalIdentitySetup`, `runPostInitSetup`'s seed) among
-      them, since an undesignated first write creates a separate `<commonDir>/arc/store` (`writeRefRepository`,
-      `lib/store/ref/repository.ts`) and a code remote designated beside it reports `move-incomplete`
-      (`spec-storage-ref-backend.md` § 9.2). The root hook's read of the store's version before the action creates no
-      repository (`readRefRepository`).
-    - Build `test-first` (one behavior at a time):
-        - a fresh repository with a code remote is designated and gets a minted project ID
-        - a designated init, with an identity, creates no `<commonDir>/arc/store`
-        - a repository with no remote mints an ID and designates none
-        - a remote already holding a project ID is pulled and its ID adopted, not re-minted
-        - an init with no identity designates the remote and mints a project ID
-        - `arc join` mints none
-        - on the in-repo implementation, init does neither
+- _Outcome:_ On an off-branch store, init runs `runStoreCreationDesignation` (`lib/store/create.ts`) after its lock and
+  installed check: it sets `push` on the backend's code remote through the remote setting, or reports a remote that
+  already carries a role, which init then pulls, refusing `init.state-remote` on a failed pull. The identity read moves
+  after it, and `mintProjectIdentity` (`lib/store/project-identity.ts`) mints before any install write, only where a
+  complete listing holds none, so an init refused later keeps its one ID on the re-run. The import writes the same
+  record through `projectIdentityRecord`.
 
 ### `[ ]` **2.10 The Errand branch's suffix and every reader of it — § 4.8**
 

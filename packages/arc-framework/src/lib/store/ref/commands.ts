@@ -3,7 +3,8 @@
 import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports, type StoreMigrateInput, type StoreMigrateResult,
-  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult } from "../commands.js";
+  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult,
+  type StoreCreationDesignationResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { ambiguousDesignation, readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
@@ -153,6 +154,18 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   if (applied.status !== "ok") return unappliedSetting(completed, applied);
   applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
   return applied;
+}
+
+/** At a project's creation, set `push` on the code remote unless a remote already carries a role; that one is pulled. */
+export async function runRefCreationDesignation(context: RefBackendContext, store: Store): Promise<StoreCreationDesignationResult> {
+  const designation = await readRefDesignation(context);
+  if (designation.backing !== null || designation.codeRemotes.some(({ role }) => role !== undefined)) {
+    return { status: "ok", result: { state: "designated" } };
+  }
+  const remote = designation.codeRemote;
+  if (remote === null) return { status: "ok", result: { state: "local" } };
+  const applied = await runRefRemote(context, store, { remote, role: "push" });
+  return applied.status === "ok" ? { status: "ok", result: { state: "set", remote } } : applied;
 }
 
 /** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */

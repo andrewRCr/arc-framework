@@ -6,7 +6,14 @@
  * with guidance to use `arc join` or `arc update` instead.
  */
 
-import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
+import { openPersonalIdentityStore, preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
+import type { Store } from "../lib/store/contract.js";
+import type { StoreCreationDesignationResult } from "../lib/store/commands.js";
+import { createStore, runStoreCreationDesignation } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { mintProjectIdentity } from "../lib/store/project-identity.js";
+import type { Remedy } from "../lib/store/refusal.js";
+import { createStoreCommandPorts } from "./store-ports.js";
 import { join, dirname, relative, sep } from "node:path";
 import {
   ensureDir, writeArcIgnoreBlocks, preflightIgnoreFiles,
@@ -115,6 +122,8 @@ export interface InitOptions extends PersonalIdentitySetupOptions {
   prompts: InitPromptResult | null;
   /** Resolved identity, or null if cancelled/unavailable. */
   identityResult: string | null;
+  /** Designates the state remote at creation; defaults to the checkout's ref store commands. */
+  designateStateRemote?: () => Promise<StoreCreationDesignationResult>;
 }
 
 /** Result from a successful init run. */
@@ -142,6 +151,8 @@ export interface InitResult {
  * @throws UserFacingError with code 'manifest.install-paths-occupied' if files ARC did not install already hold
  *   other content at paths it would write
  * @throws UserFacingError with code 'INIT_IN_PROGRESS' if another init holds the lock file
+ * @throws UserFacingError with code 'init.state-remote' if, on the store path, the state remote cannot be designated or a
+ *   designated one pulled
  */
 export async function runInit(
   options: InitOptions,
@@ -152,10 +163,6 @@ export async function runInit(
   if (!prompts) {
     return null;
   }
-
-  const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
-    ...options, identity: identityResult, command: "init",
-  });
 
   // Validate the complete template projection before acquiring the init lock
   // or performing any other filesystem effect.
@@ -197,6 +204,19 @@ export async function runInit(
         whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
       });
     }
+
+    // On the store path, the state remote is designated, or a designated one pulled, before the first store read, and
+    // the project ID minted before any install write, so a refused init leaves one ID for its re-run to keep.
+    const store = options.store ?? (identityResult === null
+      ? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec }))
+      : openPersonalIdentityStore(cwd, io.exec, identityResult));
+    if (store.capabilities.stateOffBranch) {
+      await prepareStateRemote(store, options.designateStateRemote ?? (() => runStoreCreationDesignation(createStoreCommandPorts(cwd))));
+    }
+    const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
+      ...options, store, identity: identityResult, command: "init",
+    });
+    if (store.capabilities.stateOffBranch) await mintProjectIdentity(store);
 
     const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
@@ -330,6 +350,26 @@ export async function runInit(
   } finally {
     await io.removeFile(lockPath).catch(() => {});
   }
+}
+
+/** Designate the state remote at creation, or pull the one a remote already carries, refusing on any failure. */
+async function prepareStateRemote(store: Store, designate: () => Promise<StoreCreationDesignationResult>): Promise<void> {
+  const designation = await designate();
+  if (designation.status === "refused") {
+    const refusal = designation.refusal.code === "store" ? designation.refusal.refusal : designation.refusal;
+    throw stateRemoteError("ARC could not designate this project's state remote", refusal);
+  }
+  if (designation.status === "confirmation-needed") throw stateRemoteError("ARC could not designate this project's state remote", designation);
+  if (designation.result.state !== "designated") return;
+  const pulled = await store.pull();
+  if (pulled.status === "refused") throw stateRemoteError("ARC could not pull the designated state remote", pulled.refusal);
+  const failed = pulled.result.pulls.find(outcome => outcome.status === "failed");
+  if (failed?.status === "failed") throw stateRemoteError(`ARC could not pull state remote ${failed.remote}`, failed.failure);
+}
+
+function stateRemoteError(whatHappened: string, cause: { condition: string; remedy: Remedy }): UserFacingError {
+  return new UserFacingError({ code: "init.state-remote", whatHappened, why: cause.condition,
+    whatToDo: `${cause.remedy.text}\nThen re-run 'arc init'.` });
 }
 
 // --- Post-Init Messaging ---
