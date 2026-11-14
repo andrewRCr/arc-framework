@@ -56,13 +56,13 @@ the ref backend while the default store stays in-repo.
 - _Goal:_ No test, nor any CLI a test spawns, inherits the override from the checkout that runs it, and CI's two
   in-checkout CLI steps carry it only while the flip's branch still tracks state.
 
-    - `[ ]` **1.2.a The test setups clear the override**
-        - The unit setup (`__tests__/helpers/unit-setup.ts`) and the integration and end-to-end global setups
-          (`__tests__/integration/global-setup.ts`, `__tests__/e2e/global-setup.ts`), which run before Vitest composes
-          its workers' environment, so clearing reaches the workers and every CLI they spawn.
-        - A test asserts, through a nested run over the real global setups (`makeVitestRuntimeFixture`,
-          `__tests__/helpers/vitest-runtime-fixture.ts`), that a spawned CLI sees no override when the parent
-          environment sets one.
+    - `[x]` **1.2.a The test setups clear the override**
+        - The unit setup and the integration and end-to-end global setups delete `IN_REPO_STORE_OVERRIDE` from the
+          process environment before anything else runs.
+        - `integration/test-setup-store-override.test.ts` runs a nested Vitest over the real global setups, with the
+          real unit setup added to the fixture's unit project, under a parent environment that sets the override. No
+          worker in any of the three tiers sees it, and neither does a process an integration or end-to-end test
+          spawns.
 
     - `[ ]` **1.2.b CI's override condition**
         - `check gate merge --ci --dry-run` and `check run lint:md:underwrap` (`.github/workflows/ci.yml`) each export
