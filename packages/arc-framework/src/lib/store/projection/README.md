@@ -297,12 +297,15 @@ memory until the batch writes it. `taken-in` means the edit landed whole and car
 
 `replace-guard.ts` re-checks a file by the racy rule before it is replaced or removed, against its entry or, for a file
 write-back just sent or drew a clash into, against what write-back read. A withheld file is left as it is, its entry
-unchanged, before anything reads it, since nothing writes over or sends one. A file that matches is replaced, its stat
-re-recorded where only the hash matched. A changed one goes to the take-in: one with no edit is replaced, its stat
-recorded as its baseline; one taken in is re-checked against what the take-in read once the record's current version is
-restaged, or at once for a removal, which stages nothing, for at most three passes; and any other answer leaves it in
-place and pending, marked refused where its edit was. A refused read of the current version leaves it pending too,
-retryable. Each replacement names the blob id its swap moves aside.
+unchanged, before anything reads it: the guard never writes over or sends one. Only a file held because the evidence
+that placed it was not whole (`evidenceHeldProjectionMark`, whose reason carries the `evidence-held:` code) is written
+over, by the next rebuild that lays a record at its path, and then only where its bytes are unedited; an ordinarily
+withheld file stays until it is deleted. A file that matches is replaced, its stat re-recorded where only the hash
+matched. A changed one goes to the take-in: one with no edit is replaced, its stat recorded as its baseline; one taken
+in is re-checked against what the take-in read once the record's current version is restaged, or at once for a removal,
+which stages nothing, for at most three passes; and any other answer leaves it in place and pending, marked refused
+where its edit was. A refused read of the current version leaves it pending too, retryable. Each replacement names the
+blob id its swap moves aside.
 
 `aside-copies.ts` holds the rules every reader of an aside copy applies. A copy's path has moved on once it holds
 anything but what the swap linked, or once a write-back of it has been sent since the swap, there or not, and
