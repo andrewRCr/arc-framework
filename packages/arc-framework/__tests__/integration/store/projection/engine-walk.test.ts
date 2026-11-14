@@ -21,7 +21,7 @@ const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("the command's projected-root walk", () => {
-  it("uses typed folder entries without per-entry stats and yields between folders", async () => {
+  it("uses typed folder entries, statting only an entry typed as a link, and yields between folders", async () => {
     const h = await createEngineFixture(directories);
     const root = ".arc/backlog", folder = join(h.checkout, root);
     await mkdir(join(folder, "a/deep"), { recursive: true });
@@ -40,8 +40,23 @@ describe("the command's projected-root walk", () => {
     const result = await walkProjectionRoots(h.checkout, [root], fs);
     expect({ result, lstatCalls }).toEqual({ result: {
       files: [`${root}/a/deep/two.md`, `${root}/a/one.md`], links: [`${root}/link`],
-    }, lstatCalls: 0 });
+    }, lstatCalls: 1 });
     expect(laterFolderYielded).toBe(true);
+  });
+
+  it("walks a file or folder a listing types as a link when its own stat says it is not one", async () => {
+    const h = await createEngineFixture(directories);
+    const root = ".arc/backlog", folder = join(h.checkout, root);
+    await mkdir(join(folder, "synced"), { recursive: true });
+    await writeFile(join(folder, "tagged.md"), "an edited file a sync engine tagged\n");
+    await writeFile(join(folder, "synced/inner.md"), "inside a tagged folder\n");
+    await symlink(join(h.checkout, ".arc/user/andrew/scratch"), join(folder, "link"), "junction");
+    // A Windows listing types every reparse point as a link, whatever its tag.
+    const tagged = new Set([join(folder, "tagged.md"), join(folder, "synced")]);
+    const result = await walkProjectionRoots(h.checkout, [root], { readdir: (path: string) =>
+      readdirSync(path, { withFileTypes: true }).map(entry => !tagged.has(join(path, entry.name)) ? entry
+        : { name: entry.name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => true }) });
+    expect(result).toEqual({ files: [`${root}/synced/inner.md`, `${root}/tagged.md`], links: [`${root}/link`] });
   });
 
   it("keeps a folder's other files when one entry vanishes while an untyped read types it", async () => {
