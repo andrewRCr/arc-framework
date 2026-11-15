@@ -13,20 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on                                   | Cohort             |
-| ------------- | ------------------------------- | -------- | ------ | -------------------------------------------- | ------------------ |
-| `Active`      | cutover-flip                    | P1       | andrew | cutover-window-tooling, projection-worktrees | storage-cutover    |
-| `Planning`    | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                                 | storage-cutover    |
-| `Integrating` | cutover-window-tooling          | P1       | andrew | —                                            | storage-cutover    |
-| `Planning`    | projection-team-scale           | P1       | andrew | projection-worktrees                         | storage-projection |
-| `Active`      | projection-worktrees            | P1       | andrew | —                                            | storage-projection |
-| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover                              | —                  |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                            | —                  |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                            | —                  |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                            | —                  |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                            | —                  |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                            | —                  |
-| `Planning`    | cli-output-contract             | P2       | andrew | —                                            | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on           | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | -------------------- | ------------------ |
+| `Active`   | cutover-flip                    | P1       | andrew | projection-worktrees | storage-cutover    |
+| `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip         | storage-cutover    |
+| `Planning` | projection-team-scale           | P1       | andrew | projection-worktrees | storage-projection |
+| `Active`   | projection-worktrees            | P1       | andrew | —                    | storage-projection |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover      | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                    | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                    | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                    | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                    | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                    | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —                    | —                  |
 
 ## Ready
 
