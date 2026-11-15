@@ -12,16 +12,23 @@ const projectWorkflow = readFileSync(
   "utf8",
 );
 
+const PREVIEW = "arc decompose <origin> --finish";
+const APPLY = "arc decompose <origin> --finish --apply <applyAuthority>";
+
+function section(start: string, end: string): string {
+  return workflow.slice(workflow.indexOf(start), workflow.indexOf(end));
+}
+
 describe("decompose workflow contract", () => {
-  it("orders the typed decomposition lifecycle", () => {
+  it("orders the stored cut's lifecycle", () => {
     const headings = [
       "## 1. Emit the exact preflight",
       "## 2. Complete the operator-owned map",
-      "## 3. Dispatch the complete result",
+      "## 3. Write the additive batch",
       "## 4. Author every reported destination",
-      "## 5. Review the distributed result",
-      "## 6. Release through the reported protection arm",
-      "## 7. Confirm lifecycle readiness and finish",
+      "## 5. Preview and approve the distribution",
+      "## 6. Apply the terminal batch",
+      "## 7. Confirm lifecycle readiness",
     ];
     const positions = headings.map((heading) => workflow.indexOf(heading));
 
@@ -39,70 +46,75 @@ describe("decompose workflow contract", () => {
         "Successful preflight writes the starter map alone; refusal follows the common envelope and never emits a partial starter map.",
       ),
     );
-    expect(workflow).not.toMatch(softWrappedProse("Diagnostics use stderr; a refusal emits no partial map."));
+    expect(workflow).toMatch(softWrappedProse("Never construct identifiers, record references, apply authorities"));
   });
 
-  it("separates semantic distribution, advancement, and destructive finish interlocks", () => {
+  it("makes the distribution approval the one stop before the terminal batch", () => {
     const authoring = workflow.indexOf("## 4. Author every reported destination");
-    const release = workflow.indexOf("## 6. Release through the reported protection arm");
-    const finishPreview = workflow.indexOf("arc decompose <origin> --finish <completed-map>");
-    const finishApply = workflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
-    );
+    const preview = workflow.indexOf(`${PREVIEW}\n`);
+    const apply = workflow.indexOf(APPLY);
     const interlocks = [...workflow.matchAll(/`workflow-interlock`/gu)];
 
-    expect(authoring).toBeGreaterThan(-1);
-    expect(interlocks).toHaveLength(3);
-    expect(interlocks[0]!.index).toBeGreaterThan(authoring);
-    expect(release).toBeGreaterThan(interlocks[0]!.index);
-    expect(interlocks[1]!.index).toBeGreaterThan(workflow.indexOf("--advance-base"));
-    expect(interlocks[1]!.index).toBeLessThan(workflow.indexOf("`push-interlock`"));
-    expect(interlocks[2]!.index).toBeGreaterThan(finishPreview);
-    expect(interlocks[2]!.index).toBeLessThan(finishApply);
-    expect(workflow.slice(interlocks[2]!.index, finishApply))
-      .toMatch(softWrappedProse("explicit 'apply' direction"));
-    expect(workflow).toMatch(softWrappedPattern(/This\s+is\s+destructive\s+mutation\s+confirmation,\s+not\s+a\s+second\s+semantic/u));
+    expect(interlocks).toHaveLength(2);
+    expect(preview).toBeGreaterThan(authoring);
+    expect(interlocks[0]!.index).toBeGreaterThan(preview);
+    expect(apply).toBeGreaterThan(interlocks[1]!.index);
+    expect(workflow).toMatch(softWrappedProse("This is the sole semantic distribution approval, and it authorizes the terminal batch."));
+    expect(workflow).toMatch(softWrappedProse("Right after approval, in the same session, apply the exact preview"));
+    expect(workflow).toMatch(softWrappedProse("naming `--finish` for a fresh preview, which returns to step 5's approval"));
   });
 
-  it("surfaces extraction's typed report fields at the sole semantic distribution gate", () => {
-    const reviewStart = workflow.indexOf("## 5. Review the distributed result");
-    const releaseStart = workflow.indexOf("## 6. Release through the reported protection arm");
-    const review = workflow.slice(reviewStart, releaseStart);
+  it("previews a discard or revision at a stop of its own before applying it", () => {
+    const options = section("A rejection runs the discard instead", "## 6. Apply the terminal batch");
+    const stop = options.indexOf("`workflow-interlock`");
+    const discardApply = options.indexOf("arc decompose <origin> --discard --apply <applyAuthority>");
+    const revisionApply = options.indexOf("arc decompose <origin> --revise <revised-map> --apply <applyAuthority>");
 
-    expect(review).toContain("report.extraction.retainedOrigin");
-    expect(review).toContain("report.extraction.reasonedDrops");
-    expect(review).toContain("report.extraction.anchor");
+    expect(options).toContain("`arc decompose <origin> --discard`");
+    expect(options).toContain("`leftEdited`");
+    expect(options).toContain("`arc decompose <origin> --revise > <scratch-revision-starter>`");
+    expect(options).toContain("`carried`");
+    expect(options).toContain("`reauthor`");
+    expect(stop).toBeGreaterThan(-1);
+    expect(options.slice(stop, discardApply)).toMatch(softWrappedProse("explicit 'apply' direction"));
+    expect(discardApply).toBeGreaterThan(stop);
+    expect(revisionApply).toBeGreaterThan(stop);
+    expect(options).toMatch(softWrappedProse("authoring resumes at step 4 for what the revision added"));
+  });
+
+  it("reviews an extraction's retained content at the distribution gate", () => {
+    const review = section("## 5. Preview and approve the distribution", "A rejection runs the discard instead");
+    const specReview = review.indexOf("[spec-review][spec-review]");
+    const stop = review.indexOf("`workflow-interlock`");
+
+    expect(review).toContain("`retainedContent`");
+    expect(review).toContain("`lineage`");
+    expect(review).toContain("`removals`");
+    expect(specReview).toBeGreaterThan(-1);
+    expect(stop).toBeGreaterThan(specReview);
     expect(review).toMatch(softWrappedProse("surviving origin as the natural continuation"));
-    expect(review).toMatch(softWrappedProse("never re-derive"));
-    expect(review.match(/`workflow-interlock`/gu)).toHaveLength(1);
-    expect(review).toMatch(softWrappedProse("sole semantic distribution approval"));
+    expect(review).toMatch(softWrappedProse("never re-derive them from records"));
   });
 
-  it("carries companion allocation and provisional authoring through both workflow copies", () => {
+  it("carries companion allocation and copy authoring through both workflow copies", () => {
     for (const candidate of [workflow, projectWorkflow]) {
       const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
-      const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const batchStart = candidate.indexOf("## 3. Write the additive batch");
       const authorStart = candidate.indexOf("## 4. Author every reported destination");
-      const reviewStart = candidate.indexOf("## 5. Review the distributed result");
-      const map = candidate.slice(mapStart, dispatchStart);
-      const authoring = candidate.slice(authorStart, reviewStart);
-      const normalizedMap = map.replace(/\s+/gu, " ");
-      const normalizedAuthoring = authoring.replace(/\s+/gu, " ");
+      const previewStart = candidate.indexOf("## 5. Preview and approve the distribution");
+      const map = candidate.slice(mapStart, batchStart).replace(/\s+/gu, " ");
+      const authoring = candidate.slice(authorStart, previewStart).replace(/\s+/gu, " ");
 
-      expect(normalizedMap).toContain("inventoried companion units");
-      expect(normalizedMap).toContain("task-list phases and notes sections");
-      expect(normalizedMap).toContain("same target or reasoned-drop dispositions as design units");
-      expect(normalizedMap).toContain("started-Planning companion allocation to `retained-origin`");
-      expect(normalizedMap).toContain("Active origins report no companion units");
-      expect(normalizedAuthoring).toContain("`provisional-task` and `provisional-notes`");
-      expect(normalizedAuthoring).toContain("whole retitled copies of the origin companions");
-      expect(normalizedAuthoring).toContain("prune them to their assigned content");
-      expect(normalizedAuthoring).toContain(
-        "manually transfer allocated content from every other companion",
-      );
-      expect(candidate).toMatch(
-        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
-      );
+      expect(map).toContain("inventoried companion units");
+      expect(map).toContain("task-list phases and notes sections");
+      expect(map).toContain("same target or reasoned-drop dispositions as design units");
+      expect(map).toContain("started-Planning companion allocation to `retained-origin`");
+      expect(map).toContain("Active origins report no companion units");
+      expect(map).toContain("its Purpose");
+      expect(authoring).toContain("whole retitled copy of the origin's companion");
+      expect(authoring).toContain("prune it to its assigned content");
+      expect(authoring).toContain("manually transfer allocated content from every other companion");
+      expect(authoring).toContain("keep each member's seeded `Cohort` and `Depends On`");
     }
   });
 
@@ -111,9 +123,9 @@ describe("decompose workflow contract", () => {
       const refusalStart = indexOfSoftWrappedProse(candidate, "Use only CLI-reported paths, packets, statuses, and remedies");
       const preconditionsStart = candidate.indexOf("## Preconditions");
       const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
-      const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const batchStart = candidate.indexOf("## 3. Write the additive batch");
       const refusal = candidate.slice(refusalStart, preconditionsStart).replace(/\s+/gu, " ");
-      const map = candidate.slice(mapStart, dispatchStart).replace(/\s+/gu, " ");
+      const map = candidate.slice(mapStart, batchStart).replace(/\s+/gu, " ");
 
       expect(refusalStart).toBeGreaterThan(-1);
       expect(refusal).toContain("surface its status, reason, optional locus and evidence, remedy");
@@ -123,31 +135,11 @@ describe("decompose workflow contract", () => {
       expect(map).toContain("work unit outside the cut");
       expect(map).toContain("`internalEdges`");
       expect(map).toContain("`outgoingDispositions`");
-      expect(candidate).toMatch(softWrappedProse("`provisional-task` and `provisional-notes`"));
-      expect(candidate).toMatch(softWrappedProse("manually transfer allocated content"));
-      expect(candidate).toMatch(
-        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
-      );
       expect(candidate).not.toMatch(/\bnpx\s+arc\b/u);
     }
   });
 
-  it("re-stages and verifies the approved authored bytes before either release arm", () => {
-    const interlock = workflow.indexOf("`workflow-interlock`");
-    const staging = workflow.indexOf("git add -- <reported-release-paths>");
-    const partial = workflow.indexOf("### Partial protection");
-    const full = workflow.indexOf("### Full protection");
-
-    expect(staging).toBeGreaterThan(interlock);
-    expect(staging).toBeLessThan(partial);
-    expect(staging).toBeLessThan(full);
-    expect(workflow).toContain("git diff --quiet -- <reported-release-paths>");
-    expect(workflow).toMatch(softWrappedProse("including paths the command found already applied"));
-    expect(workflow).toContain("git diff --cached --name-only --no-renames");
-    expect(workflow).not.toMatch(/git add -- (?:\.arc|\.|--all|-A)\b/u);
-  });
-
-  it("uses a closed retirement/extraction dispatch and extraction finish", () => {
+  it("runs a closed retirement/extraction dispatch through the stored cut", () => {
     const bashCommands = [...workflow.matchAll(/```bash\n([\s\S]*?)```/gu)].map(
       (match) => match[1]!.trim(),
     );
@@ -156,119 +148,62 @@ describe("decompose workflow contract", () => {
       "arc decompose <origin> --preflight > <scratch-starter-map>",
       "arc decompose <origin> --execute <completed-map>",
       "arc decompose <origin> --extract <completed-map>",
-      "git add -- <reported-release-paths>\n"
-        + "git diff --quiet -- <reported-release-paths>\n"
-        + "git diff --cached --name-only --no-renames",
-      "arc decompose <origin> --advance-base <completed-map>",
-      "arc status",
-      "arc decompose <origin> --finish <completed-map>",
-      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
-      "git add -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
-        + "git diff --quiet -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
-        + "git diff --cached --name-only --no-renames",
-      "arc teardown --branch <reported-candidate-branch>",
-      "arc teardown <origin>",
+      "arc save",
+      PREVIEW,
+      "arc decompose <origin> --discard --apply <applyAuthority>",
+      "arc decompose <origin> --revise <revised-map> --apply <applyAuthority>",
+      APPLY,
+      "arc save",
+      "arc status --project",
     ]);
-    expect(workflow).toMatch(softWrappedProse("profile and topology packets"));
-    expect(workflow).toContain("Retirement dispatch");
-    expect(workflow).toContain("Extraction dispatch");
-    for (const retired of ["--discard", "--finalize", "--continuation", "--handoff"]) {
+    expect(workflow).toContain("`arc schema get cut-map`");
+    expect(workflow).toMatch(softWrappedProse("no later mode takes the map file"));
+    for (const retired of ["--advance-base", "--finalize", "--continuation", "--handoff", "<completed-map> --apply"]) {
       expect(workflow).not.toContain(retired);
     }
-    expect(workflow).not.toMatch(/\bprepar(?:e|ation|ed)\b/iu);
   });
 
-  it("keeps partial and full release controls mutually exclusive and ordered", () => {
-    const partialStart = workflow.indexOf("### Partial protection");
-    const fullStart = workflow.indexOf("### Full protection");
-    const readinessStart = workflow.indexOf("## 7. Confirm lifecycle readiness and finish");
-    expect(partialStart).toBeGreaterThan(-1);
-    expect(fullStart).toBeGreaterThan(partialStart);
-    expect(readinessStart).toBeGreaterThan(fullStart);
-
-    const partial = workflow.slice(partialStart, fullStart);
-    const full = workflow.slice(fullStart, readinessStart);
-    expect(partial).toContain("`commit-interlock`");
-    expect(partial).toContain("`workflowCommit`");
-    expect(partial).not.toContain("pre-push-review");
-    expect(partial).not.toContain("`push-interlock`");
-    expect(partial).not.toContain("`workflowPush`");
-    expect(partial).not.toContain("`integration-interlock`");
-
-    const fullControls = [
-      "`commit-interlock`",
-      "`workflowCommit`",
-      "`push-interlock`",
-      "`workflowPush`",
-      "PR status",
-      "`integration-interlock`",
-      "merge according to project policy",
-    ].map((control) => indexOfSoftWrappedProse(full, control));
-
-    expect(fullControls).not.toContain(-1);
-    expect(fullControls).toEqual([...fullControls].sort((left, right) => left - right));
-    expect(full).toContain("Retirement only");
-    expect(full).toMatch(softWrappedProse("Extraction never invokes this operation"));
-    expect(full).toMatch(softWrappedProse("An `advanced` result fires the interlock below"));
-    expect(full.match(/`workflowCommit`/gu)).toHaveLength(2);
-    expect(full.match(/`commit-interlock`/gu)).toHaveLength(2);
+  it("lands through the terminal batch with no Git release", () => {
+    expect(workflow).toMatch(softWrappedProse("The terminal batch is the landing: no commit, push, pull request, or merge follows."));
+    for (const control of ["`commit-interlock`", "`push-interlock`", "`integration-interlock`", "`workflowCommit`",
+      "`workflowPush`", "git add", "gh pr", "arc teardown --branch"]) {
+      expect(workflow).not.toContain(control);
+    }
+    expect(workflow).not.toMatch(/\bgit\s+(?:branch|checkout|commit|switch|worktree|update-ref|write-tree)\b/iu);
+    expect(workflow).toMatch(softWrappedProse("a `continuation` names a cleanup step that did not complete"));
+    expect(workflow).toMatch(softWrappedProse("**`landed`** reports a cut that had already landed"));
   });
 
-  it("leaves Git topology and candidate cleanup to typed verbs", () => {
-    expect(workflow).not.toMatch(
-      /\bgit\s+(?:branch|checkout|switch|worktree|update-ref|write-tree)\b/iu,
-    );
-    expect(workflow).not.toContain("gh pr merge");
-    expect(workflow).not.toContain("--squash");
-    expect(workflow).toContain("arc teardown <origin>");
+  it("checks each authored increment before saving it", () => {
+    const saves = [...workflow.matchAll(/```bash\narc save\n```/gu)].map((match) => match.index);
+    const checks = [...workflow.matchAll(/Run `arc check increment` over/gu)].map((match) => match.index);
+
+    expect(saves).toHaveLength(2);
+    expect(checks).toHaveLength(2);
+    expect(checks[0]).toBeLessThan(saves[0]!);
+    expect(checks[1]).toBeGreaterThan(saves[0]!);
+    expect(checks[1]).toBeLessThan(saves[1]!);
   });
 
-  it("preserves extraction's no-record and ordinary-lifecycle boundary", () => {
-    expect(workflow).toMatch(softWrappedProse("Extraction writes no transition record, recovery record, or receipt"));
+  it("preserves extraction's no-lineage and surviving-origin boundary", () => {
+    expect(workflow).toMatch(softWrappedProse("Extraction writes no lineage record: its origin survives."));
     expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor"));
-    expect(workflow).toMatch(softWrappedProse("startable only through their landed base metas"));
     expect(workflow).toMatch(softWrappedProse("Never tear down the surviving extraction origin"));
+    expect(workflow).toMatch(softWrappedProse("Retirement alone writes the origin's lineage record"));
   });
 
-  it("makes finished source reconciliation durable before candidate cleanup", () => {
-    const finishApply = workflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
-    );
-    const finished = indexOfSoftWrappedProse(workflow, "A `finished` outcome leaves the exact source thinning staged");
-    const stage = workflow.indexOf("git add -- <finish-source-paths> <changed-owner-reconciliation-paths>");
-    const exactSet = indexOfSoftWrappedProse(workflow, "complete staged path set exactly equals their union");
-    const commit = indexOfSoftWrappedProse(workflow,
-      "`commit-interlock` release — commit the exact staged finish and owner reconciliation",
-    );
-    const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
+  it("reconciles the surviving extraction origin after the terminal batch", () => {
+    const apply = workflow.indexOf(APPLY);
+    const reconcile = indexOfSoftWrappedProse(workflow, "the surviving origin's owner then reconciles it");
+    const save = workflow.lastIndexOf("arc save");
+    const tail = workflow.slice(reconcile, save);
 
-    expect(finished).toBeGreaterThan(finishApply);
-    expect(workflow.slice(finished, stage)).toMatch(softWrappedProse("surviving `tasks-{origin}.md`"));
-    expect(workflow.slice(finished, stage)).toContain("`**Next Task:**`");
-    expect(workflow.slice(finished, stage)).toContain("`**Next Action:**`");
-    expect(workflow.slice(finished, stage))
-      .toMatch(softWrappedProse("both an `Active` origin and a started `Planning` origin"));
-    expect(exactSet).toBeGreaterThan(finished);
-    expect(stage).toBeGreaterThan(exactSet);
-    expect(commit).toBeGreaterThan(stage);
-    expect(cleanup).toBeGreaterThan(commit);
-    expect(workflow.slice(commit, cleanup)).toContain(
-      "chore(planning): finish source extraction for {origin}",
-    );
-  });
-
-  it("keeps already-finished as a durable no-mutation, no-commit outcome", () => {
-    const alreadyFinished = indexOfSoftWrappedProse(workflow,
-      "An `already-finished` outcome takes no mutation or commit arm",
-    );
-    const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
-    const arm = workflow.slice(alreadyFinished, cleanup);
-
-    expect(alreadyFinished).toBeGreaterThan(-1);
-    expect(arm).toMatch(softWrappedProse("already reside in `HEAD`"));
-    expect(arm).toMatch(softWrappedProse("no indexed or working-tree diff"));
-    expect(arm).toMatch(softWrappedProse("never mint an empty or ceremonial source-finish commit"));
-    expect(arm).not.toContain("`commit-interlock`");
+    expect(reconcile).toBeGreaterThan(apply);
+    expect(tail).toMatch(softWrappedProse("surviving `tasks-{origin}.md`"));
+    expect(tail).toContain("`**Next Task:**`");
+    expect(tail).toContain("`**Next Action:**`");
+    expect(tail).toMatch(softWrappedProse("both an `Active` origin and a started `Planning` origin"));
+    expect(tail).toMatch(softWrappedProse("the record's next hand edit refuses while it stays"));
   });
 
   it("keeps package source and the self-hosted project projection byte-equal", () => {

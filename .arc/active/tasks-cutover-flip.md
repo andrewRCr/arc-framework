@@ -915,14 +915,19 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   decomposition workflow. The in-repo arms that still stage or return `commit-*` record their pre-flip step in
   `notes-cutover-flip.md` § Pre-flip steps, and the kept sites in § Kept sites.
 
-### `[ ]` **5.7 The decomposition workflow's end state — § 8.8**
+### `[x]` **5.7 The decomposition workflow's end state — § 8.8**
 
 - _Goal:_ `decompose-work-unit.md` describes the store version: an additive batch replacing dispatch, authoring, one
   distribution approval, and the terminal batch as the landing, with the separate finish-preview stop gone
   (`spec-seam-decomposition.md` § 16).
 
-    - Tests that change with it: `integration/work-unit/decompose-workflow-contract.test.ts`, whose assertions pin the
-      `--finish` preview and the `git add --` steps among others.
+- _Outcome:_ `decompose-work-unit.md` runs a cut as two store batches: preflight and the map under
+  `arc schema get cut-map`, the additive batch for either shape, authoring checked and saved, one distribution approval
+  over the `--finish` preview that authorizes `--finish --apply` in the same session, and the terminal batch as the
+  landing. A rejection or revision previews `--discard` or `--revise` and applies it after a stop of its own. The
+  release arms, base advancement, pull request, merge, and teardown steps go; an extraction's reconciliation and the
+  origin's leftover cohort section are saved by hand edit; readiness reads `arc status --project`. `amend-design.md`'s
+  extraction exit names the two batches, and `commit-check-corpus` now counts four subjects, its floor.
 
 ### `[ ]` **5.8 Routing, the inbox, and the Errand queue — § 8.10, § 8.13**
 

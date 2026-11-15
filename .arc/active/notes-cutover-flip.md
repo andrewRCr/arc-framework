@@ -279,6 +279,10 @@ today's text takes:
   `continue` or `none`, `handlers/candidate.ts`, `handlers/review.ts`, `checkpoint-composition.ts`). They refuse
   nothing, so no remedy names a step: the step is the pre-flip text's commit for that result, in
   `prepare-work-unit.md`, `integrate-work-unit.md`, `archive-work-unit.md`, and `deliver-stack.md` as of `ca34f785b2`.
+- **The decomposition's batches:** in-repo, `arc decompose --execute` and `--extract` stage a repository result rather
+  than storing the cut, and `--finish` refuses without the map (`finish-map-operand`), naming `--finish <cut-map>`;
+  the rewritten `decompose-work-unit.md` names neither the staged release nor the base advancement (Task 5.7). The step
+  is the pre-flip text's release, advancement, and finish, in `decompose-work-unit.md` as of `d33a28cb08`.
 
 ## Errand branch readers
 
@@ -538,3 +542,9 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   `pull-request-format`, and `review-model`, and "release notes" in `integrate-work-unit.md` and `archive-work-unit.md`:
   the notes companion, reviewer notes, advisory notes, and release notes, not Git notes.
 - `plan/state` in `deliver-stack.md`: the delivery plan and state, not a planning branch.
+
+**The decomposition workflow (Task 5.7):**
+
+- "notes" in `decompose-work-unit.md`: the notes companion, its sections, and its member copies, not Git notes.
+- "no commit, push, pull request, or merge follows" in `decompose-work-unit.md`: the statement that the terminal batch
+  is the landing, not a commit step.

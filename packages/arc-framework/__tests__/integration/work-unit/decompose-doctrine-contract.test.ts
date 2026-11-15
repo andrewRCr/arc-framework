@@ -35,7 +35,7 @@ describe("decomposition doctrine contract", () => {
     }
   });
 
-  it("keeps extraction record-free and lifecycle-derived", () => {
+  it("keeps extraction lineage-free and lifecycle-derived", () => {
     const workflow = readFileSync(
       join(PACKAGE_ROOT, "arc", relativePaths[1]),
       "utf8",
@@ -45,7 +45,7 @@ describe("decomposition doctrine contract", () => {
       "utf8",
     );
 
-    expect(workflow).toMatch(softWrappedProse("Extraction writes no transition record, recovery record, or receipt."));
+    expect(workflow).toMatch(softWrappedProse("Extraction writes no lineage record: its origin survives."));
     expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor."));
     expect(strategy).toMatch(softWrappedProse("The surviving origin is the natural continuation"));
     expect(strategy).toMatch(softWrappedProse("New leaves become startable only through their landed base metas"));

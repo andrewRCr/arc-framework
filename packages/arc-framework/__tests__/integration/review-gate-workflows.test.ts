@@ -810,26 +810,15 @@ describe("trusted review-gate workflows", () => {
     expect(commandCount).toBe(1);
   });
 
-  it("gates full-protection decomposition merge after PR status", async () => {
+  it("lands a decomposition through its terminal batch with no pull request or merge", async () => {
     const decompose = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     );
-    const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
-    const full = sectionBetween(
-      decompose,
-      "### Full protection",
-      "## 7. Confirm lifecycle readiness and finish",
-    );
-    const status = indexOfSoftWrappedProse(full, "Surface PR status");
-    const interlock = full.indexOf("`integration-interlock`");
-    const merge = indexOfSoftWrappedProse(full, "merge according to project policy");
-    for (const position of [status, interlock, merge]) expect(position).toBeGreaterThan(-1);
 
-    expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
-    expect(partial).not.toContain("`integration-interlock`");
-    expect(status).toBeGreaterThan(-1);
-    expect(interlock).toBeGreaterThan(status);
-    expect(merge).toBeGreaterThan(interlock);
+    expect(decompose).toMatch(softWrappedProse("The terminal batch is the landing"));
+    expect(decompose).not.toMatch(/^\s*gh pr (?:create|merge)[^\n]*/gmu);
+    expect(decompose).not.toContain("`integration-interlock`");
+    expect(decompose).not.toContain("`push-interlock`");
   });
 
   it("guards the post-merge tail on completion and archival products", async () => {

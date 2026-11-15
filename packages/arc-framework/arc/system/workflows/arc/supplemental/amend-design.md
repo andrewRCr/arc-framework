@@ -169,9 +169,10 @@ The adversarial offer runs as § The assurance invariant's pass does, on that ru
 
 An amendment that invalidates the purpose, most of the design, or a landed delivery member's contract re-opens
 what the work unit **is** rather than how it lands. Exit by extraction — [`decompose-work-unit`][decompose] in its
-extraction mode, invoked per that workflow's own shape, since a complete extraction stages an additive result from
-a cut map and then thins the source. The origin keeps its implementation and ships as the surviving, still-valid
-part; the invalidated concern becomes a new work unit that takes the full canonical process from the headwater.
+extraction mode, invoked per that workflow's own shape, since a complete extraction writes an additive batch from a
+cut map and then thins the source in its terminal batch. The origin keeps its implementation and ships as the
+surviving, still-valid part; the invalidated concern becomes a new work unit that takes the full canonical process
+from the headwater.
 
 Never a whole planning-workflow re-entry, and never a lifecycle regression.
 
