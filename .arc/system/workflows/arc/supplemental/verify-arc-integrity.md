@@ -43,8 +43,8 @@ inline comments in the config file.
 
 ### File Structure
 
-Verifies that expected core files exist. The expected set is static (every ARC installation needs
-these) plus config-conditional files (e.g., ROADMAP.md when `pm.mode: arc-in-git`).
+Verifies that expected core files exist. The expected set is static: every ARC installation needs
+these.
 
 **Severity:**
 

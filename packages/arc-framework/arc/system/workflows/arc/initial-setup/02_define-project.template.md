@@ -145,10 +145,8 @@ rules, and any project-specific protocols.
 ### Step 6: Plan Backlog
 
 Your execution strategy — what gets built in what order, and why. Backlog source artifacts capture sequencing
-decisions and dependency chains so you can plan work deliberately rather than reactively. ROADMAP renders a
-project status cache from those sources.
-
-**Generated view**: `backlog/ROADMAP.md`
+decisions and dependency chains so you can plan work deliberately rather than reactively. `arc status --project`
+renders the project's live status from them.
 
 **Think through**:
 
@@ -188,8 +186,8 @@ local file.
 - **PROJECT-PRD** — when the project's documented problem, scope, or principles shift. A
   pivot, a scope boundary redrawn, or a new constraint changes what work gets planned.
 <!-- arc:if pm.mode == arc-in-git -->
-- **ROADMAP** — regenerated at ceremony boundaries as the project status cache. Stale
-  backlog metadata misguides next-work-unit discovery; use `arc status --project` for live state.
+- **Backlog stubs** — when a work unit's priority, commitment, or dependencies change. Stale backlog metadata
+  misguides next-work-unit discovery; `arc status --project` renders it live.
 <!-- arc:endif -->
 
 TECHNICAL-OVERVIEW evolves naturally alongside the code — update it when architectural

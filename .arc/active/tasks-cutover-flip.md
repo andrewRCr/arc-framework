@@ -964,23 +964,19 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   `integration/work-unit/routing-workflow-contract.test.ts` pins the family. The readings that needed more than a verb
   swap are in `notes-cutover-flip.md` § Routing from the flip, and the pre-flip step and kept sites in their sections.
 
-### `[ ]` **5.9 Setup, configuration, and merge-gate text — § 8.13, § 8.15**
+### `[x]` **5.9 Setup, configuration, and merge-gate text — § 8.13, § 8.15**
 
 - _Goal:_ Setup and the shipped configuration describe the store's settings and notes' absence, and the merge-gate
   recipe no longer arms the planning lane.
 
-    - `initial-setup/01_verify-and-configure.md`'s planning auto-merge steps and `user.notes_push` text;
-      `02_define-project.template.md`; `setup-merge-gate.md`, `merge-gate/CODEOWNERS`, and `merge-gate/README.md` drop
-      only the planning-lane arming; `setup-release-wrapper.md`, `verify-arc-integrity.md`, `maintain-project-docs.md`,
-      the templates README, and `template-contributing.md` where the search names them.
-    - The shipped configuration template (`packages/arc-framework/arc/system/arc-config.yml`, Configurable, edited by
-      targeted edit in both copies) documents `inbound.retriage_after_entries`, `inbound.retriage_after_days`, and
-      `pause.review_after_days` (`spec-seam-locus.md` § 14; `lib/config/schema.ts`) in the catalog's order; its comments
-      on `user.notes_push` and `session.init_pull.notes` / `session.init_load.notes`, keys that stay until notes
-      removal, and its `arc user pull` / `arc user load` remedies state that they have no effect on a store kept off the
-      branch.
-    - Tests that change with it: `integration/review-gate-workflows.test.ts`'s CODEOWNERS and merge-gate README cases,
-      and `unit/config/inventory.test.ts`'s check that the three settings are absent from the template.
+- _Outcome:_ The merge-gate recipe (`setup-merge-gate.md`, its README, and `CODEOWNERS`) and
+  `01_verify-and-configure.md` drop only ARC's auto-merge arming; the CI lane classifier, the unowned planning paths,
+  and the ROADMAP path stay until the recipe retires. Setup names the personal inbox and the meta's session context and
+  drops notes portability; `02_define-project` reads status from `arc status --project`; the release-wrapper,
+  integrity, templates README, and contributing texts lose notes-push, the ROADMAP example, `arc user open`, and the
+  staged-planning warning. The configuration template, in both copies, declares the three settings in the catalog's
+  order, marks every notes key as having no effect off the branch, and rewrites `session.remote_sync`'s and
+  `archive.cadence`'s comments for both substrates. Kept hits are in `notes-cutover-flip.md` § Kept sites.
 
 ### `[ ]` **5.10 The always-loaded text — § 8.3, § 8.16**
 

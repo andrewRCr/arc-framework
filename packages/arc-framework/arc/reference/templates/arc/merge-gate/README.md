@@ -96,10 +96,8 @@ the heavy jobs running — while a code/constitutional PR waits on them. This is
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
 the merge at _Pending_).
 
-ARC-managed PR workflows still rerun the canonical classifier over the exact base/head immediately before arming
-auto-merge and require literal `planning`; `reviewed`, command failure, or malformed output never arms. CODEOWNERS
-cannot express filename grammar or Git type/mode changes, so this classifier gate and the integration interlock are
-the procedural boundary.
+CODEOWNERS cannot express filename grammar or Git type/mode changes, so the integration interlock is the procedural
+boundary.
 
 ## CI layouts
 
@@ -131,8 +129,8 @@ the planning substrate, but code-owner approval remains required. The rest of `.
 owned.
 
 A planning-only PR may then be armed and merge unattended once `ci-ok` is green; a reviewed-lane PR
-additionally waits on owner approval and must not be armed by ARC. The [Set Up the Auto-Merge Gate
-workflow][setup-workflow] walks through all four steps.
+additionally waits on owner approval. The [Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all
+four steps.
 
 ---
 

@@ -26,14 +26,14 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 
 - `active/` — Current work tracking (per-WU meta files, task lists). Created
   lazily at first work unit activation; absent immediately after init.
-- `backlog/` — Future work pipeline (ROADMAP, backlogs) · only with `pm.mode: arc-in-git`
+- `backlog/` — Future work pipeline (backlog stubs and drafts) · only with `pm.mode: arc-in-git`
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings
 
 ### Verify Session State
 
-No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are created
-in `.arc/active/` at first work unit activation, not at init.
+No work unit exists yet. ARC creates a work unit's records, its meta among them, with the work unit, not at
+init.
 
 Initial session state lives in the bootstrap entry `arc init` seeds into `.arc/user/{identity}/WORKING-MEMORY.md`:
 
@@ -59,19 +59,14 @@ settings for that agent platform.
 ### User Workspace
 
 `arc init` created `user/{identity}/` as a personal workspace directory (gitignored), seeded with WORKING-MEMORY.md
-(context that spans work units) and USER-INBOX.md (concerns captured for later). Each work unit's SESSION-NOTES.md
-lives in `user/{identity}/{work-unit}/`, created when the work unit starts and written at session handoff.
+(context that spans work units) and your personal inbox (concerns captured for later, read with
+`arc inbox personal`). A work unit's session context lives in its meta, written at session handoff.
 
 Confirm identity is set:
 
 ```bash
 git config arc.identity
 ```
-
-Session context portability is controlled by `user.notes_push` in `arc-config.yml` — this
-determines whether session notes are automatically pushed to the remote via git notes
-(`on-sync` for solo, `prompt` for team). Individual developers can override with
-`git config arc.notesPush`.
 
 ### Configuration Walkthrough
 
@@ -209,12 +204,11 @@ These choices are independently selectable and default off. Configure only the l
   or after a converged look.
 - **Planning auto-merge lane** — under `branch.protection: full`, run the [Set
   Up the Auto-Merge Gate workflow][setup-merge-gate] to add `ci-ok`, planning-path CODEOWNERS, and native
-  auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
-  arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+  auto-merge. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
 - **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want
   `arc merge lock` / draft-PR structural hold semantics. Opens work-unit PRs locked (draft) and releases only at
-  the lifecycle-ready exact-head interlock; the classifier and integration interlock remain arming and merge
-  authorities. See [Auto-Merge Lane][work-org-auto-merge]. Config opt-in only — no install ceremony.
+  the lifecycle-ready exact-head interlock; the integration interlock remains the merge authority. See
+  [Auto-Merge Lane][work-org-auto-merge]. Config opt-in only — no install ceremony.
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -248,9 +242,7 @@ Confirm that `arc init` set up the local environment:
   hook manager's config for ARC entries.
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).
-- **User workspace** — `user/{identity}/` exists. Check `user.notes_push` in
-  `arc-config.yml` for the team's sync behavior; override locally with `git
-  config arc.notesPush` if needed.
+- **User workspace** — `user/{identity}/` exists, seeded with your WORKING-MEMORY.md and personal inbox.
 
 ### Configuration Review
 

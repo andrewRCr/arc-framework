@@ -80,10 +80,8 @@ cp .arc/reference/templates/arc/merge-gate/CODEOWNERS .github/CODEOWNERS
 ```
 
 Then replace `@your-org/reviewers` with the real reviewer(s), and confirm the constitutional and unowned blocks
-match the project's paths. CODEOWNERS supplies path ownership only. ARC-managed PR workflows run the canonical
-classifier over the exact base/head before arming auto-merge; only literal `planning` is eligible. That
-classifier gate plus the integration interlock is the procedural boundary — never infer merge safety from
-agent-layer discipline alone.
+match the project's paths. CODEOWNERS supplies path ownership only. The integration interlock is the procedural
+boundary — never infer merge safety from agent-layer discipline alone.
 
 The shipped skeleton deliberately keeps the transition-record namespace owned because it carries authoritative
 history; do not add that namespace to the unowned block while copying or reconciling the skeleton.
@@ -127,9 +125,7 @@ gh repo edit --enable-auto-merge                              # enable if false
 
 With auto-merge on, an armed planning-only PR merges itself once `ci-ok` is green and no owner review is
 required; a reviewed-lane PR additionally waits on owner approval. Auto-merge is armed per PR
-(`gh pr merge --auto` or the PR UI) once these conditions are in place. The repository setting alone never
-authorizes arming: immediately before ARC arms a PR, rerun `arc review planning-lane <base-sha> <head-sha>` and require
-literal `planning`. `reviewed`, command failure, or malformed output must not arm auto-merge.
+(`gh pr merge --auto` or the PR UI) once these conditions are in place.
 
 ## Step 5: Verify
 
@@ -137,7 +133,7 @@ Summarize what landed: the `ci-ok` gate in the CI workflow, the CODEOWNERS locat
 required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch only a supported
 planning artifact) and confirm `ci-ok` reports and the PR is auto-merge-eligible with no required review; a PR
 touching a constitutional path (a rule, ADR, or strategy) should require owner review. **Also verify a mode-only
-change or malformed planning-looking filename classifies `reviewed` and is not armed** · `[invariant]`.
+change or malformed planning-looking filename classifies `reviewed`** · `[invariant]`.
 
 A second run of this workflow detects each piece already in place and confirms rather than duplicating.
 

@@ -192,8 +192,8 @@ writes:
 - `arc.releaseOptedIn = true` (per-developer git-config local flag) on the first successful install.
   Subsequent installs are flag-idempotent — the flag is not re-written if already set. This workflow
   writes only this key; for the full per-developer git-config key catalog (commit / push / sync
-  interlocks, notes-push policy) and how to set those values, see `strategy-configurability-architecture.md` § Personal
-  Configuration via Git Config.
+  interlocks) and how to set those values, see `strategy-configurability-architecture.md` § Personal Configuration via
+  Git Config.
 
 **The agent's role ends with the verification confirmation in Step 4** · `[invariant]`. Recording
 mechanics, idempotency choices, and multi-harness partial-success handling live under

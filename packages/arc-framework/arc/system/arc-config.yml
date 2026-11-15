@@ -31,7 +31,7 @@ branch.protection: partial
 # Filesystem location template for ARC-created linked worktrees.
 # Resolved at worktree-creation time: {repo} is the repository name, {name} is
 # the work-unit name, and {branch} is the branch with slashes slugged to `-`
-# (plan/foo -> plan-foo).
+# (feat/foo -> feat-foo).
 #   default: ../{repo}.{name}     - flat sibling of the primary checkout
 # Override examples:
 #   .worktrees/{name}             - nested inside the repo
@@ -40,7 +40,7 @@ branch.protection: partial
 # Applies only to worktrees ARC creates; external worktrees are read from
 # `git worktree list` as-is and never relocated. The resolved path is a
 # creation-time artifact: a later branch rename does not move it. Branch-token
-# slug collisions (plan/foo and plan-foo both map to plan-foo) are
+# slug collisions (feat/foo and feat-foo both map to feat-foo) are
 # creation-time, last-write-wins / user-resolved.
 worktree.location_template: ../{repo}.{name}
 
@@ -260,7 +260,8 @@ pm.mode: arc-in-git
 # Team mode. Controls behavioral defaults for multi-developer collaboration.
 # Behavioral, not structural — the user/{identity}/ directory layout is
 # identical in solo and team modes. Team mode affects:
-#   - user.notes_push default (solo: on-sync, team: prompt)
+#   - user.notes_push default (solo: on-sync, team: prompt), where operational
+#     state is kept in the repository
 #   - Team coordination guidance (task ownership, handoff conventions)
 #   false - Solo mode. Single developer, auto-sync session context. (default)
 #   true  - Team mode. Multiple developers, conscious sync decisions.
@@ -269,11 +270,12 @@ team.mode: false
 
 # --- Session Initialization ---
 
-# Automatic remote notes probe during session initialization.
-# Controls whether session-init may fetch/probe remote note state automatically.
-# Pulling user directory content into local files remains explicitly user-confirmed.
-#   enabled  - Session-init may inspect remote notes state automatically. (default)
-#   disabled - Skip remote notes probing during session-init.
+# Automatic remote reads during session initialization. Where operational state
+# is kept off the branch, session start pulls it from the remote. Where it is kept
+# in the repository, session-init may fetch/probe remote note state, and pulling
+# user directory content into local files remains explicitly user-confirmed.
+#   enabled  - Session-init may read remote state automatically. (default)
+#   disabled - Skip those reads during session-init.
 session.remote_sync: enabled
 
 # Worktree pull policy at session init when the local branch is behind origin.
@@ -281,7 +283,8 @@ session.remote_sync: enabled
 #   prompt - Prompt before pulling. (default)
 # `always` is rejected for this channel — auto-pulling tracked working-tree
 # state silently is too invasive even on clean trees.
-# Worktree and notes recommendations combine into one offer when both apply.
+# Where operational state is kept in the repository, worktree and notes
+# recommendations combine into one offer when both apply.
 # Accepted sync actions are followed by a fresh session-entry compile.
 session.init_pull.worktree: prompt
 
@@ -291,6 +294,7 @@ session.init_pull.worktree: prompt
 #   always - Pull automatically (notes are gitignored personal context only).
 # A pending worktree pull shares the offer with notes. Pulling recompiles entry
 # and re-evaluates whether local notes now need loading.
+# No effect where operational state is kept off the branch.
 session.init_pull.notes: prompt
 
 # Base-branch pull policy at session init when the local base ref (`branch.base`)
@@ -310,6 +314,7 @@ session.init_pull.base: prompt
 #   always - Load automatically (the pre-load backup snapshot is the safety net).
 # Retired-directory edits retain the CLI prompt recommendation even under always.
 # Loading creates a backup and recompiles session entry.
+# No effect where operational state is kept off the branch.
 session.init_load.notes: prompt
 
 # --- User Directory ---
@@ -320,6 +325,7 @@ session.init_load.notes: prompt
 #   prompt  - Ask whether to push user notes when `arc sync` runs.
 #   on-sync - Push user notes whenever `arc sync` runs. (default)
 # Per-developer override: `git config arc.notesPush <value>`
+# No effect where operational state is kept off the branch.
 user.notes_push: on-sync
 
 # --- Sync ---
@@ -336,10 +342,11 @@ sync.auto_pull: false
 
 # --- Archival ---
 
-# Work-unit archival cadence after merge.
-#   with-integration - Run archive ops with integration follow-through as a
-#                      separate commit in the integration PR. (default)
-#   manual           - Defer archival until explicitly invoked.
+# Work-unit archival cadence.
+#   with-integration - Archive as part of integration, before the merge: a store
+#                      write where operational state is kept off the branch,
+#                      otherwise a separate commit in the integration PR. (default)
+#   manual           - Defer archival until explicitly invoked after the merge.
 archive.cadence: with-integration
 
 # --- Design export ---
@@ -360,11 +367,34 @@ layout.active: nested
 
 # --- Inbox ---
 
-# Reminder threshold, in whole days, for flagged USER-INBOX captures. A `_Remind:_`-flagged
+# Reminder threshold, in whole days, for flagged personal inbox captures. A `_Remind:_`-flagged
 # `§ Errand` entry surfaces a session-init nudge once its capture date is this many days old
 # (floor: never the same day). Conceptually a per-user preference; lives here today, migrating
 # to a per-user config substrate later.
 inbox.remind_after_days: 1
+
+# --- Inbound ---
+
+# Re-triage threshold for a work unit's inbound list: more than this many pending
+# entries. Past it, or past inbound.retriage_after_days, session-init recommends
+# the owner's re-triage of their current work unit, and the inbox drain offers to
+# re-triage a backlog stub it routes into. Applies only where operational state
+# is kept off the branch.
+inbound.retriage_after_entries: 10
+
+# Re-triage threshold, in whole days, for the oldest pending entry in a work
+# unit's inbound list, measured from its capture date. See
+# inbound.retriage_after_entries.
+inbound.retriage_after_days: 30
+
+# --- Pause ---
+
+# Review threshold, in whole days, for a paused work unit that waits on no other
+# work unit. Once its pause is this old, it is due for review: session-init asks
+# its owner to resume it, hand it over, open it to takers, or abandon it, and the
+# status views flag it. Applies only where operational state is kept off the
+# branch.
+pause.review_after_days: 14
 
 # --- Integration ---
 

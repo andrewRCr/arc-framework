@@ -502,7 +502,7 @@ describe("trusted review-gate workflows", () => {
     );
   });
 
-  it("keeps auto-merge arming on canonical classification", async () => {
+  it("arms no auto-merge from the planning classifier", async () => {
     const paths = {
       errand: "system/workflows/arc/supplemental/run-errand.md",
       setup: "system/workflows/arc/supplemental/setup-merge-gate.md",
@@ -526,11 +526,16 @@ describe("trusted review-gate workflows", () => {
       /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
     ));
     expect(documents.errand).not.toMatch(/healthy\s+reading/u);
-    expect(documents.setup).toMatch(/canonical\s+classifier/iu);
+    const arming = /before\s+arming|ARC\s+arms|arms\s+auto-merge|never\s+arms|armed\s+by\s+ARC|arming\s+and\s+merge\s+authorities|and\s+is\s+not\s+armed/iu;
+    for (const name of ["setup", "readme", "codeowners", "initial"] as const) {
+      expect(documents[name], name).not.toMatch(arming);
+    }
+    expect(documents.setup).not.toContain("arc review planning-lane");
+    expect(documents.initial).not.toMatch(/canonical\s+classifier/iu);
     expect(documents.setup).toMatch(softWrappedPattern(/procedural\s+boundary[\s\S]*never\s+infer\s+merge\s+safety/iu));
-    expect(documents.readme).toMatch(/canonical\s+classifier/iu);
-    expect(documents.initial).toMatch(softWrappedPattern(/planning\s+auto-merge\s+lane[\s\S]*canonical\s+classifier/iu));
+    expect(documents.readme).toMatch(softWrappedProse("so the integration interlock is the procedural boundary"));
     expect(documents.initial).toMatch(softWrappedPattern(/Draft-state\s+merge\s+lock[\s\S]*merge\.lock:\s*draft/iu));
+    expect(documents.initial).toMatch(softWrappedProse("the integration interlock remains the merge authority"));
     expect(documents.strategy).toMatch(/merge\.lock:\s*draft/iu);
     expect(documents.strategy).toMatch(softWrappedPattern(/never\s+infer\s+merge\s+safety\s+from\s+agent-layer\s+discipline\s+alone/iu));
   });

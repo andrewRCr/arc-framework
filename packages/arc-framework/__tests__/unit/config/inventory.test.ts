@@ -51,9 +51,7 @@ describe("ARC configuration inventory", () => {
       .flatMap((line) => line.match(/^([a-z][a-z0-9_.]+):/u)?.[1] ?? []);
     const catalog = keys(ARC_CONFIG_FIELDS);
 
-    const dormant = ["inbound.retriage_after_entries", "inbound.retriage_after_days", "pause.review_after_days"];
-    expect(declared).toEqual(catalog.filter((key) => !dormant.includes(key)));
-    for (const key of dormant) { expect(catalog).toContain(key); expect(declared).not.toContain(key); }
+    expect(declared).toEqual(catalog);
     expect(new Set(declared)).toHaveLength(declared.length);
     expect(new Set(catalog)).toHaveLength(catalog.length);
   });

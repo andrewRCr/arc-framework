@@ -590,3 +590,19 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   `cutover-documentation` rewrites with the strategies.
 - "notes companion" in `route-discovered-work` and "completion notes" in `issue-triage`: the notes companion and
   task-list completion notes, not Git notes.
+
+**Setup, configuration, and merge-gate text (Task 5.9):**
+
+- `git commit` / `git push` in `01_verify-and-configure.md` and `setup-release-wrapper.md`: the release wrapper's
+  commits of tracked files and the harness permission patterns it is set up beside.
+- "setup notes" in `01_verify-and-configure.md`, "reference notes" in `setup-release-wrapper.md`, and "AI notes" in
+  `maintain-project-docs.md`: prose, not Git notes.
+- `.arc/backlog/ROADMAP.md` in `setup-merge-gate.md`, `arc review planning-lane` in the merge-gate README's `classify`
+  job, and `CODEOWNERS`' ROADMAP comment and unowned planning paths: the recipe's CI lane classifier and path
+  ownership, which stay until tracked-state removal retires the recipe whole; § 8.13 drops only ARC's arming.
+- `.arc/active/` and `.arc/backlog/` in `template-contributing.md`, and the `layout.active` comment's
+  `.arc/active/current/` and `.arc/active/in-flight/<slug>/`: the projected roots named as directories.
+- In the configuration template: "notes" in `hooks.meta_ref_patterns`, a pattern over `notes-*` filenames; and the
+  comments on `user.notes_push`, `session.init_pull.notes`, and `session.init_load.notes`, with their `arc user push`,
+  `arc user pull`, and `arc user load` remedies and the team-mode and worktree-offer lines, each scoped to state kept in
+  the repository or marked as having no effect off the branch, since the keys stay until notes removal.

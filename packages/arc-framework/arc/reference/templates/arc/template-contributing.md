@@ -51,9 +51,9 @@ addresses (issue reference, feature name, bug description).
 
 ## What to Know
 
-**Maintainer-managed files:** Files in `.arc/active/` and `.arc/backlog/` are managed by
-project maintainers (task lists, work status, planning artifacts). The pre-commit hook warns
-if you stage changes in these directories. This is a soft warning, not a hard block.
+**Maintainer-managed records:** task lists, work status, and planning artifacts are ARC records managed by
+project maintainers. ARC projects them into `.arc/active/` and `.arc/backlog/`, which Git ignores, so a contribution
+never carries them.
 
 **Quality standards are the same** for contributors and maintainers — linting, type checking,
 tests, and build verification all apply equally. CI enforces these on every PR.

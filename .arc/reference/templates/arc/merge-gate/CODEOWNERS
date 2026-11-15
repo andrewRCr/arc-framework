@@ -7,8 +7,6 @@
 # auto-merge block must come AFTER the reviewed-lane entries.
 #
 # These patterns mirror the classifier's supported directories and depths.
-# CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
-# canonical classifier remains authoritative when ARC arms auto-merge.
 # Authoritative transition history remains owned by the catch-all, as does the
 # rest of /.arc/system/.internal/.
 #
