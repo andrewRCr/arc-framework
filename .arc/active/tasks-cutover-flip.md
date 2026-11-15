@@ -1079,20 +1079,18 @@ rewritten workflows (§ 9.2).
   restore's auto-merge remedy names the disarming, not the `gh` command (A8). Stage 1 ran clean at `ac35d74314`, and the
   seal anchor `9d5c680661` carries `arc user load`'s refusal (`refuseWriteIfStoreImported`).
 
-### `[ ]` **6.2 The parser check — § 9.4**
+### `[x]` **6.2 The parser check — § 9.4**
 
 - _Goal:_ A check refuses while any kind with a writable projected path lacks a registered parser in
   `PRODUCTION_REGISTRATIONS` (`lib/store/kinds/registrations.ts`), save `work-item/notes`, `personal/document`, and
   `personal/session-context`, or any entry kind lacks an entry grammar (`ENTRY_CONFIGS`,
   `lib/store/kinds/entry-configs.ts`).
 
-    - A test in the suite derives both sets from source rather than listing them: the projecting kinds as
-      `RECORD_LINK_KINDS` selects them (`lib/store/kinds/in-repo-registrations.ts`), which leaves out
-      `personal/errand-queue`, and the entry kinds as those whose mechanism declares `merge: "entry"`
-      (`KIND_MECHANISMS`, `lib/store/registry.ts`), which include it.
-    - The inventory write-back hands the rehearsal (`spec-projection-write-back.md` § 7.6, its A3) is the cross-check: a
-      kind it names that the derived sets lack fails the test. Both halves hold today, so the check catches a kind
-      added before the flip without one.
+- _Outcome:_ `kind-registrations.test.ts` derives the projecting kinds from `RECORD_LINK_KINDS` and the entry kinds from
+  `KIND_MECHANISMS`, and fails on a projecting kind without a parser, the three free-prose kinds aside, or an entry kind
+  whose mechanism lacks its `ENTRY_CONFIGS` grammar, each refusal shown on a doctored input. The cross-check reads
+  write-back's hand-editable inventory through `classifyStoreAddress` over a sample of every layout address form,
+  keeping the kinds that project, and requires it inside both derived sets.
 
 ### `[ ]` **6.3 The destructive CLI matrix and the partial-protection start — § 9.7, § 9.8**
 
