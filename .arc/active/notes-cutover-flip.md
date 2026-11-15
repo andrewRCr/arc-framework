@@ -290,6 +290,15 @@ today's text takes:
   skills name none of these (Task 5.8). Their store verbs refuse with the steps above; the rest is the pre-flip text of
   those files as of `2429820e51`.
 
+**Task 5.12's re-run, at `23afde5150`.** Every verb above refuses as recorded, run through the built CLI in a clone of
+the branch with no remote. `arc release commit --close` now ran there too: its precheck refused before committing and
+named the hand mark staged with the commit. `arc review adversarial record` refused through the CLI that
+`e2e/review-cli-surfaces` spawns, and the dormant commands through `e2e/store-command-dormancy`'s. `arc resume` of a
+paused unit again stopped short of its refusal, at remote candidate expansion. In-repo, `arc errand open --from-inbox`
+takes its operand as a personal inbox entry's title, the key `arc errand next` offers there, so a `<list>:<id>` operand
+reports the entry missing: the in-repo inbox carries no IDs. No other verb the rewritten text names refuses
+`unsupported` in-repo; `arc editor`, which does, is named nowhere in it.
+
 ## Routing from the flip
 
 Task 5.8's readings of § 8.10 and § 8.13 where the text needed more than a verb swap:

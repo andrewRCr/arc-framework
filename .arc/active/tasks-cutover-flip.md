@@ -1035,14 +1035,18 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   is already reference-ready. `clean-work-unit.md` drops its search for references to a deleted notes file, and its
   "When to Use" names verification's Step 1, its one caller, where it named integration's Step 3.
 
-### `[ ]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
+### `[x]` **5.12 The retired forms exhausted** — validate exit criterion at segment scope
 
 - _Goal:_ The closure search over the shipped text at this head finds only the recorded kept sites; Framework files
   match their rendered source (`integration/framework-sync.test.ts`), and each Configurable and template file carries
   the same targeted edit in both copies.
 
-    - Re-run Task 1.6's inventory over the verbs the rewritten text names, and confirm each in-repo refusal names its
-      pre-flip step.
+- _Outcome:_ At `23afde5150` the closure search, in § Kept sites' pinned form, finds 353 hits in 54 files, each one a
+  recorded kept site. Of the 81 inventory files, 71 are rewritten and 10 carry only kept hits; every Framework file
+  matches its `.arc/` copy (`framework-sync`), and `arc-config.yml`, QUICK-REFERENCE, and `02_define-project` carry the
+  same edits in both copies. `test:arc-contracts` gates every commit over non-state paths, so each family's commit
+  passed it, and the content tier passes at this head. Task 1.6's inventory, re-run, finds every in-repo `unsupported`
+  refusal of a verb the rewritten text names naming its pre-flip step (`notes-cutover-flip.md` § Pre-flip steps).
 
 ## **Phase 6:** The dress rehearsal and window readiness
 
