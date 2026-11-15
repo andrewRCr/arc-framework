@@ -163,13 +163,17 @@ member lands; a contract that does not hold when its member lands is a forward a
       of a landed Errand record (`work-item/record`), which an Errand opened between the check and the import's read
       would leave (§ 13.3), each stopping the window on any change; and after the merge, for § 10.6, the comparison of
       each live branch's tips, on the host as well as locally, and each checkout's personal digest with the record,
-      recording under the hold a branch's moved range, or a deleted branch's gone range;
+      recording under the hold a branch's moved range, or a deleted branch's gone range, and, for a branch made after
+      the check whose tip tracks a file under § 3.2's paths, its unrecorded range from its merge base with `main`'s
+      recorded tip, refusing such a branch that shares no history with `main` until it is deleted or merges `main` (A7);
     - **the auto-merge refusal:** the check, the last read before the merge, and the restore each refuse while the
-      flip's pull request has auto-merge armed (remedy `gh pr merge --disable-auto`);
-    - **the close** (§ 10.7), which deletes the hold, lists each moved or gone range recorded under it, records the
-      Owner's confirmation that a range was re-applied, and refuses on the conditions its specification enumerates,
-      among them until the flip's recorded head is reachable from the host's `main`, while any registered checkout's
-      `HEAD` tree tracks a file under § 3.2's paths, and until each recorded range is confirmed;
+      flip's pull request has auto-merge armed, the check and the last read naming the remedy
+      `gh pr merge --disable-auto` and the restore naming the disarming of it (A8);
+    - **the close** (§ 10.7), which deletes the hold, lists each moved, gone, or unrecorded range recorded under it, and
+      refuses on the conditions its specification enumerates, among them until the flip's recorded head is reachable
+      from the host's `main`, while any registered checkout's `HEAD` tree tracks a file under § 3.2's paths, while a
+      branch made after the check whose tip tracks one has not been compared, and until each range is confirmed, which
+      the window tooling's `confirm` records at the range's exact tip once the Owner confirms the range re-applied (A7);
     - **the abort's restore:** every recorded `refs/arc/*` tip back, locally and on `origin` once published, every other
       such ref and every unrecorded tracking ref deleted, the store directories (`store`, `store-migrate-build`, and
       `store-migrate-old` under `<commonDir>/arc/`) removed, `remote.origin.arc-state` unset, and the hold deleted, each
@@ -1241,7 +1245,10 @@ then the fifth and the sixth, the last carried through the window's end.
    `arc task close`, and the range is confirmed; the personal file is copied out and deleted, which releases it, and its
    edit re-applied as an ordinary one. Stage 2 also pushes to the mirror a commit changing only code on a live branch no
    checkout holds; that branch's step merges it before its deletion commit, and its range is confirmed with the rest.
-   The close then passes (§ 10.6, § 10.7).
+   Stage 2 also pushes to the mirror two branches made after the check: one cut from `main`'s recorded tip that edits a
+   live work unit's meta, and one that shares no history with `main` and tracks a file under § 3.2's paths. The first's
+   comparison records an unrecorded range, re-applied and confirmed with the rest; the second's refuses until the branch
+   is deleted (A7). The close then passes (§ 10.6, § 10.7).
 
 #### 9.4 The parser check
 
@@ -1549,24 +1556,27 @@ These are the first lifecycle writes the store takes past the host boundary.
 
 After the merge, every live branch other than `main`, which only merges, and the flip's, whose deletion commit already
 did so (§ 10.5), whether or not a checkout holds it, first has the window tooling compare its tips with those the check
-recorded (§ 1.3), on the host as well as locally. After the merge no abort remains (§ 11), so a difference does not stop
-the step: the tooling records the moved range under the window's hold, the moved commits stay in the branch's history
-beneath its deletion, and the range's changes to state are re-applied through the store. A recorded branch deleted since
-the check leaves a gone range, which the Owner confirms at the close once any of its state changes worth keeping are
-re-applied. A change to the work unit's own records is re-applied once a checkout on the flip build claims the unit —
-the checkout taking these steps, once it has materialized and its marker is bound (steps 5 and 7), or, for a branch no
-checkout holds, one spawned for it — and a change to a shared record, a cohort record or the project inbox, from any
-checkout on the flip build, since write-back lets anyone edit both (`spec-projection-write-back.md` § 8.1). Each change
-takes the route the store's write checks give it. A change they reserve to a verb — a task's close or deferral
-(`task-list.close`, `lib/store/kinds/task-list/authority-rules.ts`), or a meta's creation or removal or a change to its
-State, Class, Current Workflow, Owner, or pause section (`meta.verb-owned-field`,
-`lib/store/kinds/meta/authority-rules.ts`) — is re-applied by the verb each refusal names: `arc task close` or
-`arc task defer`, `arc handover`, `arc pause` or `arc resume`, or the lifecycle or Class verb that owns the field. A
-record the projection never lays is re-applied by the verb that writes it: a Candidate or boundary record by
-`arc attest` (`handleAttest`, `handlers/lifecycle-delivery-review.ts`), and a rename or abandonment, with its transition
-record, by `arc rename` or `arc abandon`. Any other change is re-applied by editing and saving the record. Once the
-claiming checkout has re-applied a range, which follows this step and that checkout's own, the Owner confirms it to the
-window tooling's close, which records the confirmation against it (§ 10.7).
+recorded (§ 1.3), on the host as well as locally. A branch made after the check whose tip tracks a file under § 3.2's
+paths is compared too, its unrecorded range running from its merge base with `main`'s recorded tip, and takes the step a
+live branch takes; one that shares no history with `main` has no such base, so its comparison refuses until it is
+deleted or merges `main` (A7). After the merge no abort remains (§ 11), so a difference does not stop the step: the
+tooling records the moved range under the window's hold, the moved commits stay in the branch's history beneath its
+deletion, and the range's changes to state are re-applied through the store. A recorded branch deleted since the check
+leaves a gone range, which the Owner confirms once any of its state changes worth keeping are re-applied. A change to
+the work unit's own records is re-applied once a checkout on the flip build claims the unit — the checkout taking these
+steps, once it has materialized and its marker is bound (steps 5 and 7), or, for a branch no checkout holds, one spawned
+for it — and a change to a shared record, a cohort record or the project inbox, from any checkout on the flip build,
+since write-back lets anyone edit both (`spec-projection-write-back.md` § 8.1). Each change takes the route the store's
+write checks give it. A change they reserve to a verb — a task's close or deferral (`task-list.close`,
+`lib/store/kinds/task-list/authority-rules.ts`), or a meta's creation or removal or a change to its State, Class,
+Current Workflow, Owner, or pause section (`meta.verb-owned-field`, `lib/store/kinds/meta/authority-rules.ts`) — is
+re-applied by the verb each refusal names: `arc task close` or `arc task defer`, `arc handover`, `arc pause` or
+`arc resume`, or the lifecycle or Class verb that owns the field. A record the projection never lays is re-applied by
+the verb that writes it: a Candidate or boundary record by `arc attest` (`handleAttest`,
+`handlers/lifecycle-delivery-review.ts`), and a rename or abandonment, with its transition record, by `arc rename` or
+`arc abandon`. Any other change is re-applied by editing and saving the record. Once the claiming checkout has
+re-applied a range, which follows this step and that checkout's own, the Owner confirms it through the window tooling's
+`confirm`, which records the confirmation at the range's exact tip for the close to check (§ 10.7, A7).
 
 The step itself goes on from the comparison. Where the branch's tip on the host is not an ancestor of its local tip, it
 first merges that tip into the branch, a fast-forward where the local tip is an ancestor of it, so commits found only on
@@ -1611,12 +1621,13 @@ and the late edit is re-applied as an ordinary one (`spec-projection-worktrees.m
 
 Notes retire last (§ 12), after the flip has merged and every checkout's first materialization has succeeded. The window
 closes through the window tooling's close (§ 1.3), which deletes the check's hold under `refs/arc-window/`, which
-nothing restores from once the flip has merged. The close lists each moved or gone range a branch's comparison recorded
-(§ 10.6) and records the Owner's confirmation that it was re-applied, and it refuses on the conditions its specification
-enumerates, among them until the flip's recorded head is reachable from the host's `main`, while any registered
-checkout's `HEAD` tree tracks a file under § 3.2's paths, and until every recorded range is confirmed. The Owner runs it
-once no checkout reports a withheld file (`spec-projection-worktrees.md` § 2.5); a withheld file is copied out where
-wanted and deleted, which releases it.
+nothing restores from once the flip has merged. The close lists each moved, gone, or unrecorded range a branch's
+comparison recorded (§ 10.6), and it refuses on the conditions its specification enumerates, among them until the flip's
+recorded head is reachable from the host's `main`, while any registered checkout's `HEAD` tree tracks a file under
+§ 3.2's paths, while a branch made after the check whose tip tracks one has not been compared, and until every range is
+confirmed through the window tooling's `confirm`, which records the Owner's confirmation that the range was re-applied
+(A7). The Owner runs it once no checkout reports a withheld file (`spec-projection-worktrees.md` § 2.5); a withheld file
+is copied out where wanted and deleted, which releases it.
 
 ### 11. Abort and recovery
 
@@ -1704,9 +1715,9 @@ check that proves it, each check a refusal followed by a legitimate repair and c
       read (`landImportRefs`);
     - the window tooling's recompute of worktree heads, personal digests, and live branch tips after the import and
       again as the last act before the merge (§ 1.3), stopping through the abort (§ 11); and after the merge, § 10.6's
-      comparisons before anything is deleted: a branch's moved or gone range recorded under the hold, which the window
-      tooling's close keeps until the Owner confirms each range re-applied (§ 10.7), and a checkout whose personal
-      digest moved keeping its pre-flip files for its first materialization to withhold;
+      comparisons before anything is deleted: a branch's moved, gone, or unrecorded range recorded under the hold, which
+      the window tooling's close keeps until the Owner confirms each range re-applied (§ 10.7), and a checkout whose
+      personal digest moved keeping its pre-flip files for its first materialization to withhold;
     - the tracked-state refusal (§ 3.2), so no command in the flip's checkout builds a ref store or projects before its
       deletion commit, with the override or without it; the override itself (§ 3.1) is procedure, not enforcement;
     - the host's required `ci-ok` check on the head with the deletion commit applied, and the Owner's authorization of
@@ -1716,9 +1727,9 @@ check that proves it, each check a refusal followed by a legitimate repair and c
       stop, is caught only if it changes a worktree head, a live branch's tip, or a personal digest the window tooling
       compares — before the merge by the recompute, after it by § 10.6's comparisons — and only if made before that
       branch's or checkout's own steps run;
-    - that a recorded range's re-application is complete holds by the Owner's confirmation alone; the close enforces
-      only that each range is confirmed, and it reads no withheld file, so that none remains when the window closes
-      holds by the Owner's check;
+    - that a range's re-application is complete holds by the Owner's confirmation alone; the close enforces only that
+      each range is confirmed, and it reads no withheld file, so that none remains when the window closes holds by the
+      Owner's check;
     - between the deletion commit and the merge the flip's tree tracks no state, so a command run there without the
       override projects, writing the clone's exclude entries, which an abort does not remove; only the Owner's
       independent checks run in that interval;
@@ -2010,9 +2021,9 @@ None closes by being listed here.
   delivery rebuild.
 - **A session the quiesce missed** (§ 13.1): an unsealed writer there is caught after the merge only by § 10.6's
   comparisons, and only before each branch's and checkout's own steps run.
-- **The window's close** (§ 10.6, § 10.7, § 13.1): the window tooling's close refuses until each moved or gone range is
-  confirmed, but that the re-application is complete rests on the Owner's confirmation, and it reads no withheld file,
-  so that none remains when the window closes rests on the Owner's check.
+- **The window's close** (§ 10.6, § 10.7, § 13.1): the window tooling's close refuses until each moved, gone, or
+  unrecorded range is confirmed, but that the re-application is complete rests on the Owner's confirmation, and it reads
+  no withheld file, so that none remains when the window closes rests on the Owner's check.
 - **The flip's merge on the host** (§ 10.5, § 11, § 13.2): the draft's release, its return to draft on an abort, and the
   head-matched merge are host procedure no stage exercises, since both stages merge into the copy's mirror, which has no
   pull request; so is the fix-forward from a restore that found the flip merged at its last test, the import's re-run
@@ -2182,5 +2193,9 @@ None.
   _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ 5.12.
 - **A6** — 2026-11-14 — spec-depth: a unit holding an unpublished Candidate settles it before the quiesce check.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.8.
+- **A7** — 2026-11-14 — design: a state-bearing branch made after the check is compared, and `confirm` records ranges.
+  _Supersedes:_ § 1.3; § 10.6 ¶1; § 10.7. _Trigger:_ 6.1 must-stop. _Work:_ 6.5. _Revalidated:_ pending → 6.8.
+- **A8** — 2026-11-14 — design: the restore's auto-merge remedy names disarming, not `gh pr merge --disable-auto`.
+  _Supersedes:_ § 1.3 (the auto-merge refusal). _Trigger:_ 6.1 must-stop. _Work:_ none. _Revalidated:_ 6.1.
 
 ---

@@ -524,6 +524,32 @@ with § 8.6's A4 bullet and § 8.7's `_Captures:_` as the surrounding contract, 
 `clean-work-unit.md` § Notes File Consolidation read against them; `task-audit` at grounding-only depth over Task 5.R;
 no independent pass at `low`.
 
+## A7 — branches made after the check, and `confirm`
+
+§ 1.3's recompute item recorded under the hold "a branch's moved range, or a deleted branch's gone range", and its close
+item had the close list "each moved or gone range recorded under it", record "the Owner's confirmation that a range was
+re-applied", and refuse "until each recorded range is confirmed"; § 10.6 ¶1 had the Owner confirm a gone range "at the
+close" and any range "to the window tooling's close, which records the confirmation against it", and § 10.7 restated the
+close's listing, recording, and refusal.
+
+The landed tooling also compares a branch the check never recorded whose tip tracks a state file
+(`isWindowRecordedBranch`, `windowTipsTrackState`, `branch-observations.ts`), its range running from its merge base with
+`main`'s recorded tip, and refuses one that shares no history with `main` until it is deleted or merges `main`
+(`readWindowUnrecordedBase`); the close refuses while such a branch's side has no comparison mark
+(`readWindowCloseBranchFindings`, `close-branches.ts`). The confirmation is an operation of its own, `confirm`, which
+records it at each range's exact held tip (`confirm.ts`); the close only checks it. Perturbation 6 (§ 9.3) gains the two
+branches that exercise the comparison, § 13.1's guarantee and § 17.3's residual name the unrecorded range beside the
+moved and gone ones, § 13.1's residual drops "recorded" from the range whose re-application rests on the Owner, and Task
+6.5.e carries the run.
+
+## A8 — the restore's auto-merge remedy
+
+§ 1.3's auto-merge item had the check, the last read, and the restore each refuse while the flip's pull request has
+auto-merge armed, with the remedy `gh pr merge --disable-auto`. The check and the last read name that command
+(`pull-requests.ts`, `last-read.ts`); the restore names the step without it ("Disarm auto-merge on the flip request,
+then retry restore.", `restore.ts`). All three refuse on the same condition and their remedies take the same step, so
+the item now states each as landed and no work follows.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

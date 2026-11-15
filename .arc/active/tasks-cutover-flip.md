@@ -1066,12 +1066,18 @@ recorded in `notes-cutover-flip.md` § Stage 2, citing a commit or a CI run ID. 
 stage re-run, and Stage 2 re-runs at the new head after any later change to the flip change, the import, or the
 rewritten workflows (§ 9.2).
 
-### `[ ]` **6.1 Re-check `cutover-window-tooling`'s contract once it lands — § 1.3**
+### `[x]` **6.1 Re-check `cutover-window-tooling`'s contract once it lands — § 1.3**
 
 - _Goal:_ Each contract item § 1.3 states for the window tooling holds at `main` once it lands — the quiesce check and
   its conditions, the record and hold, the recompute and its last read, the auto-merge refusal, the close, the abort's
   restore and its accept and consumed-ref comparisons, the worktree lock step, the seal on `arc user load`, the launch
   under a memory limit, and Stage 1 — or the spec takes a forward amendment before Stage 2 runs.
+
+- _Outcome:_ Every item holds at the tooling merged in at `ae8a98fc48`, read at its source (`scripts/cutover-window/`),
+  with two amendments: after the merge a state-bearing branch made after the check is compared too, the close refusing
+  until it is, and each range's confirmation is the `confirm` operation, recorded at the range's exact tip (A7); the
+  restore's auto-merge remedy names the disarming, not the `gh` command (A8). Stage 1 ran clean at `ac35d74314`, and the
+  seal anchor `9d5c680661` carries `arc user load`'s refusal (`refuseWriteIfStoreImported`).
 
 ### `[ ]` **6.2 The parser check — § 9.4**
 
@@ -1197,7 +1203,10 @@ rewritten workflows (§ 9.2).
           repository path, for each prepared write the window makes.
 
     - `[ ]` **6.5.e A late change after the merge, with the code-only commit on a branch no checkout holds**
-        - The final run, carried through the window's end.
+        - The final run, carried through the window's end, with two branches pushed to the mirror after the check: one
+          cut from `main`'s recorded tip that edits a live work unit's meta, its unrecorded range re-applied and
+          confirmed with the rest, and one that shares no history with `main` and tracks a file under the state paths,
+          its comparison refusing until the branch is deleted (A7).
 
 ### `[ ]` **6.6 The end-to-end work unit — § 9.5**
 
@@ -1293,6 +1302,10 @@ landing after verification).
 
 - `[ ]` `verify-work-unit.md` keeps the work unit's notes companion, consolidating it where it is not reference-ready,
   and no shipped step deletes it (A5).
+
+- `[ ]` Stage 2 shows a state-bearing branch made after the check compared, its unrecorded range re-applied and
+  confirmed through the window tooling's `confirm` before the close passes, and one sharing no history with `main`
+  refused until deleted (A7).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
