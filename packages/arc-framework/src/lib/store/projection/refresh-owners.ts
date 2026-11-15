@@ -10,9 +10,15 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import type { ProjectionRefreshPlanInput, ProjectionRefreshPlan } from "./refresh-plan.js";
 import { planProjectionSelection } from "./selection-plan.js";
 
+/** Owners planned only for a pending entry or a conflict, and the changed and conflicted records any owner must lay. */
+export interface OwnerRefreshScope {
+  readonly pendingOnly: readonly OwnerIdentity[];
+  readonly touched: readonly RecordReference[];
+}
+
 /** Primary changes expand to every current owner record and every former indexed path. */
 export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners: readonly OwnerIdentity[],
-  plan: ProjectionRefreshPlan, pendingOnly: readonly OwnerIdentity[] = []): Promise<boolean> {
+  plan: ProjectionRefreshPlan, scope: OwnerRefreshScope = { pendingOnly: [], touched: [] }): Promise<boolean> {
   const { records, complete, unresolved } = await readOwners(input, owners);
   const located = await readOwnPrimary(input, records);
   const own = located.primary;
@@ -20,8 +26,9 @@ export async function planOwnerRefresh(input: ProjectionRefreshPlanInput, owners
   const inventory: ProjectionInventory = { records, source: input.source, diagnostics: [],
     complete: reference => complete.some(owner => sameOwner(reference.owner, owner)) };
   const desired = await desiredProjectionPaths(input.root, inventory, located.unavailable);
-  const membership = ownMembershipChanged(input, complete, own);
-  applyOwnerPaths({ input, owners, complete, plan, desired, membership, pendingOnly });
+  const relaid = complete.filter(owner => !scope.pendingOnly.some(pending => sameOwner(pending, owner)));
+  const membership = ownMembershipChanged(input, relaid, own);
+  applyOwnerPaths({ input, owners, complete, plan, desired, membership, ...scope });
   retainUncertainProjectionPaths(input.index, desired, plan);
   const regrouped = membership && inFlightSelectionMoved(input, desired) ? await planInFlightSelection(input, plan) : false;
   return unresolved || desired.unresolved || regrouped;
@@ -49,15 +56,21 @@ async function planInFlightSelection(input: ProjectionRefreshPlanInput, plan: Pr
   return selected.unresolved;
 }
 
-function applyOwnerPaths(scope: { input: ProjectionRefreshPlanInput; owners: readonly OwnerIdentity[]; complete: readonly OwnerIdentity[];
-  plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean; pendingOnly: readonly OwnerIdentity[] }): void {
-  const { input, owners, plan, desired, membership, pendingOnly } = scope;
+function applyOwnerPaths(scope: OwnerRefreshScope & { input: ProjectionRefreshPlanInput; owners: readonly OwnerIdentity[];
+  complete: readonly OwnerIdentity[]; plan: ProjectionRefreshPlan; desired: DesiredProjection; membership: boolean }): void {
+  const { input, owners, plan, desired, membership } = scope;
   for (const [path, record] of desired.files) {
     const owned = owners.some(owner => sameOwner(record.reference.owner, owner));
-    if (owned && pendingOnly.some(owner => sameOwner(record.reference.owner, owner)) && settledAt(input, path, record.reference)) continue;
+    if (owned && keepsSettledFile(scope, path, record.reference)) continue;
     if (owned || membership && isOwnCohortCopy(input, path)) plan.paths.set(path, record.reference);
   }
   removeOwnerPaths(scope);
+}
+
+/** A pending-only owner's settled file stays unless this window changed its record or a conflict naming it. */
+function keepsSettledFile(scope: OwnerRefreshScope & { input: ProjectionRefreshPlanInput }, path: string, reference: RecordReference): boolean {
+  return scope.pendingOnly.some(owner => sameOwner(reference.owner, owner)) && settledAt(scope.input, path, reference)
+    && !scope.touched.some(touched => sameReference(touched, reference));
 }
 
 function removeOwnerPaths(scope: Parameters<typeof applyOwnerPaths>[0]): void {

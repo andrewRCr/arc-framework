@@ -8,8 +8,11 @@ import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
-import { seed, success, update, fixtureRenameProvenance } from "../../../helpers/store/suite-tools.js";
-import { RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { seed, success, update, fixtureRenameProvenance, testProvenance } from "../../../helpers/store/suite-tools.js";
+import { RecordReferenceSchema, recordReferences, type RecordReference } from "../../../../src/lib/store/identity.js";
+import type { StoreRecord } from "../../../../src/lib/store/read.js";
+import { ConflictRecordSchema } from "../../../../src/lib/store/index.js";
+import { canonicalize } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -78,6 +81,50 @@ async function fixture() {
   expect(await startProjection({ checkout: target.f.root, store: target.f.store })).toMatchObject({ kind: "ready" });
   await endProjection({ checkout: target.f.root, store: target.f.store });
   return { ...target, notes, path: ".arc/active/current/notes-alpha.md", metaPath: ".arc/active/current/meta-alpha.md" };
+}
+
+/** Hold one laid file as a rebuild leaves a file it cannot place, so its owner is planned for that entry. */
+async function holdEntry(h: Awaited<ReturnType<typeof fixture>>, path: string): Promise<void> {
+  await withProjectionLock(h.projected.location, async session => {
+    const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    if (read.kind !== "index") throw new Error("Missing index");
+    const entry = read.index.entries[path];
+    if (entry?.kind !== "record") throw new Error(`Missing entry for ${path}`);
+    await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
+      index: withProjectionEntry(read.index, path, { ...entry, pending: true, withheld: true }) });
+  });
+}
+
+async function identities(root: string, paths: readonly string[]) {
+  return Promise.all(paths.map(async file => {
+    const { ino, mtimeNs } = await stat(join(root, file), { bigint: true });
+    return { file, ino, mtimeNs };
+  }));
+}
+
+/** A companion laid and then held, leaving its owner planned only for that entry. */
+async function heldCompanion(h: Awaited<ReturnType<typeof fixture>>) {
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "repair.txt"), "Opening.\nBase.\nClosing.\n");
+  const command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await holdEntry(h, ".arc/active/current/repair.txt");
+  return command;
+}
+
+/** Two writes against one version, leaving the record with a stored text conflict. */
+async function storeConflict(h: Awaited<ReturnType<typeof fixture>>, record: StoreRecord) {
+  const put = (content: string) => h.f.store.write({ ...update(h.f, record, content), provenance: { verb: "edit", lifecycleAction: "edit" } });
+  success(await put(`${record.content}Stored side.\n`));
+  const reference = success(await put(`${record.content}Incoming side.\n`)).conflicts[0];
+  if (reference === undefined) throw new Error("Expected a stored text conflict");
+  return reference;
+}
+
+async function resolveConflict(h: Awaited<ReturnType<typeof fixture>>, reference: RecordReference): Promise<void> {
+  const conflict = success(await h.f.store.read({ reference }));
+  success(await h.f.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
 }
 
 it("refreshes one changed record while leaving its unchanged neighbor untouched", async () => {
@@ -357,6 +404,49 @@ it("leaves an owner's unchanged files in place while one of its files stays refu
     [path]: { pending: true, withheld: true },
   } } });
   expect(await neighbors()).toEqual(withheld);
+});
+
+it("lays a held owner's changed record without re-laying the owner's settled files", async () => {
+  const h = await fixture();
+  const command = await heldCompanion(h);
+  const before = await identities(h.f.root, [h.metaPath]);
+  const changed = "Opening.\nA note fanned out from a sibling.\nClosing.\n";
+  success(await h.f.store.write(update(h.f, h.notes, changed)));
+  await startProjection(command);
+  await endProjection(command);
+  expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(changed);
+  expect(await identities(h.f.root, [h.metaPath])).toEqual(before);
+});
+
+it("refreshes a held owner's conflict subject without re-laying the owner's other settled files", async () => {
+  const h = await fixture();
+  const conflict = await storeConflict(h, h.notes);
+  const command = await heldCompanion(h);
+  expect(await readFile(join(h.f.root, h.path), "utf8")).toContain("<<<<<<<");
+  const before = await identities(h.f.root, [h.metaPath]);
+  await resolveConflict(h, conflict);
+  await startProjection(command);
+  await endProjection(command);
+  expect(await readFile(join(h.f.root, h.path), "utf8")).not.toContain("<<<<<<<");
+  expect(await identities(h.f.root, [h.metaPath])).toEqual(before);
+});
+
+it("refreshes a meta that gains a stored conflict without re-laying its owner's other files", async () => {
+  const h = await fixture();
+  const before = await identities(h.f.root, [h.path]);
+  const reference = RecordReferenceSchema.parse({ owner: h.primary.reference.owner, kind: "work-item/conflict-record", key: "external-conflict" });
+  const value = { reference: h.primary.reference, content: h.primary.content, version: h.primary.version,
+    formatVersion: h.primary.formatVersion, ...(h.primary.placement ? { placement: h.primary.placement } : {}) };
+  const label = { actor: "external-writer", time: "2026-01-01T00:00:00.000Z" };
+  success(await h.f.store.write({ action: "put", reference, expected: null, provenance: testProvenance,
+    content: canonicalize(ConflictRecordSchema.parse({ record: h.primary.reference, location: { kind: "record" }, base: value,
+      current: { value, label }, incoming: { value: null, label } })) }));
+  const command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(disk.kind === "index" ? JSON.stringify(disk.index.entries[h.metaPath], (_key, value: unknown) => typeof value === "bigint" ? String(value) : value) : "").toContain("external-conflict");
+  expect(await identities(h.f.root, [h.path])).toEqual(before);
 });
 
 

@@ -44,13 +44,15 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
   const retries = [...paths.values()];
   const reduced = input.changes.filter((change, at, all) => !all.slice(at + 1).some(other => sameReference(change.reference, other.reference)));
   const subjects = await refreshSubjectReferences(input, reduced);
-  const primaries = [...reduced.map(change => change.reference), ...retries, ...subjects.references]
-    .filter(reference => ["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind));
+  const primaries = [...reduced.map(change => change.reference), ...retries, ...subjects.references].filter(isOwnerPrimary);
   // A held entry proves nothing about its owner's place in the view, so a work item's held record is planned from the view.
   const held = Object.values(index.entries).flatMap(entry => entry.kind === "record" && entry.pending
     && entry.reference.owner.type === "work-item" ? [entry.reference] : []);
   const owners = [...primaries, ...held].map(reference => reference.owner)
     .filter((owner, at, all) => all.findIndex(other => sameOwner(owner, other)) === at);
+  // Only a primary's own change moves its owner's files; an owner here for a pending entry or a conflict re-lays none of its settled ones.
+  const relaid = reduced.map(change => change.reference).filter(isOwnerPrimary);
+  const pendingOnly = owners.filter(owner => !relaid.some(reference => sameOwner(reference.owner, owner)));
   let unresolved = subjects.unresolved;
   const uncertain: RecordReference[] = [];
   const references = [...subjects.references, ...retries]
@@ -60,15 +62,17 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
     if (added) uncertain.push(reference);
     unresolved ||= added;
   }
-  // An owner here only for a pending entry gets that entry's placement, never a re-lay of its settled files.
-  const changedOwners = [...reduced.map(change => change.reference), ...subjects.references].map(reference => reference.owner);
-  const pendingOnly = owners.filter(owner => !changedOwners.some(changed => sameOwner(changed, owner)));
   if (owners.length > 0) {
-    const ownersUnresolved = await planOwnerRefresh(input, owners, plan, pendingOnly);
+    const ownersUnresolved = await planOwnerRefresh(input, owners, plan, { pendingOnly, touched: subjects.references });
     unresolved ||= ownersUnresolved;
   }
   for (const reference of uncertain) retainReferencePaths(index, plan, reference);
   return { ...plan, unresolved };
+}
+
+/** A meta, an Errand's record, or a cohort document: the record whose change decides where its owner's files project. */
+function isOwnerPrimary(reference: RecordReference): boolean {
+  return ["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind);
 }
 
 async function currentPrimary(source: ProjectionSource, record: StoreRecord): Promise<StoreResult<StoreRecord | null>> {

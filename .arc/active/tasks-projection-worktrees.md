@@ -436,13 +436,14 @@ No production composition sets the slots today, so every caller runs `passingPro
   `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store, E2E,
   and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
   `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
-- _Success criteria:_ 17 criteria: 14 met, three superseded — the original performance criterion by A4, and the removal
-  and unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup and appends
-  their narrowed forms, met on the same evidence. The changed-mark criterion records its accepted residuals as a
-  deviation, and the A4 criterion carries its wording and macOS measurement note. The refreshed author walk covered the
-  complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every
-  finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7 is
-  revalidated by this verification.
+- _Success criteria:_ 19 criteria: 15 met, four superseded — the original performance criterion by A4; the removal and
+  unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the
+  changed-mark criterion by A9, which accepts the marks a contended end loses. Each superseded criterion's narrowed form
+  is appended and met on the same evidence. A10 appends the criterion that a pending reprojection settles once its
+  arrival installs, met by its test. The A4 criterion carries its wording and macOS measurement note. The refreshed
+  author walk covered the complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check
+  rounds closed with every finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding,
+  fixed in `0a27c749b5`. A7 is revalidated by this verification.
 
 ---
 
@@ -466,12 +467,11 @@ No production composition sets the slots today, so every caller runs `passingPro
 - `[x]` The isolation test passes; `layout.active: flat` lays the checkout's work item flat; and a changed view setting,
   identity, checkout claim, or `layout.active` reprojects what it governs.
 
-- `[x]` A verb run from the checkout marks the files its write changes there, so `arc selection --changed` lists them.
+- `[~]` A verb run from the checkout marks the files its write changes there, so `arc selection --changed` lists them.
 
-  **Deviation (accepted residuals):** Marks are lost when the command end's visit to its own checkout also cannot hold
-  the lease; the "Changed marks not recorded" diagnostic names them. When the writer keeps its marks without
-  refreshing, a write outside that checkout's view counts as unmarked, so if the end's retry also cannot refresh, the
-  diagnostic can name a file that was never placed there.
+  **Superseded (A9):** The narrowed criterion below replaces this one: marks neither the verb's fan-out nor the
+  command's end can record, because neither holds the checkout's lease, are lost and reported (spec § 17 item 14);
+  its text is preserved.
 
 - `[~]` The no-change overhead stays within 10 ms on Linux and macOS and 60 ms on Windows at this repository's size; the
         start, a full materialization, and a one-file fan-out of a record that is not a primary into 20 worktrees each
@@ -553,5 +553,13 @@ No production composition sets the slots today, so every caller runs `passingPro
         behavior; failed setup compensation preserves pending recovery state and permits same-claim retry after recovery
         and setup repair. This holds for every destructive removal but a failed work-unit spawn's cleanup (A8; spec
         criterion 16).
+
+- `[x]` A verb run from the checkout marks the files its write changes there, so `arc selection --changed` lists them,
+        but for marks neither its fan-out nor its end can record, which it reports (A9; spec criterion 17).
+
+- `[x]` While a desired arrival stays blocked, the reprojection flag and the previous `projectedUnder` remain and each
+        command reports the arrival with its remedy; once it is repaired, the next command installs it and acknowledges
+        the settings, and a later command with no store change leaves every settled file's inode and mtime unchanged
+        (A10; spec criterion 18).
 
 - `[x]` Ready for integration

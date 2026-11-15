@@ -712,7 +712,8 @@ materialization marks nothing. The mark's rules, whole:
   sets it too, marked by the writing process when its fan-out refreshes its own checkout (§ 2.2); a verb writing for
   another checkout, as graduation does into a spawned worktree, marks nothing there, and a refresh that only rewrites a
   file, from a sibling's write or a pull, never sets it. Until this member's fan-out lands, no refresh follows a verb's
-  write, so `--changed` holds hand edits alone.
+  write, so `--changed` holds hand edits alone. Marks neither a round nor the end can record are lost and reported
+  (A9, § 17 item 14).
 - **Clearing the mark.** Every command's start already lands edits (`spec-projection-write-back.md` § 2.2), so
   `arc save` clears the mark under the projection lock on every file except one still holding an edit the store lacks —
   left refused, failing to parse, pending, withheld (§ 2.5), or held for a resolution (`spec-projection-write-back.md`
@@ -1527,6 +1528,19 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     compensation alone, and the bound check answers `unobservable` for a work-unit checkout with no index, so adding it
     as it stands would refuse every such cleanup. Protecting these cleanups is deferred, with no owner yet, and captured
     for routing as "Protect personal files when a failed work-unit spawn is cleaned up" (`USER-INBOX` § Work Unit).
+14. **A verb's changed marks a contended end loses (A9).** A verb's fan-out marks its writes in its own checkout
+    (§ 11.7). When a round cannot hold that checkout's lease and the command end's one visit to it cannot either, those
+    marks are lost: `arc selection --changed` omits the files until an edit marks them, and the "Changed marks not
+    recorded" diagnostic reports the loss, naming `arc selection` without `--changed` as the remedy. A write outside the
+    checkout's view that the writer kept without refreshing counts as unmarked, so the diagnostic can name a file that
+    was never placed there.
+15. **A pending reprojection (A10).** While a reprojection's flag stays set because a desired arrival is blocked — a
+    link at or above its path, a path the checkout cannot write, an ownership handoff not yet confirmed, or a file
+    withheld at its path (§ 10.4) — each start of the checkout's own commands, and each fan-out round of their own
+    writes, reprojects again and re-lays every file its settings govern, since the index records no per-file settings
+    basis that would tell a file laid under the fresh target from one laid under an earlier setting. It lasts until the
+    arrival is repaired, each command reporting it with its remedy; the next command then installs it and acknowledges
+    the settings, and later commands lay only what changed (§ 15.2).
 
 ### 18. Expected contracts
 
@@ -1838,6 +1852,15 @@ _These considerations cover the design the three members build together; § 1.1 
     resumes that same claim, while empty/machine-local-only and capability-off compensation retain their cleanup
     behavior. This holds for every destructive removal but a failed work-unit spawn's cleanup (§ 17 item 13).
 
+17. **A verb's write joins the selection's changes (A9; supersedes criterion 6).** A verb run from the checkout marks
+    the files its write changes there, so `arc selection --changed` lists them (§ 11.7), but for marks neither its
+    fan-out nor its end can record, which it reports (§ 17 item 14).
+
+18. **A pending reprojection settles once its arrival does (A10).** While a desired arrival stays blocked, the
+    reprojection flag and the previous `projectedUnder` remain and each command reports the arrival with its remedy;
+    once it is repaired, the next command installs it and acknowledges the settings, and a later command with no store
+    change leaves every settled file's inode and mtime unchanged.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1865,6 +1888,13 @@ this design open.
 
 - **A8** — 2026-11-14 — design: defer work-unit spawn cleanup protection. _Supersedes:_ criteria 2 and 13 for work-unit
   spawn cleanups; § 12.2 ¶ spawn compensation. _Trigger:_ standard pass 1 A2. _Work:_ review-fix. _Revalidated:_ 3.1.
+
+- **A9** — 2026-11-14 — design: accept changed marks a contended end loses. _Supersedes:_ criterion 6 for marks
+  neither a fan-out round nor the end can record; § 11.7 ¶ setting the mark. _Trigger:_ standard fix check 1 F3.
+  _Work:_ review-fix. _Revalidated:_ 3.1.
+
+- **A10** — 2026-11-14 — spec-depth: bound a pending reprojection's retries. _Supersedes:_ none; adds § 17 item 15
+  and criterion 18. _Trigger:_ standard fix check 1 F4. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

@@ -48,6 +48,20 @@ async function removeLinkedProjection(root: ProjectionRootState, initial: Projec
   const batch = await swapBatch({ checkout: root.checkout, location: root.location, index: guarded.index, files: guarded.files, readBack: false,
     format: root.context.format, writer: root.context.writer, takeIn: observed.takeIn,
     checkpoint: root.context.checkpoint, hooks: root.ports.hooks });
+  // The swap removed files the view still lays, so a failure thrown from here on clears the state version as a refusal does.
+  const latest = { index: batch.index };
+  try {
+    return await finishLinkedRemoval(root, batch, observed, latest);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return refusedAfterRemoval(root, latest.index, {
+      text: `Cannot persist the projection at ${root.checkout}: ${message}. Repair it and retry release.` });
+  }
+}
+
+/** The second check and the takeover checks after the removal swap, each refusal there clearing the state version. */
+async function finishLinkedRemoval(root: ProjectionRootState, batch: Awaited<ReturnType<typeof swapBatch>>,
+  observed: ReturnType<typeof observeRemovalSends>, latest: { index: ProjectionIndex }): Promise<ProjectionPersistResult> {
   const firstRefusal = observed.refusal();
   if (firstRefusal !== undefined) return refusedAfterRemoval(root, batch.index, firstRefusal);
   const currentLinks = await readProjectionLinkBoundary(root.checkout,
@@ -57,6 +71,7 @@ async function removeLinkedProjection(root: ProjectionRootState, initial: Projec
     copies: batch.copies.filter(copy => currentLinks(copy.copy) === null),
     removals: batch.removals, blockedByLink: currentLinks, format: root.context.format, writer: root.context.writer,
     takeIn: observed.takeIn, checkpoint: root.context.checkpoint });
+  latest.index = checked.index;
   const secondRefusal = observed.refusal();
   if (secondRefusal !== undefined) return refusedAfterRemoval(root, checked.index, secondRefusal);
   for (const copy of checked.settled) {

@@ -13,6 +13,9 @@ import { startProjection, endProjection } from "../../../../src/lib/store/projec
 import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
 import { plantRefPrimary } from "../../../helpers/store/ref-primary-plant.js";
 import { runCohortClose, runCohortRemove } from "../../../../src/commands/cohort.js";
@@ -43,6 +46,35 @@ it("removes a current cohort copy when its member leaves the cohort", async () =
   await expect(readFile(join(h.f.root, h.copy))).rejects.toMatchObject({ code: "ENOENT" });
   const after = await stat(join(h.f.root, h.canonical), { bigint: true });
   expect({ ino: after.ino, mtimeNs: after.mtimeNs }).toEqual({ ino: before.ino, mtimeNs: before.mtimeNs });
+});
+
+it("leaves a member's cohort copies in place while one of its own files stays held", async () => {
+  const h = await fixture();
+  await seed(h.f, recordReferences["work-item/notes"](h.primary.reference.owner), "Opening.\nStored note.\nClosing.\n");
+  const command = { checkout: h.f.root, store: h.f.store }, notes = ".arc/active/current/notes-alpha.md";
+  await startProjection(command);
+  await endProjection(command);
+  await withProjectionLock(h.projected.location, async session => {
+    const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    if (read.kind !== "index") throw new Error("Missing index");
+    const entry = read.index.entries[notes];
+    if (entry?.kind !== "record") throw new Error("Missing notes entry");
+    await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
+      index: withProjectionEntry(read.index, notes, { ...entry, pending: true, withheld: true }) });
+  });
+  const identity = async () => {
+    const { ino, mtimeNs } = await stat(join(h.f.root, h.copy), { bigint: true });
+    return { ino, mtimeNs };
+  };
+  const before = await identity();
+  for (let round = 0; round < 2; round++) {
+    await startProjection(command);
+    await endProjection(command);
+  }
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: { entries: {
+    [notes]: { pending: true, withheld: true },
+  } } });
+  expect(await identity()).toEqual(before);
 });
 
 it("projects a cohort rename's own document, child, members, and current copies", async () => {

@@ -1,6 +1,7 @@
 /** Anchored releases retain the Git checkout after persisting its projection. */
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { projectedRetirement, retirementRetainedBase, interruptedRetirementReplacement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
@@ -121,6 +122,28 @@ describe("projected checkout release", () => {
     await endProjection(command);
     expect(parseStampedFile(await readFile(join(h.checkout, h.path), "utf8")).content).toBe(h.record.content);
     expect(parseStampedFile(await readFile(join(h.checkout, second), "utf8")).content).toBe("Second prose.\n");
+  });
+
+  it("lays every removed file again at the next command after release throws past its removal swap", async () => {
+    const h = await projectedRetirement();
+    const command = { checkout: h.checkout, store: h.store };
+    const failure = Object.assign(new Error("Recovery folder authority is unavailable."), { code: "EACCES" });
+    let failing = true, armed = false;
+    h.configure({ ports: checkout => ({ ...createProjectionEnginePorts(checkout),
+      hooks: { afterFirstCheck: () => { armed = failing; return Promise.resolve(); } },
+      walkFs: { readdir: (path: string) => {
+        if (armed && path.includes(ASIDE_FILES_ROOT)) throw failure;
+        return readdirSync(path, { withFileTypes: true });
+      } } }) });
+    expect(await h.release()).toMatchObject({ kind: "refused",
+      remedy: { text: expect.stringMatching(/Recovery folder authority is unavailable.*lays them again/su) } });
+    await expect(readFile(join(h.checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await endProjection(command);
+    expect(parseStampedFile(await readFile(join(h.checkout, h.path), "utf8")).content).toBe(h.record.content);
+    failing = false; armed = false;
+    expect(await h.release()).toEqual({ kind: "released" });
+    expect(await readProjectionIndex(h.location, false)).toEqual({ kind: "no-projection" });
   });
 
   it.each(["md", "txt"] as const)("retains an edited %s projection until its accepted-input base is restored", async extension => {

@@ -1,5 +1,5 @@
 /** Claim-only layout changes remain retryable without requiring any new store delta. */
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, stat, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
@@ -12,6 +12,7 @@ import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js"
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -87,4 +88,33 @@ it("journals before an interrupted layout mutation and recovers toward a returne
   expect(final.projectedUnder.claim).toBe("alpha");
   expect(final.reprojectionPending).toBeUndefined();
   expect(success(await h.f.store.version())).toBe(h.version);
+});
+
+it("keeps a reprojection pending while its arrival stays blocked, then leaves settled files alone once it installs", async () => {
+  const h = await fixture();
+  await seed(h.f, recordReferences["work-item/companion"](h.beta.reference.owner, "only-beta.txt"), "Beta alone.\n");
+  await h.cycle();
+  const arrival = join(h.f.root, ".arc/active/current/only-beta.txt");
+  await symlink(join(h.f.root, "elsewhere.txt"), arrival);
+  await h.claim(h.beta);
+  for (let round = 0; round < 2; round += 1) {
+    await h.cycle();
+    expect(await h.disk()).toMatchObject({ reprojectionPending: true, projectedUnder: { claim: "alpha" } });
+    expect(JSON.stringify(projectionProcessState().diagnostics)).toContain("only-beta.txt");
+  }
+  await rm(arrival);
+  for (let retry = 0; retry < 3; retry += 1) await h.cycle();
+  const final = await h.disk();
+  expect(final.reprojectionPending).toBeUndefined();
+  expect(final.projectedUnder.claim).toBe("beta");
+  expect(await readFile(arrival, "utf8")).toBe("Beta alone.\n");
+  const settled = Object.entries(final.entries).flatMap(([path, entry]) => entry.kind === "record" && !entry.pending ? [path] : []);
+  const identities = async () => Promise.all(settled.map(async path => {
+    const { ino, mtimeNs } = await stat(join(h.f.root, path), { bigint: true });
+    return { path, ino, mtimeNs };
+  }));
+  const before = await identities();
+  expect(settled).toContain(".arc/active/current/only-beta.txt");
+  await h.cycle();
+  expect(await identities()).toEqual(before);
 });
