@@ -2171,15 +2171,15 @@ None.
 ## Amendments
 
 - **A1** — 2026-11-14 — task: `arc repoint-design spec-finalized` removes the draft record in its own store write.
-  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.3.R. _Revalidated:_ pending → 5.12.
+  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.3.R. _Revalidated:_ 5.12.
 - **A2** — 2026-11-14 — design: the task review reads a task's starting plan from its verbatim lines, not `history`.
-  _Supersedes:_ § 8.15 ¶1. _Trigger:_ 5.4 must-stop. _Work:_ none. _Revalidated:_ pending → 5.12.
+  _Supersedes:_ § 8.15 ¶1. _Trigger:_ 5.4 must-stop. _Work:_ none. _Revalidated:_ 5.12.
 - **A3** — 2026-11-14 — task: `arc activate` removes a draft that `Design` no longer names in the activation write.
-  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.5.R. _Revalidated:_ pending → 5.12.
+  _Supersedes:_ none. _Trigger:_ 5.3 must-stop. _Work:_ 5.5.R. _Revalidated:_ 5.12.
 - **A4** — 2026-11-14 — spec-depth: activation records each rejected or dismissed capture in the notes companion.
-  _Supersedes:_ none. _Trigger:_ 5.5 must-stop. _Work:_ 5.5. _Revalidated:_ pending → 5.12.
+  _Supersedes:_ none. _Trigger:_ 5.5 must-stop. _Work:_ 5.5. _Revalidated:_ 5.12.
 - **A5** — 2026-11-14 — spec-depth: verification keeps the notes companion, consolidating it, and never deletes it.
-  _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.12.
+  _Supersedes:_ none. _Trigger:_ 5.6 must-stop. _Work:_ 5.R. _Revalidated:_ 5.12.
 - **A6** — 2026-11-14 — spec-depth: a unit holding an unpublished Candidate settles it before the quiesce check.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.8.
 

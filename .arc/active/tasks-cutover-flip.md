@@ -1046,7 +1046,9 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   matches its `.arc/` copy (`framework-sync`), and `arc-config.yml`, QUICK-REFERENCE, and `02_define-project` carry the
   same edits in both copies. `test:arc-contracts` gates every commit over non-state paths, so each family's commit
   passed it, and the content tier passes at this head. Task 1.6's inventory, re-run, finds every in-repo `unsupported`
-  refusal of a verb the rewritten text names naming its pre-flip step (`notes-cutover-flip.md` § Pre-flip steps).
+  refusal of a verb the rewritten text names naming its pre-flip step (`notes-cutover-flip.md` § Pre-flip steps). The
+  pass revalidates A1–A5; A2, which needed no work, rests on the `arc-task-review` skill reading the starting plan from
+  the task's verbatim lines.
 
 ## **Phase 6:** The dress rehearsal and window readiness
 
