@@ -147,17 +147,19 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("routes housekeep execution ordering through one lock-safe batch command", async () => {
+  it("queues housekeep execution through the whole-queue setter by entry ID", async () => {
     for (const base of [packageArc, projectArc]) {
       const drainInbox = await readFile(
         resolve(base, "system/workflows/arc/supplemental/drain-inbox.md"),
         "utf8",
       );
 
-      expect(drainInbox).toContain("`arc user inbox-mark-execute-bound <file | ->`");
-      expect(drainInbox).toContain('"orderedTitles"');
-      expect(drainInbox).toContain("final file order");
-      expect(drainInbox).not.toContain("add `_Disposition:_ `execute-bound`` by hand");
+      expect(drainInbox).toContain("`arc errand queue --json`");
+      expect(drainInbox).toContain("`arc errand queue set <file | ->`");
+      expect(drainInbox).toContain('"members":[{"inbox":"personal","id":"<queued-id>"}');
+      expect(drainInbox).toMatch(softWrappedProse("keeping its members in order and appending each newly approved"));
+      expect(drainInbox).not.toContain("inbox-mark-execute-bound");
+      expect(drainInbox).not.toContain("orderedTitles");
     }
   });
 

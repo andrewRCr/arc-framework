@@ -192,77 +192,21 @@ describe("shared code-review workflow contracts", () => {
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
-    const prePrExemption = packaged.indexOf("arc review planning-grooming resolve -");
     const openedPr = packaged.indexOf("4. **Enter the open PR.**");
-    const openedTargetExemption = packaged.indexOf("arc review planning-grooming resolve -", openedPr);
     const finalHead = packaged.indexOf("5. **Settle the final head.**");
     const integrationInterlock = packaged.indexOf("`integration-interlock`", finalHead);
-    expect(prePrExemption).toBeGreaterThanOrEqual(0);
-    expect(openedTargetExemption).toBeGreaterThan(openedPr);
-    expect(finalHead).toBeGreaterThan(openedTargetExemption);
+    expect(finalHead).toBeGreaterThan(openedPr);
     expect(integrationInterlock).toBeGreaterThan(finalHead);
-    expect(packaged).toMatch(softWrappedPattern(/`exempt \/ none`[\s\S]*both\s+review\s+lanes/iu));
-    expect(packaged).toMatch(softWrappedPattern(/`review-required \/ continue-review`[\s\S]*ordinary\s+review/iu));
-    expect(packaged).toMatch(softWrappedPattern(/`not-eligible \/ continue-review`[\s\S]*ordinary\s+review/iu));
-    expect(packaged).toMatch(softWrappedPattern(/caller-owned[^.]*content\s+kind[^.]*surface\s+authority/iu));
-    expect(packaged).toMatch(softWrappedPattern(/never\s+infer[^.]*planning-lane/iu));
+    expect(packaged).not.toContain("planning-grooming");
+    expect(packaged).not.toContain("arc review planning-lane");
     expect(packaged).toMatch(softWrappedPattern(/atomic\s+determinacy[\s\S]*routing\s+fact/iu));
     expect(packaged).toMatch(/arc review resolve -[\s\S]*code-findings-round/iu);
     expect(packaged).toMatch(softWrappedPattern(/On\s+interruption[\s\S]*typed\s+`state`\s+\/\s+`nextAction`/iu));
     expect(packaged).not.toMatch(softWrappedPattern(/vehicle-neutral\s+response-state\s+store|review-suspension|promoted\s+watcher/u));
-    expect(packaged).toMatch(softWrappedPattern(/merge\s+lane[\s\S]*downstream\s+presentation/u));
     expect(packaged).toMatch(softWrappedPattern(/Never\s+reconstruct\s+review\s+state[\s\S]*invent\s+WU\s+state/iu));
-    expect(packaged).toMatch(softWrappedPattern(/head\s+movement[^.]*invalidates[^.]*exemption[^.]*return/iu));
-    expect(packaged.slice(finalHead, integrationInterlock)).toMatch(
-      softWrappedPattern(/adapter\s+target[^.]*match\s+it/iu),
-    );
-  });
-
-  it("resolves routing-only grooming exemption before opening a housekeeping PR", async () => {
-    const [packaged, project] = await Promise.all([
-      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/drain-inbox.md"),
-      readRepositoryFile(".arc/system/workflows/arc/supplemental/drain-inbox.md"),
-    ]);
-    expect(project).toBe(packaged);
-    const fullProtection = sectionBetween(packaged, "- **Fully protected**", "- **Partially protected**");
-    const exemption = fullProtection.indexOf("arc review planning-grooming resolve -");
-    const prCreation = fullProtection.indexOf("arc merge lock resolve -");
-    const openedTargetResolution = fullProtection.indexOf(
-      "arc review planning-grooming resolve -",
-      prCreation,
-    );
-    const integrationInterlock = fullProtection.indexOf("`integration-interlock`", openedTargetResolution);
-    const laneClassification = fullProtection.indexOf(
-      "arc review planning-lane <base-sha> <head-sha>",
-      integrationInterlock,
-    );
-    const mergeMethodResolution = fullProtection.indexOf(
-      "arc review merge-method resolve",
-      laneClassification,
-    );
-    const lockRelease = fullProtection.indexOf("arc merge lock release -", mergeMethodResolution);
-    const autoMerge = indexOfSoftWrappedProse(fullProtection,
-      "gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>",
-      lockRelease,
-    );
-    expect(exemption).toBeGreaterThanOrEqual(0);
-    expect(prCreation).toBeGreaterThan(exemption);
-    expect(openedTargetResolution).toBeGreaterThan(prCreation);
-    expect(integrationInterlock).toBeGreaterThan(openedTargetResolution);
-    expect(laneClassification).toBeGreaterThan(integrationInterlock);
-    expect(mergeMethodResolution).toBeGreaterThan(laneClassification);
-    expect(lockRelease).toBeGreaterThan(mergeMethodResolution);
-    expect(autoMerge).toBeGreaterThan(lockRelease);
-    expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
-    expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
-    expect(fullProtection).toMatch(softWrappedPattern(/never\s+infer[^.]*planning-lane/iu));
-    expect(fullProtection).toMatch(softWrappedPattern(/head\s+movement[^.]*invalidates[^.]*exemption[^.]*return/iu));
-    expect(fullProtection).toMatch(
-      softWrappedPattern(/after\s+approval[\s\S]*head\s+differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu),
-    );
-    expect(fullProtection.slice(mergeMethodResolution, lockRelease)).toMatch(
-      softWrappedPattern(/validated\s+\/\s+use-method[\s\S]*returned\s+`method`[\s\S]*sole/iu),
-    );
+    const settlement = packaged.slice(finalHead, integrationInterlock);
+    expect(settlement).toContain('`lane: "reviewed"`');
+    expect(settlement).toMatch(softWrappedProse("`lane` is always `reviewed`"));
   });
 
   it("surfaces exact-head CI failures while a hosted review remains pending", async () => {
@@ -541,8 +485,8 @@ describe("shared code-review workflow contracts", () => {
     expect(stop).toContain("A rewound base or any other drift reading voids it.");
     expect(compactReview).toContain("[code-errand-stop]");
     expect(compactReview).toContain("requires a new exact offer describing the changed delta");
-    expect(compactReview).toContain("the exact Owner-directed review stop above is approved");
-    expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
+    expect(compactReview).toContain("Its accepted continuation goes to the reviewed merge lane below");
+    expect(compactReview).toContain("An Errand merges on the reviewed lane.");
     const preRequest = sectionBetween(packaged, "Compose the immutable policy target", "3. **Resolve the Errand PR**")
       .replace(/\s+/gu, " ");
     expect(preRequest).toContain(

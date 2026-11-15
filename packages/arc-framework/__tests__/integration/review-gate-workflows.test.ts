@@ -481,7 +481,7 @@ describe("trusted review-gate workflows", () => {
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
-      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*drops\s+only\s+its\s+origin\s+capture/iu),
+      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*removes\s+nothing\s+from\s+an\s+inbox/iu),
     );
     expect(complete).toMatch(
       softWrappedPattern(/conversation[\s\S]*exact\s+next\s+Errand[\s\S]*takes\s+precedence\s+over\s+`nextOffer`[\s\S]*no\s+additional\s+completion\s+offer/iu),
@@ -505,7 +505,6 @@ describe("trusted review-gate workflows", () => {
   it("keeps auto-merge arming on canonical classification", async () => {
     const paths = {
       errand: "system/workflows/arc/supplemental/run-errand.md",
-      drain: "system/workflows/arc/supplemental/drain-inbox.md",
       setup: "system/workflows/arc/supplemental/setup-merge-gate.md",
       readme: "reference/templates/arc/merge-gate/README.md",
       codeowners: "reference/templates/arc/merge-gate/CODEOWNERS",
@@ -520,17 +519,13 @@ describe("trusted review-gate workflows", () => {
     }));
     const documents = Object.fromEntries(entries);
 
-    expect(documents.errand).toContain("arc review planning-lane <base-sha> <head-sha>");
-    expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
+    expect(documents.errand).not.toContain("arc review planning-lane");
     expect(documents.errand).toContain("arc errand merge <slug> - --json");
     expect(documents.errand).not.toContain("gh pr merge");
     expect(documents.errand).toMatch(softWrappedPattern(
       /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
     ));
     expect(documents.errand).not.toMatch(/healthy\s+reading/u);
-    expect(documents.drain).toMatch(
-      /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
-    );
     expect(documents.setup).toMatch(/canonical\s+classifier/iu);
     expect(documents.setup).toMatch(softWrappedPattern(/procedural\s+boundary[\s\S]*never\s+infer\s+merge\s+safety/iu));
     expect(documents.readme).toMatch(/canonical\s+classifier/iu);

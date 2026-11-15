@@ -355,7 +355,7 @@
     "system/methods/issue-triage.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "4e1ebdac1d7347c9bc100412b74bca0a015ad3494b7959d36f858ffab463b299"
+      "pristine_hash": "8371c3569ca9f5ba16c367a2fc2b7a36a0d4e598735d63c5b63c20981ec269c5"
     },
     "system/methods/resolve-plan-segmentation.md": {
       "classification": "Configurable",
@@ -680,7 +680,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "38a0400f03bacf8561decd349ed44096f4bf51818b117848c639c4166ba6d73d"
+      "pristine_hash": "8087898ebae082ffeabe1ffb8834a07cc6fc47d5f35e2a7461ea0cc3b4c07281"
     },
     "system/.internal/scripts/validate-links.sh": {
       "classification": "Framework",

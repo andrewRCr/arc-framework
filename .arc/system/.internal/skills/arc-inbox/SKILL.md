@@ -1,6 +1,6 @@
 ---
 name: arc-inbox
-description: Route a discovered concern now when committed, or capture it for later in USER-INBOX with a candidate home.
+description: Route a discovered concern now when committed, or capture it for later in the personal inbox with a candidate home.
 disable-model-invocation: false
 arc:
   methods:
@@ -19,8 +19,6 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
      whatever the commitment; the method decides any message to its session. For another concern, ask whether the
      session holds the commitment to place it now. Without commitment, continue at step 2 for capture; with it,
      invoke the fast path below.
-   - When `arc-errand` hands back an outcome the Owner already confirmed, enter this step's hand-off directly,
-     without invoking the gate again or repeating step 2's classification.
 
    **Method fire-point** · `route-discovered-work` — load `.arc/system/methods/route-discovered-work.md`:
 
@@ -32,17 +30,15 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
 
    > [!IMPORTANT]
    > `workflow-interlock`: Stop before carrying out the proposed route. Show the outcome, `_Shapes:_`, any unclear
-   > pair and its four record answers, the coupled target's horizon advisory verbatim, any message to a live target,
-   > and any named wait. For a new stub, show every minting judgment the method requires. Await approval before the
-   > hand-off.
+   > pair and its four record answers, the coupled target's horizon advisory verbatim, and any message to a live
+   > target. For a new stub, show every minting judgment the method requires. Await approval before the hand-off.
 
    **Hand-off — follow the method's binding.** A `fold` lands only in the session's own work unit. Run an immediate
-   `errand` through `arc-errand`; a now-route outside the session's own work unit that writes a backlog stub or mints
-   a stub takes that skill's route-only shape. Deferred `errand`, pre-routed capture, and `capture` outcomes continue
-   at steps 3–5, with section, `WU_Target` and `_Shapes:_` from the confirmed result, skipping step 2. Errands use
-   `## Errand` without a work-unit home; a Work Unit capture carries its candidate target or `TBD`. A live target's
-   confirmed message is sent, or handed to the Owner to relay, in place of a capture; another started target, or a
-   live one with no message, takes the binding's owner-adoption capture or named wait. `dismiss` writes nothing.
+   `errand` through `arc-errand`. Carry out a now-route outside the session's own work unit — a `hold` or a
+   `new-stub` — here, through the binding's verbs, and send a live target's confirmed message beside it or hand it to
+   the Owner to relay. Deferred `errand`, pre-routed capture, and `capture` outcomes continue at steps 3–5, with
+   section, `WU_Target` and `_Shapes:_` from the confirmed result, skipping step 2. Errands use `## Errand` without a
+   work-unit home; a Work Unit capture carries its candidate target or `TBD`. `dismiss` writes nothing.
 
 2. Classify by fate → section.
 
@@ -90,19 +86,18 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
    - ``- _Remind:_ `true` `` — a _parsed_ field marks itself by **backtick-delimiting its value** (the
      key stays bare-italic), distinguishing it from prose descriptors. Write it only when set; its
      absence reads as `false`.
-   - ``- _Created:_ `<YYYY-MM-DD>` `` — **stamp the current date** yourself as the aging anchor (value
-     backtick-delimited). It is tool-stamped at capture, not hand-written by the developer.
+   - ``- _Created:_ `<YYYY-MM-DD>` `` — the aging anchor, which `arc route` stamps with the capture date at step 5;
+     leave it out of the entry you write.
 
-   These drive the personal-`USER-INBOX`-only reminder nudge gated by `inbox.remind_after_days`. For
-   the field grammar and the nudge cadence, see `strategy-session-operations.md § USER-INBOX`.
+   These drive the personal-inbox-only reminder nudge gated by `inbox.remind_after_days`. For the field grammar and
+   the nudge cadence, see `strategy-session-operations.md § USER-INBOX`.
 
 5. Write it.
 
-   - Append the entry to the chosen section of the resolver-backed identity-global `USER-INBOX.md`
-     (under linked-worktree operation, the primary worktree's `user/{identity}/USER-INBOX.md`, not a
-     linked worktree's checkout-local copy). It is personal and gitignored, so it accepts writes any
-     time, from any branch, with no isolation cost. Leave existing entries in place; `USER-INBOX`
-     drains at the between-WUs `arc-housekeep` flow.
+   - Add the entry to the chosen section of your personal inbox with
+     `arc route --to personal --section <Errand | "Work Unit">`, the entry on standard input; the verb stamps its
+     `_Id:_` and `_Created:_`. The personal inbox is yours alone, so it accepts writes any time, from any checkout.
+     Leave existing entries in place; the personal inbox drains at the between-WUs `arc-housekeep` flow.
    - **Every Errand-class capture** has no work-unit home. Capture it to `## Errand`; at the next drain it takes
-     the homeless-atomic route — execution, shared-inbox deferral, or explicit Owner retention. Never write the
-     shared inbox directly from capture. Spec-worthy concerns take the drain's gate instead.
+     the homeless-atomic route — execution, project-inbox deferral, or explicit Owner retention. Never write the
+     project inbox directly from capture. Spec-worthy concerns take the drain's gate instead.

@@ -929,38 +929,40 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   origin's leftover cohort section are saved by hand edit; readiness reads `arc status --project`. `amend-design.md`'s
   extraction exit names the two batches, and `commit-check-corpus` now counts four subjects, its floor.
 
-### `[ ]` **5.8 Routing, the inbox, and the Errand queue — § 8.10, § 8.13**
+### `[x]` **5.8 Routing, the inbox, and the Errand queue — § 8.10, § 8.13**
 
 - _Goal:_ Routing carries out outcomes through `arc route` and `arc inbox`, captures are entries with IDs, the Errand
   queue replaces execute-bound marks, and no planning lane is armed.
 
-    - `[ ]` **5.8.a `drain-inbox.md`**
-        - Grooming change and owner adoption onto `arc route`; per-target re-triage reads `arc inbox <slug>`'s pending
-          count, oldest date, and `retriage` offer (`lib/inbox/listing.ts`); execute-bound marks become `arc errand
-          queue set`; removal by `--id` and `--expected-version`; the grooming branch and pull request and the planning
-          lane go.
-        - Tests that change with it: `integration/locus-methodology-contracts.test.ts`'s `arc user
-          inbox-mark-execute-bound` cases, and `integration/review-gate-workflows.test.ts`'s planning-lane arming cases.
+    - `[x]` **5.8.a `drain-inbox.md`**
+        - The drain reads `arc inbox personal`, routes through the method's binding as store writes from any checkout,
+          carries survivors to their homes, offers re-triage from the listing's `retriage`, and queues execute-now
+          Errands with `arc errand queue set` over the queue it reads. The write-context precondition, the grooming
+          branch and pull request, their review exemption and planning lane, owner adoption, and the split step go;
+          `locus-methodology-contracts`' queue case and `review-gate-workflows`' arming case change with it.
 
-    - `[ ]` **5.8.b `run-errand.md`**
-        - The route-only Errand onto `arc route`; `--from-inbox` takes `<personal|project>:<id>`; the goal comes from
-          the entry's description; start takes the entry off the queue and abandon returns it; the next offer is the
-          head of the person's queue; atomic completion follows the full close and partial removal by ID and version;
-          the planning lane goes.
+    - `[x]` **5.8.b `run-errand.md`**
+        - The route-only Errand and its pre-write re-check go; open and link take `<personal|project>:<id>`, and the
+          goal is the Errand's description. A full start moves the entry off the queue into the description, a full
+          close removes nothing, a partial close removes by ID and version, and an abandon returns entries without
+          requeuing them; the next offer is the queue's head. The planning-grooming exemption and the planning-lane
+          selection go, so the merge request's lane is always `reviewed`.
 
-    - `[ ]` **5.8.c `route-discovered-work` and `issue-triage`**
-        - The binding section takes the from-the-flip binding through `arc route`, `_Routed from:_`'s date moving to
-          `_Created:_`; the planning-grooming lane selection goes.
-        - _Note:_ From Task 5.5, the owner's-pass paragraph still records activation's and verification's rejected or
-          dismissed captures in a ceremony commit body; `activate-work-unit.md` Step 1 and § 8.7's `_Captures:_` name
-          their homes from the flip.
-        - Tests that change with it: `integration/review-gate-workflows-code-review.test.ts`'s `arc review
-          planning-grooming resolve -` cases, and `integration/framework-sync.test.ts`, whose manifest hash for
-          `route-discovered-work.md` moves with it.
+    - `[x]` **5.8.c `route-discovered-work` and `issue-triage`**
+        - The binding carries outcomes out through `arc route`, removal by ID, and a list-file edit within the list's
+          edit rights; the writer line, owner adoption, and the named gap go, and the owner's-pass paragraph names
+          activation's notes companion and verification's `_Captures:_`. `issue-triage` names a meta's session
+          context, and both manifest hashes move. `create-spec.md` and `draft-design.md` drop the binding's waits.
 
-    - `[ ]` **5.8.d The `arc-inbox`, `arc-errand`, and `arc-housekeep` skills and the skills README**
-        - `arc-inbox`'s route-now step and USER-INBOX rooting text; `arc-errand`'s route shape and `--from-inbox`;
-          `arc-housekeep`'s write-context precondition.
+    - `[x]` **5.8.d The `arc-inbox`, `arc-errand`, and `arc-housekeep` skills and the skills README**
+        - `arc-inbox` captures through `arc route --to personal` and carries route-now out itself, `arc-errand`'s route
+          shape becomes a pointer to it, and `arc-housekeep` drops its precondition; the README describes `arc-commit`'s
+          triage and the personal inbox.
+
+- _Outcome:_ Routing writes the store from any checkout: the route-only Errand and the writer line retire, a `hold`
+  into a started work unit is an inbound entry its owner takes up, and the Errand queue holds entry references.
+  `integration/work-unit/routing-workflow-contract.test.ts` pins the family. The readings that needed more than a verb
+  swap are in `notes-cutover-flip.md` § Routing from the flip, and the pre-flip step and kept sites in their sections.
 
 ### `[ ]` **5.9 Setup, configuration, and merge-gate text — § 8.13, § 8.15**
 

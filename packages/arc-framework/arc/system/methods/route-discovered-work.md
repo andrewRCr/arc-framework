@@ -15,9 +15,9 @@ override-active: false
 >   [activate-work-unit.md][activate-work-unit], [verify-work-unit.md][verify-work-unit], [drain-inbox.md][drain-inbox],
 >   [run-errand.md][run-errand]
 > - **When:** The drain classifies captures or re-triages picked backlog stubs, `arc-inbox` runs its route-now mode,
->   `arc-errand` gates a directly invoked route shape, `run-errand` routes a discovery or re-checks a route-only
->   Errand before writing, or the owner's planning pass clears inbound entries at drafting's readiness exit or spec
->   entry, and `USER-INBOX` captures naming the work unit at spec entry, activation, or verification.
+>   `run-errand` routes a concern discovered during an Errand, or the owner's planning pass clears inbound entries at
+>   drafting's readiness exit or spec entry, and personal inbox captures naming the work unit at spec entry,
+>   activation, or verification.
 > - **Signature:** `route-discovered-work(entry, door, host?) → per concern, one outcome or an Owner-decided pair`
 > - **Contract:** Decide disposition → homing → integration → re-triage. Decide only: callers execute outcomes
 >   through verbs after their own interlock. Read lifecycle position, scope window, owner, and horizon advisory from
@@ -76,8 +76,9 @@ Shortlist from the entry's `WU_Target` hint and the purpose rows of `arc status 
 first candidate to check, never a destination decided by existence.
 
 Validate at most three finalists with `arc view design --for <slug>`: map headings first, then read Purpose,
-the scope boundary, and the named decision or section. For a routed-into target, also read its held entries for
-their count and oldest date. Never infer lifecycle or owner from paths; use `arc status <slug> --json`.
+the scope boundary, and the named decision or section. For a routed-into target, also read its inbound list with
+`arc inbox <slug> --json` for its pending count and oldest date. Never infer lifecycle or owner from paths; use
+`arc status <slug> --json`.
 
 Delegate pointed reads when they would flood context, under DEV-RULES' Sub-agent scope. They remain advisory until
 the primary reads the named section. Give the reader no primary-side door or allowed-outcome set.
@@ -97,22 +98,22 @@ learned at its start is not a position. These rules govern the defaults below wi
   exposes, or completing what its spec commits to. Route anything else out — `new-stub`, `hold` on a follow-on stub,
   `errand`, or `capture`, as the door permits — and carry admission as the alternative at the door's Owner stop. Only
   the Owner selects admission. The work unit's owner then writes a spec amendment through [amend-design][amend-design]
-  or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>` for owner adoption.
+  or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>`, which its owner takes up from the inbound
+  list.
 - **`closed`** (verification phase onward, integrating included): takes no routed concern; route it out. Only the
   Owner can elect admission, through [amend-design][amend-design], which returns the work to its task loop; an
   Integrating unit is first withdrawn with `arc reopen`.
 - **No window:** `arc status` names why; admit nothing until the target's session or owner confirms its position.
 
 **Live target.** A work unit with a registered checkout (`worktreePath` in `arc status <slug> --json`) is live:
-coordinate with its session by message in place of a capture. The message carries the door's outcome to the target's
-owner and adds no outcome of its own; a `closed` target takes no message to place a concern, and another person's live
-target keeps the binding's named gap. A checkout usually, but not always, has a session working in it. Propose the
-message to the Owner, and send it without asking only where the two sessions already have a conversation. Use the
-harness's session messaging where it has one; otherwise give the Owner the message to relay. A message for the Owner to
-approve or relay ends the turn it appears in: produce it when it is ready, then stop. Once it is sent or handed over,
-the Owner holds its delivery, and the receiving session handles the concern as its own work unit's. A message the Owner
-declines to send, one with no session to take it, or one the target declines takes the door's other outcomes, the
-binding's owner-adoption capture among them.
+coordinate with its session by message beside the route. The message points the target's owner at the routed entry by
+the ID `arc route` reports and adds no outcome of its own; a `closed` target takes no entry, so no message places a
+concern there. A checkout usually, but not always, has a session working in it. Propose the message to the Owner, and
+send it without asking only where the two sessions already have a conversation. Use the harness's session messaging
+where it has one; otherwise give the Owner the message to relay. A message for the Owner to approve or relay ends the
+turn it appears in: produce it when it is ready, then stop. Once it is sent or handed over, the Owner holds its
+delivery, and the receiving session handles the concern as its own work unit's. Without a message, the entry waits in
+the inbound list for its owner's next pass.
 
 ### Integration and re-triage
 
@@ -128,18 +129,19 @@ another home, a new stub, an Errand, dismissal, or an owner rejection.
 **Owner's planning pass:** fold or disposition every inbound entry at the pass that makes the draft
 formalization-ready. It runs at drafting's readiness exit when inbound entries are the returned gap, and at
 create-spec's entry check for arrivals while a ready draft waited. It takes every outcome except `hold <host>`
-at that pass. Create-spec's entry check, activation, and verification also take each `USER-INBOX` capture naming the
-work unit through this door; activation and verification exclude `hold <host>` too. Leave a compact dispositions
+at that pass. Create-spec's entry check, activation, and verification also take each personal inbox capture naming
+the work unit through this door; activation and verification exclude `hold <host>` too. Leave a compact dispositions
 table in the draft for entries whose disposition no other record keeps: entry, outcome, fold location, and reason for
 rejection or dismissal. Draft review reads the table; readiness checks only that nothing remains held. Retire the
-table with the draft at create-spec. Activation and verification run after the draft is retired, so they record the
-same rows in their ceremony commit body. Row coverage is in the binding.
+table with the draft at create-spec. Activation and verification run after the draft is retired, so activation
+records each rejection or dismissal, with its reason, in the notes companion, and verification in its verification
+record's `_Captures:_` category. Row coverage is in the binding.
 
 **Drain re-triage:** only backlog stubs may be groomed; only a started work unit's owner edits or removes its entries.
-At the drain's confirmation interlock, offer each routed-into backlog stub already holding entries once, showing
-its count and oldest date. Re-triage only targets the Owner picks, through that door's bounded outcomes, then confirm
-the revised routing plan at the same stop. Split a large set by the drain's existing packaging discipline.
-Keep its dispositions in the routing plan and the binding's write record, never the target's draft.
+At the drain's confirmation interlock, offer each routed-into backlog stub already holding entries once, with the
+`retriage` offer `arc inbox <slug> --json` reports. Re-triage only targets the Owner picks, through that door's bounded
+outcomes, then confirm the revised routing plan at the same stop. Keep its dispositions in the routing plan, never the
+target's draft.
 
 **Cascade:** a work-unit cascade routes only when it names the decision it shapes in the affected work unit.
 Never reopen that work unit's body mid-pass or route on shared domain alone.
@@ -169,21 +171,20 @@ A hold names one work unit, never a group of owners.
 | Owner's planning pass             | All; at the pass that makes the draft ready, exclude `hold <host>`                                         | Owner's pass                          |
 | Cascade at draft close            | `hold <other>`, `new-stub`, `errand`, `capture`, `dismiss`                                                 | Captures reach the Owner at the drain |
 
-Each Owner stop shows the outcome, `_Shapes:_`, any pair, the coupled target's horizon advisory, and any wait named
-by the binding before a write. Cascade sweeps what was not routed when raised; it has no new stop and captures its
-routes. Its `errand`, and the fast path's, Errand route-to-home's, and owner's-pass deferred `errand`, are `§ Errand`
-captures. The drain's deferred `errand` takes its homeless-atomic route.
+Each Owner stop shows the outcome, `_Shapes:_`, any pair, and the coupled target's horizon advisory before a write.
+Cascade sweeps what was not routed when raised; it has no new stop and captures its routes. Its `errand`, and the fast
+path's, Errand route-to-home's, and owner's-pass deferred `errand`, are `§ Errand` captures. The drain's deferred
+`errand` takes its homeless-atomic route.
 
 **Unclear Errand line:** at a door with an Owner stop, return both `errand` and the work-unit candidate with the four
 record answers; the Owner picks there. Cascade instead returns `capture` for the drain to decide.
 
 Any other caller takes a listed door; adding a door changes this list. A planning-kickoff or activation sweep
 pulls in its change's same concern without the gate, uses the owner's-pass door for anything else it brings in,
-and follows the binding's writer line for a sibling stub.
+and carries out anything for a sibling through the binding.
 
 A `fold` outside the door's set becomes `hold` on the same work unit. A held entry the door may not fold or reject
 stays `hold <host>`. At the ready-making owner's pass, fold or reject instead of leaving an entry held.
-An allowed outcome the binding cannot carry waits by its named gap.
 
 ### Fast-path judgments
 
@@ -193,45 +194,41 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 ### Binding: carrying out outcomes
 
-- **Inbound entries:** backlog and Planning targets use the draft's `## Inbound Buffer — Pending Integration`
-  section; admitted Active entries take the amendment or task route above. A held entry carries
-  `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gate-confirmed `hold` into a started
-  work unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
-- **Writer line:** only a change off the base whose one concern is routing — the drain's or a route-only Errand's —
-  writes another work unit's draft, and only a backlog stub's. Other routes reach a sibling as a pre-routed
-  `USER-INBOX` capture, re-gated by the drain, or a live sibling by message. A started target takes owner adoption,
-  subject to the gap below. Owner stops hold this line; no enforcement is claimed.
+- **Inbound entries:** a work unit's inbound list, read with `arc inbox <slug> --json`. Anyone adds an entry, and
+  anyone moves one out of a backlog stub's list; only a started work unit's owner moves one out of its list, and only
+  the work unit's owner edits its list's file. A `hold` into a started work unit is an entry like any other, which its
+  owner takes up; admitted Active entries take the amendment or task route above.
+- **Routes:** `arc route <id> --from <list> --expected-version <version> --to <destination>` moves a listed entry,
+  with the ID and version `arc inbox <list> --json` reports; `arc route --to <destination>`, with the entry on standard
+  input, adds a new one. A list or destination is a work unit's slug, `personal`, or `project`, and `--section` names
+  the personal inbox's `Errand` or `Work Unit` section. The verb stamps the entry's `_Id:_` and `_Created:_`, writes
+  `_Routed from:_` into an inbound list, and drops the fields the destination does not take. Before moving a `hold`
+  entry, write its confirmed `_Shapes:_` line into it, save with `arc save`, and move it at the version the listing
+  then reports. `already-home` is a completed route. A refusal naming a newer version means the entry changed since it
+  was read: list it again and decide again.
+- **Removal:** a moved entry has already left its list. Remove a dismissed, folded, or minted personal capture with
+  `arc user inbox-remove --id <id> --expected-version <version>`. Remove an entry from the project inbox, or from an
+  inbound list whose work unit you own, by deleting it from the list's file, then save with `arc save`. To remove one
+  from another person's backlog stub, move it into your personal inbox and remove it there.
 - **Dispositions table:** no other record keeps an owner's-pass disposition, so give every entry a row.
-- **Drain writes:** use its grooming PR off the base under full protection, direct base commit under partial.
-  Record what moved where in the PR body or commit message, never the target's draft. Its counts are shown, never
-  compared; the re-triage offer is judgment over the entries already read.
-- **In-flight new home:** when re-triage's `hold <other>` names a started target owned by the drain's runner
-  (`owner` from `arc status`), remove the old entry into a pre-routed `_Hold` capture for owner adoption, or into a
-  message when the target is live (§ Target lifecycle). Another person's started target instead waits by the gap
-  below, rewritten in place as `hold <host>` naming its decided destination.
-- **Route-now vehicles:** routes outside the session's own work unit that write a backlog stub or mint a stub run
-  as a route-only Errand's own change off the base, its own branch and PR under full protection, direct base commit
-  under partial. Its Launch classifies the routing change, not the carried concern, and does not show that concern's
-  record answers. The existing review threshold selects the planning-grooming or reviewed lane by ownership.
-  Before writing, re-check coupling and scope, and for `new-stub` the shortlist, in the Errand's checkout against
-  the base's current copies. A changed result returns to the Owner. Invoked directly, the route shape runs the
-  fast-path gate before opening; a result other than a now-route goes to arc-inbox's hand-off with the confirmed
-  outcome, without re-gating.
-- **Capture vehicles:** deferred routes, routes into a started target with no checkout, and routes where no Errand
-  can open are pre-routed captures with `WU_Target` and `_Shapes:_`. This includes partial protection's
-  `primary-occupied` refusal. A live target takes a message in place of the capture unless none goes (§ Target
-  lifecycle). `fold` into the session's own work unit and an `errand` execute directly. Every new capture gets the
-  full gate at the drain; pre-routed values are first candidates, and disagreements enter its routing plan.
+- **Drain writes:** each is a store write from any checkout, with no branch or pull request. The store's history
+  records what moved where, with a routing receipt for each move into or out of an inbox, never the target's draft. Its
+  counts are shown, never compared; the re-triage offer is the one the listing reports.
+- **Route-now and an Errand's route-to-home:** the session carries out its own confirmed route with these verbs and
+  `arc stub`; no Errand carries it. An Errand's route-to-home may also weave a `fold` into a backlog stub's draft,
+  saved with `arc save`.
+- **Survivors:** a personal inbox row carrying `survivor` was edited after it was routed. Carry it, with no gate,
+  through the move form to the list its `survivor.home` names, with no `--section`: every such home has one section.
+- **Capture vehicles:** a deferred route is a pre-routed capture with `WU_Target` and `_Shapes:_`, and a deferred
+  `errand` an Errand capture, each added with `arc route --to personal --section <"Work Unit" | Errand>`. `fold` into
+  the session's own work unit and an `errand` execute directly. Every new capture gets the full gate at the drain;
+  pre-routed values are first candidates, and disagreements enter its routing plan.
 - **Cascade vehicles:** `hold <other>` and `new-stub` are pre-routed captures.
 - **Minted design:** carry slug, commitment, priority, Class, and origin through
   `arc stub <name> --commitment ... --priority ... --class ... --origin ...`; dependencies have no CLI option and
-  go into the minted meta's `Depends On`. Write a `draft-*` beside the meta in the minting change, carrying the
-  concern and opening with a one-sentence Purpose. Name it through `arc stub --design`, which records only the
-  reference.
-- **Named gap:** nothing carries a route into another person's started work unit. Keep a held entry rewritten in
-  place with its decided target, or keep a new concern as the capturer's `_Hold` capture. Name the wait at the door's
-  Owner stop. Confirmation there authorizes that wait under both the known-home invariant and its planning-artifact
-  dual; never silently waive either.
+  go into the minted meta's `Depends On`. Write a `draft-*` beside the minted meta, carrying the concern and opening
+  with a one-sentence Purpose, and save it with `arc save`. Name it through `arc stub --design`, which records only
+  the reference.
 
 ---
 

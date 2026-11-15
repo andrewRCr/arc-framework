@@ -168,9 +168,9 @@ route-discovered-work:
   host: the work unit whose inbound list holds the entries
 ```
 
-At the Owner's pass, show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon
-advisory, and any wait the binding names. On confirmation, execute through the binding and leave the dispositions
-table before re-assessing readiness. This is the pass that makes the draft ready; it leaves the pending count at zero.
+At the Owner's pass, show each outcome and its `_Shapes:_`, any Owner-decided pair, and the coupled target's horizon
+advisory. On confirmation, execute through the binding and leave the dispositions table before re-assessing
+readiness. This is the pass that makes the draft ready; it leaves the pending count at zero.
 These readiness states describe a draft's maturity for cross-session continuity; a draft is `formalization-ready`
 when the method returns `ready`.
 

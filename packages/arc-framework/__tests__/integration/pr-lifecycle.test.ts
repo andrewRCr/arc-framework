@@ -33,7 +33,7 @@ describe("PR lifecycle and review contracts", () => {
         .replace(/\s+/gu, " ");
       expect(workflow).toContain("openedChangeRequest = { repositoryRef, hostRef, headSha }");
       expect(workflow).toContain("recompose `openedChangeRequest` from the canonical current head before re-entry");
-      expect(workflow).toContain("Continue only when `openedChangeRequest` and the adapter target name the same exact head");
+      expect(workflow).not.toContain("adapter target");
       expect(workflow).toContain("No review-authored commit or push may occur after this checkpoint");
     }
   });

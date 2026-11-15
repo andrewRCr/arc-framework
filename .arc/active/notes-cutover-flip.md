@@ -283,6 +283,39 @@ today's text takes:
   than storing the cut, and `--finish` refuses without the map (`finish-map-operand`), naming `--finish <cut-map>`;
   the rewritten `decompose-work-unit.md` names neither the staged release nor the base advancement (Task 5.7). The step
   is the pre-flip text's release, advancement, and finish, in `decompose-work-unit.md` as of `d33a28cb08`.
+- **Routing's vehicles:** in-repo, the drain's routing writes are tracked files that land through a grooming branch
+  and pull request under full protection or a direct base commit under partial, a route into another work unit's draft
+  takes a route-only Errand, and an Errand changing only planning files arms auto-merge on `arc review planning-lane`.
+  The rewritten `route-discovered-work`, `drain-inbox.md`, `run-errand.md`, and the `arc-inbox` and `arc-errand`
+  skills name none of these (Task 5.8). Their store verbs refuse with the steps above; the rest is the pre-flip text of
+  those files as of `2429820e51`.
+
+## Routing from the flip
+
+Task 5.8's readings of § 8.10 and § 8.13 where the text needed more than a verb swap:
+
+- **The route-only Errand retires.** It carried a route into another work unit's draft as a change off the base,
+  because only such a change could write a sibling's tracked draft (the until-the-flip writer line,
+  `spec-inbound-routing-method.md` D8). From the flip anyone adds an entry to any inbound list with `arc route`, and
+  `arc stub` mints from any checkout, so route-now carries out its own route and `arc-errand`'s route shape becomes a
+  pointer to `arc-inbox`. The writer line, owner adoption, and the named gap go with it, as D8's from-the-flip contract
+  says, and so do the dangling "any wait the binding names" in `create-spec.md` and `draft-design.md`; an Errand's
+  route-to-home may now weave a `fold` into a backlog stub, as D4 and D8 provide.
+- **The drain's record.** D5 puts what moved where in the routing plan and in the record the drain's writes leave.
+  From the flip those writes leave the store's history, with a routing receipt for each move into or out of an inbox
+  (`spec-seam-locus.md` § 7.3), so no grooming pull request body or commit message carries it; each dismissal's reason
+  stays in the routing plan the Owner confirms. Read as `amend-design`'s entry gate step 1: every stated outcome is
+  still produced. Kept there, with no durable home of its own (Owner, 2026-11-14).
+- **Removing an entry from another person's backlog stub.** `spec-seam-locus.md` § 7.2 lets anyone remove an entry
+  from a backlog stub's inbound list, but `spec-projection-write-back.md` § 8.1 keeps a hand edit of an inbound list
+  with its work unit's owner, and no verb removes an inbound entry by ID: `arc user inbox-remove` reaches only the
+  personal inbox. A non-owner's `dismiss` or `new-stub` there moves the entry into their personal inbox, which the
+  route verb allows out of a backlog stub's list, and removes it there. The owner's pass still gives every entry a row,
+  as before the flip: a move between two inbound lists writes no receipt.
+- **The drain's split step goes.** It packaged the routing writes into reviewable pull requests or commits; with no
+  pull request or commit to package, nothing is left to split.
+- **An Errand's merge lane is always `reviewed`.** The auto-merge lane was reachable only through the planning-lane
+  classifier, which answers `reviewed` once state is untracked (§ 8.13).
 
 ## Errand branch readers
 
@@ -548,3 +581,12 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
 - "notes" in `decompose-work-unit.md`: the notes companion, its sections, and its member copies, not Git notes.
 - "no commit, push, pull request, or merge follows" in `decompose-work-unit.md`: the statement that the terminal batch
   is the landing, not a commit step.
+
+**Routing, the inbox, and the Errand queue (Task 5.8):**
+
+- `arc user inbox-remove --id <id> --expected-version <version>` in `route-discovered-work`: the removal verb the flip
+  keeps, by ID and version.
+- `strategy-session-operations.md § USER-INBOX` in the `arc-inbox` skill: that strategy's section heading, which
+  `cutover-documentation` rewrites with the strategies.
+- "notes companion" in `route-discovered-work` and "completion notes" in `issue-triage`: the notes companion and
+  task-list completion notes, not Git notes.
