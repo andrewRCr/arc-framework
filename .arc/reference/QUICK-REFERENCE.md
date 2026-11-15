@@ -233,9 +233,9 @@ npx arc active in-flight --json
 npx arc base sync --json
 ```
 
-Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
-Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
-code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
+Materialization, pull, and sync verbs likewise own their documented Git writes. The store's refs are a separate channel
+with its own operational ref behavior, and they never count as passive code-head evidence. See [Session Operations
+Strategy][session-ops] § Remote access boundary.
 
 ### Schema Discovery
 
@@ -251,12 +251,9 @@ the command existed.
 follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
 `--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
 
-`--for <slug>` selects the named work unit through its composed lifecycle. For a started work unit, it reads the
-registered checkout's file, including uncommitted edits, or otherwise the selected ref this clone already holds.
-A start whose branch this clone has never fetched reads as its backlog copy until a fetch brings the ref in.
-Without a registered checkout, `--path` and `--editor` refuse with the work unit and ref; render the artifact to read
-it instead. The work unit's own artifacts and cohort metadata follow the selected copy; the cohort document and
-session notes remain local to the invoking checkout. `inbox --project` selects the shared project inbox.
+`--for <slug>` selects the named work unit by its current or a former slug and reads its records from the store;
+`--path` and `--editor` use the record's projected file in this checkout. `session-notes` reads the work unit's
+session context from its meta. `inbox --project` selects the shared project inbox.
 
 Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
 delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,
@@ -317,12 +314,16 @@ arc status <slug> [--json]
 arc stub <name> --commitment <provisional|planned> --priority <P#> \
   [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
-# Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
+# Start an existing work unit in Planning; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
 arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 
-# Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
-arc rename <slug> <new-slug>
+# Rename a WU or cohort by slug or UID, with a WU's branch, remote, marker, and worktree identities — no ceremony
+arc rename <slug|uid> <new-slug>
+
+# Close a cohort, or remove an empty one, by slug or UID — no ceremony
+arc cohort close <cohort> --yes
+arc cohort remove <cohort> --yes
 
 # Set Class at any lifecycle placement; the slug defaults to the checkout's work unit
 arc set-class <Light|Heavy|Novel> [slug]
@@ -339,15 +340,30 @@ arc repoint-design <draft-created|spec-finalized>
 # Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
 arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
 
+# Save pending edits in every projected root — work-unit records and your personal records
+arc save
+# Close tasks after their commit, capturing the increment's code commits (process-task-loop.md)
+arc task close [ids...] [--commit <sha>]
+# Defer a task and cascade its parent marker
+arc task defer <id>
+# Write the handoff's session context and state from a JSON request (session-handoff.md)
+arc handoff write <file|->
+
 # Activate a planning WU: Planning → Active (activate-work-unit.md)
 arc activate [slug] --type <type> --task <first task> --action <next action>
 # Deactivate a premature activation: Active → Planning (deactivate-work-unit.md)
 arc deactivate [slug]
 
-# Park a started WU off the active set (park-work-unit.md)
-arc park [slug] --reason <text> [--land <oid>]
-# Resume a parked WU's preserved branch (resume-work-unit.md)
-arc resume [slug] [--here]
+# Pause a started WU in place, with its reason and what it waits on (park-work-unit.md)
+arc pause [slug] --reason <text> [--waits-on <slug> | --waits-on-note <text>] [--resume-notes <text>] [--open]
+# Resume a paused WU (resume-work-unit.md)
+arc resume [slug]
+# Hand a WU to another owner once its work is shared
+arc handover [slug] --to <identity>
+# Pick up a remote-only in-flight WU; --here uses the current checkout (resume-work-unit.md)
+arc materialize [slug] [--here]
+# Release the current checkout's work-item occupancy — no ceremony
+arc locus release [slug]
 
 # Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
 # --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
@@ -362,13 +378,19 @@ arc integrate merge <name> --checkpoint <handle>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
-# Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --execute <file>
+# Split one WU into a cohort of members per a cut-map, or extract from it (decompose-work-unit.md)
+arc decompose <origin> --preflight
+arc decompose <origin> --execute <cut-map>
+arc decompose <origin> --extract <cut-map>
+# Preview finishing, revising, or discarding the stored cut; --apply takes the approved preview's authority
+arc decompose <origin> --finish [--apply <authority>]
+arc decompose <origin> --revise [<cut-map>] [--apply <authority>]
+arc decompose <origin> --discard [--apply <authority>]
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes
 
-# Sweep a shipped WU to completed/ (archive-work-unit.md)
+# Archive a shipped WU's records to their dated completed/ placement (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
 # Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
@@ -376,13 +398,20 @@ arc teardown <name> [--force] [--husk <absolute-path>]
 # Safely fast-forward the configured local base from any worktree
 arc base sync [--json]
 
-# Classify the planning-entry route — committable, or redirect to start / stub / errand
-arc plan check
+# Classify the planning-entry route — proceed, or route an unstarted idea to start / stub / errand
+arc plan check [--name <slug>]
+
+# Inboxes — list a personal, project, or work-unit inbox; move a listed entry or insert one from stdin
+arc inbox <personal|project|slug> [--target <slug>] [--json]
+arc route <id> --from <list> --expected-version <version> --to <destination> [--section <name>]
+arc route --to <destination> [--section <name>]
 
 # Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
 arc errand next [--json]
-arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--isolate] [--json]
-arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand open <slug> [--intent <text>] [--from-inbox <personal|project>:<id>] [--isolate] [--json]
+arc errand link <slug> --from-inbox <personal|project>:<id> [--json]
+arc errand queue [--json]
+arc errand queue set <file|->
 arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
 arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
 arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
@@ -394,30 +423,27 @@ arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|sc
 ### Session State Portability
 
 ```bash
-# Save user directory to git notes (called automatically at session handoff)
-arc user save
+# Save pending edits, your personal records among them
+arc save
 
-# Load user directory from git notes on HEAD or a reachable ancestor
-arc user load --max-walk 1000
-
-# Skip overwrite prompts when loading/pulling in automation or non-interactive flows
-arc user load --yes
-
-# Fetch another developer's notes ref without overwriting local files
-arc user fetch --identity teammate
-
-# Pull remote notes into the local user directory
-arc user pull --yes --max-walk 1000
-
-# Push/pull user notes to/from remote
-arc user push
-
-# Direction-aware save/push or fetch/pull, depending on sync state
+# Pull state from the state remote, publish this clone's state, then push the branch
 arc sync
+
+# Inspect or set the state remote's roles; --own-state publishes everything this clone's store holds
+arc store remote [remote] [role] [--own-state]
+
+# Move state to another remote or backing URL, or import the current operational state
+arc store migrate --to <remote-or-url> [--trial]
+arc store migrate --import
+
+# Inspect, or explicitly discard, a stored conflict
+arc store conflict <uid> <kind> <id>
 ```
 
-See [Session Operations Strategy][session-ops] § Session State Portability for the portability
-model, `arc sync` direction semantics, and `user.notes_push` push policy.
+Your personal records, `scratch/` included, are stored under your identity beside the project's state: `arc save`
+persists edits, and `arc sync` publishes them with the project's state to its state remote.
+
+See [Session Operations Strategy][session-ops] § Session State Portability for the portability model.
 
 ### Release Wrappers
 

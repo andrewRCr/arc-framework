@@ -7,8 +7,8 @@ git hooks, and a CLI package — all agent-platform agnostic.
 
 **Session lifecycle:** Sessions are bounded — init via `arc-session`; recover after compaction through
 `session-recover` (hook-injected when installed; `arc-recover` skill as manual fallback); handoff via
-`arc-handoff`. State files: active work unit's
-`meta-{name}.md` (tracked, `active/`) and `SESSION-NOTES.md` (gitignored, `user/{identity}/{work-unit}/`).
+`arc-handoff`. State: the active work unit's meta, a stored record projected into `active/`, which carries its
+session context.
 
 **Work pipeline:** Design → spec → task generation → task execution loop. One task = one review increment;
 see DEV-RULES.ARC § Task Execution.
@@ -63,12 +63,12 @@ Precise meanings — assume the technical sense.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
   WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.
-- **Locus:** One registered checkout plus the ARC role derived from its marker, tracked lifecycle, transient
-  identity, and Git topology. A WU-owned locus is exclusive from spawn, materialization, or explicit `--here` entry
-  through exact teardown. The physical primary is the launchpad only while its marker is absent, it is clean, and
-  it is on the configured base; transient allocation never displaces a WU role.
+- **Locus:** One registered checkout plus the ARC role derived from its marker and the store. A WU-owned locus is
+  exclusive from spawn, materialization, or explicit `--here` entry through exact teardown or release. The physical
+  primary is the launchpad only while its marker is absent, it is clean, and it is on the configured base; transient
+  allocation never displaces a WU role.
 - **Transient identity:** The exact logical claim for an Errand, grooming set, or housekeep sweep. It may outlive
-  local occupancy while paused or awaiting merge, but creates no WU meta, task list, or SESSION-NOTES.
+  local occupancy while paused or awaiting merge, but creates no WU meta or task list.
 - **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A

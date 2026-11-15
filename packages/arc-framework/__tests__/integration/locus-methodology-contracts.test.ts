@@ -21,12 +21,11 @@ describe("locus methodology contracts", () => {
     for (const reference of references) {
       expect(reference).toContain("arc errand next [--json]");
       expect(reference).toContain(
-        "arc errand open <slug> [--intent <text>] [--from-inbox <entry>] "
-          + "[--inbox-title-file <path|->] [--isolate] [--json]",
+        "arc errand open <slug> [--intent <text>] [--from-inbox <personal|project>:<id>] [--isolate] [--json]",
       );
-      expect(reference).toContain(
-        "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",
-      );
+      expect(reference).toContain("arc errand link <slug> --from-inbox <personal|project>:<id> [--json]");
+      expect(reference).toContain("arc errand queue set <file|->");
+      expect(reference).not.toContain("--inbox-title-file");
       expect(reference).toContain(
         "arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]",
       );
@@ -185,15 +184,16 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("defines locus authority from checkout topology, markers, lifecycle, and identity", async () => {
+  it("defines locus authority from the marker and the store", async () => {
     for (const base of [packageArc, projectArc]) {
       const briefing = await readFile(
         resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"),
         "utf8",
       );
 
-      expect(briefing).toMatch(softWrappedProse("One registered checkout plus the ARC role derived from its marker"));
-      expect(briefing).toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
+      expect(briefing).toMatch(softWrappedProse("One registered checkout plus the ARC role derived from its marker and the store"));
+      expect(briefing).toMatch(softWrappedProse("through exact teardown or release"));
+      expect(briefing).not.toMatch(/tracked lifecycle, transient\s+identity, and Git topology/u);
       expect(briefing).toMatch(softWrappedProse("The physical primary is the launchpad only while its marker is absent"));
       expect(briefing).not.toMatch(/locus record|record-free|optional, verb-scoped lease|normally unleased/u);
     }

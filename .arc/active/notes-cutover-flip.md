@@ -606,3 +606,17 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   comments on `user.notes_push`, `session.init_pull.notes`, and `session.init_load.notes`, with their `arc user push`,
   `arc user pull`, and `arc user load` remedies and the team-mode and worktree-offer lines, each scoped to state kept in
   the repository or marked as having no effect off the branch, since the keys stay until notes removal.
+
+**The always-loaded text (Task 5.10):**
+
+- `git commit` in `AGENT-BRIEF.ARC.md`'s release-wrapper line, `DEV-RULES.ARC.md`'s amend scope, and QUICK-REFERENCE's
+  release-wrapper block: commits of tracked files.
+- `meta-{name}.md` in `AGENT-BRIEF.ARC.md`'s work-unit definition and Key Documents row, and `meta-{name}.md`,
+  `tasks-{name}.md`, and `notes-{name}.md` under `user/{identity}/active/` in `AGENT-BRIEF.CONTRIBUTOR.md`: records
+  named by filename, and a contributor's personal pipeline under the layout's contributor scope.
+- `.arc/active/` and `.arc/backlog/` in `AGENT-BRIEF.CONTRIBUTOR.md`: the projected roots named as directories.
+- "notes" in `DEV-RULES.ARC.md` (completion notes, work-unit notes, notes files, "design debt in code or notes"),
+  `notes-docs-content-sweep.md` in the contributor brief's placeholder link, and "notes" in
+  `AGENT-BRIEF.PROJECT.template.md`'s stack rows: the notes companion, completion notes, and prose, not Git notes.
+- `park-work-unit.md` in QUICK-REFERENCE's `arc pause` line, the pause workflow's filename; `session-notes` there is
+  `arc view`'s kind name, which reads the meta's session context.

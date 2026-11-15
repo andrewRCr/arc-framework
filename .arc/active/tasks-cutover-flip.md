@@ -978,32 +978,39 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   order, marks every notes key as having no effect off the branch, and rewrites `session.remote_sync`'s and
   `archive.cadence`'s comments for both substrates. Kept hits are in `notes-cutover-flip.md` § Kept sites.
 
-### `[ ]` **5.10 The always-loaded text — § 8.3, § 8.16**
+### `[x]` **5.10 The always-loaded text — § 8.3, § 8.16**
 
 - _Goal:_ Every sentence in the brief, `DEV-RULES.ARC.md`, and QUICK-REFERENCE's verb index that the flip makes false
   states what is true from the flip.
 
-- _Note:_ From Task 5.5, the verb index's `arc rename` takes `<slug|uid>`, `arc cohort close` and `arc cohort remove`
-  join it, and `arc resume` loses `--here`.
+    - `[x]` **5.10.a `AGENT-BRIEF.ARC.md`**
+        - The Locus role derives from the marker and the store and holds through exact teardown or release; § How ARC
+          Works names the meta and its session context; the transient-identity line drops SESSION-NOTES.
+          `locus-methodology-contracts`' Locus case pins the new wording.
 
-    - `[ ]` **5.10.a `AGENT-BRIEF.ARC.md`**
-        - The Locus definition: exclusive "through exact teardown or release", the role deriving from the marker and the
-          store; § How ARC Works' state files.
-        - Tests that change with it: `integration/locus-methodology-contracts.test.ts`'s "tracked lifecycle, transient
-          identity, and Git topology" case.
+    - `[x]` **5.10.b `DEV-RULES.ARC.md`**
+        - A save is a persist, not a commit, under the review-increment invariant; its bounded exception keeps
+          candidate-tail cleanup, archive composition and closeout as a save and `arc archive`, and the typed base
+          reconcile, readiness regeneration gone. Tasks close through the close verb, the meta-file commit shape
+          becomes meta-file persistence, and Atomicity, Handoff, and Write for the reader name session context. The
+          relocatability rule covers every work-item and cohort record, with the save's link check; the rebase scope
+          drops the notes reason. Discovered Work Routing names the personal and project inboxes, and a live work
+          unit's concern routes to its inbound list with a message; the pull-request-format load applies to every
+          pull request.
 
-    - `[ ]` **5.10.b `DEV-RULES.ARC.md`**
-        - § Commit Discipline's task-list accuracy, meta-file timing, and meta-file commit shape, and § Atomicity's
-          sentence; § Handoff's and § Write for the reader's SESSION-NOTES; § Review-Increment Invariant reworded so a
-          persist is a save, with its bounded exception's archive composition and readiness regeneration following; the
-          relocatability rule rewritten onto the movable set (§ 8.3); the rebase scope's notes reason dropped, the
-          invariant kept.
+    - `[x]` **5.10.c QUICK-REFERENCE and the other briefs**
+        - The verb index, in both copies, gains `arc handover`, `arc task close`, `arc task defer`, `arc save`,
+          `arc locus release`, `arc inbox`, `arc materialize`, and `arc store`, and also `arc route`,
+          `arc handoff write`, `arc errand queue`, and `arc cohort close` / `remove`; `arc pause` replaces `arc park`,
+          `arc resume` loses `--here`, `arc rename` takes a UID, decomposition lists its store modes, and the Errand
+          lines take `<personal|project>:<id>`. Session State Portability is `arc save`, `arc sync`, and `arc store`;
+          `arc view --for` and the remote-access note read the store. The contributor brief names project state, the
+          personal inbox, and WORKING-MEMORY; the project brief template's hits are prose.
 
-    - `[ ]` **5.10.c QUICK-REFERENCE and the other briefs**
-        - The verb index gains `arc handover`, `arc task close`, `arc task defer`, `arc save`, `arc locus release`, `arc
-          inbox`, `arc materialize`, and `arc store`; `arc pause` replaces `arc park`; `arc start`'s `plan/<name>` goes;
-          the notes verbs and `arc sync`'s direction change with § 4.1; `AGENT-BRIEF.CONTRIBUTOR.md` and
-          `AGENT-BRIEF.PROJECT.template.md` where the search names them.
+- _Outcome:_ The always-loaded text states the store's model: the meta carries session context, a save is not a commit
+  under the review-increment invariant, tasks close through the close verb, every work-item and cohort record is
+  movable, and captures land in the personal inbox or a work unit's inbound list. QUICK-REFERENCE's verb index lists
+  every store verb the workflows name. Kept hits are in `notes-cutover-flip.md` § Kept sites.
 
 ### `[ ]` **5.11 Every remaining site rewritten or recorded as kept — § 8.1**
 

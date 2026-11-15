@@ -10,10 +10,10 @@ managing the upstream project's planning and tracking artifacts.
 
 ## Boundaries
 
-**Do not modify** files in `.arc/active/` or `.arc/backlog/` — these are maintainer-managed
-artifacts. The pre-commit hook warns if you stage files in these directories.
+**Do not modify** the planning records ARC projects into `.arc/active/` and `.arc/backlog/` — these are
+maintainer-managed.
 
-**The boundary is ownership of tracked state**, not the presence of WU concepts. You can run
+**The boundary is ownership of project state**, not the presence of WU concepts. You can run
 ARC's planning pipeline scoped to your personal workspace at `.arc/user/{identity}/`. See
 [contributor boundaries][TODO-docs-site] for the read-vs-write split on upstream's `.arc/` tree.
 
@@ -33,7 +33,7 @@ update at handoff regardless of the interlock setting.
 ## Session Workflow
 
 Contributor sessions follow the ordinary [session-init agenda][session-init] and [session-handoff][session-handoff].
-This brief joins the universal reads; the emitted plan selects contribution artifacts and per-work-unit notes.
+This brief joins the universal reads; the emitted plan selects contribution artifacts and their session context.
 Personal active state under `user/{identity}/active/` contains `meta-{name}.md` per in-flight contribution plus
 optional companions. Absent state is fine for ad-hoc contributions. See [contributor session lifecycle][TODO-docs-site]
 for workspace and handoff conventions.
@@ -46,8 +46,8 @@ recommended directory layout, and rationale.
 
 **Framework-managed reads:**
 
-- `{work-unit}/SESSION-NOTES.md` — per-work-unit context, read at entry and written at handoff
-- `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
+- `WORKING-MEMORY.md` — cross-work-unit context, read at session-init
+- your personal inbox — personal captures, read with `arc inbox personal`
 - `active/meta-{name}.md` — personal active work state for an in-flight contribution (optional)
 - `active/tasks-{name}.md` + `notes-{name}.md` — task list and notes companion when
   running a full planning pipeline
