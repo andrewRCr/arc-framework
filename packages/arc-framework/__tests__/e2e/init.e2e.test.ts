@@ -145,22 +145,20 @@ describe("init", () => {
     const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
     const interlockIndexes = [...decomposeWorkflow.matchAll(/`workflow-interlock`/g)]
       .map((match) => match.index);
-    const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
-    const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
-    const finishPreviewIndex = decomposeWorkflow.indexOf(
-      "arc decompose <origin> --finish <completed-map>\n",
-    );
-    const finishApplyIndex = decomposeWorkflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
-    );
-    expect(interlockIndexes).toHaveLength(3);
+    const finishPreviewIndex = decomposeWorkflow.indexOf("arc decompose <origin> --finish\n");
+    const discardPreviewIndex = decomposeWorkflow.indexOf("arc decompose <origin> --discard` previews");
+    const discardApplyIndex = decomposeWorkflow.indexOf("arc decompose <origin> --discard --apply <applyAuthority>");
+    const finishApplyIndex = decomposeWorkflow.indexOf("arc decompose <origin> --finish --apply <applyAuthority>");
+    expect(interlockIndexes).toHaveLength(2);
     expect(authoringIndex).toBeGreaterThanOrEqual(0);
-    expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
-    expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
-    expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
-    expect(finishPreviewIndex).toBeGreaterThanOrEqual(0);
-    expect(interlockIndexes[2]).toBeGreaterThan(finishPreviewIndex);
-    expect(finishApplyIndex).toBeGreaterThan(interlockIndexes[2]!);
+    expect(finishPreviewIndex).toBeGreaterThan(authoringIndex);
+    expect(interlockIndexes[0]).toBeGreaterThan(finishPreviewIndex);
+    expect(discardPreviewIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(interlockIndexes[1]).toBeGreaterThan(discardPreviewIndex);
+    expect(discardApplyIndex).toBeGreaterThan(interlockIndexes[1]!);
+    expect(finishApplyIndex).toBeGreaterThan(discardApplyIndex);
+    expect(decomposeWorkflow).not.toContain("--advance-base");
+    expect(decomposeWorkflow).not.toMatch(/## \d+\. Release through/u);
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 
