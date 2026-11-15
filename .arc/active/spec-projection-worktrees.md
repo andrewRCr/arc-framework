@@ -1889,12 +1889,11 @@ this design open.
 - **A8** — 2026-11-14 — design: defer work-unit spawn cleanup protection. _Supersedes:_ criteria 2 and 13 for work-unit
   spawn cleanups; § 12.2 ¶ spawn compensation. _Trigger:_ standard pass 1 A2. _Work:_ review-fix. _Revalidated:_ 3.1.
 
-- **A9** — 2026-11-14 — design: accept changed marks a contended end loses. _Supersedes:_ criterion 6 for marks
-  neither a fan-out round nor the end can record; § 11.7 ¶ setting the mark. _Trigger:_ standard fix check 1 F3.
-  _Work:_ review-fix. _Revalidated:_ 3.1.
+- **A9** — 2026-11-14 — design: accept changed marks a contended end loses. _Supersedes:_ criterion 6 for marks no round
+  or end records; § 11.7 ¶ setting the mark. _Trigger:_ fix check 1 F3 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **A10** — 2026-11-14 — spec-depth: bound a pending reprojection's retries. _Supersedes:_ none; adds § 17 item 15
-  and criterion 18. _Trigger:_ standard fix check 1 F4. _Work:_ review-fix. _Revalidated:_ 3.1.
+  and criterion 18. _Trigger:_ fix check 1 F4 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

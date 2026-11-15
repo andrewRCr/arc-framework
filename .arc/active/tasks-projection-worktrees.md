@@ -438,12 +438,13 @@ No production composition sets the slots today, so every caller runs `passingPro
   `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
 - _Success criteria:_ 19 criteria: 15 met, four superseded — the original performance criterion by A4; the removal and
   unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the
-  changed-mark criterion by A9, which accepts the marks a contended end loses. Each superseded criterion's narrowed form
-  is appended and met on the same evidence. A10 appends the criterion that a pending reprojection settles once its
-  arrival installs, met by its test. The A4 criterion carries its wording and macOS measurement note. The refreshed
-  author walk covered the complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check
-  rounds closed with every finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding,
-  fixed in `0a27c749b5`. A7 is revalidated by this verification.
+  changed-mark criterion by A9, which accepts the marks a contended end loses. A8's and A9's narrowed forms are
+  appended and met on the same evidence as the criteria they replace; the A4 criterion's rebased bounds are met on
+  per-platform timing runs, and it carries its wording and macOS measurement note. A10 appends the criterion that a
+  pending reprojection settles once its arrival installs, met by its test. The refreshed author walk covered the
+  complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every
+  finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7
+  is revalidated by this verification.
 
 ---
 

@@ -100,10 +100,11 @@ it("keeps a reprojection pending while its arrival stays blocked, then leaves se
   for (let round = 0; round < 2; round += 1) {
     await h.cycle();
     expect(await h.disk()).toMatchObject({ reprojectionPending: true, projectedUnder: { claim: "alpha" } });
-    expect(JSON.stringify(projectionProcessState().diagnostics)).toContain("only-beta.txt");
+    expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: ".arc/active/current/only-beta.txt",
+      mark: expect.objectContaining({ remedy: expect.objectContaining({ text: expect.stringContaining("Replace the symbolic link") }) }) }));
   }
   await rm(arrival);
-  for (let retry = 0; retry < 3; retry += 1) await h.cycle();
+  await h.cycle();
   const final = await h.disk();
   expect(final.reprojectionPending).toBeUndefined();
   expect(final.projectedUnder.claim).toBe("beta");
