@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vit
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
@@ -131,6 +132,26 @@ describe("user save/load", () => {
     });
 
     // Files restored
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+  });
+
+  it("refuses an imported-store load with its condition and remedy, then loads after removal", async () => {
+    await commitInitializedRepository(tmpDir);
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+    expect((await runArc(["user", "save"], tmpDir)).exitCode).toBe(0);
+    await rm(userDir, { recursive: true, force: true });
+    const registry = "refs/arc/project/registry";
+    await git(["update-ref", registry, "HEAD"], tmpDir);
+
+    const load = await runArcNoTty(["user", "load"], tmpDir);
+
+    expect(load.exitCode).toBe(1);
+    const refusal = storeImportedRefusal();
+    expect(load.stderr).toContain(refusal.condition);
+    expect(load.stderr).toContain(refusal.remedy.text);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(false);
+    await git(["update-ref", "-d", registry], tmpDir);
+    expect((await runArcNoTty(["user", "load"], tmpDir)).exitCode).toBe(0);
     expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
   });
 
