@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — The override, the tracked-state refusal, and the ref composition
+- **Last Completed:** Task 6.2 — The parser check
+- **Next Task:** Task 2.1 — Re-check `projection-worktrees`' contract once it lands
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 through process-task-loop
+- **Next Action:** Start Task 2.1 once `projection-worktrees` lands: merge `main`, then re-check its contract
 
 - **PR URL:** [none]
 - **Completed:** [none]
