@@ -29,7 +29,7 @@ Create an analysis document when:
 
 **Don't create one when:**
 
-- Findings are session-specific → SESSION-NOTES.md or notes file
+- Findings are session-specific → the meta's session context or the work unit's notes file
 - Findings inform a single decision → ADR (captures context + decision)
 - Findings are about external systems → `reference/research/`
 - Findings prescribe patterns to follow → `reference/strategies/`

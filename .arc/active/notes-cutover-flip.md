@@ -519,6 +519,14 @@ no independent pass at `low`.
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
 
+The search reads every file under the package's `arc/` but `reference/strategies/` — Markdown, configuration, and
+scripts alike — against the retired forms, with a bare `active/`, `backlog/`, or `completed/` for paths into the
+projected roots (Python `re` syntax):
+
+```text
+git add|git commit|git rm|git mv|git show|\[x\]|\[~\]|plan/|SESSION-NOTES|arc user|notes|park|ROADMAP|ADVERSARIAL-PASSES|Inbound Buffer|USER-INBOX|ATOMIC-INBOX|inbox-list|inbox-remove|planning-lane|planning-grooming|chore\(arc\)|Commit at Handoff|grooming branch|meta-\{|(?<![\w.-])(active|backlog|completed)/
+```
+
 **Session lifecycle (Task 5.2):**
 
 - `Commit at Handoff` in `session-handoff.template.md`, `session-init.md`, and the `session-state` method: the meta's
@@ -620,3 +628,29 @@ Each closure-search hit that stays, with its reason, recorded by Task 5.11 and c
   `AGENT-BRIEF.PROJECT.template.md`'s stack rows: the notes companion, completion notes, and prose, not Git notes.
 - `park-work-unit.md` in QUICK-REFERENCE's `arc pause` line, the pause workflow's filename; `session-notes` there is
   `arc view`'s kind name, which reads the meta's session context.
+
+**Remaining sites (Task 5.11):**
+
+- In `system/.internal/githooks/README.md`, the ROADMAP conflict exemption, the contributor staging warning, and the
+  `hooks.contributor_protected_paths` row, with that key's comment and `active/|backlog/` default in the configuration
+  template: the hooks as they run until tracked-state removal deletes those checks and the key.
+- Every hit in the scripts, which are code. In `system/.internal/githooks/pre-commit`, the state-path checks — the
+  ROADMAP conflict remedy, render-field warning, and regeneration assert, the contributor-protected paths, the
+  task-list modification warning, task numbering, cohort consistency, and foreign writes — select nothing once no
+  tracked file sits under the projected roots, and tracked-state removal deletes them; the size and conflict-marker
+  reads of staged content (`git show ":$file"`), the meta-reference pattern, and the link check's note on movable
+  records stay. In `system/.internal/scripts/validate-links.sh`, the movable-record rule over the projected roots and
+  the read of staged Markdown, and in `verify-integrity.sh`, the meta-file check's roots and its note that `active/`
+  appears at the first activation, hold after the flip.
+- The `[park]` link label in `resume-work-unit.md`, which points at the pause workflow's filename.
+- "notes" in `generate-tasks.template.md` and `amend-design.md`, `notes-*` in `AGENT-BRIEF.ARC.md`'s work-unit
+  definition, `--resume-notes` in QUICK-REFERENCE's `arc pause` line, "notes" in `DEV-RULES.ARC.md`'s planning-artifact
+  list and its "leave notes" prose, and "methodology notes" and "notes file" in
+  `reference/supplemental/analysis/README.md`: the notes companion, the pause's resume notes, and prose, not Git notes.
+- `active/`, `backlog/`, and `completed/` named as directories, not a record's path: `README.md`'s tree,
+  `AGENT-BRIEF.ARC.md`'s state line, Key Documents row, and Directory Structure, `DEV-RULES.ARC.md`'s `backlog/` stub
+  and the relocatability rule's placements, QUICK-REFERENCE's `arc archive` comment, `01_verify-and-configure.md`'s
+  directory check, `verify-arc-integrity.md`'s meta-file check, and `setup-merge-gate.md`'s classifier paths, which
+  stay with the recipe (§ 8.13).
+- `user/{identity}/active/` in `user/README.md` and the contributor brief, with `meta-{name}.md` and `tasks-{name}.md`
+  in `user/README.md`: a contributor's personal pipeline under the layout's contributor scope.

@@ -1012,16 +1012,19 @@ command declares it (`integration/command-surface-documentation.test.ts`).
   movable, and captures land in the personal inbox or a work unit's inbound list. QUICK-REFERENCE's verb index lists
   every store verb the workflows name. Kept hits are in `notes-cutover-flip.md` § Kept sites.
 
-### `[ ]` **5.11 Every remaining site rewritten or recorded as kept — § 8.1**
+### `[x]` **5.11 Every remaining site rewritten or recorded as kept — § 8.1**
 
 - _Goal:_ Every hit of the closure search not rewritten by Tasks 5.2–5.10 is rewritten here or recorded in
   `notes-cutover-flip.md` § Kept sites with its reason, and every bare path into a projected root names the record's
   filename or the verb that reads it.
 
-    - The package's `.arc/` README's tree (`README.md`, its `backlog/ROADMAP.md` line) and
-      `reference/supplemental/analysis/README.md`'s SESSION-NOTES are rewritten here; the hooks README's ROADMAP
-      conflict exemption and contributor staging warning (`system/.internal/githooks/README.md`) and
-      `hooks.contributor_protected_paths` stay until tracked-state removal deletes them, recorded as kept.
+- _Outcome:_ The package's `.arc/` README's tree drops the stored ROADMAP and shows `active/current/` and
+  `active/in-flight/<wu>/`, and it and the brief's Directory Structure give `user/` working memory, the inbox, and
+  scratch; the analysis README and `user/README.md` name the meta's session context where they named session notes, and
+  setup's directory check no longer expects an installed `backlog/`. The hooks README's ROADMAP exemption and
+  contributor warning and `hooks.contributor_protected_paths` stay until tracked-state removal. `notes-cutover-flip.md`
+  § Kept sites pins the search, scripts included, and records every remaining hit with its reason, among them hits
+  earlier families left unrecorded.
 
 ### `[x]` **5.R Verification keeps the notes companion — § 8.7**
 

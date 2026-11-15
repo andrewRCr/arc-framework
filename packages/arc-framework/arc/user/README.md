@@ -8,10 +8,10 @@ the same whether you're working solo or on a team — each developer gets a `use
 **What belongs here:** working memory, personal task capture, freeform scratch notes, personal reference material —
 per-developer content that isn't the shared project's.
 
-**What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, per-WU meta files, or session
-notes. Those are project-level records, projected into `.arc/active/` and shared with the whole team; a work unit's
-session context lives in its meta. There is one niche exception for contributors running a personal planning
-pipeline, described at the end of this doc.
+**What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, or per-WU meta files, which
+carry each work unit's session context. Those are project-level records, projected into `.arc/active/` and shared with
+the whole team. There is one niche exception for contributors running a personal planning pipeline, described at the
+end of this doc.
 
 ## How It Works
 

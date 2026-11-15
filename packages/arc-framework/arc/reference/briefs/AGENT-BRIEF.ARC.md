@@ -114,7 +114,7 @@ Precise meanings — assume the technical sense.
 ├── backlog/     — Future work pipeline (arc-in-git PM only)
 ├── reference/   — Briefs, strategies, ADRs, templates
 ├── system/      — Rules, workflows, methods, settings
-└── user/        — Per-developer session state
+└── user/        — Per-developer working memory, inbox, and scratch
 ```
 
 ---

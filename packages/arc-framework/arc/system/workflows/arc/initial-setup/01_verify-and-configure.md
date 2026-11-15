@@ -26,7 +26,8 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 
 - `active/` — Current work tracking (per-WU meta files, task lists). Created
   lazily at first work unit activation; absent immediately after init.
-- `backlog/` — Future work pipeline (backlog stubs and drafts) · only with `pm.mode: arc-in-git`
+- `backlog/` — Future work pipeline (backlog stubs and drafts) · only with `pm.mode: arc-in-git`. Projected once the
+  first stub or the project inbox exists; absent immediately after init.
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings
 
