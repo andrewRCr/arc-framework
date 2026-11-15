@@ -93,8 +93,13 @@ const RecordBasisSchema = z.strictObject({
   ]).optional(),
 });
 
-/** A path retains its leaving basis and, during exclusive installation, one complete arriving basis. */
-export const RecordEntrySchema = RecordBasisSchema.extend({ handoff: RecordBasisSchema.optional() });
+/**
+ * A path retains its leaving basis and, during exclusive installation, one complete arriving basis. A record a refresh
+ * moves here with its changed mark, before its arrival can be journaled, is named in `arrivingChanged` until the
+ * installation carries the mark onto that arrival.
+ */
+export const RecordEntrySchema = RecordBasisSchema.extend({ handoff: RecordBasisSchema.optional(),
+  arrivingChanged: RecordReferenceSchema.optional() });
 
 /** The exact accepted creation retained until its metadata basis can be read. */
 const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>
@@ -145,7 +150,10 @@ const IgnoreGuardBasisSchema = z.strictObject({
   roots: z.array(z.string().min(1)).min(1), configuration: IgnoreRulesSelectionSchema,
 });
 
-/** The index as JSON stores it, decoded into bigints and validated references. Unknown fields fail. */
+/**
+ * The whole index, decoded into bigints and validated references; unknown fields fail. On disk it is stored as a header
+ * (`ProjectionIndexHeaderSchema`) and one partition per root (`ProjectionIndexPartitionSchema`).
+ */
 export const ProjectionIndexSchema = z.strictObject({
   format: z.literal(PROJECTION_INDEX_FORMAT),
   state: StateVersionSchema.nullable(),
@@ -185,7 +193,8 @@ export type AsideCopyRecord = z.output<typeof AsideCopyRecordSchema>;
 export type RefusedMark = z.output<typeof RefusedMarkSchema>;
 
 /**
- * Decode an index from its parsed JSON form.
+ * Decode a whole index from one parsed JSON value. Only tests hold an index in this form; the file stores a header and
+ * partitions.
  * @param value - The parsed JSON value.
  * @returns The decoded index, or the schema's failure.
  */
@@ -194,7 +203,7 @@ export function decodeProjectionIndex(value: unknown): z.ZodSafeParseResult<Proj
 }
 
 /**
- * Encode an index as the JSON text the index file holds.
+ * Encode a whole index as one JSON text, the form only tests hold; the file stores a header and partitions.
  * @param index - A decoded index.
  * @returns Its JSON text, bigints as decimal strings.
  */

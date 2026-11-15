@@ -1,7 +1,7 @@
 /** Deferred operation notifications combine while a projection owns its lease and resume after release. */
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
-import { requestProjectionFanOut, flushProjectionFanOut, withProjectionFanOutHold } from "../../../../src/lib/store/projection/fan-out-scheduler.js";
+import { requestProjectionFanOut, flushProjectionFanOut, settleUnmarkedOwnWrites, withProjectionFanOutHold } from "../../../../src/lib/store/projection/fan-out-scheduler.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { success } from "../../../helpers/store/suite-tools.js";
@@ -109,6 +109,39 @@ it("reports a failed deferred fan-out without rejecting its flush and succeeds a
   };
   await requestProjectionFanOut("test-checkout");
   expect(success(await destination.store.read({ reference })).content).toBe("Landed before deferred fan-out.\n");
+});
+
+it("keeps a thrown round's own writes for the end's own-checkout visit to mark", async () => {
+  const source = createReferenceFixture();
+  const reference = source.reference("personal/document"), state = projectionProcessState();
+  const visits: { writes: readonly unknown[]; target?: string }[] = [];
+  state.fanOut = async (writes, _round, target) => {
+    visits.push({ writes: [...writes], ...(target === undefined ? {} : { target }) });
+    if (target === undefined) throw new Error("The configuration read failed before the round's version");
+    return [];
+  };
+  const store = withFanOut(source.store, { capture: () => references => requestProjectionFanOut("test-checkout", references),
+    report: cause => { throw cause; } });
+  success(await store.write({ action: "put", reference, content: "Written before a failed round.\n", expected: null,
+    provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(state.fanOutOwnWrites).toEqual([reference]);
+  await settleUnmarkedOwnWrites("test-checkout");
+  expect(visits).toEqual([{ writes: [reference] }, { writes: [reference], target: "own" }]);
+  expect(state.fanOutOwnWrites).toEqual([]);
+  expect(state.diagnostics.map(each => each.mark.reason)).not.toContainEqual(expect.stringContaining("Changed marks not recorded"));
+});
+
+it("reports a thrown round's own writes when the end's own-checkout visit cannot mark them either", async () => {
+  const source = createReferenceFixture();
+  const reference = source.reference("personal/document"), state = projectionProcessState();
+  state.fanOut = () => Promise.reject(new Error("The checkout's lease is held elsewhere"));
+  const store = withFanOut(source.store, { capture: () => references => requestProjectionFanOut("test-checkout", references),
+    report: cause => { throw cause; } });
+  success(await store.write({ action: "put", reference, content: "Written before two failed visits.\n", expected: null,
+    provenance: { verb: "save", lifecycleAction: "save" } }));
+  await settleUnmarkedOwnWrites("test-checkout");
+  expect(state.diagnostics).toContainEqual(expect.objectContaining({ path: "test-checkout",
+    mark: expect.objectContaining({ reason: expect.stringContaining("Changed marks not recorded") }) }));
 });
 
 for (const reason of ["switch", "no-identity"] as const) {

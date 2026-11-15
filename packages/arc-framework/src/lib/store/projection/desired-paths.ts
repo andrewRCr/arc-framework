@@ -7,6 +7,7 @@ import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { identifyArcFileAddress, resolveArcPath, type ActiveLayoutContext, type WorkUnitPlacement, type WorkUnitArtifactKind } from "../../layout/index.js";
 import type { KindId } from "../catalog.js";
 import { KIND_REGISTRY } from "../registry.js";
+import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { recordReferences, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import { WorkUnitReadPlacementSchema, ErrandReadPlacementSchema } from "../placement.js";
@@ -109,8 +110,9 @@ const personalPaths: Partial<Record<KindId, (identity: Slug, key: RecordReferenc
 /** Whether any view could lay a record in a checkout under this identity, before its owner's placement is read. */
 export function projectableRecord(identity: Slug, reference: RecordReference): boolean {
   if (KIND_REGISTRY[reference.kind].projection === "never") return false;
-  return reference.owner.type !== "person"
-    || reference.owner.name === identity && (personalPaths[reference.kind]?.(identity, reference.key) ?? null) !== null;
+  if (reference.owner.type !== "person") return true;
+  const path = reference.owner.name === identity ? personalPaths[reference.kind]?.(identity, reference.key) ?? null : null;
+  return path !== null && !isExcludedProjectionPath(path);
 }
 
 function personalProjectionPath(root: ProjectionRootState, record: StoreRecord): string | null {

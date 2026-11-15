@@ -257,6 +257,23 @@ it("admits a valid edit while another lease is held without sending or changing 
   await expect(access(join(target.location.commonDir, "arc/user/andrew/.internal/.machine-id"))).rejects.toMatchObject({ code: "ENOENT" });
 });
 
+it("keeps an edit unobservable while its ignore guard cannot be read, and passes once the guard reads", async () => {
+  const target = await targetCheckout();
+  const entry = target.index.entries[target.h.path];
+  if (entry?.kind !== "record") throw new Error("Missing fixture entry");
+  await writeFile(join(target.checkout, target.h.path), renderStampedFile({ content: "An edit awaiting the guard.\n", stamp: entry.base.blob }));
+  let denied = true;
+  const context = { ...target.context, ports: () => {
+    const ports = target.h.ports();
+    return { ...ports, execInput: (args: string[], input: string, options?: Parameters<typeof ports.execInput>[2]) =>
+      denied && args.includes("check-ignore") ? Promise.reject(new Error("Ignore rules cannot be read")) : ports.execInput(args, input, options) };
+  } };
+  expect(await checkProjectionRemoval(target.checkout, context)).toMatchObject({ kind: "unobservable",
+    detail: expect.stringContaining("Ignore rules cannot be read") });
+  denied = false;
+  expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
+});
+
 it("keeps a store read refused during admission unobservable and succeeds after the read is repaired", async () => {
   const target = await targetCheckout();
   const entry = target.index.entries[target.h.path];
@@ -451,6 +468,19 @@ it("refuses an unindexed file in another identity's personal root until it is re
     kind: "would-refuse", remedy: { text: expect.stringContaining("blair") },
   });
   await rm(path);
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+});
+
+it("holds an unindexed file still being saved under a remedy naming its checkout, and passes once the save settles", async () => {
+  const target = await targetCheckout();
+  const path = ".arc/user/andrew/scratch/arriving.md";
+  await mkdir(join(target.checkout, ".arc/user/andrew/scratch"), { recursive: true });
+  await writeFile(join(target.checkout, path), "");
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse",
+    remedy: { text: `Let ${path} in ${target.checkout} finish saving, then retry removal.` } });
+  await writeFile(join(target.checkout, path), "A saved scratch note.\n");
+  const settled = new Date(Date.now() - 3_600_000);
+  await utimes(join(target.checkout, path), settled, settled);
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
 
@@ -1028,8 +1058,7 @@ it("holds an edited aside copy in a root its ignore guard refuses, as persistenc
   const unedited = await checkProjectionRemoval(target.checkout, target.context);
   // An unedited copy needs no installation, so the refused guard holds nothing until the copy is edited.
   expect(unedited).toEqual({ kind: "passes" });
-  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual(unedited.kind === "passes" ? { kind: "persisted" }
-    : { kind: "refused", remedy: unedited.kind === "would-refuse" ? unedited.remedy : undefined });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
   const original = parseStampedFile(await readFile(join(target.checkout, copy.name), "utf8")).content;
   await writeFile(join(target.checkout, copy.name), renderStampedFile({ content: `Aside prefix.\n${original}`, stamp: entry.base.blob }));
   const checked = await checkProjectionRemoval(target.checkout, target.context);

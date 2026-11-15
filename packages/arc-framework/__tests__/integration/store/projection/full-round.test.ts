@@ -114,7 +114,7 @@ it("keeps one linked repository coherent through complete projection operations"
   await rm(join(h.checkout, path));
   const synced = await runSync(store, h.checkout);
   expect(() => JSON.parse(synced.output)).not.toThrow();
-  expect(synced.errors).not.toContain("Projection rebuild failed");
+  expect(synced.errors).not.toContain("projection:");
   expect(await h.file()).toContain("A remote change.");
   expect(await readFile(peerFile, "utf8")).toContain("A remote change.");
 

@@ -13,6 +13,7 @@ import { materializeProjectionRoot } from "./materialization.js";
 import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
 import { refreshHeldProjectionRoot, type HeldProjectionRefresh } from "./held-refresh.js";
 import type { ProjectionRootState } from "./process-state.js";
+import type { ProjectionLockResult } from "./lock.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
@@ -31,6 +32,8 @@ export function bindSpawnMaterialization(input: ProjectionCommandInput): void {
 async function materializeSpawn(input: ProjectionCommandInput, checkout: string): Promise<void> {
   const ports = input.ports?.() ?? createProjectionEnginePorts(checkout);
   const location = await locateProjection(checkout, ports);
+  // Only the command's own checkout may delete a mismatched partition; another worktree keeps it for its own start.
+  const invalidatePartition = projectionProcessState().command?.checkout === checkout;
   const result = await withProjectionFanOutLock(location, async session => {
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status !== "identified") return;
@@ -58,8 +61,14 @@ async function materializeSpawn(input: ProjectionCommandInput, checkout: string)
         index: null, recovered: disk.header });
       if (materialized.kind === "refused") root.context.report?.({ path: checkout, copy: null, mark: materialized.mark });
     } finally { root.checkpoint = null; }
-  }, { invalidatePartition: true, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
-  if (result.status !== "done") reportFailure(checkout, `Projection materialization could not acquire its lease (${result.status}).`);
+  }, { invalidatePartition, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
+  if (result.status !== "done") reportFailure(checkout, leaseFailure(result));
+}
+
+function leaseFailure(result: Exclude<ProjectionLockResult<unknown>, { status: "done" }>): string {
+  if (result.status === "lost") return `Projection materialization lost its lease: ${result.report}`;
+  if (result.status === "mismatch") return `Projection materialization found a mismatched index partition: ${result.report}`;
+  return `Projection materialization could not acquire its lease (${result.status}).`;
 }
 
 /** A checkout that already holds a usable index takes what the store changed since its state, never a full lay. */

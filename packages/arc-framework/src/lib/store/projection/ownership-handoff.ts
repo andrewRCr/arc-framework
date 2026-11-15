@@ -86,8 +86,9 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
   });
   if (bytes === null || !isDeepStrictEqual(gate.stat, await readStat(absolute))) return heldArrival(root, path, entry);
   if (gate.stat.ino !== arriving.stat?.ino || gitBlobId(bytes, root.context.format) !== arriving.written) return heldArrival(root, path, entry);
-  // A refresh that moved the arriving record here marked the path's entry before the arrival was journaled.
-  return { ...arriving, changed: arriving.changed || entry.changed, stat: gate.stat, withheld: false, pending: false };
+  // The arrival keeps only its own changed mark; a refresh moving its record here marked the arrival, directly or by the
+  // leaving entry's `arrivingChanged` that the installation carried over.
+  return { ...arriving, stat: gate.stat, withheld: false, pending: false };
 }
 
 function heldArrival(root: OwnershipObservationRoot, path: string, entry: RecordEntry): RecordEntry {

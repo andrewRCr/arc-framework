@@ -17,6 +17,7 @@ export async function ensureProjectionScratch(root: ProjectionRootState): Promis
   catch (error) {
     root.context.report?.({ path, copy: null, mark: {
       reason: `Cannot create the scratch folder ${path}: ${error instanceof Error ? error.message : String(error)}`,
-      remedy: { text: `Move aside whatever occupies ${path} or restore write access there; the next arc command creates the folder.` } } });
+      remedy: { text: `Move aside whatever occupies ${path} or restore write access there, then create the folder `
+        + `${join(root.checkout, path)} by hand.` } } });
   }
 }

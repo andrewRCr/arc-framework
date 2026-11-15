@@ -1,15 +1,29 @@
 /** Publication failures and lock-free readers recover through the header's whole-index boundary. */
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { copyFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { parseProjectionJson, withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
-import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
+import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
+import { captureProjectionLocal } from "../../../../src/lib/store/projection/local-capture.js";
+import { RecordReferenceSchema, RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 
 const fault = vi.hoisted(() => ({ header: "", stateDir: "", stopHeader: false, retain: "",
-  beforePartitions: null as (() => Promise<void>) | null }));
+  beforePartitions: null as (() => Promise<void>) | null, onPartitionRead: null as (() => void) | null }));
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  return { ...actual,
+    readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
+      if (fault.onPartitionRead !== null && typeof args[0] === "string" && args[0].startsWith(`${fault.stateDir}/index-`)) {
+        const action = fault.onPartitionRead; fault.onPartitionRead = null; action();
+      }
+      return actual.readFileSync(...args);
+    },
+  };
+});
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   return { ...actual,
@@ -35,7 +49,7 @@ beforeEach(async () => {
   fault.stateDir = join(checkout, ".git/arc-projection"); fault.header = join(fault.stateDir, "index");
   await mkdir(fault.stateDir, { recursive: true });
 });
-afterEach(async () => { fault.stopHeader = false; fault.retain = ""; fault.beforePartitions = null;
+afterEach(async () => { fault.stopHeader = false; fault.retain = ""; fault.beforePartitions = null; fault.onPartitionRead = null;
   await rm(checkout, { recursive: true, force: true }); });
 const path = ".arc/active/current/a.md";
 const entry = { kind: "ownerless" as const, stat: null, refused: { reason: "old", remedy: { text: "Repair ownership." } } };
@@ -97,4 +111,40 @@ it("answers unreadable without deleting anything when the header still names its
   await rm(join(fault.stateDir, name));
   expect(await readProjectionIndex(location(), true, { groups: "all", retry: true })).toEqual({ kind: "unusable", cause: "unreadable", header: parseProjectionJson(before) });
   expect(await readFile(fault.header, "utf8")).toBe(before);
+});
+
+/** Stage a newer publication elsewhere, applied in one synchronous step that collects every partition it replaces. */
+async function stagedPublication(newer: ProjectionIndex): Promise<() => void> {
+  const staging = join(checkout, ".git/staged-publication");
+  await mkdir(staging, { recursive: true });
+  await writeProjectionIndex({ ...location(), stateDir: staging }, newer);
+  return () => {
+    const old = readdirSync(fault.stateDir).filter(name => name.startsWith("index-"));
+    for (const name of readdirSync(staging)) if (name.startsWith("index-")) copyFileSync(join(staging, name), join(fault.stateDir, name));
+    copyFileSync(join(staging, "index"), fault.header);
+    const kept = new Set(readdirSync(staging));
+    for (const name of old) if (!kept.has(name)) rmSync(join(fault.stateDir, name));
+  };
+}
+
+const bound = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: { type: "work-item", name: "a" }, key: "a.md" });
+const boundEntry: RecordEntry = { kind: "record", reference: bound, stat: null, written: "a".repeat(40),
+  base: { blob: "a".repeat(40), version: RecordVersionSchema.parse("v1") }, markers: null, notices: [], unshown: [],
+  protected: false, changed: false, pending: true, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
+
+it("restarts a lock-free capture once when a publication collects its path's partition mid-read", async () => {
+  await writeProjectionIndex(location(), index());
+  fault.onPartitionRead = await stagedPublication(withProjectionEntry(await disk(), path, boundEntry));
+  const captured = await captureProjectionLocal({ checkout, path, source: "file", location: location() });
+  expect(fault.onPartitionRead).toBeNull();
+  expect(captured).toMatchObject({ status: "ok", result: { binding: bound } });
+});
+
+it("answers the capture's own remedy when its path's partition stays unreadable", async () => {
+  await writeProjectionIndex(location(), index());
+  const name = (await readdir(fault.stateDir)).find(each => each.startsWith("index-"))!;
+  await writeFile(join(fault.stateDir, name), "{}");
+  const captured = await captureProjectionLocal({ checkout, path, source: "file", location: location() });
+  expect(captured).toMatchObject({ status: "refused", nativeRefusal: true, refusal: { remedy: {
+    text: expect.stringContaining(`Let the command publishing the projection index at ${checkout} finish`) } } });
 });

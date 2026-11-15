@@ -497,7 +497,7 @@ async function rollbackIdentity(
   { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
 > {
   if (record === null) return { kind: "rolled-back" };
-  const residue = durableResidue(evidence);
+  const residue = durableResidue(evidence, record.branch);
   if (residue !== null) return { kind: "retained", residue };
   if (claimKind !== "applied") return { kind: "rolled-back" };
   const rollbackResume = options.dependencies.rollbackResume;
@@ -519,11 +519,16 @@ async function rollbackIdentity(
   }
 }
 
-/** Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. */
-function durableResidue(evidence: ProvisioningEvidence | null): string | null {
+/**
+ * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. Residue without marker bytes
+ * names the retained checkout alone: no marker was read there, or the one there could not be parsed.
+ */
+function durableResidue(evidence: ProvisioningEvidence | null, branch: string): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  return `a worktree marker at ${evidence.checkoutPath}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
+  const retained = evidence.markerBytes === null ? `the checkout ${evidence.checkoutPath} for branch ${branch}`
+    : `a worktree marker at ${evidence.checkoutPath}`;
+  return `${retained}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {

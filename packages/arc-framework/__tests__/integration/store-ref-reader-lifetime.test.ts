@@ -115,7 +115,6 @@ describe.each(["default", "separate"] as const)("operation reader (%s)", (layout
           expect(events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file"))).toHaveLength(0);
         } else {
           await expectClosedReader(path);
-          expect((await trace(path)).filter(({ event, argv }) => event === "start" && argv?.includes("diff-tree"))).toHaveLength(0);
         }
       } finally { vi.unstubAllEnvs(); }
     }

@@ -46,7 +46,7 @@ export async function changedProjectionAsides(root: ProjectionRootState, index: 
       const boundary = await readProjectionLinkBoundary(root.checkout, [copy.name], root.ports.linkFs);
       if (boundary(copy.name) !== null) continue;
       const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
-      if (observed.kind === "edited" || observed.kind === "unsettled" || observed.kind === "empty") return true;
+      if (observed.kind === "edited" || observed.kind === "unsettled") return true;
     }
   }
   return false;
@@ -68,7 +68,7 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
   const published = await commitReturnedCopies({ checkout: root.checkout, location: root.location, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, settled.entry),
     returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [] });
-  return { index: published, refusal: removalCopyRefusal(settled, name, diagnosticFrom, input.disposition) };
+  return { index: published, refusal: removalCopyRefusal(settled, root.checkout, name, diagnosticFrom, input.disposition) };
 }
 
 async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string,
@@ -78,20 +78,20 @@ async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string
   if (observed.kind === "no-edit" || observed.kind === "gone") return { index };
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);
-  return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(copy.name, input.disposition) };
+  return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(root.checkout, copy.name, input.disposition) };
 }
 
 /** Preserve the copy's actual blocking outcome and diagnostic across retirement operations. */
-export function removalCopyRefusal(settled: CopySettlement, copy: string, diagnosticFrom: number,
+export function removalCopyRefusal(settled: CopySettlement, checkout: string, copy: string, diagnosticFrom: number,
   disposition: ProjectionRetirement): Remedy | undefined {
   if (settled.kind === "deleted" || settled.kind === "dropped" || settled.kind === "linked-back") return undefined;
   if (settled.kind === "not-a-file") return settled.remedy;
-  if (settled.kind === "moved-on") return recoverCopy(copy, disposition);
+  if (settled.kind === "moved-on") return recoverCopy(checkout, copy, disposition);
   const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.copy === copy)?.mark;
   return reported?.remedy ?? settled.entry.refused?.remedy
-    ?? { text: `Let ${copy} finish saving, then run arc save there and retry ${retirementName(disposition)}.` };
+    ?? { text: `Let ${copy} finish saving, then run arc save from ${checkout} and retry ${retirementName(disposition)}.` };
 }
 
-function recoverCopy(copy: string, disposition: ProjectionRetirement): Remedy {
-  return { text: `Recover anything wanted from ${copy}, then delete that copy explicitly and retry ${retirementName(disposition)}.` };
+function recoverCopy(checkout: string, copy: string, disposition: ProjectionRetirement): Remedy {
+  return { text: `Recover anything wanted from ${copy} in ${checkout}, then delete that copy explicitly and retry ${retirementName(disposition)}.` };
 }

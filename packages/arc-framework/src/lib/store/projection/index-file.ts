@@ -114,19 +114,19 @@ export function readProjectionIndex(location: ProjectionLocation, holdsProjectio
 export async function readProjectionIndex(location: ProjectionLocation, holdsProjection: boolean,
   options: ProjectionIndexReadOptions = {}): Promise<ProjectionIndexRead> {
   const path = join(location.stateDir, PROJECTION_INDEX_FILE);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Only the first attempt restarts, and only across a header a concurrent publication replaced.
+  for (let attempt = 0; ; attempt++) {
     const read = await readHeaderText(path, holdsProjection);
     if (read.kind !== "text") return read;
     const decoded = decodeHeader(read.text);
     if (decoded.kind !== "header") return decoded;
     try { return await readPartitions(location, decoded.header, options); }
     catch (error) {
-      if (!(error instanceof ProjectionPartitionMismatch)) return { kind: "unusable", cause: "unreadable", header: decoded.header };
-      if (options.retry && attempt === 0 && await readFile(path, "utf8").catch(() => null) !== read.text) continue;
-      return { kind: "unusable", cause: "unreadable", header: decoded.header };
+      const restart = error instanceof ProjectionPartitionMismatch && options.retry === true && attempt === 0
+        && await readFile(path, "utf8").catch(() => null) !== read.text;
+      if (!restart) return { kind: "unusable", cause: "unreadable", header: decoded.header };
     }
   }
-  return { kind: "unusable", cause: "unreadable" };
 }
 
 type AbsentIndex = Exclude<ProjectionIndexRead, { kind: "index" }>;

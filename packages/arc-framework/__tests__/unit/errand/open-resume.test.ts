@@ -336,7 +336,7 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
 });
 
 
-function newOpenFixture() {
+function newOpenFixture(provision?: OpenOrdinaryErrandOptions["dependencies"]["provision"]) {
   let record: OrdinaryErrandRecord | null = null;
   let provisioned = false;
   let authority: unknown;
@@ -372,11 +372,26 @@ function newOpenFixture() {
   };
   return {
     run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox" | "type">> = {}) =>
-      openOrdinaryErrand({ ...options, ...overrides }),
+      openOrdinaryErrand({ ...options, ...overrides,
+        dependencies: provision === undefined ? options.dependencies : { ...options.dependencies, provision } }),
     read: () => ({ record, provisioned }),
     authority: () => authority,
   };
 }
+
+describe("a refused provisioning that leaves a checkout", () => {
+  it.each([
+    ["marker bytes", Buffer.from("marker"), "a worktree marker at /spawned; Remove the personal file, then retry."],
+    ["no marker bytes", null, "the checkout /spawned for branch chore/fix-output; Remove the personal file, then retry."],
+  ] as const)("retains the claim and names what remains with %s", async (_label, markerBytes, residue) => {
+    const fixture = newOpenFixture(() => Promise.resolve({ kind: "refused", reason: "path-collision",
+      evidence: { kind: "marker-residue", checkoutPath: "/spawned", markerBytes, detail: "Remove the personal file, then retry." } }));
+    const refusal = await fixture.run();
+    expect(refusal.recommendedPromptText).toBe(
+      `Errand open refused: topology-unknown. The identity claim is retained because provisioning left ${residue}.`);
+    expect(fixture.read().record).toMatchObject({ slug: "fix-output", branch: "chore/fix-output" });
+  });
+});
 
 describe("ordinary Errand branch types", () => {
   it.each(["fix", "refactor", "hotfix"] as const)("opens a new %s identity on its nature-typed branch", async (type) => {

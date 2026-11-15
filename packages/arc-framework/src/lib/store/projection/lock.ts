@@ -33,7 +33,10 @@ export type ProjectionLockResult<T> =
   | { readonly status: "lost"; readonly report: string }
   | { readonly status: "mismatch"; readonly partition: string; readonly report: string };
 
-/** Wait bound and authority to invalidate a corrupt partition in the command's own checkout. */
+/**
+ * The wait bound, and `invalidatePartition`: authority to delete a partition found changed since its header was read,
+ * keeping the header, when it lies in the locked checkout. Callers grant it only for the command's own checkout.
+ */
 export interface ProjectionLockOptions { readonly maxWaitMs?: number; readonly invalidatePartition?: boolean }
 
 // Creates a lockfile only inside a state folder that exists, so no create recreates a removed worktree's Git directory.
@@ -61,7 +64,8 @@ export type ProjectionLockDependencies = LeaseProcessDependencies & {
  * holds waits until it times out, so take it at one level only.
  * @param location - The located worktree.
  * @param operation - The operation, which awaits `step` before each step it takes.
- * @param options - `maxWaitMs` bounds the wait; unset, the lock's default bound applies.
+ * @param options - `maxWaitMs` bounds the wait; unset, the lock's default bound applies. `invalidatePartition` deletes a
+ *   mismatched partition of the locked checkout before reporting the mismatch.
  * @param overrides - Process and lockfile boundaries to replace.
  * @returns The operation's value, or why it did not run or did not finish.
  */

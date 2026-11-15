@@ -1,8 +1,8 @@
 /** Publish both record identities before linking a staged arrival into an absent reused path. */
 import { removeProjectionAsideFile } from "./aside-cleanup.js";
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
+import { sameReference } from "../identity.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { OwnershipRoot } from "./ownership-handoff.js";
@@ -14,6 +14,7 @@ import { ownershipHandoffMark } from "./ownership-hold.js";
 import { stageRecordFile } from "./staging.js";
 import { retriedMoves } from "./aside-moves.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
 
 /** A desired record and its new basis, kept separate from the leaving entry's rendering and copies. */
 export interface OwnershipInstallation {
@@ -36,7 +37,11 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
     return withProjectionEntry(input.index, path, { ...previous, pending: true });
   }
   await root.context.checkpoint?.();
-  await mkdir(join(root.checkout, dirname(path)), { recursive: true });
+  const occupying = await ensureLayFolder(root.checkout, path);
+  if (occupying !== null) {
+    root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
+    return withProjectionEntry(input.index, path, { ...previous, pending: true });
+  }
   const staged = await stageRecordFile({ checkout: root.checkout, path, record, renderer: input.renderer,
     replacing: previous.base.blob, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
   if (staged.status === "refused") {
@@ -46,7 +51,9 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   }
   const stat = await readStat(join(root.checkout, staged.result.location));
   if (stat === null) throw new Error(`Staged ownership arrival disappeared: ${path}`);
-  const arriving: RecordEntry = { ...input.arriving, stat, written: staged.result.written, base: staged.result.base,
+  // A refresh that moved this record here while the leaving bytes remained parked its changed mark on the leaving entry.
+  const changed = input.arriving.changed || (previous.arrivingChanged !== undefined && sameReference(previous.arrivingChanged, record.reference));
+  const arriving: RecordEntry = { ...input.arriving, changed, stat, written: staged.result.written, base: staged.result.base,
     markers: staged.result.rendering?.markers ?? null, notices: staged.result.rendering?.notices ?? [],
     unshown: staged.result.rendering?.unshown ?? record.conflicts, protected: staged.result.rendering?.protected ?? false };
   const held = { ...previous, handoff: arriving, pending: true, withheld: true };

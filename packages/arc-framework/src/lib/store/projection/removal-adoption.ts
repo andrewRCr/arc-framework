@@ -30,7 +30,7 @@ export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, inde
       ? { kind: "would-refuse", remedy: missingMintedMetadataMark().remedy } : { kind: "passes" };
   }
   if (gate.kind === "no-edit") return { kind: "passes" };
-  if (gate.kind === "pending") return { kind: "would-refuse", remedy: { text: `Let ${path} finish saving, then retry adoption and ${retirementName(disposition)}.` } };
+  if (gate.kind === "pending") return { kind: "would-refuse", remedy: { text: `Let ${path} in ${root.checkout} finish saving, then retry ${retirementName(disposition)}.` } };
   const checked = await checkReadableAdoption(root, index, path, gate.stat, disposition);
   return checked.kind === "passes" ? guard(path) : checked;
 }
@@ -74,8 +74,8 @@ async function readRemovalAdoptionTarget(root: ReadOnlyProjectionRoot, index: Pr
 async function checkExistingProjectionAdoption(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry,
   disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const prepared = await prepareWriteBack(root.context, pendingFileRequest(root.checkout, path, entry));
-  if (prepared.kind !== "ready") return projectionFeasibilityRefusal(prepared, path, disposition) ?? { kind: "passes" };
-  const conflict = unresolvedRemovalConflicts(path, entry.unshown, prepared.write.resolves ?? [], disposition);
+  if (prepared.kind !== "ready") return projectionFeasibilityRefusal(prepared, root.checkout, path, disposition) ?? { kind: "passes" };
+  const conflict = unresolvedRemovalConflicts(root.checkout, path, entry.unshown, prepared.write.resolves ?? [], disposition);
   if (conflict !== null) return conflict;
   const invalid = checkSerializationRules(entry.reference, prepared.write.content);
   return invalid === undefined ? { kind: "passes" } : { kind: "would-refuse", remedy: invalid.remedy };

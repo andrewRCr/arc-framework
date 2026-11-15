@@ -1,6 +1,6 @@
 /** Anchored releases retain the Git checkout after persisting its projection. */
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTempDir } from "../helpers/integration.js";
@@ -202,6 +202,47 @@ describe("projected checkout release", () => {
     } finally { if (replacement !== undefined) await releaseAdvisoryLockConfirmed(replacement); }
     h.configure({ store: h.store, ports: undefined });
     expect(await h.remove()).toMatchObject({ status: "torn-down" });
+  });
+
+  it("lays every removed file again after release loses its lease once the second check has published", async () => {
+    const h = await projectedRetirement();
+    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+    await endProjection({ store: h.store, checkout: h.checkout });
+    expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index",
+      index: { state: lifecycleSuccess(await h.store.version()) } });
+    const bytes = await readFile(join(h.checkout, h.path), "utf8");
+    let now = Date.now(), armed = false, replacement: AdvisoryLockHandle | undefined;
+    // Once the removal swap began, the first link read after the second check dropped the removed entry loses the lease.
+    const secondCheckPublished = async () => {
+      const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+      return disk.kind === "index" && disk.index.entries[h.path] === undefined;
+    };
+    h.configure({ ports: checkout => {
+      const native = createProjectionEnginePorts(checkout);
+      return { ...native, hooks: { afterFirstCheck: () => { armed = true; return Promise.resolve(); } },
+        linkFs: { lstat: async path => {
+          if (armed && await secondCheckPublished()) {
+            armed = false;
+            now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
+            replacement = await acquireAdvisoryLock(join(h.location.stateDir, PROJECTION_LOCK_FILE), {
+              pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
+              leaseDurationMs: ADVISORY_LEASE_DURATION_MS, maxWaitMs: 200,
+            });
+          }
+          return lstat(path);
+        } },
+        lock: { now: () => now, resolveProcessScope: () => Promise.resolve("original-scope"), scheduleEvery: () => () => undefined } };
+    } });
+    let refused: Awaited<ReturnType<typeof h.release>>;
+    try { refused = await h.release(); }
+    finally { if (replacement !== undefined) await releaseAdvisoryLockConfirmed(replacement); }
+    expect(replacement).toBeDefined();
+    expect(refused).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("Projection lease lost") } });
+    await expect(readFile(join(h.checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+    h.configure({ ports: undefined });
+    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+    expect(await readFile(join(h.checkout, h.path), "utf8")).toBe(bytes);
+    expect(refused).toMatchObject({ remedy: { text: expect.stringContaining(`Release already removed projected files from ${h.checkout}`) } });
   });
 
   it("releases a checkout with neither projection nor index before consulting its missing identity", async () => {

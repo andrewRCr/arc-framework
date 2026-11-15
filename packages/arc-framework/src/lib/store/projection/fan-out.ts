@@ -1,6 +1,6 @@
 /** Refresh eligible worktree projections in bounded, command-owned rounds after landed store operations. */
 import { interpretProjectionView } from "./view-settings.js";
-import { needsProjectionReprojection, projectionSettings as projectedUnder } from "./settings.js";
+import { needsProjectionReprojection, projectionSettings } from "./settings.js";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { createProjectionProtectionEvidence, type ProjectionProtectionEvidence } from "./protection-evidence.js";
@@ -56,7 +56,7 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
   const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, { cwd: input.checkout, ...options });
   const checkouts = createCheckoutObservation(exec), roster = await checkouts.scan();
   // Every target's header is read before the round's version, so a state another process records after it fails the lease check.
-  const own = await observeTarget(ports, input.checkout, input.location);
+  const own = await observeTarget(input.checkout, input.location);
   const siblings = scope === "own" || !roster.ok ? [] : await observeSiblings(input.checkout, input.location, ports, roster.worktrees);
   const source = createProjectionReadMemo(input.store), version = await source.version();
   if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return writes; }
@@ -85,7 +85,7 @@ async function observeSiblings(writer: string, writerLocation: ProjectionLocatio
         || await readReference(checkout.path) === null) continue;
       const location = { ...directories, primary: directories.gitDir === directories.commonDir,
         stateDir: join(directories.gitDir, PROJECTION_STATE_FOLDER) };
-      observed.push(await observeTarget(ports, checkout.path, location));
+      observed.push(await observeTarget(checkout.path, location));
     } catch (cause) { reportProjectionFanOutFailure(checkout.path, cause); }
   }
   return observed;
@@ -112,10 +112,9 @@ function skippedTarget(checkout: string): boolean {
   return projectionProcessState().retiring.has(checkout);
 }
 
-async function observeTarget(ports: ProjectionEnginePorts, checkout: string, location: ProjectionLocation): Promise<ObservedTarget> {
+async function observeTarget(checkout: string, location: ProjectionLocation): Promise<ObservedTarget> {
   if (skippedTarget(checkout)) return { checkout, location, read: "skipped" };
   try {
-    await ports.beforeFanOutTarget?.(checkout);
     return { checkout, location, read: await readProjectionIndex(location, false, { retry: true }) };
   } catch (cause) {
     reportProjectionFanOutFailure(checkout, cause);
@@ -132,6 +131,7 @@ async function visitTarget(round: FanOutRound, observed: ObservedTarget): Promis
   if (disk !== "failed" && disk.kind === "no-projection") return [];
   if (disk === "failed" || disk.kind !== "index") return unmarked;
   try {
+    await round.ports.beforeFanOutTarget?.(checkout);
     const target: FanOutTarget = { checkout, location, index: disk.index };
     const result = await withProjectionFanOutLock(location, session => refreshTarget(round, target, session),
       { maxWaitMs: SIBLING_LOCK_WAIT_MS }, round.ports.lock);
@@ -207,7 +207,7 @@ async function targetRoot(round: FanOutRound, target: FanOutTarget, session: Pro
 function eligibleTarget(round: FanOutRound, root: ProjectionRootState, index: ProjectionIndex, own: boolean): boolean {
   if (own) return true;
   if (index.reprojectionPending === true && !root.spawned) return false;
-  const expected = projectedUnder(root), previous = index.projectedUnder;
+  const expected = projectionSettings(root), previous = index.projectedUnder;
   const identity = round.configuration.identity;
   if (identity.status !== "identified" || expected.identity !== identity.identity
     || !isDeepStrictEqual(expected.view, interpretProjectionView(round.configuration.view).view)) return false;

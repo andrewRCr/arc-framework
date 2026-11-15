@@ -122,6 +122,8 @@ that chunk.
 
 - _Amended in:_ review-fix (A7)
 
+- _Amended in:_ review-fix (A11)
+
     - `[x]` **1.6.R Retain ownership during path reuse — A2**
 
         - _Goal:_ Implement A2's durable ownership handoff so an arriving record remains retryable and a save timed into
@@ -179,6 +181,8 @@ that chunk.
   index recorded reprojects what it governs — views added, files leaving a view by the removal path, the new identity's
   personal root laid on a changed identity, and `current/`, its scratch folder, and owning-checkout notices following
   the claim or layout.
+
+- _Amended in:_ review-fix (A11)
 
 - _Outcome:_ Reprojection and fan-out share the fresh-settings predicate, including marker UID and durable retry flags.
   Personal selection follows the current identity while other personal files and entries remain untouched. A changed
@@ -311,6 +315,8 @@ No production composition sets the slots today, so every caller runs `passingPro
   ever reads as `persist-would-refuse`, and the check never passes a file the persist step would refuse, save a new
   file under a prospective owner, whose kind's content checks run only once the persist step has minted its stub.
 
+- _Amended in:_ 2.5.R (A6)
+
 - _Outcome:_ `checkProjectionRemoval` binds the target read-only, checks every index partition and identity root,
   and reuses adoption and write-back preparation without publishing or sending. File preparation carries hypothetical
   send marks into swap-ordered aside checks; links remain opaque. Pending read failures retain their own provenance,
@@ -323,6 +329,8 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Goal:_ The `persist` slot writes back every edit in the target checkout under its projection lock, every projected
   root included, takes over every settled aside copy, and refuses with the blocking file's remedy rather than let a
   removal drop an edit — releasing the lock before it returns.
+
+- _Amended in:_ 2.5.R (A6)
 
 - _Outcome:_ `persistProjectionRemoval` writes back every target root under its native lease, with a fresh history
   memo over the retrying Store and receipt-based invalidation of the command memo. It reconciles ownership handoffs,
@@ -383,6 +391,8 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Goal:_ Under the capability every worktree holds its own copy of the identity's personal records, `USER-INBOX` and
   `WORKING-MEMORY` among them, read through the store and never through the user-surfaces resolver.
 
+- _Amended in:_ review-fix (A8)
+
     - `[x]` **2.5.R Protect residual personal files before unindexed removal — A6**
 
         - _Goal:_ Implement A6's destructive-removal refusal for non-machine-local personal files in an ARC-managed
@@ -394,9 +404,8 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Outcome:_ Projected inboxes stay checkout-local and fan out through the Store; off-branch teardown, reconciliation,
   husking and cleanup readers bypass legacy personal-file merging and safety reads. Production contexts forward their
   Store, and lint enforces the projection import boundary. Unindexed retirement now preserves personal bytes before
-  deletion, including a failed transient setup's compensation, while release and empty-husk fast paths remain
-  identity-free; protection in a failed work-unit spawn's cleanup is deferred (A8). `notes-projection-worktrees.md`
-  records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
+  deletion, including failed setup compensation, while release and empty-husk fast paths remain identity-free.
+  `notes-projection-worktrees.md` records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
 
 ### `[x]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
 
@@ -562,5 +571,10 @@ No production composition sets the slots today, so every caller runs `passingPro
         command reports the arrival with its remedy; once it is repaired, the next command installs it and acknowledges
         the settings, and a later command with no store change leaves every settled file's inode and mtime unchanged
         (A10; spec criterion 18).
+
+- `[ ]` A refresh, a rebuild over a usable index, or a reprojection that plans a clean file at rest whose record renders
+        to the bytes its entry records, under the same protection, updates the entry without replacing the file, so
+        while an anchor stays held or a reprojection stays pending, each such file keeps its inode and mtime across
+        commands (A11; spec criterion 19).
 
 - `[x]` Ready for integration

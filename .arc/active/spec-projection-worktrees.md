@@ -150,8 +150,16 @@ Criteria test that part._
 3. **Nothing an edit could lose is dropped silently:** a refused, conflicted, unparseable, or unadopted edit stays in
    its file, is reported, and refuses the checkout's removal; a clash whose base the store holds reaches the store as a
    conflict record, which every checkout shows (§ 6–§ 9, § 12).
+
+   _Amended by A8:_ a failed work-unit spawn's cleanup removes its new checkout with no removal check, a deferred
+   residual (§ 17 item 13).
+
 4. **ARC removes a projected checkout only after its edits persist,** through the seam's removal function and the
    projection's removal slots, behind D17's worktree lock (§ 12).
+
+   _Amended by A8:_ that cleanup removes the checkout without the removal slots, so nothing it holds is persisted
+   first (§ 17 item 13).
+
 5. **A command's cost grows with what changed, never with how much state exists:** the projection's no-change overhead
    stays within 10 ms on Linux and 60 ms on Windows (§ 15).
 
@@ -1053,9 +1061,13 @@ missing entry IDs restored but read-back no longer names the accepted landed ver
 #### 15.2 Store-driven refresh
 
 Each worktree's index carries the state version it last projected, and the next command asks the store's `changes` for
-the records since, rewriting only those and any file still marked pending. Before a refresh or a fan-out writes into a
-root, the guard runs, skipped while every ignore file its last pass recorded still matches and none is racy against the
-index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
+the records since, rewriting only those and any file still marked pending. A file it plans stays in place where its
+entry is at rest — no pending, withheld, refused, or in-progress mark, no handoff or adoption, and no unfinished
+recording — its record renders to the bytes the entry records, under the same protection, and the file still holds
+those bytes: only the entry takes the record's version. A refresh, a rebuild over a usable index, and a reprojection so
+replace no file at rest whose rendering, protection, and bytes are unchanged (A11). Before a refresh or a fan-out
+writes into a root, the guard runs, skipped while every ignore file its last pass recorded still matches and none is
+racy against the index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
 
 - **Reducing `changes`.** Refresh keeps each record's newest entry. An entry for a primary record — a work unit's meta
   or an Errand's record — re-lays every record its owner holds, since placement, slug, `Owner`, `Cohort`, and lifecycle
@@ -1112,9 +1124,9 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   every partition read for it, is handled as a removal (`spec-projection-substrate.md` § 5.6), the replace guard and
   pending marks apply, and the index takes the current state version only once the rebuild's evidence is whole (A7).
   Write-back has already run, and a file holding an edit is handed to it as any refresh hands one, so the rebuild loses
-  none. It costs one full materialization, paid by a worktree idle past Git's expiry or one whose state version names
-  history this clone lacks, and one more at each start there until a rebuild takes the current state version (§ 17 item
-  12).
+  none. It costs a full rebuild's reads and renders, writing only what changed (A11), paid by a worktree idle past Git's
+  expiry or one whose state version names history this clone lacks, and the same again at each start there until a
+  rebuild takes the current state version (§ 17 item 12).
 - **A listing that is not whole.** A full materialization and the rebuild write files only for the records a listing
   returns. A record it lists only as a diagnostic (`ListingDiagnosticSchema`, `lib/store/read.ts`) — malformed,
   oversized, unreadable, of a newer format, under a mismatched key, or of any other kind — projects no file and is
@@ -1274,9 +1286,9 @@ each public operation's reader before returning; destination count adds no reade
 ancestry windows, primary re-lays, take-ins, and additional distinct states may require more. Each record its refreshes
 lay is read once in the round, shared by every worktree, a `read` on the ref backend costing at least one Git call. It
 also lists the worktrees, one Git call (`scanRegisteredWorktrees`), and reads each one's index header, and, for each
-primary entry among the changes, re-lays through one `list` by owner shared by every worktree — four Git calls on the
-ref backend, six where it writes a new manifest, budgeted at 600 ms on Windows, where a `read` is budgeted at 300 ms
-(`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs more than a companion's. A primary
+primary entry among the changes, re-lays through one `list` by owner shared by every worktree — two Git processes on the
+ref backend, four where it writes a new manifest (A4), budgeted at 600 ms on Windows, where a `read` is budgeted at 300
+ms (`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs more than a companion's. A primary
 entry's re-lay also selects the in-flight view (`selectProjectionView`, `lib/store/projection/view-selection.ts`: a
 `version()` and two listings) once per round through the memo, and a refresh selects it nowhere else; a laid record's
 conflicts are read once each in the round (`readConflicts`, `lib/store/projection/record-render.ts`). Each file a
@@ -1321,9 +1333,9 @@ built now (§ Tripwire timings). `completed/` lands in every worktree, as the tr
 
 ### 16. Forward amendments to shipped specifications
 
-The storage contract and the projection substrate have shipped, and `projection-write-back` ships before this member
-starts (§ 18). Where this design changes what their specifications define, the change is stated here and built by this
-change, except where a subsection names its builder; none of the three is edited.
+The storage contract, the ref backend, and the projection substrate have shipped, and `projection-write-back` ships
+before this member starts (§ 18). Where this design changes what their specifications define, the change is stated here
+and built by this change, except where a subsection names its builder; none of the four is edited (A4).
 
 #### 16.1 The storage contract (`spec-storage-contract.md`)
 
@@ -1351,6 +1363,9 @@ One adds to D13 without contradicting it:
   back, so removing the checkout would drop either, as it would a file still settling or left pending. The persist and
   release steps check every projected root, `completed/` included, and every other identity's personal root present, and
   the removal check reports a refusal beforehand.
+
+  _Amended by A8:_ a failed work-unit spawn's cleanup removes its new checkout with none of these refusals, a deferred
+  residual (§ 17 item 13).
 
 #### 16.2 The projection substrate (`spec-projection-substrate.md`)
 
@@ -1441,6 +1456,19 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
   (`captureProjectionLocal`, `lib/store/projection/local-capture.ts`; `spec-projection-write-back.md` § 7.2), reads the
   partition of the path's own root group, which holds every candidate container primary it scans.
 
+#### 16.4 The ref backend (`spec-storage-ref-backend.md`)
+
+One changes how § 11.6 reads a tree's entries (A4):
+
+- **A tree's entries come through the operation's object reader** (§ 15.3, § 15.5). § 11.6 reads the entries of the
+  trees an operation needs — a listing's, a lookup's, or a read's reaching a quarter's folder — with one
+  `cat-file --batch-check` resolving each tip's root tree and one `git diff-tree --stdin -r -z` over them, so a `list`
+  costs four processes, six where it writes a new manifest. Here the operation resolves its root trees and walks only
+  the selected subtrees through its one object reader (`enumerateRefTrees`, `lib/store/ref/tree-enumeration.ts`), the
+  reader that then reads its blobs, so a `list` starts two processes, `for-each-ref` and that reader, as a `lookup`
+  does, and four where it writes a new manifest. § 11.7's 600 ms Windows budget for `list` is unchanged
+  (`notes-projection-worktrees.md` § Physical Git-start assertions after reader reuse).
+
 ### 17. Residuals the design accepts
 
 1. **A write through a held handle.** A write through a handle opened before a replacement and landing after the
@@ -1512,15 +1540,16 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
     the next fan-out, whichever comes first, rather than at the writer's fan-out. It needs a save timed into the swap's
     window (§ Spike 1b).
 12. **A worktree whose state version is unset or no longer resolves.** While a worktree's state version is unset, or no
-    longer resolves and no rebuild has yet taken the current one, each start of its own commands rebuilds it in full,
-    one full materialization each, as does each fan-out round of those commands' own writes while it is unset; another
-    worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather than at the
-    writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
+    longer resolves and no rebuild has yet taken the current one, each start of its own commands rebuilds it, reading
+    and rendering every file it lays (A11), as does each fan-out round of those commands' own writes while it is
+    unset; another worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather
+    than at the writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
     `unreadable`, or lists a diagnostic, such as a record of a newer format another build wrote (§ 3.1); an ambiguous
     cohort match; two live claimed primaries; a placement that cannot be established — or while a path it lays holds no
     installed record: a link at or above it, a path the checkout cannot write, an arrival still handing off, or a file
     withheld with no record basis at a path a record has since arrived at, until that file is deleted. Each is reported
-    with its remedy (§ 2.5, § 15.2, A7).
+    with its remedy (§ 2.5, § 15.2, A7). Each repeated rebuild leaves in place each file at rest whose rendering,
+    protection, and bytes are unchanged, which keeps its inode and mtime (§ 15.2, A11).
 13. **A failed work-unit spawn's cleanup (A8).** Three cleanups after a failed work-unit spawn — `rollbackFreshSpawn`,
     `rejectCreateNewScaffold`, and a graduation's occupation rollback — remove the new checkout through
     `removeDisposableSpawn` with no removal check, so a personal file a `post_create` script wrote there goes with it,
@@ -1537,10 +1566,17 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
 15. **A pending reprojection (A10).** While a reprojection's flag stays set because a desired arrival is blocked — a
     link at or above its path, a path the checkout cannot write, an ownership handoff not yet confirmed, or a file
     withheld at its path (§ 10.4) — each start of the checkout's own commands, and each fan-out round of their own
-    writes, reprojects again and re-lays every file its settings govern, since the index records no per-file settings
-    basis that would tell a file laid under the fresh target from one laid under an earlier setting. It lasts until the
+    writes, reprojects again and re-renders every file its settings govern, since the index records no per-file
+    settings basis that would tell a file laid under the fresh target from one laid under an earlier setting, leaving
+    in place each file at rest whose rendering, protection, and bytes are unchanged (§ 15.2, A11). It lasts until the
     arrival is repaired, each command reporting it with its remedy; the next command then installs it and acknowledges
     the settings, and later commands lay only what changed (§ 15.2).
+16. **A held refresh anchor (A11).** While a refresh keeps its index's state version because something it reached
+    stays unresolved — an arrival not yet installed, a link at or above a path it lays, a regular file where a laid
+    path's folder belongs, a refused read, or an owner's listing or placement it could not establish whole — each later
+    command plans, reads, and renders again every record changed since that anchor, a window that grows with each store
+    write, while each file at rest whose rendering, protection, and bytes are unchanged stays in place (§ 15.2). It
+    lasts until the condition holding the anchor is repaired.
 
 ### 18. Expected contracts
 
@@ -1643,9 +1679,9 @@ first.
       state version this clone cannot resolve — takes no pull (`spec-projection-write-back.md` § 7.8);
     - `pull` and `push` replacing `sync` (§ 2.1), a pull's merges landing with no `write` (§ 6.4), which the fan-out
       wraps (§ 2.2 here), and `version()` costing one Git call, three where the manifest is new (§ 4.2);
-    - `list` batching its blob reads, at four Git calls, six where it writes a new manifest, within a 600 ms budget on
-      Windows (§ 11.6, § 11.7), which full materialization and a primary entry's re-lay read through (§ 15.4, § 15.5
-      here);
+    - `list` reading its trees and blobs through one batch reader, at two Git process starts, four where it writes a new
+      manifest (§ 16.4 here, A4), within a 600 ms budget on Windows (§ 11.6, § 11.7), which full materialization and a
+      primary entry's re-lay read through (§ 15.4, § 15.5 here);
     - the reference backend refusing `state-unresolvable`, implementing `pull`, refusing a primary's put without
       placement, and parsing a stale base's merged content (§ 14.2), which the gate here exercises (§ 1.5 here);
     - `createRefStore`, the store tests build over it, its process writer (`startRefWriter`,
@@ -1861,6 +1897,11 @@ _These considerations cover the design the three members build together; § 1.1 
     once it is repaired, the next command installs it and acknowledges the settings, and a later command with no store
     change leaves every settled file's inode and mtime unchanged.
 
+19. **A refresh leaves unchanged files at rest in place (A11).** A refresh, a rebuild over a usable index, or a
+    reprojection that plans a clean file at rest whose record renders to the bytes its entry records, under the same
+    protection, updates the entry without replacing the file, so while an anchor stays held or a reprojection stays
+    pending, each such file keeps its inode and mtime across commands.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1874,10 +1915,10 @@ this design open.
 - **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 2.2, the fan-out's skip of a
   current worktree. _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
 
-- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1;
+- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1; § 18 ¶ `list`;
   Cross-cutting Considerations, "Performance"; criterion 4. _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
-- **A5** — 2026-11-12 — design: verify inert removal bindings statically. _Supersedes:_ none; adds § 12.2's binding
+- **A5** — 2026-11-12 — spec-depth: verify inert removal bindings statically. _Supersedes:_ none; adds § 12.2's binding
   verification and criterion 12. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
 
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
@@ -1886,14 +1927,17 @@ this design open.
 - **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ § 15.2 ¶5; § 16.1 ¶3;
   § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
-- **A8** — 2026-11-14 — design: defer work-unit spawn cleanup protection. _Supersedes:_ criteria 2 and 13 for work-unit
-  spawn cleanups; § 12.2 ¶ spawn compensation. _Trigger:_ standard pass 1 A2. _Work:_ review-fix. _Revalidated:_ 3.1.
+- **A8** — 2026-11-14 — design: defer spawn cleanup protection. _Supersedes:_ Goals 3–4, criteria 2, 13, § 12.2 ¶ spawn
+  compensation, § 16.1 ¶5 for work-unit spawns. _Trigger:_ pass 1 A2 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **A9** — 2026-11-14 — design: accept changed marks a contended end loses. _Supersedes:_ criterion 6 for marks no round
   or end records; § 11.7 ¶ setting the mark. _Trigger:_ fix check 1 F3 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **A10** — 2026-11-14 — spec-depth: bound a pending reprojection's retries. _Supersedes:_ none; adds § 17 item 15
   and criterion 18. _Trigger:_ fix check 1 F4 review. _Work:_ review-fix. _Revalidated:_ 3.1.
+
+- **A11** — 2026-11-14 — spec-depth: keep unchanged files in place. _Supersedes:_ § 15.2 ¶ rebuild cost; § 17 items 12,
+  15; adds item 16, criterion 19. _Trigger:_ pass 2 A2 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

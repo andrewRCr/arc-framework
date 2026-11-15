@@ -60,13 +60,26 @@ it.each(["absent", "manual-only"])("adds no policy for an %s marker", async mark
   expect(await observeUnprojectedPersonalFiles(h.root, { readdir: unexpected, lstat: unexpected })).toEqual({ kind: "passes" });
 });
 
-it("refuses an unreadable marker instead of treating it as unmanaged, naming its repair, and passes once repaired", async () => {
+it("refuses a malformed marker instead of treating it as unmanaged, naming its repair, and passes once repaired", async () => {
   const h = await fixture(), marker = resolveWorktreeMarkerPath(h.root), original = await readFile(marker);
   await writeFile(marker, "{ malformed marker");
   expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "unobservable",
     detail: expect.stringContaining("Repair or remove the marker, then retry removal.") });
   await writeFile(marker, original);
   expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "passes" });
+});
+
+it("keeps a marker that cannot be read unobservable instead of reading it as absent, and passes once it reads", async () => {
+  const h = await fixture(), marker = resolveWorktreeMarkerPath(h.root), original = await readFile(marker);
+  await h.put(".arc/user/anyone/note.md");
+  await rm(marker);
+  await mkdir(marker);
+  expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "unobservable",
+    detail: expect.stringContaining(`Cannot observe unindexed personal files at ${h.root}`) });
+  await rm(marker, { recursive: true });
+  await writeFile(marker, original);
+  expect(await observeUnprojectedPersonalFiles(h.root)).toMatchObject({ kind: "would-refuse",
+    remedy: { text: expect.stringContaining(".arc/user/anyone/note.md") } });
 });
 
 it.each(["user-root", "personal-root", "nested-directory", "file"])("does not follow a %s symbolic link", async placement => {

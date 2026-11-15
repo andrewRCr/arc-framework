@@ -21,6 +21,14 @@ export function isExcludedProjectionPath(path: string): boolean {
   return isExcludedProjectionFile(path) || isMachineLocalProjectionPath(path);
 }
 
+/**
+ * The planned paths a lay acts on. A record stored at an excluded path is never laid and owes no arrival, so local
+ * bytes there stay untouched and are never taken in.
+ */
+export function laidProjectionPaths<T>(paths: ReadonlyMap<string, T>): Map<string, T> {
+  return new Map([...paths].filter(([path]) => !isExcludedProjectionPath(path)));
+}
+
 /** Whether a checkout-relative path is covered by an applicable machine-local registry rule. */
 export function isMachineLocalProjectionPath(path: string): boolean {
   const segments = path.split("/");

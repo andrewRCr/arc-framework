@@ -46,7 +46,8 @@ it("rebuilds a deleted bound withheld file at the next command and clears its st
   await endProjection(h.command);
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(h.notes.content);
   const status = await readProjectionStatus(h.command);
-  expect(status.kind === "ready" && status.files.some(file => file.path === h.path)).toBe(false);
+  if (status.kind !== "ready") throw new Error(`Projection status unavailable: ${status.kind}`);
+  expect(status.files.some(file => file.path === h.path)).toBe(false);
 });
 
 it("keeps a refused edit at its departing path through refreshes, then takes it in and removes the old path", async () => {

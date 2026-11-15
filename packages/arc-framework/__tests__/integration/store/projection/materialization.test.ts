@@ -6,7 +6,10 @@ import { createKindRegistry } from "../../../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/registrations.js";
 import { Command } from "commander";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
-import { materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
+import { bindSpawnMaterialization, materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
+import { ProjectionPartitionMismatch } from "../../../../src/lib/store/projection/index-memory.js";
+import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
+import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { access, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,7 +26,7 @@ import { locateProjection } from "../../../../src/lib/store/projection/location.
 import { bindProjectionRoot } from "../../../../src/lib/store/projection/engine-binding.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
-import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
 import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
 import { materializeProjectionRoot } from "../../../../src/lib/store/projection/materialization.js";
@@ -129,16 +132,23 @@ it("creates no work-unit scratch folder for a checkout an Errand claims", async 
   await expect(stat(join(target.checkout, ".arc/user/andrew/scratch/work-unit"))).rejects.toMatchObject({ code: "ENOENT" });
 });
 
-it("reports a scratch folder it cannot create and still publishes the materialization", async () => {
+it("reports a scratch folder it cannot create, still publishes the materialization, and names the folder to create by hand", async () => {
   const target = await fixture();
+  const scratch = ".arc/user/andrew/scratch/work-unit/work-item-one";
+  const occupying = join(target.checkout, ".arc/user/andrew/scratch");
   await mkdir(join(target.checkout, ".arc/user/andrew"), { recursive: true });
-  await writeFile(join(target.checkout, ".arc/user/andrew/scratch"), "A file where the scratch folder belongs.\n");
+  await writeFile(occupying, "A file where the scratch folder belongs.\n");
   const version = success(await target.h.store.version());
   expect(await materialize(target)).toMatchObject({ status: "done", value: { kind: "materialized", index: { state: version } } });
-  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({
-    path: ".arc/user/andrew/scratch/work-unit/work-item-one", mark: expect.objectContaining({ reason: expect.stringContaining("scratch folder") }) }));
+  const reported = projectionProcessState().diagnostics.find(diagnostic => diagnostic.path === scratch);
+  expect(reported?.mark.reason).toContain("scratch folder");
   const disk = await readProjectionIndex(target.location, true);
   expect(disk).toMatchObject({ kind: "index", index: { state: version } });
+  const folder = /then create the folder (.+) by hand\.$/.exec(reported?.mark.remedy.text ?? "")?.[1];
+  expect(folder).toBe(join(target.checkout, scratch));
+  await rm(occupying);
+  await mkdir(folder!, { recursive: true });
+  expect((await stat(join(target.checkout, scratch))).isDirectory()).toBe(true);
 });
 
 it("never creates the scratch folder through a linked ancestor", async () => {
@@ -178,6 +188,23 @@ it("leaves an unmaterialized worktree retryable when its npm policy is missing a
   expect(parseStampedFile(await readFile(join(target.checkout, ".arc/active/current/meta-work-item-one.md"), "utf8")).content).toBe(target.primary.content);
 });
 
+
+it("leaves paths under a folder a regular file occupies unlaid and pending, then lays them once it moves", async () => {
+  const target = await fixture();
+  const occupied = join(target.checkout, ".arc/active/current");
+  await mkdir(join(target.checkout, ".arc/active"), { recursive: true });
+  await writeFile(occupied, "A file where a folder belongs.\n");
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  expect(first.value).toMatchObject({ kind: "materialized", index: { state: null } });
+  expect(first.value.index.entries[HELD.notes]).toMatchObject({ kind: "record", pending: true });
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: HELD.notes,
+    mark: expect.objectContaining({ remedy: { text: `Move or delete ${occupied}, then run any arc command from ${target.checkout}; it lays ${HELD.notes}.` } }) }));
+  await rm(occupied);
+  expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
+  expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
+  expect((await settledIndex(target)).state).toBe(success(await target.h.store.version()));
+}, 60_000);
 
 it("rebuilds an unedited file but withholds hand edits and unknown files until their deletion", async () => {
   const target = await fixture();
@@ -284,10 +311,15 @@ it("keeps the held mark through a sync restoration over the held index and settl
 it("gives held files at unplaced paths the ordinary mark once evidence is whole, though a link blocks a laid path", async () => {
   const target = await fixture();
   const outside = await mkdtemp(join(tmpdir(), "arc-scratch-outside-")); directories.push(outside);
-  await heldRebuild(target, { prepare: async () => {
+  const { index } = await heldRebuild(target, { prepare: async () => {
     await rm(join(target.checkout, HELD.scratch), { recursive: true, force: true });
     await symlink(outside, join(target.checkout, HELD.scratch));
   } });
+  // The path behind the link waits, unmarked, for the link's own report and remedy.
+  expect(index.entries[HELD.arriving]).toMatchObject({ kind: "record", pending: true, withheld: false, refused: null });
+  expect(projectionProcessState().diagnostics.filter(each => each.path === HELD.arriving)).toEqual([]);
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({
+    mark: expect.objectContaining({ remedy: expect.objectContaining({ text: expect.stringContaining("Replace the symbolic link") }) }) }));
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
   const settled = await settledIndex(target);
   expect(settled.entries[HELD.notes]).toMatchObject({ kind: "record", withheld: false });
@@ -710,6 +742,42 @@ it("settles copies from both materializations when a spawn binds its root twice"
   await program.parseAsync(["spawn-probe"], { from: "user" });
   if (firstCopy === undefined) throw new Error("Missing first replacement copy");
   await expect(readFile(join(target.checkout, firstCopy))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("keeps a mismatched partition in a spawned checkout that is not the command's own and reports the mismatch", async () => {
+  const target = await fixture();
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  const header = JSON.parse(await readFile(join(target.location.stateDir, "index"), "utf8")) as { groups: Record<string, { name: string }> };
+  const partition = Object.values(header.groups)[0]!.name;
+  const bytes = await readFile(join(target.location.stateDir, partition), "utf8");
+  const store = overrideEngineStore(target.h.store, { version: () => Promise.reject(new ProjectionPartitionMismatch(partition, target.location)) });
+  beginProjectionCommand();
+  bindSpawnMaterialization({ store, checkout: target.h.checkout });
+  await materializeSpawnedProjection(target.checkout);
+  expect(await readFile(join(target.location.stateDir, partition), "utf8")).toBe(bytes);
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: target.checkout,
+    mark: expect.objectContaining({ reason: expect.stringContaining(`mismatched index partition: Projection partition ${partition}`) }) }));
+});
+
+it("reports a spawn's lost lease as lost, with the lock's report", async () => {
+  const target = await fixture();
+  let now = Date.now(), replacement: AdvisoryLockHandle | undefined;
+  const store = overrideEngineStore(target.h.store, { version: async () => {
+    now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
+    replacement = await acquireAdvisoryLock(join(target.location.stateDir, PROJECTION_LOCK_FILE), {
+      pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
+      leaseDurationMs: ADVISORY_LEASE_DURATION_MS, maxWaitMs: 200 });
+    return target.h.store.version();
+  } });
+  beginProjectionCommand();
+  bindSpawnMaterialization({ store, checkout: target.h.checkout, ports: () => ({ ...createProjectionEnginePorts(target.checkout),
+    lock: { now: () => now, resolveProcessScope: () => Promise.resolve("original-scope"), scheduleEvery: () => () => undefined } }) });
+  try { await materializeSpawnedProjection(target.checkout); }
+  finally { if (replacement !== undefined) await releaseAdvisoryLockConfirmed(replacement); }
+  expect(replacement).toBeDefined();
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: target.checkout,
+    mark: expect.objectContaining({ reason: expect.stringContaining("Projection materialization lost its lease") }) }));
 });
 
 async function seedWorkUnit(target: Awaited<ReturnType<typeof fixture>>, name: string) {

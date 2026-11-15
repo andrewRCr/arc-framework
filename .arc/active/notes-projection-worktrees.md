@@ -15,11 +15,11 @@
 - [Implementation timing feedback](#implementation-timing-feedback)
 - [A4 — Full-round performance calibration](#a4--full-round-performance-calibration)
     - [Owner direction for 1.14 — 2026-11-11](#owner-direction-for-114--2026-11-11)
-    - [Native cross-process save placement](#native-cross-process-save-placement)
     - [Physical Git-start assertions after reader reuse](#physical-git-start-assertions-after-reader-reuse)
-    - [Segment scenario and ownership recheck](#segment-scenario-and-ownership-recheck)
+- [Native cross-process save placement](#native-cross-process-save-placement)
+- [Segment scenario and ownership recheck](#segment-scenario-and-ownership-recheck)
     - [Segment timing qualification](#segment-timing-qualification)
-    - [Removal-check read boundaries](#removal-check-read-boundaries)
+- [Removal-check read boundaries](#removal-check-read-boundaries)
 - [Removal persistence](#removal-persistence)
 - [Release under the persistence lease](#release-under-the-persistence-lease)
 - [Removal compositions](#removal-compositions)
@@ -34,6 +34,7 @@
 - [Native Windows fixture fidelity](#native-windows-fixture-fidelity)
 - [Removal segment qualification](#removal-segment-qualification)
 - [A7 — files a no-index rebuild cannot place](#a7--files-a-no-index-rebuild-cannot-place)
+- [A11 — unchanged files kept in place](#a11--unchanged-files-kept-in-place)
 
 ## Spike evidence
 
@@ -588,6 +589,9 @@ evidence for keeping settled archive entry growth out of the criterion rebase.
 
 ## A4 — Full-round performance calibration
 
+No amendment A3 was logged: the identity was never given a row, and the later rows keep their ids so that every
+citation of A4 onward still resolves.
+
 The approved rebase replaces prototype-derived bounds with platform-specific full-round measurements. The
 concurrent-visit proposal stays held. The earlier proposed 15 ms Linux start bound left almost no run-to-run margin; the
 one-third allowance over the 14.64 ms expanded median rounds upward to a 20 ms start budget, with a 25 ms tripwire. The
@@ -745,7 +749,24 @@ expanded 3.39/5.94 ms, using the raw record's precision. A start above 20 ms wit
 and stops. This is the Owner's direction for judging the timing evidence, not an exemption for functional or
 quality-check failures.
 
-### Native cross-process save placement
+### Physical Git-start assertions after reader reuse
+
+Dispatched run `43116874002` exposed stale exact-process assertions in Store Suites 1 and 6 after recursive tree
+enumeration moved onto the operation's persistent reader. The native lookup trace starts `for-each-ref` and one
+`cat-file`, with root resolution, tree traversal, and ranking blobs exchanged through that same reader. An unchanged
+lookup adds only `for-each-ref`; a changed tip adds both again, giving cumulative counts 2/3/5. Direct UID reads stay at
+one start, listings take two, and a read followed by two listings takes 1/3/5. A cold listing's retained token also
+needs `mktree` and `update-ref`, giving 4/5/7 for listing, version, and repeated listing.
+
+The completed/Errand/claim lookup test previously counted `rawExec` invocations as processes. Its additional tree
+request is an exchange with an existing reader. It now counts the native executor's start callback and requires
+cumulative 2/3/4 starts while retaining each returned-record assertion. Reconstruction
+`46c193cf142a4c83876a9cb2ef9281f6` failed at five physical starts when each batch request was forced to bypass the
+reader. The live-lookup failures reproduced in `f91b814752ac47e4b73ffac9784144e8`; corrected full run
+`57513c59b9ba449d8c3e3638ea4d7d4b` passed all 64 cases across the four affected files. These corrections tighten the
+process bounds and repair the measured quantity; no production read behavior or acceptance budget changes.
+
+## Native cross-process save placement
 
 The burst suite gives twenty linked worktrees distinct engine processes over the ref backend in each layout. An
 editor in process N holds a handle into process N+1's root, wrapping at twenty, so a save reaches another process's
@@ -775,7 +796,7 @@ The isolation case separately failed before registration in `a011e8740b8848cdac5
 `3150d274ca4542ea98a4cccc9e6b4568`. These runs establish local task feedback; the task's dispatched portability and
 Linux evidence is recorded with its completion.
 
-#### Oracle hash boundary
+### Oracle hash boundary
 
 The completed-copy comparison in `observeAsideCopy` treats bytes matching `moving` or `landed` as no edit, which
 settlement deletes. A pending parent entry therefore cannot alone establish that a copy remains a recoverable save.
@@ -789,7 +810,7 @@ The initial interrupted attempt, `e395d1c372fe46bca2f59a9991edc84c`, retained no
 The complete corrected twenty-process suite passed all twenty-two cases in run
 `52fb7151e6fd435b9bfadf0443449634` on M4, covering both layouts and every required rendezvous.
 
-#### Filesystem aliases at fan-out
+### Filesystem aliases at fan-out
 
 Hosted diagnostic `43124035152` at `73174e0ab5` exposed the Windows failure precisely: Node's temporary directory
 used the `RUNNER~1` short spelling while Git's roster returned `runneradmin`. Lexical normalization cannot identify
@@ -806,7 +827,7 @@ Corrected native run `d430ed45dcf24269a593351a5e3564f3` passed the alias, write,
 cases; Windows run `afa33e0a2a31407dbb68739d2b232e1d` passed all three native ref cases. Full fan-out regression
 `614e8f1fee5e48dfa052f74b17cc418e` passed all 51 cases across fourteen files.
 
-#### Dispatched native qualification
+### Dispatched native qualification
 
 Run `43126888591` passed at `4c81df9ec8fa9652d20c6039c32a0bed73f3e3ff`. Its named-file pair ran the complete burst
 suite, timing-isolation regression, and native fan-out cases: Windows job `130881625326` and macOS job `130881625356`
@@ -814,24 +835,7 @@ each completed all 26 cases, including all 22 burst cases across both layouts. L
 also completed all 22 burst cases and timing isolation within its full selected tier. The named-file input scopes
 this evidence to task qualification. The final local burst/isolation run was `abfbe9d95f884b9a84617475b692f725`.
 
-### Physical Git-start assertions after reader reuse
-
-Dispatched run `43116874002` exposed stale exact-process assertions in Store Suites 1 and 6 after recursive tree
-enumeration moved onto the operation's persistent reader. The native lookup trace starts `for-each-ref` and one
-`cat-file`, with root resolution, tree traversal, and ranking blobs exchanged through that same reader. An unchanged
-lookup adds only `for-each-ref`; a changed tip adds both again, giving cumulative counts 2/3/5. Direct UID reads stay at
-one start, listings take two, and a read followed by two listings takes 1/3/5. A cold listing's retained token also
-needs `mktree` and `update-ref`, giving 4/5/7 for listing, version, and repeated listing.
-
-The completed/Errand/claim lookup test previously counted `rawExec` invocations as processes. Its additional tree
-request is an exchange with an existing reader. It now counts the native executor's start callback and requires
-cumulative 2/3/4 starts while retaining each returned-record assertion. Reconstruction
-`46c193cf142a4c83876a9cb2ef9281f6` failed at five physical starts when each batch request was forced to bypass the
-reader. The live-lookup failures reproduced in `f91b814752ac47e4b73ffac9784144e8`; corrected full run
-`57513c59b9ba449d8c3e3638ea4d7d4b` passed all 64 cases across the four affected files. These corrections tighten the
-process bounds and repair the measured quantity; no production read behavior or acceptance budget changes.
-
-### Segment scenario and ownership recheck
+## Segment scenario and ownership recheck
 
 Base merge `63d619fc93` includes `main` at `ec3f511ba136d5536469879411dabecbf3531e45`. The timing-isolation overlap
 preserves the incoming nested-run timeout helper and the projection-burst registration; the generated ROADMAP was the
@@ -852,7 +856,7 @@ scenario, full materialization/layout suite, path reuse, and refresh retries. Cl
 A → B → A layout cycle passed in `22f45ef2137242f7ab6554b7da2c2f6c`; interrupted unstamped installations and write-back
 handoff refusals passed in `f97f53e6e6f84ecc9ecbcc5452a23bb9`.
 
-#### Segment timing qualification
+### Segment timing qualification
 
 The segment's common source head is `8618d5b9277c143038cb2ae4c0c102c98c94532b`. Linux reference run
 `f148db31f906455ea075a3a6c09ff531` used snapshot `1b65d7b3ff0b756ccab0b1e4fe825e4d8f5e307b`; its package,
@@ -905,7 +909,7 @@ are retained; artifact digests and all eleven metric medians were checked indepe
 the Owner's explicit direction. It demonstrates intermittent performance variation, not a repaired cause of the first
 macOS miss, and changes no limit or locking decision.
 
-### Removal-check read boundaries
+## Removal-check read boundaries
 
 `checkProjectionRemoval` reuses `bindReadOnlyProjectionRoot`, which already supplies fresh target layout, rights,
 local capture, and a non-creating actor read. The check reads every index partition with its lock-free retry, and
@@ -1821,13 +1825,14 @@ it, under `evidenceHeldProjectionMark`, a withheld entry with its own mark, whos
 condition and then running any command from the holding checkout, and its index takes no state version until the
 evidence is whole. The next rebuild there (`planProjectionRebuild`) applies § 2.5's rule to each held file where it now
 lays a record (`settleHeldFile`), and once its evidence is whole turns a held mark at a path still laid no record into
-the ordinary withheld mark (`settleHeldMarks`), as a full materialization over the held index does once its own evidence
-is whole, since its end can publish the state version, after which no rebuild follows. `arc sync`'s, which lays only
-deleted files (`onlyDeleted`), publishes no state version and converts no mark, leaving both to the next start's
-rebuild. One predicate, `isEvidenceHeldEntry`, which reads the reason's `evidence-held:` code rather than its prose,
-keys both, and `hold()` keeps the held mark at a laid path through a materialization over the held index, so only that
-mark lets a rebuild write over a withheld file: an ordinarily withheld file stays as the substrate leaves it, until the
-person deletes it. A file withheld because its bytes differ from the record at its path keeps the ordinary outcome.
+the ordinary withheld mark (`settleHeldMarks`, in `applyProjectionRefresh`). Held marks settle only through that
+rebuild: a full materialization runs only where the worktree has no usable index, so it never lays over a held one, and
+`arc sync`'s, the one materialization over a usable index, lays only deleted files (`onlyDeleted`), publishes no state
+version and converts no mark, leaving both to the next start's rebuild. One predicate, `isEvidenceHeldEntry`, which
+reads the reason's `evidence-held:` code rather than its prose, keys both, and `hold()` keeps the held mark at a laid
+path through `arc sync`'s restoration over the held index, so only that mark lets a rebuild write over a withheld file:
+an ordinarily withheld file stays as the substrate leaves it, until the person deletes it. A file withheld because its
+bytes differ from the record at its path keeps the ordinary outcome.
 
 An unset state version lasts while any condition § 17's twelfth residual names holds, and each start in that worktree
 rebuilds it in full. The fan-out leaves such a worktree, other than the writer's own, to that start, as it leaves one
@@ -1843,3 +1848,31 @@ review-fix commits: most of it in `c3f43d3534`, and the fan-out's skip in `4490a
 whose gate it extends, with the corrections of its later review rounds in `5e8caa8d77`, `23868a1c05`, `422d54f7f2` and
 `34661e67de`, the last counting a file withheld on its record's basis as bound, so that § 17's twelfth residual alone
 keeps a rebuild's state unset. It revalidates at Task 3.1.
+
+## A11 — unchanged files kept in place
+
+Approved with standard pass 2's disposition set on 2026-11-14, for its A2 and the instance its A9 names. A refresh that
+holds its state version — a link at an arrival path, a refused read of a newer-format record, an owner listing
+diagnostic, an ambiguous cohort name — asks every later command for the changes since the same anchor, and each command
+restaged and swapped every file in that growing window, though each was already laid at its record's current version.
+A claim without a UID likewise re-planned its whole unit on any change to one of its records. Every planner hands its
+paths to one lay step, `prepareMaterializationFile`, which swapped whatever it was given, so § 15.2's rule of rewriting
+only what changed held planner by planner and failed wherever one planned too much: pass 1's A1, fix check 1's F1 and
+pass 2's A2 were instances of that one cause.
+
+Recording the held-anchor re-lay as a further § 17 residual with a bounding criterion, and patching the claim's re-plan
+alone, was declined for the fix at that cause. The lay step leaves in place a file at rest — its entry carrying no
+pending, withheld, refused or in-progress mark, no handoff or adoption, and no unfinished recording — that is clean and
+whose record renders to the bytes and protection its entry records, updating only the entry (`keepSettledFileInPlace`,
+`settled-in-place.ts`), at the cost of one rendered-blob comparison and the change check per planned file. "At rest" is
+its own term because "settled" already carries two meanings: the substrate's settle rule, and § 3.1's complement of an
+unsettled entry, which differs from this set on in-progress marks, aside copies and unshown notices. A rebuild with no
+usable index has no entry to compare and still lays in full. What remains is the reading and rendering a held anchor, a
+rebuild, or a pending reprojection repeats at each command, which § 17 items 12, 15 and 16 record.
+
+`refresh-settled-files.test.ts` covers a held anchor, a rebuild over a usable index with no state version, a pending
+reprojection, and an Errand claim, each keeping its unchanged files' inode and mtime, and a conflict landing on an
+unchanged record still re-laying its file. `settled-in-place.test.ts` covers each mark that keeps an entry from rest,
+a changed rendering or protection, an edited or deleted file, and a stat-only change proved clean by hash. The
+footprint is § 15.2 ¶1 and its state-unresolvable cost, § 17 items 12, 15 and 16, criterion 19, and Tasks 1.6 and 1.8,
+with no new task. It revalidates at Task 3.1.

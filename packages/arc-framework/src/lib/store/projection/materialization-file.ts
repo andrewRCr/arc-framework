@@ -1,6 +1,6 @@
 /** Prepare one materialized file, trusting existing index evidence or a checked rebuild baseline. */
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { StoreRecord } from "../read.js";
 import { sameReference } from "../identity.js";
@@ -17,6 +17,8 @@ import { guardReplacement } from "./replace-guard.js";
 import type { SwapFile } from "./swap.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { installProjectionHandoff } from "./ownership-install.js";
+import { keepSettledFileInPlace } from "./settled-in-place.js";
+import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -31,8 +33,11 @@ export interface MaterializationFileInput {
   readonly reference: bigint | null;
   readonly blocked: boolean;
 }
-/** A held entry or one guarded replacement ready for the batch. */
-export interface MaterializationFileResult { readonly index: ProjectionIndex; readonly file?: SwapFile }
+/**
+ * A held entry or one guarded replacement ready for the batch; `unresolved` where the path could not be laid this pass,
+ * so the caller keeps its state version.
+ */
+export interface MaterializationFileResult { readonly index: ProjectionIndex; readonly file?: SwapFile; readonly unresolved?: true }
 
 /** Form a pending record basis without claiming any bytes already exist at its path. */
 export function projectionEntryForRecord(record: StoreRecord, path: string, format: ObjectFormat): RecordEntry {
@@ -52,8 +57,9 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   if (prior?.kind === "record" && !sameReference(prior.reference, record.reference)) {
     return { index: await installProjectionHandoff({ ...input, arriving: projectionEntryForRecord(record, path, root.context.format) }) };
   }
+  // A path at or below a walked link waits for the link's own report and remedy; its file lives elsewhere.
+  if (input.blocked) return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }) };
   if (input.rebuilding) entry = await rebuildBasis(input, entry);
-  if (input.blocked) entry = { ...entry, withheld: true, pending: true };
   const rendered = input.rendered === undefined ? await renderer({ record, content: record.content, stamped: path.endsWith(".md") })
     : { status: "ok" as const, result: input.rendered };
   if (rendered.status === "refused") {
@@ -63,10 +69,23 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   }
   entry = { ...entry, protected: rendered.result.protected ?? entry.protected };
   if (entry.withheld) return hold(input, entry);
+  const kept = input.rebuilding ? null : await keepSettledFileInPlace({ checkout: root.checkout, path, prior, record,
+    rendered: rendered.result, protected: entry.protected, reference: input.reference, format: root.context.format });
+  if (kept !== null) return { index: withProjectionEntry(input.index, path, kept) };
+  return layFile(input, entry, rendered.result);
+}
+
+/** Stage the rendering and guard its replacement, leaving the path pending where a regular file occupies its folder. */
+async function layFile(input: MaterializationFileInput, entry: RecordEntry, rendered: RenderedRecord): Promise<MaterializationFileResult> {
+  const { root, path, record, renderer } = input;
   await root.context.checkpoint?.();
-  await mkdir(join(root.checkout, dirname(path)), { recursive: true });
+  const occupying = await ensureLayFolder(root.checkout, path);
+  if (occupying !== null) {
+    root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
+    return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
+  }
   const staged = await stageRenderedRecordFile({ checkout: root.checkout, path, record, replacing: entry.base.blob,
-    content: rendered.result.content, notices: rendered.result.notices, rendering: { ...rendered.result.state, protected: entry.protected },
+    content: rendered.content, notices: rendered.notices, rendering: { ...rendered.state, protected: entry.protected },
     readOnly: entry.protected, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
   const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged, reference: input.reference,
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint, takeIn: root.takeIn, renderer });
@@ -74,7 +93,6 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
 }
 
 async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry): Promise<RecordEntry> {
-  if (input.blocked) return { ...entry, withheld: true };
   const absolute = join(input.root.checkout, input.path);
   const gate = await gateRead({ path: absolute, markdown: false });
   if (gate.kind === "absent") return entry;

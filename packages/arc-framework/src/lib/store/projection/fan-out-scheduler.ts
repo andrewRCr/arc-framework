@@ -27,17 +27,20 @@ export async function flushProjectionFanOut(): Promise<void> {
   const writer = state.roots.get(checkout);
   const startedAt = writer === undefined ? undefined : projectionTimingNow(writer.ports);
   state.fanOutRunning = true;
-  let round = 0;
+  let round = 0, writes: RecordReference[] = [];
   try {
     while (state.fanOutRounds.size > 0) {
       state.fanOutRounds.clear();
-      const writes = [...state.fanOutOwnWrites];
+      writes = [...state.fanOutOwnWrites];
       state.fanOutOwnWrites = [];
       const unmarked = await state.fanOut(writes, round++) ?? [];
+      writes = [];
       for (const reference of unmarked) retainOwnWrite(state.fanOutOwnWrites, reference);
     }
   } catch (cause) {
     state.fanOutRounds.clear();
+    // A round that throws marked none of its own writes: the end's own-checkout visit marks or reports them.
+    for (const reference of writes) retainOwnWrite(state.fanOutOwnWrites, reference);
     reportProjectionFanOutFailure(checkout, cause);
   } finally {
     state.fanOutRunning = false;

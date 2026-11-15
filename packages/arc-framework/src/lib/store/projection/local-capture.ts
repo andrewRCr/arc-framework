@@ -40,14 +40,16 @@ export type ProjectionLocalCaptureResult = StoreResult<ProjectionLocalCapture> &
 
 /** Capture every local candidate position, treating unreadable evidence differently from absence. */
 export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<ProjectionLocalCaptureResult> {
-  // A reader holding no lease restarts once across a concurrent publication, then reports the index unobservable.
-  const disk = input.index ? null : await readProjectionIndex(input.location, true, { retry: true });
+  // A reader holding no lease restarts once across a concurrent publication, its path's partition loaded inside that
+  // read, then reports the index unobservable.
+  const disk = input.index ? null : await readProjectionIndex(input.location, true,
+    { retry: true, groups: [projectionIndexGroup(input.path)] });
   if (disk?.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
     `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
   const index = input.index ?? (disk?.kind === "index" ? disk.index : null);
   const settings = input.settings ?? index?.projectedUnder;
   if (!settings) return refusedLocal("The projection settings and ownership basis are unavailable.");
-  if (index !== null) loadProjectionGroups(index, [projectionIndexGroup(input.path)]);
+  if (input.index !== undefined) loadProjectionGroups(input.index, [projectionIndexGroup(input.path)]);
   const entry = index?.entries[input.path];
   if (entry?.kind === "record" && entry.handoff !== undefined) {
     const mark = ownershipHandoffMark(entry);

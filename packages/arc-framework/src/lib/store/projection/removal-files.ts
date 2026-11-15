@@ -101,7 +101,7 @@ async function checkRemovalSend(root: ReadOnlyProjectionRoot, request: TakeInReq
   guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const prepared = await root.takeIn(request);
   if (prepared.kind === "held" && prepared.result.answer === "no-edit") return { kind: "passes" };
-  const refused = projectionFeasibilityRefusal(prepared, request.path, disposition);
+  const refused = projectionFeasibilityRefusal(prepared, root.checkout, request.path, disposition);
   if (refused?.kind === "unobservable") return refused;
   const guarded = await guard(request.path);
   return guarded.kind === "passes" ? refused ?? guarded : guarded;

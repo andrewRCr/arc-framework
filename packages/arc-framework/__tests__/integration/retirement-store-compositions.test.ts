@@ -19,6 +19,8 @@ import { DecomposeFinishAppliedSchema, DecomposeRetirementPreviewSchema } from "
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { guardProjectionIgnores } from "../../src/lib/store/projection/ignore-guard.js";
+import { createProjectionEnginePorts } from "../../src/lib/store/projection/engine-ports.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
@@ -131,10 +133,16 @@ it("retains a Store abandonment's primary, claim, and refused edit, then abandon
 it("retains a Store abandonment's primary and claim while its ignore guard refuses an edit's root, then abandons after repair", async () => {
   const h = await fixture(false), marker = await readWorktreeMarker(h.checkout);
   await rm(h.held);
-  const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
-  await writeFile(excludes, ".arc/\n");
+  // Shadow only the personal root's rule: an excluded parent outranks the .gitignore line the guard requires, and
+  // every other exclude line stays, so nothing else is un-ignored and the worktree stays clean.
+  const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes, "utf8");
+  await writeFile(excludes, `${original}${original.endsWith("\n") ? "" : "\n"}.arc/user/\n`);
+  const ports = createProjectionEnginePorts(h.checkout);
+  const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
+  if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
   const refused = await invoke(h, ["abandon", "demo", "--yes"]);
   expect(refused, refused.output).toMatchObject({ exitCode: 1 });
+  expect(refused.output).toContain(guard.remedy);
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
   expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "ok", result: { version: h.meta.version } });
   await writeFile(excludes, original);

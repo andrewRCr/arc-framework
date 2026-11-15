@@ -212,10 +212,11 @@ describe("store retirement real Git", () => {
     expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("Run removal or release from that checkout") });
     expect(await h.store.read({ reference: h.record.reference })).toMatchObject({ status: "ok",
       result: { content: h.record.content, version: h.record.version } });
-    await expect(readFile(join(h.location.commonDir, "arc/user/blair/.internal/.machine-id"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(join(h.location.commonDir, "arc/user/test-user/.internal/.machine-id"))).rejects.toMatchObject({ code: "ENOENT" });
     h.configure({ identity: SlugSchema.parse("test-user") });
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("An edit under the target identity.\n");
+    expect(await readFile(join(h.location.commonDir, "arc/user/test-user/.internal/.machine-id"), "utf8")).not.toBe("");
   });
 
   it("holds removal without an identity and proceeds once the target identity is configured", async () => {

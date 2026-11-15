@@ -51,6 +51,17 @@ export async function stageRecordFile(input: {
   return { status: "ok", result: staged };
 }
 
+/**
+ * The text a rendering lays at a path: a Markdown file stamped with its stored content's blob id and notices, any other
+ * as rendered.
+ */
+export function renderedRecordText(input: {
+  path: string; record: StoreRecord; content: string; notices?: readonly string[]; format: ObjectFormat;
+}): string {
+  if (!input.path.endsWith(".md")) return input.content;
+  return renderStampedFile({ content: input.content, stamp: gitBlobId(input.record.content, input.format), notices: input.notices });
+}
+
 /** Stage rendered content under the stored record's base stamp and version. */
 export async function stageRenderedRecordFile(input: {
   checkpoint?: () => Promise<void>;
@@ -59,7 +70,7 @@ export async function stageRenderedRecordFile(input: {
 }): Promise<StagedFile> {
   const { record, format } = input;
   const blob = gitBlobId(record.content, format);
-  const text = input.path.endsWith(".md") ? renderStampedFile({ content: input.content, stamp: blob, notices: input.notices }) : input.content;
+  const text = renderedRecordText(input);
   const location = nameAsideFile({ path: input.path, base: input.replacing, writer: input.writer, role: "staged" });
   await createStagedFile(input.checkout, location, text, input.checkpoint);
   // A link shares its file's mode, so a protected file is staged read-only and linked in that way.

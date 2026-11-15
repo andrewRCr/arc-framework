@@ -331,6 +331,28 @@ it("holds a same-slug unit's changed record out of the own folder once the check
   }
 });
 
+it("keeps a journaled arrival's check unobservable while the ignore guard cannot be read, and passes once it reads", async () => {
+  const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  await startProjection(command);
+  // A changed ignore file stales the recorded proof, so the check reads the guard afresh.
+  const excludes = join(h.projected.location.commonDir, "info/exclude");
+  await writeFile(excludes, `${await readFile(excludes, "utf8")}\n# A changed ignore file.\n`);
+  let denied = true;
+  const ports = () => {
+    const native = createProjectionEnginePorts(h.f.root);
+    return { ...native, execInput: (args: string[], input: string, options?: Parameters<typeof native.execInput>[2]) =>
+      denied && args.includes("check-ignore") ? Promise.reject(new Error("Ignore rules cannot be read")) : native.execInput(args, input, options) };
+  };
+  const context = { store: h.f.store, identity: SlugSchema.parse("andrew"), ports };
+  expect(await checkProjectionRemoval(h.f.root, context)).toMatchObject({ kind: "unobservable",
+    detail: expect.stringContaining("Ignore rules cannot be read") });
+  denied = false;
+  expect(await checkProjectionRemoval(h.f.root, context)).toEqual({ kind: "passes" });
+  await endProjection(command);
+});
+
 it("keeps a held handoff's ownership mark through a later start's refresh, never reporting the generic withheld mark", async () => {
   const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
   await startProjection(command);
@@ -382,4 +404,27 @@ it("carries a moved record's changed mark onto a path another record is vacating
   const arrived = index.index.entries[path];
   expect(arrived).toMatchObject({ kind: "record", changed: true, reference: { owner: { uid } } });
   expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
+}, 30_000);
+
+it("confirms an unmarked arrival at a path whose leaving record carries a changed mark, and moves that mark with its record", async () => {
+  const h = await reusedPathFixture(false), command = { checkout: h.f.root, store: h.f.store };
+  await withProjectionLock(h.projected.location, async session => {
+    const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    if (read.kind !== "index") throw new Error("Missing index");
+    const entry = read.index.entries[h.path];
+    if (entry?.kind !== "record") throw new Error("Missing leaving entry");
+    await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
+      index: withProjectionEntry(read.index, h.path, { ...entry, changed: true }) });
+  });
+  await h.receive();
+  for (let round = 0; round < 3; round++) {
+    await startProjection(command);
+    await endProjection(command);
+  }
+  const index = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (index.kind !== "index") throw new Error("Missing index");
+  const arrived = index.index.entries[h.path];
+  expect(arrived).toMatchObject({ kind: "record", changed: false, reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } } });
+  expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
+  expect(index.index.entries[".arc/backlog/planned/root/cohort-root.md"]).toMatchObject({ kind: "record", changed: true });
 }, 30_000);

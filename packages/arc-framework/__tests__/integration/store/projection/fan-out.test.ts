@@ -278,3 +278,61 @@ it("fans out an edit the command's end takes in while it marks the writes its ow
   expect(await file()).toContain("hand head");
   expect((await h.disk()).entries[h.path]).toMatchObject({ changed: true });
 });
+
+it("observes each target at its visit, after the round reads its version", async () => {
+  const log: string[] = [];
+  const fixture = await createFanOutFixture(directories, {
+    store: inner => overrideEngineStore(inner, { version: () => { log.push("version"); return inner.version(); } }),
+    ports: ports => ({ ...ports, beforeFanOutTarget: (checkout: string) => { log.push(`visit ${checkout}`); return Promise.resolve(); } }) });
+  const { h, store, input, file } = fixture;
+  const current = await h.stored();
+  log.splice(0);
+  success(await store.write({ action: "put", reference: current.reference, content: "A write each visit observes.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } }));
+  const visits = log.flatMap((each, at) => each.startsWith("visit ") ? [at] : []);
+  expect(visits).toHaveLength(2);
+  expect(log.slice(0, visits[0])).toContain("version");
+  expect(await file()).toContain("A write each visit observes.");
+  await endProjection(input);
+});
+
+/** Change the partition holding a path after its header was read, outside any lease. */
+async function mismatchPartition(location: { stateDir: string }, path: string) {
+  const headerPath = join(location.stateDir, "index"), header = await readFile(headerPath, "utf8");
+  const groups = (JSON.parse(header) as { groups: Record<string, { name: string }> }).groups;
+  const group = Object.keys(groups).filter(key => path.startsWith(`${key}/`)).sort((a, b) => b.length - a.length)[0];
+  if (group === undefined) throw new Error(`No partition holds ${path}`);
+  const partition = join(location.stateDir, groups[group]!.name);
+  await writeFile(partition, "changed outside any lease");
+  return { name: groups[group]!.name, retained: async () => {
+    expect(await readFile(partition, "utf8")).toBe("changed outside any lease");
+    expect(await readFile(headerPath, "utf8")).toBe(header);
+  } };
+}
+
+it.each([["a sibling", "sibling"], ["the writer's own", "own"]] as const)("skips and reports %s visit over a mismatched partition, deleting neither partition nor header", async (_label, target) => {
+  const fixture = await createFanOutFixture(directories);
+  const { h, store, input, sibling, siblingPath } = fixture;
+  const changed = await mismatchPartition(target === "own" ? h.location : sibling.location, target === "own" ? h.path : siblingPath);
+  const current = await h.stored();
+  success(await store.write({ action: "put", reference: current.reference, content: "A write over a mismatched partition.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({
+    path: target === "own" ? h.checkout : expect.any(String), mark: expect.objectContaining({ reason: expect.stringContaining(changed.name) }) }));
+  await changed.retained();
+  if (target === "sibling") await endProjection(input);
+});
+
+it("skips and reports the end in a visited sibling over a mismatched partition, deleting neither partition nor header", async () => {
+  const fixture = await createFanOutFixture(directories);
+  const { h, store, input, sibling, siblingPath, file } = fixture;
+  const current = await h.stored();
+  success(await store.write({ action: "put", reference: current.reference, content: "A write the sibling's visit lays.\n",
+    expected: current.version, provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(await file()).toContain("A write the sibling's visit lays.");
+  const changed = await mismatchPartition(sibling.location, siblingPath);
+  await endProjection(input);
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({
+    mark: expect.objectContaining({ reason: expect.stringContaining(changed.name) }) }));
+  await changed.retained();
+});

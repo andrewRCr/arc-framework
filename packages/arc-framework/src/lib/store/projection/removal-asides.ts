@@ -63,7 +63,7 @@ export async function checkUnrecordedProjectionCopies(input: UnrecordedProjectio
     const links = await readProjectionLinkBoundary(checkout, [visit.location], input.linkFs);
     if (links(visit.location) !== null) continue;
     if (await unrecordedCopyIsUnchanged(input, visit.location, named)) continue;
-    return { kind: "would-refuse", remedy: { text: `Recover anything wanted from ${visit.location}, then delete that copy and retry ${retirementName(input.disposition)}.` } };
+    return { kind: "would-refuse", remedy: { text: `Recover anything wanted from ${visit.location} in ${checkout}, then delete that copy and retry ${retirementName(input.disposition)}.` } };
   }
   return { kind: "passes" };
 }
@@ -109,17 +109,17 @@ async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: 
     ...(destinationLink === null ? {} : { holding: { kind: "not-a-file" as const } }),
     format: root.context.format, takeIn: async request => {
       const prepared = await root.takeIn(request);
-      refusal.verdict = projectionFeasibilityRefusal(prepared, copy.name, input.disposition) ?? { kind: "passes" };
+      refusal.verdict = projectionFeasibilityRefusal(prepared, root.checkout, copy.name, input.disposition) ?? { kind: "passes" };
       return prepared.kind === "ready" ? { answer: "taken-in", read: prepared.read,
         entry: recordWriteBackSent(request.entry, request.copy) } : { answer: "no-edit", entry: request.entry };
     } });
   if (refusal.verdict.kind !== "passes") return { entry, verdict: refusal.verdict };
   if (checked.kind === "not-a-file") return { entry, verdict: { kind: "would-refuse", remedy: checked.remedy } };
-  if (checked.kind === "unsettled" || checked.kind === "empty") {
-    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Let ${copy.name} finish saving, then retry ${retirementName(input.disposition)}.` } } };
+  if (checked.kind === "unsettled") {
+    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Let ${copy.name} in ${root.checkout} finish saving, then retry ${retirementName(input.disposition)}.` } } };
   }
   if (checked.kind === "moved-on") {
-    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Recover the edit in ${copy.name}, then delete that copy and retry ${retirementName(input.disposition)}.` } } };
+    return { entry, verdict: { kind: "would-refuse", remedy: { text: `Recover the edit from ${copy.name} in ${root.checkout}, then delete that copy and retry ${retirementName(input.disposition)}.` } } };
   }
   return { entry: checked.entry, verdict: { kind: "passes" } };
 }

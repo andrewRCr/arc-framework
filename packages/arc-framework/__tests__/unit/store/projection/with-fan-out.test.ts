@@ -5,6 +5,7 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { PullResultSchema } from "../../../../src/lib/store/sync.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 function interpose(store: Store, overrides: Partial<Store>): Store {
   return new Proxy(store, { get(target, key) {
@@ -175,6 +176,34 @@ it("fans out a pull reported failed after a merge and preserves the exact sync r
   expect(result).toMatchObject({ status: "ok", result: { pulls: [expect.objectContaining({ status: "failed" })] } });
   expect(success(await destination.store.read({ reference })).content).toBe("Merged before a partial failure.\n");
 });
+
+for (const operation of ["pull", "push"] as const) for (const outcome of ["refused", "rejected"] as const) {
+  it(`fans out a ${operation} ${outcome} after a merge landed, returning its own ${outcome === "refused" ? "result" : "error"}`, async () => {
+    const source = createReferenceFixture(), destination = createReferenceFixture();
+    const reference = source.reference("personal/document");
+    const remote = source.remote(true);
+    if (remote === undefined) throw new Error("No memory remote");
+    success(await remote.write({ action: "put", reference, content: `Merged before the ${operation} failed.\n`, expected: null,
+      provenance: { verb: "save", lifecycleAction: "save" } }));
+    const refused = { status: "refused" as const, refusal: StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable",
+      historyRefs: [], condition: `The ${operation} stopped after a merge.`, remedy: { text: "Retry sync." } }) };
+    const fault = new Error(`The ${operation} failed after a merge.`);
+    const failing = async (): Promise<typeof refused> => {
+      success(await source.store.pull());
+      if (outcome === "rejected") throw fault;
+      return refused;
+    };
+    const store = withFanOut(interpose(source.store, { [operation]: failing }), { capture: () => async () => {
+      const current = success(await source.store.read({ reference }));
+      success(await destination.store.write({ action: "put", reference, content: current.content, expected: null,
+        provenance: { verb: "save", lifecycleAction: "save" } }));
+    }, report: cause => { throw cause; } });
+    const run = operation === "pull" ? store.pull() : store.push();
+    if (outcome === "rejected") await expect(run).rejects.toBe(fault);
+    else expect(await run).toBe(refused);
+    expect(success(await destination.store.read({ reference })).content).toBe(`Merged before the ${operation} failed.\n`);
+  });
+}
 
 it("fans out all records of a landed atomic batch", async () => {
   const source = createReferenceFixture(), destination = createReferenceFixture();

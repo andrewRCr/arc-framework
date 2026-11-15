@@ -22,6 +22,9 @@ import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { writeFileSync } from "node:fs";
+import { readStatSync } from "../../../../src/lib/store/projection/change-detection.js";
+import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 const observation = vi.hoisted(() => ({ file: "", index: "", reference: "", events: [] as string[],
   firstHeader: null as (() => Promise<void>) | null }));
@@ -248,7 +251,8 @@ it("publishes a clean smudged file's observed stat once and avoids hashing it on
   await startProjection(command);
   expect(observation.events.filter(event => event === "file-read")).toHaveLength(1);
   const recorded = await readProjectionIndex(h.projected.location, true);
-  expect(recorded.kind === "index" && recorded.index.entries[h.path]?.stat).not.toBeNull();
+  if (recorded.kind !== "index") throw new Error(`Projection index unavailable: ${recorded.kind}`);
+  expect(recorded.index.entries[h.path]).toMatchObject({ kind: "record", stat: expect.anything() });
   observation.events = [];
   await startProjection(command);
   expect(observation.events).toContain("file-stat");
@@ -480,4 +484,45 @@ it("removes a deleted record's file and drops its settled entry", async () => {
   await expect(readFile(join(h.f.root, h.path))).rejects.toMatchObject({ code: "ENOENT" });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk.kind === "index" && disk.index.entries[h.path]).toBeUndefined();
+});
+
+/** Ports whose early start stats run synchronously on every platform, tagging each stat the walk takes of the file. */
+function taggedEarlyStats(root: string, afterFileStat?: () => void) {
+  return () => ({ ...createProjectionEnginePorts(root), stats: { platform: "linux" as const, readSync: (path: string) => {
+    const stat = readStatSync(path);
+    if (path === observation.file) { observation.events.push("early-stat"); afterFileStat?.(); }
+    return stat;
+  } } });
+}
+
+it("reuses a no-change start's early stat of a walked file, never statting it again", async () => {
+  const h = await fixture();
+  observation.file = join(h.f.root, h.path);
+  observation.events = [];
+  expect(await startProjection({ checkout: h.f.root, store: h.f.store, ports: taggedEarlyStats(h.f.root) })).toMatchObject({ kind: "ready" });
+  // The early stat's own lstat is the file's only stat: a fallback to change detection's stat would add another.
+  expect(observation.events.filter(event => event === "early-stat")).toHaveLength(1);
+  expect(observation.events.filter(event => event === "file-stat")).toHaveLength(1);
+  await endProjection({ checkout: h.f.root, store: h.f.store });
+});
+
+it("leaves an edit landing after the early stat to a later command, which takes it in", async () => {
+  const h = await fixture();
+  observation.file = join(h.f.root, h.path);
+  const laid = parseStampedFile(await readFile(observation.file, "utf8"));
+  const edited = `${laid.content}A late edit after the early stat.\n`;
+  let landed = false;
+  const ports = taggedEarlyStats(h.f.root, () => {
+    if (landed) return;
+    landed = true;
+    writeFileSync(observation.file, renderStampedFile({ content: edited, stamp: laid.stamp ?? "" }));
+  });
+  const command = { checkout: h.f.root, store: h.f.store, ports };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  expect(landed).toBe(true);
+  expect(success(await h.f.store.read({ reference: h.notes.reference })).content).toBe(h.notes.content);
+  await endProjection(command);
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect(success(await h.f.store.read({ reference: h.notes.reference })).content).toBe(edited);
 });

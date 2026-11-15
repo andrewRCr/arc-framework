@@ -398,20 +398,22 @@ checkout's own unit moves cohort. `refresh-removals.ts` removes obsolete paths t
 carrying a moved record's changed mark to its new path, and `refresh-conflicts.ts` maps conflict changes to the files
 they concern. Where the saved state can no longer be read, `refresh-rebuild.ts` plans a complete refresh over every
 partition, removing an old path only under complete listing evidence. A path whose ownership handoff is in flight is
-left to reconciliation, and the index takes the new state only once every path the plan lays is installed.
-`held-refresh.ts` refreshes a root under a lease another checkout's command holds, leaving publication to that command.
+left to reconciliation, and the index takes the new state only once nothing the plan reached is left unresolved and
+every arrival it journaled is installed. `held-refresh.ts` refreshes a root under a lease another checkout's command
+holds, leaving publication to that command.
 
 `desired-paths.ts` places each visible record at the path the layout addresses commands use, binding lifecycle
 placement to the checkout's own and in-flight folders under its claim, view, and `layout.active`; `selection-plan.ts`
-plans every path the in-flight view governs from the complete active inventory. `settings.ts` records the destination
+plans the paths its caller's filter governs from the complete active inventory. `settings.ts` records the destination
 settings a completed layout acknowledged. `reprojection.ts` reconciles a changed view setting, identity, claim, or
 `layout.active` under a durable retry flag, acknowledging the new settings only once every arrival they bring is
 confirmed. `inventory.ts` reads each projected family once at the materialization's state and reports an incomplete
 listing rather than reading its missing records as removed.
 
-`materialization.ts` lays the complete visible inventory into one target worktree under its lease: at a spawn
-(`spawn-materialization.ts`), at `arc sync` (`sync-materialization.ts`), and where a checkout `ownership.ts` finds
-eligible holds no index. `materialization-file.ts` stages only proven bytes and hands a concurrent edit to the
+`materialization.ts` lays the complete visible inventory into one target worktree holding no usable index, under its
+lease: at a spawn (`spawn-materialization.ts`), where a spawn over a usable index refreshes it instead, and where a
+checkout `ownership.ts` finds eligible holds none. At `arc sync` (`sync-materialization.ts`) it restores only deleted
+files over the usable index. `materialization-file.ts` stages only proven bytes and hands a concurrent edit to the
 writable store before replacement; a rebuild that cannot yet tell whether a stored record lays a path holds the file
 there under the evidence-held mark until a rebuild with whole evidence settles it. Restoring deleted files reconciles
 only the selected paths (`materialization-selection.ts`) and refreshes the ignore proof without a sweep
@@ -442,8 +444,9 @@ ordinary admission (`removal-files.ts`, `removal-adoption.ts`) and recorded and 
 (`removal-residual.ts`). `removal-persist.ts` repeats that work under the target's lease, sending what the check
 predicted and taking over recorded copies (`removal-persist-asides.ts`), then checks once more before its caller removes
 the checkout. `removal-release.ts` persists the target and removes only a linked checkout's projected files, answering
-for entries it cannot finish (`release-entries.ts`, `withheld.ts`); a release refused after it removed files clears the
-index's state, so the next command lays them again. Each remedy names the retirement to retry.
+for entries it cannot finish (`release-entries.ts`, `withheld.ts`). From its removal swap on, every index a release
+publishes carries no state, so where it stops or is refused after removing files the next command's rebuild lays them
+again, and its refusal says the files were removed.
 
 `timings.ts` keeps each checkout's recent start, fan-out, and materialization samples in the index, each timed until
 just before its final publication, and raises a notice once a complete recent window's median exceeds its platform's

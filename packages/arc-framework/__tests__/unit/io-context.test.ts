@@ -23,10 +23,10 @@ import { resolveInteractionContext } from "../../src/lib/command-input/interacti
 import { handleSync } from "../../src/handlers/sync.js";
 import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
-
-const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
+
+const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
 
 const tempDirs: string[] = [];
 

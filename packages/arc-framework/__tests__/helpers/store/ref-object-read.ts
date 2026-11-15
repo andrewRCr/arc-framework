@@ -115,9 +115,6 @@ export function refObjectReadFixture(options: {
           return value ? Buffer.concat([Buffer.from(`${value.oid} ${value.type} ${value.bytes.length}\n`), value.bytes, Buffer.from("\n")])
             : Buffer.from(`${query} missing\n`);
         }));
-      } else if (args[0] === "diff-tree") {
-        stdout = Buffer.from(paths.length === 0 ? "" : `${empty.oid} ${root.oid}\n` + paths.map(entry =>
-          `:000000 ${entry.mode.padStart(6, "0")} ${"0".repeat(40)} ${entry.oid} A\0${entry.name}\0`).join(""));
       } else throw new Error(`Unexpected Git fixture command: ${args.join(" ")}`);
       return { stdout, stderr: new Uint8Array() };
     },
