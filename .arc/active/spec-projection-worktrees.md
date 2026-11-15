@@ -546,19 +546,19 @@ resolves, settles each held file at a path it lays a stored record at by the rul
 no edit, otherwise withholding it under the ordinary mark — with no store write. Once a later rebuild's evidence is
 whole, or a full materialization's, a held file at a path it lays no stored record at takes the ordinary withheld mark
 and its remedy to delete it; `arc sync`'s, which lays only deleted files and takes no state version, leaves that to the
-next start's rebuild. A link at or above a laid path, a path the checkout cannot write, or an arrival still handing off
-leaves only that path to a later rebuild, each reported (A7). A file `spec-projection-write-back.md` § 9 never adopts
-and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as write-back leaves them. Status and each command's
-report name every withheld file, refresh and write-back skip it, but for a held file's settlement above, removal leaves
-it at its path (`spec-projection-substrate.md` § 5.6), and the removal check and the persist and release steps refuse
-over it (§ 12.2); the sweep before it withholds aside copies the same way (`spec-projection-substrate.md` § 5.4).
-Deleting a withheld file, after copying out what is wanted, releases it: where the current projection lays a stored
-record at its path its mark turns pending, so the next command's refresh writes it from the store (§ 15.2), and
-otherwise its entry goes, nothing written there; the person re-applies their edit as an ordinary one (residual, § 17). A
-linked checkout whose marker is released loses its projection once the release step has persisted its edits (§ 12.3). A
-checkout this section gives no projection that still holds an index — its marker changed under it — is checked and
-persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives edits not yet persisted, and its start
-rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
+next start's rebuild. A link at or above a laid path, a path the checkout cannot write, a regular file where a laid
+path's folder belongs, or an arrival still handing off leaves only that path to a later rebuild, each reported (A7). A
+file `spec-projection-write-back.md` § 9 never adopts and a path `MACHINE_LOCAL_PATHS` lists (§ 12.9) are left alone, as
+write-back leaves them. Status and each command's report name every withheld file, refresh and write-back skip it, but
+for a held file's settlement above, removal leaves it at its path (`spec-projection-substrate.md` § 5.6), and the
+removal check and the persist and release steps refuse over it (§ 12.2); the sweep before it withholds aside copies the
+same way (`spec-projection-substrate.md` § 5.4). Deleting a withheld file, after copying out what is wanted, releases
+it: where the current projection lays a stored record at its path its mark turns pending, so the next command's refresh
+writes it from the store (§ 15.2), and otherwise its entry goes, nothing written there; the person re-applies their edit
+as an ordinary one (residual, § 17). A linked checkout whose marker is released loses its projection once the release
+step has persisted its edits (§ 12.3). A checkout this section gives no projection that still holds an index — its
+marker changed under it — is checked and persisted as one it gives a projection (§ 12.2, § 12.3), so no index outlives
+edits not yet persisted, and its start rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1).
 
 ### 3. State and change detection
 
@@ -1541,15 +1541,16 @@ One changes how § 11.6 reads a tree's entries (A4):
     window (§ Spike 1b).
 12. **A worktree whose state version is unset or no longer resolves.** While a worktree's state version is unset, or no
     longer resolves and no rebuild has yet taken the current one, each start of its own commands rebuilds it, reading
-    and rendering every file it lays (A11), as does each fan-out round of those commands' own writes while it is
-    unset; another worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather
-    than at the writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
+    and rendering every file it lays (A11), as does each fan-out round of those commands' own writes while it is unset;
+    another worktree's fan-out leaves it to that next start (§ 2.2), so a write reaches its copies there rather than at
+    the writer's fan-out. It lasts while a rebuild's evidence is not whole — a listing that reports `missed`, returns
     `unreadable`, or lists a diagnostic, such as a record of a newer format another build wrote (§ 3.1); an ambiguous
     cohort match; two live claimed primaries; a placement that cannot be established — or while a path it lays holds no
-    installed record: a link at or above it, a path the checkout cannot write, an arrival still handing off, or a file
-    withheld with no record basis at a path a record has since arrived at, until that file is deleted. Each is reported
-    with its remedy (§ 2.5, § 15.2, A7). Each repeated rebuild leaves in place each file at rest whose rendering,
-    protection, and bytes are unchanged, which keeps its inode and mtime (§ 15.2, A11).
+    installed record: a link at or above it, a path the checkout cannot write, a regular file where its folder belongs,
+    an arrival still handing off, or a file withheld with no record basis at a path a record has since arrived at, until
+    that file is deleted. Each is reported with its remedy (§ 2.5, § 15.2, A7). Each repeated rebuild leaves in place
+    each file at rest whose rendering, protection, and bytes are unchanged, which keeps its inode and mtime (§ 15.2,
+    A11).
 13. **A failed work-unit spawn's cleanup (A8).** Three cleanups after a failed work-unit spawn — `rollbackFreshSpawn`,
     `rejectCreateNewScaffold`, and a graduation's occupation rollback — remove the new checkout through
     `removeDisposableSpawn` with no removal check, so a personal file a `post_create` script wrote there goes with it,
@@ -1564,13 +1565,13 @@ One changes how § 11.6 reads a tree's entries (A4):
     checkout's view that the writer kept without refreshing counts as unmarked, so the diagnostic can name a file that
     was never placed there.
 15. **A pending reprojection (A10).** While a reprojection's flag stays set because a desired arrival is blocked — a
-    link at or above its path, a path the checkout cannot write, an ownership handoff not yet confirmed, or a file
-    withheld at its path (§ 10.4) — each start of the checkout's own commands, and each fan-out round of their own
-    writes, reprojects again and re-renders every file its settings govern, since the index records no per-file
-    settings basis that would tell a file laid under the fresh target from one laid under an earlier setting, leaving
-    in place each file at rest whose rendering, protection, and bytes are unchanged (§ 15.2, A11). It lasts until the
-    arrival is repaired, each command reporting it with its remedy; the next command then installs it and acknowledges
-    the settings, and later commands lay only what changed (§ 15.2).
+    link at or above its path, a path the checkout cannot write, a regular file where its folder belongs, an ownership
+    handoff not yet confirmed, or a file withheld at its path (§ 10.4) — each start of the checkout's own commands, and
+    each fan-out round of their own writes, reprojects again and re-renders every file its settings govern, since the
+    index records no per-file settings basis that would tell a file laid under the fresh target from one laid under an
+    earlier setting, leaving in place each file at rest whose rendering, protection, and bytes are unchanged (§ 15.2,
+    A11). It lasts until the arrival is repaired, each command reporting it with its remedy; the next command then
+    installs it and acknowledges the settings, and later commands lay only what changed (§ 15.2).
 16. **A held refresh anchor (A11).** While a refresh keeps its index's state version because something it reached
     stays unresolved — an arrival not yet installed, a link at or above a path it lays, a regular file where a laid
     path's folder belongs, a refused read, or an owner's listing or placement it could not establish whole — each later

@@ -399,8 +399,8 @@ carrying a moved record's changed mark to its new path, and `refresh-conflicts.t
 they concern. Where the saved state can no longer be read, `refresh-rebuild.ts` plans a complete refresh over every
 partition, removing an old path only under complete listing evidence. A path whose ownership handoff is in flight is
 left to reconciliation, and the index takes the new state only once nothing the plan reached is left unresolved and
-every arrival it journaled is installed. `held-refresh.ts` refreshes a root under a lease another checkout's command
-holds, leaving publication to that command.
+every arrival is installed: each record it lays at a path the index did not already bind to that record.
+`held-refresh.ts` refreshes a root under a lease another checkout's command holds, leaving publication to that command.
 
 `desired-paths.ts` places each visible record at the path the layout addresses commands use, binding lifecycle
 placement to the checkout's own and in-flight folders under its claim, view, and `layout.active`; `selection-plan.ts`
