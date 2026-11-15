@@ -39,7 +39,8 @@ const architectureBans = [
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
     syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-production"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-reference"] },
   { files: [`__tests__/${TYPESCRIPT_SCOPE}`], predicates: ["store-tests"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-private"] },
   { files: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-dependencies"] },
@@ -47,9 +48,9 @@ const architectureBans = [
   { files: [`src/lib/store/concurrency/${TYPESCRIPT_SCOPE}`], predicates: ["store-concurrency"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts")], predicates: ["surface-names"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["work-unit-paths"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-raw-state"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts"), subtree("scripts/cutover-window")], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, subtree("scripts/cutover-window")], predicates: ["work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),

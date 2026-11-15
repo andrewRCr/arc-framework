@@ -14,6 +14,7 @@ import { analyzeInFlightSnapshot } from "../../../src/lib/git/in-flight-derivati
 import {
   isComposedLifecycleSlugIndeterminate,
   resolveComposedLifecycleIndex,
+  resolveCallerComposedLifecycleIndex,
 } from "../../../src/lib/work-unit/composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
@@ -52,6 +53,7 @@ function oracleMeta(slug: string, branch: string, state = "Active"): string {
 
 function makeInFlightExec(options: {
   remoteRefs?: Record<string, string>;
+  localHeads?: Record<string, string>;
   remoteRefSnapshots?: Array<Record<string, string>>;
   liveRefs?: Record<string, string>;
   worktrees?: Array<{ path: string; branch: string }>;
@@ -76,9 +78,10 @@ function makeInFlightExec(options: {
         Math.min(refRead++, Math.max((options.remoteRefSnapshots?.length ?? 1) - 1, 0))
       ] ?? remoteRefs;
       return {
-        stdout: Object.entries(snapshot)
-          .map(([branch, sha]) => `refs/remotes/origin/${branch}\t${sha}`)
-          .join("\n"),
+        stdout: [
+          ...Object.entries(snapshot).map(([branch, sha]) => `refs/remotes/origin/${branch}\t${sha}`),
+          ...Object.entries(options.localHeads ?? {}).map(([branch, sha]) => `refs/heads/${branch}\t${sha}`),
+        ].join("\n"),
         stderr: "",
       };
     }
@@ -130,6 +133,70 @@ afterEach(async () => {
   root = undefined;
 });
 
+describe("caller composition provenance", () => {
+  it("retains provenance when the tree selects a completed record", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    await writeMeta(join(root, ".arc/completed/meta-done.md"), meta("done", "Shipped"));
+    const branch = "feat/done";
+    const exec = makeInFlightExec({
+      localHeads: { [branch]: "1".repeat(40) },
+      metas: { [`${branch}:.arc/active/meta-done.md`]: oracleMeta("done", branch) },
+    });
+    const result = await resolveCallerComposedLifecycleIndex({ cwd: root, fs, exec,
+      identity: "andrew", acquisitionPolicy: "local" });
+    expect(result.recordsBySlug.get("done")?.selected.state).toBe("Shipped");
+    expect(result.provenanceBySlug?.get("done")).toEqual([
+      { branch, ref: branch, source: "local-branch", relation: "consistent", selected: true },
+    ]);
+  });
+
+  it("leaves all-stale groups absent and preserves each branch in quality warnings", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const branches = ["recovery/one", "recovery/two"];
+    const exec = makeInFlightExec({
+      localHeads: Object.fromEntries(branches.map((branch) => [branch, "1".repeat(40)])),
+      metas: Object.fromEntries(branches.map((branch) => [
+        `${branch}:.arc/active/meta-widget.md`, oracleMeta("widget", "feat/widget"),
+      ])),
+    });
+    const result = await resolveCallerComposedLifecycleIndex({ cwd: root, fs, exec,
+      identity: "andrew", acquisitionPolicy: "local" });
+    expect(result.provenanceBySlug).toBeInstanceOf(Map);
+    expect(result.provenanceBySlug?.has("widget")).toBe(false);
+    expect(result.qualityFacts.bySlug.get("widget")?.warnings.map(({ branch, code }) => ({ branch, code })))
+      .toEqual(branches.map((branch) => ({ branch, code: "stale-location-dropped" })));
+  });
+
+  it("retains selected, fetched, local, and stale copies with their native provenance", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const branch = "feat/widget";
+    const stale = "recovery/widget";
+    const path = ".arc/active/meta-widget.md";
+    const exec = makeInFlightExec({
+      localHeads: { [branch]: "1".repeat(40) },
+      remoteRefs: { [branch]: "1".repeat(40), [stale]: "2".repeat(40) },
+      worktrees: [{ path: root, branch: "feat/occupied" }],
+      metas: {
+        [`${branch}:${path}`]: oracleMeta("widget", branch),
+        [`origin/${branch}:${path}`]: oracleMeta("widget", branch),
+        [`origin/${stale}:${path}`]: oracleMeta("widget", branch),
+        "feat/occupied:.arc/active/meta-occupied.md": oracleMeta("occupied", "feat/occupied"),
+      },
+    });
+    const result = await resolveCallerComposedLifecycleIndex({ cwd: root, fs, exec,
+      identity: "andrew", acquisitionPolicy: "local" });
+    expect(result.provenanceBySlug?.get("widget")).toEqual([
+      { branch, ref: `origin/${branch}`, source: "remote-tracking", relation: "consistent", selected: true },
+      { branch: stale, ref: `origin/${stale}`, source: "remote-tracking", relation: "stale", selected: false },
+      { branch, ref: branch, source: "local-branch", relation: "consistent", selected: false },
+    ]);
+    expect(result.provenanceBySlug?.get("occupied")).toEqual([
+      { branch: "feat/occupied", ref: "feat/occupied", source: "worktree",
+        relation: "consistent", selected: true },
+    ]);
+  });
+});
+
 describe("resolveComposedLifecycleIndex", () => {
   it("matches the tree-only lifecycle index when no oracle input is supplied", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
@@ -147,6 +214,7 @@ describe("resolveComposedLifecycleIndex", () => {
     expect([...composed.index.entries()]).toEqual([...tree.entries()]);
     expect(composed.qualityFacts).toEqual({ warnings: [], resultMarks: [], bySlug: new Map() });
     expect(composed.worktreePathBySlug).toEqual(new Map());
+    expect(composed).not.toHaveProperty("provenanceBySlug");
     expect(composed.liveRefs).toEqual({});
     expect(composed.reachable).toBe(false);
     expect(composed.readQuality).toBe("tree-only");
