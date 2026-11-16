@@ -145,13 +145,18 @@ export function beginProjectionCommand(): ProjectionProcessState {
 
 onCheckoutChange(change => {
   const state = projectionProcessState();
-  if (change.kind === "marker") { state.layoutContexts.delete(change.checkoutRoot); return; }
-  // Roots take the canonical spelling; the layout and capability maps keep the store's own root spelling.
+  // Layout contexts are cached under a reader's spelling and under the projection's canonical one, so a change drops both.
+  const dropLayout = (checkout: string): void => {
+    state.layoutContexts.delete(checkout);
+    state.layoutContexts.delete(canonicalCheckoutSync(checkout));
+  };
+  if (change.kind === "marker") { dropLayout(change.checkoutRoot); return; }
+  // Roots take the canonical spelling; the capability maps keep the store's own root spelling.
   if (state.roots.delete(canonicalCheckoutSync(change.from))) state.diagnostics.push({ path: change.from, copy: null, mark: {
     reason: `Projection checkout moved from ${change.from} to ${change.to}; its old binding was released.`,
     remedy: { text: "The next projection visit binds the new path; kept copies settle at its next command." } } });
-  state.layoutContexts.delete(change.from);
-  state.layoutContexts.delete(change.to);
+  dropLayout(change.from);
+  dropLayout(change.to);
   for (const capabilities of [state.capabilities, state.composedCapabilities]) {
     const value = capabilities.get(change.from);
     if (value !== undefined) capabilities.set(change.to, value);

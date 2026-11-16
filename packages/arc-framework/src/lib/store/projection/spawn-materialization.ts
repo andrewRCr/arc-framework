@@ -18,14 +18,19 @@ import type { ProjectionLockResult } from "./lock.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
+  // Spell the checkout first, so the bound request belongs to the process state it writes.
+  const key = await canonicalCheckout(checkout);
   const materialize = projectionProcessState().materializeSpawn;
-  if (materialize !== null) await materialize(await canonicalCheckout(checkout));
+  if (materialize !== null) await materialize(key);
 }
 
 /** Bind after command start, which resets process state, retaining the command's selected store. */
-export function bindSpawnMaterialization(input: ProjectionCommandInput): void {
-  if (!input.store.capabilities.stateOffBranch || input.skipProjection) return;
-  projectionProcessState().materializeSpawn = async checkout => {
+export function bindSpawnMaterialization(command: ProjectionCommandInput): void {
+  if (!command.store.capabilities.stateOffBranch || command.skipProjection) return;
+  // The command's configuration is keyed by the spelling its start took.
+  const state = projectionProcessState();
+  const input = { ...command, checkout: state.command?.checkout ?? command.checkout };
+  state.materializeSpawn = async checkout => {
     try { await materializeSpawn(input, checkout); }
     catch (error) { reportFailure(checkout, error instanceof Error ? error.message : String(error)); }
   };

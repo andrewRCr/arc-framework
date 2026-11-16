@@ -55,8 +55,11 @@ export function createProjectionFanOutDependencies(checkout: string): FanOutDepe
     if (binding === undefined || !binding.active || state.skip?.reason === "switch" || state.skip?.reason === "no-identity") return null;
     const current = (): boolean => binding.active && state === projectionProcessState() && state.fanOutBinding === binding;
     return async references => {
-      if (!current() || !await binding.contains(checkout) || !current()) return;
-      await requestProjectionFanOut(await canonicalCheckout(checkout), references);
+      if (!current()) return;
+      // Spell the checkout first, so nothing waits between the last check and the request that reads process state.
+      const key = await canonicalCheckout(checkout);
+      if (!current() || !await binding.contains(key) || !current()) return;
+      await requestProjectionFanOut(key, references);
     };
   }, report: cause => { reportProjectionFanOutFailure(checkout, cause); } };
 }
