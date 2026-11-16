@@ -28,8 +28,9 @@ it("keeps the second check's published index when release fails after that publi
   expect(await startProjection(command)).toMatchObject({ kind: "ready" });
   await endProjection(command);
   cleanup.failing = true;
+  const checkout = h.checkout.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   expect(await h.release()).toMatchObject({ kind: "refused", remedy: { text: expect.stringMatching(
-    new RegExp(`Returned alias cleanup failed.*Release already removed projected files from ${h.checkout}`, "su")) } });
+    new RegExp(`Returned alias cleanup failed.*Release already removed projected files from ${checkout}`, "su")) } });
   cleanup.failing = false;
   // The second check dropped the removed entry when it published; release keeps that index, its state cleared.
   const disk = await readProjectionIndex(h.location, true, { groups: "all" });

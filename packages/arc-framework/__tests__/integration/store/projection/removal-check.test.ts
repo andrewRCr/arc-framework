@@ -480,6 +480,9 @@ it("holds an unindexed file still being saved under a remedy naming its checkout
   const path = ".arc/user/andrew/scratch/arriving.md";
   await mkdir(join(target.checkout, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(target.checkout, path), "");
+  // A save still writing: the mtime stays inside the settle window however long the check takes to reach it.
+  const saving = new Date(Date.now() + 3_600_000);
+  await utimes(join(target.checkout, path), saving, saving);
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse",
     remedy: { text: `Let ${path} in ${target.checkout} finish saving, then retry removal.` } });
   await writeFile(join(target.checkout, path), "A saved scratch note.\n");

@@ -17,7 +17,7 @@ vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   return { ...actual,
     readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
-      if (fault.onPartitionRead !== null && typeof args[0] === "string" && args[0].startsWith(`${fault.stateDir}/index-`)) {
+      if (fault.onPartitionRead !== null && typeof args[0] === "string" && args[0].startsWith(join(fault.stateDir, "index-"))) {
         const action = fault.onPartitionRead; fault.onPartitionRead = null; action();
       }
       return actual.readFileSync(...args);
