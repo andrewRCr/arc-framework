@@ -458,7 +458,11 @@ No production composition sets the slots today, so every caller runs `passingPro
   portable, and `5a4eec5afc` gave each checkout one spelling, so the fan-out reuses a sibling's ignore proof. Timing:
   Linux reference run `167b8c13c894462780f84ac89ba36e0d`, Windows from `43806300912`, and macOS from timing-only run
   `43864648468`. First qualified at `0a27c749b5`, after `072102c465` repaired a store fixture, on run `43611475356`,
-  Linux run `a4acefbbb1694b9c84951792a8936bae` and macOS timing-only run `43615681044`.
+  Linux run `a4acefbbb1694b9c84951792a8936bae` and macOS timing-only run `43615681044`. An applicability check of the
+  change since the reviewed head then found a gap in the spelling fix's tests and four minor findings; `039cd69aa6`
+  fixed them, with a test that reaches each entry by another spelling, and full hosted CI run `43879215265` passed with
+  the portability pair at that head. The merge gate and timing above stand at `5a4eec5afc`; the fix touches no timed
+  path.
 - _Success criteria:_ 20 criteria: 16 met, four superseded — the original performance criterion by A4; the removal and
   unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the
   changed-mark criterion by A9, which accepts the marks a contended end loses. A8's and A9's narrowed forms are
@@ -538,17 +542,16 @@ No production composition sets the slots today, so every caller runs `passingPro
         earlier performance criterion (A4; specification criterion 11).
 
   **Deviation (wording and macOS measurement):** Specification criterion 11 governs where this text says "reference
-  backend": the timing runs over the ref backend. At the verified head every median fits its bound with no Git credit:
-  Linux on its named reference machine, Windows in the full CI run, and macOS in a same-head timing-only run, counted
-  under the Owner's standing rule (2026-11-14) and direction (2026-11-16) as an exception to the hosted-CI rule for
-  this clause. The full run's macOS shard missed the start bounds (70.74 and 62.92 ms against 45 ms) and the one-file
-  fan-out bound (625.62 against 600 ms). The first timing-only run, `43809818631`, missed the starts again (64.66 and
-  64.10 ms) while the host's single-Git and Git-free baselines ran at about three and two times the last verified
-  head's; the second fit every bound with those baselines back in range. At `0a27c749b5` the shard had missed the
-  starts too (60.94 and 45.69 ms) and a timing-only run fit. Every macOS measurement taken after a job's other test
-  files has missed; the slowdown sits in the suite's own Git and Git-free baselines, not the projection's share, and its
-  cause on the host is not established. The hosted Linux job's medians exceed the Linux bounds, which belong to the
-  named reference machine.
+  backend": the timing runs over the ref backend. At `5a4eec5afc` every median fits its bound with no Git credit: Linux
+  on its named reference machine, Windows in the full CI run, and macOS in a same-head timing-only run, counted under
+  the Owner's standing rule (2026-11-14) and direction (2026-11-16) as an exception to the hosted-CI rule for this
+  clause. The full run's macOS shard missed the start bounds (70.74 and 62.92 ms against 45 ms) and the one-file fan-out
+  bound (625.62 against 600 ms). The first timing-only run, `43809818631`, missed the starts again (64.66 and 64.10 ms)
+  while the host's single-Git and Git-free baselines ran at about three and two times the last verified head's; the
+  second fit every bound with those baselines back in range. At `0a27c749b5` the shard had missed the starts too (60.94
+  and 45.69 ms) and a timing-only run fit. Every macOS measurement taken after a job's other test files has missed; the
+  slowdown sits in the suite's own Git and Git-free baselines, not the projection's share, and its cause on the host is
+  not established. The hosted Linux job's medians exceed the Linux bounds, which belong to the named reference machine.
 
 - `[x]` Executable retirement contexts refuse held projected edits, retain checkout and claim, and succeed after
         repair; lint rejects missing slots at direct start, rename apply/rollback, and legacy park/abandon compositions.
