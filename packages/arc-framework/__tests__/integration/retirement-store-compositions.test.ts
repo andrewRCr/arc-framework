@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../../src/lib/store/contract.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
-import { projectedRetirement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
+import { projectedRetirement, registersCheckout, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { readWorktreeMarker, writeWorktreeMarker, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../src/lib/git/worktree-marker.js";
@@ -75,11 +75,11 @@ it("retains an operand teardown's checkout and refused edit, then persists and r
   expect(refused, refused.output).toMatchObject({ exitCode: 1, output: expect.stringContaining("blair") });
   expect(await readFile(h.held, "utf8")).toBe(h.authored);
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
   await rm(h.held);
   const repaired = await invoke(h, ["teardown", "demo"]);
   expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
@@ -91,11 +91,11 @@ it("retains a locus release's refused edit and claim, then persists and removes 
   expect(refused, refused.output).toMatchObject({ exitCode: 1, output: expect.stringContaining("blair") });
   expect(await readFile(h.held, "utf8")).toBe(h.authored);
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
   await rm(h.held);
   const repaired = await invoke(h, ["locus", "release", "demo", "--json"]);
   expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
@@ -107,11 +107,11 @@ it("retains a branch teardown's indexed checkout and refused edit, then removes 
   const refused = await invoke(h, ["teardown", "--branch", "chore/cleanup"]);
   expect(refused, refused.output).toMatchObject({ exitCode: 1, output: expect.stringContaining("blair") });
   expect(await readFile(h.held, "utf8")).toBe(h.authored);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
   await rm(h.held);
   const repaired = await invoke(h, ["teardown", "--branch", "chore/cleanup"]);
   expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
@@ -126,7 +126,7 @@ it("retains a Store abandonment's primary, claim, and refused edit, then abandon
   const repaired = await invoke(h, ["abandon", "demo", "--yes"]);
   expect(repaired, repaired.output).toMatchObject({ exitCode: 0 });
   expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
@@ -184,8 +184,8 @@ it.each([false, true])("retains a Store decomposition's origin and refused edit,
   if (isPrimary) {
     expect(await readFile(join(h.root, "personal.txt"), "utf8")).toBe("Retained personal content.");
     expect(await readWorktreeMarker(h.checkout)).toEqual({ kind: "absent" });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
-  } else expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+    expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
+  } else expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
 }, 30_000);
 
@@ -218,7 +218,7 @@ it("persists a teardown's linked inbox without merging it into the primary's wor
   expect(stored).toContain("### **Linked only**");
   expect(stored).toContain("Keep this capture in its own working copy.");
   expect(stored).not.toContain("Primary only");
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
 }, 30_000);
 
 it("persists an executor removal's linked inbox without merging it into the primary's working copy", async () => {
@@ -232,7 +232,7 @@ it("persists an executor removal's linked inbox without merging it into the prim
   expect(stored).toContain("### **Linked only**");
   expect(stored).toContain("Keep this capture in its own working copy.");
   expect(stored).not.toContain("Primary only");
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
 }, 30_000);
 
 it("husks and later removes a cheap branch without merging either linked inbox into the primary", async () => {
@@ -258,5 +258,5 @@ it("husks and later removes a cheap branch without merging either linked inbox i
   expect(stored).toContain("Linked only");
   expect(stored).toContain("After husking");
   expect(stored).not.toContain("Primary only");
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
 }, 30_000);

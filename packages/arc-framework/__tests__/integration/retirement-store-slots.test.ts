@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempDir } from "../helpers/integration.js";
-import { projectedRetirement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
+import { projectedRetirement, registersCheckout, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 import { createProjectionRemovalSlots } from "../../src/lib/store/projection/removal-slots.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { PROJECTION_INDEX_FILE } from "../../src/lib/store/projection/index-file.js";
@@ -54,7 +54,7 @@ describe("bound projection removal slots", () => {
     refusing.refuse("batch", null);
     expect(await remove()).toMatchObject({ mutation: "teardown", worktreePath: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe(authored);
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+    expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   });
 
   it("keeps a refused edit through the production Store teardown context and removes after repair", async () => {
@@ -71,11 +71,11 @@ describe("bound projection removal slots", () => {
     expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("Retry the held content admission") });
     expect(parseStampedFile(await readFile(join(h.checkout, h.path), "utf8")).content).toBe(authored);
     expect(await readWorktreeMarker(h.checkout)).toMatchObject({ kind: "present", marker: { wuName: "demo" } });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+    expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
     refusing.refuse("batch", null);
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe(authored);
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+    expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   });
 
   it("uses an explicit retirement minter ahead of the command's policy", async () => {

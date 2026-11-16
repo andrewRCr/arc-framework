@@ -3,7 +3,7 @@ import { boundHolderLookup } from "./bound-checkout.js";
 import { boundWorkUnitSubject } from "./bound-checkout.js";
 import { expect } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createTempRepo, makeGitExec, makeGitExecInput } from "../integration.js";
 import { createRetirementHarness, retirementLink } from "./retirement-harness.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
@@ -43,6 +43,11 @@ import { startProjection, endProjection } from "../../../src/lib/store/projectio
 import type { TakeInPort } from "../../../src/lib/store/projection/take-in-port.js";
 import type { ProjectionIndex, RecordEntry } from "../../../src/lib/store/projection/index-schema.js";
 export const retirementFixtureRoots: string[] = [];
+/** Whether Git's worktree list registers a checkout, compared by resolved path: Git prints forward slashes on Windows. */
+export async function registersCheckout(exec: (command: string, args: string[]) => Promise<{ stdout: string }>, checkout: string): Promise<boolean> {
+  const listed = (await exec("git", ["worktree", "list", "--porcelain"])).stdout.split("\n");
+  return listed.some(line => line.startsWith("worktree ") && resolve(line.slice("worktree ".length)) === resolve(checkout));
+}
 const roots = retirementFixtureRoots;
 export async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean; repository?: string;
   /** Create the repository root, such as in the spelling Git reports. */

@@ -138,7 +138,7 @@ describe("projected checkout release", () => {
     h.configure({ ports: checkout => ({ ...createProjectionEnginePorts(checkout),
       hooks: { afterFirstCheck: () => { armed = failing; return Promise.resolve(); } },
       walkFs: { readdir: (path: string) => {
-        if (armed && path.includes(ASIDE_FILES_ROOT)) throw failure;
+        if (armed && path.replaceAll("\\", "/").includes(ASIDE_FILES_ROOT)) throw failure;
         return readdirSync(path, { withFileTypes: true });
       } } }) });
     expect(await h.release()).toMatchObject({ kind: "refused",
