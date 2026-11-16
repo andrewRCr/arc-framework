@@ -18,10 +18,11 @@ import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-polic
 const packageRoot = dirname(fileURLToPath(import.meta.url));
 
 // Git reports physical worktree paths while `os.tmpdir()` can retain a host
-// alias (macOS `/var` vs `/private/var`). Give every temp fixture one canonical
-// root so ordinary tests do not accidentally assert on two spellings of the
-// same checkout; dedicated path-identity tests exercise the alias boundary.
-const canonicalTempRoot = realpathSync(tmpdir());
+// alias (macOS `/var` vs `/private/var`, a Windows short name such as `RUNNER~1`).
+// Give every temp fixture one canonical root so ordinary tests do not accidentally
+// assert on two spellings of the same checkout; dedicated path-identity tests
+// exercise the alias boundary. The native form also expands Windows short names.
+const canonicalTempRoot = realpathSync.native(tmpdir());
 if (process.platform === "win32") {
   process.env.TEMP = canonicalTempRoot;
   process.env.TMP = canonicalTempRoot;

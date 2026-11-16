@@ -26,6 +26,7 @@ import { resolveProjectionActor } from "./engine-actor.js";
 import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
 import { refreshHeldProjectionRoot } from "./held-refresh.js";
 import { readReference } from "./change-detection.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { projectableRecord } from "./desired-paths.js";
 import { markRecordChanged } from "./changed-mark.js";
 
@@ -79,19 +80,22 @@ async function observeSiblings(writer: string, writerLocation: ProjectionLocatio
   worktrees: readonly { readonly path: string; readonly folderPresent: boolean }[]): Promise<ObservedTarget[]> {
   const observed: ObservedTarget[] = [];
   let ownGitDir: Promise<string> | undefined;
-  for (const checkout of worktrees) {
-    if (!checkout.folderPresent || checkout.path === writer) continue;
+  for (const worktree of worktrees) {
+    if (!worktree.folderPresent) continue;
+    // Git's spelling of a sibling can differ from the one its own commands bound and proved it under.
+    const checkout = await canonicalCheckout(worktree.path);
+    if (checkout === writer) continue;
     try {
       // Git lists a primary whose `.git` is a `gitdir:` file at its Git directory, where no projection was laid.
-      if (!await holdsGitMarker(checkout.path, ports.fs)) continue;
-      const directories = await readGitDirectories(checkout.path, ports.fs);
+      if (!await holdsGitMarker(checkout, ports.fs)) continue;
+      const directories = await readGitDirectories(checkout, ports.fs);
       if (directories.gitDir === writerLocation.gitDir
         || await ports.fs.realpath(directories.gitDir) === await (ownGitDir ??= ports.fs.realpath(writerLocation.gitDir))
-        || await readReference(checkout.path) === null) continue;
+        || await readReference(checkout) === null) continue;
       const location = { ...directories, primary: directories.gitDir === directories.commonDir,
         stateDir: join(directories.gitDir, PROJECTION_STATE_FOLDER) };
-      observed.push(await observeTarget(checkout.path, location));
-    } catch (cause) { reportProjectionFanOutFailure(checkout.path, cause); }
+      observed.push(await observeTarget(checkout, location));
+    } catch (cause) { reportProjectionFanOutFailure(checkout, cause); }
   }
   return observed;
 }

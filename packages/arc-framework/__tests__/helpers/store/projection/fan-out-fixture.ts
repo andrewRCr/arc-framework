@@ -1,5 +1,5 @@
 /** Native linked projections ready for a command's store-triggered fan-out. */
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect } from "vitest";
@@ -28,7 +28,7 @@ export async function createFanOutFixture(directories: string[], options: { cont
   const parent = await mkdtemp(join(tmpdir(), "arc-fan-out-")); directories.push(parent);
   const requestedCheckout = join(parent, "linked");
   await h.exec("git", ["worktree", "add", "--detach", requestedCheckout], { cwd: h.checkout });
-  const checkout = (await h.exec("git", ["rev-parse", "--show-toplevel"], { cwd: requestedCheckout })).stdout.trim();
+  const checkout = await realpath(requestedCheckout);
   const siblingPath = options.workItem ? resolveArcPath({ kind: "work-unit-artifact", slug: h.record.reference.owner.name,
     artifact: "tasks", placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } }) : h.path;
   const sibling = await seedProjection({ store: h.store, checkout, files: [{ path: siblingPath, reference: h.record.reference }],

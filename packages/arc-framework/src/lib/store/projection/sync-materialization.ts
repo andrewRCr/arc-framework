@@ -7,11 +7,13 @@ import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState } from "./process-state.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
-export async function restoreSyncProjection(store: Store, checkout: string, options: { dryRun?: boolean }): Promise<void> {
+export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
   if (!store.capabilities.stateOffBranch || options.dryRun) return;
+  const checkout = await canonicalCheckout(requested);
   const state = projectionProcessState();
   if (state.skip?.reason === "switch") return;
   const root = state.roots.get(checkout);

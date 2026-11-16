@@ -6,6 +6,7 @@ import type { Store } from "../contract.js";
 import { retryEndedItemHistory } from "../history-retry.js";
 import type { StateVersion } from "../identity.js";
 import type { RefusedMark } from "./index-schema.js";
+import { canonicalCheckoutSync } from "./checkout-identity.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection, type ProjectionLocation } from "./location.js";
 import { type ProjectionLockResult } from "./lock.js";
@@ -39,10 +40,13 @@ export type ProjectionStart =
   | { readonly kind: "refused"; readonly mark: RefusedMark };
 
 /** Take in pending edits before the command runs, preserving its ordinary execution when projection is unavailable. */
-export async function startProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
+export async function startProjection(command: ProjectionCommandInput): Promise<ProjectionStart> {
+  // Synchronous, so the command's state exists before a concurrent reader can look for it.
+  const input = { ...command, checkout: canonicalCheckoutSync(command.checkout) };
   const state = beginProjectionCommand();
   state.command = { store: input.store, checkout: input.checkout, ...(input.mint === undefined ? {} : { mint: input.mint }) };
-  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
+  // The store keys its capability by the root it was built over, the caller's spelling.
+  recordEngineStoreCapability(command.checkout, input.store.capabilities.stateOffBranch);
   if (input.skipProjection === true) {
     state.skip = { reason: "switch", mark: { reason: "Projection skipped by --skip-projection.",
       remedy: { text: "Run the command without --skip-projection to take in its pending edits." } } };
@@ -112,13 +116,14 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionStartInput 
 }
 
 /** Settle the copies accumulated by this command under freshly acquired locks. */
-export async function endProjection(input: ProjectionCommandInput): Promise<void> {
+export async function endProjection(command: ProjectionCommandInput): Promise<void> {
+  const input = { ...command, checkout: canonicalCheckoutSync(command.checkout) };
   await settleUnmarkedOwnWrites(input.checkout);
   disposeProjectionFanOut();
   const state = projectionProcessState();
   state.materializeSpawn = null;
   if (state.skip?.reason === "switch") return;
-  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
+  recordEngineStoreCapability(command.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return;
   for (const root of state.roots.values()) await finishProjectionRoot(root);
 }

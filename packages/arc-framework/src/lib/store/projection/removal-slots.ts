@@ -7,6 +7,7 @@ import { persistProjectionRemoval } from "./removal-persist.js";
 import { releaseProjectionRemoval } from "./removal-release.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { projectionProcessState } from "./process-state.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 
 /** A resolved Store with a command identity that can still be unavailable. */
 export interface ProjectionRemovalSlotInput extends Omit<ProjectionPersistContext, "identity"> {
@@ -20,8 +21,8 @@ export function createProjectionRemovalSlots(input: ProjectionRemovalSlotInput):
   const context: ProjectionPersistContext = { ...input, identity: identity.success ? identity.data : null,
     mint: input.mint ?? projectionProcessState().command?.mint };
   return {
-    check: (checkout, disposition) => checkProjectionRemoval(checkout, context, disposition),
-    persist: checkout => persistProjectionRemoval(checkout, context),
-    release: (checkout, primary) => releaseProjectionRemoval(checkout, primary, context),
+    check: async (checkout, disposition) => checkProjectionRemoval(await canonicalCheckout(checkout), context, disposition),
+    persist: async checkout => persistProjectionRemoval(await canonicalCheckout(checkout), context),
+    release: async (checkout, primary) => releaseProjectionRemoval(await canonicalCheckout(checkout), primary, context),
   };
 }

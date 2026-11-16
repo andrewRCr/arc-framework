@@ -4,6 +4,7 @@ import type { RecordEntry } from "./index-schema.js";
 import type { Slug } from "../../kernel/index.js";
 import { isProjectedPath } from "../../layout/index.js";
 import { projectionProcessState } from "./process-state.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { readProjectionIndex } from "./index-file.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
 
@@ -25,8 +26,9 @@ export function selectProjectedMarkdown(entries: Readonly<Record<string, Selecti
 }
 
 /** Read the selection after the matching checkout's command start. */
-export async function projectionSelectionResult(store: Store, checkout: string,
+export async function projectionSelectionResult(store: Store, requested: string,
   options: { changed?: boolean } = {}): Promise<ProjectionSelectionResult> {
+  const checkout = await canonicalCheckout(requested);
   const state = projectionProcessState();
   if (state.command?.checkout === checkout && state.skip?.reason === "switch") {
     return { status: "refused", refusal: { code: "projection-skipped", condition: state.skip.mark.reason, remedy: state.skip.mark.remedy } };

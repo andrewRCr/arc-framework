@@ -3,8 +3,8 @@ import type { RecordReference } from "../identity.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { FanOutDependencies } from "./with-fan-out.js";
-import { resolve } from "node:path";
 import { readGitDirectories } from "../../git/directories.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionProcessState, type FanOutScope } from "./process-state.js";
 import { requestProjectionFanOut, reportProjectionFanOutFailure } from "./fan-out-scheduler.js";
 
@@ -29,9 +29,9 @@ export async function bindProjectionFanOut(input: ProjectionFanOutBindingInput):
   const state = projectionProcessState();
   try {
     const common = await input.ports.fs.realpath(input.location.commonDir);
-    const members = new Map<string, Promise<boolean>>([[resolve(input.checkout), Promise.resolve(true)]]);
-    const binding: ProjectionFanOutBinding = { active: true, contains: checkout => {
-      const key = resolve(checkout), known = members.get(key);
+    const members = new Map<string, Promise<boolean>>([[await canonicalCheckout(input.checkout), Promise.resolve(true)]]);
+    const binding: ProjectionFanOutBinding = { active: true, contains: async checkout => {
+      const key = await canonicalCheckout(checkout), known = members.get(key);
       if (known !== undefined) return known;
       const observed = belongsToClone(input, key, common);
       members.set(key, observed);
@@ -56,7 +56,7 @@ export function createProjectionFanOutDependencies(checkout: string): FanOutDepe
     const current = (): boolean => binding.active && state === projectionProcessState() && state.fanOutBinding === binding;
     return async references => {
       if (!current() || !await binding.contains(checkout) || !current()) return;
-      await requestProjectionFanOut(checkout, references);
+      await requestProjectionFanOut(await canonicalCheckout(checkout), references);
     };
   }, report: cause => { reportProjectionFanOutFailure(checkout, cause); } };
 }

@@ -2,6 +2,7 @@
 import type { Slug } from "../../kernel/index.js";
 import type { ActiveLayoutContext } from "../../layout/index.js";
 import { onCheckoutChange } from "../../git/checkout-change.js";
+import { canonicalCheckoutSync } from "./checkout-identity.js";
 import type { Store } from "../contract.js";
 import type { RecordReference } from "../identity.js";
 import type { HistoryMemo } from "./base-recovery.js";
@@ -145,7 +146,8 @@ export function beginProjectionCommand(): ProjectionProcessState {
 onCheckoutChange(change => {
   const state = projectionProcessState();
   if (change.kind === "marker") { state.layoutContexts.delete(change.checkoutRoot); return; }
-  if (state.roots.delete(change.from)) state.diagnostics.push({ path: change.from, copy: null, mark: {
+  // Roots take the canonical spelling; the layout and capability maps keep the store's own root spelling.
+  if (state.roots.delete(canonicalCheckoutSync(change.from))) state.diagnostics.push({ path: change.from, copy: null, mark: {
     reason: `Projection checkout moved from ${change.from} to ${change.to}; its old binding was released.`,
     remedy: { text: "The next projection visit binds the new path; kept copies settle at its next command." } } });
   state.layoutContexts.delete(change.from);

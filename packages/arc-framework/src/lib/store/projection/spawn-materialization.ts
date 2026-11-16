@@ -2,6 +2,7 @@
 import type { ProjectionCommandInput } from "./engine.js";
 import { projectionProcessState } from "./process-state.js";
 import { createProjectionEnginePorts } from "./engine-ports.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { locateProjection } from "./location.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionConfiguration } from "./configuration.js";
@@ -17,7 +18,8 @@ import type { ProjectionLockResult } from "./lock.js";
 
 /** Run a bound spawn request; a process with no root hook remains dark. */
 export async function materializeSpawnedProjection(checkout: string): Promise<void> {
-  await projectionProcessState().materializeSpawn?.(checkout);
+  const materialize = projectionProcessState().materializeSpawn;
+  if (materialize !== null) await materialize(await canonicalCheckout(checkout));
 }
 
 /** Bind after command start, which resets process state, retaining the command's selected store. */
