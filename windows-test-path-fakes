@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-test-path-fakes",
+  "claimId": "40173670ac3c5b386385816a40ee0808",
+  "createdAt": "2026-11-16T22:46:16.379Z",
+  "updatedAt": "2026-11-16T22:46:16.379Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the unit and integration suites whose path fakes and assertions assume POSIX separators pass on Windows",
+  "branch": "chore/windows-test-path-fakes",
+  "origin": "inbox",
+  "originEntry": "Make main's teardown, park and abandon suites pass on Windows",
+  "originEntrySourceDigest": "sha256:75bcc94bdb0e450d5cad08423845fb777719f837441b17e25d524764d6ce90e4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
