@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "decide-held-inbox-entries",
+  "claimId": "e5c5fb7de9de3038198c66b3c0962484",
+  "createdAt": "2026-11-16T17:21:05.969Z",
+  "updatedAt": "2026-11-16T17:21:05.969Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Require decision-only held inbox entries to be decided and routed during the same drain",
+  "branch": "chore/decide-held-inbox-entries",
+  "origin": "inbox",
+  "originEntry": "Decide held inbox entries that wait only on a decision at each housekeep",
+  "originEntrySourceDigest": "sha256:6266c53d87b4746a80d622b582d879e0813c39e53d92eb49283dc9125d4369c3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
