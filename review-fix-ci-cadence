@@ -3,7 +3,7 @@
   "slug": "review-fix-ci-cadence",
   "claimId": "4acf45251387523d64727f1bb2824563",
   "createdAt": "2026-11-14T02:33:05.344Z",
-  "updatedAt": "2026-11-14T02:33:05.344Z",
+  "updatedAt": "2026-11-16T17:19:26.696Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "State per-round local verification and converged-head hosted CI qualification in the findings-round method.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "State the review-fix rounds' check and CI cadence in the findings round",
   "originEntrySourceDigest": "sha256:60296425b87188f1b64eebae7ffabfda5071244f9b66859f00215e3eabe3d5f0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-fix-ci-cadence",
+    "headSha": "e30b3accf5bc73dfb29259e4edfaf900d086098d"
+  }
 }
