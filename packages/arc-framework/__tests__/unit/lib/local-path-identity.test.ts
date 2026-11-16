@@ -4,6 +4,7 @@ import {
   canonicalLocalPath,
   localPathContains,
   localPathsEqual,
+  nativeGitPath,
   type RealpathFn,
 } from "../../../src/lib/local-path-identity.js";
 
@@ -52,5 +53,20 @@ describe("local path identity", () => {
     });
 
     await expect(canonicalLocalPath("./target", denied)).rejects.toMatchObject({ code: "EACCES" });
+  });
+});
+
+describe("native Git path spelling", () => {
+  it("gives Windows drive and UNC paths from Git backslashes", () => {
+    expect(nativeGitPath("C:/Users/dev/repo", "win32")).toBe("C:\\Users\\dev\\repo");
+    expect(nativeGitPath("d:/a/repo.locus", "win32")).toBe("d:\\a\\repo.locus");
+    expect(nativeGitPath("//server/share/repo", "win32")).toBe("\\\\server\\share\\repo");
+  });
+
+  it("leaves native, rooted-POSIX and non-Windows spellings unchanged", () => {
+    expect(nativeGitPath("C:\\Users\\dev\\repo", "win32")).toBe("C:\\Users\\dev\\repo");
+    expect(nativeGitPath("/repo/linked", "win32")).toBe("/repo/linked");
+    expect(nativeGitPath("C:/Users/dev/repo", "linux")).toBe("C:/Users/dev/repo");
+    expect(nativeGitPath("/repo/back\\slash", "darwin")).toBe("/repo/back\\slash");
   });
 });
