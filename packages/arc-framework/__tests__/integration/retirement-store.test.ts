@@ -7,7 +7,7 @@ import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { link, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
-import { posix } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createTempRepo as createTempRepoCore, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { retirementLink } from "../helpers/store/retirement-harness.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -54,13 +54,11 @@ import { createNodeTeardownSelectionReader } from "../../src/lib/work-unit/teard
 import { createNodeTeardownWorktreeTransactionDriver } from "../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { resolveSelfTeardownMode } from "../../src/lib/config/self-teardown-mode.js";
 import { releaseStoreTerminalHusk } from "../../src/lib/work-unit/store-self-teardown-husk.js";
-const { dirname, join } = posix;
 async function createTempRepo(prefix?: string): Promise<string> {
-  // Git reports long absolute paths with forward slashes on Windows.
-  const root = await realpath(await createTempRepoCore(prefix));
-  return process.platform === "win32" ? root.replaceAll("\\", "/") : root;
+  // ARC reports a checkout by its long, native real path, as main's Windows path spelling (#1355) gives it.
+  return realpath(await createTempRepoCore(prefix));
 }
-/** A retirement fixture rooted in Git's spelling, so checkout paths built from it match Git's worktree list. */
+/** A retirement fixture rooted in the spelling ARC reports, so checkout paths built from it match its results. */
 const fixture = (options: Parameters<typeof fixtureCore>[0] = {}) => fixtureCore({ ...options, createRoot: () => createTempRepo() });
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
 async function selfHuskFixture() {
@@ -536,7 +534,7 @@ describe("store retirement real Git", () => {
     const input = TeardownCommandInputSchema.parse({ name: "demo", husk: h.paths[0] });
     const removed = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: input.husk });
     expect(removed, removed.status === "rejected" ? removed.reason : undefined).toMatchObject({ status: "torn-down", worktreeRemoved: h.paths[0] });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.paths[0]);
+    expect(await registersCheckout(h.exec, h.paths[0])).toBe(false);
   });
 
   it("names the deletion remedy for a file withheld by an index rebuild and removes after deletion", async () => {
@@ -899,7 +897,7 @@ describe("store retirement real Git", () => {
     h.ctx.selfTeardownMode = "remove"; h.ctx.platform = "linux";
     expect(await teardown()).toMatchObject({ status: "torn-down", worktreeRemoved: path,
       notices: expect.arrayContaining([expect.stringContaining("deleted directory")]) });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+    expect(await registersCheckout(h.exec, path)).toBe(false);
   }, 30_000);
   it("sweeps native husks by exact UID, retains a dirty sibling, and completes after repair", async () => {
     const h = await huskFixture(), [clean, dirty] = h.paths;
@@ -925,8 +923,7 @@ describe("store retirement real Git", () => {
     expect(await sweep()).toMatchObject({ status: "swept", removed: [clean],
       left: [{ path: blocked, reason: expect.stringContaining("injected projection observation failure"), failed: true }] });
     expect(await readWorktreeMarker(blocked)).toEqual({ kind: "present", marker: h.huskMarker });
-    const roster = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout;
-    expect(roster).toContain(blocked); expect(roster).not.toContain(clean);
+    expect(await registersCheckout(h.exec, blocked)).toBe(true); expect(await registersCheckout(h.exec, clean)).toBe(false);
     broken = false;
     expect(await sweep()).toMatchObject({ status: "swept", removed: [blocked], left: [] });
   }, 30_000);
@@ -965,14 +962,14 @@ describe("store retirement real Git", () => {
     expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: {
       husk: { sha: h.workOid, subject: boundWorkUnitSubject(h.meta) } } });
     const registration = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout
-      .split("\n\n").find(entry => entry.includes(`worktree ${path}\n`));
+      .split("\n\n").find(entry => entry.split("\n").some(line => line.startsWith("worktree ") && resolve(line.slice(9)) === resolve(path)));
     expect(registration).toContain("detached");
     expect(registration).not.toMatch(/^locked/mu);
     h.ctx.cwd = h.root;
     const replay = TeardownCommandInputSchema.parse({ name: "demo", husk: path });
     expect(await runTeardownForOperand(h.ctx, { name: replay.name!, base: "main", huskPath: replay.husk }))
       .toMatchObject({ status: "torn-down", worktreeRemoved: path });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+    expect(await registersCheckout(h.exec, path)).toBe(false);
   }, 30_000);
 
   it("refuses the selected repository's operator lock through an ambient executor and abandons after unlock", async () => {
@@ -993,7 +990,7 @@ describe("store retirement real Git", () => {
     await h.exec("git", ["worktree", "unlock", path]);
     expect(await run()).toMatchObject({ status: "abandoned" });
     expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+    expect(await registersCheckout(h.exec, path)).toBe(false);
     expect(await h.local("refs/heads/feat/demo")).toBeNull();
   }, 30_000);
   it("returns a clean anchored created branch to base and reaps its exact local, tracking, and remote refs", async () => {
@@ -1017,7 +1014,7 @@ describe("store retirement real Git", () => {
     await h.exec("git", ["worktree", "add", path, "feat/demo"]); h.marker.spawnedByArc = true; h.setHolder(path); await writeWorktreeMarker(path, h.marker);
     await seedProjection({ checkout: path, store: h.store, identity: SlugSchema.parse("test-user"), files: [] });
     expect(await h.teardown()).toMatchObject({ status: "torn-down", worktreeRemoved: path, branchDeleted: true });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+    expect(await registersCheckout(h.exec, path)).toBe(false);
   });
   it("detaches a clean retained linked checkout at base when the primary holds base", async () => {
     const h = await fixture(); await h.exec("git", ["switch", "main"]); const path = join(h.root, "checkout");
@@ -1082,8 +1079,7 @@ describe("store retirement real Git", () => {
   it("cleans the exact current-lineage husk while leaving a second husk registered", async () => {
     const h = await huskFixture();
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: h.paths[0] })).toMatchObject({ status: "torn-down", worktreeRemoved: h.paths[0] });
-    const roster = (await h.exec("git", ["worktree", "list", "--porcelain"])).stdout;
-    expect(roster).not.toContain(h.paths[0]); expect(roster).toContain(h.paths[1]);
+    expect(await registersCheckout(h.exec, h.paths[0])).toBe(false); expect(await registersCheckout(h.exec, h.paths[1])).toBe(true);
   });
   it.each(["foreign", "absent"] as const)("refuses a native terminal stamp whose owner UID is %s", async fault => {
     const h = await huskFixture(), path = h.paths[0];
@@ -1116,7 +1112,7 @@ describe("store retirement real Git", () => {
       await writeWorktreeMarker(h.paths[0], { ...h.huskMarker, husk: { ...h.huskMarker.husk!, evidence: { ...h.terminal.evidence, baseProofOid: h.workOid } } });
     }
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: h.paths[0] })).toMatchObject(contained ? { status: "torn-down", worktreeRemoved: h.paths[0] } : { status: "rejected" });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.paths[1]);
+    expect(await registersCheckout(h.exec, h.paths[1])).toBe(true);
   });
   it.each(["slug", "owner"] as const)("retains exact --husk retry arguments after a transient removal failure, selector=%s", async selector => {
     const h = await huskFixture(), original = h.ctx.exec;
@@ -1133,7 +1129,7 @@ describe("store retirement real Git", () => {
     const h = await huskFixture(), original = h.ctx.exec;
     h.ctx.exec = (command, args, options) => args[0] === "push" ? Promise.reject(Error("injected ref cleanup failure")) : original(command, args, options);
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: h.paths[0] })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "teardown", "demo", "--husk", h.paths[0]] } });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.paths[0]);
+    expect(await registersCheckout(h.exec, h.paths[0])).toBe(true);
     h.ctx.exec = original;
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath: h.paths[0] })).toMatchObject({ status: "torn-down", worktreeRemoved: h.paths[0] });
   });
@@ -1150,11 +1146,11 @@ describe("store retirement real Git", () => {
     await writeFile(join(extraPath, "personal.txt"), "preserve\n"); h.ctx.readMarker = readWorktreeMarker;
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath })).toMatchObject({ status: "rejected",
       remedy: { argv: ["arc", "teardown", "demo", "--husk", huskPath] } });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(huskPath);
+    expect(await registersCheckout(h.exec, huskPath)).toBe(true);
     expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
     await rm(join(extraPath, "personal.txt")); await h.exec("git", ["switch", "--detach", h.baseOid], { cwd: extraPath });
     expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", huskPath })).toMatchObject({ status: "torn-down", worktreeRemoved: huskPath });
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(huskPath);
+    expect(await registersCheckout(h.exec, huskPath)).toBe(false);
     expect(await h.local("refs/heads/feat/demo")).toBeNull(); expect(await h.local("refs/heads/chore/demo")).toBeNull();
   });
 
@@ -1235,7 +1231,7 @@ it.each([false, true])("preserves divergent ignored user files and removes after
   const refused = await runTeardown(h.ctx, params);
   expect(refused).toMatchObject({ status: "rejected" });
   if (husk) expect(refused).toMatchObject({ reason: expect.stringContaining("personal.md") });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  expect(await registersCheckout(h.exec, path)).toBe(true);
   expect(await readFile(join(local, "personal.md"), "utf8")).toBe("unique local work\n");
   expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("different primary work\n");
   const recovery = await createTempRepo("arc-personal-recovery-"); roots.push(recovery);
@@ -1252,7 +1248,7 @@ it.each(["archive", "decompose"] as const)("keeps an unlanded %s husk after its 
   const params = { subject: { kind: "slug" as const, slug: "demo" }, base: "main", huskPath: path };
   expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringMatching(/preserv|landed/iu) });
   expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.workOid);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  expect(await registersCheckout(h.exec, path)).toBe(true);
   await h.exec("git", ["merge", "--ff-only", h.workOid]); await h.exec("git", ["push", "origin", "main"]);
   expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "torn-down", worktreeRemoved: path });
   expect(await readFile(join(h.root, "work"), "utf8")).toBe("work\n");
@@ -1264,7 +1260,7 @@ it("revalidates stamped-commit preservation before locked husk removal and accep
   const selected = await selectStoreRetirementHusk({ ctx: h.ctx, evidence: h.terminal, baseOid: h.baseOid, path }, roster.worktrees);
   await h.exec("git", ["push", "origin", "--delete", "feat/demo"]);
   await expect(selected.revalidate()).rejects.toThrow(/not proven landed/iu);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  expect(await registersCheckout(h.exec, path)).toBe(true);
   await h.exec("git", ["push", "origin", "feat/demo"]);
   await expect(selected.revalidate()).resolves.toBeUndefined();
 });
@@ -1295,7 +1291,7 @@ it.each([false, true])("native UID teardown removes only its archived holder, fo
     createdFor: boundWorkUnitSubject(h.meta, "former") });
   const liveMarker = await readFile(resolveWorktreeMarkerPath(h.livePath)), before = lifecycleSuccess(await h.store.version());
   expect(await h.teardownUid()).toMatchObject({ status: "torn-down", worktreeRemoved: h.archivedPath });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.archivedPath);
+  expect(await registersCheckout(h.exec, h.archivedPath)).toBe(false);
   expect(await readFile(resolveWorktreeMarkerPath(h.livePath))).toEqual(liveMarker);
   expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe("feat/live");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
@@ -1316,7 +1312,7 @@ it("keeps a UID husk retry in its preservation refusal and completes after upstr
   await h.exec("git", ["update-ref", "-d", "refs/remotes/origin/feat/demo"]);
   expect(await runTeardownForOperand(h.ctx, { name: uid, base: "main", huskPath: path })).toMatchObject({ status: "rejected",
     reason: expect.stringContaining(`retry arc teardown ${uid} --husk ${path}`) });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  expect(await registersCheckout(h.exec, path)).toBe(true);
   await h.exec("git", ["update-ref", "refs/remotes/origin/feat/demo", h.workOid]);
   expect(await runTeardownForOperand(h.ctx, { name: uid, base: "main", huskPath: path }))
     .toMatchObject({ status: "torn-down", worktreeRemoved: path });

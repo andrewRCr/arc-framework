@@ -1,11 +1,12 @@
 /** Registered Errand exits retain projected primary edits before clearing their claims. */
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { Store } from "../../src/lib/store/contract.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
+import { registersCheckout } from "../helpers/store/projection-retirement.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
@@ -146,16 +147,17 @@ it("retains failed setup's personal bytes and resumes the same claim after expli
   await mkdir(control, { recursive: true });
   const repaired = join(control, "setup-repaired");
   await mkdir(join(h.root, "scripts"), { recursive: true });
+  // Each setup script carries its path in its source: cmd.exe does not pass a quoted Windows path argument intact.
   await writeFile(join(h.root, "scripts", "personal-setup.cjs"), `
 const fs = require("node:fs");
-if (!fs.existsSync(process.argv[2])) {
+if (!fs.existsSync(${JSON.stringify(repaired)})) {
   fs.mkdirSync(".arc/user/test-user", { recursive: true });
   fs.writeFileSync(".arc/user/test-user/personal.md", "Saved during failed setup.\\n");
   process.exitCode = 1;
 }
 `);
   const config = join(h.root, ".arc/system/arc-config.yml");
-  await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: node scripts/personal-setup.cjs ${JSON.stringify(repaired)}\n`);
+  await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: node scripts/personal-setup.cjs\n`);
   await h.exec("git", ["add", ".arc/system/arc-config.yml", "scripts"]);
   await h.exec("git", ["commit", "-m", "Configure personal setup failure"]);
   await h.exec("git", ["push", "origin", "main"]);
@@ -165,7 +167,9 @@ if (!fs.existsSync(process.argv[2])) {
   const block = (await h.exec("git", ["worktree", "list", "--porcelain"]))
     .stdout.split("\n\n").find(each => each.includes("branch refs/heads/fix/personal-setup"));
   expect(block, failed.stdout + failed.stderr).toBeDefined();
-  const spawned = block?.split("\n").find(line => line.startsWith("worktree "))?.slice(9);
+  const listed = block?.split("\n").find(line => line.startsWith("worktree "))?.slice(9);
+  // Git lists forward slashes on Windows; ARC reports the checkout in native spelling.
+  const spawned = listed === undefined ? undefined : resolve(listed);
   if (spawned === undefined) throw new Error("Missing retained checkout");
   roots.push(spawned);
   const personal = join(spawned, ".arc/user/test-user/personal.md");
@@ -193,11 +197,11 @@ it("removes a failed setup's clean checkout, branch and marker, and rolls back i
   const seen = join(control, "setup-checkout");
   await mkdir(join(h.root, "scripts"), { recursive: true });
   await writeFile(join(h.root, "scripts", "failing-setup.cjs"), `
-require("node:fs").writeFileSync(process.argv[2], process.cwd());
+require("node:fs").writeFileSync(${JSON.stringify(seen)}, process.cwd());
 process.exitCode = 1;
 `);
   const config = join(h.root, ".arc/system/arc-config.yml");
-  await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: node scripts/failing-setup.cjs ${JSON.stringify(seen)}\n`);
+  await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: node scripts/failing-setup.cjs\n`);
   await h.exec("git", ["add", ".arc/system/arc-config.yml", "scripts"]);
   await h.exec("git", ["commit", "-m", "Configure a failing setup"]);
   await h.exec("git", ["push", "origin", "main"]);
@@ -207,7 +211,7 @@ process.exitCode = 1;
   const spawned = await readFile(seen, "utf8");
   expect(spawned, failed.stdout + failed.stderr).not.toBe(h.root);
   await expect(stat(spawned)).rejects.toMatchObject({ code: "ENOENT" });
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(spawned);
+  expect(await registersCheckout(h.exec, spawned)).toBe(false);
   expect((await h.exec("git", ["for-each-ref", "--format=%(refname)", "refs/heads/fix/clean-setup"])).stdout).toBe("");
   expect(await readdir(join(h.root, ".git/worktrees")).catch(() => [])).toEqual([]);
   expect(await readWorktreeMarker(h.root)).toEqual({ kind: "absent" });
