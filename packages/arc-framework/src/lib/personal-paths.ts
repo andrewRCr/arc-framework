@@ -1,5 +1,6 @@
 /** Display and machine-local personal paths; content is read through Store. */
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, join } from "node:path";
+import { displayLocalPath } from "./fs.js";
 import { resolveArcPath } from "./layout/index.js";
 import { resolvePrimaryWorktreePath } from "./git/worktree-roster.js";
 import type { GitExec } from "./git/exec.js";
@@ -21,13 +22,7 @@ export async function resolvePersonalPaths(input: { cwd: string; identity: strin
   const sessionNotesPath = (workUnit: Slug) => join(input.cwd, resolveArcPath({ kind: "user-document", identity,
     document: { kind: "session-notes", workUnit } }));
   const workingMemoryPath = join(primary, resolveArcPath({ kind: "user-document", identity, document: { kind: "working-memory" } }));
-  return { identityGlobalPath, identityGlobalDisplayPath: (...segments) => displayPath(input.cwd, identityGlobalPath(...segments)),
-    workingMemoryPath, workingMemoryDisplayPath: displayPath(input.cwd, workingMemoryPath), sessionNotesPath,
+  return { identityGlobalPath, identityGlobalDisplayPath: (...segments) => displayLocalPath(input.cwd, identityGlobalPath(...segments)),
+    workingMemoryPath, workingMemoryDisplayPath: displayLocalPath(input.cwd, workingMemoryPath), sessionNotesPath,
     workUnitRoot: workUnit => dirname(sessionNotesPath(workUnit)) };
-}
-function displayPath(cwd: string, path: string): string {
-  const normalized = (value: string) => value.replaceAll("\\", "/");
-  if (!isAbsolute(path)) return normalized(path);
-  const local = normalized(relative(cwd, path));
-  return local === "" ? "." : local === ".." || local.startsWith("../") ? normalized(path) : local;
 }
