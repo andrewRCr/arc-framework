@@ -3,14 +3,20 @@
   "slug": "windows-locus-path-spelling",
   "claimId": "d8c41da7b3aebe35e36c3a21b22e6cda",
   "createdAt": "2026-11-16T18:34:53.847Z",
-  "updatedAt": "2026-11-16T18:34:53.847Z",
+  "updatedAt": "2026-11-16T20:49:23.370Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Compare Git worktree paths with derived locus rows by local path identity, so locus checkout selection works on Windows",
   "branch": "chore/windows-locus-path-spelling",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/windows-locus-path-spelling",
+    "headSha": "194c16f3622505bf63925daf4d425b597f331ed0"
+  }
 }
