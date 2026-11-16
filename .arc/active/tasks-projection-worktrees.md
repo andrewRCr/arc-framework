@@ -462,7 +462,17 @@ No production composition sets the slots today, so every caller runs `passingPro
   change since the reviewed head then found a gap in the spelling fix's tests and four minor findings; `039cd69aa6`
   fixed them, with a test that reaches each entry by another spelling, and full hosted CI run `43879215265` passed with
   the portability pair at that head. The merge gate and timing above stand at `5a4eec5afc`; the fix touches no timed
-  path.
+  path. `37f37c74f8` and `279fe1fe01` then merged `main`; the forced merge gate passed after the first, with the full
+  store run (471 of 475 suites), and `arc check new-head` passed after each merge and over the final head. Hosted
+  diagnostic runs `43917592586`, `43925523017`, `43955351924` and `43964135813` ran this work unit's retirement suites
+  on Windows, which the portability tier does not select, beside `main`'s teardown, park and abandon suites. They found
+  tests comparing checkouts by Git's raw spelling and, once `main` gave a checkout its native spelling, by the old one;
+  `58d16b043d`, `e0c5a71074` and `7c49516eb8` fixed them, and `2af9772aa6` keeps a setup-repair E2E case off Windows,
+  where its pseudo-terminal harness cannot run. At `43964135813` all six of this work unit's retirement files passed on
+  Windows and macOS, and the seven files shared with `main` failed no worse than `main`'s baseline `43960905230`: 75
+  failures in common, one only on `main`, and three captured intermittent timeouts only on the branch, which `main`
+  reproduces on a native Windows machine. Full non-diagnostic hosted CI run `43974177580` passed at `2af9772aa6` with
+  the portability pair, its Windows and macOS timing suites included.
 - _Success criteria:_ 20 criteria: 16 met, four superseded — the original performance criterion by A4; the removal and
   unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the
   changed-mark criterion by A9, which accepts the marks a contended end loses. A8's and A9's narrowed forms are

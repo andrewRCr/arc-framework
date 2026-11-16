@@ -69,7 +69,11 @@ differently; both were fixed. Independent criteria passes 1–3 and three standa
 closed with every finding fixed or dispositioned, and the review stopped at an Owner-accepted terminus. A bounded check
 of the changes after the reviewed head found a test gap in the spelling fix and four minor findings; `039cd69aa6` fixed
 them, hosted CI run 43879215265 passed with the portability pair, and the Owner recorded the Candidate's applicability
-on that evidence. The forced merge gate then passed at `db584bf763` for the full-scope convergence attestation. Final
-base reconciliation and exact-head readiness remain the checkpoint's.
+on that evidence. The forced merge gate then passed at `db584bf763` for the full-scope convergence attestation. Two
+merges of `main` followed. Hosted Windows runs of the retirement suites, which the portability tier does not select,
+then found tests comparing checkouts by Git's raw spelling and, once `main` gave a checkout its native spelling, by the
+old one; `58d16b043d`, `e0c5a71074` and `7c49516eb8` fixed them. At run `43964135813` the change's retirement suites
+passed on Windows, and the suites shared with `main` failed no worse than on `main` (`43960905230`). Full hosted CI run
+`43974177580` passed at `2af9772aa6`. Exact-head readiness remains the checkpoint's.
 
 ---
