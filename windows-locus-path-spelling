@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "windows-locus-path-spelling",
+  "claimId": "d8c41da7b3aebe35e36c3a21b22e6cda",
+  "createdAt": "2026-11-16T18:34:53.847Z",
+  "updatedAt": "2026-11-16T18:34:53.847Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Compare Git worktree paths with derived locus rows by local path identity, so locus checkout selection works on Windows",
+  "branch": "chore/windows-locus-path-spelling",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
