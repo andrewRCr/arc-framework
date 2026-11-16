@@ -257,3 +257,27 @@ it("keeps an index a publication leaves unusable at admission capture unobservab
   configurations = 2;
   expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
 });
+
+it("keeps a file awaiting adoption unobservable while a publication leaves its index unusable at capture, naming it", async () => {
+  const { f, projected } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  const meta = Object.keys(projected.index.entries)[0];
+  if (meta === undefined) throw new Error("No projected metadata");
+  const path = `${dirname(meta)}/${basename(meta).replace(/^meta-/u, "notes-")}`;
+  await writeFile(join(f.root, path), "New prose awaiting adoption.\n");
+  const partition = (await readdir(projected.location.stateDir)).find(name => /^index-[a-f0-9]{40}$/u.test(name));
+  if (partition === undefined) throw new Error("No index partition");
+  const live = join(projected.location.stateDir, partition), held = `${live}.held`;
+  const native = createProjectionEnginePorts(f.root);
+  let configurations = 0;
+  const context = { store: f.store, identity: SlugSchema.parse("andrew"), ports: () => ({ ...native,
+    exec: (...args: Parameters<typeof native.exec>) => {
+      if (args[1][0] === "config" && ++configurations === 2) renameSync(live, held);
+      return native.exec(...args);
+    } }) };
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "unobservable", detail: `${path} in ${f.root}: `
+    + `projection.local: The projection index at ${f.root} is unreadable. `
+    + `Let the command publishing the projection index at ${f.root} finish, or run arc save there to rebuild it` });
+  await rename(held, live);
+  configurations = 2;
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
+});

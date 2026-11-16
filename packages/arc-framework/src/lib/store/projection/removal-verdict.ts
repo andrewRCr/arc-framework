@@ -46,15 +46,25 @@ export function markedRemovalRefusal(checkout: string, path: string, mark: Refus
   return { kind: "would-refuse", remedy: retirementRefusal(checkout, path, mark, disposition) };
 }
 
+/** A failed read no single path owns leaves retirement unjudged: its condition and repair, for the caller to place. */
+export function unobservedConditionDetail(mark: RefusedMark): string {
+  return `${sentence(mark.reason)} ${markRepair(mark.remedy).replace(/\.$/u, "")}`;
+}
+
 /** A mark resting on a failed read leaves the path unjudged; the observation keeps the mark's condition and repair. */
 export function unobservedMarkDetail(checkout: string, path: string, mark: RefusedMark): string {
-  return `${path} in ${checkout}: ${sentence(mark.reason)} ${markRepair(mark.remedy).replace(/\.$/u, "")}`;
+  return `${path} in ${checkout}: ${unobservedConditionDetail(mark)}`;
 }
 
 /** A failed Store read leaves the path unjudged; the observation names the path, its checkout, the condition and the repair. */
 export function unobservedRefusal(checkout: string, path: string,
   refusal: StoreRefusal): Extract<ProjectionRemovalCheck, { kind: "unobservable" }> {
   return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, markStoreRefusal(refusal)) };
+}
+
+/** The condition and repair of an ignore check that could not answer at all. */
+export function ignoreFailureMark(failure: string, remedy: string): RefusedMark {
+  return { reason: `Projection ignore guard failed: ${failure}`, remedy: { text: remedy } };
 }
 
 /** The mark the ignore check's refusal sets on a path its rules leave unignored. */

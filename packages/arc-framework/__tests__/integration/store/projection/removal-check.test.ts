@@ -270,8 +270,8 @@ it("keeps an edit unobservable while its ignore guard cannot be read, and passes
     return { ...ports, execInput: (args: string[], input: string, options?: Parameters<typeof ports.execInput>[2]) =>
       denied && args.includes("check-ignore") ? Promise.reject(new Error("Ignore rules cannot be read")) : ports.execInput(args, input, options) };
   } };
-  expect(await checkProjectionRemoval(target.checkout, context)).toMatchObject({ kind: "unobservable",
-    detail: expect.stringContaining("Ignore rules cannot be read") });
+  expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "unobservable",
+    detail: `${target.h.path} in ${target.checkout}: Projection ignore guard failed: Ignore rules cannot be read. The projection writes into no root until the guard passes` });
   denied = false;
   expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
 });

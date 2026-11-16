@@ -3,8 +3,8 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionConfiguration } from "./configuration.js";
-import { ignoreRefusalMark, markedRemovalRefusal, retirementName, type ProjectionRemovalCheck,
-  type ProjectionRetirement } from "./removal-verdict.js";
+import { ignoreFailureMark, ignoreRefusalMark, markedRemovalRefusal, retirementName, unobservedConditionDetail, unobservedMarkDetail,
+  type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -40,7 +40,9 @@ export async function readRemovalHandoffs(input: ProjectionRemovalObservationInp
   });
   if (paths.length === 0) return input.index;
   const ignores = await readRemovalIgnoreCheck(input);
-  if (ignores.kind === "refused" && ignores.reason === "guard-failed") throw new Error(`${ignores.failure}; ${ignores.remedy}`);
+  // The check's catch names the checkout; no single path owns a failed ignore read.
+  if (ignores.kind === "refused" && ignores.reason === "guard-failed")
+    throw new Error(unobservedConditionDetail(ignoreFailureMark(ignores.failure, ignores.remedy)));
   return observeProjectionHandoffs({ checkout: input.root.checkout, context: input.root.context,
     writable: writableUnder(ignores, guardedProjectionRoots(input.root.identity).map(root => root.path)),
     blockedByLink: () => null }, input.index, paths);
@@ -55,7 +57,8 @@ export function createRemovalGuard(input: ProjectionRemovalObservationInput): Pr
   return async path => {
     const ignores = await (read ??= readRemovalIgnoreCheck(input));
     if (ignores.kind !== "refused") return { kind: "passes" };
-    if (ignores.reason === "guard-failed") return { kind: "unobservable", detail: `${ignores.failure}; ${ignores.remedy}` };
+    if (ignores.reason === "guard-failed")
+      return { kind: "unobservable", detail: unobservedMarkDetail(input.root.checkout, path, ignoreFailureMark(ignores.failure, ignores.remedy)) };
     const writable = writableUnder(ignores, guardedProjectionRoots(input.root.identity).map(root => root.path));
     return writable(path) ? { kind: "passes" }
       : markedRemovalRefusal(input.root.checkout, path, ignoreRefusalMark(ignores.reason, ignores.remedy), input.disposition);

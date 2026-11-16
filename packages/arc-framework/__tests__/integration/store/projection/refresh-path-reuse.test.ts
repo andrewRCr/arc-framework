@@ -352,8 +352,8 @@ it("keeps a journaled arrival's check unobservable while the ignore guard cannot
       denied && args.includes("check-ignore") ? Promise.reject(new Error("Ignore rules cannot be read")) : native.execInput(args, input, options) };
   };
   const context = { store: h.f.store, identity: SlugSchema.parse("andrew"), ports };
-  expect(await checkProjectionRemoval(h.f.root, context)).toMatchObject({ kind: "unobservable",
-    detail: expect.stringContaining("Ignore rules cannot be read") });
+  expect(await checkProjectionRemoval(h.f.root, context)).toEqual({ kind: "unobservable",
+    detail: `Cannot observe the projection at ${h.f.root}: Projection ignore guard failed: Ignore rules cannot be read. The projection writes into no root until the guard passes` });
   denied = false;
   expect(await checkProjectionRemoval(h.f.root, context)).toEqual({ kind: "passes" });
   await endProjection(command);
