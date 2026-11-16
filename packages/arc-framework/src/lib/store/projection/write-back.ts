@@ -30,7 +30,7 @@ import type { KindId } from "../catalog.js";
 import { recordPendingWriteBack, recordWriteBack } from "./taken-in.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
 import { selectWriteBackBase, type WriteBackBaseDecision } from "./base-selection.js";
-import { readBaseContent } from "./base-content.js";
+import { isUnreadableBase, readBaseContent } from "./base-content.js";
 import type { RecoveredBase } from "./base-recovery.js";
 import { checkWriteBackEdit } from "./check-edit.js";
 import { prepareMarkerContent } from "./marker-preparation.js";
@@ -300,7 +300,9 @@ function pendingRead(context: WriteBackContext, request: TakeInRequest, refusal:
 
 function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWriteBack {
   const mark = markStoreRefusal(refusal);
-  return { kind: "held", refusal, result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
+  // A base whose listed version had no readable content leaves the edit unjudged, as a failed history read does.
+  return { kind: "held", refusal, ...(isUnreadableBase(refusal) ? { readRefusal: refusal } : {}),
+    result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
 }
 
 async function restoreIds(context: WriteBackContext, request: TakeInRequest, content: string, selected: RecoveredBase): Promise<StoreResult<{

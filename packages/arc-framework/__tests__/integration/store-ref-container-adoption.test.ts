@@ -18,6 +18,7 @@ import { beginProjectionCommand } from "../../src/lib/store/projection/process-s
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { retirementRefusal } from "../../src/lib/store/projection/removal-verdict.js";
 
 afterEach(() => { beginProjectionCommand(); });
 it.each([
@@ -103,7 +104,9 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
     text: expect.stringContaining("--cohort alpha"),
   } } });
   expect(refused.index.entries[path]?.refused?.remedy.text).toContain("--commitment planned");
-  expect(checked).toMatchObject({ remedy: refused.index.entries[path]?.refused?.remedy });
+  const mark = refused.index.entries[path]?.refused;
+  if (mark === undefined || mark === null) throw new Error("No adoption mark recorded");
+  expect(checked).toEqual({ kind: "would-refuse", remedy: retirementRefusal(f.root, path, mark, "remove") });
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
   expect(success(await f.store.version())).toBe(before);
   await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "alpha" })),

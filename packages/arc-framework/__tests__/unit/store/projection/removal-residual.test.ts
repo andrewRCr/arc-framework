@@ -64,7 +64,7 @@ it("refuses a malformed marker instead of treating it as unmanaged, naming its r
   const h = await fixture(), marker = resolveWorktreeMarkerPath(h.root), original = await readFile(marker);
   await writeFile(marker, "{ malformed marker");
   expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "unobservable",
-    detail: expect.stringContaining("Repair or remove the marker, then retry removal.") });
+    detail: expect.stringMatching(/\. Repair or remove the marker, then retry\.$/u) });
   await writeFile(marker, original);
   expect(await observeUnprojectedPersonalFiles(h.root)).toEqual({ kind: "passes" });
 });

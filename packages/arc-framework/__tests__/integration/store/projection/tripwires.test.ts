@@ -145,9 +145,12 @@ it.each([
   ["a median exactly at the bound", Array(9).fill(process.platform === "win32" ? 200 : process.platform === "darwin" ? 60 : 25)],
 ] satisfies [string, number[]][])("keeps %s quiet", async (_scenario, samples) => {
   const h = await createEngineFixture(directories);
-  await withProjectionLock(h.location, session => commitProjectionIndex({ location: h.location, checkout: h.checkout,
-    index: { ...h.index, tripwires: { start: samples } }, checkpoint: session.step }));
-  expect(await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location })).not.toHaveProperty("tripwires");
+  expect(await withProjectionLock(h.location, session => commitProjectionIndex({ location: h.location, checkout: h.checkout,
+    index: { ...h.index, tripwires: { start: samples } }, checkpoint: session.step }))).toMatchObject({ status: "done" });
+  expect((await h.disk()).tripwires).toEqual({ start: samples });
+  const status = await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location });
+  expect(status).toMatchObject({ kind: "ready" });
+  expect(status).not.toHaveProperty("tripwires");
 });
 
 it("reports the ninth high start through the command reporter and clears status after eviction changes the median", async () => {

@@ -61,7 +61,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       links: [...sharedWalk.links, ...personalWalk.links] });
     if (disk.kind === "unusable") {
       const rebuilt = await materializeProjectionRoot({ root, source: input.source, configuration: config, version: saved.result,
-        index: null, recovered: disk.header, startTiming: startedAt });
+        index: null, recovered: disk.header, startTiming: startedAt, reportedLinks: [...sharedWalk.links, ...personalWalk.links] });
       return rebuilt.kind === "refused" ? { kind: "refused", mark: rebuilt.mark }
         : { kind: "ready", version: saved.result, discovered: root.discovered };
     }

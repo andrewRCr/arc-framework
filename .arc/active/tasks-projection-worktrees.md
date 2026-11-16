@@ -384,7 +384,8 @@ No production composition sets the slots today, so every caller runs `passingPro
           park/abandon compositions while preserving their resolved Store and command identity authority.
         - _Outcome:_ Added focused ESLint enforcement of explicit slot/check presence and exercised missing and
           corrected contexts. Store rename now forwards its required slots explicitly through both move directions.
-          Separate Store/identity inspection is recorded in `notes-projection-worktrees.md`; A5 acceptance remains at 2.8.
+          Separate Store/identity inspection is recorded in `notes-projection-worktrees.md`; A5 acceptance remains at
+          2.8.
 
 ### `[x]` **2.5 The user surfaces in every worktree — § 12.8**
 
@@ -423,7 +424,8 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Outcome:_ Native teardown persist bursts cover both hook seams and layouts; each successful persist proves its
   actual Store read observed its completed save before returning, and the final conservation oracle retains refusals'
   recovery evidence. Implementation `33c3c309cc` passed CI run `43327625683` on Windows (`131564473396`), macOS
-  (`131564473414`), and Linux portability (`131564906747`); see `notes-projection-worktrees.md` § Persist burst evidence.
+  (`131564473414`), and Linux portability (`131564906747`); see `notes-projection-worktrees.md` § Persist burst
+  evidence.
 
 ### `[x]` **2.8 Removal after persist** — validate exit criterion at segment scope
 
@@ -442,8 +444,8 @@ No production composition sets the slots today, so every caller runs `passingPro
 - _Quality gates:_ The forced merge gate passed all 20 selected checks at `0a27c749b5`, including the full store run
   (471 of 475 suites). Its first run at `b3f7e7db5c` failed in the store suite whose fixture lacked the integration
   project's new index-schema setup file; `072102c465` repaired the fixture. Full non-diagnostic hosted CI run
-  `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store, E2E,
-  and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
+  `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store,
+  E2E, and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
   `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
 - _Success criteria:_ 19 criteria: 15 met, four superseded — the original performance criterion by A4; the removal and
   unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the

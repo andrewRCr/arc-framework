@@ -56,9 +56,9 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   const arriving: RecordEntry = { ...input.arriving, changed, stat, written: staged.result.written, base: staged.result.base,
     markers: staged.result.rendering?.markers ?? null, notices: staged.result.rendering?.notices ?? [],
     unshown: staged.result.rendering?.unshown ?? record.conflicts, protected: staged.result.rendering?.protected ?? false };
-  const held = { ...previous, handoff: arriving, pending: true, withheld: true };
+  const journaled = { ...previous, handoff: arriving, pending: true, withheld: true };
   let index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: withProjectionEntry(input.index, path, { ...held, refused: ownershipHandoffMark(held) }), checkpoint: root.context.checkpoint });
+    index: withProjectionEntry(input.index, path, { ...journaled, refused: ownershipHandoffMark(journaled) }), checkpoint: root.context.checkpoint });
   await root.context.hooks?.beforeRebuildLink?.(path);
   const linked = await retriedMoves({ checkpoint: root.context.checkpoint }).linkOnto(join(root.checkout, staged.result.location), join(root.checkout, path));
   if (!linked) index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,

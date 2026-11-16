@@ -11,7 +11,7 @@ import type { AsideWriterInput } from "./aside.js";
 import type { ObjectFormat } from "./blob-id.js";
 import { checkChange, readStat } from "./change-detection.js";
 import { notAFileRemedy } from "./read-gate.js";
-import type { FileStat, RecordEntry } from "./index-schema.js";
+import type { FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
 import { parseStampedFile } from "./stamp.js";
 import { stageRecordFile, type StagedFile } from "./staging.js";
 import { unshownConflicts } from "./held-conflicts.js";
@@ -71,7 +71,8 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
     return { kind: "unreplaced", cause: "not-a-file", remedy,
       entry: { ...input.entry, pending: true, refused: { reason: "not-a-file", remedy } } };
   }
-  return recheck(input);
+  // A not-a-file hold settles once its path holds a regular file again, or nothing.
+  return recheck(input.entry.refused?.reason === "not-a-file" ? { ...input, entry: { ...input.entry, refused: null } } : input);
 }
 
 /** Re-check the file, taking in an edit found there and restaging, for at most three passes. */
@@ -106,6 +107,32 @@ async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
     }
     staged = restaged.result;
   }
+}
+
+/** A path holding something other than a regular file waits, with the repair its remedy names. */
+export function notAFileHoldMark(remedy: Remedy): RefusedMark {
+  return { reason: "The file is pending: its path is not a regular file.", remedy };
+}
+
+/**
+ * Report a guard hold once, from whichever step receives it, with the guard's or the store refusal's remedy. A withheld
+ * file and a take-in's answer are reported where they arise.
+ */
+export function reportGuardHold(report: ((diagnostic: { path: string; copy: string | null; mark: RefusedMark }) => void) | undefined,
+  path: string, copy: string | null, guarded: GuardResult): void {
+  if (guarded.kind !== "unreplaced") return;
+  const mark = guardHoldMark(guarded);
+  if (mark !== null) report?.({ path, copy, mark });
+}
+
+function guardHoldMark(guarded: Extract<GuardResult, { kind: "unreplaced" }>): RefusedMark | null {
+  if (guarded.cause === "not-a-file") return notAFileHoldMark(guarded.remedy);
+  if (guarded.cause === "refresh-refused") {
+    return { reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy };
+  }
+  if (guarded.cause === "unsettled") return { reason: "The file is pending: it stayed unsettled across repeated saves.",
+    remedy: { text: "Let the editor finish saving; the next command will retry the file." } };
+  return null;
 }
 
 function unchangedReplacement(result: Extract<TakeInResult, { answer: "no-edit" }>, staged: StagedFile | null,

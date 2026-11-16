@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { createProjectionProtectionEvidence, type ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { createCheckoutObservation } from "../../locus/checkout-observation.js";
-import { sameReference, type RecordReference, type StateVersion } from "../identity.js";
+import type { RecordReference, StateVersion } from "../identity.js";
 import type { ProjectionCommandInput } from "./engine.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { PROJECTION_STATE_FOLDER, type ProjectionLocation } from "./location.js";
@@ -27,6 +27,7 @@ import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
 import { refreshHeldProjectionRoot } from "./held-refresh.js";
 import { readReference } from "./change-detection.js";
 import { projectableRecord } from "./desired-paths.js";
+import { markRecordChanged } from "./changed-mark.js";
 
 interface FanOutRound {
   readonly input: ProjectionCommandInput;
@@ -59,12 +60,16 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
   const own = await observeTarget(input.checkout, input.location);
   const siblings = scope === "own" || !roster.ok ? [] : await observeSiblings(input.checkout, input.location, ports, roster.worktrees);
   const source = createProjectionReadMemo(input.store), version = await source.version();
-  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition); return writes; }
+  if (version.status !== "ok") { reportProjectionFanOutFailure(input.checkout, version.refusal.condition, version.refusal.remedy); return writes; }
   const evidence = createProjectionProtectionEvidence({ source, checkout: input.checkout, exec: ports.exec, checkouts });
   const round: FanOutRound = { input, ports, configuration, source, version: version.result, ownWrites: writes, evidence };
   const unmarked = await visitTarget(round, own);
   if (scope === "own") return unmarked;
-  if (!roster.ok) { reportProjectionFanOutFailure(input.checkout, roster.message); return unmarked; }
+  if (!roster.ok) {
+    reportProjectionFanOutFailure(input.checkout, roster.message, { text: `Other worktrees refresh at their next command; repair the `
+      + `worktree roster so git worktree list runs in ${input.checkout}, then retry.` });
+    return unmarked;
+  }
   for (const sibling of siblings) await visitTarget(round, sibling);
   return unmarked;
 }
@@ -231,10 +236,14 @@ function markOwnWrites(index: ProjectionIndex, round: FanOutRound): OwnMarks {
   const held = new Set<RecordReference>();
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind !== "record") continue;
-    const written = references.filter(reference => sameReference(reference, entry.reference)
-      || entry.handoff !== undefined && sameReference(reference, entry.handoff.reference));
-    for (const reference of written) held.add(reference);
-    if (written.length > 0 && !entry.changed) index = withProjectionEntry(index, path, { ...entry, changed: true });
+    let marked = entry;
+    for (const reference of references) {
+      const next = markRecordChanged(marked, reference);
+      if (next === null) continue;
+      held.add(reference);
+      marked = next;
+    }
+    if (marked !== entry) index = withProjectionEntry(index, path, marked);
   }
   return { index, unmarked: references.filter(reference => !held.has(reference)) };
 }

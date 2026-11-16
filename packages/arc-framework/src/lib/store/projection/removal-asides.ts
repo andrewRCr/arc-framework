@@ -3,7 +3,8 @@ import { checkAsideCopy, observeAsideCopy, recordWriteBackSent } from "./aside-c
 import { readProjectionLinkBoundary, type ProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
 import type { ProjectionRemovalGuard, ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionProtection } from "./protection.js";
-import { projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
+import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck,
+  type ProjectionRetirement } from "./removal-verdict.js";
 import type { AsideCopyRecord, RecordEntry, ProjectionIndex } from "./index-schema.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -98,7 +99,7 @@ async function checkUnauthorizedCopy(input: ProjectionRemovalAsidesInput, path: 
   if (guarded.kind !== "would-refuse") return guarded;
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);
-  return { kind: "would-refuse", remedy: denied?.remedy ?? guarded.remedy };
+  return denied === null ? guarded : markedRemovalRefusal(root.checkout, copy.name, denied, input.disposition);
 }
 
 async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: string, entry: RecordEntry,

@@ -26,8 +26,8 @@ import { writableUnder } from "./sweep.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { writeBackProjectionFiles, type ProjectionFileWriteObservation } from "./engine-files.js";
 import { checkProjectionRemoval, unusableProjectionIndexDetail } from "./removal-check.js";
-import { retirementName, type ProjectionRetirement } from "./removal-verdict.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import { ignoreRefusalMark, retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { join } from "node:path";
 import { projectionProcessState } from "./process-state.js";
@@ -68,9 +68,9 @@ export function retireProjectionRoot(root: ProjectionRootState): void {
   state.roots.delete(root.checkout);
 }
 
-/** The continuation run under the lease once persistence settles, given the remedy for any ignore rules that refuse. */
+/** The continuation run under the lease once persistence settles, given the mark for any ignore rules that refuse. */
 export type ProjectionPersistCompletion = (root: ProjectionRootState, index: ProjectionIndex,
-  ignoreRefusal?: Remedy) => Promise<ProjectionPersistResult>;
+  ignoreMark?: RefusedMark) => Promise<ProjectionPersistResult>;
 
 /** Keep a successful continuation within the persistence lease and bound root lifetime. */
 export async function withPersistedProjection(checkout: string, context: ProjectionPersistContext, disposition: "remove" | "release",
@@ -119,9 +119,9 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       const written = await persistFiles(input, root, index, disposition);
       index = written.index;
       if (written.refusal !== undefined) return { kind: "refused", remedy: written.refusal };
-      const unsent = unsentRefusal(root, observedFrom, disposition);
+      const unsent = unsentRefusal(root, observedFrom, disposition, written.ignoreMark);
       if (unsent !== undefined) return { kind: "refused", remedy: unsent };
-      const copies = await persistProjectionAsides(root, index, disposition, context.hooks, written.ignoreRefusal);
+      const copies = await persistProjectionAsides(root, index, disposition, context.hooks, written.ignoreMark);
       index = copies.index;
       if (copies.refusal !== undefined) return { kind: "refused", remedy: copies.refusal };
       await context.hooks?.beforeLastCheck?.(root.checkout, pass);
@@ -130,14 +130,14 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       if (checked.kind === "unobservable") return refuse(checked.detail);
       if (await changedProjectionFiles(root, index) || await changedProjectionAsides(root, index)) continue;
       await input.session.step();
-      return await complete(root, index, written.ignoreRefusal);
+      return await complete(root, index, written.ignoreMark);
     }
     return refuse(`Files kept changing at ${root.checkout}. Let the saves finish, then retry ${retirementName(disposition)}.`);
   } finally { root.checkpoint = null; }
 }
 
 async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionRootState, initial: ProjectionIndex,
-  disposition: ProjectionRetirement): Promise<{ index: ProjectionIndex; refusal?: Remedy; ignoreRefusal?: Remedy }> {
+  disposition: ProjectionRetirement): Promise<{ index: ProjectionIndex; refusal?: Remedy; ignoreMark?: RefusedMark }> {
   const walked = await walkPersistedRoots(root);
   const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs },
     records: initial.ignoreFiles, recordedGuard: initial.ignoreGuard, reference: await readReference(root.checkout),
@@ -150,14 +150,17 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
   const observed: ProjectionFileWriteObservation[] = [];
   index = await writeBackProjectionFiles(root, index, walked.files, undefined, outcome => { observed.push(outcome); });
   index = await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
+  const ignoreMark = ignores.kind === "refused" ? ignoreRefusalMark(ignores.reason, ignores.remedy) : undefined;
   for (const { path, result, installation } of observed) {
     if (result.answer === "no-edit" || result.answer === "taken-in" && installation === "attempted") continue;
     const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.path === path)?.mark;
-    const refusal = ignores.kind === "refused" && !root.writable(path) ? { text: ignores.remedy }
-      : reported?.remedy ?? result.entry.refused?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` };
+    const mark = ignoreMark !== undefined && !root.writable(path) ? ignoreMark : reported ?? result.entry.refused;
+    const refusal = mark === null
+      ? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` }
+      : retirementRefusal(root.checkout, path, mark, disposition);
     return { index, refusal };
   }
-  return { index, ...(ignores.kind === "refused" ? { ignoreRefusal: { text: ignores.remedy } } : {}) };
+  return { index, ...(ignoreMark === undefined ? {} : { ignoreMark }) };
 }
 
 async function walkPersistedRoots(root: ProjectionRootState): ReturnType<typeof walkProjectionRoots> {
@@ -187,11 +190,15 @@ async function changedProjectionFiles(root: ProjectionRootState, index: Projecti
 
 function refuse(text: string): ProjectionPersistResult { return { kind: "refused", remedy: { text } }; }
 
-function unsentRefusal(root: ProjectionRootState, observedFrom: number, disposition: ProjectionRetirement): Remedy | undefined {
+/** A file sent but not installed: the ignore rules hold it where they leave its path unwritable, else its own mark does. */
+function unsentRefusal(root: ProjectionRootState, observedFrom: number, disposition: ProjectionRetirement,
+  ignoreMark: RefusedMark | undefined): Remedy | undefined {
   const [path] = root.unsent;
   if (path === undefined) return undefined;
-  const mark = projectionProcessState().diagnostics.slice(observedFrom).reverse().find(each => each.path === path)?.mark;
-  return mark?.remedy ?? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` };
+  const mark = ignoreMark !== undefined && !root.writable(path) ? ignoreMark
+    : projectionProcessState().diagnostics.slice(observedFrom).reverse().find(each => each.path === path)?.mark;
+  return mark === undefined ? { text: `Run arc save from ${root.checkout} to finish ${path}, then retry ${retirementName(disposition)}.` }
+    : retirementRefusal(root.checkout, path, mark, disposition);
 }
 
 function invalidateRemovalHistory(store: Store, history: HistoryMemo): Store {

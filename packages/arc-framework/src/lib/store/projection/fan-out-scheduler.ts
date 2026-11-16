@@ -1,4 +1,5 @@
 /** Schedule advisory fan-out at command boundaries while projection leases protect writes. */
+import type { Remedy } from "../refusal.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import { projectionProcessState, type ProjectionSkip } from "./process-state.js";
 import { projectionTimingNow } from "./timings.js";
@@ -81,11 +82,14 @@ function finishFanOutTiming(checkout: string, startedAt: number | undefined): vo
   (root.fanOutTimes ??= []).push(Math.max(0, projectionTimingNow(root.ports) - startedAt));
 }
 
-/** Retain an advisory diagnostic while the landed store operation keeps its original result. */
-export function reportProjectionFanOutFailure(checkout: string, cause: unknown): void {
+/**
+ * Retain an advisory diagnostic while the landed store operation keeps its original result, with the cause's own remedy
+ * where it has one.
+ */
+export function reportProjectionFanOutFailure(checkout: string, cause: unknown,
+  remedy: Remedy = { text: "Other worktrees refresh at their next command; repair the reported destination and retry." }): void {
   projectionProcessState().diagnostics.push({ path: checkout, copy: null, mark: {
-    reason: `Fan-out failed: ${cause instanceof Error ? cause.message : String(cause)}`,
-    remedy: { text: "Other worktrees refresh at their next command; repair the reported destination and retry." } } });
+    reason: `Fan-out failed: ${cause instanceof Error ? cause.message : String(cause)}`, remedy } });
 }
 
 function disabled(skip: ProjectionSkip | null): boolean {

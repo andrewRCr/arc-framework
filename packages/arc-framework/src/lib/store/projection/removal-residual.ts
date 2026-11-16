@@ -19,7 +19,7 @@ export async function observeUnprojectedPersonalFiles(checkout: string, fs: Proj
   try {
     const marker = await readWorktreeMarker(checkout);
     if (marker.kind === "malformed") return { kind: "unobservable",
-      detail: `${marker.path}: ${marker.message}. Repair or remove the marker, then retry removal.` };
+      detail: `${marker.path}: ${marker.message}. Repair or remove the marker, then retry.` };
     if (marker.kind === "absent" || decodeWorktreeMarkerOwnership(marker.marker).kind !== "current") return { kind: "passes" };
     return await observeManagedPersonalFiles(checkout, fs);
   } catch (error) {

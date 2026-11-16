@@ -11,7 +11,9 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { ownershipHandoffMark } from "./ownership-hold.js";
+import { notAFileHoldMark } from "./replace-guard.js";
 import { sameReference, type RecordReference } from "../identity.js";
+import type { Remedy } from "../refusal.js";
 
 /** Lease-bound path authority shared by materialization and command settlement. */
 export type OwnershipRoot = Pick<ProjectionRootState, "checkout" | "location" | "context" | "writable" | "blockedByLink">;
@@ -77,21 +79,34 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
   if (gate.kind === "absent") {
     const leaving = { ...entry };
     delete leaving.handoff;
-    return { ...leaving, stat: null, pending: true, withheld: false, refused: null };
+    // A marked arrival withdrawn before confirmation parks its mark for the retried installation.
+    return { ...leaving, ...arriving.changed ? { arrivingChanged: arriving.reference } : {}, stat: null, pending: true,
+      withheld: false, refused: null };
   }
-  if (gate.kind !== "read") return heldArrival(root, path, entry);
+  // A save still settling, a read that failed, or a stat that moved during the read waits for the next reconciliation.
+  if (gate.kind === "pending") return entry;
+  if (gate.kind === "no-edit" && gate.deleted === "not-a-file") return notAFileArrival(root, path, entry, gate.remedy);
+  if (gate.kind !== "read") return withheldArrival(root, path, entry);
   const bytes = await readFile(absolute).catch((error: unknown) => {
     if (!retainReadFailure) throw error;
     return null;
   });
-  if (bytes === null || !isDeepStrictEqual(gate.stat, await readStat(absolute))) return heldArrival(root, path, entry);
-  if (gate.stat.ino !== arriving.stat?.ino || gitBlobId(bytes, root.context.format) !== arriving.written) return heldArrival(root, path, entry);
+  if (bytes === null || !isDeepStrictEqual(gate.stat, await readStat(absolute))) return entry;
+  if (gate.stat.ino !== arriving.stat?.ino || gitBlobId(bytes, root.context.format) !== arriving.written) return withheldArrival(root, path, entry);
   // The arrival keeps only its own changed mark; a refresh moving its record here marked the arrival, directly or by the
   // leaving entry's `arrivingChanged` that the installation carried over.
   return { ...arriving, stat: gate.stat, withheld: false, pending: false };
 }
 
-function heldArrival(root: OwnershipObservationRoot, path: string, entry: RecordEntry): RecordEntry {
+/** Something other than a regular file at the path holds the journal pending, with the repair its remedy names. */
+function notAFileArrival(root: OwnershipObservationRoot, path: string, entry: RecordEntry, remedy: Remedy): RecordEntry {
+  root.context.report?.({ path, copy: null, mark: notAFileHoldMark(remedy) });
+  const refused = { reason: "not-a-file", remedy };
+  return entry.pending && isDeepStrictEqual(entry.refused, refused) ? entry : { ...entry, pending: true, refused };
+}
+
+/** Withhold a journaled arrival whose bytes are ambiguous, under the mark naming both identities. */
+function withheldArrival(root: OwnershipObservationRoot, path: string, entry: RecordEntry): RecordEntry {
   const mark = ownershipHandoffMark(entry);
   root.context.report?.({ path, copy: null, mark });
   return entry.pending && entry.withheld && isDeepStrictEqual(entry.refused, mark) ? entry

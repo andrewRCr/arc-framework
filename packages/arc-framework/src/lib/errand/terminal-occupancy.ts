@@ -2,7 +2,8 @@
 
 import { resolve } from "node:path";
 import { digestBytes } from "../kernel/index.js";
-import { removeWorktreeCheckout, describeRemovalRefusal, passingProjectionRemovalSlots, type ProjectionRemovalSlots, type WorktreeRemovalResult } from "../git/worktree-removal.js";
+import { checkWorktreeRemoval, removeWorktreeCheckout, describeRemovalRefusal, passingProjectionRemovalSlots, type ProjectionRemovalSlots,
+  type WorktreeRemovalResult } from "../git/worktree-removal.js";
 import { parseGitWorktreePorcelainZ } from "../git/worktree-porcelain.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -88,6 +89,17 @@ export function createTerminalOccupancyIO(
       return removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath, slots, beforeRetire });
     },
   };
+}
+
+/**
+ * Whether the primary's projection release would refuse, checked before a caller's first lifecycle write: the message
+ * to refuse with, or null where the release is feasible.
+ */
+export async function checkPrimaryProjectionRelease(exec: GitExec, checkoutPath: string,
+  slots: ProjectionRemovalSlots | undefined): Promise<string | null> {
+  // A release keeps the folder, so its check answers only removable or refused.
+  const check = await checkWorktreeRemoval({ exec, checkoutPath, disposition: "release", check: slots?.check });
+  return check.kind === "refused" ? describeRemovalRefusal(check) : null;
 }
 
 /** Revalidate and remove one exact authorized transient occupancy. */

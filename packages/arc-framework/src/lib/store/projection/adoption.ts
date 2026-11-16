@@ -42,8 +42,7 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   const content = submission.result.plan.prepared.takenIn;
   const sent = await submitProjectionBatch(root.context, submission.result.batch);
   if (sent.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(sent.refusal, root.context.verb));
-  return recordAdoptionAcceptance(root, index, path, sent.result, content,
-    verdict.read);
+  return recordAdoptionAcceptance(root, index, path, sent.result, content, verdict.read);
 }
 
 async function resolveAdoptionReference(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<
@@ -87,7 +86,6 @@ async function refuse(root: ProjectionRootState, index: ProjectionIndex, path: s
     index: withProjectionEntry(index, path, { ...(previous?.kind === "ownerless" ? previous : {}),
       kind: "ownerless", stat, refused: mark }) });
 }
-
 
 function reportWithheld(root: ProjectionRootState, index: ProjectionIndex, path: string, mark: RefusedMark | null): ProjectionIndex {
   if (mark !== null) root.context.report?.({ path, copy: null, mark });

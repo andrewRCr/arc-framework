@@ -126,7 +126,9 @@ async function readOwnPrimary(input: ProjectionRefreshPlanInput, records: StoreR
   const listed = records.find(record => (record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record")
     && isClaimedProjectionOwner(input.root, record.reference.owner) && record.placement?.kind === "active");
   if (listed !== undefined) return { primary: listed, unavailable: false };
-  const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: input.root.claim }));
+  // A UID-bound claim names its own unit exactly; only a claim without one reads by slug.
+  const uid = input.root.claimUid === undefined ? {} : { uid: input.root.claimUid };
+  const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: input.root.claim, ...uid }));
   const read = await input.source.read({ reference });
   if (read.status === "ok") return { primary: read.result.placement?.kind === "active"
     && isClaimedProjectionOwner(input.root, read.result.reference.owner) ? read.result : null, unavailable: false };

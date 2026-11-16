@@ -11,6 +11,7 @@ import { readProjectionIndex } from "../../src/lib/store/projection/index-file.j
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { retirementRefusal } from "../../src/lib/store/projection/removal-verdict.js";
 
 afterEach(() => { vi.resetAllMocks(); beginProjectionCommand(); });
 
@@ -34,7 +35,9 @@ it("preserves a dropped cohort document until its cohort exists, then adopts the
     reason: expect.stringMatching(/existing live cohort/iu),
     remedy: { text: expect.stringMatching(/restore.*cohort|existing cohort.*canonical/iu) },
   } });
-  expect(checked).toMatchObject({ remedy: refused.index.entries[path]?.refused?.remedy });
+  const mark = refused.index.entries[path]?.refused;
+  if (mark === undefined || mark === null) throw new Error("No adoption mark recorded");
+  expect(checked).toEqual({ kind: "would-refuse", remedy: retirementRefusal(f.root, path, mark, "remove") });
   const established = await seed(f, reference, content.replace("Authored cohort prose", "Stored cohort prose"));
   expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });

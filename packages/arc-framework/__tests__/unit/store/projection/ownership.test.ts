@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveWorktreeMarkerPath, type WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, resolveWorktreeMarkerPath, type WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { checkoutHoldsProjection } from "../../../../src/lib/store/projection/ownership.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 
@@ -40,10 +40,23 @@ describe("projection eligibility", () => {
     { createdFor: { kind: "branch", ref: "chore/decompose-alpha" } },
     { createdFor: { kind: "errand", slug: "alpha", claimId: "a".repeat(32) }, provisioning: "pending" },
     { createdFor: { kind: "errand", slug: "alpha", claimId: "a".repeat(32) }, provisioning: "future" },
-    { createdFor: { kind: "errand", slug: "alpha" } },
-    { createdFor: { kind: "work-unit", name: "alpha" }, husk: { branch: "feat/alpha", sha: "abc", at: "2026-11-10T00:00:00Z", subject: { kind: "work-unit", name: "alpha" } } },
-  ])("leaves machinery, pending, manual-only, and husked checkouts without a projection: %j", async ownership => {
+  ])("leaves machinery, pending, and manual-only checkouts without a projection: %j", async ownership => {
     await hold({ ...marker, ...ownership });
+    expect(await readWorktreeMarker(checkout)).toMatchObject({ kind: "present" });
+    expect(await checkoutHoldsProjection(checkout, location)).toBe(false);
+  });
+
+  it("leaves a husked work-unit checkout without a projection", async () => {
+    await hold({ ...marker, createdFor: { kind: "work-unit", name: "alpha" }, husk: { branch: "feat/alpha", sha: "abc",
+      at: "2026-11-10T00:00:00Z", subject: { kind: "work-unit", name: "alpha" }, authorization: "discard-confirmed",
+      remoteRef: null, evidence: { kind: "lineage" } } });
+    expect(await readWorktreeMarker(checkout)).toMatchObject({ kind: "present", marker: { husk: { branch: "feat/alpha" } } });
+    expect(await checkoutHoldsProjection(checkout, location)).toBe(false);
+  });
+
+  it("leaves a checkout whose marker is malformed without a projection", async () => {
+    await hold({ ...marker, createdFor: { kind: "errand", slug: "alpha" } });
+    expect(await readWorktreeMarker(checkout)).toMatchObject({ kind: "malformed" });
     expect(await checkoutHoldsProjection(checkout, location)).toBe(false);
   });
 

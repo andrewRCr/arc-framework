@@ -1,5 +1,5 @@
 /** Snapshot the families that project files, retaining listing completeness and listing-backed record reads. */
-import type { FamilyId } from "../catalog.js";
+import { familyOf, type FamilyId } from "../catalog.js";
 import type { StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import { OwnerIdentitySchema, sameReference, sameOwner, type RecordReference, type StateVersion } from "../identity.js";
@@ -34,11 +34,11 @@ export async function readProjectionInventory(source: ProjectionSource, identity
     if (listing.status === "ok" && listing.result.status === "complete") records.push(...listing.result.records);
   }
   const complete = (reference: RecordReference): boolean => reference.owner.type !== "person" || reference.owner.name === identity
-    ? projectionListingComplete(listings.get(familyOf(reference))) : false;
+    ? projectionListingComplete(listings.get(familyOf(reference.kind))) : false;
   const listed: ProjectionSource = {
     version: () => Promise.resolve({ status: "ok", result: version }), changes: input => source.changes(input),
     read: async input => {
-      if (input.asOf !== undefined && input.asOf !== version || !listings.has(familyOf(input.reference))) return source.read(input);
+      if (input.asOf !== undefined && input.asOf !== version || !listings.has(familyOf(input.reference.kind))) return source.read(input);
       if (input.reference.kind === "cohort/document" && input.reference.owner.type === "cohort" && input.reference.owner.uid === undefined) {
         return source.read({ ...input, asOf: version });
       }
@@ -63,7 +63,6 @@ export async function readProjectionInventory(source: ProjectionSource, identity
   return { records, diagnostics, source: listed, complete };
 }
 
-function familyOf(reference: RecordReference): FamilyId { return reference.kind.split("/")[0] as FamilyId; }
 
 /** Whether a listing proves every record present or absent without omissions. */
 export function projectionListingComplete(listing: StoreResult<ListingOutcome> | undefined): boolean {

@@ -151,8 +151,13 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
     adoption: pendingEntry.adoption, persisted: pendingEntry.persisted, pending: true, refused: pendingEntry.refused });
   expect(await readFile(payload)).toEqual(payloadBytes);
   expect(await readFile(join(external, path.slice(path.lastIndexOf("/") + 1)), "utf8")).toBe("external content\n");
+  // Retirement never follows the link, so the accepted entry behind it holds nothing back while the folder is linked.
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await unlink(join(f.root, folder));
   await rename(backup, join(f.root, folder));
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toMatchObject({
+    kind: "would-refuse", remedy: { text: expect.stringContaining("arc save") },
+  });
   if (kind === "inbound") {
     const entry = held.index.entries[path];
     if (entry?.kind !== "record") throw new Error("Missing accepted entry for the aside take-in");
@@ -229,7 +234,11 @@ it("binds an unindexed archived cohort file to its archive coordinates while its
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: archived.reference, pending: false, refused: null });
 });
 
-it("answers an archived cohort file unobservable while the cohort archive inventory is incomplete, then passes", async () => {
+it.each([
+  ["incomplete", "The archived cohort inventory is incomplete. Restore the missing cohort archive inventory"],
+  ["diagnostic", "Cohort archive entry core cannot be read. Restore the cohort archive entry"],
+  ["unreadable", "The cohort archive cannot be listed. Restore the cohort archive"],
+] as const)("answers an archived cohort file unobservable while the cohort archive listing is %s, then passes", async (fault, detail) => {
   const { f } = await createAdoptionFixture();
   const name = SlugSchema.parse("core"), reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
   const body = "# Cohort: core\n\n**Parent:** [none]\n\n**Purpose:** Coordinate old work.\n\nOriginal archived prose\n";
@@ -243,11 +252,14 @@ it("answers an archived cohort file unobservable while the cohort archive invent
   let incomplete = true;
   const store = overrideEngineStore(f.store, { list: async request => {
     const listed = await f.store.list(request);
-    return incomplete && request.family === "cohort" && listed.status === "ok" && listed.result.status === "complete"
-      ? { ...listed, result: { ...listed.result, missed: true } } : listed;
+    if (!incomplete || request.family !== "cohort" || listed.status !== "ok" || listed.result.status !== "complete") return listed;
+    if (fault === "unreadable") return { status: "ok", result: { status: "unreadable", condition: "The cohort archive cannot be listed.",
+      remedy: { text: "Restore the cohort archive, then retry." } } };
+    return { ...listed, result: { ...listed.result, ...fault === "incomplete" ? { missed: true } : { diagnostics: [{ kind: "unreadable",
+      key: "core", condition: "Cohort archive entry core cannot be read.", remedy: { text: "Restore the cohort archive entry, then retry." } }] } } };
   } });
   const check = () => checkProjectionRemoval(f.root, { store, identity: SlugSchema.parse("andrew") });
-  expect(await check()).toEqual({ kind: "unobservable", detail: expect.stringContaining("cohort archive inventory") });
+  expect(await check()).toEqual({ kind: "unobservable", detail: `${path} in ${f.root}: ${detail}` });
   incomplete = false;
   expect(await check()).toEqual({ kind: "passes" });
 });

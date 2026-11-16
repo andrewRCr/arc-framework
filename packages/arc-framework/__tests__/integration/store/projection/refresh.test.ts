@@ -72,8 +72,19 @@ vi.mock("node:fs/promises", async original => {
   };
 });
 
+/** Each refresh plan's paths, so a test sees what a refresh planned rather than only what stayed on disk. */
+const planned = vi.hoisted(() => ({ paths: [] as string[] }));
+vi.mock("../../../../src/lib/store/projection/refresh-plan.js", async original => {
+  const actual = await original<typeof import("../../../../src/lib/store/projection/refresh-plan.js")>();
+  return { ...actual, planProjectionRefresh: async (...args: Parameters<typeof actual.planProjectionRefresh>) => {
+    const plan = await actual.planProjectionRefresh(...args);
+    planned.paths.push(...plan.paths.keys());
+    return plan;
+  } };
+});
+
 const directories: string[] = [];
-afterEach(async () => { observation.file = ""; observation.index = ""; observation.reference = ""; observation.events = [];
+afterEach(async () => { planned.paths = []; observation.file = ""; observation.index = ""; observation.reference = ""; observation.events = [];
   observation.firstHeader = null; await removeGitBackedDirs(directories.splice(0)); });
 
 async function fixture() {
@@ -96,13 +107,6 @@ async function holdEntry(h: Awaited<ReturnType<typeof fixture>>, path: string): 
     await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
       index: withProjectionEntry(read.index, path, { ...entry, pending: true, withheld: true }) });
   });
-}
-
-async function identities(root: string, paths: readonly string[]) {
-  return Promise.all(paths.map(async file => {
-    const { ino, mtimeNs } = await stat(join(root, file), { bigint: true });
-    return { file, ino, mtimeNs };
-  }));
 }
 
 /** A companion laid and then held, leaving its owner planned only for that entry. */
@@ -130,16 +134,16 @@ async function resolveConflict(h: Awaited<ReturnType<typeof fixture>>, reference
     provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
 }
 
-it("refreshes one changed record while leaving its unchanged neighbor untouched", async () => {
+it("refreshes one changed record while leaving its unchanged neighbor unplanned", async () => {
   const h = await fixture();
-  const metaBefore = await stat(join(h.f.root, h.metaPath), { bigint: true });
   const changed = "Opening.\nNew stored note.\nClosing.\n";
   success(await h.f.store.write(update(h.f, h.notes, changed)));
   const version = success(await h.f.store.version());
+  planned.paths = [];
   expect(await startProjection({ checkout: h.f.root, store: h.f.store })).toMatchObject({ kind: "ready" });
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(changed);
-  const metaAfter = await stat(join(h.f.root, h.metaPath), { bigint: true });
-  expect({ ino: metaAfter.ino, mtimeNs: metaAfter.mtimeNs }).toEqual({ ino: metaBefore.ino, mtimeNs: metaBefore.mtimeNs });
+  expect(planned.paths).toContain(h.path);
+  expect(planned.paths).not.toContain(h.metaPath);
   const index = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(index).toMatchObject({ kind: "index", index: { state: version, entries: { [h.path]: { pending: false } } } });
 });
@@ -301,15 +305,16 @@ it("keeps a pending file's newer write-back when refresh follows the start's cap
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(authored);
 });
 
-it("lays a newly added owner record without replacing its existing files", async () => {
+it("lays a newly added owner record without planning its existing files", async () => {
   const h = await fixture();
-  const before = await stat(join(h.f.root, h.path), { bigint: true });
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "assessment");
   await seed(h.f, reference, "A new assessment.\n");
+  planned.paths = [];
   expect(await startProjection({ checkout: h.f.root, store: h.f.store })).toMatchObject({ kind: "ready" });
   expect(parseStampedFile(await readFile(join(h.f.root, ".arc/active/current/assessment-alpha.md"), "utf8")).content).toBe("A new assessment.\n");
-  const after = await stat(join(h.f.root, h.path), { bigint: true });
-  expect({ ino: after.ino, mtimeNs: after.mtimeNs }).toEqual({ ino: before.ino, mtimeNs: before.mtimeNs });
+  expect(planned.paths).toContain(".arc/active/current/assessment-alpha.md");
+  expect(planned.paths).not.toContain(h.path);
+  expect(planned.paths).not.toContain(h.metaPath);
 });
 
 it("reports an arriving record whose read the store refuses and lays it at the next start after repair", async () => {
@@ -410,34 +415,35 @@ it("leaves an owner's unchanged files in place while one of its files stays refu
   expect(await neighbors()).toEqual(withheld);
 });
 
-it("lays a held owner's changed record without re-laying the owner's settled files", async () => {
+it("lays a held owner's changed record without planning the owner's settled files", async () => {
   const h = await fixture();
   const command = await heldCompanion(h);
-  const before = await identities(h.f.root, [h.metaPath]);
   const changed = "Opening.\nA note fanned out from a sibling.\nClosing.\n";
   success(await h.f.store.write(update(h.f, h.notes, changed)));
+  planned.paths = [];
   await startProjection(command);
   await endProjection(command);
   expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(changed);
-  expect(await identities(h.f.root, [h.metaPath])).toEqual(before);
+  expect(planned.paths).toEqual(expect.arrayContaining([h.path, ".arc/active/current/repair.txt"]));
+  expect(planned.paths).not.toContain(h.metaPath);
 });
 
-it("refreshes a held owner's conflict subject without re-laying the owner's other settled files", async () => {
+it("refreshes a held owner's conflict subject without planning the owner's other settled files", async () => {
   const h = await fixture();
   const conflict = await storeConflict(h, h.notes);
   const command = await heldCompanion(h);
   expect(await readFile(join(h.f.root, h.path), "utf8")).toContain("<<<<<<<");
-  const before = await identities(h.f.root, [h.metaPath]);
   await resolveConflict(h, conflict);
+  planned.paths = [];
   await startProjection(command);
   await endProjection(command);
   expect(await readFile(join(h.f.root, h.path), "utf8")).not.toContain("<<<<<<<");
-  expect(await identities(h.f.root, [h.metaPath])).toEqual(before);
+  expect(planned.paths).toContain(h.path);
+  expect(planned.paths).not.toContain(h.metaPath);
 });
 
-it("refreshes a meta that gains a stored conflict without re-laying its owner's other files", async () => {
+it("refreshes a meta that gains a stored conflict without planning its owner's other files", async () => {
   const h = await fixture();
-  const before = await identities(h.f.root, [h.path]);
   const reference = RecordReferenceSchema.parse({ owner: h.primary.reference.owner, kind: "work-item/conflict-record", key: "external-conflict" });
   const value = { reference: h.primary.reference, content: h.primary.content, version: h.primary.version,
     formatVersion: h.primary.formatVersion, ...(h.primary.placement ? { placement: h.primary.placement } : {}) };
@@ -446,11 +452,13 @@ it("refreshes a meta that gains a stored conflict without re-laying its owner's 
     content: canonicalize(ConflictRecordSchema.parse({ record: h.primary.reference, location: { kind: "record" }, base: value,
       current: { value, label }, incoming: { value: null, label } })) }));
   const command = { checkout: h.f.root, store: h.f.store };
+  planned.paths = [];
   await startProjection(command);
   await endProjection(command);
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk.kind === "index" ? JSON.stringify(disk.index.entries[h.metaPath], (_key, value: unknown) => typeof value === "bigint" ? String(value) : value) : "").toContain("external-conflict");
-  expect(await identities(h.f.root, [h.path])).toEqual(before);
+  expect(planned.paths).toContain(h.metaPath);
+  expect(planned.paths).not.toContain(h.path);
 });
 
 
@@ -473,6 +481,36 @@ it("re-lays every renamed owner file and carries its changed mark to the new pat
   await expect(readFile(join(h.f.root, h.metaPath))).rejects.toMatchObject({ code: "ENOENT" });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk).toMatchObject({ kind: "index", index: { entries: { ".arc/active/current/notes-beta.md": { changed: true, pending: false } } } });
+});
+
+it("keeps a renamed file's changed mark at its former path while a link blocks the new path, and moves it once repaired", async () => {
+  const h = await fixture();
+  const edited = "Opening.\nAn edit at the former name.\nClosing.\n";
+  await writeFile(join(h.f.root, h.path), renderStampedFile({ content: edited, stamp: gitBlobId(h.notes.content, "sha1") }));
+  const renamed = RecordReferenceSchema.parse({ ...h.primary.reference, owner: { ...h.primary.reference.owner, name: "beta" } });
+  success(await h.f.store.write({ ...update(h.f, h.primary, h.primary.content.replaceAll("alpha", "beta")), reference: renamed,
+    provenance: fixtureRenameProvenance }));
+  const current = success(await h.f.store.read({ reference: renamed }));
+  await writeWorktreeMarker(h.f.root, { spawnedByArc: false, createdFor: boundWorkUnitSubject(current),
+    spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+  const destination = join(h.f.root, ".arc/active/current/notes-beta.md");
+  await writeFile(join(h.f.root, "elsewhere.txt"), "Outside the projection.\n");
+  await symlink(join(h.f.root, "elsewhere.txt"), destination, "file");
+  const command = { checkout: h.f.root, store: h.f.store };
+  await startProjection(command);
+  await endProjection(command);
+  expect(parseStampedFile(await readFile(join(h.f.root, h.path), "utf8")).content).toBe(edited);
+  const blocked = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(blocked).toMatchObject({ kind: "index", index: { entries: { [h.path]: { changed: true, pending: true } } } });
+  expect(blocked.kind === "index" && blocked.index.entries[".arc/active/current/notes-beta.md"]).toBeFalsy();
+  await rm(destination);
+  await startProjection(command);
+  await endProjection(command);
+  expect(parseStampedFile(await readFile(destination, "utf8")).content).toBe(edited);
+  await expect(readFile(join(h.f.root, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+  const repaired = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(repaired).toMatchObject({ kind: "index", index: { entries: { ".arc/active/current/notes-beta.md": { changed: true, pending: false } } } });
+  expect(repaired.kind === "index" && repaired.index.entries[h.path]).toBeUndefined();
 });
 
 it("removes a deleted record's file and drops its settled entry", async () => {

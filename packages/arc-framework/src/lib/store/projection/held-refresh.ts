@@ -1,4 +1,7 @@
-/** Refresh a root under a lease another checkout's command holds, leaving publication to that command. */
+/**
+ * Refresh a root under a lease another checkout's command holds (a held lease, not a held entry), leaving publication to
+ * that command.
+ */
 import { needsProjectionReprojection } from "./settings.js";
 import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { readReference } from "./change-detection.js";

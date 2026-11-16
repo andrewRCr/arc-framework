@@ -41,6 +41,12 @@ async function anchoredRelease(options: { ended?: boolean } = {}) {
 }
 
 /** Abandonment's own removal check, as production binds it, in place of the fixture's passing slot. */
+/** A retirement the ignore guard refuses at one path, named with its checkout, the guard's repair and the retry. */
+function ignoreRefusalText(checkout: string, path: string, remedy: string, retirement: "removal" | "release"): string {
+  return `${path} in ${checkout} blocks ${retirement}: Projection ignore guard refused: not-ignored. `
+    + `${remedy.replace(", then run the command again.", ".")} Then retry ${retirement}.`;
+}
+
 function bindRemovalCheck(h: Awaited<ReturnType<typeof projectedRetirement>>) {
   const slots = h.ctx.projectionRemovalSlots;
   if (slots === undefined) throw new Error("Missing fixture removal slots");
@@ -330,7 +336,7 @@ describe("projected checkout release", () => {
     const ports = createProjectionEnginePorts(h.checkout);
     const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
     if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
-    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: guard.remedy } });
+    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: ignoreRefusalText(h.checkout, h.path, guard.remedy, "release") } });
     await writeFile(excludes, original);
     expect(await h.release()).toEqual({ kind: "released" });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).version).toBe(h.record.version);
@@ -348,15 +354,60 @@ describe("projected checkout release", () => {
     const ports = createProjectionEnginePorts(h.checkout);
     const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
     if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
-    expect(await check()).toEqual({ kind: "would-refuse", remedy: { text: guard.remedy } });
-    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: guard.remedy } });
-    expect(await h.abandon()).toMatchObject({ status: "rejected", reason: guard.remedy });
+    const held = ignoreRefusalText(h.checkout, h.path, guard.remedy, "release");
+    expect(await check()).toEqual({ kind: "would-refuse", remedy: { text: held } });
+    expect(await h.release()).toEqual({ kind: "refused", remedy: { text: held } });
+    expect(await h.abandon()).toMatchObject({ status: "rejected", reason: held });
     expect((await h.store.read({ reference: h.meta.reference })).status).toBe("ok");
     expect(await readWorktreeMarker(h.checkout)).toMatchObject({ kind: "present" });
     await writeFile(excludes, original);
     expect(await check()).toEqual({ kind: "passes" });
     expect(await h.abandon()).toMatchObject({ status: "abandoned", lifecycle: { cleanup: { worktree: { status: "completed" } } } });
     expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused");
+  });
+
+  it("holds an anchored abandonment over a folder at a record's path, as release does, before any Store write", async () => {
+    const h = await anchoredRelease({ ended: false }), check = bindRemovalCheck(h);
+    const at = join(h.checkout, h.path);
+    await rm(at);
+    await mkdir(at);
+    const remedy = { text: `${h.path} in ${h.checkout} blocks release: The file is pending: its path is not a regular file. `
+      + `Replace ${at} with a regular file; a projected path that is not one is never followed or read. Then retry release.` };
+    expect(await check()).toEqual({ kind: "would-refuse", remedy });
+    expect(await h.release()).toEqual({ kind: "refused", remedy });
+    expect(await h.abandon()).toMatchObject({ status: "rejected", reason: remedy.text });
+    expect((await h.store.read({ reference: h.meta.reference })).status).toBe("ok");
+    expect(await readWorktreeMarker(h.checkout)).toMatchObject({ kind: "present" });
+    await rm(at, { recursive: true });
+    expect(await check()).toEqual({ kind: "passes" });
+    expect(await h.abandon()).toMatchObject({ status: "abandoned", lifecycle: { cleanup: { worktree: { status: "completed" } } } });
+    expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused");
+  });
+
+  it("names a retained entry before a folder at a record's path, in release's own order", async () => {
+    const h = await anchoredRelease({ ended: false }), check = bindRemovalCheck(h);
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
+    if (disk.kind !== "index") throw new Error("No projection index");
+    const path = ".arc/completed/2026-q4/01_gone/notes-gone.md";
+    await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries, [path]: { kind: "ownerless", stat: null,
+      refused: { reason: "unadopted", remedy: { text: "Adopt or delete the file, then retry." } } } } });
+    const at = join(h.checkout, h.path);
+    await rm(at);
+    await mkdir(at);
+    const checked = await check();
+    expect(checked).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(path) } });
+    if (checked.kind !== "would-refuse") throw new Error("The archive entry was not held");
+    expect(await h.release()).toEqual({ kind: "refused", remedy: checked.remedy });
+    const save = { checkout: h.checkout, store: h.store, mode: "save" as const };
+    expect(await startProjection(save)).toMatchObject({ kind: "ready" });
+    await endProjection(save);
+    const folder = await check();
+    expect(folder).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(`Replace ${at} with a regular file`) } });
+    if (folder.kind !== "would-refuse") throw new Error("The folder was not held");
+    expect(await h.release()).toEqual({ kind: "refused", remedy: folder.remedy });
+    await rm(at, { recursive: true });
+    expect(await check()).toEqual({ kind: "passes" });
+    expect(await h.abandon()).toMatchObject({ status: "abandoned", lifecycle: { cleanup: { worktree: { status: "completed" } } } });
   });
 
   it("holds an anchored abandonment over a deleted unadopted archive file, as release does, until arc save settles it", async () => {

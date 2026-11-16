@@ -3,7 +3,8 @@ import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionConfiguration } from "./configuration.js";
-import { retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
+import { ignoreRefusalMark, markedRemovalRefusal, retirementName, type ProjectionRemovalCheck,
+  type ProjectionRetirement } from "./removal-verdict.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -56,7 +57,8 @@ export function createRemovalGuard(input: ProjectionRemovalObservationInput): Pr
     if (ignores.kind !== "refused") return { kind: "passes" };
     if (ignores.reason === "guard-failed") return { kind: "unobservable", detail: `${ignores.failure}; ${ignores.remedy}` };
     const writable = writableUnder(ignores, guardedProjectionRoots(input.root.identity).map(root => root.path));
-    return writable(path) ? { kind: "passes" } : { kind: "would-refuse", remedy: { text: ignores.remedy } };
+    return writable(path) ? { kind: "passes" }
+      : markedRemovalRefusal(input.root.checkout, path, ignoreRefusalMark(ignores.reason, ignores.remedy), input.disposition);
   };
 }
 

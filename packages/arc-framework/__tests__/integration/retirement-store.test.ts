@@ -123,7 +123,7 @@ describe("store retirement real Git", () => {
     if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
     await h.edit("Accepted input awaiting authorized read-back.\n");
     const authored = await readFile(join(h.checkout, h.path));
-    expect(await h.persist()).toMatchObject({ kind: "refused", remedy: { text: guard.remedy } });
+    expect(await h.persist()).toMatchObject({ kind: "refused", remedy: { text: ignoreRefusalText(h.checkout, h.path, guard.remedy, "removal") } });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting authorized read-back.\n");
     expect(await readFile(join(h.checkout, h.path))).toEqual(authored);
     await writeFile(excludes, original);
@@ -135,6 +135,35 @@ describe("store retirement real Git", () => {
     const named = parseAsideFile(h.copy.name);
     if (named === undefined) throw new Error("No aside base");
     await writeFile(join(h.checkout, h.copy.name), renderStampedFile({ content: "local prefix\nopening\nbase\nclosing\n", stamp: named.base }));
+    expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content)
+      .toBe("local prefix\nopening\nbase\nclosing\nremote footer\n");
+  });
+
+  it("names a copy's recovery, not another root's ignore rules, where its destination turns to a link before persist", async () => {
+    const h = await interruptedRetirementCopy();
+    const named = parseAsideFile(h.copy.name);
+    if (named === undefined) throw new Error("No aside base");
+    await writeFile(join(h.checkout, h.copy.name), renderStampedFile({ content: "local prefix\nopening\nbase\nclosing\n", stamp: named.base }));
+    // Another root's rule is cleared, so the ignore check refuses while the copy's own path and name stay writable.
+    const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes, "utf8");
+    expect(original.split("\n")).toContain(".arc/backlog/");
+    await writeFile(excludes, original.split("\n").filter(line => line !== ".arc/backlog/").join("\n"));
+    const folder = join(h.checkout, dirname(h.path)), kept = `${folder}.kept`, external = join(h.root, "linked-scratch");
+    await mkdir(external);
+    let linked = false;
+    h.configure({ hooks: { beforeAsideCopy: async () => {
+      if (linked) return;
+      linked = true;
+      await rename(folder, kept);
+      await symlink(external, folder, "dir");
+    } } });
+    expect(await h.persist()).toEqual({ kind: "refused", remedy: {
+      text: `Recover anything wanted from ${h.copy.name} in ${h.checkout}, then delete that copy explicitly and retry removal.` } });
+    await rm(folder);
+    await rename(kept, folder);
+    await writeFile(excludes, original);
+    h.configure({ hooks: undefined });
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content)
       .toBe("local prefix\nopening\nbase\nclosing\nremote footer\n");
@@ -576,7 +605,8 @@ describe("store retirement real Git", () => {
     const ports = createProjectionEnginePorts(h.checkout);
     const guard = await guardProjectionIgnores({ root: h.checkout, identity: SlugSchema.parse("test-user"), exec: ports.execInput, fs: ports.fs });
     if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
-    expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "would-refuse", remedy: { text: guard.remedy } });
+    expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "would-refuse",
+      remedy: { text: ignoreRefusalText(h.checkout, h.path, guard.remedy, "removal") } });
     await writeFile(excludes, original);
     expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "would-refuse",
       remedy: { text: expect.stringContaining(`arc save from ${h.checkout} to finish recording`) } });
@@ -976,6 +1006,12 @@ it("does not adopt a new retiring generation after additional ref deletion, then
   await h.exec("git", ["update-ref", "refs/heads/feat/demo", h.workOid]); h.ctx.execInput = normal;
   expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
 }, 30_000);
+
+/** A retirement the ignore guard refuses at one path, named with its checkout, the guard's repair and the retry. */
+function ignoreRefusalText(checkout: string, path: string, remedy: string, retirement: "removal" | "release"): string {
+  return `${path} in ${checkout} blocks ${retirement}: Projection ignore guard refused: not-ignored. `
+    + `${remedy.replace(", then run the command again.", ".")} Then retry ${retirement}.`;
+}
 
 async function huskFixture(options: { end?: "archive" | "decompose"; projected?: boolean } = {}) {
   const h = await fixture(options); await h.exec("git", ["switch", "main"]);

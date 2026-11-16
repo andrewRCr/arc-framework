@@ -1,7 +1,7 @@
 /** Take over recorded recovery copies in swap order while retirement owns the target's lease. */
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionProcessState } from "./process-state.js";
-import type { AsideCopyRecord, RecordEntry, ProjectionIndex } from "./index-schema.js";
+import type { AsideCopyRecord, RecordEntry, ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { Remedy } from "../refusal.js";
 import type { ProjectionPersistHooks } from "./removal-persist.js";
 import { observeAsideCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
@@ -9,7 +9,7 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
-import { retirementName, type ProjectionRetirement } from "./removal-verdict.js";
+import { retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -18,19 +18,19 @@ interface CopyPersistenceInput {
   readonly root: ProjectionRootState;
   readonly index: ProjectionIndex;
   readonly hooks?: ProjectionPersistHooks;
-  readonly ignoreRefusal?: Remedy;
+  readonly ignoreMark?: RefusedMark;
   readonly disposition: ProjectionRetirement;
 }
 
 /** Settle even a live writer's copies, publishing returned aliases before cleanup. */
 export async function persistProjectionAsides(root: ProjectionRootState, initial: ProjectionIndex, disposition: ProjectionRetirement,
-  hooks?: ProjectionPersistHooks, ignoreRefusal?: Remedy): Promise<PersistedProjectionAsides> {
+  hooks?: ProjectionPersistHooks, ignoreMark?: RefusedMark): Promise<PersistedProjectionAsides> {
   let index = initial;
   for (const path of Object.keys(index.entries)) {
     const first = index.entries[path];
     if (first?.kind !== "record") continue;
     for (const name of first.copies.map(copy => copy.name)) {
-      const settled = await persistCopy({ root, index, hooks, ignoreRefusal, disposition }, path, name);
+      const settled = await persistCopy({ root, index, hooks, ignoreMark, disposition }, path, name);
       index = settled.index;
       if (settled.refusal !== undefined) return settled;
     }
@@ -78,7 +78,11 @@ async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string
   if (observed.kind === "no-edit" || observed.kind === "gone") return { index };
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);
-  return { index, refusal: denied?.remedy ?? input.ignoreRefusal ?? recoverCopy(root.checkout, copy.name, input.disposition) };
+  if (denied !== null) return { index, refusal: retirementRefusal(root.checkout, copy.name, denied, input.disposition) };
+  // The ignore rules hold only a path they leave unwritable, named as the check's guard names it: the file's own path first.
+  const unwritable = [path, copy.name].find(each => !root.writable(each));
+  return { index, refusal: input.ignoreMark === undefined || unwritable === undefined ? recoverCopy(root.checkout, copy.name, input.disposition)
+    : retirementRefusal(root.checkout, unwritable, input.ignoreMark, input.disposition) };
 }
 
 /** Preserve the copy's actual blocking outcome and diagnostic across retirement operations. */
@@ -87,9 +91,10 @@ export function removalCopyRefusal(settled: CopySettlement, checkout: string, co
   if (settled.kind === "deleted" || settled.kind === "dropped" || settled.kind === "linked-back") return undefined;
   if (settled.kind === "not-a-file") return settled.remedy;
   if (settled.kind === "moved-on") return recoverCopy(checkout, copy, disposition);
-  const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.copy === copy)?.mark;
-  return reported?.remedy ?? settled.entry.refused?.remedy
-    ?? { text: `Let ${copy} finish saving, then run arc save from ${checkout} and retry ${retirementName(disposition)}.` };
+  const mark = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.copy === copy)?.mark
+    ?? settled.entry.refused;
+  return mark === null ? { text: `Let ${copy} finish saving, then run arc save from ${checkout} and retry ${retirementName(disposition)}.` }
+    : retirementRefusal(checkout, copy, mark, disposition);
 }
 
 function recoverCopy(checkout: string, copy: string, disposition: ProjectionRetirement): Remedy {

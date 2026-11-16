@@ -7,6 +7,7 @@ import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState } from "./process-state.js";
+import type { ProjectionLockResult } from "./lock.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, checkout: string, options: { dryRun?: boolean }): Promise<void> {
@@ -32,6 +33,21 @@ export async function restoreSyncProjection(store: Store, checkout: string, opti
         if (materialized.kind === "refused") report(materialized.mark.reason, materialized.mark.remedy.text);
       } finally { root.checkpoint = null; }
     }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);
-    if (result.status !== "done") report(`Projection restoration stopped (${result.status})${result.status === "mismatch" ? `: ${result.report}` : "."}`);
+    if (result.status !== "done") {
+      const stopped = restorationStopped(checkout, result);
+      report(stopped.reason, stopped.remedy);
+    }
   } catch (error) { report(error instanceof Error ? error.message : String(error)); }
+}
+
+/** The lease status that stopped a restoration, with its detail and the remedy that fits it. */
+function restorationStopped(checkout: string, result: Exclude<ProjectionLockResult<unknown>, { status: "done" }>): { reason: string; remedy: string } {
+  if (result.status === "held") return { reason: `Projection restoration waited on a lease another command holds: ${JSON.stringify(result.holder)}.`,
+    remedy: "Retry arc sync once that command finishes." };
+  if (result.status === "lost") return { reason: `Projection restoration lost its lease: ${result.report}`, remedy: "Retry arc sync." };
+  if (result.status === "mismatch") {
+    return { reason: `Projection restoration found a mismatched index partition: ${result.report}`, remedy: "Retry arc sync." };
+  }
+  return { reason: "Projection restoration found the worktree's Git directory missing.",
+    remedy: `Repair the worktree at ${checkout} with git worktree repair, or remove it, then retry arc sync.` };
 }

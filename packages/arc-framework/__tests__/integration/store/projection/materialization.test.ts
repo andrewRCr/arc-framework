@@ -39,6 +39,7 @@ import { readProjectionIndex } from "../../../../src/lib/store/projection/index-
 import { nameAsideFile, createStagedFile } from "../../../../src/lib/store/projection/aside.js";
 import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { projectionSelectionResult } from "../../../../src/lib/store/projection/selection.js";
+import { readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
 import { saveProjectionChanges } from "../../../../src/lib/store/projection/save-changed.js";
 import { endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
@@ -202,6 +203,33 @@ it("leaves paths under a folder a regular file occupies unlaid and pending, then
     mark: expect.objectContaining({ remedy: { text: `Move or delete ${occupied}, then run any arc command from ${target.checkout}; it lays ${HELD.notes}.` } }) }));
   await rm(occupied);
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
+  expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
+  expect((await settledIndex(target)).state).toBe(success(await target.h.store.version()));
+}, 60_000);
+
+it("holds a first start's state while a link sits at a laid path, records no stray link, and reports each link once", async () => {
+  const target = await fixture();
+  const outside = await mkdtemp(join(tmpdir(), "arc-link-outside-")); directories.push(outside);
+  await writeFile(join(outside, "elsewhere.md"), "Outside the projection.\n");
+  const stray = ".arc/active/current/stray-link.md";
+  await mkdir(join(target.checkout, ".arc/active/current"), { recursive: true });
+  for (const path of [HELD.notes, stray]) await symlink(join(outside, "elsewhere.md"), join(target.checkout, path), "file");
+  const command = { checkout: target.checkout, store: target.h.store };
+  beginProjectionCommand();
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  for (const path of [HELD.notes, stray]) {
+    expect(projectionProcessState().diagnostics.filter(each => each.path === path)).toEqual([expect.objectContaining({
+      mark: expect.objectContaining({ reason: "not-a-file" }) })]);
+  }
+  await endProjection(command);
+  const held = await settledIndex(target);
+  // Evidence is whole, so only the unlaid arrival behind the link holds the state.
+  expect(held.state).toBeNull();
+  expect(held.entries[HELD.notes]).toMatchObject({ kind: "record", pending: true });
+  expect(held.entries[stray]).toBeUndefined();
+  for (const path of [HELD.notes, stray]) await rm(join(target.checkout, path));
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
   expect((await settledIndex(target)).state).toBe(success(await target.h.store.version()));
 }, 60_000);
@@ -494,6 +522,30 @@ it.each(["retained", "linked-back", "header-retained"] as const)("rebuilds with 
 });
 
 
+it.each(["a usable index", "a retained header only"] as const)("releases a withheld aside copy once it is deleted, over %s", async mode => {
+  const target = await fixture();
+  const first = await materialize(target);
+  if (first.status !== "done") throw new Error("Materialization did not run");
+  const writer = { ...await target.ports.writer(), processInstance: "stopped-writer" };
+  const copy = nameAsideFile({ path: HELD.notes, base: gitBlobId(target.h.record.content, "sha1"), role: "aside", writer });
+  await createStagedFile(target.checkout, copy, "Unsent copy holding a hand edit.\n");
+  await rm(join(target.location.stateDir, "index"));
+  const command = { checkout: target.checkout, store: target.h.store };
+  const status = () => readProjectionStatus({ store: target.h.store, checkout: target.checkout, location: target.location });
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect(await status()).toMatchObject({ kind: "ready", copies: [expect.objectContaining({ copy, withheld: true })] });
+  await rm(join(target.checkout, copy));
+  if (mode === "a retained header only") {
+    const header = JSON.parse(await readFile(join(target.location.stateDir, "index"), "utf8")) as { groups: Record<string, { name: string }> };
+    for (const partition of Object.values(header.groups)) await rm(join(target.location.stateDir, partition.name));
+  }
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  expect((await settledIndex(target)).withheldCopies).toEqual([]);
+  expect(await status()).toMatchObject({ kind: "ready", copies: [] });
+});
+
 it.each(["same-identity", "missing-policy", "another-identity", "no-identity"] as const)("materializes a spawn under its own configuration: %s", async scenario => {
   const target = await fixture();
   const personal = recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "bob" }));
@@ -778,6 +830,57 @@ it("reports a spawn's lost lease as lost, with the lock's report", async () => {
   expect(replacement).toBeDefined();
   expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: target.checkout,
     mark: expect.objectContaining({ reason: expect.stringContaining("Projection materialization lost its lease") }) }));
+});
+
+/** This command's sync restoration reports for the checkout, read before the command ends. */
+function restorationReports(checkout: string): unknown[] {
+  return projectionProcessState().diagnostics.filter(each => each.path === checkout && each.mark.reason.startsWith("Projection restoration"));
+}
+
+it("reports a sync restoration held by another command's lease with its holder, and restores once the lease is free", async () => {
+  const target = await fixture();
+  expect(await materialize(target)).toMatchObject({ status: "done" });
+  const command = { checkout: target.checkout, store: target.h.store, ports: () => ({ ...createProjectionEnginePorts(target.checkout), maxWaitMs: 200 }) };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  const other = await acquireAdvisoryLock(join(target.location.stateDir, PROJECTION_LOCK_FILE), {
+    pid: process.pid, processInstance: "another-command", processScope: "another-scope", now: () => Date.now(),
+    leaseDurationMs: ADVISORY_LEASE_DURATION_MS, maxWaitMs: 200 });
+  try { await restoreSyncProjection(target.h.store, target.checkout, {}); }
+  finally { await releaseAdvisoryLockConfirmed(other); }
+  expect(restorationReports(target.checkout)).toEqual([{ path: target.checkout, copy: null, mark: {
+    reason: expect.stringContaining("another-command"), remedy: { text: "Retry arc sync once that command finishes." } } }]);
+  await rm(join(target.checkout, HELD.notes));
+  await restoreSyncProjection(target.h.store, target.checkout, {});
+  expect(restorationReports(target.checkout)).toHaveLength(1);
+  expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
+  await endProjection(command);
+});
+
+it("reports a sync restoration that lost its lease with the lock's report, and restores on retry", async () => {
+  const target = await fixture();
+  expect(await materialize(target)).toMatchObject({ status: "done" });
+  let now = Date.now(), replacement: AdvisoryLockHandle | undefined;
+  const lock = { now: () => now, resolveProcessScope: () => Promise.resolve("original-scope"), scheduleEvery: () => () => undefined };
+  const command = { checkout: target.checkout, store: target.h.store, ports: () => ({ ...createProjectionEnginePorts(target.checkout), lock }) };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  const stealing = overrideEngineStore(target.h.store, { version: async () => {
+    now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
+    replacement = await acquireAdvisoryLock(join(target.location.stateDir, PROJECTION_LOCK_FILE), {
+      pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
+      leaseDurationMs: ADVISORY_LEASE_DURATION_MS, maxWaitMs: 200 });
+    return target.h.store.version();
+  } });
+  try { await restoreSyncProjection(stealing, target.checkout, {}); }
+  finally { if (replacement !== undefined) await releaseAdvisoryLockConfirmed(replacement); }
+  expect(replacement).toBeDefined();
+  expect(restorationReports(target.checkout)).toEqual([{ path: target.checkout, copy: null, mark: {
+    reason: expect.stringContaining("Projection restoration lost its lease: "), remedy: { text: "Retry arc sync." } } }]);
+  now = Date.now();
+  await rm(join(target.checkout, HELD.notes));
+  await restoreSyncProjection(target.h.store, target.checkout, {});
+  expect(restorationReports(target.checkout)).toHaveLength(1);
+  expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
+  await endProjection(command);
 });
 
 async function seedWorkUnit(target: Awaited<ReturnType<typeof fixture>>, name: string) {

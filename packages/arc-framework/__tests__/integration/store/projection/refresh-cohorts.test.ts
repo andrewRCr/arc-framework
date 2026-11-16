@@ -1,7 +1,7 @@
 /** Cohort deltas and a member's changed membership refresh canonical and current copies. */
 import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
 import { cohortDoc } from "../../../helpers/store/cohort-rule-input.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
@@ -20,8 +20,19 @@ import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/
 import { plantRefPrimary } from "../../../helpers/store/ref-primary-plant.js";
 import { runCohortClose, runCohortRemove } from "../../../../src/commands/cohort.js";
 
+/** Each refresh plan's paths, so a test sees what a refresh planned rather than only what stayed on disk. */
+const planned = vi.hoisted(() => ({ paths: [] as string[] }));
+vi.mock("../../../../src/lib/store/projection/refresh-plan.js", async original => {
+  const actual = await original<typeof import("../../../../src/lib/store/projection/refresh-plan.js")>();
+  return { ...actual, planProjectionRefresh: async (...args: Parameters<typeof actual.planProjectionRefresh>) => {
+    const plan = await actual.planProjectionRefresh(...args);
+    planned.paths.push(...plan.paths.keys());
+    return plan;
+  } };
+});
+
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => { planned.paths = []; await removeGitBackedDirs(directories.splice(0)); });
 const metadata = (cohort?: string) => makeMetaFixture("alpha", { state: "Active", currentWorkflow: "process-task-loop",
   workClass: "Light", priority: "P1", owner: "andrew", ...(cohort === undefined ? {} : { cohort }) });
 
@@ -48,7 +59,7 @@ it("removes a current cohort copy when its member leaves the cohort", async () =
   expect({ ino: after.ino, mtimeNs: after.mtimeNs }).toEqual({ ino: before.ino, mtimeNs: before.mtimeNs });
 });
 
-it("leaves a member's cohort copies in place while one of its own files stays held", async () => {
+it("leaves a member's cohort copies unplanned while one of its own files stays held", async () => {
   const h = await fixture();
   await seed(h.f, recordReferences["work-item/notes"](h.primary.reference.owner), "Opening.\nStored note.\nClosing.\n");
   const command = { checkout: h.f.root, store: h.f.store }, notes = ".arc/active/current/notes-alpha.md";
@@ -62,11 +73,7 @@ it("leaves a member's cohort copies in place while one of its own files stays he
     await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
       index: withProjectionEntry(read.index, notes, { ...entry, pending: true, withheld: true }) });
   });
-  const identity = async () => {
-    const { ino, mtimeNs } = await stat(join(h.f.root, h.copy), { bigint: true });
-    return { ino, mtimeNs };
-  };
-  const before = await identity();
+  planned.paths = [];
   for (let round = 0; round < 2; round++) {
     await startProjection(command);
     await endProjection(command);
@@ -74,7 +81,9 @@ it("leaves a member's cohort copies in place while one of its own files stays he
   expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: { entries: {
     [notes]: { pending: true, withheld: true },
   } } });
-  expect(await identity()).toEqual(before);
+  expect(planned.paths).toContain(notes);
+  expect(planned.paths).not.toContain(h.copy);
+  expect(planned.paths).not.toContain(h.canonical);
 });
 
 it("projects a cohort rename's own document, child, members, and current copies", async () => {

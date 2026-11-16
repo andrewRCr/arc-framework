@@ -142,7 +142,8 @@ it("retains a Store abandonment's primary and claim while its ignore guard refus
   if (guard.kind !== "refused") throw new Error("The personal rule still authorizes replacement");
   const refused = await invoke(h, ["abandon", "demo", "--yes"]);
   expect(refused, refused.output).toMatchObject({ exitCode: 1 });
-  expect(refused.output).toContain(guard.remedy);
+  expect(refused.output).toContain(guard.remedy.replace(", then run the command again.", "."));
+  expect(refused.output).toContain(` in ${h.checkout} blocks `);
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
   expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "ok", result: { version: h.meta.version } });
   await writeFile(excludes, original);

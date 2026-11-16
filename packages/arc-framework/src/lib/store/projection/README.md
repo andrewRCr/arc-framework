@@ -396,11 +396,17 @@ records without re-laying their unchanged neighbors or visiting a settled archiv
 for it, loading only the partitions those owners' coordinates name, and lays the cohort view's members again when the
 checkout's own unit moves cohort. `refresh-removals.ts` removes obsolete paths through the ordinary take-in guard,
 carrying a moved record's changed mark to its new path, and `refresh-conflicts.ts` maps conflict changes to the files
-they concern. Where the saved state can no longer be read, `refresh-rebuild.ts` plans a complete refresh over every
-partition, removing an old path only under complete listing evidence. A path whose ownership handoff is in flight is
-left to reconciliation, and the index takes the new state only once nothing the plan reached is left unresolved and
-every arrival is installed: each record it lays at a path the index did not already bind to that record.
-`held-refresh.ts` refreshes a root under a lease another checkout's command holds, leaving publication to that command.
+they concern. Where the index has no state version, or its saved state can no longer be read, `refresh-rebuild.ts` plans
+a complete refresh over every partition, removing an old path only under complete listing evidence. What a refresh lays
+leaves out side files, the legacy derived views (the roadmap and each identity's status file), and machine-local paths
+(`laidProjectionPaths`): a record stored at one is never laid and owes no arrival, so the local bytes there stay
+untouched and are never taken in. A refresh, a rebuild over a usable index among them, keeps in place each settled file
+whose record renders to the bytes it was laid with, under the same protection, while the file still holds them: only its
+entry takes the record's version, and the file keeps its inode and mtime (`settled-in-place.ts`). A path whose ownership
+handoff is in flight is left to reconciliation, and the index takes the new state only once nothing the plan reached is
+left unresolved and every arrival, each record it lays at a path the index did not already bind to that record, is
+installed and confirmed or withheld on that record's own basis. `held-refresh.ts` refreshes a root under a lease another
+checkout's command holds, leaving publication to that command.
 
 `desired-paths.ts` places each visible record at the path the layout addresses commands use, binding lifecycle
 placement to the checkout's own and in-flight folders under its claim, view, and `layout.active`; `selection-plan.ts`
@@ -413,10 +419,14 @@ listing rather than reading its missing records as removed.
 `materialization.ts` lays the complete visible inventory into one target worktree holding no usable index, under its
 lease: at a spawn (`spawn-materialization.ts`), where a spawn over a usable index refreshes it instead, and where a
 checkout `ownership.ts` finds eligible holds none. At `arc sync` (`sync-materialization.ts`) it restores only deleted
-files over the usable index. `materialization-file.ts` stages only proven bytes and hands a concurrent edit to the
-writable store before replacement; a rebuild that cannot yet tell whether a stored record lays a path holds the file
-there under the evidence-held mark until a rebuild with whole evidence settles it. Restoring deleted files reconciles
-only the selected paths (`materialization-selection.ts`) and refreshes the ignore proof without a sweep
+files over the usable index. Either way it lays only `laidProjectionPaths`, as a refresh does. `materialization-file.ts`
+stages only proven bytes and hands a concurrent edit to the writable store before replacement; a rebuild that cannot yet
+tell whether a stored record lays a path holds the file there under the evidence-held mark until a rebuild with whole
+evidence settles it. Over a usable index it keeps a settled, unchanged file in place by `settled-in-place.ts`'s rule.
+Where a regular file occupies one of a path's folders, `lay-folder.ts` names that file and the path is not laid: it
+stays pending, reported with the route to move the file, and its caller keeps its state version until a later command
+lays it; `ownership-install.ts` holds an arrival the same way. Restoring deleted files reconciles only the selected
+paths (`materialization-selection.ts`) and refreshes the ignore proof without a sweep
 (`materialization-observation.ts`). `scratch-folder.ts` creates a work-unit checkout's scratch folder through an
 authorized root, never through a link, and reports rather than fails when it cannot.
 

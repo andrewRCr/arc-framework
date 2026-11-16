@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createFanOutFixture } from "../../../helpers/store/projection/fan-out-fixture.js";
+import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { success } from "../../../helpers/store/suite-tools.js";
@@ -98,4 +99,38 @@ it("reports a sibling whose changes read the store refuses for a fault, skips it
   source.refuse("changes", null);
   expect(await startProjection({ store: h.h.store, checkout: h.sibling.checkout, location: h.sibling.location })).toMatchObject({ kind: "ready" });
   expect(await h.file()).toContain("Stored over a damaged change history.");
+});
+
+it("reports a store version refusal with the store's own remedy, then refreshes the sibling at its next command", async () => {
+  let refuse = false;
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The store's version cannot be read here.", remedy: { text: "Restore the store's history, then retry." } });
+  const h = await createFanOutFixture(directories, { store: store => overrideEngineStore(store, {
+    version: () => refuse ? Promise.resolve({ status: "refused", refusal }) : store.version() }) });
+  const before = await h.file();
+  refuse = true;
+  expect(await write(h, "Stored while the version read refuses.\n")).toMatchObject({ status: "ok" });
+  refuse = false;
+  expect(await h.file()).toBe(before);
+  expect(projectionProcessState().diagnostics).toContainEqual({ path: h.h.checkout, copy: null,
+    mark: { reason: "Fan-out failed: The store's version cannot be read here.", remedy: refusal.remedy } });
+  await endProjection(h.input);
+  expect(await startProjection({ store: h.h.store, checkout: h.sibling.checkout, location: h.sibling.location })).toMatchObject({ kind: "ready" });
+  expect(await h.file()).toContain("Stored while the version read refuses.");
+});
+
+it("reports a failed worktree roster with a remedy naming it, then refreshes the sibling at its next command", async () => {
+  let failRoster = false;
+  const h = await createFanOutFixture(directories, { ports: ports => ({ ...ports, exec: (command, args, options) =>
+    failRoster && args.includes("worktree") && args.includes("list") ? Promise.reject(new Error("worktree list failed")) : ports.exec(command, args, options) }) });
+  const before = await h.file();
+  failRoster = true;
+  expect(await write(h, "Stored while the roster cannot be read.\n")).toMatchObject({ status: "ok" });
+  failRoster = false;
+  expect(await h.file()).toBe(before);
+  expect(projectionProcessState().diagnostics).toContainEqual({ path: h.h.checkout, copy: null, mark: {
+    reason: "Fan-out failed: worktree list failed", remedy: { text: expect.stringContaining(`git worktree list runs in ${h.h.checkout}`) } } });
+  await endProjection(h.input);
+  expect(await startProjection({ store: h.h.store, checkout: h.sibling.checkout, location: h.sibling.location })).toMatchObject({ kind: "ready" });
+  expect(await h.file()).toContain("Stored while the roster cannot be read.");
 });

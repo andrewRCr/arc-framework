@@ -6,6 +6,7 @@ import { z } from "zod";
 import { SlugSchema, isManagedPath } from "../../kernel/index.js";
 import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "../identity.js";
 import { RemedySchema } from "../refusal.js";
+import { isProjectionIndexGroup, projectionIndexGroup } from "./index-memory.js";
 
 /** The index format this build reads and writes. */
 export const PROJECTION_INDEX_FORMAT = 2;
@@ -166,12 +167,14 @@ export const ProjectionIndexSchema = z.strictObject({
   entries: z.record(EntryPathSchema, IndexEntrySchema),
 });
 
-/** The persisted header's contract, without loading or validating entries at runtime. */
+/** The persisted header's contract, its group keys held to the groups the reader accepts. */
 export const ProjectionIndexHeaderSchema = ProjectionIndexSchema.omit({ entries: true }).extend({
-  groups: z.record(EntryPathSchema, z.strictObject({ name: z.string().regex(/^index-[a-f0-9]{40}$/u), unsettled: z.boolean() })),
+  groups: z.record(z.string().refine(isProjectionIndexGroup, "Expected a projection index group"),
+    z.strictObject({ name: z.string().regex(/^index-[a-f0-9]{40}$/u), unsettled: z.boolean() })),
 });
-/** A single root partition's persisted contract. */
-export const ProjectionIndexPartitionSchema = ProjectionIndexSchema.shape.entries;
+/** A single root partition's persisted contract: entries of one group only, as the reader loads it. */
+export const ProjectionIndexPartitionSchema = ProjectionIndexSchema.shape.entries.refine(
+  entries => new Set(Object.keys(entries).map(projectionIndexGroup)).size <= 1, "Expected the paths of one group");
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;

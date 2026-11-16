@@ -7,7 +7,7 @@ import { createFanOutFixture } from "../../../helpers/store/projection/fan-out-f
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -92,6 +92,28 @@ it("marks a new record at the command's end when its round could not read the st
   expect(await startProjection(input)).toMatchObject({ kind: "ready" });
   expect(await projectionSelectionResult(store, h.checkout, { changed: true })).toEqual({ status: "ok", result: {
     paths: expect.arrayContaining([".arc/user/andrew/WORKING-MEMORY.md"]) } });
+});
+
+it("marks a journaled arrival the verb wrote, not the leaving record, so its confirmation keeps the mark", async () => {
+  const { h, store, input } = await createFanOutFixture(directories);
+  const laid = (await h.disk()).entries[h.path];
+  if (laid?.kind !== "record") throw new Error("Missing laid record");
+  const leaving = RecordReferenceSchema.parse({ ...laid.reference, key: "scratch/leaving.md" });
+  await withProjectionLock(h.location, async session => {
+    const disk = await h.disk();
+    await commitProjectionIndex({ location: h.location, checkout: h.checkout, checkpoint: session.step, index: { ...disk, entries: {
+      ...disk.entries, [h.path]: { ...laid, reference: leaving, pending: true, withheld: true, handoff: { ...laid, changed: false } } } } });
+  });
+  const current = await h.stored();
+  success(await store.write({ action: "put", reference: current.reference, expected: current.version,
+    content: "Written while its arrival is journaled.\n", provenance }));
+  expect((await h.disk()).entries[h.path]).toMatchObject({ reference: leaving, changed: false,
+    handoff: { reference: current.reference, changed: true } });
+  await endProjection(input);
+  expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+  const confirmed = (await h.disk()).entries[h.path];
+  expect(confirmed).toMatchObject({ reference: current.reference, changed: true });
+  expect(confirmed?.kind === "record" ? confirmed.handoff : null).toBeUndefined();
 });
 
 it("marks the live identity's own file while a pending reprojection keeps the old identity in the header", async () => {

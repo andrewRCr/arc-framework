@@ -13,15 +13,26 @@
 - [A1 — installed stats and shared reference advances](#a1--installed-stats-and-shared-reference-advances)
 - [A2 — ownership while a path is reused](#a2--ownership-while-a-path-is-reused)
 - [Implementation timing feedback](#implementation-timing-feedback)
+    - [Per-root cost reductions](#per-root-cost-reductions)
+    - [Paired settled-archive comparison](#paired-settled-archive-comparison)
 - [A4 — Full-round performance calibration](#a4--full-round-performance-calibration)
+    - [Superseded statements](#superseded-statements)
+    - [Named references and same-build measurements](#named-references-and-same-build-measurements)
+    - [Repeat variation and the bounded start probe](#repeat-variation-and-the-bounded-start-probe)
+    - [Bounds, propagation, and author checks](#bounds-propagation-and-author-checks)
     - [Owner direction for 1.14 — 2026-11-11](#owner-direction-for-114--2026-11-11)
     - [Physical Git-start assertions after reader reuse](#physical-git-start-assertions-after-reader-reuse)
 - [Native cross-process save placement](#native-cross-process-save-placement)
+    - [Oracle hash boundary](#oracle-hash-boundary)
+    - [Filesystem aliases at fan-out](#filesystem-aliases-at-fan-out)
+    - [Dispatched native qualification](#dispatched-native-qualification)
 - [Segment scenario and ownership recheck](#segment-scenario-and-ownership-recheck)
     - [Segment timing qualification](#segment-timing-qualification)
 - [Removal-check read boundaries](#removal-check-read-boundaries)
 - [Removal persistence](#removal-persistence)
+    - [Completion advice: final observation race](#completion-advice-final-observation-race)
 - [Release under the persistence lease](#release-under-the-persistence-lease)
+    - [Completion advice: remaining recovery-file authority](#completion-advice-remaining-recovery-file-authority)
 - [Removal compositions](#removal-compositions)
 - [A5 — verify executable and inert removal compositions](#a5--verify-executable-and-inert-removal-compositions)
 - [Lifecycle removal authority](#lifecycle-removal-authority)
@@ -352,8 +363,8 @@ production composition set `projectionRemovalSlots` then, so every path ran the 
 
 The inherited § 3.3 rule states: "Only a staged file's stat awaiting installation after that index write is exempt:
 a save to that file necessarily follows the new reference." The inherited `smudgeRacyEntries` implemented that exemption
-through its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference advance;
-a partition left unchanged by value does not get that second write.
+through its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference
+advance; a partition left unchanged by value does not get that second write.
 
 The swap case in `swap.test.ts` that detects a same-size in-place save after linking exercises the rule A1 states: it
 pins the reference into the staged file's tick, saves different same-size bytes in that tick after the link, and lets
@@ -791,9 +802,9 @@ readiness before spawning the next, and the child imports the store constructor 
 the concurrent engine operations. The four corrected removal cases passed on M5 in run
 `1baffebdde7f44439d673903a2c16d92`, with twenty completed saves retained in every case.
 
-Restored full run `764794cda1ee4346be28f7472a4155bc` passed all sixteen native matrix cases and the isolation regression.
-The isolation case separately failed before registration in `a011e8740b8848cdac573d07bdacec09`, then passed in
-`3150d274ca4542ea98a4cccc9e6b4568`. These runs establish local task feedback; the task's dispatched portability and
+Restored full run `764794cda1ee4346be28f7472a4155bc` passed all sixteen native matrix cases and the isolation
+regression. The isolation case separately failed before registration in `a011e8740b8848cdac573d07bdacec09`, then passed
+in `3150d274ca4542ea98a4cccc9e6b4568`. These runs establish local task feedback; the task's dispatched portability and
 Linux evidence is recorded with its completion.
 
 ### Oracle hash boundary
@@ -823,9 +834,9 @@ reproduced three visits for two checkouts. Fan-out now compares physical Git-dir
 writer's identity once per round. The burst oracle matches physical roots and rejects repeated root identities, so
 an alias cannot count as a distinct destination. No lease or scheduling policy changes.
 
-Corrected native run `d430ed45dcf24269a593351a5e3564f3` passed the alias, write, remote-merge, publication, and separate-Git
-cases; Windows run `afa33e0a2a31407dbb68739d2b232e1d` passed all three native ref cases. Full fan-out regression
-`614e8f1fee5e48dfa052f74b17cc418e` passed all 51 cases across fourteen files.
+Corrected native run `d430ed45dcf24269a593351a5e3564f3` passed the alias, write, remote-merge, publication, and
+separate-Git cases; Windows run `afa33e0a2a31407dbb68739d2b232e1d` passed all three native ref cases. Full fan-out
+regression `614e8f1fee5e48dfa052f74b17cc418e` passed all 51 cases across fourteen files.
 
 ### Dispatched native qualification
 
@@ -844,9 +855,9 @@ only conflict, resolved through the existing regeneration command. The lockfile 
 `full-round.test.ts` exercises one reference-backend namespace and one real linked repository: marked worktrees
 materialize their exact current/in-flight layouts, an owner saves notes, the reference remote publishes a change,
 the pull fans it out, registered `sync` restores a deleted file, and an expired refresh anchor rebuilds current content.
-The initial author run `756b9d43a0644ea18f0df9398f323ce2` incorrectly expected same-owner in-flight notes to be protected.
-`workUnitRights` and § 16.3 reserve checkout-specific protection for meta and task lists. Amendment entry step 1 kept
-the design and task outcomes intact; the verifier expectation was corrected to the existing rights contract.
+The initial author run `756b9d43a0644ea18f0df9398f323ce2` incorrectly expected same-owner in-flight notes to be
+protected. `workUnitRights` and § 16.3 reserve checkout-specific protection for meta and task lists. Amendment entry
+step 1 kept the design and task outcomes intact; the verifier expectation was corrected to the existing rights contract.
 
 The scenario rejects independent omissions of bound materialization (`2de8f1c53c184e4a8b8d68b096950ccb`), sibling visits
 (`30efed38c548436d8cc35d0a2e5a63ab`), pull notification (`3ea8e5cac4704484a1b6587f12941be2`), sync restoration
@@ -944,10 +955,11 @@ locally made refusal as a Store failure. Run `c0b6d01d36c341ec875a30f7aa5e04a1` 
 the rights read and admission exposed the whole-check consistency wrapper in `b2e009d249a54dcd9a55158dfe9a6e46`;
 `f4fa77eb3d374f6f9cad01788ccd4e73` passed the narrower observation, refusal, restored authority, and binder scenarios.
 
-Run `746f61f78d8a4868bb376f4827467a83` passed the existing authority, content-rule, native-refusal, and historical-control
-cases affected by the observation extraction. The deleted-file control `6dfcc8f0fe1d4024b0b78091e66cf217` rejects
-holding absent files merely because their index entries remain; restored run `6eb684b0f6ca4c62b32c43e2ded03935` passes
-the recording exception and withheld-file deletion. A reverted file still holding unfinished recording remains held.
+Run `746f61f78d8a4868bb376f4827467a83` passed the existing authority, content-rule, native-refusal, and
+historical-control cases affected by the observation extraction. The deleted-file control
+`6dfcc8f0fe1d4024b0b78091e66cf217` rejects holding absent files merely because their index entries remain; restored run
+`6eb684b0f6ca4c62b32c43e2ded03935` passes the recording exception and withheld-file deletion. A reverted file still
+holding unfinished recording remains held.
 
 `inspectProjectionAdoption` shares the adopter's protection, link, existence, and primary-creation verdict, preserving
 its refusal stats. `existingProjectionEntry` constructs attachment's basis without publication; the removal check
@@ -1257,9 +1269,9 @@ files. The restored symbolic-link case passes in that broad run. These checks pr
 ### Completion advice: final observation race
 
 Astra's task 2.2 completion consultation found one material gap, F1. `persistUnderLease` performs its racy file/copy
-observations before calling `checkProjectionRemoval`; that later read-only check can observe a valid unsent edit or
-new file and answer `passes`. No send follows it before persistence reports success. The primary verified this
-ordering and the provisional meaning of `passes` against the source.
+observations before calling `checkProjectionRemoval`; that later read-only check can observe a valid unsent edit or new
+file and answer `passes`. No send follows it before persistence reports success. This ordering and the provisional
+meaning of `passes` were verified against the source.
 
 Diagnostic run `a46dde9fbb8841e9a668f8f38f323d6a` confirms both variants: a save injected at final feasibility's
 native configuration read is observed there, but persistence returns `persisted` while the Store keeps the old
@@ -1336,9 +1348,9 @@ write-back, and save and retirement CLI E2E. Source and all test type-check shar
 
 ### Completion advice: remaining recovery-file authority
 
-Astra's whole-footprint task 2.3 completion consultation found two material linked-cleanup gaps. The primary verified
-both against the release, second-check, copy-settlement, and unrecorded-copy observation code, then added two native
-regressions without applying a production correction:
+Astra's whole-footprint task 2.3 completion consultation found two material linked-cleanup gaps. Both were verified
+against the release, second-check, copy-settlement, and unrecorded-copy observation code, and two native regressions
+were added without a production correction:
 
 - **F1 — copy-ancestor links before the second check.** The release's fresh link evidence covers destinations but not
   the copy locations it passes to `runSecondCheck`. Moving the actual aside tree elsewhere and linking its old location
@@ -1446,9 +1458,9 @@ before composing its removal context, and `handleAbandon` routes that capability
 legacy construction. A refusal test cannot distinguish missing bindings on these paths without inspecting wiring or
 changing the operation. A syntax-only assertion belongs in lint rather than a behavioral test.
 
-Required behavioral coverage exercises the production Store teardown context, executor removal, branch and operand teardown,
-Store abandon, and Store decomposition. The factory's capability, identity, and mint-port cases exercise actual
-slot behavior; disabled capability returns passing slots before target I/O. Task 2.4.R enforces presence on the
+Required behavioral coverage exercises the production Store teardown context, executor removal, branch and operand
+teardown, Store abandon, and Store decomposition. The factory's capability, identity, and mint-port cases exercise
+actual slot behavior; disabled capability returns passing slots before target I/O. Task 2.4.R enforces presence on the
 remaining direct start, rename forward/rollback, and legacy park/abandon constructions and records their command
 Store/identity flow. Neither mechanism alone attests semantic authority on every call site.
 
@@ -1521,9 +1533,9 @@ The first related-unit request, `b4b353fcb15244afb9725cf06bb4a3a5`, ran 1,002 fi
 `decompose-store.test.ts`. Its scripted Git boundary could not support the newly bound native projection reader. The
 no-checkout case remains in the unit suite; the held primary case now runs through registered decomposition with real
 Git, preserving untracked personal content and its projection while clearing the claim. A fresh shared-slot omission
-control, `9c9cffac3f3b4eb3916e274b15d93d68`, fails Store abandon and both linked/primary decomposition cases; the control
-is restored before final checks. Direct start also carries its resolved Store into the remaining scaffold/cleanup
-continuation, so optional injection cannot select different Stores for creation and removal authority.
+control, `9c9cffac3f3b4eb3916e274b15d93d68`, fails Store abandon and both linked/primary decomposition cases; the
+control is restored before final checks. Direct start also carries its resolved Store into the remaining
+scaffold/cleanup continuation, so optional injection cannot select different Stores for creation and removal authority.
 
 After restoring the binding, `6b0da08abc0143cd808f17bd5b7ad9b7` passes the five registered compositions, eight
 no-checkout decomposition unit cases, and 31 start unit cases. Both decomposition variants also require completed
@@ -1841,13 +1853,16 @@ writer's own is still refreshed so its write shows. Deleting an ordinarily withh
 arrived at needs no new binding: the arrival is not installed while the file stands, so the state version stays back and
 the next command after the deletion lays the record.
 
-The footprint is the withheld term, § 2.2, § 2.5, § 3.1's readers of every partition, § 15.2, § 16.1's third paragraph,
-§ 16.2's narrowing of the substrate's withheld lifetime, § 17's eighth and twelfth residuals and criterion 14, with no
-new task or segment; a bounded set of decisions makes it a medium-depth amendment. Its implementation landed in
-review-fix commits: most of it in `c3f43d3534`, and the fan-out's skip in `4490aa6c2a`, beside the writer's-marks fix
-whose gate it extends, with the corrections of its later review rounds in `5e8caa8d77`, `23868a1c05`, `422d54f7f2` and
-`34661e67de`, the last counting a file withheld on its record's basis as bound, so that § 17's twelfth residual alone
-keeps a rebuild's state unset. It revalidates at Task 3.1.
+The footprint is Goal 5's archive independence, which a held rebuild's repeated starts narrow, the withheld term, § 2.2,
+§ 2.5, § 3.1's readers of every partition, § 15.2, § 16.1's third paragraph, § 16.2's narrowing of the substrate's
+withheld lifetime, § 17's eighth and twelfth residuals and criterion 14, with no new task or segment; a bounded set of
+decisions makes it a medium-depth amendment. Its implementation landed in review-fix commits: most of it in
+`c3f43d3534`, and the fan-out's skip in `4490aa6c2a`, beside the writer's-marks fix whose gate it extends, with the
+corrections of its later review rounds in `5e8caa8d77`, `23868a1c05`, `422d54f7f2` and `34661e67de`, the last counting a
+file withheld on its record's basis as bound, so that § 17's twelfth residual alone keeps a rebuild's state unset. Two
+later fixes removed the route `5e8caa8d77` added: `5fb9516735` limits a full lay to a checkout with no usable index, and
+`33ce7399c7` settles held marks only through the refresh's rebuild, no longer in a full materialization. It revalidates
+at Task 3.1.
 
 ## A11 — unchanged files kept in place
 

@@ -294,8 +294,14 @@ it.each(["bound", "unbound"] as const)("never lays another live unit that shares
   for (let round = 0; round < 2; round += 1) {
     expect(await startProjection(command)).toMatchObject({ kind: "ready" });
     expect(claimClashReported()).toBe(marker === "unbound");
+    // A UID-bound claim reads its own unit exactly, so the other live unit never makes that read refuse.
+    if (marker === "bound") expect(projectionProcessState().diagnostics).toEqual([]);
     await endProjection(command);
     expect(await readFile(join(h.f.root, path), "utf8")).toBe(own);
+  }
+  if (marker === "bound") {
+    const bound = await readProjectionIndex(h.projected.location, true);
+    expect(bound).toMatchObject({ kind: "index", index: { state: success(await h.f.store.version()) } });
   }
   if (marker === "unbound") {
     const planted = success(await h.f.store.read({ reference: other }));
@@ -427,4 +433,33 @@ it("confirms an unmarked arrival at a path whose leaving record carries a change
   expect(arrived).toMatchObject({ kind: "record", changed: false, reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } } });
   expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
   expect(index.index.entries[".arc/backlog/planned/root/cohort-root.md"]).toMatchObject({ kind: "record", changed: true });
+}, 30_000);
+
+/** Run commands until the arrival at a reused path is installed and confirmed, then check it and the anchor. */
+async function expectInstalled(h: Awaited<ReturnType<typeof reusedPathFixture>>) {
+  const command = { checkout: h.f.root, store: h.f.store };
+  for (let round = 0; round < 3; round++) {
+    expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await endProjection(command);
+  }
+  const index = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(index).toMatchObject({ kind: "index", index: { state: success(await h.f.store.version()), entries: { [h.path]: {
+    reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } }, pending: false, withheld: false } } } });
+}
+
+it("holds an arrival at a reused path while a regular file occupies its folder, reported, and installs it once the file moves", async () => {
+  const h = await reusedPathFixture(), command = { checkout: h.f.root, store: h.f.store };
+  const folder = join(h.f.root, ".arc/backlog/planned/group");
+  const anchor = await readProjectionIndex(h.projected.location, true);
+  await rm(folder, { recursive: true });
+  await writeFile(folder, "An editor's side file where a folder belongs.\n");
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  expect(projectionProcessState().diagnostics).toContainEqual({ path: h.path, copy: null,
+    mark: { reason: expect.stringContaining("occupies a folder"), remedy: { text: expect.stringContaining("Move or delete") } } });
+  await endProjection(command);
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+    state: anchor.kind === "index" ? anchor.index.state : "unread",
+    entries: { [h.path]: { reference: h.first.reference, pending: true } } } });
+  await rm(folder);
+  await expectInstalled(h);
 }, 30_000);

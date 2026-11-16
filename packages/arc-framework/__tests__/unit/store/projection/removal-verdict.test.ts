@@ -6,7 +6,9 @@ import type { RecordEntry } from "../../../../src/lib/store/projection/index-sch
 import { projectionAdmissionConflict } from "../../../../src/lib/store/projection/preparation-view.js";
 import { observeProjectionReads } from "../../../../src/lib/store/projection/read-observation.js";
 import { markStoreRefusal } from "../../../../src/lib/store/projection/refusal-mark.js";
-import { projectionFeasibilityRefusal, unresolvedRemovalConflicts } from "../../../../src/lib/store/projection/removal-verdict.js";
+import { ignoreRefusalMark, projectionFeasibilityRefusal, retirementRefusal, unobservedMarkDetail,
+  unresolvedRemovalConflicts } from "../../../../src/lib/store/projection/removal-verdict.js";
+import { missingMintedMetadataMark } from "../../../../src/lib/store/projection/adoption-verdict.js";
 import { removalCopyRefusal } from "../../../../src/lib/store/projection/removal-persist-asides.js";
 import type { StoreRefusal } from "../../../../src/lib/store/refusal.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
@@ -24,7 +26,7 @@ describe("retirement feasibility of a held preparation", () => {
     const mark = markStoreRefusal(refusal);
     expect(projectionFeasibilityRefusal({ kind: "held", refusal,
       result: { answer: "refused", entry: { ...entry, refused: mark }, mark } }, CHECKOUT, "notes.md", "remove"))
-      .toEqual({ kind: "would-refuse", remedy: mark.remedy });
+      .toEqual({ kind: "would-refuse", remedy: retirementRefusal(CHECKOUT, "notes.md", mark, "remove") });
   });
 
   it("keeps an edit whose base could not be read unobservable", () => {
@@ -48,6 +50,47 @@ describe("the retirement a shared remedy asks to retry", () => {
       .toEqual({ text: `Recover anything wanted from notes.md.aside in ${CHECKOUT}, then delete that copy explicitly and retry ${name}.` });
     expect(removalCopyRefusal({ kind: "kept", entry, answer: "unsettled" }, CHECKOUT, "notes.md.aside", Number.MAX_SAFE_INTEGER, disposition))
       .toEqual({ text: `Let notes.md.aside finish saving, then run arc save from ${CHECKOUT} and retry ${name}.` });
+  });
+});
+
+describe("a retirement a shared mark refuses", () => {
+  it("names the path, its checkout, an adoption mark's condition and repair, and the retirement, without adoption's retry", () => {
+    expect(retirementRefusal(CHECKOUT, "active/current/notes.md", missingMintedMetadataMark(), "remove")).toEqual({ text:
+      "active/current/notes.md in /work/target blocks removal: The stub was created, but its authored metadata file is missing. "
+      + "Restore the authored metadata file. Then retry removal." });
+  });
+
+  it("drops a producer's closing retry sentence and keeps the repair before it", () => {
+    const mark = { reason: "The prospective stub's metadata does not parse: missing H1",
+      remedy: { text: "Repair the metadata's H1 and core table, or create the stub explicitly. Run arc stub plan. Then retry adoption." } };
+    expect(retirementRefusal(CHECKOUT, "backlog/plan/meta-plan.md", mark, "release")).toEqual({ text:
+      "backlog/plan/meta-plan.md in /work/target blocks release: The prospective stub's metadata does not parse: missing H1. "
+      + "Repair the metadata's H1 and core table, or create the stub explicitly. Run arc stub plan. Then retry release." });
+  });
+
+  it.each([
+    ["Add `/.arc/user/` to .gitignore, then run the command again.", "Add `/.arc/user/` to .gitignore."],
+    ["The projection writes into no root until the guard passes; run the command again.", "The projection writes into no root until the guard passes."],
+    ["Replace the policy with a regular file, then commit it so every worktree holds it and retry the command.",
+      "Replace the policy with a regular file, then commit it so every worktree holds it."],
+  ])("names the ignore guard's repair %j without the command's own rerun", (remedy, repair) => {
+    expect(retirementRefusal(CHECKOUT, ".arc/user/andrew/scratch/one.md", ignoreRefusalMark("not-ignored", remedy), "remove")).toEqual({
+      text: `.arc/user/andrew/scratch/one.md in /work/target blocks removal: Projection ignore guard refused: not-ignored. ${repair} Then retry removal.` });
+  });
+
+  it("keeps the repair's runnable command", () => {
+    const mark = { reason: "This file belongs to blair.", remedy: { text: "Run arc materialize plan, then apply the edit in its checkout.",
+      argv: ["arc", "materialize", "plan"] } };
+    expect(retirementRefusal(CHECKOUT, "active/plan/notes.md", mark, "remove")).toEqual({ argv: ["arc", "materialize", "plan"],
+      text: "active/plan/notes.md in /work/target blocks removal: This file belongs to blair. "
+        + "Run arc materialize plan, then apply the edit in its checkout. Then retry removal." });
+  });
+
+  it("keeps a read failure's condition beside its repair in the observation's detail", () => {
+    const mark = { reason: "Cannot read prospective metadata backlog/plan/meta-plan.md: EACCES",
+      remedy: { text: "Restore readable metadata at the named path, then retry adoption." } };
+    expect(unobservedMarkDetail(CHECKOUT, "backlog/plan/notes.md", mark)).toBe("backlog/plan/notes.md in /work/target: "
+      + "Cannot read prospective metadata backlog/plan/meta-plan.md: EACCES. Restore readable metadata at the named path");
   });
 });
 

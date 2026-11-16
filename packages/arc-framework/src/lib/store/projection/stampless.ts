@@ -96,7 +96,6 @@ export interface AsideCopyDeletion {
  */
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   // A copy that is a symbolic link is removed as itself, never followed.
-  await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, input.copy, input.checkpoint);
   return finalizeAsideCopy(input);
 }

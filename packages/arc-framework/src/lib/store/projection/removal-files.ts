@@ -6,7 +6,8 @@ import { checkChange, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
 import { unfinishedRecordingRefusal } from "./recording-state.js";
-import { projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
+import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck,
+  type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
 import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
@@ -60,14 +61,14 @@ async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: 
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { root, index } = input;
   const entry = index.entries[path];
-  if (entry?.withheld) return { kind: "would-refuse", remedy: entry.refused?.remedy ?? withheldProjectionMark().remedy };
+  if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(), input.disposition);
   if (entry?.kind !== "record") return checkProjectionAdoption(root, index, path, guard, input.disposition);
   const recording = unfinishedRecordingRefusal(entry);
   if ((recording !== null || entry.adoption?.kind === "read-back")
     && entry.reference.owner.type === "person" && entry.reference.owner.name !== root.identity) {
     const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
       exec: root.ports.exec, verb: root.context.verb }, entry.reference);
-    if (denied !== null) return { kind: "would-refuse", remedy: denied.remedy };
+    if (denied !== null) return markedRemovalRefusal(root.checkout, path, denied, input.disposition);
   }
   if (recording !== null) return checkUnfinishedRecording(root, path, guard, input.disposition);
   if (entry.adoption?.kind === "read-back") return checkPendingProjectionReadBack(input, path, guard);

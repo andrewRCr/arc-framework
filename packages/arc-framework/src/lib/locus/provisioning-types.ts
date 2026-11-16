@@ -92,7 +92,12 @@ export type ProvisioningRefusalReason =
 export type ProvisioningEvidence =
   | { readonly kind: "identity-only" }
   | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer; readonly detail?: string }
-  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null; readonly detail?: string };
+  /**
+   * What provisioning left that rollback cannot undo. Without marker bytes, `malformedMarker` says the marker there
+   * could not be parsed; otherwise provisioning retains the checkout itself.
+   */
+  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null;
+    readonly malformedMarker?: true; readonly detail?: string };
 
 export interface TransientProvisioningReceipt {
   readonly disposition: "applied" | "idempotent";

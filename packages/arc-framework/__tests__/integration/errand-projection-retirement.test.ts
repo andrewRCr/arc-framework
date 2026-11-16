@@ -85,8 +85,16 @@ it.each([
   await writeFile(held, "A previous identity's saved edit.\n");
   await writeFile(join(h.root, h.path), renderStampedFile({ content: "A primary edit saved before retirement.\n", stamp: h.entry.base.blob }));
   const argv = ["errand", action, "repair", ...(action === "leave" ? ["--state", "paused"] : []), "--json"];
+  const errands = async () => {
+    const listed = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/record" }));
+    return listed.status === "complete" ? listed.records.map(record => [record.reference, record.version, record.content]) : listed;
+  };
+  const recorded = await errands();
+  if (protection === "full") expect(recorded).toHaveLength(1);
   const refused = await invoke(h, argv);
   expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { outcome: "refused" } });
+  // The release's refusal arrives before any lifecycle write: the Errand record is as it was.
+  expect(await errands()).toEqual(recorded);
   expect(JSON.stringify(refused.result)).toContain("blair");
   expect(await readFile(held, "utf8")).toBe("A previous identity's saved edit.\n");
   expect(await readFile(resolveWorktreeMarkerPath(h.root))).toEqual(marker);

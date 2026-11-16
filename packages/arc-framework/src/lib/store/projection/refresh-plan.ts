@@ -45,10 +45,10 @@ export async function planProjectionRefresh(input: ProjectionRefreshPlanInput): 
   const reduced = input.changes.filter((change, at, all) => !all.slice(at + 1).some(other => sameReference(change.reference, other.reference)));
   const subjects = await refreshSubjectReferences(input, reduced);
   const primaries = [...reduced.map(change => change.reference), ...retries, ...subjects.references].filter(isOwnerPrimary);
-  // A held entry proves nothing about its owner's place in the view, so a work item's held record is planned from the view.
-  const held = Object.values(index.entries).flatMap(entry => entry.kind === "record" && entry.pending
+  // A pending entry proves nothing about its owner's place in the view, so a work item's pending record is planned from the view.
+  const pending = Object.values(index.entries).flatMap(entry => entry.kind === "record" && entry.pending
     && entry.reference.owner.type === "work-item" ? [entry.reference] : []);
-  const owners = [...primaries, ...held].map(reference => reference.owner)
+  const owners = [...primaries, ...pending].map(reference => reference.owner)
     .filter((owner, at, all) => all.findIndex(other => sameOwner(owner, other)) === at);
   // Only a primary's own change moves its owner's files; an owner here for a pending entry or a conflict re-lays none of its settled ones.
   const relaid = reduced.map(change => change.reference).filter(isOwnerPrimary);

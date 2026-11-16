@@ -12,7 +12,7 @@ import type { StoreRecord } from "../../../src/lib/store/read.js";
 import { ProjectionIndexSchema } from "../../../src/lib/store/projection/index-schema.js";
 import { gitBlobId } from "../../../src/lib/store/projection/blob-id.js";
 import { renderStampedFile } from "../../../src/lib/store/projection/stamp.js";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeProjectionIndex } from "../../../src/lib/store/projection/index-file.js";
@@ -80,6 +80,31 @@ it("reports an unusable index instead of guessing an indexed path's owner, then 
   expect(refused.result.notes?.join("\n")).toMatch(/repair.*retry/iu);
   const repaired = await runStoreErrandOverlap({ ...options, readIndex: async () => ({ kind: "index", index: indexedRecord(path, companion) }) });
   expect(repaired.result).toEqual({ overlaps: [{ workItem: "alpha", remoteOnly: false, matchedPaths: [path] }] });
+});
+
+it("reports a target partition whose bytes no longer match as an unreadable index, then finds the overlap once restored", async () => {
+  const h = createLifecycleHarness(), caller = await h.seedMeta("caller"), alpha = await h.seedMeta("alpha");
+  await h.seedMeta("beta");
+  const companion = await h.seed(recordReferences["work-item/companion"](alpha.reference.owner, "beta/meta-beta.md"), "literal companion bytes\n");
+  const path = ".arc/backlog/planned/alpha/beta/meta-beta.md";
+  const cwd = await mkdtemp(join(tmpdir(), "arc-overlap-partition-"));
+  onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); });
+  const gitDir = join(cwd, ".git"), stateDir = join(gitDir, PROJECTION_STATE_FOLDER);
+  await mkdir(stateDir, { recursive: true });
+  await writeProjectionIndex({ gitDir, commonDir: gitDir, stateDir, primary: true }, indexedRecord(path, companion));
+  const partition = join(stateDir, (await readdir(stateDir)).find(name => /^index-[a-f0-9]{40}$/u.test(name)) ?? "");
+  const bytes = await readFile(partition);
+  // The name stays, so only loading the target path's partition finds the mismatch.
+  await writeFile(partition, "{}");
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }, { stdout: "" }] }]);
+  const run = () => runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd, identity: "alice", teamMode: false,
+    baseBranch: "main", projectId: async () => "project",
+    readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: boundWorkUnitSubject(caller).uid }, cwd), targetPaths: [path] });
+  const refused = await run();
+  expect(refused.result).toMatchObject({ overlaps: [], notes: [expect.stringMatching(/index.*unreadable/iu)] });
+  expect(refused.result.notes?.join("\n")).toMatch(/repair.*retry/iu);
+  await writeFile(partition, bytes);
+  expect((await run()).result).toEqual({ overlaps: [{ workItem: "alpha", remoteOnly: false, matchedPaths: [path] }] });
 });
 
 it("reports missing backlog ownership with a stub remedy instead of probing it as code", async () => {

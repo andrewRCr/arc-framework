@@ -42,15 +42,16 @@ export type ProjectionLocalCaptureResult = StoreResult<ProjectionLocalCapture> &
 export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<ProjectionLocalCaptureResult> {
   // A reader holding no lease restarts once across a concurrent publication, its path's partition loaded inside that
   // read, then reports the index unobservable.
-  const disk = input.index ? null : await readProjectionIndex(input.location, true,
-    { retry: true, groups: [projectionIndexGroup(input.path)] });
-  if (disk?.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
-    `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
-  const index = input.index ?? (disk?.kind === "index" ? disk.index : null);
-  const settings = input.settings ?? index?.projectedUnder;
-  if (!settings) return refusedLocal("The projection settings and ownership basis are unavailable.");
+  let index = input.index;
+  if (index === undefined) {
+    const disk = await readProjectionIndex(input.location, true, { retry: true, groups: [projectionIndexGroup(input.path)] });
+    if (disk.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
+      `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
+    index = disk.index;
+  }
+  const settings = input.settings ?? index.projectedUnder;
   if (input.index !== undefined) loadProjectionGroups(input.index, [projectionIndexGroup(input.path)]);
-  const entry = index?.entries[input.path];
+  const entry = index.entries[input.path];
   if (entry?.kind === "record" && entry.handoff !== undefined) {
     const mark = ownershipHandoffMark(entry);
     return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "projection.local",
@@ -62,13 +63,13 @@ export async function captureProjectionLocal(input: ProjectionLocalCaptureInput)
   const localMarker = marker.kind === "absent" ? null
     : { ...decodeWorktreeMarkerOwnership(marker.marker), husk: marker.marker.husk !== undefined };
   const prospective: Local["prospectiveMetadata"] = [];
-  for (const container of index?.entries[input.path]?.kind === "record" ? [] : projectionCandidateContainers(input.path)) {
+  for (const container of entry?.kind === "record" ? [] : projectionCandidateContainers(input.path)) {
     const path = resolveArcPath({ kind: "work-unit-artifact", slug: container.slug, placement: container.placement, artifact: "meta" });
     const captured = await captureProspectiveMetadata(input.checkout, path);
     if (captured.status === "refused") return captured;
     prospective.push({ path, content: captured.result });
   }
-  const indexed = Object.entries(index?.entries ?? {}).flatMap(([path, entry]) => {
+  const indexed = Object.entries(index.entries).flatMap(([path, entry]) => {
     const reference = entry.kind === "record" ? entry.reference : entry.minted?.reference;
     return reference?.kind === "work-item/meta" && input.path.startsWith(`${dirname(path).replaceAll("\\", "/")}/`)
       ? [{ path, reference }] : [];

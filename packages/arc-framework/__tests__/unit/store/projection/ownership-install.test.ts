@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createHandoffFixture } from "../../../helpers/store/projection/handoff-fixture.js";
 import { installProjectionHandoff } from "../../../../src/lib/store/projection/ownership-install.js";
-import { reconcileProjectionHandoffs } from "../../../../src/lib/store/projection/ownership-handoff.js";
+import { projectionArrivalsInstalled, reconcileProjectionHandoffs } from "../../../../src/lib/store/projection/ownership-handoff.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
@@ -50,6 +51,25 @@ it.each(["before-link", "after-link", "late-save"] as const)("retains both ident
   }
   expect(await h.store.read({ reference: h.entry.reference })).toMatchObject({ status: "ok", result: { version: h.entry.base.version } });
   expect(await h.store.read({ reference: h.arrival.reference })).toMatchObject({ status: "ok", result: { version: h.arrival.base.version } });
+});
+
+it("holds the leaving record pending with the refusal reported when the arrival's rendering is refused, then installs after repair", async () => {
+  const h = await fixture();
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The arrival's conflict cannot be read here.", remedy: { text: "Restore the conflict record, then retry." } });
+  const arrivals = new Map([[h.path, h.arrival.reference]]);
+  const held = await installProjectionHandoff({ root: h.root, index: h.index, path: h.path, record: h.record, arriving: h.arrival,
+    renderer: () => Promise.resolve({ status: "refused", refusal }) });
+  const entry = held.entries[h.path];
+  expect(entry).toMatchObject({ reference: h.entry.reference, pending: true, refused: { reason: refusal.condition } });
+  expect(entry?.kind === "record" ? entry.handoff : null).toBeUndefined();
+  expect(h.reports).toContainEqual({ path: h.path, copy: null, mark: expect.objectContaining({ reason: refusal.condition }) });
+  expect(projectionArrivalsInstalled(held, arrivals)).toBe(false);
+  const installed = await installProjectionHandoff({ root: h.root, index: held, path: h.path, record: h.record, arriving: h.arrival,
+    renderer: h.context.renderer });
+  const confirmed = await reconcileProjectionHandoffs(h.root, installed);
+  expect(confirmed.entries[h.path]).toMatchObject({ reference: h.arrival.reference, pending: false, withheld: false, refused: null });
+  expect(projectionArrivalsInstalled(confirmed, arrivals)).toBe(true);
 });
 
 it("yields to a recreated leaving save and restores its authority before staged cleanup", async () => {

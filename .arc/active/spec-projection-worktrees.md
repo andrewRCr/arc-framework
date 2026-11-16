@@ -165,6 +165,9 @@ Criteria test that part._
 
    _Amended by A4:_ the numerical budgets are superseded by § 15.3 and criterion 11; archive independence remains.
 
+   _Amended by A7:_ while a rebuild is held, each start repeats it, reading every partition, the archive's among them,
+   until a rebuild takes the current state version (§ 15.2, § 17 item 12).
+
 6. **Windows holds** — held files, same-size saves, file identity, and line endings — and the projection's tests run in
    the portability lane, which runs Windows and macOS, as the store's own run there from `storage-ref-backend` (§ 13).
 7. **Dark until the flip** but for three pieces that need no store: the worktree lock, ARC's managed block in the root
@@ -663,8 +666,8 @@ identity; the start walks it again once the identity returns. Until then the sel
 and the removal check and the persist and release steps read it with the projected roots, an edit there one the edit
 rights refuse, and the release of a linked checkout removes its unchanged files with the rest (§ 12.2, § 12.3).
 
-During reprojection, `projectedUnder` acknowledges installed desired arrivals, rather than merely requested settings (A2).
-Before a reprojection first changes the projected layout, publish `reprojectionPending: true` in the index header.
+During reprojection, `projectedUnder` acknowledges installed desired arrivals, rather than merely requested settings
+(A2). Before a reprojection first changes the projected layout, publish `reprojectionPending: true` in the index header.
 The optional flag is clear when absent. A command reprojects when that flag is set or when its current settings differ
 from `projectedUnder`, using its fresh current settings even if they changed again after partial progress. Thus an
 A → B → A claim or settings cycle with no store write still retries the mixed layout instead of treating equality
@@ -1323,13 +1326,13 @@ about 960 Git calls at this repository's size (`notes-projection-worktrees.md` �
 files at once halved the Windows materialization to 0.62–0.79 s and slowed Linux; it is a tripwire's first response, not
 built now (§ Tripwire timings). `completed/` lands in every worktree, as the tracked copy does today.
 
-| Axis                         | Cost grows with                     | Watch                                    | Response                                            |
-| ---------------------------- | ----------------------------------- | ---------------------------------------- | --------------------------------------------------- |
-| Archive size                 | nothing per command                 | full materialization (spawn, `arc sync`) | batched blob reads in `list`; tripwire              |
-| Worktrees per machine        | worktrees × files changed per write | fan-out time; Windows moves while held   | tripwire; the one-copy reserve                      |
-| Team size                    | others' writes, at fetch points     | the `all` view                           | `mine` default; `cohort` and `all` opt in           |
-| File size (1 MiB cap)        | merge time per edited file          | nothing at the cap                       | —                                                   |
-| Windows Git calls (32–42 ms) | Git calls per command               | calls before the command's own work      | two calls issued together; the guard only on change |
+| Axis                         | Cost grows with                                      | Watch                                    | Response                                            |
+| ---------------------------- | ---------------------------------------------------- | ---------------------------------------- | --------------------------------------------------- |
+| Archive size                 | nothing per command but a held rebuild's starts (A7) | full materialization (spawn, `arc sync`) | batched blob reads in `list`; tripwire              |
+| Worktrees per machine        | worktrees × files changed per write                  | fan-out time; Windows moves while held   | tripwire; the one-copy reserve                      |
+| Team size                    | others' writes, at fetch points                      | the `all` view                           | `mine` default; `cohort` and `all` opt in           |
+| File size (1 MiB cap)        | merge time per edited file                           | nothing at the cap                       | —                                                   |
+| Windows Git calls (32–42 ms) | Git calls per command                                | calls before the command's own work      | two calls issued together; the guard only on change |
 
 ### 16. Forward amendments to shipped specifications
 
@@ -1773,7 +1776,8 @@ _These considerations cover the design the three members build together; § 1.1 
 - **Ignore integrity.** The guard keeps every projected path ignored, `.arc/user/*/` in `.gitignore` itself, so no
   packaging tool ships personal state (`spec-projection-substrate.md` § 11.2).
 - **Performance.** Full-round budgets and named references apply separately to Linux, Windows, and macOS (A4, § 15.3,
-  § 15.4); raw tripwires remain visible and host-Git credit requires demonstrated exposed delay. The archive stays cold.
+  § 15.4); raw tripwires remain visible and host-Git credit requires demonstrated exposed delay. The archive stays cold,
+  except that each start while a rebuild is held reads every partition (A7).
 - **Testing.** Unit and integration tests over the reference backend with real repositories and worktrees, on Linux and
   in the portability lane, the rebuild and a pull's fan-out among them, and the refusals the reference backend cannot
   return, the history pull among them, through a test store wrapping it (§ 1.5); the isolation test (§ 10.5); the
@@ -1841,10 +1845,10 @@ _These considerations cover the design the three members build together; § 1.1 
 
 11. **Full-round performance holds on all three references (A4; supersedes criterion 4).** Over the ref backend with
     real repositories and worktrees, the external median of eleven complete no-change starts, the one-file
-    non-primary backlog notes fan-out into twenty linked worktrees, the ten-file fan-out, and full materialization fit their
-    separate platform bounds in § 15.3 and § 15.4. Each platform names its own measured reference and exact source head,
-    retains all raw samples and same-run Git and filesystem baselines, and reports any host adjustment separately under
-    § 15.3's exposed-delay rule. The interleaved standard/expanded comparison shows no systematic start cost from
+    non-primary backlog notes fan-out into twenty linked worktrees, the ten-file fan-out, and full materialization fit
+    their separate platform bounds in § 15.3 and § 15.4. Each platform names its own measured reference and exact source
+    head, retains all raw samples and same-run Git and filesystem baselines, and reports any host adjustment separately
+    under § 15.3's exposed-delay rule. The interleaved standard/expanded comparison shows no systematic start cost from
     settled archive entry growth, and a deliberately unreadable settled archive partition remains unconsulted at start
     and end. Runtime tripwires use the declared platform bounds and raw nine-sample medians. Sequential sibling visits
     and the durable intent/final publication boundaries remain.
@@ -1916,8 +1920,8 @@ this design open.
 - **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 2.2, the fan-out's skip of a
   current worktree. _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
 
-- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1; § 18 ¶ `list`;
-  Cross-cutting Considerations, "Performance"; criterion 4. _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
+- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; § 15.5 ¶1; § 16 lead, 16.4;
+  § 18 ¶ `list`; Cross-cutting "Performance"; criterion 4. _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
 - **A5** — 2026-11-12 — spec-depth: verify inert removal bindings statically. _Supersedes:_ none; adds § 12.2's binding
   verification and criterion 12. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.8.
@@ -1925,8 +1929,8 @@ this design open.
 - **A6** — 2026-11-12 — design: protect unindexed personal files. _Supersedes:_ § 12.2 no-index fast paths.
   _Trigger:_ 2.5 must-stop. _Work:_ 2.5.R. _Revalidated:_ 2.8.
 
-- **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ § 15.2 ¶5; § 16.1 ¶3;
-  § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ 3.1.
+- **A7** — 2026-11-13 — spec-depth: hold files a no-index rebuild cannot place. _Supersedes:_ Goal 5; § 15.2 ¶5;
+  § 16.1 ¶3; § 17 item 8; the withheld term. _Trigger:_ F2, F8 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **A8** — 2026-11-14 — design: defer spawn cleanup protection. _Supersedes:_ Goals 3–4, criteria 2, 13, § 12.2 ¶ spawn
   compensation, § 16.1 ¶5 for work-unit spawns. _Trigger:_ pass 1 A2 review. _Work:_ review-fix. _Revalidated:_ 3.1.

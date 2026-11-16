@@ -356,7 +356,11 @@ describe("provisionTransientLocus", () => {
     expect(test.marker()).toEqual({ kind: "absent" });
   });
 
-  it.each(["refused", "unobservable", "throw"])("retains a pending setup's checkout over a %s compensation check", async failure => {
+  it.each([
+    ["refused", "Recover the retained personal file"],
+    ["unobservable", "Personal observation failed"],
+    ["throw", "Cannot observe personal files: Personal observation failed. Repair the read and retry."],
+  ] as const)("retains a pending setup's checkout over a %s compensation check", async (failure, detail) => {
     const test = harness({
       setupWorktree: async () => { throw new Error("Setup failed"); },
       checkRollback: async () => {
@@ -366,8 +370,7 @@ describe("provisionTransientLocus", () => {
       },
     });
     const result = await provisionTransientLocus(options(test.dependencies));
-    expect(result).toMatchObject({ kind: "error", evidence: { kind: "pending-marker",
-      detail: expect.stringMatching(/Personal observation failed|Recover the retained personal file/u) } });
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "pending-marker", detail } });
     expect(test.hasWorktree()).toBe(true);
     expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "pending" } });
   });
@@ -450,6 +453,34 @@ describe("provisionTransientLocus", () => {
     });
     expect(test.events[0]).toBe("lock");
     expect(test.events.at(-1)).toBe("unlock");
+  });
+
+  it("names a primary's malformed marker as such on its refusal", async () => {
+    const test = harness({ readMarker: async () => ({ kind: "malformed", message: "Unexpected token" }) });
+
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: primaryProposal }));
+
+    expect(result).toEqual({ kind: "refused", reason: "marker-conflict",
+      evidence: { kind: "marker-residue", checkoutPath: "/repo", markerBytes: null, malformedMarker: true } });
+  });
+
+  it.each([
+    ["a spawn's present marker", "spawn", false],
+    ["a spawn's raced marker", "spawn", true],
+    ["a primary's raced marker", "primary", true],
+  ] as const)("names %s that cannot be parsed as malformed on its refusal", async (_label, allocation, raced) => {
+    let reads = 0;
+    const test = harness({
+      readMarker: async () => raced && reads++ === 0 ? { kind: "absent" } : { kind: "malformed", message: "Unexpected token" },
+      createMarker: async () => ({ kind: "exists" }),
+      ...(allocation === "primary" ? { scanWorktrees: async () => ({ ok: true,
+        worktrees: [{ folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }] }) } : {}),
+    });
+
+    const result = await provisionTransientLocus(options(test.dependencies, allocation === "primary" ? { proposal: primaryProposal } : {}));
+
+    expect(result).toMatchObject({ kind: "refused", reason: "marker-conflict", evidence: { kind: "marker-residue",
+      checkoutPath: allocation === "primary" ? "/repo" : WORKTREE_PATH, markerBytes: null, malformedMarker: true } });
   });
 
   it("removes its primary marker when checkout mutation fails", async () => {

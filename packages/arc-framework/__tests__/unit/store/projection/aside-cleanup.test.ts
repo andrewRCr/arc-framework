@@ -1,9 +1,9 @@
 /** Pruning spent aside scaffolding is cosmetic: a filesystem refusal stops it without failing its caller. */
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, onTestFinished } from "vitest";
 import { ASIDE_FILES_ROOT, nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { pruneAsideScaffold, removeProjectionAsideFile, type AsideScaffoldFs } from "../../../../src/lib/store/projection/aside-cleanup.js";
 
@@ -24,9 +24,23 @@ it.each(["EBUSY", "EIO"])("stops pruning on a %s refusal without failing the del
 it("treats an unreadable ancestor as nothing to prune", async () => {
   const folder = `${ASIDE_FILES_ROOT}/scratch`;
   await mkdir(join(checkout, folder), { recursive: true });
-  const fs: AsideScaffoldFs = { rmdir: () => { throw new Error("pruned past an unreadable ancestor"); },
-    lstat: () => { throw refusal("EIO"); } };
+  const removed: string[] = [];
+  const fs: AsideScaffoldFs = { rmdir: path => { removed.push(path); }, lstat: () => { throw refusal("EIO"); } };
   await expect(pruneAsideScaffold(checkout, folder, undefined, fs)).resolves.toBeUndefined();
+  expect(removed).toEqual([]);
+});
+
+it("never prunes through a linked ancestor, nor the empty folder its target holds", async () => {
+  const external = await mkdtemp(join(tmpdir(), "arc-aside-cleanup-target-"));
+  onTestFinished(() => rm(external, { recursive: true, force: true }));
+  await mkdir(join(external, "scratch"));
+  await mkdir(join(checkout, ASIDE_FILES_ROOT), { recursive: true });
+  await symlink(external, join(checkout, ASIDE_FILES_ROOT, "linked"), "dir");
+  const removed: string[] = [];
+  const fs: AsideScaffoldFs = { rmdir: path => { removed.push(path); }, lstat: path => lstatSync(path) };
+  await expect(pruneAsideScaffold(checkout, `${ASIDE_FILES_ROOT}/linked/scratch`, undefined, fs)).resolves.toBeUndefined();
+  expect(removed).toEqual([]);
+  expect((await stat(join(external, "scratch"))).isDirectory()).toBe(true);
 });
 
 it("still fails when the lease step before a prune fails", async () => {

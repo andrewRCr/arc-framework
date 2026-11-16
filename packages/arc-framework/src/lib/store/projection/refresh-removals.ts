@@ -5,19 +5,25 @@ import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { ProjectionRefreshPlan } from "./refresh-plan.js";
-import { guardReplacement } from "./replace-guard.js";
+import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 
-/** An obsolete path's changed mark follows the same logical record to its new path. */
-export function movedProjectionChanges(index: ProjectionIndex, plan: ProjectionRefreshPlan): ReadonlySet<string> {
-  const changed = new Set<string>();
+/**
+ * An obsolete path's changed mark follows the same logical record to the new path a pass lays, keyed by that path with
+ * the obsolete paths whose mark it takes.
+ */
+export function movedProjectionChanges(index: ProjectionIndex, plan: ProjectionRefreshPlan,
+  laid: ReadonlyMap<string, unknown>): ReadonlyMap<string, readonly string[]> {
+  const moved = new Map<string, string[]>();
   for (const path of plan.removals) {
     const entry = index.entries[path];
     if (entry?.kind !== "record" || !entry.changed) continue;
-    for (const [target, reference] of plan.paths) if (sameReference(entry.reference, reference)) changed.add(target);
+    for (const [target, reference] of plan.paths) {
+      if (laid.has(target) && sameReference(entry.reference, reference)) moved.set(target, [...moved.get(target) ?? [], path]);
+    }
   }
-  return changed;
+  return moved;
 }
 
 /** Remove obsolete files through the ordinary take-in guard and record all surviving aside copies. */
@@ -39,6 +45,7 @@ export async function removeObsoleteProjectionPaths(input: {
     const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged: null, renderer: input.renderer,
       reference: input.reference, format: root.context.format, store: root.store, writer: root.context.writer,
       checkpoint: root.context.checkpoint, takeIn: root.takeIn });
+    reportGuardHold(root.context.report, path, null, guarded);
     index = withProjectionEntry(index, path, guarded.entry);
     if (guarded.kind === "replace") files.push({ path, replace: guarded, relaid: input.plan.paths.has(path) });
   }

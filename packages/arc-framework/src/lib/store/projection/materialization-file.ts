@@ -13,7 +13,7 @@ import { readStat } from "./change-detection.js";
 import { parseStampedFile, renderStampedFile } from "./stamp.js";
 import { gitBlobId, storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { guardReplacement } from "./replace-guard.js";
+import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import type { SwapFile } from "./swap.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { installProjectionHandoff } from "./ownership-install.js";
@@ -34,8 +34,10 @@ export interface MaterializationFileInput {
   readonly blocked: boolean;
 }
 /**
- * A held entry or one guarded replacement ready for the batch; `unresolved` where the path could not be laid this pass,
- * so the caller keeps its state version.
+ * A withheld or pending entry, or one guarded replacement ready for the batch. `unresolved` is set only where a regular
+ * file occupies the path's folder, the unlaid case the arrivals check cannot see at a bound path. A caller keeps its
+ * state version while this flag is set or `projectionArrivalsInstalled` finds an arrival uninstalled; a pending entry
+ * is retried by the next pass either way.
  */
 export interface MaterializationFileResult { readonly index: ProjectionIndex; readonly file?: SwapFile; readonly unresolved?: true }
 
@@ -52,7 +54,7 @@ export function projectionEntryForRecord(record: StoreRecord, path: string, form
 export async function prepareMaterializationFile(input: MaterializationFileInput): Promise<MaterializationFileResult> {
   const { root, path, record, renderer } = input;
   const prior = input.index.entries[path];
-  if (prior?.withheld) return hold(input, prior);
+  if (prior?.withheld) return withhold(input, prior);
   let entry = prior?.kind === "record" ? prior : projectionEntryForRecord(record, path, root.context.format);
   if (prior?.kind === "record" && !sameReference(prior.reference, record.reference)) {
     return { index: await installProjectionHandoff({ ...input, arriving: projectionEntryForRecord(record, path, root.context.format) }) };
@@ -68,7 +70,7 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
     return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: mark }) };
   }
   entry = { ...entry, protected: rendered.result.protected ?? entry.protected };
-  if (entry.withheld) return hold(input, entry);
+  if (entry.withheld) return withhold(input, entry);
   const kept = input.rebuilding ? null : await keepSettledFileInPlace({ checkout: root.checkout, path, prior, record,
     rendered: rendered.result, protected: entry.protected, reference: input.reference, format: root.context.format });
   if (kept !== null) return { index: withProjectionEntry(input.index, path, kept) };
@@ -89,13 +91,15 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
     readOnly: entry.protected, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
   const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged, reference: input.reference,
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint, takeIn: root.takeIn, renderer });
+  reportGuardHold(root.context.report, path, null, guarded);
   return { index: withProjectionEntry(input.index, path, guarded.entry), ...(guarded.kind === "replace" ? { file: { path, replace: guarded } } : {}) };
 }
 
 async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry): Promise<RecordEntry> {
   const absolute = join(input.root.checkout, input.path);
   const gate = await gateRead({ path: absolute, markdown: false });
-  if (gate.kind === "absent") return entry;
+  // Nothing to keep, or a non-file, which the guard holds pending with its own remedy as it does under an index.
+  if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "not-a-file") return entry;
   if (gate.kind !== "read") return { ...entry, stat: await readStat(absolute), changed: true, withheld: true };
   const bytes = await readFile(absolute);
   const after = await readStat(absolute);
@@ -106,13 +110,14 @@ async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry)
   return { ...entry, stat: gate.stat, written: gitBlobId(bytes, input.root.context.format), changed: true, withheld: !safe };
 }
 
-function hold(input: MaterializationFileInput, entry: ProjectionIndex["entries"][string]): MaterializationFileResult {
+/** Keep a withheld file as it is, reporting its mark: the evidence-held one, or the ordinary withheld one. */
+function withhold(input: MaterializationFileInput, entry: ProjectionIndex["entries"][string]): MaterializationFileResult {
   const mark = isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark() : withheldProjectionMark();
   input.root.context.report?.({ path: input.path, copy: null, mark });
   return { index: withProjectionEntry(input.index, input.path, { ...entry, refused: mark }) };
 }
 
-/** The code a held mark's reason starts with: rewording its prose never changes which entries are held. */
+/** The code an evidence-held mark's reason starts with: rewording its prose never changes which entries are evidence-held. */
 const EVIDENCE_HELD_CODE = "evidence-held:";
 
 /** A rebuild could not yet tell whether a stored record lays this path; a later rebuild with whole evidence settles it. */

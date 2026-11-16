@@ -12,13 +12,15 @@ import { gateRead } from "./read-gate.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import type { StoreRefusal } from "../refusal.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readProjectionProtection } from "./protection.js";
 
 /** A minted owner and its published initial metadata obligation, or a retryable refusal. */
 export type MintedProjectionOwner = { readonly kind: "minted"; readonly index: ProjectionIndex;
   readonly ownership: Extract<BacklogOwnership, { kind: "owned" }> } | MintRefusal;
-type MintRefusal = { readonly kind: "refused"; readonly mark: RefusedMark; readonly index?: ProjectionIndex };
+/** A refusal to bind a minted stub; `readFailure` marks one resting on a store or history read that failed. */
+type MintRefusal = { readonly kind: "refused"; readonly mark: RefusedMark; readonly index?: ProjectionIndex; readonly readFailure?: true };
 type BoundMetadata = { readonly kind: "bound"; readonly index: ProjectionIndex; readonly record: StoreRecord } | MintRefusal;
 type StubReadRoot = Pick<ProjectionRootState, "checkout"> & { readonly context: Pick<ProjectionRootState["context"], "format"> };
 type MintedBasisRoot = Pick<ProjectionRootState, "store"> & { readonly context: Pick<ProjectionRootState["context"], "memo" | "verb"> };
@@ -94,15 +96,20 @@ export function mintedProjectionEntry(receipt: MintedStubReceipt, basis: MintedP
 /** Resolve the receipt's exact generation and version without reminting or publishing an attachment. */
 export async function readMintedProjectionBasis(root: MintedBasisRoot, receipt: MintedStubReceipt): Promise<MintedProjectionBasis | MintRefusal> {
   const current = await root.store.read({ reference: receipt.reference });
-  if (current.status === "refused") return { kind: "refused", mark: markStoreRefusal(current.refusal, root.context.verb) };
+  if (current.status === "refused") return refusedRead(current.refusal, root.context.verb);
   if (!sameReference(current.result.reference, receipt.reference)) return refused("The minted metadata no longer has its created role.",
     "Inspect the work item's current role, then reproject or repair the metadata before retrying adoption.");
   if (current.result.version === receipt.version) return { kind: "basis", record: current.result, content: current.result.content };
   const history = await (root.context.memo ?? createHistoryMemo(root.store)).read(receipt.reference);
-  if (history.status === "refused") return { kind: "refused", mark: markStoreRefusal(history.refusal, root.context.verb) };
+  if (history.status === "refused") return refusedRead(history.refusal, root.context.verb);
   const content = history.result.find(entry => entry.version === receipt.version)?.content;
-  return content === undefined || content === null ? refused("The minted metadata version is not readable.",
-    "Restore the stub's creation history, then retry adoption.") : { kind: "basis", record: current.result, content };
+  return content === undefined || content === null ? { ...refused("The minted metadata version is not readable.",
+    "Restore the stub's creation history, then retry adoption."), readFailure: true } : { kind: "basis", record: current.result, content };
+}
+
+/** A store or history read the basis could not complete; only an absent record is an answer rather than a failed read. */
+function refusedRead(refusal: StoreRefusal, verb: MintedBasisRoot["context"]["verb"]): MintRefusal {
+  return { kind: "refused", mark: markStoreRefusal(refusal, verb), ...(refusal.code === "not-found" ? {} : { readFailure: true }) };
 }
 
 function refused(reason: string, remedy: string): MintRefusal {

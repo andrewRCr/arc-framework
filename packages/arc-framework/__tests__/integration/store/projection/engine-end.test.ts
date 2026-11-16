@@ -23,6 +23,16 @@ import { success } from "../../../helpers/store/suite-tools.js";
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
+/** A command whose ports count each projection lease it takes, so a test sees whether its end took one. */
+function countingLeases(h: Awaited<ReturnType<typeof createEngineFixture>>) {
+  const counter = { leases: 0 };
+  const native = h.ports();
+  const input = { store: h.store, checkout: h.checkout, ports: () => ({ ...native, lock: {
+    resolveProcessScope: async () => { counter.leases++; return NATIVE_LEASE_PROCESS.resolveProcessScope(); },
+  } }) };
+  return { counter, input };
+}
+
 describe("projection command end", () => {
   it("takes only the start lock and leaves the header unchanged when there is nothing to settle", async () => {
     const h = await createEngineFixture(directories), base = { store: h.store, checkout: h.checkout };
@@ -118,7 +128,11 @@ describe("projection command end", () => {
 
   it("preserves files and retained content when the index becomes unusable at command end, then retries after repair", async () => {
     const h = await createEngineFixture(directories);
-    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+    const { counter, input } = countingLeases(h);
+    // A sent edit gives the end work, so it takes its lease and reads the index it then finds unusable.
+    await h.edit("first edit\n");
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    expect((await h.stored()).content).toBe("first edit\n");
     const original = await readFile(join(h.location.stateDir, "index"), "utf8");
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
@@ -126,7 +140,9 @@ describe("projection command end", () => {
     await h.edit("hand edit\n");
     const saved = await h.file();
     await writeFile(join(h.location.stateDir, "index"), "unreadable");
-    await endProjection({ store: h.store, checkout: h.checkout });
+    const started = counter.leases;
+    await endProjection(input);
+    expect(counter.leases).toBe(started + 1);
     expect(await h.file()).toBe(saved);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("retained input");
     await writeFile(join(h.location.stateDir, "index"), original);
@@ -136,13 +152,18 @@ describe("projection command end", () => {
     await expect(access(join(folder, "orphan"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("does not run a ready root's end when the caller's backend keeps state in the checkout", async () => {
+  it("does not run a ready root's end when the caller's backend keeps state in the checkout, though the end has work", async () => {
     const h = await createEngineFixture(directories);
-    await startProjection({ store: h.store, checkout: h.checkout });
+    const { counter, input } = countingLeases(h);
+    await h.edit("a sent edit\n");
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    expect((await h.stored()).content).toBe("a sent edit\n");
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
     await writeFile(join(folder, "orphan"), "must remain");
+    const started = counter.leases;
     await endProjection({ store: createStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
+    expect(counter.leases).toBe(started);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("must remain");
   });
 

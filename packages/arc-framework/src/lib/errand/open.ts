@@ -520,14 +520,15 @@ async function rollbackIdentity(
 }
 
 /**
- * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. Residue without marker bytes
- * names the retained checkout alone: no marker was read there, or the one there could not be parsed.
+ * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. A marker that could not be
+ * parsed is named as such, its checkout never having held the branch; residue with neither names the retained checkout.
  */
 function durableResidue(evidence: ProvisioningEvidence | null, branch: string): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  const retained = evidence.markerBytes === null ? `the checkout ${evidence.checkoutPath} for branch ${branch}`
-    : `a worktree marker at ${evidence.checkoutPath}`;
+  const retained = evidence.markerBytes !== null ? `a worktree marker at ${evidence.checkoutPath}`
+    : evidence.kind === "marker-residue" && evidence.malformedMarker === true ? `a malformed worktree marker at ${evidence.checkoutPath}`
+      : `the checkout ${evidence.checkoutPath} for branch ${branch}`;
   return `${retained}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 

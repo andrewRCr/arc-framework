@@ -2,7 +2,7 @@
 import { expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile, rename, symlink, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import type { RecordReference } from "../../src/lib/store/identity.js";
+import type { RecordReference, RecordVersion } from "../../src/lib/store/identity.js";
 import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { seed } from "../helpers/store/suite-tools.js";
 import { sameReference } from "../../src/lib/store/identity.js";
@@ -25,6 +25,7 @@ import { writeMetaClass } from "../../src/lib/store/kinds/meta/writers.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { PROJECTION_INDEX_FILE, readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { retirementRefusal } from "../../src/lib/store/projection/removal-verdict.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null,
@@ -152,6 +153,50 @@ it("retains the exact mint through a refused basis read and normalizes the same 
   expect(parseMetaRecord(after.content).state).toBe("Planning");
   expect(success(await f.store.history({ reference: after.reference })).filter(entry => "verb" in entry.provenance && entry.provenance.verb === "stub")).toHaveLength(1);
   expect(JSON.parse(repaired.output)).toEqual({ paths: [path] });
+});
+
+it("keeps a pending minted stub unobservable while history lists its version without content, and passes once it reads", async () => {
+  const { f } = await createAdoptionFixture();
+  const path = ".arc/backlog/planned/beta/meta-beta.md";
+  const authored = makeMetaFixture("beta", { state: "Active", owner: "andrew", workClass: "Light", priority: "P1",
+    currentWorkflow: "process-task-loop" }) + "\nA correction waiting for the minted basis.\n";
+  await mkdir(join(f.root, ".arc/backlog/planned/beta"), { recursive: true });
+  await writeFile(join(f.root, path), authored);
+  const accepted: { reference: RecordReference | null } = { reference: null };
+  let readable = false, listed = false, minted: RecordVersion | null = null;
+  const store = overrideEngineStore(f.store, {
+    batch: async input => {
+      const result = await f.store.batch(input);
+      if (result.status === "ok" && input.provenance.verb === "stub") accepted.reference = result.result.writes[0]?.reference ?? null;
+      return result;
+    },
+    read: async input => !readable && accepted.reference !== null && sameReference(input.reference, accepted.reference)
+      ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: input.reference,
+        rule: "test.minted-basis", condition: "The minted record read is temporarily unavailable.",
+        remedy: { text: "Restore the minted record read, then retry." } } }
+      : f.store.read(input),
+    history: async input => {
+      const read = await f.store.history(input);
+      return listed || read.status === "refused" ? read
+        : { status: "ok", result: read.result.map(each => each.version === minted ? { ...each, content: null } : each) };
+    },
+  });
+  expect((await selection(store, f.root)).exitCode).toBe(0);
+  if (accepted.reference === null) throw new Error("No accepted stub receipt");
+  const receipt = success(await f.store.read({ reference: accepted.reference }));
+  minted = receipt.version;
+  // The record moves on, apart from the lines the authored correction changes, so the receipt's basis comes from history.
+  const advanced = receipt.content.replace("- **Blockers:** [none]", "- **Blockers:** Waiting on the design review");
+  expect(advanced).not.toBe(receipt.content);
+  success(await f.store.write({ action: "put", reference: receipt.reference, content: advanced, expected: receipt.version,
+    placement: receipt.placement, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  expect(success(await f.store.read({ reference: receipt.reference })).version).not.toBe(minted);
+  readable = true;
+  const context = { store, identity: SlugSchema.parse("andrew") };
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "unobservable",
+    detail: `${path} in ${f.root}: The minted metadata version is not readable. Restore the stub's creation history` });
+  listed = true;
+  expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });
 });
 
 it("keeps initial normalization through a hand-edit refusal and retries the same minted generation", async () => {
@@ -299,7 +344,9 @@ it.each([
   const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No ownerless-file index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining(fault.reason) } });
-  expect(refused).toMatchObject({ remedy: held.index.entries[path]?.refused?.remedy });
+  const mark = held.index.entries[path]?.refused;
+  if (mark === undefined || mark === null) throw new Error("No adoption mark recorded");
+  expect(refused).toEqual({ kind: "would-refuse", remedy: retirementRefusal(f.root, path, mark, "remove") });
   await writeFile(join(f.root, path), valid);
   expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   const repaired = await selection(f.store, f.root);

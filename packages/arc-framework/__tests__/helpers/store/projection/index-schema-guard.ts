@@ -14,5 +14,8 @@ vi.mock("../../../../src/lib/fs.js", async original => {
   } };
 });
 
+/** Take the violations recorded so far, for a test of this guard itself; the rest fail at the end of their test. */
+export function takeProjectionIndexViolations(): { path: string; issues: string }[] { return violations.splice(0); }
+
 // A command may turn a failed write into a diagnostic, so a refused file fails the test that published it.
 afterEach(() => { expect(violations.splice(0)).toEqual([]); });

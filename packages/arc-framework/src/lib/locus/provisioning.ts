@@ -238,7 +238,7 @@ async function establishPrimaryMarker(
   }
   if (current.kind === "malformed") {
     return { kind: "returned", result: refused("marker-conflict", {
-      kind: "marker-residue", checkoutPath, markerBytes: null,
+      kind: "marker-residue", checkoutPath, markerBytes: null, malformedMarker: true,
     }) };
   }
   try {
@@ -252,6 +252,7 @@ async function establishPrimaryMarker(
     }
     return { kind: "returned", result: refused("marker-conflict", {
       kind: "marker-residue", checkoutPath, markerBytes: raced.kind === "present" ? raced.bytes : null,
+      ...(raced.kind === "malformed" ? { malformedMarker: true } : {}),
     }) };
   } catch (error) {
     return { kind: "returned", result: failure(error, { kind: "identity-only" }) };
@@ -322,7 +323,8 @@ async function rollbackSpawn(
 async function checkRollbackSafety(options: ProvisionTransientLocusOptions, checkoutPath: string,
   marker: RollbackMarker | null): Promise<ProvisioningEvidence | null> {
   const checked = await safeCall(() => options.dependencies.checkRollback(checkoutPath, "remove"));
-  const detail = checked.kind === "error" ? `Cannot observe personal files: ${String(checked.error)}. Repair the read and retry.`
+  const detail = checked.kind === "error"
+    ? `Cannot observe personal files: ${checked.error instanceof Error ? checked.error.message : String(checked.error)}. Repair the read and retry.`
     : checked.value.kind === "would-refuse" ? checked.value.remedy.text
     : checked.value.kind === "unobservable" ? checked.value.detail : null;
   if (detail === null) return null;

@@ -38,11 +38,13 @@ import { guardReplacement } from "../../../../src/lib/store/projection/replace-g
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
 import { recordWriteBack, TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
-import { projectionEntryForRecord } from "../../../../src/lib/store/projection/materialization-file.js";
+import { evidenceHeldProjectionMark, projectionEntryForRecord,
+  withheldProjectionMark } from "../../../../src/lib/store/projection/materialization-file.js";
 import { prepareWriteBack } from "../../../../src/lib/store/projection/write-back.js";
 import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
 import { createStagedFile, nameAsideFile, parseAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
+import { guardProjectionIgnores } from "../../../../src/lib/store/projection/ignore-guard.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -216,7 +218,7 @@ it("names the marker repair on check and persist for a malformed marker on a che
   const target = await targetCheckout();
   await rm(join(target.location.stateDir, PROJECTION_INDEX_FILE));
   await writeFile(resolveWorktreeMarkerPath(target.checkout), "malformed marker\n");
-  const repair = "Repair or remove the marker, then retry removal.";
+  const repair = "Repair or remove the marker, then retry.";
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "unobservable", detail: expect.stringContaining(repair) });
   expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy: { text: expect.stringContaining(repair) } });
 });
@@ -374,9 +376,9 @@ it("holds a file withheld by a real index rebuild until its bytes are copied out
   expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [target.h.path]: { withheld: true } },
   } });
-  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({
-    kind: "would-refuse", remedy: { text: expect.stringContaining("delete") },
-  });
+  const withheld = withheldProjectionMark();
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy: {
+    text: `${target.h.path} in ${target.checkout} blocks removal: ${withheld.reason} ${withheld.remedy.text} Then retry removal.` } });
   await rm(join(target.checkout, target.h.path));
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
@@ -392,9 +394,11 @@ it("holds a file a no-index rebuild could not place under its held remedy and pa
   await endProjection(held);
   expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     state: null, entries: { [target.h.path]: { kind: "ownerless", withheld: true } } } });
-  const remedy = { text: expect.stringContaining("run any arc command from the checkout holding this file") };
-  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse", remedy });
-  expect(await persistProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "refused" });
+  const mark = evidenceHeldProjectionMark();
+  expect(mark.remedy.text).toContain("run any arc command from the checkout holding this file");
+  const remedy = { text: `${target.h.path} in ${target.checkout} blocks removal: ${mark.reason} ${mark.remedy.text} Then retry removal.` };
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy });
   const repaired = { checkout: target.checkout, store: target.h.store, ports: target.h.ports };
   expect(await startProjection(repaired)).toMatchObject({ kind: "ready" });
   await endProjection(repaired);
@@ -464,9 +468,9 @@ it("refuses an unindexed file in another identity's personal root until it is re
   await mkdir(folder, { recursive: true });
   const path = join(folder, "unindexed.md");
   await writeFile(path, "Prose that belongs to the other identity.\n");
-  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({
-    kind: "would-refuse", remedy: { text: expect.stringContaining("blair") },
-  });
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy: {
+    text: `.arc/user/blair/scratch/unindexed.md in ${target.checkout} blocks removal: This record belongs to blair; `
+      + "the current identity may not edit it. Have blair apply the edit under their identity. Then retry removal." } });
   await rm(path);
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
 });
@@ -591,9 +595,10 @@ it.each(["recording", "installation"] as const)("names the previous identity for
   if ("ignores" in pending) await writeFile(join(target.checkout, ".gitignore"), pending.ignores);
   await target.h.exec("git", ["config", "arc.identity", "blair"], { cwd: target.checkout });
   target.h.identity("blair");
-  expect(await checkProjectionRemoval(target.checkout, { ...target.context, identity: SlugSchema.parse("blair") })).toMatchObject({
-    kind: "would-refuse", remedy: { text: expect.stringContaining("Have andrew apply the edit under their identity") },
-  });
+  const path = "path" in pending ? pending.path : target.h.path;
+  expect(await checkProjectionRemoval(target.checkout, { ...target.context, identity: SlugSchema.parse("blair") })).toEqual({
+    kind: "would-refuse", remedy: { text: `${path} in ${target.checkout} blocks removal: This record belongs to andrew; `
+      + "the current identity may not edit it. Have andrew apply the edit under their identity. Then retry removal." } });
   await target.h.exec("git", ["config", "arc.identity", "andrew"], { cwd: target.checkout });
   target.h.identity("andrew");
   if ("repair" in pending) pending.repair();
@@ -980,6 +985,26 @@ it.each(["both", "earlier"] as const)("keeps %s unreadable interrupted versions 
   expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
 });
 
+it("keeps a Markdown edit unobservable while history lists its stamped base without content, and passes once it reads", async () => {
+  const target = await targetCheckout();
+  const entry = target.index.entries[target.h.path];
+  if (entry?.kind !== "record") throw new Error("Missing fixture entry");
+  success(await target.h.store.write(update(target.h, target.h.record, "opening\nbase\nclosing\nremote footer\n")));
+  await writeFile(join(target.checkout, target.h.path), renderStampedFile({ content: "local prefix\nopening\nbase\nclosing\n",
+    stamp: entry.base.blob }));
+  let unavailable = true;
+  const store = overrideEngineStore(target.h.store, { history: async input => {
+    const read = await target.h.store.history(input);
+    return !unavailable || read.status === "refused" ? read
+      : { status: "ok", result: read.result.map(each => each.version === entry.base.version ? { ...each, content: null } : each) };
+  } });
+  const context = { ...target.context, store };
+  expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "unobservable",
+    detail: "Recover the projected file's base from the record history, then save again." });
+  unavailable = false;
+  expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
+});
+
 it("holds an attached adoption whose send was refused, as persistence does, and persists it once repaired", async () => {
   const target = await targetCheckout();
   const entry = target.index.entries[target.h.path];
@@ -1044,8 +1069,13 @@ it("holds a new file in a root its ignore guard refuses until the rule is restor
   await writeFile(path, "A new file persistence cannot install.\n");
   const ignores = await readFile(join(target.checkout, ".gitignore"));
   await writeFile(join(target.checkout, ".gitignore"), "");
-  expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse" });
-  expect(await persistProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "refused" });
+  const ports = createProjectionEnginePorts(target.checkout);
+  const guard = await guardProjectionIgnores({ root: target.checkout, identity: SlugSchema.parse("andrew"), exec: ports.execInput, fs: ports.fs });
+  if (guard.kind !== "refused") throw new Error("The cleared rule still authorizes the personal root");
+  const remedy = { text: `.arc/user/andrew/scratch/unadopted.md in ${target.checkout} blocks removal: Projection ignore guard refused: `
+    + `not-ignored. ${guard.remedy.replace(", then run the command again.", ".")} Then retry removal.` };
+  expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "refused", remedy });
   await writeFile(join(target.checkout, ".gitignore"), ignores);
   expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });

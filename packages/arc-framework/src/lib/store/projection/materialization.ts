@@ -46,6 +46,8 @@ interface ProjectionMaterializationBasis {
   readonly version: StateVersion;
   readonly startTiming?: number;
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
+  /** Links this command's start already reported, which the lay leaves unreported so each is reported once. */
+  readonly reportedLinks?: readonly string[];
 }
 /**
  * A full lay over no usable index, or the restoration of deleted files over a usable one. A usable index never takes a
@@ -69,7 +71,8 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
-    withheldCopies: [...new Set([...(input.recovered?.withheldCopies ?? []), ...swept.withheld])] }, ignores);
+    // Only the copies the sweep still found stay withheld; a deleted copy's name is released.
+    withheldCopies: [...swept.withheld] }, ignores);
   root.writable = writableUnder(ignores, guardedProjectionRoots(root.identity).map(each => each.path));
   recordSweep(root, swept, !input.onlyDeleted);
   if (ignores.kind === "refused") return { kind: "refused", index, mark: { reason: `Projection ignore guard refused: ${ignores.reason}`,
@@ -83,12 +86,13 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
   const walked = await walkProjectionRoots(root.checkout, [...PROJECTED_LIFECYCLE_ROOTS,
     ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs, root.ports.linkFs);
-  reportProjectionLinks(walked.links);
+  reportProjectionLinks(walked.links.filter(path => !(input.reportedLinks ?? []).includes(path)));
   const observed = createProjectionLinkBoundary(walked.links);
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
-  if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files, whole);
+  // A link is reported, never recorded: only walked files can be unknown files.
+  if (input.index === null) index = await recordUnknownFiles(root, index, walked.files, desired.files, whole);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));

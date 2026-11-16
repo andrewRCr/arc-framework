@@ -7,7 +7,7 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, OwnerIdentitySchema, RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import {
-  checkChange, PROJECTION_REFERENCE, readReference, recordCleanStat, type ChangeCheck,
+  checkChange, PROJECTION_REFERENCE, readReference, recordCleanStat, writeReference, type ChangeCheck,
 } from "../../../../src/lib/store/projection/change-detection.js";
 import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { FileStat, ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
@@ -15,6 +15,7 @@ import type { ProjectionLocation } from "../../../../src/lib/store/projection/lo
 import { projectionIndexBacking, withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 
 const T = new Date("2026-10-31T12:00:00.000Z");
+const EARLIER = new Date("2026-10-31T11:00:00.000Z");
 const KEY = ".arc/active/meta-alpha.md";
 const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" });
 
@@ -36,7 +37,7 @@ async function statOf(target: string): Promise<FileStat> {
   return { type: "file", size: s.size, mtimeNs: s.mtimeNs, ino: s.ino };
 }
 
-function indexWith(stat: FileStat, written: string): ProjectionIndex {
+function indexWith(stat: FileStat, written: string, pending = false): ProjectionIndex {
   return {
     format: 2, state: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
@@ -45,11 +46,18 @@ function indexWith(stat: FileStat, written: string): ProjectionIndex {
       [KEY]: {
         kind: "record", reference: recordReferences["work-item/meta"](owner), stat, written,
         base: { blob: written, version: RecordVersionSchema.parse("v1") }, markers: null, notices: [], unshown: [],
-        protected: false, changed: false, pending: false, withheld: false, refused: null, persisted: null,
+        protected: false, changed: false, pending, withheld: false, refused: null, persisted: null,
         inProgress: null, copies: [],
       },
     },
   };
+}
+
+/** An existing reference older than the file, as an earlier index write left it. */
+async function referenceBeforeTheFile(): Promise<void> {
+  await writeReference(checkout);
+  await pinReference(EARLIER);
+  expect(await readReference(checkout)).not.toBeNull();
 }
 
 /** Pin the reference into the tick at `at`, as an index write in that tick leaves it. */
@@ -78,10 +86,12 @@ async function checkOf(index: ProjectionIndex): Promise<ChangeCheck> {
 
 describe("smudging", () => {
   it("finds an installing file's same-tick save after an unrelated partition advances the reference", async () => {
+    await referenceBeforeTheFile();
     await writeFile(path, "version one\n");
     await utimes(path, T, T);
+    // The staged file installs after the index publishes its entry, pending until then.
     const first = await commitProjectionIndex({ location, checkout,
-      index: indexWith(await statOf(path), gitBlobId("version one\n", "sha1")) });
+      index: indexWith(await statOf(path), gitBlobId("version one\n", "sha1"), true) });
     await pinReference(T);
     await writeFile(path, "version two\n");
     await utimes(path, T, T);
@@ -119,11 +129,11 @@ describe("smudging", () => {
   });
 
   it("smudges staged stats while their files await installation", async () => {
+    await referenceBeforeTheFile();
     await writeFile(path, "version one\n");
-    expect(await readReference(checkout)).toBeNull();
     const stat = await statOf(path);
     const written = await commitProjectionIndex({
-      location, checkout, index: indexWith(stat, gitBlobId("version one\n", "sha1")),
+      location, checkout, index: indexWith(stat, gitBlobId("version one\n", "sha1"), true),
     });
     expect(written.entries[KEY]?.stat).toEqual({ ...stat, size: 0n });
   });

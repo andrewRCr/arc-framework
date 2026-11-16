@@ -27,6 +27,7 @@ import { findProjectionArrivals, projectionArrivalsInstalled } from "./ownership
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { planProjectionRebuild } from "./refresh-rebuild.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
+import { markArrivingRecord } from "./changed-mark.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -72,27 +73,28 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
     format: root.context.format, actor: root.context.actor,
     protection: createProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) };
   const renderer = createRecordRenderer(renderContext);
-  const reference = await readReference(root.checkout), files: SwapFile[] = [];
+  const reference = await readReference(root.checkout);
   const laid = laidProjectionPaths(planned.paths);
   const arrivals = findProjectionArrivals(index, laid);
-  const moved = movedProjectionChanges(index, planned);
-  index = await removeObsoleteProjectionPaths({ root, index, plan: planned, renderer, reference });
-  let unresolved = planned.unresolved;
-  for (const [path, target] of laid) {
-    const prepared = markMovedPath(await prepareIndexedFile({ root, source, renderer, renderContext, reference, index, path,
-      target, rebuilding: planned.rebuild === true }), path, moved, target);
-    index = prepared.index;
-    unresolved ||= prepared.unresolved;
-    if (prepared.file !== undefined) files.push(prepared.file);
-  }
+  const moved = movedProjectionChanges(index, planned, laid);
+  // A moved record's old path, the only holder of its changed mark, waits until its new path takes the mark.
+  const deferred = new Set([...moved.values()].flat());
+  index = await removeObsoleteProjectionPaths({ root, index, plan: withRemovals(planned, [...planned.removals].filter(path => !deferred.has(path))),
+    renderer, reference });
+  const prepared = await prepareLaidPaths({ root, source, renderer, renderContext, reference, rebuilding: planned.rebuild === true },
+    index, laid, moved);
+  index = prepared.index;
   if (planned.rebuild === true && !planned.unresolved) index = settleHeldMarks(index, planned.paths);
-  if (files.length > 0) {
-    const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false, settlementPublication: "caller",
-      writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn, hooks: root.context.hooks });
+  if (prepared.files.length > 0) {
+    const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files: prepared.files, readBack: false,
+      settlementPublication: "caller", writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint,
+      takeIn: root.takeIn, hooks: root.context.hooks });
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
-  const complete = !unresolved && projectionArrivalsInstalled(index, arrivals);
+  const settled = await settleMovedPaths({ root, renderer, reference, plan: planned }, index, moved, prepared.marked);
+  index = settled.index;
+  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index, checkpoint: root.context.checkpoint });
@@ -100,24 +102,54 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   return { index, complete };
 }
 
-/** A path the plan moves is the checkout's change: the record moved there is marked changed, and so is any file laid there. */
-function markMovedPath(prepared: IndexedFileResult, path: string, moved: ReadonlySet<string>, reference: RecordReference): IndexedFileResult {
-  if (!moved.has(path)) return prepared;
+/** Prepare each laid path, carrying a moved record's changed mark to its new path wherever the pass leaves a carrier. */
+async function prepareLaidPaths(base: Omit<IndexedFileInput, "index" | "path" | "target">, initial: ProjectionIndex,
+  laid: ReadonlyMap<string, RecordReference>, moved: ReadonlyMap<string, readonly string[]>): Promise<{
+  index: ProjectionIndex; files: SwapFile[]; unresolved: boolean; marked: ReadonlySet<string>;
+}> {
+  let index = initial, unresolved = false;
+  const files: SwapFile[] = [], marked = new Set<string>();
+  for (const [path, target] of laid) {
+    const prepared = await prepareIndexedFile({ ...base, index, path, target });
+    const carried = moved.has(path) ? markMovedPath(prepared, path, target) : null;
+    if (carried !== null) marked.add(path);
+    const result = carried ?? prepared;
+    index = result.index;
+    unresolved ||= prepared.unresolved;
+    if (result.file !== undefined) files.push(result.file);
+  }
+  return { index, files, unresolved, marked };
+}
+
+/** Remove a moved record's old path once its new path took the mark; otherwise keep it pending and marked for the next pass. */
+async function settleMovedPaths(input: Omit<Parameters<typeof removeObsoleteProjectionPaths>[0], "index">, initial: ProjectionIndex,
+  moved: ReadonlyMap<string, readonly string[]>, marked: ReadonlySet<string>): Promise<{ index: ProjectionIndex; unresolved: boolean }> {
+  let index = initial, unresolved = false;
+  const settled = [...moved].flatMap(([path, old]) => marked.has(path) ? old : []);
+  for (const path of new Set([...moved.values()].flat())) {
+    if (settled.includes(path)) continue;
+    const entry = index.entries[path];
+    if (entry?.kind === "record") index = withProjectionEntry(index, path, { ...entry, pending: true });
+    unresolved = true;
+  }
+  if (settled.length > 0) index = await removeObsoleteProjectionPaths({ ...input, index, plan: withRemovals(input.plan, settled) });
+  return { index, unresolved };
+}
+
+/**
+ * A path the plan moves is the checkout's change: the record moved there is marked changed, and so is any file laid there.
+ * Null where the pass left no record or file there to carry the mark, so its old path keeps it.
+ */
+function markMovedPath(prepared: IndexedFileResult, path: string, reference: RecordReference): IndexedFileResult | null {
   const entry = prepared.index.entries[path];
-  const index = entry?.kind === "record" ? withProjectionEntry(prepared.index, path, markMovedRecord(entry, reference)) : prepared.index;
-  if (prepared.file === undefined) return { ...prepared, index };
+  const index = entry?.kind === "record" ? withProjectionEntry(prepared.index, path, markArrivingRecord(entry, reference)) : prepared.index;
+  if (prepared.file === undefined) return entry?.kind === "record" ? { ...prepared, index } : null;
   const { replace } = prepared.file;
   return { ...prepared, index, file: { ...prepared.file, replace: { ...replace, entry: { ...replace.entry, changed: true } } } };
 }
 
-/**
- * Mark the moved record where it stands: its own entry, its journaled arrival, or, while another record still leaves the
- * path, the leaving entry's `arrivingChanged`, which the installation carries onto the arrival.
- */
-function markMovedRecord(entry: RecordEntry, reference: RecordReference): RecordEntry {
-  if (entry.handoff !== undefined && sameReference(entry.handoff.reference, reference)) return { ...entry, handoff: { ...entry.handoff, changed: true } };
-  if (sameReference(entry.reference, reference)) return { ...entry, changed: true };
-  return { ...entry, arrivingChanged: reference };
+function withRemovals(plan: ProjectionRefreshPlan, removals: Iterable<string>): ProjectionRefreshPlan {
+  return { ...plan, removals: new Set(removals) };
 }
 
 interface IndexedFileInput {
@@ -138,7 +170,7 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
   const { root, index, path } = input;
   const prior = index.entries[path];
   if (await leftToLaterPass(input, prior)) return { index, unresolved: true };
-  if (prior !== undefined && prior.kind !== "record") return input.rebuilding && isEvidenceHeldEntry(prior) ? settleHeldFile(input) : { index, unresolved: false };
+  if (prior !== undefined && prior.kind !== "record") return input.rebuilding && isEvidenceHeldEntry(prior) ? settleEvidenceHeldFile(input) : { index, unresolved: false };
   const read = await input.source.read({ reference: input.target });
   if (prior === undefined && read.status !== "ok") {
     root.context.report?.({ path, copy: null, mark: markStoreRefusal(read.refusal) });
@@ -168,8 +200,8 @@ async function leftToLaterPass(input: IndexedFileInput, prior: ProjectionIndex["
   return prior?.kind === "record" && prior.handoff !== undefined;
 }
 
-/** Settle a held file by the rebuild rule now that the rebuild lays a record at its path: unedited bytes refresh. */
-async function settleHeldFile(input: IndexedFileInput): Promise<IndexedFileResult> {
+/** Settle an evidence-held file by the rebuild rule now that the rebuild lays a record at its path: unedited bytes refresh. */
+async function settleEvidenceHeldFile(input: IndexedFileInput): Promise<IndexedFileResult> {
   const { root, index, path } = input;
   if (!root.writable(path)) return { index, unresolved: true };
   const read = await input.source.read({ reference: input.target });
