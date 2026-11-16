@@ -110,7 +110,9 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
   }
 }, RECOVERY_TIMEOUT_MS);
 
-it("cleans up capability-off failed setup and opens after setup repair", async () => {
+// The anchored CLI runs under `script`, a pseudo-terminal Windows lacks; the integration Errand suite covers setup
+// failure and repair there.
+it.runIf(process.platform !== "win32")("cleans up capability-off failed setup and opens after setup repair", async () => {
   const primary = await createTempRepo("arc-open-personal-recovery-");
   const remote = `${primary}-remote.git`;
   let spawned: string | null = null;
