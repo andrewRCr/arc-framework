@@ -7,7 +7,7 @@ import { beforeAll, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../../../../src");
 const expected = { runStoreConflict: ["commands/store-conflict.ts"], runStoreRemote: ["commands/store-migrate.ts", "commands/store-remote.ts"], runStoreMigrate: ["commands/store-migrate.ts"],
-  createRefStore: ["commands/store-review-root-repair.ts"], createReadSourceStore: [] } as const;
+  createRefStore: ["commands/store-review-root-repair.ts", "scripts/cutover-window/account-records.ts", "scripts/cutover-window/chain.ts"], createReadSourceStore: [] } as const;
 const callers = new Map<string, Set<string>>();
 
 async function scan(directory: string): Promise<void> {

@@ -55,7 +55,7 @@ const DecodedWorktreeHuskStampSchema = z.discriminatedUnion("kind", [
 /** Terminal orientation for a WU husk at the current worktree. */
 export const CurrentHuskAdvisorySchema = z.strictObject({
   worktreePath: z.string(),
-  subject: z.strictObject({ kind: z.literal("work-unit"), name: z.string() }),
+  subject: z.strictObject({ kind: z.literal("work-unit"), name: z.string(), uid: z.uuid().optional() }),
   branch: z.string(),
   stamp: DecodedWorktreeHuskStampSchema,
 });

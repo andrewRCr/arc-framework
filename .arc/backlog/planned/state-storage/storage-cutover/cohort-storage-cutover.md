@@ -29,8 +29,8 @@ cutover-window-tooling                 the quiesce check, its record, the abort'
 ```
 
 Each member's `Depends On` edges are the source of truth: `cutover-window-tooling` depends on no member outstanding,
-`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `projection-team-scale`, and
-`cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not edges:
+`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, and `cutover-window-tooling`,
+and each follow-on on `cutover-flip`. These orderings are not edges:
 
 - **Gate B placement** (Owner, 2026-11-03; the window tooling and the internal collapse, 2026-11-10):
     - `cutover-window-tooling`, `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and
@@ -219,10 +219,13 @@ Every member has shipped, and every row of `cohort-state-storage.md`'s storage-c
 ### `cutover-window-tooling`
 
 _Exposes:_ on `main` ahead of the window, inert until run: the quiesce check, its record and hold under
-`refs/arc-window/`, its recompute after the import and its last read of `origin/main`'s tip; the abort's restore; the
-worktree lock step; and Stage 1, with its copy driver, accounting case, and chain comparison, run clean.
+`refs/arc-window/`, its recompute after the import and its last read before the merge; the comparisons after the merge
+and the window's close; the abort's restore; the worktree lock step; the seal on `arc user load`; and Stage 1, with its
+copy driver, accounting case, and chain comparison, run clean.
 
-_Consumes:_ nothing outstanding; it reads only landed machinery.
+_Consumes:_ nothing outstanding to build on; it reads only landed machinery, and relies on `projection-worktrees`'
+contract that the checkouts given a projection after the flip are exactly the primary and the marked checkouts,
+re-checked when that unit lands.
 
 ### `cutover-flip`
 
@@ -230,7 +233,8 @@ _Exposes:_ the flipped repository: Stage 2, the quiesce run through `cutover-win
 flip change, every workflow rewritten onto the store, Git notes retired, and two amendments to ADR-035, items 2 and 8.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `projection-team-scale`; and `cutover-window-tooling`.
+`projection-worktrees`, and `projection-write-back`; and `cutover-window-tooling`. `projection-team-scale` may land
+before the flip or after it (Owner, 2026-11-13; `spec-cutover-flip.md` § 1.3).
 
 ### `cutover-tracked-state-removal`
 

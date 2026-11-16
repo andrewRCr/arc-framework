@@ -986,8 +986,8 @@
   scope with a hosted reservation; the chunked call that followed refused, offering only re-entry, which publishes. The
   command could refuse to settle a hosted reservation for a target the chunk gate would flag, or let a later call
   replace its own unconsumed judgment; the workflow reorder ships as its own Errand (PR #1119). Evidence:
-  `envelope-1.json`, `envelope-2.json`, and both `boundary-*.json` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/`.
+  `envelope-1.json`, `envelope-2.json`, and both `boundary-*.json` under `storage-ref-backend`'s review and measurement
+  evidence (kept outside the repository), `verification/prepublication/`.
 
 - _Verb gap (2026-10-24):_ the workflow reorder landed (Errand `prepublication-chunk-gate-order`), but no command
   returns pre-publication's exact target before its first call, so `prepare-work-unit` spells out its three parts:
@@ -1017,9 +1017,8 @@
 - _Approach:_ at chunked scale, approve through a grouped view, per chunk or per fix area, with per-group dispositions,
   while the bound canonical set stays whole.
 
-- _Evidence:_ `standard-pass-1/disposition-report-1.md` under
-  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
-  (checkout-local; it leaves at teardown).
+- _Evidence:_ `standard-pass-1/disposition-report-1.md` under `storage-ref-backend`'s review and measurement evidence
+  (kept outside the repository), `verification/prepublication/`.
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 

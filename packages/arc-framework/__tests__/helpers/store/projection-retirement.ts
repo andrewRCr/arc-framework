@@ -44,8 +44,10 @@ import type { TakeInPort } from "../../../src/lib/store/projection/take-in-port.
 import type { ProjectionIndex, RecordEntry } from "../../../src/lib/store/projection/index-schema.js";
 export const retirementFixtureRoots: string[] = [];
 const roots = retirementFixtureRoots;
-export async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean; repository?: string } = {}) {
-  const root = await createTempRepo(); roots.push(root);
+export async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose"; projected?: boolean; repository?: string;
+  /** Create the repository root, such as in the spelling Git reports. */
+  createRoot?: () => Promise<string> } = {}) {
+  const root = await (options.createRoot ?? createTempRepo)(); roots.push(root);
   const exec = makeGitExec(root), execInput = makeGitExecInput(root);
   await exec("git", ["branch", "-M", "main"]); await writeFile(join(root, "base"), "base\n");
   if (options.projected) {
