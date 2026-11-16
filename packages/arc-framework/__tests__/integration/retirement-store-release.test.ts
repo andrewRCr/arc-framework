@@ -40,13 +40,13 @@ async function anchoredRelease(options: { ended?: boolean } = {}) {
   return h;
 }
 
-/** Abandonment's own removal check, as production binds it, in place of the fixture's passing slot. */
 /** A retirement the ignore guard refuses at one path, named with its checkout, the guard's repair and the retry. */
 function ignoreRefusalText(checkout: string, path: string, remedy: string, retirement: "removal" | "release"): string {
   return `${path} in ${checkout} blocks ${retirement}: Projection ignore guard refused: not-ignored. `
     + `${remedy.replace(", then run the command again.", ".")} Then retry ${retirement}.`;
 }
 
+/** Abandonment's own removal check, as production binds it, in place of the fixture's passing slot. */
 function bindRemovalCheck(h: Awaited<ReturnType<typeof projectedRetirement>>) {
   const slots = h.ctx.projectionRemovalSlots;
   if (slots === undefined) throw new Error("Missing fixture removal slots");

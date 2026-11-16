@@ -336,6 +336,24 @@ it("keeps the held mark through a sync restoration over the held index and settl
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
 }, 60_000);
 
+it("reports a link once though the command's start and its sync restoration both walk it", async () => {
+  const target = await fixture();
+  const command = { checkout: target.checkout, store: target.h.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  const outside = await mkdtemp(join(tmpdir(), "arc-link-outside-")); directories.push(outside);
+  await writeFile(join(outside, "elsewhere.md"), "Outside the projection.\n");
+  const stray = ".arc/active/current/stray-link.md";
+  await mkdir(join(target.checkout, ".arc/active/current"), { recursive: true });
+  await symlink(join(outside, "elsewhere.md"), join(target.checkout, stray), "file");
+  beginProjectionCommand();
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await restoreSyncProjection(target.h.store, target.checkout, {});
+  expect(projectionProcessState().diagnostics.filter(each => each.path === stray)).toEqual([expect.objectContaining({
+    mark: expect.objectContaining({ reason: "not-a-file" }) })]);
+  await endProjection(command);
+}, 60_000);
+
 it("gives held files at unplaced paths the ordinary mark once evidence is whole, though a link blocks a laid path", async () => {
   const target = await fixture();
   const outside = await mkdtemp(join(tmpdir(), "arc-scratch-outside-")); directories.push(outside);

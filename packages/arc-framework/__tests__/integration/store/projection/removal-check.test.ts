@@ -1000,7 +1000,8 @@ it("keeps a Markdown edit unobservable while history lists its stamped base with
   } });
   const context = { ...target.context, store };
   expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "unobservable",
-    detail: "Recover the projected file's base from the record history, then save again." });
+    detail: `${target.h.path} in ${target.checkout}: The projected base version is no longer readable. `
+      + "Recover the projected file's base from the record history, then save again" });
   unavailable = false;
   expect(await checkProjectionRemoval(target.checkout, context)).toEqual({ kind: "passes" });
 });

@@ -4,7 +4,7 @@ import { checkSerializationRules } from "../serialization.js";
 import type { FileStat, MintedStubReceipt, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRemovalGuard } from "./removal-observations.js";
 import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
-import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, unresolvedRemovalConflicts,
+import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, unobservedRefusal, unresolvedRemovalConflicts,
   type ProjectionRemovalCheck, type ProjectionRetirement } from "./removal-verdict.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { gateRead } from "./read-gate.js";
@@ -48,7 +48,7 @@ async function checkReadableAdoption(root: ReadOnlyProjectionRoot, index: Projec
   if (invalid !== undefined) return markedRemovalRefusal(root.checkout, path, markStoreRefusal(invalid), disposition);
   const prepared = await prepareAdoptedProjectionSubmission(root.context, root.checkout, path, verdict.file, index);
   if (prepared.status === "ok") return { kind: "passes" };
-  return prepared.nativeRefusal === true ? { kind: "unobservable", detail: prepared.refusal.remedy.text }
+  return prepared.nativeRefusal === true ? unobservedRefusal(root.checkout, path, prepared.refusal)
     : markedRemovalRefusal(root.checkout, path, markStoreRefusal(prepared.refusal), disposition);
 }
 

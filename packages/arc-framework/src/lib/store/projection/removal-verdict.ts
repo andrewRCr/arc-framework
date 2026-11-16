@@ -2,8 +2,9 @@
 import type { ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import type { ProjectionFeasibility } from "./engine-read-only.js";
 import { sameReference, type RecordReference } from "../identity.js";
-import type { Remedy } from "../refusal.js";
+import type { Remedy, StoreRefusal } from "../refusal.js";
 import type { RefusedMark } from "./index-schema.js";
+import { markStoreRefusal } from "./refusal-mark.js";
 
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
@@ -17,11 +18,12 @@ export function retirementName(disposition: ProjectionRetirement): "removal" | "
 }
 
 /**
- * A producer's own continuation: adoption and the command's start write marks that end by retrying themselves, an
- * operation a retirement run from another checkout neither runs nor needs.
+ * A producer's own continuation: adoption, an edit's protection, rights and Store rules, and the command's start write
+ * marks that end by retrying themselves, an operation a retirement run from another checkout neither runs nor needs.
  */
-const PRODUCER_CONTINUATION = /(?:,? then|;| and) (?:retry(?: adoption| the command)?|run the command again)(?=[.;])/gu;
-const PRODUCER_RETRY_SENTENCE = /\s*Then (?:retry(?: adoption| the command)?|run the command again)\./gu;
+const PRODUCER_RETRY = String.raw`(?:retry(?: adoption| the command| (?:the|this|the remaining hand) edit)?|run the command again)`;
+const PRODUCER_CONTINUATION = new RegExp(String.raw`(?:(?:,? then|;| and) ${PRODUCER_RETRY}| before retrying (?:adoption|(?:the|this) edit))(?=[.;])`, "gu");
+const PRODUCER_RETRY_SENTENCE = new RegExp(String.raw`\s*Then ${PRODUCER_RETRY}\.`, "gu");
 
 function sentence(text: string): string {
   return /[.!?]$/u.test(text) ? text : `${text}.`;
@@ -49,6 +51,12 @@ export function unobservedMarkDetail(checkout: string, path: string, mark: Refus
   return `${path} in ${checkout}: ${sentence(mark.reason)} ${markRepair(mark.remedy).replace(/\.$/u, "")}`;
 }
 
+/** A failed Store read leaves the path unjudged; the observation names the path, its checkout, the condition and the repair. */
+export function unobservedRefusal(checkout: string, path: string,
+  refusal: StoreRefusal): Extract<ProjectionRemovalCheck, { kind: "unobservable" }> {
+  return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, markStoreRefusal(refusal)) };
+}
+
 /** The mark the ignore check's refusal sets on a path its rules leave unignored. */
 export function ignoreRefusalMark(reason: string, remedy: string): RefusedMark {
   return { reason: `Projection ignore guard refused: ${reason}`, remedy: { text: remedy } };
@@ -66,9 +74,10 @@ export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, ch
   }
   // A failed read leaves the edit unjudged. A refusal preparation reached on what it read is the edit's own; a Store
   // read that failed beneath it is still retained by the check's read observation.
-  if (prepared.kind === "held" && prepared.readRefusal !== undefined) return { kind: "unobservable", detail: prepared.readRefusal.remedy.text };
+  if (prepared.kind === "held" && prepared.readRefusal !== undefined) return unobservedRefusal(checkout, path, prepared.readRefusal);
   if (prepared.kind === "held" && prepared.result.answer === "no-edit") return null;
-  if (prepared.kind === "refused" && prepared.nativeRefusal === true) return { kind: "unobservable", detail: prepared.mark.remedy.text };
+  if (prepared.kind === "refused" && prepared.nativeRefusal === true)
+    return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, prepared.mark) };
   const mark = prepared.kind === "refused" ? prepared.mark : prepared.kind === "clashed" ? prepared.diagnostic
     : prepared.diagnostic ?? prepared.result.entry.refused;
   return mark === null ? { kind: "would-refuse", remedy: { text: `Let ${path} finish settling, then run arc save from ${checkout} and retry ${retirementName(disposition)}.` } }

@@ -29,7 +29,8 @@ export async function restoreSyncProjection(store: Store, checkout: string, opti
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
         const disk = await readProjectionIndex(root.location, true);
         if (disk.kind !== "index") { report("Projection restoration needs a usable index; retry after command-start recovery."); return; }
-        const materialized = await materializeProjectionRoot({ root, source: store, configuration, version: version.result, index: disk.index, onlyDeleted: true });
+        const materialized = await materializeProjectionRoot({ root, source: store, configuration, version: version.result, index: disk.index, onlyDeleted: true,
+          reportedLinks: root.reportedLinks });
         if (materialized.kind === "refused") report(materialized.mark.reason, materialized.mark.remedy.text);
       } finally { root.checkpoint = null; }
     }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);

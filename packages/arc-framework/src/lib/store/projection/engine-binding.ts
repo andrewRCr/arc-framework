@@ -73,7 +73,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: layout.claim, claimUid: uid, claimKind, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
-    blockedByLink: createProjectionLinkBoundary(input.links ?? []),
+    blockedByLink: createProjectionLinkBoundary(input.links ?? []), reportedLinks: input.links ?? [],
     mint: input.mint, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     sent: state.roots.get(input.checkout)?.sent ?? false, sweepEmpty: state.roots.get(input.checkout)?.sweepEmpty,
     fanOutTimes: state.roots.get(input.checkout)?.fanOutTimes,

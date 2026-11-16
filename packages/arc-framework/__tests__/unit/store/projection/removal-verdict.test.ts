@@ -6,7 +6,7 @@ import type { RecordEntry } from "../../../../src/lib/store/projection/index-sch
 import { projectionAdmissionConflict } from "../../../../src/lib/store/projection/preparation-view.js";
 import { observeProjectionReads } from "../../../../src/lib/store/projection/read-observation.js";
 import { markStoreRefusal } from "../../../../src/lib/store/projection/refusal-mark.js";
-import { ignoreRefusalMark, projectionFeasibilityRefusal, retirementRefusal, unobservedMarkDetail,
+import { ignoreRefusalMark, markedRemovalRefusal, projectionFeasibilityRefusal, retirementRefusal, unobservedMarkDetail,
   unresolvedRemovalConflicts } from "../../../../src/lib/store/projection/removal-verdict.js";
 import { missingMintedMetadataMark } from "../../../../src/lib/store/projection/adoption-verdict.js";
 import { removalCopyRefusal } from "../../../../src/lib/store/projection/removal-persist-asides.js";
@@ -34,7 +34,15 @@ describe("retirement feasibility of a held preparation", () => {
       condition: "The base is unreadable.", remedy: { text: "Restore readable record history, then retry." } };
     expect(projectionFeasibilityRefusal({ kind: "held", readRefusal, diagnostic: markStoreRefusal(readRefusal),
       result: { answer: "pending", entry: { ...entry, pending: true } } }, CHECKOUT, "notes.md", "remove"))
-      .toEqual({ kind: "unobservable", detail: "Restore readable record history, then retry." });
+      .toEqual({ kind: "unobservable", detail: "notes.md in /work/target: The base is unreadable. Restore readable record history" });
+  });
+
+  it("keeps a native refusal unobservable, naming the path, its checkout, the condition and the repair", () => {
+    const mark = { reason: "The projection index is being published.", remedy: { text:
+      "Let the command publishing the projection index at /work/target finish, or run arc save there to rebuild it, then retry." } };
+    expect(projectionFeasibilityRefusal({ kind: "refused", mark, nativeRefusal: true }, CHECKOUT, "notes.md", "release")).toEqual({
+      kind: "unobservable", detail: "notes.md in /work/target: The projection index is being published. "
+        + "Let the command publishing the projection index at /work/target finish, or run arc save there to rebuild it" });
   });
 });
 
@@ -76,6 +84,22 @@ describe("a retirement a shared mark refuses", () => {
   ])("names the ignore guard's repair %j without the command's own rerun", (remedy, repair) => {
     expect(retirementRefusal(CHECKOUT, ".arc/user/andrew/scratch/one.md", ignoreRefusalMark("not-ignored", remedy), "remove")).toEqual({
       text: `.arc/user/andrew/scratch/one.md in /work/target blocks removal: Projection ignore guard refused: not-ignored. ${repair} Then retry removal.` });
+  });
+
+  it.each([
+    ["Inspect the work item's current role, then reproject or repair the metadata before retrying adoption.",
+      "Inspect the work item's current role, then reproject or repair the metadata."],
+    ["Inspect the stored stub and repair its creation result before retrying adoption.", "Inspect the stored stub and repair its creation result."],
+    ["Inspect and repair the named ownership or checkout evidence, then retry the edit.", "Inspect and repair the named ownership or checkout evidence."],
+    ["Use the record's owning verb, or repair its lifecycle metadata before retrying the edit.", "Use the record's owning verb, or repair its lifecycle metadata."],
+    ["Repair the record's ownership and lifecycle metadata, then retry the edit.", "Repair the record's ownership and lifecycle metadata."],
+    ["Release the content writer before retrying the edit.", "Release the content writer."],
+    ["Run arc save to pull the named history and retry this edit. Restore readable record history, then retry.",
+      "Run arc save to pull the named history. Restore readable record history."],
+    ["Use the lifecycle or Class verb that owns the change, then retry the remaining hand edit.", "Use the lifecycle or Class verb that owns the change."],
+  ])("names a producer's repair %j without its own adoption or edit retry", (remedy, repair) => {
+    expect(markedRemovalRefusal(CHECKOUT, "active/plan/meta-plan.md", { reason: "The record is held.", remedy: { text: remedy } }, "release"))
+      .toEqual({ kind: "would-refuse", remedy: { text: `active/plan/meta-plan.md in /work/target blocks release: The record is held. ${repair} Then retry release.` } });
   });
 
   it("keeps the repair's runnable command", () => {

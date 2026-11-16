@@ -46,6 +46,8 @@ export interface ProjectionRootState {
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
   blockedByLink: ProjectionLinkBoundary;
+  /** Links the command's start already reported here, which a later lay in the same command does not report again. */
+  readonly reportedLinks: readonly string[];
   claim: Slug | null;
   claimUid?: string;
   claimKind?: "work-unit" | "errand" | "partial-errand";
