@@ -1,11 +1,10 @@
 /** Prepared integration-repository templates and independent per-test copies. */
 
 import { spawn } from "node:child_process";
-import { cp, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 
-import { removeGitBackedDir } from "./temp-repo.js";
+import { makeTempRoot, removeGitBackedDir } from "./temp-repo.js";
 
 export type PreparedRepositoryKind = "plain" | "remote-bearing" | "worktree-bearing" | "multi-clone";
 
@@ -89,7 +88,7 @@ export async function copyPreparedRepository(
       + `request is ${shape.kind}/${shape.key}`,
     );
   }
-  const destination = await mkdtemp(join(tmpdir(), "arc-prepared-copy-"));
+  const destination = await makeTempRoot("arc-prepared-copy-");
   await rm(destination, { recursive: true, force: true });
   try {
     await cp(template.root, destination, { recursive: true });
@@ -120,7 +119,7 @@ export async function copyPreparedRepository(
       const gitdir = (await readFile(join(template.root, ".git", "worktrees", shape.worktreeName, "gitdir"), "utf8")).trim();
       const originalWorktree = dirname(gitdir);
       const originalParent = dirname(originalWorktree);
-      const parent = await mkdtemp(join(tmpdir(), "arc-prepared-sibling-"));
+      const parent = await makeTempRoot("arc-prepared-sibling-");
       try {
         await cp(originalParent, parent, { recursive: true });
         const worktree = join(parent, basename(originalWorktree));

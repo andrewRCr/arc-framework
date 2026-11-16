@@ -17,6 +17,8 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
+import { nativeGitPath } from "../local-path-identity.js";
+
 /** Verdict for a configured hooks path. */
 export type HooksPathVerdict =
   | {
@@ -162,7 +164,7 @@ export async function resolveHooksPathVerdict(
     }
   })();
 
-  const absolute = isAbsolute(resolvedPath) ? resolvedPath : resolve(cwd, resolvedPath);
+  const absolute = isAbsolute(resolvedPath) ? nativeGitPath(resolvedPath) : resolve(cwd, resolvedPath);
   return classifyHooksPath({
     resolvedPath: absolute,
     configured,
