@@ -49,7 +49,7 @@ import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.
 import { startProjection, endProjection } from "../../src/lib/store/projection/engine.js";
 import { createStagedFile, nameAsideFile, parseAsideFile } from "../../src/lib/store/projection/aside.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { fixture as fixtureCore, projectedRetirement, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
+import { fixture as fixtureCore, projectedRetirement, registersCheckout, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 import { createNodeTeardownSelectionReader } from "../../src/lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { resolveSelfTeardownMode } from "../../src/lib/config/self-teardown-mode.js";
@@ -88,7 +88,7 @@ describe("store retirement real Git", () => {
     const removed = await h.remove();
     expect(removed, removed.status === "rejected" ? removed.reason : undefined).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A save that must survive teardown.\n");
-    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+    expect(await registersCheckout(h.exec, h.checkout)).toBe(false);
   });
 
   it.each(["ordinary", "projection-admission"] as const)("keeps a %s version-conflicted edit and removes after retry", async cause => {

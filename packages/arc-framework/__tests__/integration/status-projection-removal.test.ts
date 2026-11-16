@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { SessionInitRecoveryValueSchema } from "../../src/lib/session-init/branch-gone-cascade.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fixture, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
+import { fixture, registersCheckout, retirementFixtureRoots as roots } from "../helpers/store/projection-retirement.js";
 import { cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
@@ -70,7 +70,7 @@ it("blocks a completed checkout's cleanup recommendation until its refused proje
     expect.objectContaining({ worktreePath: h.checkout, decision: { action: "removable" } }),
   ]) } });
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
 }, 60_000);
 
 it("keeps a held projection out of branch-gone recovery's removable recommendations", async () => {
@@ -86,7 +86,7 @@ it("keeps a held projection out of branch-gone recovery's removable recommendati
     branch: "feat/demo", worktreePath: h.checkout, proposedAction: "removable",
   }));
   expect(await readWorktreeMarker(h.checkout)).toEqual(marker);
-  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
+  expect(await registersCheckout(h.exec, h.checkout)).toBe(true);
 }, 60_000);
 
 function recoveryCandidates(slot: unknown) {
