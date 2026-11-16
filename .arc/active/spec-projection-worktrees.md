@@ -1942,7 +1942,7 @@ this design open.
   and criterion 18. _Trigger:_ fix check 1 F4 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **A11** — 2026-11-14 — spec-depth: keep unchanged files in place. _Supersedes:_ § 15.2 ¶ rebuild cost; § 17 items 12,
-  15; adds item 16, criterion 19. _Trigger:_ pass 2 A2 review. _Work:_ review-fix. _Revalidated:_ pending → 3.1.
+  15; adds item 16, criterion 19. _Trigger:_ pass 2 A2 review. _Work:_ review-fix. _Revalidated:_ 3.1.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

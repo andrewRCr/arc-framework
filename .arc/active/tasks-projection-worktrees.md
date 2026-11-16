@@ -441,21 +441,35 @@ No production composition sets the slots today, so every caller runs `passingPro
 
 ### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ The forced merge gate passed all 20 selected checks at `0a27c749b5`, including the full store run
-  (471 of 475 suites). Its first run at `b3f7e7db5c` failed in the store suite whose fixture lacked the integration
-  project's new index-schema setup file; `072102c465` repaired the fixture. Full non-diagnostic hosted CI run
-  `43611475356` passed at `0a27c749b5` with the portability pair: build, lint, type checks, unit, integration, store,
-  E2E, and Linux, Windows and macOS portability, the burst and save-loss suites included. Timing: Linux reference run
-  `a4acefbbb1694b9c84951792a8936bae`, Windows from `43611475356`, and macOS from timing-only run `43615681044`.
-- _Success criteria:_ 19 criteria: 15 met, four superseded — the original performance criterion by A4; the removal and
+- _Amended in:_ review-fix (A8)
+
+- _Amended in:_ review-fix (A9)
+
+- _Amended in:_ review-fix (A10)
+
+- _Amended in:_ review-fix (A11)
+
+- _Quality gates:_ Re-qualified at `5a4eec5afc` after the standard review's repairs. The forced merge gate passed all 20
+  selected checks, including the full store run (471 of 475 suites). Full non-diagnostic hosted CI run `43806300912`
+  passed with the portability pair: build, lint, type checks, unit, integration, store, E2E, and Linux, Windows and
+  macOS portability, the burst and save-loss suites included; its first attempt's one failure, a Git-executor
+  cancellation timeout on Windows in a test this work unit did not change, passed on rerun and is captured. The run at
+  `522b1c4729`, `43795646826`, had failed on Windows in four of this work unit's tests: `e2e2a8c8c2` made three
+  portable, and `5a4eec5afc` gave each checkout one spelling, so the fan-out reuses a sibling's ignore proof. Timing:
+  Linux reference run `167b8c13c894462780f84ac89ba36e0d`, Windows from `43806300912`, and macOS from timing-only run
+  `43864648468`. First qualified at `0a27c749b5`, after `072102c465` repaired a store fixture, on run `43611475356`,
+  Linux run `a4acefbbb1694b9c84951792a8936bae` and macOS timing-only run `43615681044`.
+- _Success criteria:_ 20 criteria: 16 met, four superseded — the original performance criterion by A4; the removal and
   unindexed-retirement criteria by A8, which defers protection in a failed work-unit spawn's cleanup; and the
   changed-mark criterion by A9, which accepts the marks a contended end loses. A8's and A9's narrowed forms are
   appended and met on the same evidence as the criteria they replace; the A4 criterion's rebased bounds are met on
-  per-platform timing runs, and it carries its wording and macOS measurement note. A10 appends the criterion that a
-  pending reprojection settles once its arrival installs, met by its test. The refreshed author walk covered the
-  complete change set at `0a27c749b5`. Independent criteria passes 1–3 and their fix-check rounds closed with every
-  finding fixed or dispositioned; a Windows probe confirmed pass 2's reparse-point finding, fixed in `0a27c749b5`. A7
-  is revalidated by this verification.
+  per-platform timing runs at `5a4eec5afc`, and it carries its wording and macOS measurement note. A10's criterion, that
+  a pending reprojection settles once its arrival installs, is met by its test, and A11's, that a refresh, a rebuild
+  over a usable index, or a reprojection leaves a clean file at rest in place, by `refresh-settled-files.test.ts`'s
+  three inode-and-mtime cases. The author walk covered the complete change set at `0a27c749b5`; independent criteria
+  passes 1–3 and their fix-check rounds closed with every finding fixed or dispositioned, a Windows probe confirming
+  pass 2's reparse-point finding. Three standard review passes and their fix checks followed, until the review's
+  terminus was accepted. A7–A11 are revalidated by this verification.
 
 ---
 
@@ -525,12 +539,16 @@ No production composition sets the slots today, so every caller runs `passingPro
 
   **Deviation (wording and macOS measurement):** Specification criterion 11 governs where this text says "reference
   backend": the timing runs over the ref backend. At the verified head every median fits its bound with no Git credit:
-  Linux on its named reference machine, Windows in the full CI run, and macOS in a same-head timing-only run, counted by
-  Owner decision. The full CI run's macOS shard missed the start bounds (60.94 and 45.69 ms against 45 ms). Every macOS
-  measurement taken after a job's other test files has missed and every one taken alone, as calibration was, has fit;
-  the slowdown sits in the suite's own Git and Git-free baselines, not the projection's share, and its cause on the
-  host is not established. The hosted Linux job's medians exceed the Linux bounds, which belong to the named reference
-  machine.
+  Linux on its named reference machine, Windows in the full CI run, and macOS in a same-head timing-only run, counted
+  under the Owner's standing rule (2026-11-14) and direction (2026-11-16) as an exception to the hosted-CI rule for
+  this clause. The full run's macOS shard missed the start bounds (70.74 and 62.92 ms against 45 ms) and the one-file
+  fan-out bound (625.62 against 600 ms). The first timing-only run, `43809818631`, missed the starts again (64.66 and
+  64.10 ms) while the host's single-Git and Git-free baselines ran at about three and two times the last verified
+  head's; the second fit every bound with those baselines back in range. At `0a27c749b5` the shard had missed the
+  starts too (60.94 and 45.69 ms) and a timing-only run fit. Every macOS measurement taken after a job's other test
+  files has missed; the slowdown sits in the suite's own Git and Git-free baselines, not the projection's share, and its
+  cause on the host is not established. The hosted Linux job's medians exceed the Linux bounds, which belong to the
+  named reference machine.
 
 - `[x]` Executable retirement contexts refuse held projected edits, retain checkout and claim, and succeed after
         repair; lint rejects missing slots at direct start, rename apply/rollback, and legacy park/abandon compositions.
@@ -574,7 +592,7 @@ No production composition sets the slots today, so every caller runs `passingPro
         the settings, and a later command with no store change leaves every settled file's inode and mtime unchanged
         (A10; spec criterion 18).
 
-- `[ ]` A refresh, a rebuild over a usable index, or a reprojection that plans a clean file at rest whose record renders
+- `[x]` A refresh, a rebuild over a usable index, or a reprojection that plans a clean file at rest whose record renders
         to the bytes its entry records, under the same protection, updates the entry without replacing the file, so
         while an anchor stays held or a reprojection stays pending, each such file keeps its inode and mtime across
         commands (A11; spec criterion 19).

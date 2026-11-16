@@ -46,6 +46,7 @@
 - [Removal segment qualification](#removal-segment-qualification)
 - [A7 — files a no-index rebuild cannot place](#a7--files-a-no-index-rebuild-cannot-place)
 - [A11 — unchanged files kept in place](#a11--unchanged-files-kept-in-place)
+- [Converged-head re-qualification](#converged-head-re-qualification)
 
 ## Spike evidence
 
@@ -917,8 +918,8 @@ work 17.593/17.062 ms. Windows' singles were 57.183/56.778 ms, pairs 64.711/65.1
 paired beneath-Git effects were −0.585/−0.094 ms respectively. Together with the cold-partition test, these do not show
 a systematic archive-entry cost at fixed owner and quarter counts. Both raw runs, all samples, and baseline records
 are retained; artifact digests and all eleven metric medians were checked independently. The repeat qualifies through
-the Owner's explicit direction. It demonstrates intermittent performance variation, not a repaired cause of the first
-macOS miss, and changes no limit or locking decision.
+the Owner's explicit direction. It repairs no cause of the first macOS miss and changes no limit or locking decision;
+later runs place the misses in a job's run after its other test files (§ Converged-head re-qualification).
 
 ## Removal-check read boundaries
 
@@ -1891,3 +1892,52 @@ unchanged record still re-laying its file. `settled-in-place.test.ts` covers eac
 a changed rendering or protection, an edited or deleted file, and a stat-only change proved clean by hash. The
 footprint is § 15.2 ¶1 and its state-unresolvable cost, § 17 items 12, 15 and 16, criterion 19, and Tasks 1.6 and 1.8,
 with no new task. It revalidates at Task 3.1.
+
+## Converged-head re-qualification
+
+Task 3.1 first qualified at `0a27c749b5`. Standard review then landed A8–A11 and their repairs, so the gates and timing
+ran again at the converged head `522b1c4729`, where full hosted run `43795646826` failed on Windows in four of this work
+unit's own tests. Three were not portable to Windows: a checkout path put into a regular expression unescaped, a mock
+matching a `/`-joined partition path, and a check expected to reach a file inside the 50 ms settle window, which the
+hosted runner does not. `e2e2a8c8c2` fixed them. The fourth was the timing suite's per-sample Git-call check: a one-file
+fan-out's first sample made 109 Git calls where the round makes 9.
+
+The extra calls were a fresh ignore-guard pass for each of the twenty destinations, one `config` and four
+`check-ignore`, reproduced on this machine's Windows runner. A recorded ignore proof names its roots by absolute path,
+and the fan-out reached each sibling by `git worktree list`'s spelling, `C:/…` with short names expanded, while the
+sibling's own commands bound it by its directory's resolved path, `C:\…`. Every map the projection keys by checkout, and
+the fan-out's skip of a retiring checkout, compared the raw strings. On Linux, dropping every sibling root before each
+sample left 9 and 27 calls and the same medians (run `6ed041c41027408aad15eb65809bd3d1`), so a sibling bound cold costs
+nothing and the defect was the spelling alone. `5a4eec5afc` gives each checkout one spelling, its native real path, at
+every projection entry, and the test temp root the same, which also expands a hosted runner's short temp-folder name.
+`fan-out-checkout-identity.test.ts` fails without the change on POSIX, through a checkout reached by a link. On the
+Windows runner the change also turned three retirement cases that fail at `e2e2a8c8c2`, the fan-out's skip of a retiring
+or released checkout, to passing; that machine's thirty other failures in those files fail the same with and without it
+(runs `72ecefcdc27f4bb6b6f103d74a750486` and `633fa127e8444ea6a332e8b1921265b1`).
+
+| Operation, qualified median (ms) | Linux `m5-air-ac` | Windows `windows-2025-vs2026` | macOS `macos-26-arm64` |
+| -------------------------------- | ----------------- | ----------------------------- | ---------------------- |
+| Standard no-change start         | 13.66             | 95.71                         | 29.51                  |
+| Expanded-archive start           | 13.68             | 96.46                         | 29.33                  |
+| One-file fan-out                 | 214.72            | 1044.12                       | 348.42                 |
+| Ten-file fan-out                 | 568.02            | 4022.60                       | 1066.47                |
+| Full materialization             | 1100.23           | 5548.01                       | 1735.22                |
+
+Linux is run `167b8c13c894462780f84ac89ba36e0d`, Windows job `133097988866` of full run `43806300912`, and macOS job
+`133290396028` of timing-only run `43864648468`, all at `5a4eec5afc`. Every fan-out sample made 9 and 27 Git calls on
+all three, and Git credit is zero and not established. The fan-out medians recorded at `0a27c749b5` and earlier predate
+`5fb9516735`, from which each sample checks delivery to every destination and the round's Git calls, so they were taken
+without that check.
+
+macOS measured inside the full run's shard missed the start bounds (70.74 and 62.92 ms against 45 ms) and the one-file
+fan-out bound (625.62 against 600 ms). The standing rule's timing-only run, `43809818631`, missed the starts again
+(64.66 and 64.10 ms), with single-Git, concurrent-pair and beneath-Git baselines of 46.03, 34.81 and 25.01 ms against
+15.66, 18.17 and 14.17 ms in the run counted at `0a27c749b5`. On the Owner's direction one more ran: it fit every bound
+with baselines of 15.00, 18.31 and 14.51 ms. Every macOS measurement taken after a job's other test files has missed;
+taken alone, one missed while the host's own baselines ran slow, and the rest fit. The hosted Linux job's medians, 41.73
+ms start and 344.49 and 966.94 ms fan-outs, exceed the Linux bounds, which belong to the named reference machine.
+
+The full run's first attempt failed one Windows case, `git-executor-cancellation.test.ts` › a stdin ref update waiting
+on another writer's lock, at its 30 s timeout. This work unit did not change that file, the case passed in about 1.5 s
+three times on the Windows runner, and on the Owner's direction the job ran once more and passed (`133282611924`); the
+case is captured beside its Git-executor family.
