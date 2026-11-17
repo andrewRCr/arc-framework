@@ -93,13 +93,15 @@ it("preserves a concurrently changed marker generation and releases on a fresh r
   expect(await runLocusRelease({ ...h.ctx, identity: "another" }, "demo")).toMatchObject({ status: "released" });
 });
 
-it("moves the entering process out before the projection releases its anchored checkout", async () => {
+it.each(["", "..copy"])("moves the entering process out from %s before releasing its anchored checkout", async child => {
   const h = await fixture();
-  let locus = h.holder;
-  const slots = { ...passingProjectionRemovalSlots, release: async () => locus === h.holder
+  const current = join(h.holder, child);
+  await mkdir(current, { recursive: true });
+  let locus = current;
+  const slots = { ...passingProjectionRemovalSlots, release: async () => locus !== h.cwd
     ? { kind: "refused" as const, remedy: { text: "Process is still inside" } } : { kind: "released" as const } };
-  expect(await runLocusRelease({ ...h.ctx, cwd: h.holder, identity: "another", projectionRemovalSlots: slots,
-    chdir: path => { locus = path; } })).toMatchObject({ status: "released", nextCheckoutPath: h.cwd });
+  expect(await runLocusRelease({ ...h.ctx, cwd: current, identity: "another", projectionRemovalSlots: slots,
+    chdir: path => { locus = path; } }, "demo")).toMatchObject({ status: "released", nextCheckoutPath: h.cwd });
   expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
 });
 
