@@ -45,13 +45,15 @@ and each follow-on on `cutover-flip`. These orderings are not edges:
   pre-publication consumers already select store reads behind the capability. Base drift's completed-meta resolver
   and delivery's rename source are offered to the flip. If it takes both, tracked-state removal need only land before
   `cutover-in-repo-removal`; no general first-among-follow-ons order remains.
-- **What the old decomposition machine still imports.** `cutover-in-repo-removal` leaves in place every module the
-  old machine imports: the transition-record cluster (`git-transition-record-enumeration.ts`,
-  `terminal-transition-record-writer.ts`, `transition-record-store.ts`), `transition-overlay.ts`, `artifactMatcher`
-  and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`), `resolveProjectReadinessViewInput`
-  (`lib/status/project-view.ts`), and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers
-  move onto store reads at the flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes
-  each with its last caller, so it and `cutover-in-repo-removal` can land in either order.
+- **What the old decomposition machine still imports.** `cutover-in-repo-removal` leaves in place every module the old
+  machine reaches, directly or through what it calls: the transition-record cluster
+  (`git-transition-record-enumeration.ts`, `terminal-transition-record-writer.ts`, `transition-record-store.ts`),
+  `transition-overlay.ts`, `artifactMatcher` and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`),
+  `resolveProjectReadinessViewInput` (`lib/status/project-view.ts`), `deriveInFlight`
+  (`lib/git/in-flight-derivation.ts`) and the readers it reaches, `remote-ref-reader.ts`'s meta-at-ref readers among
+  them, and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers move onto store reads at the
+  flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes each with its last caller, so it
+  and `cutover-in-repo-removal` can land in either order.
 - **The sealing guard's notes callers** (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`). The notes
   commands stay registered after the flip until `cutover-notes-removal` deletes them, and the guard is what refuses
   their writes and publication once the store is imported. `cutover-in-repo-removal` removes the guard's in-repo arm
