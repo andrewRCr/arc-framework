@@ -95,7 +95,9 @@ or shell invocation, line endings), start a Windows and macOS run of that phase'
 import its changed source. Do not wait for it: carry on with the next phase and report the result at the next approval.
 
 - List them from the package directory with `npx vitest list --filesOnly --changed <phase-start>`, and add by search
-  any integration test that reaches the change through a file it reads, which no import graph shows.
+  any integration test that reaches the change through a file it reads, which no import graph shows. Each listed line
+  names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
+  the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
 - Run them on a local macOS runner, which needs no push. For Windows, push the phase and dispatch them on the hosted
   pair with `gh workflow run ci.yml --ref <branch> -f portability_files="<files>"`, naming repository-relative paths;
   its Windows job takes a few minutes. A local Windows runner may stand in for files that pass there on `main`.
@@ -103,7 +105,8 @@ import its changed source. Do not wait for it: carry on with the next phase and 
   leave the whole pair to verification's run.
 
 A `portability_files` dispatch attests nothing (§ Hosted CI before verification attests). `ci.yml` cancels a dispatch
-when another starts on the same ref, so run one at a time.
+when another starts on the same ref, so when a phase closes while the previous phase's dispatch still runs, dispatch
+both phases' files together.
 
 ### Hosted CI before verification attests
 
