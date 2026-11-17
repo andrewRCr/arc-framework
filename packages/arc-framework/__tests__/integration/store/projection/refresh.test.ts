@@ -23,7 +23,7 @@ import { createRefusingStore } from "../../../helpers/store/projection/refusing-
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { writeFileSync } from "node:fs";
-import { readStatSync } from "../../../../src/lib/store/projection/change-detection.js";
+import { PROJECTION_REFERENCE, readStatSync } from "../../../../src/lib/store/projection/change-detection.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 const observation = vi.hoisted(() => ({ file: "", index: "", reference: "", events: [] as string[],
@@ -524,6 +524,24 @@ it("removes a deleted record's file and drops its settled entry", async () => {
   expect(disk.kind === "index" && disk.index.entries[h.path]).toBeUndefined();
 });
 
+/** Record a genuinely old file stat so early-stat reuse never depends on filesystem timestamp resolution. */
+async function statCleanFixture() {
+  const h = await fixture(), file = join(h.f.root, h.path), past = new Date(0);
+  await utimes(file, past, past);
+  const command = { checkout: h.f.root, store: h.f.store };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await endProjection(command);
+  const disk = await readProjectionIndex(h.projected.location, true);
+  if (disk.kind !== "index") throw new Error("Missing index");
+  const observed = await stat(file, { bigint: true });
+  expect(disk.index.entries[h.path]).toMatchObject({ kind: "record", stat: {
+    type: "file", size: observed.size, mtimeNs: observed.mtimeNs, ino: observed.ino,
+  } });
+  const reference = await stat(join(h.f.root, PROJECTION_REFERENCE), { bigint: true });
+  expect(observed.mtimeNs).toBeLessThan(reference.mtimeNs);
+  return h;
+}
+
 /** Ports whose early start stats run synchronously on every platform, tagging each stat the walk takes of the file. */
 function taggedEarlyStats(root: string, afterFileStat?: () => void) {
   return () => ({ ...createProjectionEnginePorts(root), stats: { platform: "linux" as const, readSync: (path: string) => {
@@ -534,7 +552,7 @@ function taggedEarlyStats(root: string, afterFileStat?: () => void) {
 }
 
 it("reuses a no-change start's early stat of a walked file, never statting it again", async () => {
-  const h = await fixture();
+  const h = await statCleanFixture();
   observation.file = join(h.f.root, h.path);
   observation.events = [];
   expect(await startProjection({ checkout: h.f.root, store: h.f.store, ports: taggedEarlyStats(h.f.root) })).toMatchObject({ kind: "ready" });
@@ -545,7 +563,7 @@ it("reuses a no-change start's early stat of a walked file, never statting it ag
 });
 
 it("leaves an edit landing after the early stat to a later command, which takes it in", async () => {
-  const h = await fixture();
+  const h = await statCleanFixture();
   observation.file = join(h.f.root, h.path);
   const laid = parseStampedFile(await readFile(observation.file, "utf8"));
   const edited = `${laid.content}A late edit after the early stat.\n`;
