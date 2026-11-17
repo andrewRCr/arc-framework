@@ -6,6 +6,7 @@
 - [Lifecycle rows](#lifecycle-rows)
 - [Test migrations](#test-migrations)
 - [The scale benchmark's fixtures](#the-scale-benchmarks-fixtures)
+- [The scale benchmark's results](#the-scale-benchmarks-results)
 - [Workflows that write under `completed/`](#workflows-that-write-under-completed)
 - [The flip's errata convention](#the-flips-errata-convention)
 - [Model evidence](#model-evidence)
@@ -162,15 +163,80 @@ The criterion runs over `projection-worktrees`' timing fixtures as shipped. `cre
 (`packages/arc-framework/__tests__/helpers/store/ref-projection-timing.ts`) lays 140 backlog and 20 active owners of two
 files each, the 320 hot files, and 480 archived owners of one file each across four quarters, about 120 archived entries
 a quarter. Its expanded template gives each archived owner 124 more files, 60,320 files in all and about 15,000 entries
-a quarter. `store-ref-projection-timing.test.ts` measures interleaved standard and expanded starts only under
-`ARC_STORE_BURSTS=1`, and reports raw medians and paired differences without asserting the bounds, which
-`projectionPerformanceBounds` (`lib/store/projection/timings.ts`) holds.
+a quarter. `store-ref-projection-timing.test.ts` measures interleaved standard and expanded starts and saves, and
+closed versus opened starts, under `ARC_STORE_BURSTS=1`. It reports raw medians and paired differences without
+asserting the bounds, which `projectionPerformanceBounds` (`lib/store/projection/timings.ts`) holds.
 
 A4's standard and expanded start medians (`notes-projection-worktrees.md` § A4) were 14.57 and 14.64 ms on the Linux
 reference `m5-air-ac`, 107.40 and 106.91 ms on Windows, and 31.79 and 32.04 ms on macOS, leaving start margins of about
 5.4, 37.6, and 13.0 ms under the 20, 145, and 45 ms budgets. The paired expanded-minus-standard start medians were
 −0.27, +1.49, and −1.09 ms. A same-head Linux repeat measured 17.94 and 19.77 ms starts, so a raw reading against the
 budget can fail on variance across runs that a paired reading cancels.
+
+## The scale benchmark's results
+
+The measurements use `24d91d6636`'s benchmark and bounds, with eleven alternating samples per pair. The save comparison
+times the complete start, save result, and end over 800 and 60,320 files, with nothing opened. The opened-start
+comparison uses two 800-file fixtures with zero and one archived file opened. Each row reports the median of the
+eleven paired differences, independently of the two raw medians. No process-count or Git-baseline credit is applied.
+
+| Reference | Save: 800 files (ms) | Save: 60,320 files (ms) | Save paired difference (ms) | Growth limit (ms) |
+| --------- | -------------------- | ----------------------- | --------------------------- | ----------------- |
+| Linux     | 20.886               | 20.686                  | −1.117                      | 5                 |
+| Windows   | 230.571              | 224.322                 | −5.826                      | 10                |
+| macOS     | 74.870               | 75.209                  | −1.214                      | 10                |
+
+| Reference | Start: none opened (ms) | Start: one opened (ms) | Start paired increment (ms) | Start margin (ms) |
+| --------- | ----------------------- | ---------------------- | --------------------------- | ----------------- |
+| Linux     | 18.023                  | 20.384                 | +1.450                      | 5.36              |
+| Windows   | 127.387                 | 127.161                | −0.536                      | 37.60             |
+| macOS     | 49.667                  | 55.816                 | +6.525                      | 12.96             |
+
+The margins remain the calibration margins in § The scale benchmark's fixtures; the paired increment is the criterion,
+so a raw opened median above the old absolute start budget does not by itself fail it.
+
+Linux ran on reference `m5-air-ac`, worker `m5-air-runner`, Linux with Node `v26.3.0`, in arc-offload run
+`54790e0d0f3446158da7d3a0f1f2b041`. Its controller head was `55711b6737`; its immutable source snapshot was
+`05f4c2fa98834ce9e5e71481090a6dade308cf44`. Git tree and blob comparisons establish that the measured source, tests,
+helpers, scripts, manifests, lockfile, and Vitest configuration match `24d91d6636`. The run's raw output retains every
+sample and paired difference; the measurement and input-object records are retained with that run's evidence.
+
+Hosted run `44131651831` measures the published `24d91d6636` with `portability_timing_only=true`. It is diagnostic
+evidence, not full work-unit qualification. macOS job `134210569726` ran macOS 26.7.2 on image `macos-26-arm64`,
+version `20261112.0504.1`, with Node `v26.13.1` and Git `2.56.1`. Its `projection-timing.json` artifact and job log
+retain every sample and paired difference, also retained with this unit's measurement evidence.
+
+That macOS job meets both growth criteria above, but its retained absolute-operation bounds also report misses:
+standard and expanded starts measured 87.469 and 96.088 ms against 45 ms, and one-file fan-out measured 625.632 ms
+against 600 ms. Ten-file fan-out measured 1882.176 ms against 2800 ms, and materialization 3989.635 ms against 4000 ms.
+The standard beneath-Git, concurrent-pair, and single-Git baselines were 38.453, 45.848, and 52.887 ms; these are raw
+observations, not a timing credit or an established explanation of the misses.
+
+Windows job `134210569493` used Windows Server 2025, image `windows-2025-vs2026`, version `20261103.298.1`,
+Node `v26.13.1`, and Git `2.56.0.windows.4`. It meets both growth criteria, but its one-file fan-out measured
+2817.224 ms against the retained 2800 ms bound. Standard and expanded starts were 127.307 and 125.637 ms against
+145 ms; ten-file fan-out was 5272.602 ms against 6000 ms, and materialization 6313.667 ms against 8000 ms. Both
+hosted jobs completed successfully because the timing suite reports numerical bounds rather than asserting them;
+their success status does not turn a measured miss into a pass. All raw records are retained.
+
+The unchanged-head repeat is hosted run `44134547643`, attempt 2. Attempt 1 never reached either timing job: shared
+setup's fetch stayed running for eleven minutes and was cancelled; its log is retained. The successful setup retry
+then launched Windows job `134228887339` and macOS job `134228886908` at the same `24d91d6636`.
+
+| Reference | Save: 800 files (ms) | Save: 60,320 files (ms) | Save paired difference (ms) | Closed start (ms) | Opened start (ms) | Start paired increment (ms) |
+| --------- | -------------------- | ----------------------- | --------------------------- | ----------------- | ----------------- | --------------------------- |
+| Windows   | 141.710              | 141.281                 | +0.674                      | 76.588            | 78.207            | +1.414                      |
+| macOS     | 121.242              | 129.250                 | +8.079                      | 56.733            | 61.063            | +4.330                      |
+
+Both references again meet both growth criteria. Windows used the same image and tool versions; macOS used image
+`macos-26-arm64` version `20261102.0473.1`, macOS 26.7.2, Node `v26.13.1`, and Git `2.56.0`. Both artifacts and logs
+retain every sample and paired difference alongside the initial measurements.
+
+The repeat's absolute medians were 78.601/79.858 ms standard/expanded starts, 826.895/3016.889 ms one/ten-file fan-out,
+and 3529.463 ms materialization on Windows, all within their retained bounds. On macOS, starts were still over 45 ms
+at 81.116/113.963 ms; one/ten-file fan-out and materialization fit at 579.162/2003.094 and 3437.733 ms. The macOS
+standard beneath-Git, concurrent-pair, and single-Git baselines were 33.394, 53.613, and 46.538 ms. The unchanged-head
+repeat therefore preserves an unresolved absolute-start miss; it does not establish a passing absolute-bound verdict.
 
 ## Workflows that write under `completed/`
 
