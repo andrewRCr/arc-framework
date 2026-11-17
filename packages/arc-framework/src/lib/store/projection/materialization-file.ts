@@ -130,7 +130,7 @@ export function evidenceHeldProjectionMark(): RefusedMark {
 /** A file a rebuild withheld under the held mark, never one awaiting a minted stub; only this mark lets a rebuild settle it. */
 export function isEvidenceHeldEntry(entry: ProjectionIndex["entries"][string]): boolean {
   return entry.kind === "ownerless" && entry.withheld === true && entry.minted === undefined
-    && entry.refused.reason.startsWith(EVIDENCE_HELD_CODE);
+    && entry.refused?.reason.startsWith(EVIDENCE_HELD_CODE) === true;
 }
 
 /** Once evidence is whole, a file held for that evidence at a path no record lays takes the ordinary withheld mark. */

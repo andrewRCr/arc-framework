@@ -74,7 +74,7 @@ async function writePartition(location: ProjectionLocation, name: string, bytes:
 }
 
 function unsettled(entry: ProjectionEntries[string]): boolean {
-  return entry.kind === "ownerless" || entry.copies.length > 0 || entry.persisted?.takenIn.kind === "copy"
+  return entry.kind === "ownerless" || entry.opened === true || entry.copies.length > 0 || entry.persisted?.takenIn.kind === "copy"
     || entry.adoption !== undefined || entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0;
 }
 

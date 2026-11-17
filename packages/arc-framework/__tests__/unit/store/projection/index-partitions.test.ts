@@ -199,6 +199,7 @@ const copy = { name: "a.md.aside", moving: blob, rendering: { markers: null, not
 it.each<[string, Partial<RecordEntry>, boolean]>([
   ["an aside copy", { copies: [copy] }, true],
   ["a taken-in input copy", { persisted: { stamp: blob, takenIn: { kind: "copy", name: copy.name, blob, version: v1 } } }, true],
+  ["an opened mark", { opened: true }, true],
   ["an adoption", { adoption: { kind: "write-back" } }, true],
   ["a pending mark", { pending: true }, true],
   ["a withheld mark", { withheld: true }, true],
@@ -228,4 +229,31 @@ it("loads a marked cold partition on the walked load and leaves an unmarked one 
   expect([...loadedProjectionGroups(source)].sort()).toEqual([".arc/active", ".arc/completed/2026-q4", ".arc/user/andrew"]);
   expect(Object.keys(source.entries).sort()).toEqual([".arc/active/current/a.md", ".arc/completed/2026-q4/a.md", ".arc/user/andrew/USER-INBOX.md"]);
   expect(source.entries[".arc/completed/2026-q4/a.md"]).toMatchObject({ pending: true });
+});
+
+it("loads an opened archive partition while leaving other archive quarters cold", async () => {
+  const path = ".arc/completed/2026-q4/a.md";
+  await writeProjectionIndex(location, { ...index(), entries: {
+    [path]: settled, ".arc/completed/2026-q3/a.md": settled } });
+  await commitProjectionIndex({ location, checkout,
+    index: withProjectionEntry(await disk(), path, { ...settled, opened: true }) });
+  expect((await header()).groups[".arc/completed/2026-q4"]?.unsettled).toBe(true);
+  const cold = (await header()).groups[".arc/completed/2026-q3"]!;
+  await writeFile(join(location.stateDir, cold.name), "unvisited");
+  const source = await disk();
+  loadProjectionGroups(source, "walked");
+  expect(Object.keys(source.entries)).toEqual([path]);
+  expect(source.entries[path]).toMatchObject({ opened: true });
+});
+
+it("round-trips an ownerless opened entry and reports it without inventing a refusal", async () => {
+  const path = ".arc/completed/2026-q4/new.md";
+  await writeProjectionIndex(location, { ...index(), entries: {
+    [path]: { kind: "ownerless", stat: held.stat, opened: true } } });
+  const source = await disk();
+  loadProjectionGroups(source, "walked");
+  expect(source.entries[path]).toEqual({ kind: "ownerless", stat: held.stat, opened: true });
+  const { readProjectionStatus } = await import("../../../../src/lib/store/projection/status.js");
+  expect(await readProjectionStatus({ store: { capabilities: { stateOffBranch: true } }, checkout, location }))
+    .toMatchObject({ kind: "ready", files: [{ path, ownerless: true, refused: null }] });
 });

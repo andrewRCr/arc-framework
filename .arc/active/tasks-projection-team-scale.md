@@ -26,21 +26,11 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
   start finds it among the partitions the header marks; the mark survives adoption and a moved path; and a build
   without it rebuilds the index rather than rewriting a partition without the mark.
 
-    - `[ ]` **1.1.a The mark and what it makes unsettled**
-        - A record entry gains an optional `opened` mark on the basis a journaled arrival shares (`RecordBasisSchema`,
-          `index-schema.ts`), so a handoff's arrival can carry it. An ownerless entry may carry it too, its `refused`
-          made optional: its type (`OwnerlessEntrySchema`) becomes a union of an entry carrying the refusal and one
-          carrying the opened mark, so no ownerless entry carries neither.
-        - Every reader that takes an ownerless entry's `refused` as present handles its absence:
-          `readRecordedProjectionStatus` (`status.ts`), `adoptProjectionFile`'s withheld report and
-          `reconcileAbsentAdoption` (`adoption.ts`), and `isEvidenceHeldEntry` (`materialization-file.ts`); the type
-          change names any other.
-        - The opened mark joins the states `unsettled` counts (`index-file.ts`), so the write that sets it marks its
-          partition in the header; the header's format is unchanged.
-        - Build `test-first` (one behavior at a time):
-            - setting the opened mark on an archive entry marks that partition in the header, and a start then loads
-              it while leaving every unmarked archive partition unread
-            - an ownerless entry carrying only the opened mark is written, read, and reported
+    - `[x]` **1.1.a The mark and what it makes unsettled**
+        - Record bases and journaled arrivals accept an optional opened mark; ownerless entries require either the
+          mark or a refusal. Readers handle an absent refusal. Opening an archived entry marks its partition
+          unsettled, so the walked load finds it while other archive quarters stay unread; opened ownerless entries
+          round-trip and report without a fabricated refusal.
 
     - `[ ]` **1.1.b The format version**
         - `PROJECTION_INDEX_FORMAT` moves from 2 to 3 (`index-schema.ts`), and the fresh index

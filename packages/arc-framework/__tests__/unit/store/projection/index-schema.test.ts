@@ -76,6 +76,17 @@ describe("the projection index", () => {
     } }).success).toBe(false);
   });
 
+  it("accepts opened record and arrival bases and requires ownerless state", () => {
+    const json = JSON.parse(encodeProjectionIndex(fullIndex())) as { entries: Record<string, Record<string, unknown>> };
+    const record = json.entries[".arc/active/current/meta-alpha.md"];
+    const ownerless = { kind: "ownerless", stat: null };
+    expect(decodeProjectionIndex({ ...json, entries: {
+      ".arc/completed/2026-q4/a.md": { ...record, opened: true, handoff: { ...record, opened: true } },
+      ".arc/completed/2026-q4/new.md": { ...ownerless, opened: true },
+    } }).success).toBe(true);
+    expect(decodeProjectionIndex({ ...json, entries: { ".arc/completed/2026-q4/new.md": ownerless } }).success).toBe(false);
+  });
+
   it("round-trips an index with every field through its JSON form, bigints included", () => {
     const index = fullIndex();
     const decoded = decodeProjectionIndex(JSON.parse(encodeProjectionIndex(index)));

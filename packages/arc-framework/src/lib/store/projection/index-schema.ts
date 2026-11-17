@@ -81,6 +81,7 @@ const RecordBasisSchema = z.strictObject({
   unshown: z.array(RecordReferenceSchema),
   protected: z.boolean(),
   changed: z.boolean(),
+  opened: z.literal(true).optional(),
   pending: z.boolean(),
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),
@@ -110,16 +111,21 @@ const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchem
 export type MintedStubReceipt = z.infer<typeof MintedStubReceiptSchema>;
 
 /** A file not yet bound to a usable record basis, optionally retaining an accepted stub receipt. */
-const OwnerlessEntrySchema = z.strictObject({
+const OwnerlessBasisSchema = z.strictObject({
   kind: z.literal("ownerless"),
   withheld: z.literal(true).optional(),
   minted: MintedStubReceiptSchema.optional(),
   stat: FileStatSchema.nullable(),
-  refused: RefusedMarkSchema,
+  refused: RefusedMarkSchema.optional(),
+  opened: z.literal(true).optional(),
 });
+const OwnerlessEntrySchema = z.union([
+  OwnerlessBasisSchema.extend({ refused: RefusedMarkSchema }),
+  OwnerlessBasisSchema.extend({ opened: z.literal(true) }),
+]);
 
 /** One index entry, keyed by its repository-relative path. */
-const IndexEntrySchema = z.discriminatedUnion("kind", [RecordEntrySchema, OwnerlessEntrySchema]);
+const IndexEntrySchema = z.union([RecordEntrySchema, OwnerlessEntrySchema]);
 
 /** An ignore file the guard's last pass rested on, with its stat and blob id, or both null where it was absent. */
 const IgnoreFileRecordSchema = z.union([
