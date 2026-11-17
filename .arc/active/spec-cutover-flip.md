@@ -203,9 +203,10 @@ member lands; a contract that does not hold when its member lands is a forward a
   (`spec-projection-worktrees.md` § 2.2, § 2.5), the withholding of a pre-flip file at a projected path whose content
   differs from the record laid there or where no record is laid, and the persist step's refusal over a withheld file
   (§ 2.5, § 12.2); the tracked `.arc/user/.npmignore` policy file each linked checkout needs before the projection
-  writes into any root, with any untracked installer copy deleted from every checkout first (§ 2.5); the rebuild of
-  deleted files ahead of `arc sync`'s network steps in `handleSync` (`handlers/sync.ts`, § 2.4); and `arc save`
-  clearing the changed mark without setting a cadence (§ 11.7).
+  writes into any root, which a checkout holds once it merges `main`, Git refusing that merge over an untracked copy at
+  the path, whatever its content, until the copy is removed (§ 2.5, A10); the rebuild of deleted files ahead of
+  `arc sync`'s network steps in `handleSync` (`handlers/sync.ts`, § 2.4); and `arc save` clearing the changed mark
+  without setting a cadence (§ 11.7).
 - **`projection-team-scale`** lands the read-only archive: from the flip, or from its own landing where that comes after
   the flip, a file under `completed/` lays read-only with a notice naming `arc edit`, unless its worktree has it opened.
   The read-only lay is how the archive is laid, not an edit right: edit rights stay as `spec-projection-write-back.md`
@@ -237,10 +238,12 @@ which bite once projection is live. Its placement relative to the window is § 1
 
 #### 2.1 The switch
 
-`createStore` (`lib/store/create.ts`), today `lazyStore(ports.checkoutRoot, false, ...)` over `createInRepoBackend`,
-builds the ref backend instead, so every store a command opens reports `stateOffBranch` true. `openDefaultStore`
-(`handlers/lifecycle-shared.ts`) and every other default caller go through it. This is the flip; the rest of this spec
-follows from it.
+`createStore` (`lib/store/create.ts`), today the projection's fan-out decoration (`withFanOut`,
+`lib/store/projection/with-fan-out.ts`) over `lazyStore(ports.checkoutRoot, false, ...)` and `createInRepoBackend`,
+builds the ref backend instead beneath the same decoration, so every store a command opens reports `stateOffBranch`
+true. The decoration is inert over the in-repo implementation; over the ref backend it carries each write a command
+lands to the other projected checkouts (A9). `openDefaultStore` (`handlers/lifecycle-shared.ts`) and every other default
+caller go through it. This is the flip; the rest of this spec follows from it.
 
 `createStore` keeps its signature, so no caller changes, and composes the ref backend's ports from the caller's:
 
@@ -2197,5 +2200,9 @@ None.
   _Supersedes:_ § 1.3; § 10.6 ¶1; § 10.7. _Trigger:_ 6.1 must-stop. _Work:_ 6.5. _Revalidated:_ pending → 6.8.
 - **A8** — 2026-11-14 — design: the restore's auto-merge remedy names disarming, not `gh pr merge --disable-auto`.
   _Supersedes:_ § 1.3 (the auto-merge refusal). _Trigger:_ 6.1 must-stop. _Work:_ none. _Revalidated:_ 6.1.
+- **A9** — 2026-11-16 — spec-depth: the switch keeps `createStore`'s fan-out decoration over the ref backend.
+  _Supersedes:_ none. _Trigger:_ 2.1 must-stop. _Work:_ 3.3. _Revalidated:_ pending → 3.7.
+- **A10** — 2026-11-16 — design: no step deletes an untracked npm policy copy; Git's merge refusal names its removal.
+  _Supersedes:_ § 1.3 (the npm policy file). _Trigger:_ 2.1 must-stop. _Work:_ none. _Revalidated:_ 2.1.
 
 ---

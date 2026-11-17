@@ -165,20 +165,17 @@ _Exit criterion:_ With the default store still in-repo, the selection refuses, o
 hook skips or refuses, as § 3 states in their own tests; every § 4 store path, the agenda's handoff anchor (§ 8.9), and
 the fence harness pass over the ref backend; and the full suite passes with no behavior change in operation.
 
-### `[ ]` **2.1 Re-check `projection-worktrees`' contract once it lands — § 1.3**
+### `[x]` **2.1 Re-check `projection-worktrees`' contract once it lands — § 1.3**
 
 - _Goal:_ Each contract item § 1.3 states for `projection-worktrees` holds at `main` once that unit lands, or the spec
   takes a forward amendment before a task consumes it.
 
-    - Merge `main` into the branch, then check each item at its landed code: each checkout's first materialization
-      (§ 2.2, § 2.5 of that unit's specification), the withholding of a pre-flip file and the persist step's refusal
-      over it (§ 2.5, § 12.2), the tracked `.arc/user/.npmignore` policy file (§ 2.5), the rebuild of deleted files
-      ahead of `arc sync`'s network steps (`restoreSyncProjection`, `lib/store/projection/sync-materialization.ts`,
-      called from `handleSync`'s root preparation, § 2.4), and `arc save` clearing the changed mark without setting a
-      cadence (§ 11.7).
-    - Re-read the root hook's start path (`registerProjectionHooks`, `lib/store/projection/command-hooks.ts`, with its
-      spawn materialization) that Task 2.2 builds on, and the store composition around `createStore`
-      (`lib/store/create.ts`) that Task 3.3 changes.
+- _Outcome:_ Every item holds at `main` merged in at `ac09996b07`, with two amendments: § 2.1 keeps the fan-out
+  decoration the landed `createStore` applies (A9), and § 1.3 no longer has that unit delete an untracked npm-policy
+  copy, Git's merge refusal naming its removal (A10). The root hook now binds spawn materialization after
+  `startProjection` (`bindSpawnMaterialization`), and the fan-out capture skips only for `switch` and `no-identity`
+  (`createProjectionFanOutDependencies`), so Task 2.2's `tracked-state` skip covers both. Windows removal and release
+  rest on runs 43964135813 and 43974177580.
 
 ### `[ ]` **2.2 The hook commands skip the projection, and every other command refuses, while `HEAD` tracks state — § 3.2**
 
@@ -522,8 +519,9 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 
     - `[ ]` **3.3.a The switch**
         - `createStore` (`lib/store/create.ts`) calls the selection; its signature is unchanged, so `openDefaultStore`
-          (`handlers/lifecycle-shared.ts`) and every other default caller follow, `projection-worktrees`' wrapper around
-          the composed store kept.
+          (`handlers/lifecycle-shared.ts`) and every other default caller follow, `projection-worktrees`' fan-out
+          decoration (`withFanOut`) kept over the composed store, with a test that a write it lands over the ref backend
+          reaches another projected checkout (A9).
         - Before this commit, the flip's checkout sets the override in the environment of every command it runs, `git`
           included, by the mechanism `notes-cutover-flip.md` § The flip's checkout names, which also says what a
           tracked-state refusal there means.
@@ -1304,6 +1302,9 @@ landing after verification).
 - `[ ]` Stage 2 shows a state-bearing branch made after the check compared, its unrecorded range re-applied and
   confirmed through the window tooling's `confirm` before the close passes, and one sharing no history with `main`
   refused until deleted (A7).
+
+- `[ ]` After the switch, a write a command lands through `createStore` reaches the other projected checkouts through
+  the projection's fan-out (A9).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

@@ -550,6 +550,28 @@ auto-merge armed, with the remedy `gh pr merge --disable-auto`. The check and th
 then retry restore.", `restore.ts`). All three refuse on the same condition and their remedies take the same step, so
 the item now states each as landed and no work follows.
 
+## A9 — the switch keeps the fan-out decoration
+
+§ 2.1 described `createStore` as `lazyStore(ports.checkoutRoot, false, ...)` over `createInRepoBackend`. The landed
+`projection-worktrees` wraps that store in its fan-out decoration (`withFanOut` over
+`createProjectionFanOutDependencies`, `lib/store/create.ts`), which leaves an in-repo store unchanged and, over a store
+reporting `stateOffBranch`, requests a refresh of the other projected checkouts after each landed write, pull, and push.
+`selectStore`, which the switch adopts, composes no decoration, so a switch built from § 2.1's text alone would drop
+fan-out. Task 3.3.a already kept the wrapper; it now names it and tests it, and the appended criterion makes the
+behavior checkable at 3.7.
+
+## A10 — the npm policy file's untracked copy
+
+§ 1.3 read: "the tracked `.arc/user/.npmignore` policy file each linked checkout needs before the projection writes into
+any root, with any untracked installer copy deleted from every checkout first (§ 2.5)". The landed unit tracks the file
+and its guard refuses every root without it (`ignore-guard.ts`), but neither its specification nor its code deletes an
+untracked copy; the installer still creates the file, by exclusive create, in the checkout it runs in
+(`prepareIgnoreFiles`, `lib/template/ignore-files.ts`). Git refuses a merge that would add the tracked file over an
+untracked copy at the path, identical or not, and names the removal, and the path is not ignored here (`.gitignore`
+ignores only `.arc/user/*/`). At Task 2.1 no worktree held an untracked copy. A checkout that does meets the refusal at
+its next merge of `main`, ahead of the window where § 10.1 requires one, or at § 10.6 step 2, with Git's own remedy; no
+step is added.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
