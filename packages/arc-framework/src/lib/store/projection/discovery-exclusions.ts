@@ -7,10 +7,16 @@ const FOLDER_SIDE_FILES = new Set([".DS_Store", "Thumbs.db", "desktop.ini", ".di
 const EDITOR_SIDE_FILE = /~$|^\.#|^#.*#$|^\..*\.sw.$|^4913$|\.tmp\.[0-9]+\.[0-9a-fA-F]+$/u;
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
+/** Whether a path's last segment names an editor or folder side file. */
+export function namesSideFile(path: string): boolean {
+  const name = path.split("/").at(-1) ?? "";
+  return FOLDER_SIDE_FILES.has(name) || name.startsWith("._") || EDITOR_SIDE_FILE.test(name);
+}
+
 /** Whether a managed path names a side file or one of the legacy derived views. */
 export function isExcludedProjectionFile(path: string): boolean {
   const parts = path.split("/"), name = parts.at(-1) ?? "";
-  if (FOLDER_SIDE_FILES.has(name) || name.startsWith("._") || EDITOR_SIDE_FILE.test(name)) return true;
+  if (namesSideFile(path)) return true;
   return path === ROADMAP_PATH || parts.length === 4 && parts[0] === ".arc" && parts[1] === "user"
     && name === IDENTITY_STATUS_FILENAME;
 }

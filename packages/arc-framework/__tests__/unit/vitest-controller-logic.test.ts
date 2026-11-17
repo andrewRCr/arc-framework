@@ -103,8 +103,15 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance-records-",
     "store-ref-separate-conformance-reads-", "store-ref-separate-conformance-sync-",
-    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
+    "store-ref-timing-isolation.test.ts",
   ]));
+});
+
+it("leaves the timing suites to their own job rather than a portability shard", () => {
+  const selectors = localVitestTierArguments("portability");
+  for (const suite of ["integration/store-ref-timing.test.ts", "integration/store-ref-projection-timing.test.ts"]) {
+    expect(selectors.filter((selector) => suite.includes(selector)), suite).toEqual([]);
+  }
 });
 
 it("selects every test under a store/projection/ folder, and no other test file, on the portability tier", () => {

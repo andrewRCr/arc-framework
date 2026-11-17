@@ -915,8 +915,6 @@ jobs:
       with:
         name: portability-results-${{ runner.os }}
         path: |
-          packages/arc-framework/.test-cost-runs/store-timing.json
-          packages/arc-framework/.test-cost-runs/projection-timing.json
           packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error
@@ -925,10 +923,10 @@ jobs:
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
   # Setup supplies the shared invocation forecast. Each OS divides the tier across seven shards balanced by its own
-  # recorded durations once a full run has saved them, and by the integration durations until then; a timing-only or
-  # named-files run needs one job per OS.
+  # recorded durations once a full run has saved them, and by the integration durations until then; a named-files run
+  # needs one job per OS. The timing suites run in portability-timing instead.
   portability-cross-platform:
-    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }}, ${{ matrix.shard }})
+    name: Portability targeted (${{ matrix.os }}, ${{ matrix.shard }})
     permissions:
       contents: read
       actions: write # upload portability measurements
@@ -936,13 +934,13 @@ jobs:
     # The Linux sizing variable does not apply to hosted Windows/macOS.
     env:
       VITEST_MAX_WORKERS: ''
-    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only || inputs.portability_files)) || github.event_name == 'schedule') }}
+    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_files)) || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
         shard: [1, 2, 3, 4, 5, 6, 7]
-        exclude: ${{ fromJSON((inputs.portability_timing_only || inputs.portability_files) && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6},{"shard":7}]' || '[]') }}
+        exclude: ${{ fromJSON(inputs.portability_files && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6},{"shard":7}]' || '[]') }}
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -969,7 +967,7 @@ jobs:
       env:
         ARC_E2E_SKIP_BUILD: ''
     - name: Download duration input
-      if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
+      if: ${{ !inputs.portability_files }}
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
@@ -978,7 +976,7 @@ jobs:
     # Linux integration durations until then.
     - name: Select duration input
       id: durations
-      if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
+      if: ${{ !inputs.portability_files }}
       shell: bash
       run: |
         name=integration.json
@@ -988,13 +986,12 @@ jobs:
         echo "Duration input: $name"
         echo "name=$name" >> "$GITHUB_OUTPUT"
     - id: test
-      if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
+      if: ${{ !inputs.portability_files }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test --shard ${{ matrix.shard }}
       env:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/${{ steps.durations.outputs.name }}
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
-        ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         # The weekly run and a dispatch of main, whose change is empty, take every store suite.
         ARC_STORE_CHECK: ${{ (github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full) && 'full' || '' }}
     - name: Run named files only
@@ -1007,34 +1004,100 @@ jobs:
         PORTABILITY_FILES: ${{ inputs.portability_files }}
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
-    - name: Measure native operation timing only
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
-      run: >-
-        npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts
-        packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts --maxWorkers=1
-      env:
-        ARC_E2E_SKIP_BUILD: '1'
-        ARC_STORE_BURSTS: '1'
-        ARC_STORE_PROFILE: '1'
     - name: Upload portability measurements
       if: ${{ !cancelled() }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: portability-results-${{ runner.os }}-${{ matrix.shard }}
         path: |
-          packages/arc-framework/.test-cost-runs/store-timing.json
-          packages/arc-framework/.test-cost-runs/projection-timing.json
-          packages/arc-framework/.test-cost-runs/store-write-profile*
-          packages/arc-framework/.test-cost-runs/store-process-baseline.json
           packages/arc-framework/.test-cost-runs/cancellation-stdin/**
           packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error
     - id: macos
-      if: ${{ runner.os == 'macOS' && !inputs.portability_timing_only && !inputs.portability_files && matrix.shard == 1 }}
+      if: ${{ runner.os == 'macOS' && !inputs.portability_files && matrix.shard == 1 }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
+
+  # The timing suites measure native operations against fixed bounds, so on each platform they run first on a VM of
+  # their own rather than after a shard's other files, which slows them on macOS. The VM's load is logged just before
+  # measuring, so a miss on a disturbed VM can be told apart from a slow operation. A timing-only dispatch runs this
+  # job alone.
+  portability-timing:
+    name: Portability timing (${{ matrix.os }})
+    permissions:
+      contents: read
+      actions: write # upload timing measurements
+    needs: setup
+    env:
+      VITEST_MAX_WORKERS: ''
+    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || github.event_name == 'schedule') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Download check forecast
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: build
+      run: node --import tsx scripts/run-ci-checks.mjs run portability-timing build
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Log VM load
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors, LoadPercentage | Format-List
+        Get-CimInstance Win32_OperatingSystem |
+          Select-Object @{n='FreeMemoryMB';e={[math]::Round($_.FreePhysicalMemory / 1KB)}},
+            @{n='TotalMemoryMB';e={[math]::Round($_.TotalVisibleMemorySize / 1KB)}} | Format-List
+        Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Name, Id, CPU,
+          @{n='WorkingSetMB';e={[math]::Round($_.WorkingSet64 / 1MB)}} | Format-Table -AutoSize
+    - name: Log VM load
+      if: ${{ runner.os == 'macOS' }}
+      shell: bash
+      run: |
+        uptime
+        echo "CPUs: $(sysctl -n hw.ncpu), memory: $(( $(sysctl -n hw.memsize) / 1048576 )) MB"
+        vm_stat
+        top -l 1 -n 10 -o cpu -stats pid,command,cpu,mem
+    - id: measure
+      run: >-
+        npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts
+        packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts --maxWorkers=1
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: '1'
+        ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+    - name: Upload timing measurements
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      with:
+        name: portability-timing-${{ runner.os }}
+        path: |
+          packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/.test-cost-runs/projection-timing.json
+          packages/arc-framework/.test-cost-runs/store-write-profile*
+          packages/arc-framework/.test-cost-runs/store-process-baseline.json
+        include-hidden-files: true
+        if-no-files-found: error
 
   # Each platform keeps its own portability durations. Only a run that took every store suite writes, replacing the
   # platform's file whole: a dispatch that left unreached store suites out, or ran named files or timing alone, would
@@ -1290,7 +1353,7 @@ jobs:
   ci_ok:
     name: ci-ok
     permissions: {}
-    needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]
+    needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform, portability-timing]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:

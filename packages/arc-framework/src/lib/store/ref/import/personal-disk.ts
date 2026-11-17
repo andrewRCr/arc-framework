@@ -5,6 +5,7 @@ import type { RefBackendContext } from "../context.js";
 import { scanRegisteredWorktrees } from "../../../git/worktree-roster.js";
 import { SlugSchema, type Slug } from "../../../kernel/schema/slug.js";
 import { IDENTITY_STATUS_FILENAME } from "../../../user-surfaces.js";
+import { namesSideFile } from "../../projection/discovery-exclusions.js";
 import { isAllowedFile, MAX_FILE_SIZE } from "../../../git/user-sync.js";
 import { legacyRootSessionNotesName } from "./personal-layout.js";
 import { containsImportCheckout, type ImportPersonalCheckout } from "./personal-checkouts.js";
@@ -19,9 +20,9 @@ export interface ImportPersonalLink { person: Slug; path: string; physicalPath: 
 export interface ImportPersonalDisk { people: Set<Slug>; files: ImportPersonalFile[]; links: ImportPersonalLink[];
   visited: Map<string, Set<string>>; checkouts: ImportPersonalCheckout[] }
 
-/** Exclude machine-local folders and the identity's generated status cache on both sides. */
+/** Exclude machine-local folders, the identity's generated status cache, and editor or folder side files on both sides. */
 export function importPersonalExcluded(path: string): boolean {
-  return path.split("/").includes(".internal") || path === IDENTITY_STATUS_FILENAME;
+  return path.split("/").includes(".internal") || path === IDENTITY_STATUS_FILENAME || namesSideFile(path);
 }
 
 /** Mirror the file-level exclusions of notes serialization without dropping disk-only files. */
