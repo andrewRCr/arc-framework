@@ -377,6 +377,8 @@ const PORTABILITY_SUITES = [
   "unit/locus/terminal-occupancy-admission.test.ts",
   "unit/locus/unbound-marker.test.ts",
   "unit/locus/user-sync-exclusion.test.ts",
+  // Errand provisioning through the anchored shell.
+  "e2e/errand-open-provisioning-recovery.e2e.test.ts",
 ];
 
 /**
