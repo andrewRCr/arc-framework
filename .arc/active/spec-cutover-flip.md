@@ -2204,5 +2204,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 2.1 must-stop. _Work:_ 3.3. _Revalidated:_ pending → 3.7.
 - **A10** — 2026-11-16 — design: no step deletes an untracked npm policy copy; Git's merge refusal names its removal.
   _Supersedes:_ § 1.3 (the npm policy file). _Trigger:_ 2.1 must-stop. _Work:_ none. _Revalidated:_ 2.1.
+- **A11** — 2026-11-17 — task: rewrite `arc sync`'s help, which describes the notes leg, for the store's arms.
+  _Supersedes:_ none. _Trigger:_ 2.3 must-stop. _Work:_ 4.2. _Revalidated:_ pending → 7.1.
 
 ---

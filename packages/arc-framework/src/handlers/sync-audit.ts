@@ -20,7 +20,7 @@ const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
 export async function writeSyncAuditEntry(args: {
   cwd: string;
   identity: string;
-  outcome: Pick<SyncOutcome, "cell" | "worktree" | "notes" | "exitCode">;
+  outcome: Pick<SyncOutcome, "cell" | "worktree" | "notes" | "state" | "exitCode">;
   interlockState: InterlockState;
 }): Promise<void> {
   const wu = await resolveActiveWu({ cwd: args.cwd });
@@ -30,7 +30,10 @@ export async function writeSyncAuditEntry(args: {
     kind: "sync",
     cell: args.outcome.cell,
     worktree: encodeLegToken(args.outcome.worktree),
-    notes: encodeLegToken(args.outcome.notes),
+    ...(args.outcome.notes === undefined ? {} : { notes: encodeLegToken(args.outcome.notes) }),
+    // The pull's token, then the push's, each in the leg grammar below.
+    ...(args.outcome.state === undefined ? {}
+      : { state: `${encodeLegToken(args.outcome.state.pull)} | ${encodeLegToken(args.outcome.state.push)}` }),
     exitCode: args.outcome.exitCode,
   };
   const entry: AuditEntry = AuditEntrySchema.parse({

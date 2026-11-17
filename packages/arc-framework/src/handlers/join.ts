@@ -23,7 +23,6 @@ import {
   isHandledError,
 } from "./shared.js";
 
-import { execa } from "execa";
 import type { GitExec } from "../lib/git/exec.js";
 import { SlugSchema, type Slug } from "../lib/kernel/index.js";
 import { createStore } from "../lib/store/create.js";
@@ -33,18 +32,16 @@ import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-
 import { consumePull, pullDesignation } from "../lib/store/pull-consumption.js";
 import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
 import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
-import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
+import type { PromptRenderer } from "../lib/command-input/prompter.js";
+import { offerStoreDesignation, type StoreDesignationPorts } from "./store-designation.js";
 
 /** Optional backend bindings for the identity being set up. */
 export interface JoinStorePorts {
   openStore?: (input: { cwd: string; exec: GitExec; identity: Slug }) => Store;
   sync?: (store: Store) => StoreSyncPort;
-  execute?: (argv: readonly string[], cwd: string, context: InteractionContext) => Promise<JoinDesignationOutcome>;
+  execute?: StoreDesignationPorts["execute"];
   renderer?: PromptRenderer;
 }
-
-/** A designation run's outcome; a failed run's own output already reached the terminal it inherited. */
-export type JoinDesignationOutcome = { status: "ok" } | { status: "failed"; reason: string };
 
 /** Cancellation stops setup before identity or workspace writes. */
 export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" } | null;
@@ -63,33 +60,12 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   const designation = pullDesignation(result);
   if (designation === undefined) return value;
   p.log.info(value.summary);
-  if (input.context.interaction !== "allowed") return value;
-  const remedyArgv = designation.remedy.argv ?? [];
-  const recommended = remedyArgv.at(-1);
-  const answer = await prompt(joinStoreDesignationSite, input.context, {
-    message: `How should remote ${designation.remote} serve store state?`,
-    options: designation.choices.map(choice => ({ value: choice, label: choice,
-      ...(choice === recommended ? { hint: remedyArgv.join(" ") } : {}) })),
-    ...(recommended !== undefined && designation.choices.includes(recommended) ? { initialValue: recommended } : {}),
-  }, ports.renderer);
-  if (answer.kind === "cancelled") return { status: "cancelled" };
-  if (answer.kind !== "answered" || !designation.choices.includes(answer.value)) return value;
-  const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", designation.remote, answer.value];
-  const designated = await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
+  const designated = await offerStoreDesignation(joinStoreDesignationSite, designation, input.cwd, input.context, ports);
+  if (designated.status === "cancelled") return { status: "cancelled" };
   if (designated.status === "failed") {
-    p.log.warn(`${argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);
+    p.log.warn(`${designated.argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);
   }
   return value;
-}
-
-async function executeJoinDesignation(argv: readonly string[], cwd: string, context: InteractionContext): Promise<JoinDesignationOutcome> {
-  const [command, ...args] = argv;
-  if (command === undefined) return { status: "ok" };
-  const result = await execa(command, args, { cwd, reject: false, stdin: context.subprocess.ambientStdin === "closed" ? "ignore" : "inherit",
-    stdout: "inherit", stderr: "inherit", env: context.subprocess.terminalPrompts === "forbidden" ? { GIT_TERMINAL_PROMPT: "0" } : {} });
-  if (!result.failed) return { status: "ok" };
-  return { status: "failed", reason: result.exitCode !== undefined ? `exited with code ${result.exitCode}`
-    : result.signal ? `was ended by ${result.signal}` : `could not start: ${result.shortMessage}` };
 }
 
 export type JoinOptions = JoinCommandOptions;

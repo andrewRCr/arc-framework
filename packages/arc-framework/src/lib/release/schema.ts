@@ -59,7 +59,10 @@ const SyncOutcomeSchema = z.strictObject({
   kind: z.literal("sync"),
   cell: z.string(),
   worktree: z.string(),
-  notes: z.string(),
+  /** Present where the store keeps state on the branch. */
+  notes: z.string().optional(),
+  /** Present where the store keeps state off the branch: the pull's leg token, then the push's, joined by ` | `. */
+  state: z.string().optional(),
   exitCode: z.number(),
 });
 const HookFailedOutcomeSchema = z.strictObject({

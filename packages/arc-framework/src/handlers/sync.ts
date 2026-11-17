@@ -106,6 +106,10 @@ import { pushNotesWithReconcile } from "./push-recovery.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "./shared.js";
 import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
+import { syncStoreDesignationSite } from "../prompts/sync-store-designation.js";
+import { runStateLeg, type StateLegOutcome } from "./sync-state-leg.js";
+import { storeDesignationRunSite, type StoreDesignationPorts } from "./store-designation.js";
+import type { HandoffTripwireReport } from "../lib/handoff/tripwires.js";
 
 export interface SyncOptions {
   yes?: boolean;
@@ -137,6 +141,8 @@ export const syncCommandInputPolicyDeclarations = [{
       mutationBoundary: "sync handler", subprocess: "none",
     }),
     syncNotesPushPromptSite,
+    syncStoreDesignationSite,
+    storeDesignationRunSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -345,7 +351,8 @@ function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
   return "save-only";
 }
 
-interface LegOutcomeRecord {
+/** One leg's action and result, with the detail and push-gate refusal that explain a failure. */
+export interface LegOutcomeRecord {
   action: string;
   result: "success" | "skipped" | "blocked" | "failed" | "noop" | "cancelled";
   detail?: string;
@@ -359,7 +366,12 @@ export interface SyncOutcome {
   interlockState: InterlockState;
   worktree: LegOutcomeRecord;
   save?: LegOutcomeRecord;
-  notes: LegOutcomeRecord;
+  /** The notes leg, reported by a store that keeps state on the branch. */
+  notes?: LegOutcomeRecord;
+  /** The state leg, reported in place of notes by a store that keeps state off the branch. */
+  state?: StateLegOutcome;
+  /** The state push's figures over their bounds, when any are. */
+  tripwires?: HandoffTripwireReport;
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
   /**
@@ -406,7 +418,7 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  context: InteractionContext, store: Store,
+  context: InteractionContext, store: Store, designationPorts: StoreDesignationPorts = {},
 ): Promise<void> {
   output.intro("arc sync");
 
@@ -451,7 +463,7 @@ export async function handleSync(
   const isTty = context.terminal === "interactive";
   const autoPull = resolvedSettings.settings["sync.auto_pull"] === "true";
 
-  const decision = decideMatrix({
+  const matrixInput: MatrixInput = {
     pushInterlock,
     notesPush,
     worktreeState: worktree.state,
@@ -460,7 +472,7 @@ export async function handleSync(
     branch,
     isTty,
     autoPull,
-  });
+  };
 
   const recommendedSummaryLine = inferRecommendedSummaryLine({
     context: "sync-ran",
@@ -470,6 +482,14 @@ export async function handleSync(
     branch,
     unpushedN: 0,
   });
+
+  if (store.capabilities.stateOffBranch) {
+    await finishStoreSync({ opts, store, interlockState, recommendedSummaryLine, worktreeAction: decideWorktree(matrixInput),
+      designationPorts, leg: { worktreeState: worktree.state, worktreeAhead: worktree.ahead, worktreeBehind: worktree.behind,
+        branch, io, output, cwd, identity, interaction: context } });
+    return;
+  }
+  const decision = decideMatrix(matrixInput);
 
   if (opts.dryRun) {
     const executed = buildDryRunOutcome(decision, branch);
@@ -520,6 +540,85 @@ export async function handleSync(
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
+  }
+}
+
+/** A store that keeps state off the branch: what its sync needs once the worktree is inspected. */
+interface StoreSyncRun {
+  opts: SyncOptions;
+  store: Store;
+  interlockState: InterlockState;
+  recommendedSummaryLine: string | null;
+  worktreeAction: WorktreeAction;
+  designationPorts: StoreDesignationPorts;
+  leg: BranchLegContext;
+}
+
+/** Publish state first and alone, then take the branch leg; no notes, save, or Errand leg runs. Either leg's failure
+ * fails the sync, and a failed state leg still leaves the branch push to run. */
+async function finishStoreSync(run: StoreSyncRun): Promise<void> {
+  const { leg, worktreeAction } = run;
+  const cell = storeCellName(worktreeAction);
+  const report = { interlockState: run.interlockState, recommendedSummaryLine: run.recommendedSummaryLine };
+  if (run.opts.dryRun) {
+    const planned = (action: string): LegOutcomeRecord => ({ action, result: "skipped", detail: "dry-run" });
+    leg.output.log.info(`Worktree: ${describeWorktreeAction(worktreeAction)}`);
+    leg.output.log.info("State:    pull, then push");
+    leg.output.log.info("dry-run: no pushes will fire.");
+    emitStoreSyncOutcome(run, { cell, worktree: planned(dryRunWorktreeAction(worktreeAction)),
+      state: { pull: planned("pull"), push: planned("push") }, exitCode: 0, ...report, mode: "dry-run" });
+    return;
+  }
+  const state = await runStateLeg({ store: run.store, cwd: leg.cwd, context: leg.interaction, output: leg.output }, run.designationPorts);
+  const branch = await executeBranchLeg(leg, worktreeAction);
+  const outcome: SyncOutcome = { cell, worktree: branch.record, state: state.state, exitCode: state.failed || branch.failed ? 1 : 0,
+    ...report, ...(branch.reconcile === undefined ? {} : { reconcile: branch.reconcile }),
+    ...(state.tripwires === undefined ? {} : { tripwires: state.tripwires }) };
+  await writeSyncAuditEntry({ cwd: leg.cwd, identity: leg.identity, outcome, interlockState: run.interlockState });
+  emitStoreSyncOutcome(run, outcome);
+}
+
+function emitStoreSyncOutcome(run: StoreSyncRun, outcome: SyncOutcome): void {
+  if (run.opts.json === true) process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
+  else run.leg.output.outro("Done.");
+  if (outcome.exitCode !== 0) process.exitCode = outcome.exitCode;
+}
+
+/** The branch leg alone, as the worktree decision directs it. */
+async function executeBranchLeg(ctx: BranchLegContext, worktree: WorktreeAction): Promise<{ record: LegOutcomeRecord; failed: boolean;
+  reconcile?: SyncOutcome["reconcile"] }> {
+  const moves = worktree.kind === "push" || worktree.kind === "push-with-upstream-init" || worktree.kind === "inbound-ff-pull";
+  if (moves && await detectRebaseSaveBlock(ctx) !== null) {
+    ctx.output.log.warn("Branch leg skipped: rebase in progress; complete or abort the rebase, then run `arc sync` again.");
+    return { record: rebaseWorktreeRecord(worktree), failed: true };
+  }
+  switch (worktree.kind) {
+    case "push": case "push-with-upstream-init": return pushBranch(ctx, worktree);
+    case "inbound-ff-pull": {
+      const pulled = await pullBranchInbound(ctx, worktree.branch);
+      return { record: pulled.record, failed: !pulled.current };
+    }
+    case "skip-blocked-worktree":
+      ctx.output.log.warn(worktreeBlockGuidance(worktree));
+      return { record: { action: "skip", result: "blocked", detail: worktree.reason }, failed: true,
+        ...(worktree.reason === "diverged"
+          ? { reconcile: { ahead: worktree.ahead, behind: worktree.behind, branch: worktree.branch ?? ctx.branch ?? "HEAD" } } : {}) };
+    case "skip-not-configured":
+      if (ctx.worktreeState === "local-ahead" && ctx.branch !== null) {
+        ctx.output.log.info(`Worktree: ${ctx.worktreeAhead} unpushed commit(s) on \`${ctx.branch}\`.`);
+      }
+      return { record: { action: "skip", result: "skipped", detail: "not-configured" }, failed: false };
+  }
+}
+
+/** The cell a store sync reports: the state leg beside the worktree's own decision. */
+function storeCellName(worktree: WorktreeAction): string {
+  switch (worktree.kind) {
+    case "push": return "state+worktree";
+    case "push-with-upstream-init": return "state+worktree-with-upstream-init";
+    case "inbound-ff-pull": return "state+inbound-pull";
+    case "skip-blocked-worktree": return `state+blocked-${worktree.reason}`;
+    case "skip-not-configured": return "state-only";
   }
 }
 
@@ -632,8 +731,14 @@ function errandPartialPushDetail(
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 
-interface ExecuteContext {
+interface ExecuteContext extends BranchLegContext {
   decision: MatrixDecision;
+  /** `--yes` flag — auto-accepts safe-default recovery prompts; never opts into force-push. */
+  yes: boolean;
+}
+
+/** What the branch leg needs, with no notes decision: the worktree's state and the invocation's I/O. */
+interface BranchLegContext {
   worktreeState: WorktreeSyncState;
   worktreeAhead: number;
   worktreeBehind: number;
@@ -642,8 +747,6 @@ interface ExecuteContext {
   output: SyncOutput;
   cwd: string;
   identity: string;
-  /** `--yes` flag — auto-accepts safe-default recovery prompts; never opts into force-push. */
-  yes: boolean;
   interaction: InteractionContext;
 }
 
@@ -689,7 +792,7 @@ async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 }
 
 async function detectRebaseSaveBlock(
-  ctx: ExecuteContext,
+  ctx: BranchLegContext,
 ): Promise<PushabilityCondition | null> {
   const pushability = await runPushabilityStatus({
     exec: ctx.io.exec,
@@ -1030,26 +1133,9 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   let worktreeFailed = false;
 
   if (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init") {
-    const setUpstream = decision.worktree.kind === "push-with-upstream-init";
-    const pushGateId = createPushGateId();
-    const result = await pushWorktreeBranch({
-      exec: ctx.io.exec,
-      branch: decision.worktree.branch,
-      args: setUpstream ? ["-u"] : [],
-      pushGateId,
-    });
-    if (result.status === "success") {
-      const successMsg = setUpstream
-        ? `Worktree pushed with new upstream: \`${decision.worktree.branch}\``
-        : `Worktree pushed: \`${decision.worktree.branch}\``;
-      ctx.output.log.info(successMsg);
-      worktreeRecord = { action: "push", result: "success" };
-    } else {
-      worktreeFailed = true;
-      const gate = await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId });
-      worktreeRecord = withGateRefusal({ action: "push", result: "failed", detail: result.error.message }, gate);
-      ctx.output.log.error(worktreePushFailure(worktreeRecord));
-    }
+    const pushed = await pushBranch(ctx, decision.worktree);
+    worktreeRecord = pushed.record;
+    worktreeFailed = pushed.failed;
   } else {
     worktreeRecord = { action: "skip", result: "skipped", detail: "not-configured" };
     if (
@@ -1062,6 +1148,22 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   }
 
   return completeNotesLeg(ctx, worktreeRecord, worktreeFailed);
+}
+
+/** Push the worktree's branch, setting its upstream on the first push, and report a refusal with its push-gate record. */
+async function pushBranch(ctx: BranchLegContext,
+  worktree: Extract<WorktreeAction, { kind: "push" | "push-with-upstream-init" }>): Promise<{ record: LegOutcomeRecord; failed: boolean }> {
+  const setUpstream = worktree.kind === "push-with-upstream-init";
+  const pushGateId = createPushGateId();
+  const result = await pushWorktreeBranch({ exec: ctx.io.exec, branch: worktree.branch, args: setUpstream ? ["-u"] : [], pushGateId });
+  if (result.status === "success") {
+    ctx.output.log.info(setUpstream ? `Worktree pushed with new upstream: \`${worktree.branch}\`` : `Worktree pushed: \`${worktree.branch}\``);
+    return { record: { action: "push", result: "success" }, failed: false };
+  }
+  const gate = await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId });
+  const record = withGateRefusal({ action: "push", result: "failed", detail: result.error.message }, gate);
+  ctx.output.log.error(worktreePushFailure(record));
+  return { record, failed: true };
 }
 
 /**
@@ -1186,41 +1288,37 @@ async function executeInboundFfPull(
   ctx: ExecuteContext,
   branch: string,
 ): Promise<ExecutedOutcome> {
-  const preHead = await resolveHeadSha(ctx.io.exec);
-  const result = await executeInboundPull({
-    exec: ctx.io.exec,
-    branch,
-    policy: "always",
-    isTty: ctx.interaction.terminal === "interactive",
-    fetchTimeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-  });
-
-  if (result.decision === "ff-pull" && result.fastForwarded) {
-    await reportInboundFilesChanged(ctx, branch, result.behind, preHead);
-    return completeNotesLeg(ctx, { action: "inbound-ff-pull", result: "success" }, false);
-  }
-  if (result.decision === "no-op") {
-    // The remote was no longer ahead by execution time (a benign race); the
-    // worktree is already current, so notes proceed per policy.
-    ctx.output.log.info(`Worktree already current with origin/${branch}.`);
-    return completeNotesLeg(ctx, { action: "inbound-ff-pull", result: "noop" }, false);
-  }
-
+  const pulled = await pullBranchInbound(ctx, branch);
+  // An already-current worktree, after a fast-forward or a benign race, lets notes proceed per policy.
+  if (pulled.current) return completeNotesLeg(ctx, pulled.record, false);
   // block (diverged / raced) / refuse (dirty) / surface (degraded fetch): the
   // worktree did not become current, so notes stay blocked this run.
-  ctx.output.log.warn(inboundFailGuidance(result.decision, branch));
   const save = await performSave(ctx);
   return {
     cell: ctx.decision.cellName,
-    worktree: {
-      action: "inbound-ff-pull",
-      result: result.decision === "refuse" ? "failed" : "blocked",
-      detail: result.decision,
-    },
+    worktree: pulled.record,
     save,
-    notes: inboundBlockedNotesRecord(ctx.decision.notes, result.decision, save),
+    notes: inboundBlockedNotesRecord(ctx.decision.notes, pulled.decision, save),
     exitCode: 1,
   };
+}
+
+/** Fast-forward the worktree from origin, reporting whether it is current afterward. */
+async function pullBranchInbound(ctx: BranchLegContext, branch: string): Promise<{ record: LegOutcomeRecord; current: boolean; decision: string }> {
+  const preHead = await resolveHeadSha(ctx.io.exec);
+  const result = await executeInboundPull({ exec: ctx.io.exec, branch, policy: "always",
+    isTty: ctx.interaction.terminal === "interactive", fetchTimeoutMs: DEFAULT_FETCH_TIMEOUT_MS });
+  if (result.decision === "ff-pull" && result.fastForwarded) {
+    await reportInboundFilesChanged(ctx, branch, result.behind, preHead);
+    return { record: { action: "inbound-ff-pull", result: "success" }, current: true, decision: result.decision };
+  }
+  if (result.decision === "no-op") {
+    ctx.output.log.info(`Worktree already current with origin/${branch}.`);
+    return { record: { action: "inbound-ff-pull", result: "noop" }, current: true, decision: result.decision };
+  }
+  ctx.output.log.warn(inboundFailGuidance(result.decision, branch));
+  return { record: { action: "inbound-ff-pull", result: result.decision === "refuse" ? "failed" : "blocked", detail: result.decision },
+    current: false, decision: result.decision };
 }
 
 /** Resolve the current HEAD sha for the post-fast-forward files-changed diff. */
@@ -1239,7 +1337,7 @@ async function resolveHeadSha(exec: UserIOContext["exec"]): Promise<string> {
  * failure degrades to the commit-count headline alone.
  */
 async function reportInboundFilesChanged(
-  ctx: ExecuteContext,
+  ctx: BranchLegContext,
   branch: string,
   behind: number,
   preHead: string,
@@ -1404,12 +1502,7 @@ function buildDryRunOutcome(
   decision: MatrixDecision,
   branch: string | null,
 ): ExecutedOutcome {
-  const worktreeAction =
-    decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init"
-      ? "push"
-      : decision.worktree.kind === "inbound-ff-pull"
-        ? "inbound-ff-pull"
-        : "skip";
+  const worktreeAction = dryRunWorktreeAction(decision.worktree);
   const fireSeparateSave =
     decision.worktree.kind === "skip-blocked-worktree"
     || decision.notes.kind === "save+notes-blocked";
@@ -1431,6 +1524,12 @@ function buildDryRunOutcome(
     exitCode: 0,
     ...(reconcile ? { reconcile } : {}),
   };
+}
+
+/** The worktree-leg `action` label a runtime execution would record. */
+function dryRunWorktreeAction(worktree: WorktreeAction): string {
+  if (worktree.kind === "push" || worktree.kind === "push-with-upstream-init") return "push";
+  return worktree.kind === "inbound-ff-pull" ? "inbound-ff-pull" : "skip";
 }
 
 /**

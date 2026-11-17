@@ -8,7 +8,8 @@ import { joinRolePromptSite, joinToolsPromptSite } from "../prompts/join-prompts
 import { CommandToolListSchema } from "./init-input.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { storeDesignationRunSite } from "../handlers/store-designation.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
 /** Complete canonical input for fresh join and personal reconfiguration. */
@@ -54,11 +55,7 @@ export const joinCommandInputPolicyDeclarations = [{
     joinToolsPromptSite,
     joinIdentityPromptSite,
     joinStoreDesignationSite,
-    declareInteractionSite({ file: "handlers/join.ts", kind: "subprocess", callee: "execa", occurrence: 1 }, {
-      acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
-      automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
-      mutationBoundary: "store remote designation", subprocess: "terminal-prompts",
-    }),
+    storeDesignationRunSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 

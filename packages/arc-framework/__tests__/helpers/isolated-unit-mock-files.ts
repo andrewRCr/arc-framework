@@ -66,6 +66,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/store/projection/index-recovery.test.ts",
   "__tests__/unit/store/projection/ownership-handoff.test.ts",
   "__tests__/unit/sync-orchestrator.test.ts",
+  "__tests__/unit/sync-store-leg.test.ts",
   "__tests__/unit/sync.test.ts",
   "__tests__/unit/template/ignore-files.test.ts",
   "__tests__/unit/user-handlers.test.ts",

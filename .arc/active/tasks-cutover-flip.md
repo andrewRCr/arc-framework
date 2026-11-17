@@ -198,35 +198,17 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   neither a notes leg nor the Errand reconcile leg; on a clone with no designated state remote it asks for the
   designation or reports it, pushing no state until one is made.
 
-    - `[ ]` **2.3.a The store's sync path in `handleSync`**
-        - Off the branch, the state leg pairs with nothing: neither `NOTES_BLOCK_WORKTREE_STATES` (`handlers/sync.ts`)
-          nor `runPairedPush` (`commands/user/paired-push.ts`) gates it; the branch push still runs. Neither the notes
-          save leg (`performSave`, whose `runUserSave` throws `StoreImportedError` once the store is imported) nor the
-          Errand reconcile leg (`reconcileErrandLeg`, whose `reconcileErrandPush` fails once the registry ref exists,
-          `lib/errand/merge.ts`) runs.
-        - The outcome carries a `state` leg, its pull and push, in place of `notes`, which becomes optional
-          (`SyncOutcome`, `handlers/sync.ts`); the audit entry (`SyncOutcomeSchema`, `lib/release/schema.ts`;
-          `writeSyncAuditEntry`, `handlers/sync-audit.ts`) gains an optional `state` token, and its `notes` token goes
-          optional.
-        - The push's figures go through `reportHandoffTripwires` (`lib/handoff/tripwires.ts`; `spec-seam-locus.md`
-          § 9.3), taking the largest retry count and wait across the push's publishes (`PushResult`,
-          `lib/store/sync.ts`).
-        - _Note:_ `session-handoff.md`'s Confirm Handoff reads each leg's push result, state and branch, and names the
-          failed leg (Task 5.2.a); a change to this leg vocabulary changes that text.
-        - The pull is consumed as session start consumes it (`consumePull`, `lib/store/pull-consumption.ts`). A stopping
-          pull pushes no state and exits nonzero. A designation question is offered when the command may prompt, as `arc
-          join` offers it (`pullJoinStore`, `handlers/join.ts`), and the push follows the designation made; otherwise it
-          is reported with its `arc store remote` remedy, no state is pushed, and sync exits nonzero. The branch push
-          runs in every case.
-        - Build `test-first` (one behavior at a time):
-            - state is pulled, then pushed, and reported before the branch leg
-            - a failing branch push leaves the state push reported as succeeded
-            - no notes leg and no Errand leg runs or is reported
-            - a push's figures over their bounds reach the tripwire report
-            - a stopping pull pushes no state, still pushes the branch, and exits nonzero
-            - an undesignated clone with no prompt reports the designation's remedy, pushes no state, still pushes the
-              branch, and exits nonzero
-            - an undesignated clone answering the prompt is designated, and its state push follows
+    - `[x]` **2.3.a The store's sync path in `handleSync`**
+        - Off the branch, `handleSync` hands the inspected worktree to `finishStoreSync` (`handlers/sync.ts`): the state
+          leg (`runStateLeg`, `handlers/sync-state-leg.ts`), then the branch leg alone over the push and fast-forward the
+          notes path now shares (`pushBranch`, `pullBranchInbound`), under `state+…` and `state-only` cells. A rebase in
+          progress holds only the branch push; state still publishes.
+        - The outcome's `state` holds the pull and push records, and `tripwires` the push's report when a figure exceeds
+          its bound; the audit's `state` token is the pull's leg token, then the push's, joined by ` | `.
+        - `arc join`'s designation question and its subprocess moved into `offerStoreDesignation`
+          (`handlers/store-designation.ts`), whose run both commands declare; sync asks through its own
+          `prompt.sync.store-designation` site, and reports a cancelled or failed designation with its remedy as it
+          reports an unanswered one. `arc sync`'s help, which still names the notes leg, joins Task 4.2.c (A11).
 
     - `[ ]` **2.3.b ADR-035's item 2 amendment**
         - A dated amendment in its § Amending This Document: `arc sync` publishes state first and alone and reports each
@@ -651,6 +633,8 @@ notice, and ADR-035 describe the store's arms.
           inbox-remove` ("the title-matched USER-INBOX entry"); and `arc decompose`'s `--execute`, `--extract`,
           `--finish`, `--revise`, `--discard`, and `--advance-base`, the last always refused on the store
           (`handlers/decompose-store.ts`).
+        - `arc sync`'s description, `-y`, and `--dry-run` in `cli.ts`, which name the notes leg, `notes_push`, and the
+          matrix decision; off the branch no notes leg runs and nothing reads `-y` (A11).
         - The help tests that pin this text change with it: `e2e/cli-help-examples.e2e.test.ts`,
           `e2e/run-cli.e2e.test.ts`, `e2e/decompose-dormant.e2e.test.ts`, `e2e/cli-help.e2e.test.ts`'s width and group
           order, and `unit/lib/cli-help-coverage.test.ts`.
