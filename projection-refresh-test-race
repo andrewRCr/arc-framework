@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "projection-refresh-test-race",
+  "claimId": "da6ea6432b32e3f307a3b81ec7a8da50",
+  "createdAt": "2026-11-17T02:09:44.301Z",
+  "updatedAt": "2026-11-17T02:09:44.301Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make both early-stat projection refresh tests deterministic without weakening their assertions",
+  "branch": "chore/projection-refresh-test-race",
+  "origin": "inbox",
+  "originEntry": "Fix the race in two projection refresh tests that fail together intermittently",
+  "originEntrySourceDigest": "sha256:4c8b2e5edb24a265a8a8d7ca91b75bc66f90b24e2ac46c1bdcb504d79fc0dd01",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
