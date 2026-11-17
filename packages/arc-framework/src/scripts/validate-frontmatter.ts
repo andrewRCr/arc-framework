@@ -13,6 +13,7 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFileSync } from "node:child_process";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,6 +119,6 @@ export function runValidateFrontmatterCommand(paths: readonly string[]): void {
 const modulePath = fileURLToPath(import.meta.url);
 // Preserve the source-script entry without treating the importing bundle (`dist/cli.js`) as
 // this module's entrypoint. Bundlers rewrite import.meta.url for every bundled source module.
-if (basename(modulePath).startsWith("validate-frontmatter.") && modulePath === process.argv[1]) {
+if (basename(modulePath).startsWith("validate-frontmatter.") && await isMainModule(import.meta, process.argv[1])) {
   runPathListScript(validateFiles, { readFile: readStagedFile });
 }

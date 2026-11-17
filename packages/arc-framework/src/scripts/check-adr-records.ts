@@ -1,7 +1,7 @@
 /** Validate architectural decision record status and number uniqueness over exact Git trees. */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 /** One ADR's path, number, and Git object identity. */
 export interface AdrEntry {
@@ -292,7 +292,7 @@ export function runAdrCheck(
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+if (await isMainModule(import.meta, process.argv[1])) {
   const outcome = runAdrCheck(process.argv.slice(2), process.env);
   for (const diagnostic of outcome.diagnostics) process.stderr.write(`${diagnostic}\n`);
   process.exitCode = outcome.exitCode;
