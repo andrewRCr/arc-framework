@@ -64,17 +64,21 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
+/** A line that begins with a provider badge, as a finding's metadata line does. */
+const LEADING_BADGE = new RegExp(`^[\\t ]*${BADGE}`, "u");
+
 /**
  * Whether a comment opens with a severity badge, the mark of a finding rather than conversation.
  *
- * Only the first line that is neither blank nor an HTML comment marker counts: every finding layout leads with its
- * badge line, while conversation can quote badge-shaped text further down, such as script output in a collapsed
+ * Only the first line that is neither blank nor an HTML comment marker counts, and it must begin with a badge and
+ * carry a grade: every finding layout leads with its badge line, sometimes a category badge before the grade, while
+ * conversation can quote badge-shaped text within a sentence or further down, such as script output in a collapsed
  * analysis section.
  */
 export function leadsWithSeverity(body: string): boolean {
   const leading = body.split(/\r?\n/u)
     .find((line) => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line));
-  return leading !== undefined && severity(leading) !== null;
+  return leading !== undefined && LEADING_BADGE.test(leading) && severity(leading) !== null;
 }
 
 function severityOnMetadataLine(body: string, start: number): ReturnType<typeof severity> {
