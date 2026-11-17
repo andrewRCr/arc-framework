@@ -31,7 +31,9 @@ async function fixture() {
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), ["branch.base: main", "branch.protection: full",
     "session.remote_sync: disabled", `worktree.location_template: ${join(cwd, ".arc-checkouts", "{name}")}`, ""].join("\n"));
-  await writeFile(join(cwd, ".gitignore"), ".arc-checkouts/\n");
+  await writeFile(join(cwd, ".gitignore"), ".arc-checkouts/\n.arc/user/*/\n");
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
   await exec("git", ["add", "."]); await exec("git", ["commit", "-m", "Initialize preservation fixture"]);
   const remote = join(cwd, ".git/code-origin.git");
   await exec("git", ["init", "--bare", remote]);

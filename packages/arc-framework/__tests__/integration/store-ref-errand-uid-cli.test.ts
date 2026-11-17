@@ -25,6 +25,7 @@ import { makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
 import { acquireErrandCloseHeadLock } from "../../src/lib/errand/close-head-lock.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -36,7 +37,9 @@ async function fixture(protection = "full") {
   await exec("git", ["config", "arc.identity", "test-user"]);
   await mkdir(join(f.root, ".arc/system"), { recursive: true });
   await writeFile(join(f.root, ".arc/system/arc-config.yml"), `branch.base: main\nbranch.protection: ${protection}\nsession.remote_sync: disabled\n`);
-  await writeFile(join(f.root, ".gitignore"), ".arc-checkouts/\n.arc/system/.internal/\n.arc/user/\n");
+  await mkdir(join(f.root, ".arc/user"), { recursive: true });
+  await writeFile(join(f.root, ".arc/user/.npmignore"), "*\n");
+  await writeFile(join(f.root, ".gitignore"), ".arc-checkouts/\n.arc/system/.internal/\n.arc/user/*/\n");
   await exec("git", ["add", "."]); await exec("git", ["commit", "-m", "Configure Errand fixture"]);
   await exec("git", ["push", "-u", "origin", "main"]);
   const ref = f.reference("project-registry/identity"), content = f.content(ref);
@@ -79,6 +82,7 @@ async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true
     await f.exec("git", ["worktree", "add", "-b", branch, holder, "main"]);
     await writeWorktreeMarker(holder, { spawnedByArc: true, spawningIdentity: "test-user", createdAt: record.createdAt,
       parentCheckoutPath: f.root, createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
+    await seedImportedUserProjection(holder, f.store);
   }
   return { reference, holder, record, claimId, branch };
 }
@@ -120,6 +124,7 @@ it("refuses a clashed branch on the machine holding only the other Errand checko
   await f.exec("git", ["worktree", "add", selected.holder, selected.branch]);
   await writeWorktreeMarker(selected.holder, { spawnedByArc: true, spawningIdentity: "test-user", createdAt: selected.record.createdAt,
     parentCheckoutPath: f.root, createdFor: { kind: "errand", slug: "shared", claimId: selected.claimId }, provisioning: "ready" });
+  await seedImportedUserProjection(selected.holder, f.store);
   const repaired = await invoke(f, selected.holder, ["errand", "close", uidA, "--json"]);
   expect(repaired, JSON.stringify(repaired)).toMatchObject({ result: { outcome: "applied" } });
   expect(success(await f.store.read({ reference: other.reference })).placement?.kind).toBe("active");

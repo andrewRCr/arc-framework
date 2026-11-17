@@ -14,7 +14,7 @@ import { decodeGitQuotedText, parseGitWorktreePorcelainZ } from "./worktree-porc
 export const PROJECTION_LOCK_REASON = "arc: remove with 'arc teardown' (work unit) or 'arc errand close|abandon|leave' (Errand)";
 /** Projection hooks; dormant until the projection binds them. */
 export interface ProjectionRemovalSlots {
-  check: (checkout: string) => Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy } | { kind: "unobservable"; detail: string }>;
+  check: (checkout: string, disposition?: "remove" | "release") => Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy } | { kind: "unobservable"; detail: string }>;
   /** Repeat safely for the same checkout, including a terminal retry after release. */
   persist: (checkout: string) => Promise<{ kind: "persisted" } | { kind: "refused"; remedy: Remedy }>;
   /** Accept a stamped detached checkout; repeat safely after success or an ambiguous failure. */
@@ -55,7 +55,7 @@ export async function checkWorktreeRemoval(options: WorktreeRemovalOptions): Pro
       const paths = statusPaths(stdout);
       if (paths.length !== 0) return { kind: "refused", reason: "dirty", paths };
     }
-    const projection = await (options.check ?? passingProjectionRemovalSlots.check)(options.checkoutPath);
+    const projection = await (options.check ?? passingProjectionRemovalSlots.check)(options.checkoutPath, options.disposition);
     if (projection.kind === "would-refuse") return { kind: "refused", reason: "persist-would-refuse", remedy: projection.remedy };
     if (projection.kind === "unobservable") return { kind: "refused", reason: "unobservable", detail: projection.detail };
     return { kind: "removable" };

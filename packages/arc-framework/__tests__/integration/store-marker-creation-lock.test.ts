@@ -14,6 +14,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const filesystem = vi.hoisted(() => ({ write: vi.fn<typeof writeFile>(), native: null as typeof writeFile | null,
@@ -44,9 +45,11 @@ async function fixture(foreignLock = false, foreignOwner = false) {
   await f.exec("git", ["add", ".arc/system/arc-config.yml"]);
   await f.exec("git", ["commit", "-m", "Configure creation checkout"]);
   let original: Buffer | undefined;
+  let armed = true;
   const batch = async (input: Parameters<typeof h.store.batch>[0]) => {
     const result = await h.store.batch(input);
-    if (result.status !== "ok") return result;
+    if (result.status !== "ok" || !armed) return result;
+    armed = false;
     if (foreignOwner) {
       const current = await readWorktreeMarker(path);
       if (current.kind !== "present" || current.marker.provisioning !== undefined) throw new Error("Missing creation marker");
@@ -79,15 +82,16 @@ async function repaired(f: Awaited<ReturnType<typeof fixture>>): Promise<void> {
   const notes = join(f.path, ".arc/user/test-user/created/SESSION-NOTES.md");
   await mkdir(join(f.path, ".arc/user/test-user/created"), { recursive: true });
   await writeFile(notes, "Retain these personal notes.\n");
-  const version = lifecycleSuccess(await f.h.store.version());
+  const created = lifecycleSuccess(await f.h.store.lookup({ kind: "slug", slug: SlugSchema.parse("created") }));
+  const record = lifecycleSuccess(await f.h.store.read({ reference: created.reference }));
   const result = await repairCli({ ...f.f, cwd: f.path }, ["materialize", "created", "--here"], { store: f.store });
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
-  expect(lifecycleSuccess(await f.h.store.version())).toBe(version);
+  expect(lifecycleSuccess(await f.h.store.read({ reference: created.reference }))).toEqual(record);
   const marker = await readWorktreeMarker(f.path);
   expect(marker).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: "created", uid: expect.any(String) } } });
   expect(await readWorktreeLock(f.f.exec, f.path)).toBe(PROJECTION_LOCK_REASON);
   await expect(f.f.exec("git", ["worktree", "remove", f.path])).rejects.toThrow();
-  expect(await readFile(notes, "utf8")).toBe("Retain these personal notes.\n");
+  expect(parseStampedFile(await readFile(notes, "utf8")).content).toBe("Retain these personal notes.\n");
 }
 
 it.each([false, true])("reports a protected retained creation after a marker write fails, lock failure=%s", async lockFails => {

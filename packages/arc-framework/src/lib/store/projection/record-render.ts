@@ -21,7 +21,7 @@ export interface RenderedRecord {
   readonly protected?: boolean;
 }
 /** The command's store reads and shared historical answers. */
-export interface RecordRenderContext { readonly store: Store; readonly memo: HistoryMemo; readonly protection?: ProjectionProtection }
+export interface RecordRenderContext { readonly store: Pick<Store, "read">; readonly memo: HistoryMemo; readonly protection?: ProjectionProtection }
 /** Content to lay under a stored record's stamp, optionally already holding marker sets. */
 export interface RecordRenderInput {
   readonly record: StoreRecord;
@@ -34,8 +34,11 @@ export interface RecordRenderInput {
 export type RecordRenderer = (input: RecordRenderInput) => Promise<StoreResult<RenderedRecord>>;
 
 /** Bind store reads and one history memo for every rendering in a command. */
-export function createRecordRenderer(context: { store: Store; memo?: HistoryMemo; protection?: ProjectionProtection }): RecordRenderer {
-  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store) };
+export function createRecordRenderer(context: ({ store: Pick<Store, "read" | "history">; memo?: HistoryMemo }
+  | { store: Pick<Store, "read">; memo: HistoryMemo }) & { protection?: ProjectionProtection }): RecordRenderer {
+  const memo = context.memo ?? ("history" in context.store ? createHistoryMemo(context.store) : undefined);
+  if (memo === undefined) throw new Error("A projection source renderer needs the writable store’s history memo");
+  const bound = { ...context, memo };
   return input => renderRecordContent(bound, input);
 }
 
@@ -101,7 +104,7 @@ function layRenderedContent(input: RecordRenderInput, held: readonly HeldMarker[
 
 interface StoredConflict { readonly reference: RecordReference; readonly data: ConflictRecord }
 
-async function readConflicts(store: Store, references: readonly RecordReference[]): Promise<StoreResult<StoredConflict[]>> {
+async function readConflicts(store: Pick<Store, "read">, references: readonly RecordReference[]): Promise<StoreResult<StoredConflict[]>> {
   const result: StoredConflict[] = [];
   const sorted = [...references].sort((a, b) => compareTokens(a, b));
   for (const reference of sorted) {

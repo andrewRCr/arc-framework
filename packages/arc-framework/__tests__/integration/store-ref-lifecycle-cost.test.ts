@@ -65,10 +65,9 @@ describe.each([4, 8])("a no-op pull with %s held archive histories", (count) => 
         if (args.includes("cat-file")) for (const oid of h.companionOids) {
           companionReads += input.split("\n").filter((query) => query === oid).length;
         }
-        if (args.includes("diff-tree")) for (const tree of h.quarterTrees) {
-          enumerations.set(tree, (enumerations.get(tree) ?? 0) + input.split("\n").filter((row) => row.endsWith(` ${tree}`)).length);
-        }
-        return h.b.ports.rawExec(args, options);
+        const result = await h.b.ports.rawExec(args, options);
+        if (args.includes("cat-file")) countQuarterObjects(result.stdout, enumerations);
+        return result;
       },
     });
     const started = performance.now(), result = success(await measured.pull());
@@ -102,3 +101,16 @@ it("keeps an unchanged live-only pull free of lifecycle graph walks", async () =
   expect(logs).toBe(0);
   expect(success(await h.b.store.read({ reference: made.reference })).placement?.kind).toBe("active");
 });
+
+function countQuarterObjects(bytes: Uint8Array, counts: Map<string, number>): void {
+  for (let at = 0; at < bytes.length;) {
+    const end = bytes.indexOf(10, at);
+    if (end < 0) throw new Error("Missing native batch header");
+    const header = new TextDecoder().decode(bytes.subarray(at, end));
+    const match = /^([0-9a-f]+) (\w+) (\d+)$/u.exec(header);
+    if (!match) { at = end + 1; continue; }
+    const oid = match[1] ?? "";
+    if (match[2] === "tree" && counts.has(oid)) counts.set(oid, (counts.get(oid) ?? 0) + 1);
+    at = end + 1 + Number(match[3]) + 1;
+  }
+}

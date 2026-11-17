@@ -99,19 +99,23 @@ export type CopyCheck =
 export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "moved-on" | "sent" }>
   | { readonly kind: "edited"; readonly entry: RecordEntry; readonly bytes: Uint8Array; readonly blob: string };
 
+/** Read-only copy inputs, optionally carrying an opaque destination observation instead of traversing its ancestors. */
+export type AsideCopyChecking = Pick<AsideCopySettling, "checkout" | "path" | "entry" | "copy" | "format" | "takeIn" | "gate" | "keepEmpty">
+  & { readonly holding?: PathHolding };
+
 /**
  * Check one aside copy, taking in an edit it holds where its path has not moved on. The copy is read by `lstat` first,
  * so one that is not a file is never followed.
  * @param input - The copy, the file it was made of, and how to take an edit in.
  * @returns What the check found.
  */
-export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyCheck> {
+export async function checkAsideCopy(input: AsideCopyChecking): Promise<CopyCheck> {
   const observed = await observeAsideCopy(input);
   if (observed.kind !== "edited") return observed;
   const { checkout, path, copy } = input;
   const { entry, bytes, blob } = observed;
   // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
-  if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
+  if (hasPathMovedOn(copy, input.holding ?? await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
   const base = copyBase(copy, bytes, path.endsWith(".md"));
   const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering, observedEdit: true });
   if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };

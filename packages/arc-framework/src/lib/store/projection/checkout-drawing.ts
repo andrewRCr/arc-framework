@@ -1,4 +1,5 @@
 /** Install a checkout-only clash through the same guarded swap as a stored read-back. */
+import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -30,7 +31,7 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, drawing.record.conflicts) };
     context.report?.({ path: request.path, copy: null, mark: {
       reason: `The checkout clash could not be drawn: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
-    return { result: { answer: "pending", entry }, index: { ...index, entries: { ...index.entries, [request.path]: entry } } };
+    return { result: { answer: "pending", entry }, index: withProjectionEntry(index, request.path, entry) };
   }
   const takeIn = context.takeIn ?? createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
@@ -38,7 +39,7 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
     return { result: holdReadBack(context, request, sent.result, guarded),
-      index: { ...index, entries: { ...index.entries, [request.path]: guarded.entry } } };
+      index: withProjectionEntry(index, request.path, guarded.entry) };
   }
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index,
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,

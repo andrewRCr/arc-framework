@@ -87,8 +87,8 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     stat: await readStat(join(checkout, path)), written: gitBlobId(rendered(read.result.content), "sha1"),
     base: { blob, version: read.result.version }, markers: null, notices: [], unshown: [], protected: false,
     changed: false, pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
-  const index: ProjectionIndex = await commitProjectionIndex({ location, checkout, installing: new Set([path]), index: {
-    format: 1, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity, claim, layoutActive: "nested" },
+  const index: ProjectionIndex = await commitProjectionIndex({ location, checkout, index: {
+    format: 2, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity, claim, layoutActive: "nested" },
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];

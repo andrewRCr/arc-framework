@@ -115,7 +115,7 @@ it("leaves a changed file with native conflict markers out of selection checks",
   expect(checked.exitCode, checked.output).toBe(0);
   expect(JSON.parse(checked.output).result.checks).toMatchObject([{ outcome: "not selected", reason: "no files to check" }]);
   const { readProjectionIndex } = await import("../../src/lib/store/projection/index-file.js");
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("No checked projection");
   expect(disk.index.entries[companion]).toMatchObject({ changed: true, markers: expect.any(Object) });
 });

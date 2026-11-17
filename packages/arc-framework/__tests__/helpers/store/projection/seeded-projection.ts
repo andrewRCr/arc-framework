@@ -56,9 +56,9 @@ export async function seedProjection(input: {
   const state = await input.store.version();
   if (state.status !== "ok") throw new Error(`The store refused version(): ${state.refusal.code}`);
   const index = await commitProjectionIndex({
-    location, checkout, installing: new Set(Object.keys(entries)),
+    location, checkout,
     index: {
-      format: 1, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries,
+      format: 2, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries,
       projectedUnder: {
         view: { mode: "mine", pins: [] }, identity: input.identity ?? SlugSchema.parse("andrew"), claim: null,
         layoutActive: "nested",

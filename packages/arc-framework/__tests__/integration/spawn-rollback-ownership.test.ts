@@ -13,11 +13,13 @@ import { reconcileWorkUnitWorktree, nodeReconcileWorkUnitWorktreeFs } from "../.
 import { IncompleteWorktreePreparationError } from "../../src/lib/work-unit/incomplete-worktree-preparation.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
-import { resolveWorktreeMarkerPath, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
+import { beginProjectionCommand, projectionProcessState } from "../../src/lib/store/projection/process-state.js";
+
 let root: string | undefined;
-afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
+afterEach(async () => { beginProjectionCommand(); if (root !== undefined) await cleanupTempDir(root); root = undefined; });
 const TIMEOUT_MS = 30_000;
 async function fixture() {
   const cwd = root = await createTempRepo();
@@ -50,6 +52,25 @@ async function fixture() {
   const repair = () => exec("git", ["worktree", "remove", "--force", path]);
   return { ...h, cwd, exec, io, context, path, params, configure, changeClaim, retained, repair };
 }
+
+it("materializes a newly created work unit after binding its final marker", async () => {
+  const h = await fixture(); await h.configure();
+  projectionProcessState().materializeSpawn = async checkout => {
+    const marker = await readWorktreeMarker(checkout);
+    const subject = marker.kind === "present" ? marker.marker.createdFor : undefined;
+    if (subject?.kind !== "work-unit" || subject.uid === undefined) return;
+    await mkdir(join(checkout, ".arc/system/.local"), { recursive: true });
+    await writeFile(join(checkout, ".arc/system/.local/final-materialization"), subject.uid);
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo", new: true });
+  expect(await runCreateNew({ store: h.store, io: h.io, internalTemplateDir: "/templates" },
+    { name: input.name, worktreePath: h.cwd, identity: "starter" })).toMatchObject({ ok: true });
+  const listing = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
+  if (listing.status !== "complete") throw new Error("Missing created work unit");
+  const owner = listing.records[0]?.reference.owner;
+  if (owner?.type !== "work-item" || owner.uid === undefined) throw new Error("Missing created owner");
+  expect(await readFile(join(h.path, ".arc/system/.local/final-materialization"), "utf8")).toBe(owner.uid);
+}, TIMEOUT_MS);
 
 it("preserves a changed spawned graduation claim after batch refusal and graduates after owner repair", async () => {
   const h = await fixture();

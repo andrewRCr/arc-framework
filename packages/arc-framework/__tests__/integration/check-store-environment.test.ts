@@ -10,7 +10,8 @@ import { runDeclaredRequest, type DeclaredCheckDependencies, type DeclaredCheckR
 import { createCheckPassStore } from "../../src/lib/checks/record.js";
 import { runCheckProcess } from "../../src/lib/checks/process.js";
 import { gitExec, gitExecInput } from "../../src/lib/io-context.js";
-import { readReachDeclaration, selectReachCheck } from "../../src/lib/reach-check.js";
+import { createReachFiles, readReachDeclaration, selectReachCheck } from "../../src/lib/reach-check.js";
+import { selectReachSuites } from "../../src/lib/vitest-reach.js";
 
 const checkoutRoot = resolve(import.meta.dirname, "../../../..");
 const declarationPath = "packages/arc-framework/__tests__/reach/store-suites.json";
@@ -102,4 +103,16 @@ it("declares routed store selector values and a captured native duration file", 
     ...Object.fromEntries([reach.ask, ...reach.environment.map(entry => entry.variable)].map(name => [name, "value"])),
     ARC_TEST_DURATION_FILE: "file",
   });
+});
+
+it("runs every suite when the integration project's setup or the index check it loads changes", async () => {
+  const reach = await readReachDeclaration(join(checkoutRoot, declarationPath));
+  const config = await readFile(join(checkoutRoot, "packages/arc-framework/vitest.config.ts"), "utf8");
+  const setup = /name: "integration",\s*setupFiles: \[([^\]]*)\]/u.exec(config)?.[1];
+  expect(setup).toBeDefined();
+  const changed = [...setup!.matchAll(/"([^"]+)"/gu)].map(([, file]) => `packages/arc-framework/${file}`)
+    .concat("packages/arc-framework/__tests__/helpers/store/projection/index-schema-check.ts");
+  const selection = selectReachSuites(reach, createReachFiles(checkoutRoot), { form: "reach", changed, environment: {} });
+  expect(selection.reachedBy).toEqual(changed);
+  expect(selection.suites.length + selection.left.length).toBe(selection.total);
 });

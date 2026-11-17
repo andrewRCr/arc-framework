@@ -19,9 +19,14 @@ export interface MachineIdOptions {
   wait?: (milliseconds: number) => Promise<void>;
 }
 
+/** The clone-local machine-ID file an identity's labels are read from, under the clone's common Git directory. */
+export function machineIdPath(commonGitDir: string, identity: string): string {
+  return join(commonGitDir, "arc", "user", identity, ".internal", ".machine-id");
+}
+
 /** Read or exclusively create the configured identity's clone-local machine ID. */
 export async function getOrCreateMachineId(options: MachineIdOptions): Promise<string> {
-  const path = join(options.commonGitDir, "arc", "user", options.identity, ".internal", ".machine-id");
+  const path = machineIdPath(options.commonGitDir, options.identity);
   const existing = await readMachineIdFile(options.fs, path);
   if (existing) return existing;
   const candidate = await options.candidate?.() ?? randomUUID();
