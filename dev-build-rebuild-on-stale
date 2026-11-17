@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "dev-build-rebuild-on-stale",
+  "claimId": "6744c1c96a7e1e5f3b50a9e9d97effe9",
+  "createdAt": "2026-11-17T19:48:03.613Z",
+  "updatedAt": "2026-11-17T19:48:03.613Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Have the self-hosting dev CLI rebuild a stale bundle once and re-run the command, refusing only when the rebuild fails",
+  "branch": "fix/dev-build-rebuild-on-stale",
+  "origin": "inbox",
+  "originEntry": "Rebuild the self-hosting dev CLI instead of refusing when its build is stale",
+  "originEntrySourceDigest": "sha256:dee5c7c656d627bd48d6da6381b1bd2f4ac8e7b46200685465d9b440ac006f81",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
