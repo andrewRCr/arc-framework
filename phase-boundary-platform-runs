@@ -3,7 +3,7 @@
   "slug": "phase-boundary-platform-runs",
   "claimId": "6365c8b79b19026362c584cdca8b2983",
   "createdAt": "2026-11-17T15:10:55.238Z",
-  "updatedAt": "2026-11-17T15:10:55.238Z",
+  "updatedAt": "2026-11-17T17:44:25.271Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Write the Owner-decided phase-close Windows and macOS run rule into DEV-RULES.PROJECT's increment feedback section",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Run a phase's changed test files on hosted Windows and macOS at each phase boundary",
   "originEntrySourceDigest": "sha256:d05c36bcd3e6e3ddb0b92e75dcc7a917a4dee420fa913162093bd2d8efaa6fb0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/phase-boundary-platform-runs",
+    "headSha": "bef18816b826d896709c1e0dc16631bcdf956f6d"
+  }
 }
