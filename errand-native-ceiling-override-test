@@ -3,7 +3,7 @@
   "slug": "errand-native-ceiling-override-test",
   "claimId": "646b50b7b5397357deaa0ed4b76da381",
   "createdAt": "2026-11-17T04:14:19.011Z",
-  "updatedAt": "2026-11-17T04:14:19.011Z",
+  "updatedAt": "2026-11-17T12:56:36.339Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Prove resolve and status reuse a recorded ceiling override for an Errand through the native review store.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Cover a recorded ceiling override through an Errand's complete re-resolution on the native store",
   "originEntrySourceDigest": "sha256:7f1ab2581a6bd12538d582e2a2be3fe5502bba3826539001d3bd23dafadcabab",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-native-ceiling-override-test",
+    "headSha": "9a90044687ac4115a2766fbfe2b74121b2fbfffb"
+  }
 }
