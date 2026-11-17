@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "storage-cutover-member-count",
+  "claimId": "57268a3864f5f6f920079901346cac4e",
+  "createdAt": "2026-11-17T13:46:40.777Z",
+  "updatedAt": "2026-11-17T13:46:40.777Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Correct the storage-cutover stage map to count its seven members.",
+  "branch": "chore/storage-cutover-member-count",
+  "origin": "inbox",
+  "originEntry": "Correct the storage-cutover member count in the state-storage cohort record",
+  "originEntrySourceDigest": "sha256:721c617d8cd46b4883eb84e693ffde878d45387c79bff508970ef516d60cc37d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
