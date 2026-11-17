@@ -143,7 +143,7 @@ async function recordUnknownFiles(root: ProjectionRootState, initial: Projection
   let index = initial;
   for (const path of paths) {
     if (desired.has(path)) continue;
-    const refused = whole ? withheldProjectionMark() : evidenceHeldProjectionMark();
+    const refused = whole ? withheldProjectionMark(path) : evidenceHeldProjectionMark(path);
     index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat: await readStat(join(root.checkout, path)), refused });
     root.context.report?.({ path, copy: null, mark: refused });
   }

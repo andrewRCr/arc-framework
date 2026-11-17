@@ -9,12 +9,12 @@ const ownerless = (reason: string): Entry => ({ kind: "ownerless", withheld: tru
 
 describe("isEvidenceHeldEntry", () => {
   it("keys a held entry on its code, so reworded prose stays held", () => {
-    expect(isEvidenceHeldEntry(ownerless(evidenceHeldProjectionMark().reason))).toBe(true);
+    expect(isEvidenceHeldEntry(ownerless(evidenceHeldProjectionMark(".arc/active/current/notes-example.md").reason))).toBe(true);
     expect(isEvidenceHeldEntry(ownerless("evidence-held: Worded some other way."))).toBe(true);
   });
 
   it("never reads an ordinary withheld entry, or one no longer withheld, as held", () => {
-    expect(isEvidenceHeldEntry(ownerless(withheldProjectionMark().reason))).toBe(false);
-    expect(isEvidenceHeldEntry({ kind: "ownerless", stat: null, refused: evidenceHeldProjectionMark() })).toBe(false);
+    expect(isEvidenceHeldEntry(ownerless(withheldProjectionMark(".arc/active/current/notes-example.md").reason))).toBe(false);
+    expect(isEvidenceHeldEntry({ kind: "ownerless", stat: null, refused: evidenceHeldProjectionMark(".arc/active/current/notes-example.md") })).toBe(false);
   });
 });

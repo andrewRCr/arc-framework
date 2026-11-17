@@ -1,4 +1,5 @@
 /** Prepare one materialized file, trusting existing index evidence or a checked rebuild baseline. */
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -120,7 +121,7 @@ async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry)
 
 /** Keep a withheld file as it is, reporting its mark: the evidence-held one, or the ordinary withheld one. */
 function withhold(input: MaterializationFileInput, entry: ProjectionIndex["entries"][string]): MaterializationFileResult {
-  const mark = isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark() : withheldProjectionMark();
+  const mark = isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark(input.path) : withheldProjectionMark(input.path);
   input.root.context.report?.({ path: input.path, copy: null, mark });
   return { index: withProjectionEntry(input.index, input.path, { ...entry, refused: mark }) };
 }
@@ -129,10 +130,11 @@ function withhold(input: MaterializationFileInput, entry: ProjectionIndex["entri
 const EVIDENCE_HELD_CODE = "evidence-held:";
 
 /** A rebuild could not yet tell whether a stored record lays this path; a later rebuild with whole evidence settles it. */
-export function evidenceHeldProjectionMark(): RefusedMark {
+export function evidenceHeldProjectionMark(path: string): RefusedMark {
   return { reason: `${EVIDENCE_HELD_CODE} The projection could not yet tell whether a stored record lays this path.`,
     remedy: { text: "Resolve the condition reported with it, then run any arc command from the checkout holding this file; "
-      + "its rebuild settles the file, refreshing it where unedited. Or copy out anything wanted and delete the file." } };
+      + "its rebuild settles the file, refreshing it where unedited. Or copy out anything wanted and delete the file."
+      + archivedReapplyInstruction(path) } };
 }
 
 /** A file a rebuild withheld under the held mark, never one awaiting a minted stub; only this mark lets a rebuild settle it. */
@@ -146,13 +148,20 @@ export function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string
   let settled = index;
   for (const [path, entry] of Object.entries(index.entries)) {
     if (!isEvidenceHeldEntry(entry) || laid.has(path)) continue;
-    settled = withProjectionEntry(settled, path, { ...entry, refused: withheldProjectionMark() });
+    settled = withProjectionEntry(settled, path, { ...entry, refused: withheldProjectionMark(path) });
   }
   return settled;
 }
 
 /** A rebuild cannot establish that these bytes contain no hand edit. */
-export function withheldProjectionMark(): RefusedMark {
+export function withheldProjectionMark(path: string): RefusedMark {
   return { reason: "withheld: The projection has no trustworthy basis for this file.",
-    remedy: { text: "Copy out anything wanted, then delete the withheld file and reapply the edit after it is projected again." } };
+    remedy: { text: path.startsWith(".arc/completed/")
+      ? `Copy out anything wanted, then delete the withheld file. Once it is projected again, run arc edit ${renderRemedyArgument(path)} before reapplying the edit.`
+      : "Copy out anything wanted, then delete the withheld file and reapply the edit after it is projected again." } };
+}
+
+function archivedReapplyInstruction(path: string): string {
+  return path.startsWith(".arc/completed/")
+    ? ` Once projected again, run arc edit ${renderRemedyArgument(path)} before reapplying any saved correction.` : "";
 }

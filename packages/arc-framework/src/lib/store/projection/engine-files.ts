@@ -15,6 +15,7 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 import { adoptProjectionFile } from "./adoption.js";
 import { resumeAdoptionReadBack } from "./adoption-read-back.js";
+import { withheldProjectionMark } from "./materialization-file.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
@@ -102,7 +103,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
-    report(path, "withheld", "Copy out anything wanted and delete the withheld file before retrying.");
+    root.context.report?.({ path, copy: null, mark: withheldProjectionMark(path) });
     return { index, edited: false };
   }
   await root.checkpoint?.();
@@ -187,7 +188,4 @@ function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): Pr
 function checkoutResolution(checkout: string): ProjectionResolution | null {
   const state = projectionProcessState();
   return state.command?.checkout === checkout ? state.resolution : null;
-}
-function report(path: string, reason: string, remedy: string): void {
-  projectionProcessState().diagnostics.push({ path, copy: null, mark: { reason, remedy: { text: remedy } } });
 }

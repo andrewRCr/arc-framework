@@ -61,7 +61,7 @@ async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: 
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { root, index } = input;
   const entry = index.entries[path];
-  if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(), input.disposition);
+  if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(path), input.disposition);
   if (entry?.kind !== "record") return checkProjectionAdoption(root, index, path, guard, input.disposition);
   const recording = unfinishedRecordingRefusal(entry);
   if ((recording !== null || entry.adoption?.kind === "read-back")

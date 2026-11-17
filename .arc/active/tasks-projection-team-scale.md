@@ -166,31 +166,16 @@ names it.
 - _Outcome:_ Re-locking runs before refresh inside the saving checkout's existing lease. Landing, adoption, ordinary
   pickup, interrupted commands, concurrent editor saves, and repair retries share that settlement decision.
 
-### `[ ]` **2.5 A refresh's pickup of a forced edit, and the rebuild over a lost index — § 7.1**
+### `[x]` **2.5 A refresh's pickup of a forced edit, and the rebuild over a lost index — § 7.1**
 
 - _Goal:_ A refresh that touches a forced edit takes it in and lays the file read-only again, and a start that rebuilds
   an index lost between `arc edit` and `arc save` withholds an opened file holding an edit, naming `arc edit` in its
   remedy, and lays an unedited one read-only, so neither path skips an archived edit silently.
 
-    - The refresh's pickup is the replace guard's take-in of an edit it meets (`guardReplacement`), with 1.3's lay mode
-      laying the unopened file read-only; an edit its rights refuse is refused there and stays in its file.
-    - The rebuild is the full materialization into a worktree with no usable index (`materializeProjectionRoot`), whose
-      withheld mark (`withheldProjectionMark`, `materialization-file.ts`) covers an opened file holding an edit, since
-      the rebuilt index carries no opened mark to read. Where its evidence is not whole, a file at a path it cannot
-      place is held instead (`recordUnknownFiles`, `materialization.ts`), and the next rebuild with whole evidence
-      settles it (`settleHeldMarks`; `settleEvidenceHeldFile`, `refresh.ts`).
-    - For a file under `completed/`, laid read-only again, the remedy names `arc edit <path>` before re-applying the
-      edit: `withheldProjectionMark` and `evidenceHeldProjectionMark` (`materialization-file.ts`), which take the path,
-      and the start's report of a withheld file (`engine-files.ts`).
-
-    - Build `test-first` (one behavior at a time):
-        - a refresh touching a forced edit takes it in and lays the file read-only (Success Criterion 5)
-        - a refresh touching another person's archived file changed in place refuses the edit and leaves it in its file
-        - the index lost between `arc edit` and `arc save`, the rebuild's evidence whole: the next start withholds an
-          opened file holding an edit, names it with a remedy naming `arc edit`, and lays an unedited one read-only;
-          once the withheld file is deleted, opened again, and its edit re-applied, `arc save` lands it (§ 9.2 test 10)
-        - the same with the rebuild's evidence not whole: the opened file is held, and once the condition is repaired
-          the next start withholds it, after which the same repair lands it (§ 9.2 test 10)
+- _Outcome:_ Withheld and evidence-held remedies take the affected path and name `arc edit` before reapplying an
+  archived correction. Command-start reporting uses the same withheld remedy. Rebuild tests cover complete and
+  incomplete evidence, preserved corrections, closed unedited files, and repair through a successful save; refresh
+  coverage retains forced edits under their owner's rights and lays accepted corrections read-only.
 
 ### `[ ]` **2.6 The scale benchmark — Success Criterion 1**
 

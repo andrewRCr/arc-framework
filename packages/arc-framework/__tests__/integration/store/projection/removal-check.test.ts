@@ -379,7 +379,7 @@ it("holds a file withheld by a real index rebuild until its bytes are copied out
   expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [target.h.path]: { withheld: true } },
   } });
-  const withheld = withheldProjectionMark();
+  const withheld = withheldProjectionMark(target.h.path);
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy: {
     text: `${target.h.path} in ${target.checkout} blocks removal: ${withheld.reason} ${withheld.remedy.text} Then retry removal.` } });
   await rm(join(target.checkout, target.h.path));
@@ -397,7 +397,7 @@ it("holds a file a no-index rebuild could not place under its held remedy and pa
   await endProjection(held);
   expect(await readProjectionIndex(target.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     state: null, entries: { [target.h.path]: { kind: "ownerless", withheld: true } } } });
-  const mark = evidenceHeldProjectionMark();
+  const mark = evidenceHeldProjectionMark(target.h.path);
   expect(mark.remedy.text).toContain("run any arc command from the checkout holding this file");
   const remedy = { text: `${target.h.path} in ${target.checkout} blocks removal: ${mark.reason} ${mark.remedy.text} Then retry removal.` };
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "would-refuse", remedy });

@@ -17,7 +17,7 @@ export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry:
 /** Compose the existing path, protection, and adoption readers, stopping before store admission. */
 export async function inspectProjectionEditPath(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionEditInspection> {
   const entry = index.entries[path];
-  if (entry?.withheld) return refuse(isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark() : entry.refused ?? withheldProjectionMark());
+  if (entry?.withheld) return refuse(isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark(path) : entry.refused ?? withheldProjectionMark(path));
   const gate = await readEditFile(root, path, entry?.kind === "record");
   if (gate.kind === "refused") return gate;
   if (entry?.kind === "record") {

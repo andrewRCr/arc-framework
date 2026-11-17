@@ -318,7 +318,7 @@ describe("projected checkout release", () => {
     const disk = await readProjectionIndex(h.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("No projection index");
     await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
-      [path]: { ...entry, withheld: true, refused: withheldProjectionMark() } } });
+      [path]: { ...entry, withheld: true, refused: withheldProjectionMark(path) } } });
     await rm(join(h.checkout, path));
     expect(await checkProjectionRemoval(h.checkout, { store: h.store, identity: SlugSchema.parse("test-user") }, "release")).toEqual({ kind: "passes" });
     expect(await h.release()).toEqual({ kind: "released" });
@@ -330,7 +330,7 @@ describe("projected checkout release", () => {
     const disk = await readProjectionIndex(h.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("No projection index");
     await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
-      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark() } } });
+      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark(h.path) } } });
     await rm(join(h.checkout, h.path));
     const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
     await writeFile(excludes, ".arc/\n");
@@ -348,7 +348,7 @@ describe("projected checkout release", () => {
     const disk = await readProjectionIndex(h.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("No projection index");
     await writeProjectionIndex(h.location, { ...disk.index, entries: { ...disk.index.entries,
-      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark() } } });
+      [h.path]: { ...h.entry, withheld: true, refused: withheldProjectionMark(h.path) } } });
     await rm(join(h.checkout, h.path));
     const excludes = join(h.root, ".git/info/exclude"), original = await readFile(excludes);
     await writeFile(excludes, ".arc/\n");
