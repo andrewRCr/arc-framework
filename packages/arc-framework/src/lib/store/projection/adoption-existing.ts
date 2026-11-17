@@ -10,7 +10,8 @@ import { commitProjectionIndex } from "./index-file.js";
 /** Retain exact stored authority and the observed file while its first ordinary hand edit remains unsent. */
 export function attachExistingProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string,
   record: StoreRecord, read: TakeInRead): Promise<ProjectionIndex> {
-  const entry = existingProjectionEntry(record, read, root.context.format);
+  const entry = { ...existingProjectionEntry(record, read, root.context.format),
+    ...(index.entries[path]?.opened === true ? { opened: true as const } : {}) };
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
 }

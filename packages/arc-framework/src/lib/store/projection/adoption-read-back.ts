@@ -16,7 +16,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
   accepted: WriteResult, content: string, read: TakeInRead): Promise<ProjectionIndex> {
   if (accepted.version === undefined) throw new Error("An accepted content creation returned no version");
-  const entry: RecordEntry = { kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
+  const entry: RecordEntry = { ...(index.entries[path]?.opened === true ? { opened: true as const } : {}), kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
     base: { blob: gitBlobId(content, root.context.format), version: accepted.version }, markers: null, notices: [],
     unshown: accepted.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
     persisted: null, inProgress: null, copies: [], adoption: { kind: "read-back", read } };

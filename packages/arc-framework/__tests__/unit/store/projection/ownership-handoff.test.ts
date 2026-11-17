@@ -100,18 +100,18 @@ it("holds an arrival path that is not a regular file with its own remedy, then c
   expect(confirmed.entries[h.path]).toMatchObject({ reference: h.arrival.reference, pending: false, withheld: false });
 });
 
-it("keeps a deleted arrival's changed mark for the retried installation", async () => {
+it.each(["changed", "opened"] as const)("keeps a deleted arrival's %s mark for the retried installation", async mark => {
   const h = await createHandoffFixture("txt");
   fixtures.push(h);
-  const journal = { ...h.index, entries: { [h.path]: { ...h.entry, pending: true, withheld: true, handoff: { ...h.arrival, changed: true } } } };
+  const journal = { ...h.index, entries: { [h.path]: { ...h.entry, pending: true, withheld: true, handoff: { ...h.arrival, [mark]: true } } } };
   await writeProjectionIndex(h.location, journal);
   await rm(join(h.checkout, h.path));
   const recovered = await reconcileProjectionHandoffs(h.root, journal);
-  expect(recovered.entries[h.path]).toMatchObject({ reference: h.entry.reference, changed: false, arrivingChanged: h.arrival.reference });
+  expect(recovered.entries[h.path]).toMatchObject({ reference: h.entry.reference, changed: false, [mark === "changed" ? "arrivingChanged" : "arrivingOpened"]: h.arrival.reference });
   const installed = await installProjectionHandoff({ root: h.root, index: recovered, path: h.path, record: h.record,
     arriving: projectionEntryForRecord(h.record, h.path, "sha1"), renderer: h.context.renderer });
   const confirmed = await reconcileProjectionHandoffs(h.root, installed);
-  expect(confirmed.entries[h.path]).toMatchObject({ reference: h.arrival.reference, changed: true, pending: false });
+  expect(confirmed.entries[h.path]).toMatchObject({ reference: h.arrival.reference, [mark]: true, pending: false });
 });
 
 it.each(["changed-in-place", "same-bytes-new-inode"] as const)("withholds and reports both identities for %s", async mode => {

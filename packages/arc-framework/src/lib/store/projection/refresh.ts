@@ -110,7 +110,10 @@ async function prepareLaidPaths(base: Omit<IndexedFileInput, "index" | "path" | 
   let index = initial, unresolved = false;
   const files: SwapFile[] = [], marked = new Set<string>();
   for (const [path, target] of laid) {
-    const prepared = await prepareIndexedFile({ ...base, index, path, target });
+    const opened = moved.get(path)?.some(old => index.entries[old]?.opened === true) === true;
+    const prior = index.entries[path];
+    if (opened && prior?.kind === "record") index = withProjectionEntry(index, path, markArrivingRecord(prior, target, true));
+    const prepared = await prepareIndexedFile({ ...base, index, path, target, ...(opened ? { opened: true } : {}) });
     const carried = moved.has(path) ? markMovedPath(prepared, path, target) : null;
     if (carried !== null) marked.add(path);
     const result = carried ?? prepared;
@@ -162,6 +165,7 @@ interface IndexedFileInput {
   readonly path: string;
   readonly target: RecordReference;
   readonly rebuilding: boolean;
+  readonly opened?: true;
 }
 
 type IndexedFileResult = { index: ProjectionIndex; file?: SwapFile; unresolved: boolean };
@@ -186,7 +190,7 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
   }
   if (prior?.kind === "record" && !sameReference(prior.reference, read.result.reference)) {
     return { ...await prepareMaterializationFile({ root, index, path, record: read.result, renderer: input.renderer,
-      rebuilding: false, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: true };
+      rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: true };
   }
   if (root.unsent.has(path)) return { index: withProjectionEntry(index, path,
     { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) }), unresolved: false };
@@ -230,5 +234,5 @@ async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, r
     }
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: input.index, path, record, renderer: input.renderer,
-    rendered, rebuilding: false, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
+    rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
 }

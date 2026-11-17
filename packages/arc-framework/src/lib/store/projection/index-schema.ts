@@ -97,11 +97,11 @@ const RecordBasisSchema = z.strictObject({
 
 /**
  * A path retains its leaving basis and, during exclusive installation, one complete arriving basis. A record a refresh
- * moves here with its changed mark, before its arrival can be journaled, is named in `arrivingChanged` until the
- * installation carries the mark onto that arrival.
+ * moves here with changed or opened state, before its arrival can be journaled, is named in `arrivingChanged` or
+ * `arrivingOpened` until installation carries that state onto the arrival.
  */
 export const RecordEntrySchema = RecordBasisSchema.extend({ handoff: RecordBasisSchema.optional(),
-  arrivingChanged: RecordReferenceSchema.optional() });
+  arrivingChanged: RecordReferenceSchema.optional(), arrivingOpened: RecordReferenceSchema.optional() });
 
 /** The exact accepted creation retained until its metadata basis can be read. */
 const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>

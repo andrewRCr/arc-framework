@@ -376,7 +376,7 @@ it("keeps a held handoff's ownership mark through a later start's refresh, never
   await endProjection(command);
 });
 
-it("carries a moved record's changed mark onto a path another record is vacating", async () => {
+it.each(["changed", "opened"] as const)("carries a moved record's %s mark onto a path another record is vacating", async mark => {
   const h = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
   directories.push(h.f.root);
   const command = { checkout: h.f.root, store: h.f.store };
@@ -393,7 +393,7 @@ it("carries a moved record's changed mark onto a path another record is vacating
     const entry = read.index.entries[from];
     if (entry?.kind !== "record") throw new Error("Missing moving entry");
     await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
-      index: withProjectionEntry(read.index, from, { ...entry, changed: true }) });
+      index: withProjectionEntry(read.index, from, { ...entry, changed: mark === "changed", ...(mark === "opened" ? { opened: true as const } : {}) }) });
   });
   expect(await runCohortRename(h.f.store, leaving, { operand: "group", targetSlug: "root" })).toMatchObject({ status: "renamed" });
   const owner = moving.reference.owner, uid = owner.type === "person" ? undefined : owner.uid;
@@ -408,11 +408,11 @@ it("carries a moved record's changed mark onto a path another record is vacating
   const index = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   if (index.kind !== "index") throw new Error("Missing index");
   const arrived = index.index.entries[path];
-  expect(arrived).toMatchObject({ kind: "record", changed: true, reference: { owner: { uid } } });
+  expect(arrived).toMatchObject({ kind: "record", [mark]: true, reference: { owner: { uid } } });
   expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
 }, 30_000);
 
-it("confirms an unmarked arrival at a path whose leaving record carries a changed mark, and moves that mark with its record", async () => {
+it.each(["changed", "opened"] as const)("keeps a leaving record's %s mark separate from an unmarked arrival", async mark => {
   const h = await reusedPathFixture(false), command = { checkout: h.f.root, store: h.f.store };
   await withProjectionLock(h.projected.location, async session => {
     const read = await readProjectionIndex(h.projected.location, true, { groups: "all" });
@@ -420,7 +420,7 @@ it("confirms an unmarked arrival at a path whose leaving record carries a change
     const entry = read.index.entries[h.path];
     if (entry?.kind !== "record") throw new Error("Missing leaving entry");
     await commitProjectionIndex({ location: h.projected.location, checkout: h.f.root, checkpoint: session.step,
-      index: withProjectionEntry(read.index, h.path, { ...entry, changed: true }) });
+      index: withProjectionEntry(read.index, h.path, { ...entry, changed: mark === "changed", ...(mark === "opened" ? { opened: true as const } : {}) }) });
   });
   await h.receive();
   for (let round = 0; round < 3; round++) {
@@ -431,8 +431,9 @@ it("confirms an unmarked arrival at a path whose leaving record carries a change
   if (index.kind !== "index") throw new Error("Missing index");
   const arrived = index.index.entries[h.path];
   expect(arrived).toMatchObject({ kind: "record", changed: false, reference: { owner: { uid: "00000000-0000-4000-8000-000000000099" } } });
+  expect(arrived?.opened).toBeUndefined();
   expect(arrived?.kind === "record" ? arrived.handoff : null).toBeUndefined();
-  expect(index.index.entries[".arc/backlog/planned/root/cohort-root.md"]).toMatchObject({ kind: "record", changed: true });
+  expect(index.index.entries[".arc/backlog/planned/root/cohort-root.md"]).toMatchObject({ kind: "record", [mark]: true });
 }, 30_000);
 
 /** Run commands until the arrival at a reused path is installed and confirmed, then check it and the anchor. */

@@ -42,6 +42,7 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
     root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
     return withProjectionEntry(input.index, path, { ...previous, pending: true });
   }
+  const opened = input.arriving.opened === true || (previous.arrivingOpened !== undefined && sameReference(previous.arrivingOpened, record.reference));
   const staged = await stageRecordFile({ checkout: root.checkout, path, record, renderer: input.renderer,
     replacing: previous.base.blob, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
   if (staged.status === "refused") {
@@ -53,7 +54,7 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   if (stat === null) throw new Error(`Staged ownership arrival disappeared: ${path}`);
   // A refresh that moved this record here while the leaving bytes remained parked its changed mark on the leaving entry.
   const changed = input.arriving.changed || (previous.arrivingChanged !== undefined && sameReference(previous.arrivingChanged, record.reference));
-  const arriving: RecordEntry = { ...input.arriving, changed, stat, written: staged.result.written, base: staged.result.base,
+  const arriving: RecordEntry = { ...input.arriving, ...(opened ? { opened: true as const } : {}), changed, stat, written: staged.result.written, base: staged.result.base,
     markers: staged.result.rendering?.markers ?? null, notices: staged.result.rendering?.notices ?? [],
     unshown: staged.result.rendering?.unshown ?? record.conflicts, protected: staged.result.rendering?.protected ?? false };
   const journaled = { ...previous, handoff: arriving, pending: true, withheld: true };

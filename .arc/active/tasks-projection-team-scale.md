@@ -20,7 +20,7 @@ code lands with that phase. Tests run as the projection's do, over the reference
 worktrees, on Linux and in the portability lane (spec § 1.1). The opened mark's lifecycle and each § 9.1 step pair is
 assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecycle rows).
 
-### `[ ]` **1.1 The opened mark and the index's format version — § 4**
+### `[x]` **1.1 The opened mark and the index's format version — § 4**
 
 - _Goal:_ An opened file is recorded on its entry in its own worktree's index and makes that entry unsettled, so every
   start finds it among the partitions the header marks; the mark survives adoption and a moved path; and a build
@@ -36,29 +36,10 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
         - Format 3 records opened state; materialization and test fixtures use the shared format constant. Format-2
           indexes stay untouched by fan-out and command end, and rebuild at the next start.
 
-    - `[ ]` **1.1.c Adoption and a moved path keep the mark**
-        - `recordAdoptionAcceptance` (`adoption-read-back.ts`) and `attachExistingProjectionFile`
-          (`adoption-existing.ts`) carry the opened mark over from the entry they replace, the latter around
-          `existingProjectionEntry`, which the removal check also builds through; `refuse` (`adoption.ts`) carries it
-          already through its spread of the ownerless entry.
-        - A refresh that moves an opened record's file to a new path carries the mark through the changed mark's
-          carriers (spec § 4). `movedProjectionChanges` (`refresh-removals.ts`) takes opened records too, so the old
-          path is held back from removal until the new path takes the mark (`settleMovedPaths`, `refresh.ts`). The
-          mark is put on the new path's entry before the file is staged (`prepareIndexedFile`, `refresh.ts`;
-          `prepareMaterializationFile`, `materialization-file.ts`), so the lay mode reads it, where
-          `applyProjectionRefresh` (`refresh.ts`) sets the changed mark only after staging. At a path another record
-          still leaves, it is parked on the leaving entry beside `arrivingChanged` (`markArrivingRecord`,
-          `changed-mark.ts`) and put on the arrival before `installProjectionHandoff` (`ownership-install.ts`) stages
-          it; and where `reconcilePath` (`ownership-handoff.ts`) withdraws that arrival before confirming it, the mark
-          is parked again.
-        - Build `test-first` (one behavior at a time):
-            - an opened new file's acceptance and an attach to an existing record each keep the mark, and a refused
-              adoption keeps it
-            - a refresh that moves an opened record's path keeps the mark on the new path's entry, and on the
-              arriving entry where that path is reused, once the handoff reconciles
-            - at a reused path whose installation defers, the mark stays parked on the leaving entry, and where the
-              arrival is withdrawn before it is confirmed, the mark is parked again and the retried installation
-              carries it
+    - `[x]` **1.1.c Adoption and a moved path keep the mark**
+        - Adoption acceptance and attachment retain opened state. A refresh carries it before staging the new path,
+          defers the old path until that state has a carrier, and parks it by record identity at a reused path;
+          installation and withdrawal preserve it through retries without opening a different arriving record.
 
 ### `[ ]` **1.2 `arc edit` — § 3**
 

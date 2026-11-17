@@ -1,8 +1,6 @@
 /**
- * The changed mark's carriers at one path. A record this checkout wrote or moved is marked where the next step reads
- * it: the entry's own `changed`; a journaled arrival's `handoff.changed`, which its confirmation keeps; or, while
- * another record still leaves the path and no arrival is journaled, the leaving entry's `arrivingChanged`, which the
- * installation carries onto the arrival.
+ * Changed and opened state follows its record: on its own entry, on a journaled arrival, or parked beside the
+ * leaving entry until the arrival can be installed.
  */
 import { sameReference, type RecordReference } from "../identity.js";
 import type { RecordEntry } from "./index-schema.js";
@@ -16,7 +14,12 @@ export function markRecordChanged(entry: RecordEntry, reference: RecordReference
   return null;
 }
 
-/** Mark a record arriving at an entry's path, parking the mark on the leaving entry until the arrival is installed. */
-export function markArrivingRecord(entry: RecordEntry, reference: RecordReference): RecordEntry {
-  return markRecordChanged(entry, reference) ?? { ...entry, arrivingChanged: reference };
+/** Mark an arriving record changed and optionally opened, parking its state until installation where needed. */
+export function markArrivingRecord(entry: RecordEntry, reference: RecordReference, opened = false): RecordEntry {
+  const changed = markRecordChanged(entry, reference) ?? { ...entry, arrivingChanged: reference };
+  if (!opened) return changed;
+  if (changed.handoff !== undefined && sameReference(changed.handoff.reference, reference)) {
+    return { ...changed, handoff: { ...changed.handoff, opened: true } };
+  }
+  return sameReference(changed.reference, reference) ? { ...changed, opened: true } : { ...changed, arrivingOpened: reference };
 }

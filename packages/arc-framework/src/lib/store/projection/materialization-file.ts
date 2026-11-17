@@ -28,6 +28,8 @@ export interface MaterializationFileInput {
   readonly record: StoreRecord;
   readonly renderer: RecordRenderer;
   readonly rebuilding: boolean;
+  /** Opened state carried from the obsolete path of this same record. */
+  readonly opened?: true;
   /** A standing conflicted view; guard restaging still uses the live renderer. */
   readonly rendered?: RenderedRecord;
   readonly reference: bigint | null;
@@ -57,8 +59,11 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   if (prior?.withheld) return withhold(input, prior);
   let entry = prior?.kind === "record" ? prior : projectionEntryForRecord(record, path, root.context.format);
   if (prior?.kind === "record" && !sameReference(prior.reference, record.reference)) {
-    return { index: await installProjectionHandoff({ ...input, arriving: projectionEntryForRecord(record, path, root.context.format) }) };
+    const arriving = { ...projectionEntryForRecord(record, path, root.context.format),
+      ...(input.opened ? { opened: true as const } : {}) };
+    return { index: await installProjectionHandoff({ ...input, arriving }) };
   }
+  if (input.opened === true) entry = { ...entry, opened: true };
   // A path at or below a walked link waits for the link's own report and remedy; its file lives elsewhere.
   if (input.blocked) return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }) };
   if (input.rebuilding) entry = await rebuildBasis(input, entry);

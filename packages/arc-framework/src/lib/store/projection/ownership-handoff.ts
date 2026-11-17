@@ -80,7 +80,8 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
     const leaving = { ...entry };
     delete leaving.handoff;
     // A marked arrival withdrawn before confirmation parks its mark for the retried installation.
-    return { ...leaving, ...arriving.changed ? { arrivingChanged: arriving.reference } : {}, stat: null, pending: true,
+    return { ...leaving, ...arriving.changed ? { arrivingChanged: arriving.reference } : {},
+      ...arriving.opened ? { arrivingOpened: arriving.reference } : {}, stat: null, pending: true,
       withheld: false, refused: null };
   }
   // A save still settling, a read that failed, or a stat that moved during the read waits for the next reconciliation.

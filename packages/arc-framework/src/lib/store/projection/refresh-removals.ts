@@ -18,7 +18,7 @@ export function movedProjectionChanges(index: ProjectionIndex, plan: ProjectionR
   const moved = new Map<string, string[]>();
   for (const path of plan.removals) {
     const entry = index.entries[path];
-    if (entry?.kind !== "record" || !entry.changed) continue;
+    if (entry?.kind !== "record" || (!entry.changed && entry.opened !== true)) continue;
     for (const [target, reference] of plan.paths) {
       if (laid.has(target) && sameReference(entry.reference, reference)) moved.set(target, [...moved.get(target) ?? [], path]);
     }
