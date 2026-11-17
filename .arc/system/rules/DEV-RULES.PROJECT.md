@@ -93,9 +93,9 @@ The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2
 starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
 <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
 with none of the diagnostic inputs set, recorded by run id in the verification commit body: `portability_timing_only`
-skips the build, lint, type-check, unit, integration, store, and E2E jobs, `store_per_change` narrows the store run to
-its per-change form, and `portability_files` runs only the named files on the Windows/macOS pair, so each such run
-passes for its own purpose and attests nothing. Dispatch again after any later code change; planning-only commits need
+runs only the Windows and macOS timing job, `store_per_change` narrows the store run to its per-change form, and
+`portability_files` runs only the named files on the Windows/macOS pair, so each such run passes for its own purpose and
+attests nothing. Dispatch again after any later code change; planning-only commits need
 no new run.
 
 ### Test execution
