@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-removal-suite-selection",
+  "claimId": "3c8c0acd5ef7a4faafc51ca4ed125900",
+  "createdAt": "2026-11-17T02:59:49.284Z",
+  "updatedAt": "2026-11-17T02:59:49.284Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add the retirement, teardown, park, abandon and locus suites to the hosted Windows/macOS portability selection and fix what fails there",
+  "branch": "chore/windows-removal-suite-selection",
+  "origin": "inbox",
+  "originEntry": "Run every retirement, teardown and park suite on hosted Windows",
+  "originEntrySourceDigest": "sha256:f31896da80c98767d122b6eae6be90cbcbc2655309011e08d2041fa9a90a7b36",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
