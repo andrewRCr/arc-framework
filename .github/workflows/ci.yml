@@ -924,7 +924,7 @@ jobs:
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
-  # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by its own
+  # Setup supplies the shared invocation forecast. Each OS divides the tier across seven shards balanced by its own
   # recorded durations once a full run has saved them, and by the integration durations until then; a timing-only or
   # named-files run needs one job per OS.
   portability-cross-platform:
@@ -941,8 +941,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
-        shard: [1, 2, 3, 4, 5, 6]
-        exclude: ${{ fromJSON((inputs.portability_timing_only || inputs.portability_files) && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6}]' || '[]') }}
+        shard: [1, 2, 3, 4, 5, 6, 7]
+        exclude: ${{ fromJSON((inputs.portability_timing_only || inputs.portability_files) && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6},{"shard":7}]' || '[]') }}
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1076,14 +1076,14 @@ jobs:
       with:
         pattern: portability-results-${{ matrix.os }}-*
         path: portability-results
-    # Six is the portability job's shard count; a shard that never reached its tests leaves no results file.
+    # Seven is the portability job's shard count; a shard that never reached its tests leaves no results file.
     - name: Require every shard's results
       id: complete
       shell: bash
       run: |
         reported="$(find portability-results -path '*/vitest/*' -name results.json | wc -l)"
-        echo "Shards reporting results: $reported of 6"
-        echo "complete=$([ "$reported" -eq 6 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        echo "Shards reporting results: $reported of 7"
+        echo "complete=$([ "$reported" -eq 7 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
     - name: Merge disjoint duration memberships
       if: ${{ steps.complete.outputs.complete == 'true' }}
       run: >-

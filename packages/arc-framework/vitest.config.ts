@@ -66,7 +66,8 @@ const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
 const timingTests = ["__tests__/integration/store-ref-timing.test.ts", "__tests__/integration/store-ref-projection-timing.test.ts"];
-const burstTests = ["__tests__/integration/store-ref-bursts.test.ts", "__tests__/integration/store-ref-projection-bursts.test.ts"];
+const burstTests = ["__tests__/integration/store-ref-bursts.test.ts", "__tests__/integration/store-ref-projection-bursts-default.test.ts",
+  "__tests__/integration/store-ref-projection-bursts-separate.test.ts"];
 const integrationTest = {
   root: packageRoot,
   ...(integrationRunRoot === undefined ? {} : { env: { TMPDIR: integrationRunRoot } }),
