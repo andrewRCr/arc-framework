@@ -7,7 +7,8 @@ import { ChangeRequestResolveResultSchema } from "../../src/scripts/review-gate/
 import { ReviewStatusCommandResultSchema } from "../../src/scripts/review-gate/status.js";
 import { LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { parseNativeReviewOperationReference } from "../../src/scripts/review-gate/core/review-operation-reference.js";
-import { handleReviewChangeRequestResolve, handleReviewStatus, handleReviewTerminusAccept, handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest } from "../../src/handlers/review.js";
+import { handleReviewChangeRequestResolve, handleReviewStatus, handleReviewTerminusAccept, handleReviewLocalPrepare,
+  handleReviewLocalResume, handleReviewLocalAttest, handleReviewResolve } from "../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
@@ -19,6 +20,18 @@ import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidat
 import { projectDeliveryPublicReviewContinuation } from "../../src/lib/delivery/public-review-continuation.js";
 import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { localReviewResult } from "../helpers/in-process-review.js";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { ReviewResolveEnvelopeSchema } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
+import { projectStandardReviewObligation } from "../../src/scripts/review-gate/policy/standard-review-projection.js";
+import { resolveReviewRouting } from "../../src/scripts/review-gate/policy/routing.js";
+import { hostedOutcome } from "../fixtures/review-outcome.js";
+import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
+import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
+import { createFixAuthorization, consumeFixAuthorization } from "../../src/scripts/review-gate/core/fix-authorization.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function invokeLocal(h: Awaited<ReturnType<typeof fixture>>,
   handler: typeof handleReviewLocalPrepare | typeof handleReviewLocalResume | typeof handleReviewLocalAttest, request: unknown,
@@ -46,8 +59,8 @@ async function completeMember(h: Awaited<ReturnType<typeof fixture>>, runId: str
   return prepared.payload.operationId;
 }
 
-async function fixture(errand = false, targetMember = 0) {
-  const h = await createNativeDeliveryReviewRepository(errand ? "chore/repair" : "member-1");
+async function fixture(errand = false, targetMember = 0, source = "delegated-agent", maxPasses?: number) {
+  const h = await createNativeDeliveryReviewRepository(errand ? "chore/repair" : "member-1", source, maxPasses);
   if (errand) {
     const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
       claimId: "1".repeat(32), intent: "Repair one issue", owner: "andrew", origin: "description", originEntry: null,
@@ -66,14 +79,14 @@ async function fixture(errand = false, targetMember = 0) {
   const status = async (workItem?: OwnerIdentity, grants: { ceilingOverride?: string; additionalPass?: string } = {}, member = targetMember) => {
     let output = "";
     await handleReviewStatus({ target: JSON.stringify({ ...resolved.targetRef, headRef: h.branches[member], headSha: h.heads[member] }),
-      source: "delegated-agent", coverage: "complete", ...grants }, undefined,
+      source, coverage: "complete", ...grants }, undefined,
       { resolveRoot: () => h.cwd, write: text => { output += text; }, setExitCode: () => {} },
       { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store), ...(workItem === undefined ? {} : { workItem }) });
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output));
   };
   const workUnitStatus = async (grants: { ceilingOverride?: string; additionalPass?: string } = {}) => {
     let output = "";
-    await handleReviewStatus({ workUnit: "example", source: "delegated-agent", coverage: "complete", ...grants }, undefined,
+    await handleReviewStatus({ workUnit: "example", source, coverage: "complete", ...grants }, undefined,
       { resolveRoot: () => h.cwd, write: text => { output += text; }, setExitCode: () => {} },
       { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store) });
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output));
@@ -214,6 +227,81 @@ it("records a native Errand judgment and relays its key through default status w
   expect(await h.status(undefined, { ceilingOverride: JSON.stringify({ ...grant, decisionKey: key }) }))
     .toMatchObject({ state: "review-required" });
   expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
+}, 60_000);
+
+it("reuses a recorded ceiling override for complete hosted offers after a native Errand's minor fix", async () => {
+  const h = await fixture(true, 0, "codex-pr", 1);
+  const branch = h.branches[0]!, claimId = "1".repeat(32);
+  await h.git("switch", branch);
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "andrew",
+    createdAt: "2026-10-20T18:00:00Z", provisioning: "ready", createdFor: { kind: "errand", slug: "repair", claimId } });
+  const selected = lifecycleSuccess(await h.reference.store.lookup({ kind: "slug", slug: SlugSchema.parse("repair") }));
+  const { family } = createReviewCompositionContext({ ...h.native, workItem: selected.reference.owner });
+  if (family.mode !== "stored") throw new Error("Expected native review ports");
+  const ports = family.ports;
+  const oldTarget = await deriveLocalReviewTarget({ cwd: h.cwd, exec: h.realExec, repositoryId: h.projectId, baseRef: "main" });
+  const standardReview = projectStandardReviewObligation(resolveReviewRouting({ schemaVersion: 1,
+    changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "atomic",
+    ownership: "self", surfaceAuthority: "ordinary", assurance: { workContext: "errand", workClass: "none" },
+    activity: { selfReview: true, frontlineReview: true } }).decision);
+  const outcome = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: h.projectId, provider: "codex-pr",
+    target: h.policyTarget, reviewTarget: oldTarget, standardReview,
+    vehicle: { kind: "errand", key: "repair", claimId, branch, sources: ["codex-pr"], standardReview },
+    outcome: "findings", findings: [{ findingId: "minor-one", severity: "minor", sourceOrdinal: 1,
+      origin: "review-body", reviewId: "minor-review", fingerprint: "minor-one", settlement: "not-applicable",
+      locus: "member-1.ts:1", url: "https://example.invalid/minor-review", body: "Correct the reviewed value." }] }));
+  await ports.outcomes.create(outcome);
+  const approval = reviewEvidenceFixture(outcome, "fix");
+  const authorization = createFixAuthorization({ oldTarget, dispositionState: { schemaVersion: 2,
+    semanticsVersion: "review-gate/v2", state: "approved", dispositionSet: approval.dispositionSet, approval: approval.approval } });
+  await writeFile(join(h.cwd, "member-1.ts"), "export const member1 = false;\n");
+  await h.git("commit", "-am", "Apply the minor correction");
+  await h.git("push", "origin", branch);
+  const newTarget = await deriveLocalReviewTarget({ cwd: h.cwd, exec: h.realExec, repositoryId: h.projectId, baseRef: "main" });
+  h.heads[0] = newTarget.headSha;
+  const target = { ...h.policyTarget, headSha: newTarget.headSha };
+  await ports.evidence.create({ ...approval, binding: { kind: "errand", errand: { key: SlugSchema.parse("repair"), claimId, branch } },
+    performance: { schemaVersion: 1, producerId: outcome.attemptId, dispositionSetId: approval.dispositionSet.dispositionSetId,
+      originatingHeadSha: oldTarget.headSha, producedHeadSha: newTarget.headSha, performedAt: "2026-10-20T18:02:00Z",
+      fixResponse: { oldTarget, newTarget, applicability: "full", hostedTarget: h.policyTarget,
+        fixConsumption: consumeFixAuthorization({ authorization, oldTarget, newTarget, appliedBy: "andrew",
+          consumedAt: "2026-10-20T18:01:00Z", verificationRefs: ["test://minor-fix"], priorConsumptions: [] }) } } });
+  const resolve = async (ceilingOverride?: unknown) => {
+    let output = "";
+    const exits: number[] = [];
+    await handleReviewResolve("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify({ schemaVersion: 1,
+      target, lane: "standard", standardReview, completedPasses: 1, attempts: [],
+      scopeSelection: { mode: "whole-target", target }, invocation: { mode: "force", sourceId: "codex-pr" },
+      ...(ceilingOverride === undefined ? {} : { ceilingOverride }) }),
+    write: text => { output += text; }, setExitCode: code => exits.push(code) }, undefined,
+    { store: h.reference.store, projectId: createProjectIdentityReader(h.reference.store) });
+    expect(exits, output).toEqual([]);
+    return ReviewResolveEnvelopeSchema.parse(JSON.parse(output));
+  };
+  const refused = await resolve();
+  expect(refused).toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override",
+    payload: { consequence: { exhaustedPassCount: 1, nextPass: 2 } } });
+  expect(await h.status()).toMatchObject({ state: "approval-required" });
+  expect(await ports.decisions.list()).toMatchObject({ status: "complete", records: [] });
+  if (refused.state !== "approval-required") throw new Error(JSON.stringify(refused));
+  const recorded = await resolve(refused.payload.consequence);
+  expect(recorded).toMatchObject({ state: "ready", nextAction: "hosted-request",
+    payload: { pass: 2, coverage: "complete", ceilingOverrideApplied: true } });
+  const listing = await ports.decisions.list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  expect(listing.records).toHaveLength(1);
+  const decision = listing.records[0]!;
+  const key = reviewDecisionKey(decision.value), before = lifecycleSuccess(await h.reference.store.version());
+  expect(decision.value).toMatchObject({ subject: { lineage: { vehicleKind: "errand", vehicleIdentity: claimId },
+    headSha: newTarget.headSha }, choice: { kind: "extra-pass", passCount: 1, precondition: { kind: "ceiling" } } });
+  const rerun = await resolve();
+  expect(rerun).toMatchObject({ state: "ready", nextAction: "hosted-request",
+    payload: { sourceId: "codex-pr", pass: 2, coverage: "complete", ceilingOverrideApplied: true } });
+  expect(await h.status()).toMatchObject({ state: "review-required", nextAction: "review-hosted-request",
+    action: { target, provider: "codex-pr", coverage: "complete", ceilingOverride: {
+      target, lane: "standard", exhaustedPassCount: 1, nextPass: 2, decisionKey: key } } });
+  expect(lifecycleSuccess(await h.reference.store.version())).toBe(before);
+  expect(await ports.decisions.list()).toEqual(listing);
 }, 60_000);
 
 it("resolves native delivery through default status, repairs identity, and retains an explicitly selected generation", async () => {
