@@ -1,5 +1,5 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
-import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { checkUnchangedProjectionEdit } from "./read-back-recovery.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
@@ -19,16 +19,14 @@ import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
-/** Preserve a file's actual send/read-back outcome independently of pending flags carried through a successful swap. */
-export interface ProjectionFileWriteObservation {
-  readonly path: string;
-  readonly result: TakeInResult;
-  readonly installation: "attempted" | "not-authorized";
-}
+import { relockOpenedProjectionFiles } from "./save-relock.js";
+import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[],
   observed?: ReadonlyMap<string, FileStat | null>, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
+  const outcomes = new Map<string, ProjectionFileWriteObservation>();
+  const observe = (outcome: ProjectionFileWriteObservation): void => { outcomes.set(outcome.path, outcome); onFile?.(outcome); };
   let index = await releaseAbsentWithheldPaths(root, initial);
   let observations = index === initial ? observed : undefined;
   if (index !== initial) index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
@@ -40,7 +38,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const walked = [...new Set([...files, ...adoptionRetries(root, initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
   for (const path of paths.filter(path => root.blockedByLink(path) === null)) {
-    const checked = await checkFileAtPath(root, index, path, reference, observations?.get(path));
+    const checked = await checkFileAtPath(root, index, path, reference, observations?.get(path), observe);
     index = checked.index;
     if (checked.reobserve) observations = undefined;
     if (checked.edited) { root.unsent.add(path); pending.push(path); }
@@ -52,9 +50,14 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
       ...(selected !== path || target?.accepted ? {} : { resolution: target?.target?.resolution }) };
     const sent = await sendFile(root, index, request);
     index = sent.index;
-    onFile?.({ path, result: sent.result, installation: sent.installation });
+    observe({ path, result: sent.result, installation: sent.installation, rebuilt: sent.rebuilt });
   }
-  return index;
+  return relockOpenedProjectionFiles(root, index, outcomes, async (current, path, entry) => {
+    const sent = await sendFile(root, current, pendingFileRequest(root.checkout, path, entry));
+    const observation = { path, result: sent.result, installation: sent.installation, rebuilt: sent.rebuilt };
+    observe(observation);
+    return { index: sent.index, observation };
+  });
 }
 
 function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): string[] {
@@ -78,10 +81,10 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
 }
 
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
-  observed?: FileStat | null): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
+  observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
   const entry = index.entries[path];
   if (entry?.kind !== "record") {
-    const adopted = await adoptProjectionFile(root, index, path), bound = adopted.entries[path];
+    const adopted = await adoptProjectionFile(root, index, path, onFile), bound = adopted.entries[path];
     return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back", reobserve: true };
   }
   const aliasRefusal = resolutionAliasRefusal(root.checkout, path);
@@ -95,7 +98,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
       index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
         pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false, reobserve: true };
   }
-  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false, reobserve: true };
+  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry, onFile), edited: false, reobserve: true };
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
@@ -113,11 +116,9 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
     return { index: recordCleanFile(index, path, entry, changed), edited: false };
   }
-  if (!resolving && changed.status === "changed"
-    && await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry)) !== null) {
-    root.unsent.delete(path);
-    return { index, edited: false };
-  }
+  const unchanged = !resolving && changed.status === "changed"
+    ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
+  if (unchanged !== null) return unchanged;
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
 }
 
@@ -129,7 +130,7 @@ function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntr
 }
 
 async function sendFile(root: ProjectionRootState, index: ProjectionIndex, request: TakeInRequest): Promise<{
-  index: ProjectionIndex; result: TakeInResult; installation: ProjectionFileWriteObservation["installation"];
+  index: ProjectionIndex; result: TakeInResult; installation: ProjectionFileWriteObservation["installation"]; rebuilt?: boolean;
 }> {
   const { path, entry } = request;
   const denied = await root.rights?.(request);
@@ -140,12 +141,14 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
     return { result, installation: "not-authorized", index: await commitProjectionIndex({ location: root.location, checkout: root.checkout,
       index: withEntry(index, path, result.entry), checkpoint: root.context.checkpoint }) };
   }
+  let rebuilt: boolean | undefined;
   let updated: ProjectionIndex;
   let result: TakeInResult;
   const writable = root.writable(path);
   if (writable) {
     const written = await writeBackFile(root.context, index, request);
     result = written.result;
+    rebuilt = written.rebuilt;
     updated = written.index;
     recordResolutionRefusal(request, written.result);
     if (written.result.answer === "no-edit") root.unsent.delete(path);
@@ -161,7 +164,7 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
     updated = withEntry(index, path, { ...held, pending: true });
     if (sent.kind === "landed" || sent.result.answer === "no-edit") root.unsent.delete(path);
   }
-  return { result, installation: writable ? "attempted" : "not-authorized",
+  return { result, rebuilt, installation: writable ? "attempted" : "not-authorized",
     index: await commitProjectionIndex({ location: root.location, checkout: root.checkout, index: updated,
       checkpoint: root.context.checkpoint }) };
 }

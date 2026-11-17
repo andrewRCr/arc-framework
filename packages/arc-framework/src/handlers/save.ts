@@ -25,7 +25,7 @@ export async function handleSave(options: z.infer<typeof SaveInputSchema>,
   SaveInputSchema.parse(options);
   const result = await projectionSaveResult(store);
   process.stdout.write(options.json ? `${JSON.stringify(result)}\n` : result.status === "ok"
-    ? `${result.result.version}\n` : `${result.refusal.code}: ${result.refusal.condition}\n${result.refusal.remedy.text}\n`);
+    ? `${result.result.version}\n${(result.result.relocked ?? []).map(file => `Re-locked ${file.path}. ${file.remedy.text}\n`).join("")}` : `${result.refusal.code}: ${result.refusal.condition}\n${result.refusal.remedy.text}\n`);
   process.exitCode = result.status === "ok" ? 0 : 1;
   return result;
 }

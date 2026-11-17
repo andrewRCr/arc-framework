@@ -1,4 +1,5 @@
 /** Retain an accepted creation's exact basis until guarded read-back installs its projected file. */
+import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { WriteResult } from "../write.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -14,7 +15,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  accepted: WriteResult, content: string, read: TakeInRead): Promise<ProjectionIndex> {
+  accepted: WriteResult, content: string, read: TakeInRead, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   if (accepted.version === undefined) throw new Error("An accepted content creation returned no version");
   const entry: RecordEntry = { ...(index.entries[path]?.opened === true ? { opened: true as const } : {}), kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
     base: { blob: gitBlobId(content, root.context.format), version: accepted.version }, markers: null, notices: [],
@@ -24,12 +25,12 @@ export async function recordAdoptionAcceptance(root: ProjectionRootState, index:
     takenIn: content, version: accepted.version });
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });
-  return resumeAdoptionReadBack(root, recorded, path, pending);
+  return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
 }
 
 /** Finish an accepted creation without sending another expected-absent write or rebinding its owner by name. */
 export async function resumeAdoptionReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: RecordEntry): Promise<ProjectionIndex> {
+  entry: RecordEntry, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   const adoption = entry.adoption;
   if (adoption?.kind !== "read-back") throw new Error("Read-back requires an accepted adoption");
   root.unsent.add(path);
@@ -49,8 +50,10 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
     result: { answer: "taken-in", entry: request.entry, read: adoption.read } });
   if (installed.result.answer === "taken-in") root.unsent.delete(path);
-  return commitProjectionIndex({ location: root.location, checkout: root.checkout,
+  const completed = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: completeReadBack(installed.index, path), checkpoint: root.context.checkpoint });
+  onFile?.({ path, result: installed.result, installation: "attempted", rebuilt: installed.rebuilt });
+  return completed;
 }
 
 async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,

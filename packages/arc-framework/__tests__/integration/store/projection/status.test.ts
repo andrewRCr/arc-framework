@@ -124,7 +124,5 @@ it("shows an opened new path with its adoption refusal and drops the refusal aft
   expect(human.replace(/[│\n]/gu, " ").replace(/\s+/gu, " ")).toContain(`${path}: ownerless, opened, refused`);
   expect(human).toContain(mark.remedy.text);
   await startProjection({ ...input, mode: "save" }); await endProjection(input);
-  expect((await status(input)).projection).toMatchObject({ ok: true, value: { files: expect.arrayContaining([
-    expect.objectContaining({ path, opened: true, ownerless: false, refused: null }),
-  ]) } });
+  expect((await status(input)).projection).toMatchObject({ ok: true, value: { files: [] } });
 });

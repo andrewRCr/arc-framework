@@ -18,7 +18,7 @@ import { formatConflictToken } from "../../status/conflict-token.js";
 
 /** Draw only at the file's own path; the take-in port and aside settlement never draw. */
 export async function drawCheckoutClash(context: ReadBackContext, index: ProjectionIndex, request: TakeInRequest,
-  sent: Extract<WriteBackSend, { kind: "clashed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex }> {
+  sent: Extract<WriteBackSend, { kind: "clashed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex; rebuilt?: boolean }> {
   if (request.copy !== null) return { result: sent.result, index };
   const { drawing } = sent;
   const mark = drawing.basesDisagree ? disagreementMark(request.entry.reference) : undefined;
@@ -48,12 +48,12 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,
     format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
   context.recordBatch?.(swapped);
-  const result = readBackSwapResult(context, request, sent.result, swapped);
+  const { result, rebuilt } = readBackSwapResult(context, request, sent.result, swapped);
   const { entry } = result;
   if (mark !== undefined && entry.refused?.remedy.argv?.at(-1) === mark.remedy.argv?.at(-1)) {
     context.report?.({ path: request.path, copy: null, mark });
   }
-  return { result, index: swapped.index };
+  return { result, rebuilt, index: swapped.index };
 }
 
 function disagreementMark(reference: RecordReference): RefusedMark {

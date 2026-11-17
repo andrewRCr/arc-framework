@@ -33,6 +33,14 @@ export interface SwapFile {
 export interface SwapHooks {
   /** After opening intent is committed, before the file becomes writable. */
   readonly afterOpenIndexCommit?: (path: string) => Promise<void>;
+  /** After unchanged accepted input is proved, before its resumed read-back guard. */
+  readonly afterSaveRecoveryRead?: (path: string) => Promise<void>;
+  /** After a landing guard, before the swap plans its paths. */
+  readonly afterSaveGuard?: (path: string) => Promise<void>;
+  /** After an unchanged opening is laid read-only, before its final check. */
+  readonly afterSaveReadOnly?: (path: string) => Promise<void>;
+  /** Before the final file check that authorizes clearing an opening. */
+  readonly beforeSaveMarkClear?: (path: string) => Promise<void>;
   /** After the re-check, before the file is moved aside. */
   readonly afterRecheck?: (path: string) => Promise<void>;
   /** After the move, before the staged file is linked. */
@@ -69,6 +77,8 @@ export interface SwapBatchResult {
   readonly removals: readonly string[];
   /** Staged replacements that did not remain installed at their paths when the batch settled. */
   readonly unreplaced: readonly string[];
+  /** Installed paths rebuilt without moving an existing file aside. */
+  readonly rebuilt: readonly string[];
 }
 
 /** One file's swap as the first index write records it. */
@@ -114,7 +124,8 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   if (input.settlementPublication !== "caller" || returned.length > 0) {
     index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
   }
-  return { index, copies: remainingCopies(index, copies), removals, unreplaced };
+  return { index, copies: remainingCopies(index, copies), removals, unreplaced,
+    rebuilt: plans.filter(plan => plan.copy === null && plan.staged !== null && !unreplaced.includes(plan.path)).map(plan => plan.path) };
 }
 
 /**

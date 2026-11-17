@@ -1,4 +1,5 @@
 /** Adopt a discovered file through established ownership and the ordinary hand-edit checks. */
+import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { join } from "node:path";
@@ -16,7 +17,7 @@ import { inspectProjectionAdoption, missingMintedMetadataMark } from "./adoption
 import { resolveProjectionAdoptionIntent, resolveOwnedAdoptionReference } from "./adoption-intent.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
-export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionIndex> {
+export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   root.unsent.add(path);
   await root.context.checkpoint?.();
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
@@ -43,7 +44,7 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   const content = submission.result.plan.prepared.takenIn;
   const sent = await submitProjectionBatch(root.context, submission.result.batch);
   if (sent.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(sent.refusal, root.context.verb));
-  return recordAdoptionAcceptance(root, index, path, sent.result, content, verdict.read);
+  return recordAdoptionAcceptance(root, index, path, sent.result, content, verdict.read, onFile);
 }
 
 async function resolveAdoptionReference(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<

@@ -14,7 +14,7 @@ export interface ProjectionSaveRefusal {
 }
 /** One whole result, including backend refusals without flattening their evidence. */
 export type ProjectionSaveResult =
-  | { readonly status: "ok"; readonly result: { readonly version: StateVersion } }
+  | { readonly status: "ok"; readonly result: { readonly version: StateVersion; readonly relocked?: readonly { readonly path: string; readonly remedy: Remedy }[] } }
   | { readonly status: "refused"; readonly refusal: ProjectionSaveRefusal | StoreRefusal };
 
 /** Read the start outcome rather than sending every file a second time. */

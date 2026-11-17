@@ -26,7 +26,7 @@ export interface ReadBackContext extends WriteBackContext {
 
 /** Take in one file and install its landed record, leaving index publication to the guarded batch. */
 export async function writeBackFile(context: ReadBackContext, index: ProjectionIndex, request: TakeInRequest): Promise<{
-  result: TakeInResult; index: ProjectionIndex;
+  result: TakeInResult; index: ProjectionIndex; rebuilt?: boolean;
 }> {
   const sent = await sendWriteBack(context, request);
   const updated = withProjectionEntry(index, request.path, sent.result.entry);
@@ -37,7 +37,7 @@ export async function writeBackFile(context: ReadBackContext, index: ProjectionI
 
 /** Install an accepted write, including a newly adopted record, through the ordinary guarded replacement. */
 export async function installWriteBack(context: ReadBackContext, index: ProjectionIndex, request: TakeInRequest,
-  sent: Extract<WriteBackSend, { kind: "landed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex }> {
+  sent: Extract<WriteBackSend, { kind: "landed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex; rebuilt?: boolean }> {
   let updated = index;
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: sent.record,
@@ -57,10 +57,11 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
   if (guarded.kind === "unreplaced") {
     return { result: holdReadBack(context, request, sent.result, guarded), index: withProjectionEntry(updated, request.path, guarded.entry) };
   }
+  await context.hooks?.afterSaveGuard?.(request.path);
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index: updated,
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,
     format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
   context.recordBatch?.(swapped);
   updated = swapped.index;
-  return { result: readBackSwapResult(context, request, sent.result, swapped), index: updated };
+  return { ...readBackSwapResult(context, request, sent.result, swapped), index: updated };
 }

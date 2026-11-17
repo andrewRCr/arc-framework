@@ -102,6 +102,7 @@ export interface ProjectionProcessState {
   readonly notices: string[];
   readonly diagnostics: WriteBackDiagnostic[];
   readonly resolutions: WriteBackResolution[];
+  readonly relocked: { path: string; remedy: import("../refusal.js").Remedy }[];
 }
 
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
@@ -110,7 +111,7 @@ function freshState(composedCapabilities = new Map<string, boolean>()): Projecti
     history: null, materializeSpawn: null, roots: new Map(), retiring: new Set(), faulted: new Set(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
-    notices: [], diagnostics: [], resolutions: [] };
+    notices: [], diagnostics: [], resolutions: [], relocked: [] };
 }
 const key = Symbol.for("arc.projection.command-state");
 const processState = globalThis as typeof globalThis & { [key]?: ProjectionProcessState };

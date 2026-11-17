@@ -25,7 +25,7 @@ it.each(["new", "existing", "refused"] as const)("keeps opened state on a %s arc
   await writeProjectionIndex(h.projected.location, { ...h.projected.index, entries: {
     ...h.projected.index.entries, [selected]: { kind: "ownerless", stat: null, opened: true },
   } });
-  await startProjection({ store: h.f.store, checkout: h.f.root, mode: "save" });
+  await startProjection({ store: h.f.store, checkout: h.f.root });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adoption index");
   expect(disk.index.entries[selected]).toMatchObject({ kind: kind === "refused" ? "ownerless" : "record", opened: true });

@@ -37,7 +37,7 @@ export async function saveProjectionChanges(store: Store): Promise<ProjectionSav
 
 async function versionResult(store: Store): Promise<ProjectionSaveResult> {
   const version = await store.version();
-  return version.status === "refused" ? version : { status: "ok", result: { version: version.result } };
+  return version.status === "refused" ? version : { status: "ok", result: { version: version.result, ...(projectionProcessState().relocked.length === 0 ? {} : { relocked: projectionProcessState().relocked }) } };
 }
 
 async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionIndex> {

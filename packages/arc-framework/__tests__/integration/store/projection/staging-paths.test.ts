@@ -1,3 +1,4 @@
+import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
 /** Every archive staging follows the target checkout's own opened entry. */
 import { mkdtemp, chmod, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -94,7 +95,7 @@ it.each([false, true])("restores a deleted archive through sync by its opened=%s
   expect(await h.file()).toContain("Stored note.");
 });
 
-it("lays a save landing read-only while preserving the opened mark for save's later clearing", async () => {
+it("lays a save landing read-only and clears its opened mark", async () => {
   const h = await archive();
   expect(await h.open()).toMatchObject({ status: "ok" });
   await writeFile(join(h.checkout, h.path), (await h.file()) + "An archived correction.\n");
@@ -102,7 +103,8 @@ it("lays a save landing read-only while preserving the opened mark for save's la
   await endProjection(h.input);
   expect(success(await h.store.read({ reference: h.record.reference })).content).toContain("An archived correction.");
   expect(await writable(h.checkout, h.path)).toBe(false);
-  expect((await h.disk()).entries[h.path]).toMatchObject({ opened: true, protected: false });
+  expect((await h.disk()).entries[h.path]).toMatchObject({ protected: false });
+  expect((await h.disk()).entries[h.path]).not.toHaveProperty("opened");
 });
 
 async function sibling(h: Awaited<ReturnType<typeof archive>>) {
@@ -182,7 +184,16 @@ it.each([false, true])("draws an archived checkout clash using opened=%s", async
   const record = success(await h.store.read({ reference: h.record.reference }));
   success(await h.store.write(update(h, record, record.content.replace("Stored note.", "Remote correction."))));
   await writeFile(join(h.checkout, h.path), (await h.file()).replace("Stored note.", "Local correction."));
-  await startProjection({ ...h.input, mode: "save" });
+  await startProjection(h.input);
+  if (!opened) {
+    const root = projectionProcessState().roots.get(h.checkout);
+    if (root === undefined) throw new Error("No clash root");
+    await withProjectionLock(h.location, async session => {
+      root.checkpoint = session.step;
+      try { await writeBackProjectionFiles(root, await h.disk(), [h.path]); }
+      finally { root.checkpoint = null; }
+    });
+  }
   await endProjection(h.input);
   const bytes = await h.file();
   expect(bytes).toContain("Remote correction.");

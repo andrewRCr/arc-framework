@@ -144,88 +144,27 @@ names it.
 - _Outcome:_ Cold partitions and unindexed archive files stay untouched at save. Existing archived-adoption tests open
   eligible paths first and exercise misplaced-path refusals through edit, preserving the same correction and identity.
 
-### `[ ]` **2.4 The re-lock and `arc save`'s report — § 6.2, § 6.3, § 9.1**
+### `[x]` **2.4 The re-lock and `arc save`'s report — § 6.2, § 6.3, § 9.1**
 
 - _Goal:_ `arc save` lays each opened file read-only and clears its mark only once its last look, after the read-only
   lay, finds the file present and holding nothing the store lacks; any other outcome leaves the file opened, writable
   where its edit did not land, with its remedy named — so no save is locked in unseen.
 
-- _Approach:_ Each opened file settles inside `arc save`'s run under the worktree's projection lock, by its state, the
-  mark cleared last. The landing case finishes at its read-back's swap (2.3's write-back with 1.3's read-only lay); the
-  unchanged case lays read-only in place, then re-checks the file against its entry through `checkChange`
-  (`change-detection.ts`), whose stat comparison reads size, modification time, and inode, then clears. An edit counts
-  as landed only as `taken-in` with its installation attempted, read through write-back's per-file observation
-  (`onFile`, `engine-files.ts`) as the persist step reads it (`persistFiles`, `removal-persist.ts`), and its file
-  re-locks only where the swap did not rebuild its path by the link alone (2.4.a); a `no-edit` answer never clears the
-  mark, which only the re-check finding the file clean or hashed-clean does.
+    - `[x]` **2.4.a An edit that lands**
+        - Actual installation observations include link-only rebuilds and adopted files. Settlement under the start
+          lease clears an opening only after an installed file's last check proves its bytes accepted.
+    - `[x]` **2.4.b An unchanged file**
+        - Read-only lay precedes the final check. Writes and rename saves found there enter ordinary guarded write-back;
+          interruptions preserve the opening through restart.
+    - `[x]` **2.4.c A file gone, emptied, or not landed**
+        - Missing and settled-empty files name sync. Young empty saves, refused or unparseable edits, conflicts,
+          uninstalled read-backs, and unsettled replacements retain their openings and writable editing modes.
+    - `[x]` **2.4.d The report**
+        - Human and JSON results name re-locked paths and their edit remedies without diagnostics. Retained openings
+          report their repair; status drops a file only once its opening closes.
 
-- _Note:_ The perturbation tests stop a step pair through the engine's hook ports (`ProjectionEnginePorts`, `hooks`):
-  § 9.2 test 1 through the point 1.2.b adds between `arc edit`'s mark and its write bit, and the rest through a point
-  added where a pair has none, among them one between the guard and the swap in a landing's read-back
-  (`installWriteBack`, `read-back.ts`) for § 9.2 test 9's leg.
-
-    - `[ ]` **2.4.a An edit that lands**
-        - The store's acceptance, then the read-back's swap laying the file read-only, the replace guard
-          (`guardReplacement`) re-checking the file against what the landing read and taking in a save made between,
-          then the mark cleared.
-        - Where the path is absent when the swap plans it (`plan`, `swap.ts`) and the swap rebuilds it by the link alone
-          (`rebuild`), the mark stays, the landed file read-only and still opened. The swap's result names each path it
-          rebuilt so, beside those it left unreplaced (`SwapBatchResult`), and the read-back (`readBackSwapResult`,
-          `read-back-outcome.ts`) carries that onto write-back's per-file observation
-          (`ProjectionFileWriteObservation`), which the re-lock reads, since the take-in answers `taken-in` with its
-          installation attempted there as at any landing.
-        - Existing tests whose later legs rest on where the re-lock runs are re-checked once it is placed
-          (`notes-projection-team-scale.md` § Test migrations).
-        - Build `test-first` (one behavior at a time):
-            - an opened file's edit lands at `arc save`, which lays it read-only and unmarks it
-            - `arc save` stopped after the store accepts an opened file's write and before the swap, and again after
-              the swap and before the mark clears, each followed by another command and another `arc save` (§ 9.2
-              test 2)
-            - a save made between the landing and the swap is taken in by the guard (§ 9.2 test 3)
-            - a concurrent change to the same archived record from another checkout between `arc edit` and `arc save`
-              merges or files a conflict, the file staying opened until its edit lands, and once the conflict is
-              resolved `arc save` lands it and re-locks it, laid read-only and unmarked (§ 9.2 test 6)
-            - a forced edit, then `arc edit` over the changed file, then `arc save` lands it (§ 9.2 test 7)
-            - an opened new file adopted by an ordinary command is re-locked by `arc save`, and one adopted by
-              `arc save` itself lays read-only and unmarked (§ 9.2 test 8)
-
-    - `[ ]` **2.4.b An unchanged file**
-        - Laid read-only in place, then re-checked against its entry's size, modification time, and inode, and only then
-          unmarked; a save found by the re-check settles as an edit.
-        - Build `test-first` (one behavior at a time):
-            - `arc edit` stopped between its mark and its write bit leaves a read-only opened file, which `arc save`
-              finds unchanged and unmarks (§ 9.2 test 1)
-            - a save made between an unchanged file's read-only lay and its re-check, by a write through the mode and
-              by a rename-save, and a stop after the lay, each followed by `arc save` (§ 9.2 test 4)
-
-    - `[ ]` **2.4.c A file gone, emptied, or not landed**
-        - An absent path, a Markdown file emptied past the settle window (`gateRead`, `read-gate.ts`, which write-back
-          reads as deleted), or an absent path at the re-check leaves a stored record's file opened, its report naming
-          `arc sync`.
-        - A landing with no read-back in a root the ignore guard leaves unwritable (`sendFile`, `engine-files.ts`), any
-          take-in answer but `no-edit` and `taken-in` (`TakeInResult`, `take-in-port.ts`), and a file the replace guard
-          or the swap leaves unreplaced, which the read-back reports as `pending` (`read-back-outcome.ts`), each lay the
-          file writable again where `arc save` had laid it read-only, and keep it opened.
-        - Build `test-first` (one behavior at a time):
-            - each take-in answer but `no-edit` and `taken-in`, and a file the guard leaves unreplaced, leave the file
-              writable and opened with its remedy reported, and a repaired `arc save` re-locks it (§ 9.2 test 5)
-            - an opened file deleted, a Markdown file emptied past the settle window, an editor's save leaving the
-              path absent at the re-check, and a path deleted after the guard and absent when the swap plans it each
-              stay opened with `arc sync` named where it applies; `arc sync` lays the deleted and the emptied file
-              writable, the editor's save lands at the next command, and the next `arc save` re-locks each file it finds
-              unchanged (§ 9.2 test 9)
-            - an opened new file deleted, its entry dropped at the next command (2.1), lands once the file is created
-              again, opened with `arc edit`, and saved (§ 9.2 test 9)
-
-    - `[ ]` **2.4.d The report**
-        - `arc save`'s result (`projectionSaveResult`, `save.ts`), which `handlers/save.ts` prints to standard output,
-          names each file it lays read-only again, with `arc edit` as the way to keep editing it. Each opened file it
-          leaves opened goes to the projection's diagnostics (`report.ts`) with that file's remedy, as any edit not yet
-          persisted does, so a save that only re-locks writes nothing to standard error.
-        - Build `test-first` (one behavior at a time):
-            - the save result names a re-locked file with `arc edit`, in human and JSON output, and standard error
-              stays empty; a file left opened appears in the diagnostics with its remedy
-            - a file `arc save` re-locks leaves `arc status`'s list of opened files, and one it leaves opened stays
+- _Outcome:_ Re-locking runs before refresh inside the saving checkout's existing lease. Landing, adoption, ordinary
+  pickup, interrupted commands, concurrent editor saves, and repair retries share that settlement decision.
 
 ### `[ ]` **2.5 A refresh's pickup of a forced edit, and the rebuild over a lost index — § 7.1**
 
