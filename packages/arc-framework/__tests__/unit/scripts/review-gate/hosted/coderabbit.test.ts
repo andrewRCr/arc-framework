@@ -410,6 +410,7 @@ describe("CodeRabbit hosted adapter", () => {
     "icon badges": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://example.invalid/major-16.svg\">"
       + "</picture> Major** · **Functional Correctness**\n**A new concern.**\nIt has severity metadata.",
     "category badge before the grade": "_⚠️ Potential issue_ | _🟠 Major_\n\n**A new concern.**",
+    "category span before the grade": "**Functional Correctness** · **🟠 Major**\n\n**A new concern.**",
   };
 
   it.each(Object.entries(gradedReplies))(
@@ -432,27 +433,26 @@ Full review finished.`,
         kind: "findings",
         findings: [{ commentId: "graded-reply", severity: "major" }],
       });
-      reply.body = "This new concern has no severity marker.";
+      reply.body = "**✅ Resolved.** The `_🟠 Major_` concern is fixed.";
       await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
     },
   );
 
+  const REPLY_MARKER = "\n\n<!-- This is an auto-generated reply by CodeRabbit -->";
   const priorThreadReplies = {
     "checkmark footer": "Thanks for the correction.\n\n✅ Review thread resolved.\n\n"
-      + "_You are interacting with an AI system._\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
-    "italic notice only": "The correction is verified.\n\n_You are interacting with an AI system._\n\n"
-      + "<!-- This is an auto-generated reply by CodeRabbit -->",
+      + "_You are interacting with an AI system._" + REPLY_MARKER,
+    "italic notice only": "The correction is verified.\n\n_You are interacting with an AI system._" + REPLY_MARKER,
     "withdrawal with an HTML notice": "<!-- coderabbit-ai-generated:v1 -->\n\n`@owner` Thanks for the correction. I withdraw"
       + " the finding. The local runner snapshots the worktree at submission, so edits in the next phase cannot affect"
       + " that run.\n\n<!-- <review_comment_withdrawn> -->\n\nReview thread resolved.\n\n"
       + "<sub><i>You are interacting with an AI system.</i></sub>\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
-    "no footer": "<!-- coderabbit-ai-generated:v1 -->\n\nUnderstood; the snapshot settles it.\n\n"
-      + "<!-- This is an auto-generated reply by CodeRabbit -->",
-    "first line quoting a badge": "The previous `_🟠 Major_` concern is resolved.\n\n"
-      + "<!-- This is an auto-generated reply by CodeRabbit -->",
+    "no footer": "<!-- coderabbit-ai-generated:v1 -->\n\nUnderstood; the snapshot settles it." + REPLY_MARKER,
+    "first line quoting a badge": "The previous `_🟠 Major_` concern is resolved." + REPLY_MARKER,
+    "resolved marker before a quoted grade": "**✅ Resolved.** The `_🟠 Major_` concern is fixed." + REPLY_MARKER,
     "analysis output quoting a badge": "<!-- coderabbit-ai-generated:v1 -->\n\n<details>\n<summary>Analysis chain</summary>"
       + "\n\n```\n__tests__/coderabbit.test.ts:12:  \"_🟠 Major_ prior concern\",\n```\n\n</details>\n\n"
-      + "The fix holds.\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
+      + "The fix holds." + REPLY_MARKER,
   };
 
   it.each(Object.entries(priorThreadReplies))(
