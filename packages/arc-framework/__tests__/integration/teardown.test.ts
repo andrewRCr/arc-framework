@@ -23,13 +23,13 @@
 import { describe, it, expect } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
-import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { makeTempRoot, removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { toForwardSlash } from "../../src/lib/fs.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import { createGitRetirementAuthorizationContext } from
@@ -555,7 +555,7 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
   it("removes an unpublished ARC-owned decomposition candidate with staged generated changes", async () => {
     const h = await setupMultiClone();
     const branch = "chore/decompose-origin";
-    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-teardown-"));
+    const parent = await makeTempRoot("arc-decompose-candidate-teardown-");
     const worktree = join(parent, "candidate");
     try {
       await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
@@ -592,7 +592,7 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
   it("preserves an unpublished decomposition candidate with a unique commit", async () => {
     const h = await setupMultiClone();
     const branch = "chore/decompose-origin";
-    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-committed-candidate-"));
+    const parent = await makeTempRoot("arc-decompose-committed-candidate-");
     const worktree = join(parent, "candidate");
     try {
       await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
@@ -625,7 +625,7 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
 describe("arc teardown — worktree dispatch over real git", () => {
   it("leaves a marked self-teardown as a stamped branchless husk and reaps it from primary", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    const wtParent = await makeTempRoot("arc-teardown-husk-");
     try {
       await ignoreArcUserDir(h.cloneA);
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
@@ -669,7 +669,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const removed = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(removed.status).toBe("torn-down");
       if (removed.status !== "torn-down") return;
-      expect(removed.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(basename(removed.worktreeRemoved ?? "")).toBe("wt");
       expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf8")).toBe("written after husking\n");
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
     } finally {
@@ -680,7 +680,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("leaves markerless self-teardown live without minting cleanup provenance", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    const wtParent = await makeTempRoot("arc-teardown-husk-");
     try {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: false });
 
@@ -693,7 +693,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(result.worktreeRemoved).toBeNull();
       expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
       expect((await readWorktreeMarker(wtPath)).kind).toBe("absent");
-      expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
+      expect(await git(h.cloneA, ["worktree", "list"])).toContain(toForwardSlash(wtPath));
     } finally {
       await removeGitBackedDir(wtParent);
       await h.cleanup();
@@ -702,7 +702,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("retries a surviving local ref from inside the husk without removing its cwd", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    const wtParent = await makeTempRoot("arc-teardown-husk-");
     try {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
       const realExec = execFor(wtPath);
@@ -747,7 +747,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("refuses dirty and moved stamped husks from primary, then prunes a manually deleted husk", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    const wtParent = await makeTempRoot("arc-teardown-husk-");
     try {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
       const created = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
@@ -763,7 +763,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const moved = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(moved).toMatchObject({ status: "rejected" });
       if (moved.status === "rejected") expect(moved.reason).toMatch(/head-moved/iu);
-      expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
+      expect(await git(h.cloneA, ["worktree", "list"])).toContain(toForwardSlash(wtPath));
 
       await removeGitBackedDir(wtPath);
       await git(h.cloneA, ["worktree", "prune"]);
@@ -777,7 +777,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("removes a linked worktree, then reaps its branch", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    const wtParent = await makeTempRoot("arc-teardown-wt-");
     try {
       // Ship the branch, then spawn a linked worktree checked out on it.
       await shipFeature(h, "demo", "merge-commit");
@@ -792,7 +792,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       // The roster reports the realpath (macOS symlinks /var → /private/var), so
       // match on the unique leaf rather than the pre-realpath form.
       expect(result.worktreeRemoved).not.toBeNull();
-      expect(result.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(basename(result.worktreeRemoved ?? "")).toBe("wt");
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
@@ -804,7 +804,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("refuses to tear down a dirty linked worktree (no `--force`)", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    const wtParent = await makeTempRoot("arc-teardown-wt-");
     try {
       await shipFeature(h, "demo", "merge-commit");
       await writeShippedMeta(h.cloneA, "demo");
@@ -827,7 +827,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("reconciles ignored linked identity-global entries before removing a clean worktree", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    const wtParent = await makeTempRoot("arc-teardown-wt-");
     try {
       await ignoreArcUserDir(h.cloneA);
       await shipFeature(h, "demo", "merge-commit");
@@ -864,7 +864,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
-      expect(result.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(basename(result.worktreeRemoved ?? "")).toBe("wt");
       expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("save linked capture");
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
@@ -876,7 +876,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
   it("refuses to remove a clean linked worktree with an unreconciled unknown identity-global file", async () => {
     const h = await setupMultiClone();
-    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    const wtParent = await makeTempRoot("arc-teardown-wt-");
     try {
       await ignoreArcUserDir(h.cloneA);
       await shipFeature(h, "demo", "merge-commit");
@@ -899,7 +899,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(result.reason).toMatch(/identity-global user surface/i);
       expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf-8")).toBe("primary\n");
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
-      expect(worktrees).toContain(wtPath);
+      expect(worktrees).toContain(toForwardSlash(wtPath));
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
       await removeGitBackedDir(wtParent);
