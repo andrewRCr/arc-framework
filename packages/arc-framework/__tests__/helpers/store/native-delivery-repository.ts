@@ -20,14 +20,15 @@ import { createStandardReviewReservation, projectPublicationBoundary } from "../
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 
 /** Seed a published local stack, a native Candidate and reservation, and an isolated GitHub executable. */
-export async function createNativeDeliveryReviewRepository(firstBranch = "member-1", sourceId = "delegated-agent") {
+export async function createNativeDeliveryReviewRepository(firstBranch = "member-1", sourceId = "delegated-agent", maxPasses?: number) {
   const branches = [firstBranch, "member-2"];
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec: realExec } = h.native;
   const git = async (...args: string[]) => (await realExec("git", args, { cwd })).stdout.trim();
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
-  await writeFile(join(cwd, ".arc/system/arc-config.yml"), `branch.base: main\nreview.standard_sources: [${sourceId}]\n`);
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), `branch.base: main\nreview.standard_sources: [${sourceId}]\n`
+    + (maxPasses === undefined ? "" : `review.standard_max_passes: ${maxPasses}\n`));
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
   await git("add", ".");
   await git("commit", "-m", "Configure delivery review");

@@ -530,7 +530,7 @@ describe("reconcileWorkUnitWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorkUnitWorktree — rename move", () => {
-  it("defers a POSIX-legal self-move before invoking the worktree mutator", async () => {
+  it.each(["packages/arc-framework", "..copy"])("defers a self-move from child %s", async child => {
     const registered = "/work/project.old-name";
     const listing = porcelain("/work/primary", registered).replace("feat/demo-wu", "feat/new-name");
     const { ctx } = buildCtx({ worktreeList: listing });
@@ -539,11 +539,11 @@ describe("reconcileWorkUnitWorktree — rename move", () => {
       branch: "feat/new-name",
       oldSlug: "old-name",
       newSlug: "new-name",
-      currentLocus: "/work/project.old-name/packages/arc-framework",
+      currentLocus: join(registered, child),
     })).resolves.toEqual({
       status: "deferred-self-move",
       from: registered,
-      to: "/work/project.new-name",
+      to: join("/work", "project.new-name"),
     });
   });
 
@@ -896,7 +896,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
     expect(events).not.toContainEqual(["git", "worktree", "remove", worktreePath]);
   });
 
-  it("hops the locus to the primary checkout before removing the worktree it runs from", async () => {
+  it.each(["packages/arc-framework", "..copy"])("hops from child %s before removing its worktree", async child => {
     const worktreePath = "/work/wt/demo";
     const primary = "/work/primary";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain(primary, worktreePath) });
@@ -905,7 +905,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
       mutation: "teardown",
       worktreePath,
       // The transition executes from inside the worktree it is tearing down.
-      currentLocus: join(worktreePath, "packages/arc-framework"),
+      currentLocus: join(worktreePath, child),
     });
 
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: true });
