@@ -88,20 +88,13 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
   notice; protected files retain their rights notice, and other formats carry none. Opening and refreshing the same
   archive file preserves its bytes and inode.
 
-### `[ ]` **1.5 `arc status` lists opened files — § 4**
+### `[x]` **1.5 `arc status` lists opened files — § 4**
 
 - _Goal:_ `arc status` shows each file this worktree has opened, and an opened new path's adoption refusal beside it, so
   a file left open shows, and so does the reason its adoption keeps failing.
 
-    - `ProjectionFileStatus` gains the opened state and `readRecordedProjectionStatus` (`status.ts`) lists opened
-      entries, which it reaches through its `walked` read, since the mark marks their partitions; the human view shows
-      an opened ownerless entry as opened and, where its adoption refused, as refused too.
-    - An existing test's whole `ProjectionFileStatus` literal gains the opened state where it is required
-      (`notes-projection-team-scale.md` § Test migrations).
-
-    - Build `test-first` (one behavior at a time):
-        - an opened archived file appears in `arc status`, human and JSON
-        - an opened new path whose adoption refused shows as opened and refused with the refusal's remedy
+- _Outcome:_ Projection status reports an explicit opened state for record and ownerless entries. Human and JSON
+  output retain adoption refusals and remedies beside the open path, and remove the refusal after successful repair.
 
 ## **Phase 2:** The pickup
 

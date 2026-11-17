@@ -11,20 +11,28 @@ vi.mock("../../../../src/lib/store/create.js", async importOriginal => {
 });
 
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
+import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
+import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { createEngineFixture } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { TASK_RULE_CONTENT } from "../../../helpers/store/task-rule-input.js";
 import { createKindRegistry } from "../../../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/registrations.js";
 import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { StatusResult } from "../../../../src/commands/status/types.js";
 
 const directories: string[] = [];
 afterEach(async () => { binding.store = null; await removeGitBackedDirs(directories.splice(0)); });
 
-async function status(h: Awaited<ReturnType<typeof createEngineFixture>>): Promise<StatusResult> {
+async function status(h: { store: Store; checkout: string }): Promise<StatusResult> {
+  return JSON.parse(await statusText(h, true)) as StatusResult;
+}
+
+async function statusText(h: { store: Store; checkout: string }, json: boolean): Promise<string> {
   const cwd = process.cwd(), exit = process.exitCode;
   let output = "";
   const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
@@ -32,9 +40,9 @@ async function status(h: Awaited<ReturnType<typeof createEngineFixture>>): Promi
   try {
     binding.store = h.store;
     process.chdir(h.checkout); process.exitCode = undefined;
-    await dispatchRegisteredCli(["status", "--json"]);
+    await dispatchRegisteredCli(["status", ...(json ? ["--json"] : [])]);
     expect(process.exitCode).toBeUndefined();
-    return JSON.parse(output) as StatusResult;
+    return output;
   } finally { stdout.mockRestore(); stderr.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
 }
 
@@ -79,4 +87,43 @@ it("shows an aside copy kept after its path moved on and removes it once deleted
   const after = await status(h);
   if (!after.projection.ok || after.projection.value.kind !== "ready") throw new Error("Missing projection status");
   expect(after.projection.value.copies.some(held => held.copy === copy)).toBe(false);
+});
+
+it("lists an opened archived file in JSON and human status", async () => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await openArchivedProjectionFile(h, h.path);
+  expect((await status(h)).projection).toMatchObject({ ok: true, value: { kind: "ready", files: [
+    { path: h.path, opened: true, pending: false, refused: null },
+  ] } });
+  expect(await statusText(h, false)).toContain(`${h.path}: opened`);
+});
+
+it("shows an opened new path with its adoption refusal and drops the refusal after repair", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  directories.push(h.f.root);
+  const path = `${h.folder}/correction.md`, input = { store: h.f.store, checkout: h.f.root };
+  await writeFile(join(h.f.root, path), "An authored archive correction.\n");
+  await openArchivedProjectionFile(input, path);
+  expect((await status(input)).projection).toMatchObject({ ok: true, value: { files: expect.arrayContaining([
+    expect.objectContaining({ path, opened: true, ownerless: true, refused: null }),
+  ]) } });
+  const blocked = createRefusingStore(h.f.store);
+  const mark = { code: "lock-held" as const, class: "recoverable" as const, lock: "archive",
+    condition: "The archive writer is held.", remedy: { text: "Release the archive writer, then retry arc save." } };
+  blocked.refuse("batch", mark);
+  const selected = { ...input, store: blocked.store };
+  await startProjection({ ...selected, mode: "save" }); await endProjection(selected);
+  expect((await status(selected)).projection).toMatchObject({ ok: true, value: { files: expect.arrayContaining([
+    expect.objectContaining({ path, opened: true, ownerless: true,
+      refused: expect.objectContaining({ reason: expect.stringContaining(mark.condition), remedy: mark.remedy }) }),
+  ]) } });
+  const human = await statusText(selected, false);
+  expect(human.replace(/[│\n]/gu, " ").replace(/\s+/gu, " ")).toContain(`${path}: ownerless, opened, refused`);
+  expect(human).toContain(mark.remedy.text);
+  await startProjection({ ...input, mode: "save" }); await endProjection(input);
+  expect((await status(input)).projection).toMatchObject({ ok: true, value: { files: expect.arrayContaining([
+    expect.objectContaining({ path, opened: true, ownerless: false, refused: null }),
+  ]) } });
 });

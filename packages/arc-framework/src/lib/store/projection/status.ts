@@ -15,6 +15,7 @@ import { projectionTripwires, formatProjectionTripwire, type ProjectionTripwire 
 export interface ProjectionFileStatus {
   readonly path: string;
   readonly ownerless: boolean;
+  readonly opened: boolean;
   readonly pending: boolean;
   readonly withheld: boolean;
   readonly refused: RefusedMark | null;
@@ -78,11 +79,12 @@ function snapshot(index: ProjectionIndex): Extract<ProjectionStatus, { kind: "re
     const entry = index.entries[path];
     if (entry === undefined) continue;
     if (entry.kind === "ownerless") {
-      files.push({ path, ownerless: true, pending: false, withheld: entry.withheld === true, refused: entry.refused ?? null, unshown: [] });
+      files.push({ path, ownerless: true, opened: entry.opened === true, pending: false,
+        withheld: entry.withheld === true, refused: entry.refused ?? null, unshown: [] });
       continue;
     }
-    if (entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0) {
-      files.push({ path, ownerless: false, pending: entry.pending, withheld: entry.withheld,
+    if (entry.opened === true || entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0) {
+      files.push({ path, ownerless: false, opened: entry.opened === true, pending: entry.pending, withheld: entry.withheld,
         refused: entry.refused, unshown: entry.unshown });
     }
     for (const copy of entry.copies) copies.set(copy.name, { path, copy: copy.name, withheld: false });
@@ -114,7 +116,7 @@ function renderRecordedStatus(status: RecordedProjectionStatus): string[] {
 }
 
 function renderFile(file: ProjectionFileStatus): string[] {
-  const states = [file.ownerless && "ownerless", file.pending && "pending", file.withheld && "withheld",
+  const states = [file.ownerless && "ownerless", file.opened && "opened", file.pending && "pending", file.withheld && "withheld",
     file.refused !== null && "refused"].filter(Boolean);
   const lines = [`${file.path}: ${states.length === 0 ? "unshown conflicts" : states.join(", ")}`];
   if (file.refused !== null) lines.push(`  ${file.refused.reason}`, `  ${renderRemedy(file.refused.remedy)}`);

@@ -280,7 +280,7 @@ describe("buildStatusSummary — full mode", () => {
     const conflict = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" },
       kind: "personal/conflict-record", key: "11111111-1111-4111-8111-111111111111" });
     const text = buildStatusSummary(makeFullResult({ projection: { ok: true, value: { kind: "ready",
-      files: [{ path: ".arc/document.md", ownerless: false, pending: true, withheld: true,
+      files: [{ path: ".arc/document.md", ownerless: false, opened: false, pending: true, withheld: true,
         refused: { reason: "parser: Invalid prose.", remedy: { text: "Repair this file.", argv: ["repair-prose", "local data"] } },
         unshown: [conflict] }],
       copies: [{ path: ".arc/document.md", copy, withheld: false }],
