@@ -671,7 +671,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       if (removed.status !== "torn-down") return;
       expect(basename(removed.worktreeRemoved ?? "")).toBe("wt");
       expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf8")).toBe("written after husking\n");
-      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
+      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(toForwardSlash(wtPath));
     } finally {
       await removeGitBackedDir(wtParent);
       await h.cleanup();
@@ -767,7 +767,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
 
       await removeGitBackedDir(wtPath);
       await git(h.cloneA, ["worktree", "prune"]);
-      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
+      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(toForwardSlash(wtPath));
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
     } finally {
       await removeGitBackedDir(wtParent);
@@ -795,7 +795,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(basename(result.worktreeRemoved ?? "")).toBe("wt");
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
-      expect(worktrees).not.toContain(result.worktreeRemoved!);
+      expect(worktrees).not.toContain(toForwardSlash(result.worktreeRemoved!));
     } finally {
       await removeGitBackedDir(wtParent);
       await h.cleanup();
@@ -867,7 +867,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(basename(result.worktreeRemoved ?? "")).toBe("wt");
       expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("save linked capture");
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
-      expect(worktrees).not.toContain(result.worktreeRemoved!);
+      expect(worktrees).not.toContain(toForwardSlash(result.worktreeRemoved!));
     } finally {
       await removeGitBackedDir(wtParent);
       await h.cleanup();
