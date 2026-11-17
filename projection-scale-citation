@@ -3,7 +3,7 @@
   "slug": "projection-scale-citation",
   "claimId": "2a934992ab23dc0f7e3fe76ac26b7459",
   "createdAt": "2026-11-17T16:01:05.380Z",
-  "updatedAt": "2026-11-17T16:01:05.380Z",
+  "updatedAt": "2026-11-17T16:20:19.890Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Replace the machine-local scale-assessment citation with the finding it supports.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Drop the machine path from the storage-projection cohort record's scale-assessment citation",
   "originEntrySourceDigest": "sha256:77847ff90a2629cdc9a336d01a0867155241e91ca3c44146a6dc2a9acfd8c867",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/projection-scale-citation",
+    "headSha": "2e30fd1e2246e27b6757dd1645c793d2f425e493"
+  }
 }
