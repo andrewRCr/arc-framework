@@ -165,6 +165,7 @@ names it.
 
 - _Outcome:_ Re-locking runs before refresh inside the saving checkout's existing lease. Landing, adoption, ordinary
   pickup, interrupted commands, concurrent editor saves, and repair retries share that settlement decision.
+  The editor perturbation clears the target's read-only flag before rename so Windows exercises the same replacement.
 
 ### `[x]` **2.5 A refresh's pickup of a forced edit, and the rebuild over a lost index — § 7.1**
 

@@ -143,7 +143,8 @@ it.each(["write", "rename"] as const)("takes in a %s save between an unchanged f
     if (path !== h.path || edited) return;
     edited = true;
     const bytes = renderStampedFile({ content, stamp: entry.base.blob });
-    if (method === "write") { await chmod(file, 0o644); await writeFile(file, bytes); }
+    await chmod(file, 0o644);
+    if (method === "write") await writeFile(file, bytes);
     else { await writeFile(`${file}.editor`, bytes); await rename(`${file}.editor`, file); }
   } };
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
