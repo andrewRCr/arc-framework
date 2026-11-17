@@ -49,7 +49,7 @@ async function publish(location: ProjectionLocation, index: ProjectionIndex, ref
     const written = smudgeRacyEntries({ ...index, entries }, reference).entries;
     const bytes = stringifyProjectionJson(written), name = `index-${gitBlobId(bytes, "sha1")}`;
     await writePartition(location, name, bytes, checkpoint);
-    groups[group] = { name, unsettled: Object.values(written).some(unsettled) };
+    groups[group] = { name, unsettled: Object.values(written).some(isProjectionEntryUnsettled) };
     loaded.set(group, written); sources.set(group, { entries: written });
   }
   const header: ProjectionIndexHeader = { format: index.format, state: index.state, projectedUnder: index.projectedUnder,
@@ -73,7 +73,8 @@ async function writePartition(location: ProjectionLocation, name: string, bytes:
   await atomicWriteFile(join(location.stateDir, name), bytes, { createParents: false, checkpoint });
 }
 
-function unsettled(entry: ProjectionEntries[string]): boolean {
+/** Whether an entry keeps its partition on ordinary command-start reads. */
+export function isProjectionEntryUnsettled(entry: ProjectionEntries[string]): boolean {
   return entry.kind === "ownerless" || entry.opened === true || entry.copies.length > 0 || entry.persisted?.takenIn.kind === "copy"
     || entry.adoption !== undefined || entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0;
 }

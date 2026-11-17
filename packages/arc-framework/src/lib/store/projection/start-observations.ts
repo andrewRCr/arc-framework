@@ -36,8 +36,8 @@ export function launchProjectionStart(input: ProjectionStartInput, ports: Projec
 } {
   const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
   const version = input.store.version();
-  const index = readProjectionIndex(location, true, { groups: input.mode === "save" ? "all" : "walked" });
-  const shared = observeRoots(input, ports, PROJECTED_LIFECYCLE_ROOTS.filter(path => input.mode === "save" || path !== ".arc/completed"));
+  const index = readProjectionIndex(location, true, { groups: "walked" });
+  const shared = observeRoots(input, ports, PROJECTED_LIFECYCLE_ROOTS.filter(path => path !== ".arc/completed"));
   const personal = configuration.then(config => config.identity.status === "no-identity" ? { files: [], links: [], stats: new Map<string, FileStat | null>() }
     : observeRoots(input, ports, projectedRootPaths(config.identity.identity).filter(path => path.startsWith(".arc/user/"))));
   return { configuration, version, shared, personal, index };

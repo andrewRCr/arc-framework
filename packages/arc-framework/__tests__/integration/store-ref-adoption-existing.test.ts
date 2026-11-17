@@ -1,3 +1,5 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
+import { projectionEditResult } from "../../src/lib/store/projection/edit.js";
 /** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
@@ -215,16 +217,18 @@ it("binds an unindexed archived cohort file to its archive coordinates while its
   await mkdir(dirname(join(f.root, misplaced)), { recursive: true });
   await writeFile(join(f.root, misplaced), bytes);
   const before = success(await f.store.version());
-  await startProjection({ store: f.store, checkout: f.root, mode: "save" });
+  await startProjection({ store: f.store, checkout: f.root });
+  expect(await projectionEditResult(f.store, f.root, join(f.root, misplaced))).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("No unique archived cohort"), remedy: { text: expect.stringContaining("quarter and closeout") },
+  } });
   const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing misplaced-archive index");
-  expect(held.index.entries[misplaced]).toMatchObject({ kind: "ownerless", refused: {
-    reason: expect.stringContaining("No unique archived cohort"), remedy: { text: expect.stringContaining("quarter and closeout") },
-  } });
+  expect(held.index.entries[misplaced]).toBeUndefined();
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(join(f.root, misplaced), "utf8")).toBe(bytes);
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await rename(join(f.root, misplaced), join(f.root, path));
+  await openArchivedProjectionFile({ store: f.store, checkout: f.root }, path);
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
   expect(success(await f.store.read({ reference: archived.reference })).content).toBe(content);
   expect(success(await f.store.read({ reference: archived.reference })).placement).toEqual(placement);

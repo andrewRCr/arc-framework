@@ -41,7 +41,7 @@ async function versionResult(store: Store): Promise<ProjectionSaveResult> {
 }
 
 async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionIndex> {
-  loadProjectionGroups(index, "all");
+  loadProjectionGroups(index, "walked");
   const groups = loadedProjectionGroups(index);
   const entries = new Map(Object.entries(index.entries));
   let changed = false;

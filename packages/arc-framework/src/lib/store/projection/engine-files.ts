@@ -7,7 +7,7 @@ import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./inde
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionProcessState } from "./process-state.js";
 import { checkChange, readReference, type ChangeVerdict } from "./change-detection.js";
-import { commitProjectionIndex } from "./index-file.js";
+import { commitProjectionIndex, isProjectionEntryUnsettled } from "./index-file.js";
 import { sendWriteBack } from "./write-back.js";
 import { writeBackFile } from "./read-back.js";
 import { unshownConflicts } from "./held-conflicts.js";
@@ -58,7 +58,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
 }
 
 function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): string[] {
-  loadProjectionGroups(index, root.context.verb === "save" ? "all" : "walked");
+  loadProjectionGroups(index, "walked");
   return Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
     return entry !== undefined && retriesIndexedEntry(root.context.verb, path, entry);
@@ -68,7 +68,7 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
 /** Retry opened files and unfinished adoptions beyond the walked roots, retaining save's archive recovery. */
 export function retriesIndexedEntry(verb: string | undefined, path: string, entry: ProjectionIndex["entries"][string]): boolean {
   const selected = verb === "save" || !path.startsWith(".arc/completed/");
-  return entry.opened === true || entry.kind === "record" && entry.adoption?.kind === "read-back"
+  return verb === "save" && isProjectionEntryUnsettled(entry) || entry.opened === true || entry.kind === "record" && entry.adoption?.kind === "read-back"
     || selected && (entry.kind === "ownerless" || entry.adoption !== undefined);
 }
 

@@ -108,7 +108,7 @@ describe("projection command hooks", () => {
     expect(events).toEqual(["command output"]);
   });
 
-  it("writes completed roots under save only for the root save command and records its start outcome", async () => {
+  it("leaves unopened completed edits unsent under both root save and user save", async () => {
     const h = await createEngineFixture(directories, { kind: "work-item/notes",
       path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -121,8 +121,8 @@ describe("projection command hooks", () => {
     await program.parseAsync(["user", "save"], { from: "user" });
     expect((await h.stored()).content).toBe(h.record.content);
     await program.parseAsync(["save"], { from: "user" });
-    expect((await h.stored()).content).toBe("saved archive edit\n");
-    expect(success(await h.store.history({ reference: h.record.reference }))[0]).toMatchObject({ provenance: { verb: "save" } });
+    expect((await h.stored()).content).toBe(h.record.content);
+    expect(await h.file()).toContain("saved archive edit");
     expect(projectionProcessState()).toMatchObject({ start: { kind: "ready" } });
   });
 

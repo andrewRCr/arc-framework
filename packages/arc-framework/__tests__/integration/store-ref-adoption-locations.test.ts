@@ -1,3 +1,4 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Adoption uses the file-holding checkout's exact claim and lifecycle location. */
 import { afterEach, expect, it } from "vitest";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -82,6 +83,7 @@ it("adopts an archived owner's new companion at save without changing its archiv
   const { f, primary, folder, projected } = await createAdoptionFixture({ placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
   const path = `${folder}/diagram.svg`, content = "<svg>archived correction</svg>\n";
   await writeFile(join(f.root, path), content);
+  await openArchivedProjectionFile({ store: f.store, checkout: f.root }, path);
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "diagram.svg");
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content } });

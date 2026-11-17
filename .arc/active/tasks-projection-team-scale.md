@@ -128,44 +128,21 @@ names it.
   the header's withheld copies and keeping each end-check copy once. Refused edits are withheld and opened marks drop
   through the normal rebuild. Partition-damage remedies name sync; missing or unreadable headers still name save.
 
-### `[ ]` **2.3 `arc save` reads what is opened, unsettled, or resolved — § 6.1**
+### `[x]` **2.3 `arc save` reads what is opened, unsettled, or resolved — § 6.1**
 
 - _Goal:_ A no-change `arc save` with nothing opened walks no archive folder and reads no archive partition the header
   leaves unmarked, while every remedy that names `arc save` — a held entry, an unfinished recording, an accepted
   adoption, a resolution — still finishes.
 
-    - `[ ]` **2.3.a The save-only reads go**
-        - `launchProjectionStart` (`start-observations.ts`) reads the index's `walked` groups and walks no
-          `.arc/completed` root for `arc save`, as for any command; `adoptionRetries` loads the `walked` groups for
-          `arc save` too, selecting in `completed/` its opened entries and the unsettled ones its marked partitions
-          hold.
-        - `startUnderLease` keeps its recovery of swept aside copies under `completed/` for `arc save`
-          (`engine-start.ts`), since the sweep names those paths.
-        - `clearAcceptedMarks` (`save-changed.ts`), over the index `saveProjectionChanges` reads afresh under its
-          lease, loads the `walked` groups rather than every one, so it clears changed marks only in the partitions any
-          start reads; the selection never lists `completed/`, so no archived changed mark it leaves matters.
-        - Existing tests that rely on `arc save` reading an unopened archived edit or adopting a new archived file it
-          finds open the file first or move to the new contract, as `notes-projection-team-scale.md` § Test migrations
-          gives each.
-        - Build `test-first` (one behavior at a time):
-            - a no-change `arc save` with nothing opened leaves invalid bytes in an unmarked archive partition unread
-              and walks no archive folder
-            - a refusal a refresh left, an unfinished recording, and an accepted adoption awaiting its read-back, each
-              in a marked archive partition, finish at `arc save`
-            - a new archived file made without `arc edit` is not adopted by `arc save`
+    - `[x]` **2.3.a The save-only reads go**
+        - Save starts and changed-mark clearing load walked groups and never discover archive folders. Indexed retries
+          share the header's unsettled predicate, retaining refused edits and interrupted adoption recovery.
+    - `[x]` **2.3.b `--resolve` keeps its lookup**
+        - Resolution retains its all-partition lookup and can settle an unopened archived whole-record conflict.
+          Standing archived markers name `arc edit` before the hand-edit remedy.
 
-    - `[ ]` **2.3.b `--resolve` keeps its lookup**
-        - `selectProjectionResolution` (`save-resolution.ts`) still loads every partition to find its token, and the
-          subject file it names is written back opened or not, landing read-only where its lay mode lays it so.
-        - `explicitResolutionMarkerRefusal` (`save-markers.ts`) names `arc edit <path>` before its marker remedy where
-          the file is archived and not opened, since it lies read-only.
-        - The history retry stays as shipped: `historyRetryInput` (`engine.ts`) wraps the store in
-          `retryEndedItemHistory` (`lib/store/history-retry.ts`) for `arc save`.
-        - Build `test-first` (one behavior at a time):
-            - `arc save --resolve` finds a whole-record conflict shown by its notice line in an archived file not
-              opened and resolves it, the file laid read-only (Success Criterion 8)
-            - `--resolve` over markers shown in an archived file not opened refuses naming `arc edit <path>`, and
-              resolves once the file is opened and the markers edited out (Success Criterion 8)
+- _Outcome:_ Cold partitions and unindexed archive files stay untouched at save. Existing archived-adoption tests open
+  eligible paths first and exercise misplaced-path refusals through edit, preserving the same correction and identity.
 
 ### `[ ]` **2.4 The re-lock and `arc save`'s report — § 6.2, § 6.3, § 9.1**
 

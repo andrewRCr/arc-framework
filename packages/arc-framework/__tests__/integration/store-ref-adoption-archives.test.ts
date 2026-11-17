@@ -1,3 +1,5 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
+import { projectionEditResult } from "../../src/lib/store/projection/edit.js";
 /** Archive adoption binds exact generations and isolates repairable ownership failures. */
 import { afterEach, expect, it } from "vitest";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -29,6 +31,7 @@ it.each(["active", "completed"] as const)("adopts an older archive despite a new
   const projected = await seedProjection({ store: f.store, checkout: f.root, files: [] });
   const path = `${folder}/correction.txt`, content = "Correction for the older generation\n";
   await writeFile(join(f.root, path), content);
+  await openArchivedProjectionFile({ store: f.store, checkout: f.root }, path);
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "correction.txt");
   expect(success(await f.store.read({ reference }))).toMatchObject({ reference, content });
@@ -46,6 +49,7 @@ it.each([{ completed: true }, { own: false }, {}])("adopts an unindexed Errand d
   const scratch = ".arc/user/andrew/scratch/independent.txt";
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(f.root, scratch), "Independent input\n");
+  if (input.completed) await openArchivedProjectionFile({ store: f.store, checkout: f.root }, path);
   await expect(startProjection({ store: f.store, checkout: f.root, mode: "save" })).resolves.toBeDefined();
   expect(success(await f.store.read({ reference: description.reference })).content).toBe(content);
   const independent = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), "scratch/independent.txt");
@@ -66,16 +70,17 @@ it("keeps a misplaced completed Errand repair local and adopts the same bytes af
   const scratch = ".arc/user/andrew/scratch/independent.txt";
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(f.root, scratch), "Independent input\n");
-  await startProjection({ store: f.store, checkout: f.root, mode: "save" });
+  await startProjection({ store: f.store, checkout: f.root });
+  const opened = await projectionEditResult(f.store, f.root, join(f.root, wrong));
+  expect(opened).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("No unique Errand") } });
   const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
-  expect(held.index.entries[wrong]).toMatchObject({ kind: "ownerless", refused: {
-    reason: expect.stringContaining("No unique Errand"), remedy: { text: expect.stringContaining("retry") },
-  } });
+  expect(held.index.entries[wrong]).toBeUndefined();
   expect(await readFile(join(f.root, wrong), "utf8")).toBe(content);
   const independent = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), "scratch/independent.txt");
   expect(success(await f.store.read({ reference: independent })).content).toBe("Independent input\n");
   await rename(join(f.root, wrong), join(f.root, correct));
+  await openArchivedProjectionFile({ store: f.store, checkout: f.root }, correct);
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
   expect(success(await f.store.read({ reference: description.reference })).content).toBe(content);
 });
@@ -90,12 +95,13 @@ it("refuses ambiguous completed Errand generations while saving independent inpu
   await writeFile(join(f.root, path), content);
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(f.root, ".arc/user/andrew/scratch/independent.txt"), "Independent input\n");
+  await startProjection({ store: f.store, checkout: f.root });
+  const opened = await projectionEditResult(f.store, f.root, join(f.root, path));
+  expect(opened).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("No unique Errand") } });
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
   const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing ambiguous index");
-  expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
-    reason: expect.stringContaining("No unique Errand"), remedy: { text: expect.stringContaining("retry") },
-  } });
+  expect(held.index.entries[path]).toBeUndefined();
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
   const independent = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), "scratch/independent.txt");
   expect(success(await f.store.read({ reference: independent })).content).toBe("Independent input\n");

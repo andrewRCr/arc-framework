@@ -1,3 +1,4 @@
+import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
 /** Save runs through the registered CLI, its start hook, and a real reference backend. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
@@ -402,12 +403,14 @@ it.each(["meta", "tasks"] as const)("protects another person's archived %s and l
   await chmod(join(h.checkout, h.path), 0o644);
   await h.edit(content);
   const bytes = await h.file();
-  const denied = await save(h);
-  expect(denied.errors).toContain("andrew");
+  await startProjection(h);
+  const denied = await projectionEditResult(h.store, h.checkout, join(h.checkout, h.path));
+  expect(denied).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("andrew") } });
   expect((await h.stored()).content).toBe(h.record.content);
   expect(await h.file()).toBe(bytes);
   await h.exec("git", ["config", "arc.identity", "andrew"], { cwd: h.checkout });
   h.store.environment.identity = "andrew";
+  await openArchivedProjectionFile(h, h.path);
   expect((await save(h)).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
@@ -774,12 +777,12 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
   expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([]);
 });
 
-async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content" | "links") {
+async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content" | "links", archived = false) {
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } });
   fixture.identity("andrew");
   const content = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
-    currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
-  const base = await seed(fixture, fixture.reference("work-item/meta"), content, { kind: "active" },
+    state: archived ? "Shipped" : "Active", currentWorkflow: archived ? null : "process-task-loop", design: ["spec-work-item-one.md"] });
+  const base = await seed(fixture, fixture.reference("work-item/meta"), content, archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" },
     { changeRequest: { repository: "project", number: 7 } });
   const remote = fixture.remote(true);
   if (remote === undefined) throw new Error("No reference remote");
@@ -796,7 +799,7 @@ async function wholeRecordProjection(change: "removal" | "placement" | "verb-own
   const current = success(await fixture.store.read({ reference: base.reference }));
   const conflict = current.conflicts[0];
   if (conflict === undefined) throw new Error("Sync produced no whole-record conflict");
-  const path = ".arc/active/current/meta-work-item-one.md";
+  const path = archived ? ".arc/completed/2026-q4/01_work-item-one/meta-work-item-one.md" : ".arc/active/current/meta-work-item-one.md";
   const projected = await seedProjection({ store: fixture.store, files: [{ reference: base.reference, path }] });
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
@@ -1113,11 +1116,12 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   } });
 });
 
-it("leaves failed archived admission for explicit save after the condition is repaired", async () => {
+it("adopts an opened archived path at the next command after failed save admission is repaired", async () => {
   const h = await createAdoptionFixture({ placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
   directories.push(h.f.root);
   const path = `${h.folder}/extra.txt`, reference = recordReferences["work-item/companion"](h.primary.reference.owner, "extra.txt");
   await writeFile(join(h.f.root, path), "archived new companion\n");
+  await openArchivedProjectionFile({ store: h.f.store, checkout: h.f.root }, path);
   let blocked = true;
   const refusal = StoreRefusalSchema.parse({ code: "lock-held", class: "recoverable", lock: "work-item",
     condition: "Archived admission is locked.", remedy: { text: "Release the lock and retry save." } });
@@ -1125,15 +1129,27 @@ it("leaves failed archived admission for explicit save after the condition is re
     ? Promise.resolve({ status: "refused", refusal }) : h.f.store.batch(input) });
   expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
-    entries: { [path]: { kind: "ownerless" } },
+    entries: { [path]: { kind: "ownerless", opened: true, refused: expect.any(Object) } },
   } });
   blocked = false;
-  expect(await startProjection({ store, checkout: h.f.root })).toMatchObject({ kind: "ready", discovered: [] });
-  expect(await h.f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await startProjection({ store, checkout: h.f.root })).toMatchObject({ kind: "ready" });
+  await endProjection({ store, checkout: h.f.root });
+  expect(success(await h.f.store.read({ reference })).content).toBe("archived new companion\n");
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
-    entries: { [path]: { kind: "ownerless" } },
+    entries: { [path]: { kind: "record", opened: true, refused: null } },
   } });
   expect((await save({ store, checkout: h.f.root })).errors).toBe("");
   expect(success(await h.f.store.read({ reference })).content).toBe("archived new companion\n");
-  expect(success(await h.f.store.history({ reference }))[0]?.provenance).toMatchObject({ verb: "save", lifecycleAction: "edit" });
+  expect(success(await h.f.store.history({ reference }))[0]?.provenance).toMatchObject({ verb: "write-back", lifecycleAction: "edit" });
+});
+
+it("resolves an unopened archived whole-record conflict through its notice and lays its subject read-only", async () => {
+  const h = await wholeRecordProjection("links", true);
+  const entry = h.index.entries[h.path];
+  expect(entry).not.toHaveProperty("opened");
+  expect(entry).toMatchObject({ notices: [h.conflict] });
+  expect(await readFile(join(h.checkout, h.path), "utf8")).toContain(formatConflictToken(h.conflict));
+  expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.reference }))).toMatchObject({ content: h.current.content, conflicts: [] });
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
 });
