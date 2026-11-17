@@ -315,12 +315,13 @@ export async function runArcAnchoredSequence(
     const normalized = normalizeAnchoredOutput(stdout);
     return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
   } catch (error) {
-    const failure = error as { stdout?: string; stderr?: string; code?: number | string };
+    const failure = error as { stdout?: string; stderr?: string; code?: number | string; killed?: boolean };
     const normalized = normalizeAnchoredOutput(failure.stdout ?? "");
     return {
       stdout: normalized,
       stderr: failure.stderr ?? "",
       exitCode: typeof failure.code === "number" ? failure.code : 1,
+      ...(failure.code === "ETIMEDOUT" || failure.killed === true ? { timedOut: true as const } : {}),
       results: parseJsonLines(normalized),
     };
   }
