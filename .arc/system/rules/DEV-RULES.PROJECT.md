@@ -105,8 +105,9 @@ import its changed source. Do not wait for it: carry on with the next phase and 
   leave the whole pair to verification's run.
 
 A `portability_files` dispatch attests nothing (§ Hosted CI before verification attests). `ci.yml` cancels a dispatch
-when another starts on the same ref, so when a phase closes while the previous phase's dispatch still runs, dispatch
-both phases' files together.
+when another starts on the same ref, so never dispatch while a verification run is in progress on the branch, and when
+a phase closes while the previous phase's dispatch still runs, dispatch both phases' files together, leaving out any
+the later phase renamed or deleted.
 
 ### Hosted CI before verification attests
 
