@@ -9,7 +9,7 @@ export const PROJECT_DURATION_ESTIMATES: Readonly<Record<string, number>> = {
   "e2e": 12739.0,
   "unit": 7.0,
   "unit-mocks": 32.0,
-  // These run one file at a time after their shard's parallel work, and only in the portability jobs. Until a job's
+  // These run one file at a time after their shard's parallel work, and only when ARC_STORE_BURSTS is 1. Until a job's
   // duration file records them, these stand in as shard weights and take no serial multiplier. The burst suite takes a
   // shard of its own by rule, so its estimate only orders it; the timing suite's keeps its shard a little lighter. On
   // hosted Windows they take 4–12 min and about 1 min.
