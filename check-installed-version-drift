@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-installed-version-drift",
+  "claimId": "2716ffb4c843d096452713423b8e5a61",
+  "createdAt": "2026-11-17T17:21:21.002Z",
+  "updatedAt": "2026-11-17T17:21:21.002Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report installed npm versions that differ from the lockfile beside failed local checks.",
+  "branch": "chore/check-installed-version-drift",
+  "origin": "inbox",
+  "originEntry": "Name an install that lags the lockfile when a check fails",
+  "originEntrySourceDigest": "sha256:4ac79c2b157b1ae776a710ba500301d56380a610ee9d6781a41c1e66f754a1b5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
