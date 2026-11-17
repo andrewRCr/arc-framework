@@ -3,7 +3,7 @@
   "slug": "windows-test-path-fakes",
   "claimId": "40173670ac3c5b386385816a40ee0808",
   "createdAt": "2026-11-16T22:46:16.379Z",
-  "updatedAt": "2026-11-16T22:46:16.379Z",
+  "updatedAt": "2026-11-17T01:03:50.649Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the unit and integration suites whose path fakes and assertions assume POSIX separators pass on Windows",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make main's teardown, park and abandon suites pass on Windows",
   "originEntrySourceDigest": "sha256:75bcc94bdb0e450d5cad08423845fb777719f837441b17e25d524764d6ce90e4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/windows-test-path-fakes",
+    "headSha": "aaca1255f8fee6e520d04e79f02b8dc3a6d2b9b4"
+  }
 }
