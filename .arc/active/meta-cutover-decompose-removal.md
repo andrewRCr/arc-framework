@@ -15,9 +15,11 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** create-spec — `spec-cutover-decompose-removal.md`
 - **Next Task:** [none]
-- **Blockers:** Final task-file inventory awaits the fixed flip head or landed base.
+- **Blockers:** Task generation waits for the flip's fixed head at verification, after its Phase 6 rehearsal, or
+  `main` after the flip lands.
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Resume at `generate-tasks` entry once the basis is available; read both PM briefs named in
+  SESSION-NOTES, record the basis commit, and re-check the prerequisite contract before enumerating files.
 
 - **PR URL:** [none]
 - **Completed:** [none]
