@@ -13,6 +13,7 @@ vi.mock("../../../../src/lib/store/create.js", async importOriginal => {
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { createEngineFixture } from "../../../helpers/store/projection/engine-fixture.js";
@@ -106,9 +107,9 @@ it("shows an opened new path with its adoption refusal and drops the refusal aft
   const path = `${h.folder}/correction.md`, input = { store: h.f.store, checkout: h.f.root };
   await writeFile(join(h.f.root, path), "An authored archive correction.\n");
   await openArchivedProjectionFile(input, path);
-  expect((await status(input)).projection).toMatchObject({ ok: true, value: { files: expect.arrayContaining([
+  expect(await readProjectionStatus(input)).toMatchObject({ files: expect.arrayContaining([
     expect.objectContaining({ path, opened: true, ownerless: true, refused: null }),
-  ]) } });
+  ]) });
   const blocked = createRefusingStore(h.f.store);
   const mark = { code: "lock-held" as const, class: "recoverable" as const, lock: "archive",
     condition: "The archive writer is held.", remedy: { text: "Release the archive writer, then retry arc save." } };

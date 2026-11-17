@@ -108,35 +108,15 @@ across two ordinary commands, and saved is landed, laid read-only, and named in 
 partition whose bytes do not hash to its name is remedied by `arc sync` run from that checkout, as the removal check
 names it.
 
-### `[ ]` **2.1 A command's start takes opened edits in — § 5**
+### `[x]` **2.1 A command's start takes opened edits in — § 5**
 
 - _Goal:_ Every command's start finds the opened archive entries in the partitions the header marks, takes their edits
   in through write-back with the file left writable, and hands an opened new path to adoption, walking no archive
   folder; every other unsettled archive entry not opened stays with `arc save`.
 
-    - The adoption retry's selection (`retriesIndexedEntry`, `engine-files.ts`) takes opened entries under
-      `completed/` at every command, beside the accepted adoptions awaiting their read-back it takes there today, and
-      `adoptionRetries` reads it as before. The release step and the removal check read the same selection
-      (`retainedReleaseEntry`, `release-entries.ts`; `removal-check.ts`), so release finishes an opened new entry
-      rather than refusing it (3.2.b).
-    - An opened record entry is checked by the racy rule through `checkFileAtPath` and sent as any edit, and an opened
-      ownerless entry goes to `adoptProjectionFile`.
-    - A landing's read-back at an ordinary command lays the opened file writable (1.3).
-    - An ordinary command pulls no ended item's history (`historyRetryInput`, `engine.ts`): where the store refuses an
-      opened edit for a history ref not held here, the file stays opened and writable and the refusal names `arc save`.
-    - Where an opened ownerless entry's file is absent, the shipped route drops the entry (`reconcileAbsentAdoption`,
-      `adoption.ts`), and the command's report names the dropped path with `arc edit` to open the file again should it
-      return.
-
-    - Build `test-first` (one behavior at a time):
-        - an opened file edited before each of two ordinary commands has each edit taken in, the file writable
-          throughout
-        - an opened edit whose ended item's history is not held here is refused at an ordinary command naming
-          `arc save`, stays opened and writable, and lands at `arc save`
-        - an opened new file is adopted by the next ordinary command, keeps the opened mark, and stays writable after
-          the adoption's read-back
-        - an opened new file deleted before a command has its entry dropped and is named in that command's report
-        - an edit to an archived file that is not opened is neither checked nor sent by an ordinary command
+- _Outcome:_ Indexed retries select opened archive records and new paths at ordinary command starts. Edits and
+  adoptions retain opened intent and writable mode; missing-history refusals name explicit save, while an absent new
+  path drops its opening and reports how to reopen it. Unopened forced edits stay outside the ordinary walk.
 
 ### `[ ]` **2.2 `arc sync` remedies a mismatched archive partition — § 7.2, § 10.2**
 

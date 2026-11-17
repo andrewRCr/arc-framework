@@ -65,10 +65,10 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
   });
 }
 
-/** Whether a command's walk retries an entry whose file it may not reach: every root at `arc save`, else outside the archive. */
+/** Retry opened files and unfinished adoptions beyond the walked roots, retaining save's archive recovery. */
 export function retriesIndexedEntry(verb: string | undefined, path: string, entry: ProjectionIndex["entries"][string]): boolean {
   const selected = verb === "save" || !path.startsWith(".arc/completed/");
-  return entry.kind === "record" && entry.adoption?.kind === "read-back"
+  return entry.opened === true || entry.kind === "record" && entry.adoption?.kind === "read-back"
     || selected && (entry.kind === "ownerless" || entry.adoption !== undefined);
 }
 

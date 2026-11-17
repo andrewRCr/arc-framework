@@ -1,5 +1,6 @@
 /** Adopt a discovered file through established ownership and the ordinary hand-edit checks. */
 import { withProjectionEntry } from "./index-memory.js";
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { join } from "node:path";
 import type { RecordReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -75,8 +76,13 @@ async function reconcileAbsentAdoption(root: ProjectionRootState, index: Project
     return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
       index: withProjectionEntry(index, path, { ...entry, stat: null, refused: mark }) });
   }
-  return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
+  const dropped = await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, undefined) });
+  if (entry.opened === true) root.context.report?.({ path, copy: null, mark: {
+    reason: "The opened new file is absent; its opening was removed.",
+    remedy: { text: `If the file returns, run arc edit ${renderRemedyArgument(path)} to open it again.` },
+  } });
+  return dropped;
 }
 
 async function refuse(root: ProjectionRootState, index: ProjectionIndex, path: string, stat: FileStat | null, mark: RefusedMark): Promise<ProjectionIndex> {
