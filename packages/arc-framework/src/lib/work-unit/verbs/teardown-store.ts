@@ -18,7 +18,7 @@ import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
 import { missingRegistrationActions } from "../../session-init/missing-worktree-folders.js";
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
-import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
+import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 import { createStoreSelfTeardownHusk, releaseStoreTerminalHusk } from "../store-self-teardown-husk.js";
 import { unlockTerminalHusk } from "../terminal-husk-unlock.js";
@@ -142,7 +142,6 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       ctx.notices.push(`Released checkout ${path}; its files were retained.`);
       return null;
     }
-    if (await fs.directoryExists(path)) await reconcileUserSurfacesForRemoval({ exec: ctx.exec, fs, chdir: ctx.chdir }, path);
     const self = await isSelfTeardown(path, invokingPath);
     if (self) ctx.chdir(ctx.primaryPath);
     const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots, folderExists: (target) => fs.directoryExists(target) });

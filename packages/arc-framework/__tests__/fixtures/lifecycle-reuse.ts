@@ -8,11 +8,13 @@ import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/ident
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../src/lib/store/kinds/meta/writers.js";
 import type { WritePlacement } from "../../src/lib/store/placement.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 
 /** Use a production rename before arranging the final verb state and branch links. */
 export async function lifecycleReuseFixture(former: boolean, fields: MetaRenderOverrides = {}, placement: WritePlacement = { kind: "active" }) {
   const f = await repairCliFixture(), h = createLifecycleHarness(), repository = randomUUID();
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "project", uid: repository })), "{}");
+  await seedImportedUserProjection(f.cwd, h.store);
   const archived = await h.seedMeta("example", { state: "Shipped", currentWorkflow: null },
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const oldNotes = await h.seed(recordReferences["work-item/notes"](archived.reference.owner), "# Completed notes\n");

@@ -56,11 +56,9 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   if (headReceipts.status === "refused") return headReceipts;
   const unhealthy = await checkWindowTips(context, window);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
-  const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
-    ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
-  async () => missingChangeState(window, await missingHistoryRefs(context, [window.ref])));
+  const graph = await changeWindowRows(context, window, heads);
   if (graph.status === "refused") return graph;
-  const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
+  const rows = graph.result;
   if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result, recordFree: new Set() } };
   const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);
@@ -72,6 +70,26 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   const namespaces = await changeNamespaceFacts(context, window, trees, objects);
   return namespaces.status === "refused" ? namespaces : { status: "ok", result: { window, rows, trees, objects, receipts: receipts.result,
     recordFree: namespaces.result } };
+}
+
+async function changeWindowRows(context: RefBackendContext, window: RefChangeWindow,
+  heads: ReadonlyMap<string, BatchObject | null>): Promise<StoreResult<HistoryCommit[]>> {
+  const immediate = immediateWindowRow(window, heads.get(window.upper));
+  if (immediate !== undefined) return { status: "ok", result: [immediate] };
+  const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
+    ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map(path => `:(literal)${path}`)] : []],
+  async () => missingChangeState(window, await missingHistoryRefs(context, [window.ref])));
+  return graph.status === "refused" ? graph : { status: "ok", result: orderHistoryCommits(parseHistoryRows(graph.result)).reverse() };
+}
+
+/** A direct sole parent proves the entire unfiltered interval; filtered or longer histories still use Git's graph rules. */
+function immediateWindowRow(window: RefChangeWindow, upper: BatchObject | null | undefined): HistoryCommit | undefined {
+  if (window.paths !== undefined || upper?.type !== "commit") return undefined;
+  const header = new TextDecoder().decode(upper.bytes).split("\n\n", 1)[0] ?? "";
+  const parents = header.split("\n").filter(line => line.startsWith("parent ")).map(line => line.slice(7));
+  const expected = window.lower === undefined ? [] : [window.lower];
+  if (parents.length !== expected.length || parents.some((parent, at) => parent !== expected[at])) return undefined;
+  return { revision: window.upper, parents };
 }
 
 async function changeNamespaceFacts(context: RefBackendContext, window: RefChangeWindow,

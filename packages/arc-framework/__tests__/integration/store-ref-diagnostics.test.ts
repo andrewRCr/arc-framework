@@ -6,7 +6,7 @@ import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registration
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
-import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { damageLooseObject, plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
@@ -22,7 +22,7 @@ const future = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key
 const evidence = JSON.stringify(reviewEvidenceFixture());
 
 describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) => {
-  it("reports a ref whose nested tree is missing unreadable in a fresh process, keeping every other ref", async () => {
+  it.each(["missing", "damaged"] as const)("reports a ref whose nested tree is %s unreadable in a fresh process, keeping every other ref", async (fault) => {
     const f = await createRefReadFixture(format);
     const damagedUid = "87654321-4321-4321-8321-cba987654321";
     await plantRef(f.root, ref, [
@@ -34,7 +34,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       { path: "meta-beta.md", content: "# Beta\n" },
       { path: `review/evidence-good-${damagedUid}.json`, content: evidence },
     ]);
-    await removeLooseObject(f.root, (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim());
+    const nested = (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim();
+    await (fault === "missing" ? removeLooseObject : damageLooseObject)(f.root, nested);
     expect(await createRefStore(f.ports).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ reference: good })], missed: true,
       diagnostics: [expect.objectContaining({ kind: "unreadable", key: `refs/arc/work/${damagedUid}` })] } });

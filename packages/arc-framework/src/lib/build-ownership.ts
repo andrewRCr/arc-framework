@@ -26,7 +26,7 @@ export interface BuildOwnershipInput {
 }
 
 /** Artifact capability valid only inside the owning action. */
-export interface BuildArtifactLease extends RenewableLease {
+export interface BuildArtifactLease extends Pick<RenewableLease, "confirmOwnership"> {
   readonly packageRoot: string;
   readonly token: string;
 }

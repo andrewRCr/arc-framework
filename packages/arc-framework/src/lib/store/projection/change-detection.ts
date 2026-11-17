@@ -1,5 +1,6 @@
 /** Change detection by Git's racy rule: a stat match is clean only when older than the index's reference. */
-import type { BigIntStats } from "node:fs";
+import { loadedProjectionGroups, replaceLoadedProjectionEntries, withProjectionEntry } from "./index-memory.js";
+import { lstatSync, type BigIntStats } from "node:fs";
 import { lstat, mkdir, readFile as fsReadFile, stat as fsStat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
@@ -31,23 +32,23 @@ export async function writeReference(checkout: string, checkpoint?: () => Promis
 }
 
 /**
- * Smudge observed entry and ignore-file stats racy against the old reference, including observations just made. Only
- * stats for staged files installed after this write are exempt: their saves necessarily follow the new reference.
+ * Smudge every observed entry and ignore-file stat racy against the old reference, including staged files whose
+ * installation follows publication. Untouched partitions must remain safe after later reference advances.
  * @param index - The index about to be written.
  * @param reference - The reference it replaces, null where missing, which makes every one racy.
- * @param installing - Paths whose staged files will be installed after this index write.
  * @returns The index to write.
  */
 export function smudgeRacyEntries(
-  index: ProjectionIndex, reference: bigint | null, installing: ReadonlySet<string> = new Set(),
+  index: ProjectionIndex, reference: bigint | null,
 ): ProjectionIndex {
+  const groups = loadedProjectionGroups(index);
   const entries = Object.fromEntries(Object.entries(index.entries).map(([path, entry]) => (
-    [path, installing.has(path) ? entry : { ...entry, stat: smudged(entry.stat, reference) }]
+    [path, { ...entry, stat: smudged(entry.stat, reference) }]
   )));
   const ignoreFiles = index.ignoreFiles?.map((record) => (
     record.stat === null ? record : { ...record, stat: smudged(record.stat, reference) }
   )) ?? null;
-  return { ...index, entries, ignoreFiles };
+  return { ...replaceLoadedProjectionEntries(index, entries, groups), ignoreFiles };
 }
 
 function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): T {
@@ -65,7 +66,7 @@ function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): 
 export function recordCleanStat(index: ProjectionIndex, path: string, stat: FileStat): ProjectionIndex {
   const entry = index.entries[path];
   if (entry?.kind !== "record") throw new Error(`No record entry at ${path}`);
-  return { ...index, entries: { ...index.entries, [path]: { ...entry, stat } } };
+  return withProjectionEntry(index, path, { ...entry, stat });
 }
 
 /** What a check compares a file against: its recorded stat, the blob id last written there, and the reference. */
@@ -75,6 +76,7 @@ export interface ChangeCheck {
   readonly written: string;
   readonly reference: bigint | null;
   readonly format: ObjectFormat;
+  readonly observed?: FileStat | null;
 }
 
 /** What a check found: nothing there, a stat match older than the reference, a hash equal to the write, or a change. */
@@ -93,10 +95,14 @@ export type ChangeVerdict =
 export async function checkChange(
   check: ChangeCheck, readFile: (path: string) => Promise<Uint8Array> = fsReadFile,
 ): Promise<ChangeVerdict> {
-  const stat = await readStat(check.path);
+  let stat = check.observed === undefined ? await readStat(check.path) : check.observed;
   // A symbolic link, or anything else not a file, is never followed or read: it reads as a deleted file.
   if (stat?.type !== "file") return { status: "absent" };
   if (isStatClean(stat, check)) return { status: "clean", stat };
+  if (check.observed !== undefined) {
+    stat = await readStat(check.path);
+    if (stat?.type !== "file") return { status: "absent" };
+  }
   const blob = gitBlobId(await readFile(check.path), check.format);
   return blob === check.written ? { status: "hashed-clean", stat } : { status: "changed", stat, blob };
 }
@@ -116,6 +122,20 @@ export async function readStat(path: string, followLinks = false): Promise<FileS
     if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return null;
     throw error;
   }
+  return projectionFileStat(stat);
+}
+
+/** Observe one file synchronously for platforms where native synchronous stats cost less than a worker pool. */
+export function readStatSync(path: string): FileStat | null {
+  try { return projectionFileStat(lstatSync(path, { bigint: true })); }
+  catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return null;
+    throw error;
+  }
+}
+
+function projectionFileStat(stat: BigIntStats): FileStat {
   const type = stat.isFile() ? "file" : stat.isSymbolicLink() ? "symlink" : "other";
   return { type, size: stat.size, mtimeNs: stat.mtimeNs, ino: stat.ino };
 }

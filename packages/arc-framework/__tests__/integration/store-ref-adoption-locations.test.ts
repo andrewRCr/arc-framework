@@ -24,7 +24,7 @@ it("adopts new prose into the work item claimed by the current checkout", async 
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "diagram.svg");
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -37,7 +37,7 @@ it.each(["nested", "flat"] as const)("uses the %s own folder and repairs a mispl
   await startProjection({ store: f.store, checkout: f.root });
   let adopted = path;
   if (ownLayout === "nested") {
-    const held = await readProjectionIndex(projected.location, true);
+    const held = await readProjectionIndex(projected.location, true, { groups: "all" });
     if (held.kind !== "index") throw new Error("Missing refused index");
     expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { remedy: { text: expect.stringContaining("current/") } } });
     expect(success(await f.store.version())).toBe(before);
@@ -48,7 +48,7 @@ it.each(["nested", "flat"] as const)("uses the %s own folder and repairs a mispl
   }
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "loose.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adoption index");
   expect(disk.index.entries[adopted]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   if (adopted !== path) expect(disk.index.entries[path]).toBeUndefined();
@@ -61,7 +61,7 @@ it("refuses another owner's new in-flight prose and adopts the same bytes after 
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("bob"), remedy: { text: expect.stringContaining("bob") },
@@ -73,7 +73,7 @@ it("refuses another owner's new in-flight prose and adopts the same bytes after 
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "extra.txt");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing repaired index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -86,7 +86,7 @@ it("adopts an archived owner's new companion at save without changing its archiv
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "diagram.svg");
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content } });
   expect(success(await f.store.read({ reference: primary.reference })).placement).toEqual(primary.placement);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archived adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -98,7 +98,7 @@ it("leaves loose personal prose ownerless and adopts it after moving the same by
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing ownerless index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { remedy: { text: expect.stringContaining("scratch/") } } });
   expect(success(await f.store.version())).toBe(before);
@@ -109,7 +109,7 @@ it("leaves loose personal prose ownerless and adopts it after moving the same by
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), "scratch/nested/unfiled.md");
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing scratch adoption index");
   expect(disk.index.entries[path]).toBeUndefined();
   expect(disk.index.entries[adopted]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
@@ -127,7 +127,7 @@ it("refuses an ended current claim instead of adopting into its live namesake, t
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining("no active, bound") } });
   expect(success(await f.store.version())).toBe(before);
@@ -139,7 +139,7 @@ it("refuses an ended current claim instead of adopting into its live namesake, t
   expect(success(await f.store.read({ reference })).content).toBe(content);
   expect(await f.store.read({ reference: recordReferences["work-item/companion"](primary.reference.owner, "generation.txt") }))
     .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing repaired index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -152,7 +152,7 @@ it("adopts a new inbound list into an Errand through its exact ready checkout cl
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/inbound"](primary.reference.owner);
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing Errand adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });

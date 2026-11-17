@@ -113,7 +113,7 @@ it("names the held lock's holder and lists the file after release", async () => 
     expect(held.exitCode).toBe(1); refusal(held.output, "held", "Retry");
     expect(JSON.parse(held.output).refusal.condition).toContain(String(process.pid));
   } finally { release(); await holding; binding.ports = null; }
-  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [h.path] });
+  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [h.path, ".arc/active/current/meta-work-item-one.md"] });
 });
 
 it("refuses a missing Git directory and lists the file once it is restored", async () => {
@@ -123,7 +123,7 @@ it("refuses a missing Git directory and lists the file once it is restored", asy
     const missing = await selection(h.store, h.checkout, ["--json"]);
     expect(missing.exitCode).toBe(1); refusal(missing.output, "Git directory is missing", "Retry");
   } finally { await rename(backup, h.location.gitDir); }
-  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [h.path] });
+  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [h.path, ".arc/active/current/meta-work-item-one.md"] });
 });
 
 it("refuses a lost lease and lists the accepted edit on retry", async () => {
@@ -154,7 +154,7 @@ it("reads the completed index without loading records", async () => {
     vi.spyOn(h.store, "read").mockRejectedValue(new Error("Selection must not read stored content"));
     vi.spyOn(h.store, "list").mockRejectedValue(new Error("Selection must not list stored records"));
   }));
-  expect(selected).toEqual({ exitCode: 0, output: `${JSON.stringify({ paths: [h.path] })}\n` });
+  expect(selected).toEqual({ exitCode: 0, output: `${JSON.stringify({ paths: [h.path, ".arc/active/current/meta-work-item-one.md"] })}\n` });
   vi.restoreAllMocks();
 });
 
@@ -167,7 +167,7 @@ it.each(["unreadable", "missing", "other-format"])("refuses a %s index after sta
   }));
   expect(damaged.exitCode).toBe(1); refusal(damaged.output, cause, "Restore");
   await writeFile(path, index);
-  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [h.path] });
+  expect(JSON.parse((await selection(h.store, h.checkout, ["--json"])).output)).toEqual({ paths: [".arc/active/current/meta-work-item-one.md", h.path] });
 });
 
 it("selects owned in-flight Markdown and omits native protected, conflicted, and completed renderings", async () => {

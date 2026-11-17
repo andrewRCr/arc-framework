@@ -1,4 +1,5 @@
 /** Hand edits pass through preparation and the store without taking over the caller's projection state. */
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -35,7 +36,7 @@ beforeEach(async () => {
 afterEach(async () => { vi.restoreAllMocks(); await rm(checkout, { recursive: true, force: true }); });
 
 function indexFor(path: string, entry: RecordEntry): ProjectionIndex {
-  return { format: 1, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
+  return { format: 2, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("test-user"), claim: null, layoutActive: "nested" },
     entries: { [path]: entry } };
 }
@@ -57,9 +58,9 @@ async function proseFile(kind: KindId = "personal/document", fixture = createRef
   const edit = renderStampedFile({ content: "opening\nedited\nclosing\n", stamp: base.blob });
   await mkdir(dirname(join(checkout, path)), { recursive: true });
   await writeFile(join(checkout, path), edit);
-  const disk = await readProjectionIndex(location, true);
+  const disk = await readProjectionIndex(location, true, { groups: "all" });
   const prior = disk.kind === "index" ? disk.index : indexFor(path, entry);
-  await writeProjectionIndex(location, { ...prior, entries: { ...prior.entries, [path]: entry } });
+  await writeProjectionIndex(location, withProjectionEntry(prior, path, entry));
   const request = { checkout, path, copy: null, entry, base: { kind: "stamp" as const, stamp: base.blob } };
   return { fixture, request, edit };
 }
@@ -144,7 +145,7 @@ describe("sending a projected edit", () => {
     const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" });
     await expect(port({ ...request, entry, copy: takenName })).rejects.toThrow("stopped after landing");
     const marked = { ...entry, copies: entry.copies.map(copy => ({ ...copy, writeBackSent: copy.name === otherName })) };
-    expect(await readProjectionIndex(location, true)).toEqual({ kind: "index", index: indexFor(request.path, marked) });
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toEqual({ kind: "index", index: indexFor(request.path, marked) });
     expect(await readReference(checkout)).toBe(reference);
     const read = await fixture.store.read({ reference: entry.reference });
     expect(read.status === "ok" ? read.result.content : read).toBe("saved aside\n");
@@ -167,13 +168,14 @@ describe("sending a projected edit", () => {
       { name: nameAsideFile({ path: request.path, base: request.entry.base.blob, writer, role: "aside" }),
         moving: request.entry.written, linked: null, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } },
     ] };
-    const observedPath = join(checkout, "observed.txt");
+    const observedRelative = ".arc/user/test-user/scratch/observed.txt";
+    const observedPath = join(checkout, observedRelative);
     const tick = new Date("2026-11-01T12:00:00.000Z");
     await writeFile(observedPath, "before\n");
     await utimes(observedPath, tick, tick);
     const stat = await readStat(observedPath);
     const observed = { ...request.entry, written: gitBlobId("before\n", "sha1"), stat };
-    const index = { ...indexFor(request.path, entry), entries: { [request.path]: entry, "observed.txt": observed } };
+    const index = { ...indexFor(request.path, entry), entries: { [request.path]: entry, [observedRelative]: observed } };
     await writeProjectionIndex(location, index);
     await writeReference(checkout);
     await utimes(join(checkout, PROJECTION_REFERENCE), tick, tick);
@@ -184,10 +186,10 @@ describe("sending a projected edit", () => {
     await utimes(observedPath, tick, tick);
     expect(await createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" })({ ...request, entry }))
       .toMatchObject({ answer: "taken-in" });
-    const disk = await readProjectionIndex(location, true);
+    const disk = await readProjectionIndex(location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("index unavailable");
-    const published = await commitProjectionIndex({ location, checkout, index: recordCleanStat(disk.index, "observed.txt", clean.stat) });
-    expect(await checkChange({ path: observedPath, recorded: published.entries["observed.txt"]?.stat ?? null,
+    const published = await commitProjectionIndex({ location, checkout, index: recordCleanStat(disk.index, observedRelative, clean.stat) });
+    expect(await checkChange({ path: observedPath, recorded: published.entries[observedRelative]?.stat ?? null,
       written: observed.written, reference: await readReference(checkout), format: "sha1" })).toMatchObject({ status: "changed" });
   });
 
@@ -220,7 +222,7 @@ describe("sending a projected edit", () => {
       .toMatchObject({ kind: "ready", write: { expected: request.entry.base.version, content: "opening\nedited\nclosing\n" } });
     expect(await fixture.store.version()).toEqual(state);
     expect(await readFile(join(checkout, request.path), "utf8")).toBe(edit);
-    expect(await readProjectionIndex(location, true)).toEqual({ kind: "index", index });
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toEqual({ kind: "index", index });
     expect(await readReference(checkout)).toBe(reference);
   });
 

@@ -18,6 +18,7 @@
  *
  * @module
  */
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import { runTeardownForOperand } from "./teardown-operand.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { resolveSelfTeardownMode } from "../lib/config/self-teardown-mode.js";
@@ -143,6 +144,7 @@ import {
   buildExecutor,
   lifecycleFs,
   materializeActiveMetaPath,
+  openDefaultStore,
   parseLifecycleCommand,
   refuse,
   refuseWithRemedy,
@@ -1073,7 +1075,9 @@ export async function handlePark(
       executor,
       fs: parkResumeFsSeam(base),
       planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     {
       name: target,
@@ -1631,7 +1635,9 @@ export async function handleAbandon(
       retirement,
       transitionWriter: terminalTransitionWriter(base),
       composed,
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     { name: target, confirmed: true },
   );
@@ -1840,13 +1846,15 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  const store = base.store ?? openDefaultStore(base.cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: base.identity });
   const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
   const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity, cwd: base.cwd });
   const selfTeardownMode = (await resolveSelfTeardownMode({ cwd: base.cwd, exec,
     readFile: path => base.io.readFile(path), warn: message => { p.log.warn(message); } })).value;
   const operational = branchArg === undefined && usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
   const teardownContext: TeardownContext = {
-    store: operational?.executor.store, execInput: base.io.execInput,
+    store: operational?.executor.store ?? store, projectionRemovalSlots, execInput: base.io.execInput,
     projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
     cwd: base.cwd, exec, indexFs: lifecycleFs,
     chdir: (dir) => { process.chdir(dir); locus = dir; }, readCurrentLocus: () => locus,

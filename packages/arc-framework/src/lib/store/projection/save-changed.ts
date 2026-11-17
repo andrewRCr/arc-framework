@@ -3,23 +3,24 @@ import type { Store } from "../contract.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionSaveResult } from "./save.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { withProjectionLock } from "./lock.js";
+import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
 import { observeAsideCopy } from "./aside-copies.js";
 import { recordProjectionLockSkip } from "./engine.js";
+import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 /** Clear accepted changed marks under a fresh lease, preserving unsent and uncertain saved copies. */
 export async function saveProjectionChanges(store: Store): Promise<ProjectionSaveResult> {
   const state = projectionProcessState(), binding = state.command;
   const root = binding === null ? undefined : state.roots.get(binding.checkout);
   if (root === undefined || !root.ready) return versionResult(store);
-  const saved = await withProjectionLock(root.location, async session => {
-    state.lockHeld = true; root.checkpoint = session.step;
+  const saved = await withProjectionFanOutLock(root.location, async session => {
+    root.checkpoint = session.step;
     try {
       await session.step();
       const disk = await readProjectionIndex(root.location, true);
       if (disk.kind !== "index") return { status: "refused" as const, refusal: { code: "projection-refused" as const,
-        condition: disk.kind === "unusable" ? `Projection index is ${disk.cause}.` : "The projection index disappeared after command start.",
+        condition: `Projection index is ${disk.cause}.`,
         remedy: { text: "Restore a readable projection index, then retry arc save; changed marks have been preserved." } } };
       const index = await clearAcceptedMarks(root, disk.index);
       const version = await versionResult(store);
@@ -27,8 +28,8 @@ export async function saveProjectionChanges(store: Store): Promise<ProjectionSav
       await session.step();
       if (index !== disk.index) await commitProjectionIndex({ location: root.location, checkout: root.checkout, index, checkpoint: session.step });
       return version;
-    } finally { root.checkpoint = null; state.lockHeld = false; }
-  }, root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }, root.ports.lock);
+    } finally { root.checkpoint = null; }
+  }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);
   if (saved.status === "done") return saved.value;
   const skipped = recordProjectionLockSkip(root.checkout, saved, root.unsent);
   return { status: "refused", refusal: { code: "projection-skipped", condition: skipped.skip.mark.reason, remedy: skipped.skip.mark.remedy } };
@@ -40,6 +41,8 @@ async function versionResult(store: Store): Promise<ProjectionSaveResult> {
 }
 
 async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIndex): Promise<ProjectionIndex> {
+  loadProjectionGroups(index, "all");
+  const groups = loadedProjectionGroups(index);
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of entries) {
@@ -48,7 +51,7 @@ async function clearAcceptedMarks(root: ProjectionRootState, index: ProjectionIn
     if (!await accepted(root, index, path, entry)) continue;
     entries.set(path, { ...entry, changed: false }); changed = true;
   }
-  return changed ? { ...index, entries: Object.fromEntries(entries) } : index;
+  return changed ? replaceLoadedProjectionEntries(index, Object.fromEntries(entries), groups) : index;
 }
 
 async function accepted(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry): Promise<boolean> {

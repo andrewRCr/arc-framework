@@ -54,6 +54,7 @@ import { checkCurrentWorkflowConsistency } from "../active/current-workflow-cons
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-store-ports.js";
+import { createProjectionRemovalSlots } from "../store/projection/removal-slots.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
@@ -134,6 +135,7 @@ export function buildExecutorContext(
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
   const store = deps.store ?? deps.reopenStore?.(cwd, exec) ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const locusPorts = deps.locusPorts ?? (usesOffBranchState(store) ? createLocusPorts({ cwd, exec, store }) : undefined);
   const projectId = deps.projectId ?? (usesOffBranchState(store) ? createProjectIdentityReader(store) : undefined);
   const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
@@ -236,6 +238,7 @@ export function buildExecutorContext(
       return reconcileWorkUnitWorktree({
         exec,
         store,
+        projectionRemovalSlots,
         ...(locusPorts === undefined ? {} : { locusPorts }),
         chdir: (dir) => { process.chdir(at(dir)); },
         fs: nodeReconcileWorkUnitWorktreeFs,

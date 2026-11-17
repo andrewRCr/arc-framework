@@ -13,6 +13,7 @@ import { inspectCheckoutMarker } from "../../src/lib/locus/marker-occupancy.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { transientContent } from "../helpers/store/in-repo-substrates.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 
 async function fixture(bound = false) {
   const h = await lifecycleReuseFixture(false, { state: "Planning", currentWorkflow: "draft-design" });
@@ -23,6 +24,7 @@ async function fixture(bound = false) {
   await writeWorktreeMarker(path, { spawnedByArc: false,
     createdFor: bound ? boundWorkUnitSubject(h.live) : { kind: "work-unit", name: "example" },
     spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  await seedImportedUserProjection(path, h.store);
   return { ...h, path };
 }
 

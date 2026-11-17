@@ -22,7 +22,6 @@ it.each(["default", "separate"] as const)("revalidates a named archive selection
     const events = (await readFile(trace, "utf8")).trim().split("\n")
       .map(line => JSON.parse(line) as { event: string; argv?: string[] });
     const commands = events.filter(({ event }) => event === "start");
-    expect(commands.filter(({ argv }) => argv?.includes("diff-tree"))).toHaveLength(0);
     expect(commands).toHaveLength(2);
   } finally { vi.unstubAllEnvs(); }
 }, 30_000);

@@ -63,11 +63,12 @@ it("keeps occupied promoted scratch folders until the person repairs the destina
   await mkdir(from, { recursive: true }); await mkdir(to);
   await writeFile(join(from, "idea"), "Personal promotion idea"); await writeFile(join(to, "other"), "Existing destination idea");
   const before = success(await f.h.context.store.version());
-  expect(await repairCli(f, ["user", "reconcile-references", "--apply", "--json"])).toMatchObject({ result: { status: "advisory", plan: { scratch: { moves: [], advisories: [{ reason: "occupied" }] } } } });
+  // Isolate the scratch move's Store contract from automatic adoption of these new personal files.
+  expect(await repairCli(f, ["--skip-projection", "user", "reconcile-references", "--apply", "--json"])).toMatchObject({ result: { status: "advisory", plan: { scratch: { moves: [], advisories: [{ reason: "occupied" }] } } } });
   expect(await readFile(join(from, "idea"), "utf8")).toBe("Personal promotion idea"); expect(await readFile(join(to, "other"), "utf8")).toBe("Existing destination idea");
   const savedPersonalFolder = join(f.cwd, ".git/saved-personal-folder");
   await rename(to, savedPersonalFolder);
-  expect(await repairCli(f, ["user", "reconcile-references", "--apply", "--json"])).toMatchObject({ result: { status: "applied", plan: { scratch: { moves: [{ from, to }] } } } });
+  expect(await repairCli(f, ["--skip-projection", "user", "reconcile-references", "--apply", "--json"])).toMatchObject({ result: { status: "applied", plan: { scratch: { moves: [{ from, to }] } } } });
   expect(await readdir(root)).toEqual(["renamed-promotion"]);
   expect(await readFile(join(savedPersonalFolder, "other"), "utf8")).toBe("Existing destination idea");
   expect(await readFile(join(to, "idea"), "utf8")).toBe("Personal promotion idea");
