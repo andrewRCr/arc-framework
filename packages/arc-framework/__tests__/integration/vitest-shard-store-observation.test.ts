@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import { makeNativeReachFixture } from "../helpers/native-reach-fixture.js";
 import { readNativeShardObservations } from "../helpers/native-shard-evidence.js";
 import { qualifyNativeShardMembership, type NativeMembershipRun } from "../helpers/native-shard-qualification.js";
+import { NESTED_CALL_LIMIT, nestedRunLimit } from "../helpers/call-limit.js";
 
 it("observes reach preflight separately from actual native execution over every project group", async () => {
   const fixture = await makeNativeReachFixture();
@@ -17,7 +18,7 @@ it("observes reach preflight separately from actual native execution over every 
         ...(shard === undefined ? [] : [`--shard=${shard}`])], { cwd: fixture.packageRoot,
         // The outer run owns pool admission; these tiny controllers exercise real native sequencing.
         env: { CI: "1", FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: undefined, ARC_TEST_DURATION_FILE: undefined },
-        reject: false, timeout: 30_000 });
+        reject: false, timeout: NESTED_CALL_LIMIT });
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       const observations = readNativeShardObservations(result.stdout);
       expect(observations).toHaveLength(1);
@@ -34,4 +35,4 @@ it("observes reach preflight separately from actual native execution over every 
     expect(new Set(members.map(member => member.project)))
       .toEqual(new Set(["integration", "integration-timing", "integration-bursts"]));
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 120_000);
+}, nestedRunLimit(120_000));

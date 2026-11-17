@@ -1,6 +1,6 @@
 /** Resolve the base carried by a projected save before its entry identities or content are interpreted. */
 import { requiresStubNormalization } from "./stub-normalization.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { createHistoryMemo, recoverBase, type HistoryMemo, type RecoveredBase } from "./base-recovery.js";
 import { gitBlobId } from "./blob-id.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
@@ -19,7 +19,9 @@ export interface SelectedWriteBackBase {
 }
 
 /** Either a selected base or an ambiguity that keeps the file pending. */
-export type WriteBackBaseDecision = SelectedWriteBackBase | { readonly kind: "held"; readonly mark: RefusedMark };
+export type WriteBackBaseDecision = SelectedWriteBackBase | {
+  readonly kind: "held"; readonly mark: RefusedMark; readonly readRefusal?: StoreRefusal;
+};
 
 /** Select a file's base from its actual stamp, including the content its last persisted write-back took in. */
 export async function selectWriteBackBase(

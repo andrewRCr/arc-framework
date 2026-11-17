@@ -4,6 +4,7 @@
  * run of commands over one projected file that finds where each save ended.
  */
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
+import { runSaveLossRefresh } from "./save-loss-refresh.js";
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
@@ -30,7 +31,7 @@ import { guardReplacement } from "../../../../src/lib/store/projection/replace-g
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { stageRecordFile, type StagedFile } from "../../../../src/lib/store/projection/staging.js";
-import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
+import { swapBatch, type SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import { sweepAsideFolder } from "../../../../src/lib/store/projection/sweep.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
@@ -243,12 +244,16 @@ export interface SaveLossRun {
   readonly saver: Saver;
   /** A uniform draw in [0, 1). */
   readonly random: () => number;
+  /** Exercise the complete store-driven refresh instead of the individual swap operations. */
+  readonly operation?: "refresh";
 }
+
+type SaveLossOperation = "replacement" | "removal" | "rebuild" | "refresh";
 
 /** A lost save, with what the command did and when, against the saver's steps, in microseconds from the signal. */
 export interface SaveLoss {
   readonly cycle: number;
-  readonly operation: "replacement" | "removal" | "rebuild";
+  readonly operation: SaveLossOperation;
   readonly guard: string;
   readonly settled: readonly string[];
   readonly timeline: readonly string[];
@@ -260,6 +265,7 @@ export interface SaveLossCounts {
   readonly outcomes: Record<SaveOutcome, number>;
   readonly losses: readonly SaveLoss[];
   readonly spanUs: number;
+  readonly operations: Record<SaveLossOperation, number>;
 }
 
 /** Commands timed before any save fires, to measure the window the saves are spread over. */
@@ -290,6 +296,7 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
   const durations: number[] = [];
   const outcomes = Object.fromEntries(SAVE_OUTCOMES.map((outcome) => [outcome, 0])) as Record<SaveOutcome, number>;
   const losses: SaveLoss[] = [];
+  const operations = { replacement: 0, removal: 0, rebuild: 0, refresh: 0 };
   let spanUs = 0;
   for (let cycle = 0; cycle < WARM_UP + run.cycles; cycle += 1) {
     // The command's sweep takes over a copy an earlier command kept; with none recorded it would find nothing to take.
@@ -304,9 +311,12 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
       index = swept.index ?? index;
     }
     const present = await readStat(file) !== null;
-    const removing = present && cycle % 3 === 1;
+    const refreshing = run.operation === "refresh";
+    const removing = !refreshing && present && cycle % 3 === 1;
+    const operation = refreshing ? "refresh" : removing ? "removal" : present ? "replacement" : "rebuild";
     const entry = entryAt(index, run.path);
-    const staged = removing ? null : await stageNext(run, entry, cycle);
+    const staged = removing || refreshing ? null : await stageNext(run, entry, cycle);
+    if (refreshing) await writeNext(run, cycle);
     const content = `# Cohort: one\n\nSaved ${run.mode} ${cycle}.\n\n${"s".repeat(2 * cycle + 1)}\n`;
     if (present) stamp = parseStampedFile(await readFile(file, "utf8")).stamp ?? stamp;
     const saving = cycle >= WARM_UP;
@@ -322,7 +332,7 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
     let result: SaverResult | undefined;
     const events: [string, bigint][] = [];
     const at = (event: string) => { events.push([event, process.hrtime.bigint()]); };
-    const hooks = Object.fromEntries(["afterRecheck", "afterMove", "afterFirstCheck", "beforeRebuildLink"]
+    const hooks: SwapHooks = Object.fromEntries(["afterRecheck", "afterMove", "afterFirstCheck", "beforeRebuildLink"]
       .map((hook) => [hook, async () => { at(hook); }]));
     let guard: string;
     let settled: string[] = [];
@@ -330,34 +340,41 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
     try {
       const saved = fire?.();
       stage = "re-check";
-      const guarded = await guardReplacement({
-        checkout, path: run.path, entry, staged, reference: await readReference(checkout), format: "sha1", store: run.store,
-        writer: SWAP_WRITER, takeIn, renderer: createRecordRenderer({ store: run.store }),
-      });
-      guard = guarded.kind === "replace" ? "replace" : `unreplaced: ${guarded.cause}`;
-      at("guarded");
-      if (guarded.kind === "replace") {
-        stage = "first check";
-        const batch = await swapBatch({
-          location, checkout, index, files: [{ path: run.path, replace: guarded, relaid: removing }], readBack: false,
-          writer: SWAP_WRITER, format: "sha1", takeIn, gate, hooks,
-        });
-        at("batch done");
-        // Randomize saves through the guard and swap, then complete this trial's save before its final check. A writer
-        // still running after that check's content read can write into a copy being deleted, outside this guarantee.
-        await saved;
-        stage = "second check";
-        const checked = await runSecondCheck({
-          location, checkout, index: batch.index, copies: batch.copies, removals: batch.removals, format: "sha1", takeIn,
-          writer: SWAP_WRITER, gate,
-        });
-        at("second check done");
-        ({ index } = checked);
-        settled = checked.settled.map((each) => each.settlement.kind);
+      if (refreshing) {
+        guard = "refresh";
+        ({ index, settled } = await runSaveLossRefresh({ run, index, takeIn, saved,
+          hooks: { ...hooks, afterRecheck: async path => { stage = "first check"; await hooks.afterRecheck?.(path); } },
+          secondCheck: () => { stage = "second check"; } }));
       } else {
-        // A file left in place keeps nothing staged; one the guard restaged meanwhile is the next sweep's to delete.
-        if (staged !== null) await rm(join(checkout, staged.location), { force: true });
-        index = { ...index, entries: { ...index.entries, [run.path]: guarded.entry } };
+        const guarded = await guardReplacement({
+          checkout, path: run.path, entry, staged, reference: await readReference(checkout), format: "sha1", store: run.store,
+          writer: SWAP_WRITER, takeIn, renderer: createRecordRenderer({ store: run.store }),
+        });
+        guard = guarded.kind === "replace" ? "replace" : `unreplaced: ${guarded.cause}`;
+        at("guarded");
+        if (guarded.kind === "replace") {
+          stage = "first check";
+          const batch = await swapBatch({
+            location, checkout, index, files: [{ path: run.path, replace: guarded, relaid: removing }], readBack: false,
+            writer: SWAP_WRITER, format: "sha1", takeIn, gate, hooks,
+          });
+          at("batch done");
+          // Randomize saves through the guard and swap, then complete this trial's save before its final check. A writer
+          // still running after that check's content read can write into a copy being deleted, outside this guarantee.
+          await saved;
+          stage = "second check";
+          const checked = await runSecondCheck({
+            location, checkout, index: batch.index, copies: batch.copies, removals: batch.removals, format: "sha1", takeIn,
+            writer: SWAP_WRITER, gate,
+          });
+          at("second check done");
+          ({ index } = checked);
+          settled = checked.settled.map((each) => each.settlement.kind);
+        } else {
+          // A file left in place keeps nothing staged; one the guard restaged meanwhile is the next sweep's to delete.
+          if (staged !== null) await rm(join(checkout, staged.location), { force: true });
+          index = { ...index, entries: { ...index.entries, [run.path]: guarded.entry } };
+        }
       }
       durations.push(Number(process.hrtime.bigint() - started) / 1000);
       result = await saved;
@@ -365,18 +382,19 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
       await reader?.close();
     }
     if (result === undefined) continue;
+    operations[operation] += 1;
     const outcome = await whereSaveEnded({ checkout, file, content, result, landed: landed.splice(0) });
     outcomes[outcome] += 1;
     if (outcome !== "lost") continue;
     const saverSteps = Object.entries(result.times).map(([step, time]): [string, bigint] => [`saver ${step}`, BigInt(time)]);
     losses.push({
-      cycle, operation: removing ? "removal" : present ? "replacement" : "rebuild", guard, settled,
+      cycle, operation, guard, settled,
       timeline: [...events, ...saverSteps].sort((left, right) => (left[1] < right[1] ? -1 : 1))
         .map(([event, time]) => `${(Number(time - started) / 1000).toFixed(1)} µs ${event}`),
       aside: (await filesUnder(join(checkout, ASIDE_FILES_ROOT))).map((each) => each.slice(checkout.length + 1)),
     });
   }
-  return { outcomes, losses, spanUs };
+  return { outcomes, losses, spanUs, operations };
 }
 
 const identity = SlugSchema.parse("andrew");
@@ -396,13 +414,7 @@ export async function ignoreProjectedRoots(checkout: string): Promise<void> {
 
 /** Store the record's next version, longer than any save before it, and stage it for the path. */
 async function stageNext(run: SaveLossRun, entry: RecordEntry, cycle: number): Promise<StagedFile> {
-  const current = await run.store.read({ reference: run.reference });
-  if (current.status !== "ok") throw new Error("the fixture read was refused");
-  const content = `# Cohort: one\n\nRefreshed ${cycle}.\n\n${"r".repeat(2 * cycle)}\n`;
-  const written = await run.store.write({
-    action: "put", reference: run.reference, content, expected: current.result.version, provenance: PROVENANCE,
-  });
-  if (written.status !== "ok") throw new Error("the fixture write was refused");
+  await writeNext(run, cycle);
   const record = await run.store.read({ reference: run.reference });
   if (record.status !== "ok") throw new Error("the fixture read was refused");
   const staged = await stageRecordFile({
@@ -411,6 +423,16 @@ async function stageNext(run: SaveLossRun, entry: RecordEntry, cycle: number): P
   });
   if (staged.status !== "ok") throw new Error("staging refused");
   return staged.result;
+}
+
+async function writeNext(run: SaveLossRun, cycle: number): Promise<void> {
+  const current = await run.store.read({ reference: run.reference });
+  if (current.status !== "ok") throw new Error("the fixture read was refused");
+  const content = `# Cohort: one\n\nRefreshed ${cycle}.\n\n${"r".repeat(2 * cycle)}\n`;
+  const written = await run.store.write({
+    action: "put", reference: run.reference, content, expected: current.result.version, provenance: PROVENANCE,
+  });
+  if (written.status !== "ok") throw new Error("the fixture write was refused");
 }
 
 /** Find a save: landed in the store, at its path, or in an aside copy, else lost; a save that failed was seen to. */

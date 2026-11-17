@@ -128,8 +128,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      role suffix closes its segment by running that segment's exit-criterion scenario and recording the outcome as
      its ordinary completion note. A scenario that did not pass is not a completion: leave the task `[ ]`, stop,
      and enter [`amend-design`][amend-design] over the failure — its [entry gate][amend-design-gate] decides what
-     the failure changes. Never patch it inline, and never hang the corrective work under the verifier, which
-     re-runs its scenario to close. The key is the task in hand, never list-wide state.
+     the failure changes. When the miss is a timing or performance bound, first take the free rerun in
+     [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure; unless a rule the user already gave makes a passing rerun
+     the verdict, stop with every result. Never patch it inline, and never hang the corrective work under the
+     verifier, which re-runs its scenario to close. The key is the task in hand, never list-wide state.
 
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
@@ -169,8 +171,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
        on another task or external input, unanticipated design decision that needs user input,
        or scope significantly exceeding expectations for the task
      - **Continue with note:** auto-fixable lint issues (fix and note), an in-scope fix (make it, note it on the
-       task it serves, and re-run), task taking longer than expected but progressing, minor deviation from plan
-       that doesn't change outcomes
+       task it serves, and re-run), including one for a confirmed finding from your own review of the unfinished
+       work ([DEV-RULES.ARC][dev-rules-arc] § Review finding mutation guard), task taking longer than expected but
+       progressing, minor deviation from plan that doesn't change outcomes
 
      Stop conditions are not suspended by deferred review — a gate failure with neither an auto-fix nor an
      in-scope fix ends the deferred scope early and surfaces the issue to the user.

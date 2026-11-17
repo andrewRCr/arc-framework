@@ -1609,7 +1609,7 @@ describe("session-init E2E — current detached husk advisory", () => {
     await cleanupTempDir(worktreeParent);
   });
 
-  it("emits the advisory for an exact stamped WU husk without a completion record", async () => {
+  it("refuses an unstamped-authority husk and accepts complete evidence after repair", async () => {
     const canonical = join(worktreeParent, "canonical");
     const ordinary = join(worktreeParent, "ordinary");
     await git(repo, ["branch", "feat/shipped-widget"]);
@@ -1643,15 +1643,7 @@ describe("session-init E2E — current detached husk advisory", () => {
 
     const canonicalEnvelope = parseJsonEnvelope(canonicalResult.stdout);
     const ordinaryEnvelope = parseJsonEnvelope(ordinaryResult.stdout);
-    expect(canonicalEnvelope.currentHusk).toEqual({
-      ok: true,
-      value: {
-        worktreePath: await realpath(canonical),
-        subject: { kind: "work-unit", name: "shipped-widget" },
-        branch: "feat/shipped-widget",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
-      },
-    });
+    expect(canonicalEnvelope.currentHusk).toEqual({ ok: true, value: null });
     expect(ordinaryEnvelope.currentHusk).toEqual({ ok: true, value: null });
 
     await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({

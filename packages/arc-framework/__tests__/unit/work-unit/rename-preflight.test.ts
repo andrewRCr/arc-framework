@@ -82,9 +82,9 @@ describe("rename request guards", () => {
     expect(() => validateRenameRequest("old-name", "old-name")).toThrow(/different/iu);
   });
 
-  it("accepts execution from inside the holding worktree", async () => {
+  it.each(["packages", "..copy"])("accepts execution from child %s of the holding worktree", async child => {
     await expect(assertRenameExecutionLocus({
-      currentLocus: "/work/project.old-name/packages",
+      currentLocus: `/work/project.old-name/${child}`,
       holdingWorktreePath: "/work/project.old-name",
     })).resolves.toBeUndefined();
   });

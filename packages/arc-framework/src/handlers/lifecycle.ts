@@ -18,7 +18,11 @@
  *
  * @module
  */
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import { runTeardownForOperand } from "./teardown-operand.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
+import { resolveSelfTeardownMode } from "../lib/config/self-teardown-mode.js";
+import { handleTeardownHuskSweep } from "./teardown-husk-sweep.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
 import { warnSpawnLock } from "./spawn-lock.js";
@@ -104,6 +108,7 @@ import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
   runBranchTeardown,
+  type TeardownContext,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
 import type { StoreRecord } from "../lib/store/read.js";
@@ -139,6 +144,7 @@ import {
   buildExecutor,
   lifecycleFs,
   materializeActiveMetaPath,
+  openDefaultStore,
   parseLifecycleCommand,
   refuse,
   refuseWithRemedy,
@@ -370,15 +376,16 @@ export const TeardownCommandInputSchema = z.object({
     "Husk path must be absolute.",
   ).optional(),
   force: z.boolean().optional(),
+  yes: z.boolean().optional(),
 }).strict().superRefine((value, refinement) => {
   if (value.branch !== undefined && (value.name !== undefined || value.husk !== undefined || value.force === true)) {
     refinement.addIssue({ code: "custom", path: ["branch"], message: "--branch cannot be combined with name, --husk, or --force." });
   }
-  if (value.branch === undefined && value.name === undefined) {
+  if (value.branch === undefined && value.name === undefined && (value.husk !== undefined || value.force === true)) {
     refinement.addIssue({
       code: "custom",
       path: ["name"],
-      message: "`arc teardown <name>` requires the work-unit name to clean up (or pass --branch).",
+      message: "`arc teardown` requires a work-unit name when --husk or --force is supplied.",
     });
   }
 });
@@ -490,6 +497,7 @@ export const lifecycleCommandInputRegistrations = [
       "option.branch": "branch",
       "option.husk": "husk",
       "option.force": "force",
+      "option.yes": "yes",
     },
   },
   {
@@ -546,6 +554,11 @@ export const promoteClassPromptSite = declarePromptSite("prompt.promote.class", 
 
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
+  { commandPath: "teardown", aliases: [], sites: [declareCliOptionSite("yes", {
+    acquisition: "protected-confirmation", schemaOwnership: "owned", schemaField: "yes", cancellation: "not-applicable",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
+    mutationBoundary: "stamped-husk sweep", subprocess: "none",
+  })] },
   {
     commandPath: "rename",
     aliases: [],
@@ -1062,7 +1075,9 @@ export async function handlePark(
       executor,
       fs: parkResumeFsSeam(base),
       planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     {
       name: target,
@@ -1620,7 +1635,9 @@ export async function handleAbandon(
       retirement,
       transitionWriter: terminalTransitionWriter(base),
       composed,
-      removal: { exec: base.io.exec },
+      removal: { exec: base.io.exec, check: createProjectionRemovalSlots({
+        store: executor.store ?? openDefaultStore(base.cwd, base.io.exec), identity: base.identity,
+      }).check },
     },
     { name: target, confirmed: true },
   );
@@ -1700,6 +1717,8 @@ export async function handleArchive(
 
 /** Options for `arc teardown`. */
 export interface TeardownOptions {
+  /** Confirm the no-argument stamped-husk sweep. */
+  yes?: boolean;
   /** Reap a recordless cheap branch by exact name. */
   branch?: string;
   /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
@@ -1716,6 +1735,15 @@ function describeBranchDeletion(result: { branchDeleted: boolean; remoteBranchDe
 
 type TornDownTeardownResult = Extract<TeardownResult, { status: "torn-down" }>;
 
+function outsideHuskRemovalCommand(husk: NonNullable<TornDownTeardownResult["husk"]>): string {
+  const subject = husk.subject;
+  switch (subject.kind) {
+    case "work-unit": return `arc teardown ${subject.uid ?? subject.name} --husk ${quoteShellArgument(husk.worktreePath)}`;
+    case "branch": return `arc teardown --branch ${subject.ref}`;
+    case "errand": return `arc errand close ${subject.slug}`;
+  }
+}
+
 /** Render the shared branch/worktree disposition for a successful teardown. */
 function reportTeardownResult(
   result: TornDownTeardownResult,
@@ -1724,6 +1752,7 @@ function reportTeardownResult(
     leadingLines?: string[];
     tornDownTitle: string;
     huskedTitle: string;
+    primaryWorktreePath: string | null;
   },
 ): void {
   const liveHusk = result.worktreeRemoved === null ? result.husk : null;
@@ -1740,11 +1769,13 @@ function reportTeardownResult(
   ];
   p.note(lines.join("\n"), liveHusk === null ? options.tornDownTitle : options.huskedTitle);
   if (liveHusk?.stamped === true) {
-    p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
+    const command = outsideHuskRemovalCommand(liveHusk);
+    p.log.info(`The folder remains at ${liveHusk.worktreePath}; never reuse this detached husk.`);
+    p.log.info(`From the primary checkout${options.primaryWorktreePath === null ? "" : ` ${options.primaryWorktreePath}`}, run: ${command}`);
   }
   for (const notice of result.notices) p.log.warn(notice);
   if (result.suggestion !== null) p.log.info(result.suggestion);
-  p.outro("Done.");
+  p.outro(liveHusk === null ? "Done." : "Teardown finished; the folder remains.");
 }
 
 /**
@@ -1763,8 +1794,7 @@ function reportTeardownResult(
  * worktree hop, and prune mechanics. It is mutually exclusive with `<name>` and
  * `--force`.
  *
- * The WU path requires an explicit name — a retired WU has no `active/` meta to
- * default from.
+ * Without an operand, preview or confirm an outside sweep of stamped husks.
  */
 export async function handleTeardown(
   name: string | undefined,
@@ -1778,7 +1808,9 @@ export async function handleTeardown(
     ["teardown"],
   );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const interaction = context ?? resolveProcessInteractionContext({ noInput: false, machineReadable: false,
+    yes: opts.yes === true ? "authority" : "absent" });
+  const base = await resolveVerbBase(interaction);
   if (base === null) return;
 
   const wuName = input.name;
@@ -1796,9 +1828,6 @@ export async function handleTeardown(
       refuse("`arc teardown --branch <branch>` cannot also select `--husk`.");
       return;
     }
-  } else if (!wuName) {
-    refuse("`arc teardown <name>` requires the work-unit name to clean up.");
-    return;
   }
 
   const { settings } = await readConfigSettings(base.cwd);
@@ -1817,20 +1846,29 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  const store = base.store ?? openDefaultStore(base.cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: base.identity });
   const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
   const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity, cwd: base.cwd });
+  const selfTeardownMode = (await resolveSelfTeardownMode({ cwd: base.cwd, exec,
+    readFile: path => base.io.readFile(path), warn: message => { p.log.warn(message); } })).value;
+  const operational = branchArg === undefined && usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
+  const teardownContext: TeardownContext = {
+    store: operational?.executor.store ?? store, projectionRemovalSlots, execInput: base.io.execInput,
+    projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
+    cwd: base.cwd, exec, indexFs: lifecycleFs,
+    chdir: (dir) => { process.chdir(dir); locus = dir; }, readCurrentLocus: () => locus,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    readTeardownSelection, teardownWorktree, selfTeardownMode,
+  };
+  if (branchArg === undefined && wuName === undefined) {
+    await handleTeardownHuskSweep(teardownContext, { base: baseBranch,
+      protection: settings["branch.protection"] === "full" ? "full" : "partial", confirmed: interaction.confirmation === "accept" });
+    return;
+  }
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
-      {
-        cwd: base.cwd,
-        exec,
-        indexFs: lifecycleFs,
-        chdir: (dir) => { process.chdir(dir); locus = dir; },
-        readCurrentLocus: () => locus,
-        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-        readTeardownSelection,
-        teardownWorktree,
-      },
+      teardownContext,
       {
         branch: branchArg,
         base: baseBranch,
@@ -1853,24 +1891,13 @@ export async function handleTeardown(
     reportTeardownResult(result, branchLine, {
       tornDownTitle: "Branch torn down",
       huskedTitle: "Branch worktree husked",
+      primaryWorktreePath: await resolvePrimaryWorktreePath(exec),
     });
     return;
   }
 
-  const operational = usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
   const result = await runTeardownForOperand(
-    {
-      store: operational?.executor.store, execInput: base.io.execInput,
-      projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
-      cwd: base.cwd,
-      exec,
-      indexFs: lifecycleFs,
-      chdir: (dir) => { process.chdir(dir); locus = dir; },
-      readCurrentLocus: () => locus,
-      readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-      readTeardownSelection,
-      teardownWorktree,
-    },
+    teardownContext,
     {
       name: wuName ?? "",
       base: baseBranch,
@@ -1899,6 +1926,7 @@ export async function handleTeardown(
     leadingLines: [`Work unit: ${wuName}`],
     tornDownTitle: "Torn down",
     huskedTitle: "Worktree husked",
+    primaryWorktreePath: await resolvePrimaryWorktreePath(exec),
   });
 }
 

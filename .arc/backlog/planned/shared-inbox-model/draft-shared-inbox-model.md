@@ -303,6 +303,31 @@
 
 - _Captured during:_ `project-manager.ARC` with the Owner, 2026-11-10, after the inbox-size review (Owner-approved).
 
+### `[ ]` **Give the project inbox and inbound lists an entry removal by ID and version**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Consumption wiring (the rot fix): which inbox mechanics the CLI owns.
+
+- _Observation:_ from the flip, a personal capture is removed with `arc user inbox-remove --id <id>
+  --expected-version <version>`, but no verb removes a project-inbox entry; `arc route` only moves one. So
+  `activate-work-unit.md`'s absorption cleanup (Step 5, from `cutover-flip`'s workflow rewrite) removes an incorporated
+  project-inbox entry by editing the projected list and saving it.
+
+- _Observation:_ the same gap reaches a work unit's inbound list. `route-discovered-work`'s binding (from
+  `cutover-flip` Task 5.8) removes an inbound entry by editing the list's file and saving it, which write-back allows
+  only the work unit's owner; a non-owner dismissing an entry from another person's backlog stub, which the routing
+  rules permit, must move it into their personal inbox and remove it there. `handleStoreInboxRemove` passes
+  `list: "personal"`, though `removeInboxEntry` already accepts `project`.
+
+- _Approach:_ a removal verb for project-inbox and inbound entries taking the ID and expected version from
+  `arc inbox <list>`, under the routing verb's removal rights (anyone from the project inbox and a backlog stub's list,
+  only the owner from a started work unit's), or an `arc route` destination that retires the entry; the activation
+  workflow and the routing binding then name it.
+
+- _Captured during:_ `cutover-flip` Task 5.5 (the activate-work-unit rewrite), 2026-11-14 (approved capture); widened
+  at Task 5.8 (the routing binding), 2026-11-14 (approved capture).
+
 ## Problem / Motivation
 
 The core invariant — _no item with a known home may rest in a capture surface_ — is enforced at **write-time**

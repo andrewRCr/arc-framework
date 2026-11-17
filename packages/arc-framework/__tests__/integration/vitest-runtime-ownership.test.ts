@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
 it.each([{ CI: "1" }])(
@@ -33,5 +34,5 @@ it.each([{ CI: "1" }])(
       const reused = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
       expect(reused.status === "qualified" && reused.evidence.generation).toBe(qualification.evidence.generation);
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
-  }, 60_000,
+  }, nestedRunLimit(60_000),
 );

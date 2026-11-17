@@ -10,6 +10,28 @@ import {
 } from "../../../src/lib/work-unit/rename-reference-sweep.js";
 
 describe("rename reference planning and application", () => {
+  it.each([false, true])("rewrites original filenames once regardless of artifact-map order, reversed=%s", async reversed => {
+    const entries: [string, string][] = [
+      ["draft-source.md", "draft-renamed-source.md"],
+      ["draft-renamed-source.md", "draft-renamed-renamed-source.md"],
+      ["spec-source-prd.md", "spec-renamed-source-prd.md"],
+      ["sub/a+b.md", "sub/a+b.md"],
+    ];
+    const path = ".arc/active/draft-waiting.md";
+    const files = new Map([[path, "Read `draft-source.md` and `draft-renamed-source.md`; `spec-source-prd.md`; "
+      + "`notes-source.md`; `cohort-source.md`; `sub/a+b.md`; plain draft-source.md.\n"]]);
+    const context: RenameReferenceSweepContext = {
+      listFiles: async () => ["active/draft-waiting.md"],
+      readFile: async candidate => files.get(candidate) ?? "",
+      writeFile: async (candidate, content) => { files.set(candidate, content); },
+    };
+    const result = await planRenameReferences({ arcRoot: ".arc", sourceSlug: "source", targetSlug: "renamed-source",
+      artifactRenames: new Map(reversed ? [...entries].reverse() : entries) }, context);
+    await applyRenameReferencePlan(result, context);
+    expect(files.get(path)).toBe("Read `draft-renamed-source.md` and `draft-renamed-renamed-source.md`; "
+      + "`spec-renamed-source-prd.md`; `notes-renamed-source.md`; `cohort-source.md`; `sub/a+b.md`; plain draft-source.md.\n");
+  });
+
   it.each([
     ["meta", "# Metadata: sample", "# Metadata: renamed-sample"],
     ["draft", "# Draft: sample", "# Draft: renamed-sample"],

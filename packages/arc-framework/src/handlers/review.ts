@@ -89,6 +89,7 @@ import {
   readIndexedHostedReviewErrand,
   resolveCurrentHostedReviewErrand,
 } from "./review-locus-context.js";
+import { prePublicationPendingReviewRefusal } from "../scripts/review-gate/core/pre-publication-remedy.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 
 import { resolveReviewActiveWu, resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
@@ -4637,33 +4638,6 @@ export async function handleReviewPrePublication(
     dependencies.setExitCode(1);
   };
 
-  const emitPendingReviewRefusal = (
-    pending: NonNullable<Extract<PrePublicationComposition, { status: "refused" }>["pendingReview"]>,
-  ): void => {
-    const argv = pending.kind === "local"
-      ? ["arc", "review", "local", "resume", "-"]
-      : pending.kind === "hosted" && pending.request !== null
-        ? ["arc", "review", "hosted", "await", "-"]
-        : ["arc", "review", "status", "--work-unit", input.data.name];
-    const requestDetail = pending.request === null
-      ? "The admitted request has no acknowledged handle yet."
-      : `Exact stdin request: ${JSON.stringify(pending.request)}.`;
-    const message = `The ${pending.lane} review operation ${pending.operationId} from ${pending.sourceId} is still in progress. ${requestDetail}`;
-    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-pre-publication",
-      diagnostics: [{ code: "review-in-progress", message }],
-      error: { code: "review-in-progress", message },
-      remedy: spineRemedy(
-        "An admitted review is not completed policy evidence.",
-        "Continue that exact operation, then re-enter pre-publication",
-        argv,
-      ),
-    });
-    dependencies.write(`${JSON.stringify(refusal)}\n`);
-    dependencies.setExitCode(1);
-  };
-
   let envelope: PrePublicationReviewEnvelope;
   let routingDiagnostics: readonly string[];
   try {
@@ -4745,7 +4719,8 @@ export async function handleReviewPrePublication(
         return;
       }
       if (composition.pendingReview !== undefined) {
-        emitPendingReviewRefusal(composition.pendingReview);
+        dependencies.write(`${JSON.stringify(prePublicationPendingReviewRefusal(composition.pendingReview, input.data.name))}\n`);
+        dependencies.setExitCode(1);
         return;
       }
       if (composition.routingMismatch !== undefined && target.success) {

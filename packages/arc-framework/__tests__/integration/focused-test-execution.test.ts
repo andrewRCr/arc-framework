@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { makeFocusedVitestFixture, runFocusedTestFixture } from "../helpers/focused-vitest-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true }))); });
@@ -25,7 +26,7 @@ it("other case", () => { throw new Error("unselected case executed"); });
   expect(result.stdout).toContain("ROOT-FOCUSED-CASE-RAN");
   expect(result.stdout).toContain("1 passed");
   expect(await readFile(fixture.events, "utf8")).toContain("config:true:true:test");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("keeps configured mock isolation and lets explicit no-isolate override it", async () => {
   const fixture = await makeFocusedVitestFixture(); roots.push(fixture.root);
@@ -45,7 +46,7 @@ it("starts with an isolated global", () => {
   const overridden = await runFocusedTestFixture(fixture.root, [...args, "--no-isolate"]);
   expect(overridden.code).toBe(1);
   expect(overridden.stderr).toContain("to be undefined");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("uses explicit thread pools, two workers, and parallel files over configured defaults", async () => {
   const fixture = await makeFocusedVitestFixture(); roots.push(fixture.root);
@@ -69,7 +70,7 @@ it("runs concurrently in native threads", async ({ task }) => {
     "--pool", "threads", "--maxWorkers", "2", "--fileParallelism"], { VITEST_MAX_WORKERS: undefined });
   expect(result, result.stderr).toMatchObject({ code: 0 });
   expect(result.stdout).toContain("2 passed");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("serializes native files when explicitly disabling file parallelism", async () => {
   const fixture = await makeFocusedVitestFixture(); roots.push(fixture.root);
@@ -90,4 +91,4 @@ it("holds exclusive file execution", async () => {
     "--maxWorkers", "2", "--no-file-parallelism"]);
   expect(result, result.stderr).toMatchObject({ code: 0 });
   expect(result.stdout).toContain("2 passed");
-}, 30_000);
+}, nestedRunLimit(30_000));

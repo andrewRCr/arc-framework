@@ -39,6 +39,7 @@
  * @module
  */
 
+import { materializeSpawnedProjection } from "../../store/projection/spawn-materialization.js";
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
 import { claimSpawnedWorktree, workUnitMarkerSubject, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
   type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
@@ -383,6 +384,7 @@ export async function provisionSpawnedWorktree(
     spawningIdentity: op.spawningIdentity,
     now: op.now,
   });
+  await materializeSpawnedProjection(op.worktreePath);
   return setup.postCreateNotice ?? null;
 }
 
@@ -704,7 +706,7 @@ function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
     .test(gitFailureText(error));
 }
 
-/** Preserve linked identity-global user files in the primary checkout before physical removal. */
+/** Resolve the primary removal destination, preserving legacy linked user files for an in-repo Store. */
 export async function reconcileUserSurfacesForRemoval(
   ctx: ReconcileWorkUnitWorktreeContext,
   worktreePath: string,
@@ -713,6 +715,7 @@ export async function reconcileUserSurfacesForRemoval(
   if (primary === null) {
     throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
   }
+  if (usesOffBranchState(ctx.store)) return primary;
   const result = await reconcileLinkedIdentityGlobalUserSurfaces({
     worktreePath,
     primaryWorktreePath: primary,

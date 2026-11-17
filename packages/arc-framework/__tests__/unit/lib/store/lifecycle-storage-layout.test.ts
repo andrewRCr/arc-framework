@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 /** Checkout-rooted lifecycle paths use each store's capability and that checkout's claim. */
 import { mkdtemp, rm, writeFile, unlink, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -111,9 +112,9 @@ it.each(["ownership", "husk", "primary-release"] as const)("updates path answers
   expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-alpha.md");
   if (action === "ownership") await writeWorktreeOwnershipMarker(root, {
     createdByArc: true, createdFor: { kind: "work-unit", name: "beta", uid: randomUUID() }, spawningIdentity: "andrew" });
-  else if (action === "husk") expect((await stampWorktreeHusk(root, {
+  else if (action === "husk") expect((await stampWorktreeHusk(root, makeHuskStamp({
     sha: "a".repeat(40), at: "2026-11-05T00:00:00Z", subject: { kind: "work-unit", name: "alpha" }, branch: "feat/alpha",
-  })).kind).toBe("stamped");
+  }))).kind).toBe("stamped");
   else expect((await removePrimaryTransientOccupancy(root, subject)).kind).toBe("removed");
   const slug = action === "ownership" ? "beta" : "alpha";
   expect(await workItemArtifactPath(root, slug, "meta", { kind: "active" }, null))
@@ -168,7 +169,7 @@ it("replaces cached coordinates with a fresh read at a projection lease boundary
 it.each(["malformed", "manual-only"] as const)("refuses a %s marker and succeeds after its claim is repaired", async condition => {
   const root = await checkout("alpha");
   if (condition === "malformed") await writeFile(resolveWorktreeMarkerPath(root), "not JSON");
-  else await writeWorktreeMarker(root, { spawnedByArc: true, createdFor: { kind: "errand", slug: "alpha" }, spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
+  else await writeWorktreeMarker(root, { spawnedByArc: true, createdFor: { kind: "errand", slug: "alpha", claimId: "a".repeat(32) }, provisioning: "future", spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
   await expect(workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null)).rejects.toMatchObject({
     code: "store.layout-marker-invalid", message: expect.stringMatching(/repair.*retry/iu),
   });

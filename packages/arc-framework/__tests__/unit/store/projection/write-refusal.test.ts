@@ -44,7 +44,7 @@ it("retains pre-send copy marks when recovered preparation is refused, then acce
   const held = await createWriteBackPort({ ...h.context, store, memo: createHistoryMemo(store) })({ ...h.request, entry });
   expect(held).toMatchObject({ answer: "refused", entry: { copies: [{ name, writeBackSent: true }],
     refused: { reason: corrupt.condition, remedy: corrupt.remedy } } });
-  expect(await readProjectionIndex(h.location, true)).toMatchObject({ kind: "index", index: {
+  expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [h.path]: { copies: [{ name, writeBackSent: true }] } },
   } });
   expect(success(await h.store.read({ reference: entry.reference })).content).toBe("opening\nbase\nclosing\n");

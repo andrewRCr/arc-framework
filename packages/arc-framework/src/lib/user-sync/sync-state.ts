@@ -139,8 +139,16 @@ export async function getOrCreateMachineId(
   identity: string,
   exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
 ): Promise<string> {
+  return getOrCreateMachineIdAtCommonDir(cwd, await resolveGitCommonDir(io.exec, cwd), io, identity, exclusiveCreate);
+}
+
+/** Resolve the shared machine ID from an already located Git directory, retaining legacy candidates. */
+export async function getOrCreateMachineIdAtCommonDir(
+  cwd: string, commonGitDir: string, io: CoreIO, identity: string,
+  exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
+): Promise<string> {
   return getStoreMachineId({
-    commonGitDir: await resolveGitCommonDir(io.exec, cwd), identity, fs: io, exclusiveCreate,
+    commonGitDir, identity, fs: io, exclusiveCreate,
     candidate: async () => await readLegacyCheckoutMachineId(cwd, io, identity)
       ?? await readLegacyMachineId(cwd, io, identity),
   });

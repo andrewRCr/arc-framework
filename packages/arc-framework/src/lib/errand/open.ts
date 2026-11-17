@@ -497,7 +497,7 @@ async function rollbackIdentity(
   { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
 > {
   if (record === null) return { kind: "rolled-back" };
-  const residue = durableResidue(evidence);
+  const residue = durableResidue(evidence, record.branch);
   if (residue !== null) return { kind: "retained", residue };
   if (claimKind !== "applied") return { kind: "rolled-back" };
   const rollbackResume = options.dependencies.rollbackResume;
@@ -519,12 +519,17 @@ async function rollbackIdentity(
   }
 }
 
-/** Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. */
-function durableResidue(evidence: ProvisioningEvidence | null): string | null {
+/**
+ * Describe what provisioning owns that rollback cannot undo, or null when it owns nothing. A marker that could not be
+ * parsed is named as such, its checkout never having held the branch; residue with neither names the retained checkout.
+ */
+function durableResidue(evidence: ProvisioningEvidence | null, branch: string): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
-  return `a worktree marker at ${evidence.checkoutPath}`;
+  const retained = evidence.markerBytes !== null ? `a worktree marker at ${evidence.checkoutPath}`
+    : evidence.kind === "marker-residue" && evidence.malformedMarker === true ? `a malformed worktree marker at ${evidence.checkoutPath}`
+      : `the checkout ${evidence.checkoutPath} for branch ${branch}`;
+  return `${retained}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {

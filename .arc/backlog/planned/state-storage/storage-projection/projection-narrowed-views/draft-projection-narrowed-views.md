@@ -361,4 +361,91 @@ At 50 and 150 people most of a command's cost is the store's `version()` listing
 On Linux the same rows run 6, 23, 11, 7, 14, and 27 ms a command. One person's pull brings only their own work from
 other machines, which the model's team churn does not describe, so that row shows no pull.
 
+## Inbound Buffer — Pending Integration
+
+### Sequential fan-out attribution — routed from projection-worktrees, 2026-11-11
+
+- _Routed from:_ `projection-worktrees`, 2026-11-11.
+
+_Shapes:_ the fanned pull at the anchor, destination scheduling, and the growth-relative scale criterion.
+
+The Owner leaves sibling scheduling here; the proposed concurrent-root locking amendment in `projection-worktrees` stays
+held. Its current build preserves sequential root visits and two durable publications per normal refresh, intent before
+moving files and final settlement. Removing intent would change recovery rather than merely scheduling.
+
+Native full-round Linux run `334880664e4646cc95ceeca70a1c47cb` measured 217.42 ms for one backlog notes file and 567.38
+ms for ten, across the writer and twenty linked worktrees. The Store mutation is outside the timer; version, changes,
+protection, layout checks, index publication, and replacement are inside. Spike 4's 3.3/13.4 ms prototype timed smaller
+file work with Store reads outside, a simpler lock, and one publication. Current tripwire bounds therefore need their
+own full-round calibration.
+
+Diagnostic run `8d12426922ea4e3da5c2c9dbff1e095b`, eleven samples per cell, measured one-root rounds at 32.18/95.26 ms
+and 21-root rounds at 209.82/573.65 ms. The additional twenty lock scopes totaled 160.33/442.79 ms. Store record reads
+stayed shared: two calls for one changed owner and twenty for ten, independent of destinations. Physical Git starts were
+9/27, independent of root count: six control starts, one changes reader, and two public-operation UID readers per
+changed owner. Their reader lifetimes end before each public operation returns.
+
+Destination work scales: 42 publications totaled 54.64/55.68 ms; refresh scopes totaled 81.71/425.51 ms, including swap
+scopes of 41.79/149.30 ms. These are nested durations and cannot be summed. The rounds made 510/2,625 lstat calls and
+189/378 writes totaling 8.18/8.36 MB. Each root rewrote its roughly 192–195 KB backlog partition twice. No
+scaffold-pruning call ran in measured fan-out. Consolidating the intent publication's obsolete-partition collection can
+save at most its measured tail, about 3.5 ms across all roots, and was left unchanged.
+
+The trace identifies scheduling opportunity without proving every per-root operation necessary or predicting a
+concurrency speedup. Scheduling cannot remove shared Store preparation, and narrowing cannot be credited for reducing
+unchanged shared reads. Assess bounded sibling scheduling together with view selection at the anchor, preserving
+recovery ordering and each root's checks. Attribution and limitations are recorded at commit `6cc7816eba`, in
+`notes-projection-worktrees.md`; no scheduling change is authorized by this entry.
+
+### `[ ]` **Correct the narrowed views' draft for the archive's settled design: the opened set, and the ADR amendment**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its § Sequencing, on the index header fields the two projection members add, and its recency window's
+  reading of `projection-team-scale`'s opened set (§ The recency window, point 3).
+
+- _Observation:_ `draft-projection-narrowed-views.md` § Sequencing says `projection-team-scale` and this unit each add
+  a field to the index header as a forward amendment to `spec-projection-worktrees.md` § 3.1, "the opened archive set
+  there", and that whichever lands second changes the header's format on top of the other's. On 2026-11-10 the Owner
+  settled `projection-team-scale`'s opened set differently: an opened archive entry counts as unsettled under § 3.1,
+  so the header's existing per-partition mark finds it and the header's format is unchanged. Only this unit's
+  `projectedUnder` change touches the header. Where the recency window keeps opened files laid, it reads opened
+  entries through the marked partitions rather than a header list.
+
+  Also settled that day: `projection-team-scale` delivers its own ADR-035 amendment for the read-only archive (its
+  draft's § D and ADR-035), so the item 6 amendment this unit proposes (§ ADR-035 item 6's refinement) drops its
+  archive sentence ("Archived files lay read-only: … persists at `arc save`") and the paragraph after it.
+
+  The recency window's point 4 has `arc edit <path>` lay an older file. That holds only where the reader may edit it:
+  `arc edit` refuses wherever the edit rights refuse the edit, as for another person's archived work, so that reader
+  reaches an older file through `arc view` or a pin (Owner, 2026-11-10).
+
+- _Approach:_ restate the paragraph and trim the amendment at this unit's drafting, from
+  `draft-projection-team-scale.md` § D's amendments and § D and ADR-035, or that unit's specification once written.
+
+- _Captured during:_ `projection-team-scale` draft-design, 2026-11-10 (Owner-approved routing).
+
+### `[ ]` **Count an opened archive file's quarter read at every start in the team-scale model**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § The scale anchor and § The growth-relative scale criterion: the start cost the 1/10/50/150 target holds.
+
+- _Observation:_ `projection-team-scale`'s specification (§ 4, § 11 item 4) has `arc edit` mark an archived file's
+  index entry unsettled, so every start in that worktree reads the file's archive quarter partition until `arc save`
+  re-locks it, the cost any unsettled archive entry carries under `spec-projection-worktrees.md` § 3.1. That unit cannot
+  regroup partitions, a fixed seam. At the plain codec's 3.8 µs an entry on Linux and about 255 entries a person a
+  quarter at this repository's rate, ten people's quarter (about 2,550 entries) costs a start about 10 ms on Linux: past
+  the margin of about 5.4 ms that `projection-worktrees`' amendment A4 leaves the 20 ms Linux start budget over its
+  14.64 ms calibration median, and near the 25 ms tripwire. A4's 60,320-file fixture, about 15,000 entries a quarter,
+  costs about 57 ms. Windows at ten people, modelled at 8–12 µs an entry, is 20–30 ms, inside its margin of about 38 ms;
+  macOS's cost an entry is not measured. The draft's model counts the current quarter's index work for a fanned pull
+  (§ Evidence), but not a marked archive quarter's read at every start.
+
+- _Approach:_ count the read in the team-scale model at each team size, then accept it for the length of a correction
+  or bound it, for example with sub-quarter partitions, a change to `projection-worktrees`' fixed seams this unit would
+  have to propose.
+
+- _Captured during:_ `projection-team-scale` create-spec, Gate 1 iteration on A4, 2026-11-11 (Owner-approved routing).
+
 ---

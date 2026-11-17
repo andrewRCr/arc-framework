@@ -62,8 +62,7 @@ function reportText(input: WorkUnitRenameReportInput, shared: readonly StoreReco
   for (const record of shared) {
     if (record.reference.kind === "work-item/cut-map") continue;
     for (const [index, line] of record.content.split("\n").entries()) {
-      let replacement = rewriteBacktickedArtifactReferences(line, input.source, input.target);
-      for (const [from, to] of input.artifactRenames) replacement = replacement.replaceAll(`\`${from}\``, `\`${to}\``);
+      const replacement = rewriteBacktickedArtifactReferences(line, input.source, input.target, input.artifactRenames);
       if (replacement !== line) append(record.reference, { kind: "text", document: record.reference, line: index + 1, replacement });
     }
   }

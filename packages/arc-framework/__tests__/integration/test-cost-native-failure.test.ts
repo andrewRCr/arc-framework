@@ -3,6 +3,7 @@ import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeNativeTestCostFixture, runNativeTestCostFixture } from "../helpers/test-cost-native-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it("retains no passed measurement after native global teardown logs a failure", async () => {
   const fixture = await makeNativeTestCostFixture();
@@ -19,7 +20,7 @@ it("retains no passed measurement after native global teardown logs a failure", 
     await expect(access(fixture.output)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it.each(["name-filter"])("retains no passed measurement for zero completed %s cases", async (fault) => {
   const fixture = await makeNativeTestCostFixture();
@@ -41,7 +42,7 @@ it.each(["name-filter"])("retains no passed measurement for zero completed %s ca
     await expect(access(fixture.output)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("retains no passed measurement for a native failed case", async () => {
   const fixture = await makeNativeTestCostFixture();
@@ -55,7 +56,7 @@ it("retains no passed measurement for a native failed case", async () => {
     expect(await readFile(fixture.events, "utf8")).toContain("closing-owned:false:false");
     await expect(access(fixture.output)).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("retains no passed measurement after native worker cleanup records a late error", async () => {
   const fixture = await makeNativeTestCostFixture();
@@ -76,4 +77,4 @@ it("retains no passed measurement after native worker cleanup records a late err
     await expect(access(fixture.output)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));

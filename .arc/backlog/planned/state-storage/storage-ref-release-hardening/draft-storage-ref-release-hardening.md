@@ -202,6 +202,32 @@
 - _Captured during:_ `projection-worktrees` task generation, the scale assessment's re-entry, 2026-11-07
   (Owner-approved; the target has no checkout, so no session to message).
 
+### `[ ]` **Hold the store's per-command cost at 50–150 developers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Routed Items, beside the buffered "Keep the ref store's per-command ref listing cheap on Windows as live
+  refs grow".
+
+- _Observation:_ every command derives the store's state version by listing and hashing every live ref
+  (`refStateVersion` in `lib/store/ref/manifest.ts`: one `for-each-ref refs/arc/` without `refs/arc/history/`, then
+  `buildRefManifest` and `saveCapturedManifest`). Live refs grow with the backlog: one `refs/arc/work/<uid>` per live
+  work item, one per live cohort, two per identity, the shared singletons and one per archive quarter. At this
+  repository's pace (about 23 work units per person per month), `projection-team-scale`'s model puts the floor at
+  about 73 ms a command on Windows for 50 people (5,900 refs) and 132 ms on Windows, 25 ms on Linux, for 150 (17,700),
+  with packed refs; loose refs cost about 14 times more each. Either exceeds the projection's whole no-change budget
+  (60 ms Windows, 10 ms Linux). The Owner's target is 1, 10, 50 or 150 developers without the service backend,
+  binding 1.0, not Gate B (2026-11-10).
+
+- _Approach:_ assess whether the version can be kept at write time (a manifest updated inside each write's ref
+  transaction, read as one ref) and stay exact under concurrent writers and pulls; measure whole-family listings,
+  fetch and pull size, and packing cadence at 1/10/50/150 people. The cost comes from how the version is derived,
+  not from the layout (`draft-design.PTS`), so no store migration should be needed: confirm it.
+
+- _Evidence:_ `projection-team-scale`'s model v2 and Spike 4's per-ref constants, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, triaging `draft-design.PTS`'s scale concern, 2026-11-10 (Owner-approved).
+
 ---
 
 ## Problem / Motivation

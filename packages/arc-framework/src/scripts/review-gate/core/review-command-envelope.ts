@@ -41,7 +41,7 @@ import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } f
 import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewAdversarialUnsupportedEnvelopeSchema } from "./adversarial-record-schema.js";
-import { ReviewReductionProjectionSchema } from "./advisory-records.js";
+import { ErrandReviewBindingSchema, ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { ProvisionalPassAssessmentSchema } from "./provisional-pass-assessment.js";
@@ -730,6 +730,17 @@ export const RespondEnvelopeSchema = z.union([
   envelopeVariant("review-respond", "settled", "continue-review", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "continue-review", DispositionPayloadSchema),
   envelopeVariant("review-respond", "fix-not-performed", "complete-verified-fix", FixNotPerformedPayloadSchema),
+  envelopeVariant(
+    "review-respond",
+    "stale-target",
+    "stop",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      ...TargetPairPayloadSchema.shape,
+      errand: ErrandReviewBindingSchema,
+      detail: z.string().min(1),
+    }),
+  ),
   envelopeVariant(
     "review-respond",
     "stale-target",

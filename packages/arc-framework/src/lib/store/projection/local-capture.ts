@@ -7,6 +7,8 @@ import type { ProjectionLocation } from "./location.js";
 import type { StoreResult } from "../refusal.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { readProjectionIndex } from "./index-file.js";
+import { loadProjectionGroups, projectionIndexGroup } from "./index-memory.js";
+import { ownershipHandoffMark } from "./ownership-hold.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { projectionCandidateContainers } from "./container-ownership.js";
 import { resolveArcPath } from "../../layout/index.js";
@@ -33,26 +35,41 @@ export interface ProjectionLocalCaptureInput {
   readonly index?: ProjectionIndex;
 }
 
+/** A capture whose own evidence could not be read: the edit is unjudged, never refused on what it read. */
+export type ProjectionLocalCaptureResult = StoreResult<ProjectionLocalCapture> & { readonly nativeRefusal?: true };
+
 /** Capture every local candidate position, treating unreadable evidence differently from absence. */
-export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<StoreResult<ProjectionLocalCapture>> {
-  const disk = input.index ? null : await readProjectionIndex(input.location, true);
-  const index = input.index ?? (disk?.kind === "index" ? disk.index : null);
-  const settings = input.settings ?? index?.projectedUnder;
-  if (!settings) return refusedLocal("The projection settings and ownership basis are unavailable.");
-  const entry = index?.entries[input.path];
+export async function captureProjectionLocal(input: ProjectionLocalCaptureInput): Promise<ProjectionLocalCaptureResult> {
+  // A reader holding no lease restarts once across a concurrent publication, its path's partition loaded inside that
+  // read, then reports the index unobservable.
+  let index = input.index;
+  if (index === undefined) {
+    const disk = await readProjectionIndex(input.location, true, { retry: true, groups: [projectionIndexGroup(input.path)] });
+    if (disk.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
+      `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
+    index = disk.index;
+  }
+  const settings = input.settings ?? index.projectedUnder;
+  if (input.index !== undefined) loadProjectionGroups(input.index, [projectionIndexGroup(input.path)]);
+  const entry = index.entries[input.path];
+  if (entry?.kind === "record" && entry.handoff !== undefined) {
+    const mark = ownershipHandoffMark(entry);
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "projection.local",
+      condition: mark.reason, remedy: mark.remedy } };
+  }
   const binding = entry?.kind === "record" ? entry.reference : entry?.minted?.reference ?? null;
   const marker = await readWorktreeMarker(input.checkout);
   if (marker.kind === "malformed") return refusedLocal(marker.message);
   const localMarker = marker.kind === "absent" ? null
     : { ...decodeWorktreeMarkerOwnership(marker.marker), husk: marker.marker.husk !== undefined };
   const prospective: Local["prospectiveMetadata"] = [];
-  for (const container of index?.entries[input.path]?.kind === "record" ? [] : projectionCandidateContainers(input.path)) {
+  for (const container of entry?.kind === "record" ? [] : projectionCandidateContainers(input.path)) {
     const path = resolveArcPath({ kind: "work-unit-artifact", slug: container.slug, placement: container.placement, artifact: "meta" });
     const captured = await captureProspectiveMetadata(input.checkout, path);
     if (captured.status === "refused") return captured;
     prospective.push({ path, content: captured.result });
   }
-  const indexed = Object.entries(index?.entries ?? {}).flatMap(([path, entry]) => {
+  const indexed = Object.entries(index.entries).flatMap(([path, entry]) => {
     const reference = entry.kind === "record" ? entry.reference : entry.minted?.reference;
     return reference?.kind === "work-item/meta" && input.path.startsWith(`${dirname(path).replaceAll("\\", "/")}/`)
       ? [{ path, reference }] : [];
@@ -78,7 +95,8 @@ async function captureProspectiveMetadata(checkout: string, path: string): Promi
   }
 }
 
-function refusedLocal(condition: string): StoreResult<never> {
+function refusedLocal(condition: string,
+  remedy = "Restore settled, readable local ownership evidence and prepare this file again."): Extract<StoreResult<never>, { status: "refused" }> {
   return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "projection.local", condition,
-    remedy: { text: "Restore settled, readable local ownership evidence and prepare this file again." } } };
+    remedy: { text: remedy } } };
 }

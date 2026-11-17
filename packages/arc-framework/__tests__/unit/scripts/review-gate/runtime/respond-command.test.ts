@@ -395,12 +395,14 @@ Approve: 2 fixes → focused verification → commit → push?`,
   }
 
   function hostedErrandCase(sourceIdentity: string, retrigger: "incremental" | "full-final") {
-    return hostedCase(workUnitVehicle, (result) => ({
+    const entry = hostedCase(workUnitVehicle, (result) => ({
       ...result,
       sourceIdentity,
       admission: { ...result.admission, lineage: errandLineage },
       requirement: { ...result.requirement, retrigger },
     }));
+    entry.deps.resolveActiveErrand = async () => activeErrandBinding();
+    return entry;
   }
 
   function frontlineCase(recordedMaxPasses = 2) {
@@ -624,10 +626,11 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const records = fixture(workUnitVehicle, undefined, {
       kind: "head-bound",
       vehicleKind: "errand",
-      vehicleIdentity: "repair-review-state",
+      vehicleIdentity: "claim-1",
       headSha: objectId("c"),
     });
     const deps = dependencies(records);
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     const lockTails = new Map<string, Promise<void>>();
     deps.withOperationLock = async <T>(operationId: string, action: () => Promise<T>): Promise<T> => {
       const prior = lockTails.get(operationId) ?? Promise.resolve();

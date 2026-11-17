@@ -4,6 +4,7 @@ import { expect, it } from "vitest";
 import { makeNativeShardFixture } from "../helpers/native-shard-fixture.js";
 import { readNativeShardObservations, type NativeMember } from "../helpers/native-shard-observer.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const identities = (members: readonly NativeMember[]) => members.map(member => JSON.stringify(member)).sort();
 
@@ -40,4 +41,4 @@ it("observes native discovery and actual assignments without executing pre-parse
     }
     expect(identities(assigned.flat())).toEqual(identities(expected));
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 90_000);
+}, nestedRunLimit(90_000));

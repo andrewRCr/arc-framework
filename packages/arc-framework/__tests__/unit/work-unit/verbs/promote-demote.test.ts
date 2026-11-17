@@ -17,6 +17,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 
 import type {
   ExecuteTransitionContext,
@@ -96,11 +97,11 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
     },
   };
@@ -152,11 +153,11 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
 
   const fs: BacklogMoveFs = {
     readdir: (path) => {
-      const entries = pruneDirs[path];
+      const entries = pruneDirs[fixturePath(path)];
       return entries === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(entries);
     },
     rmdir: (path) => {
-      calls.push(`rmdir:${path}`);
+      calls.push(`rmdir:${fixturePath(path)}`);
       return Promise.resolve();
     },
   };

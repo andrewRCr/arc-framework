@@ -1,6 +1,11 @@
 /** Exact preservation and host authorization for ordinary Errand resume. */
 
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { observeUnprojectedPersonalFiles } from "../../../src/lib/store/projection/removal-residual.js";
+import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
@@ -336,7 +341,7 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
 });
 
 
-function newOpenFixture() {
+function newOpenFixture(provision?: OpenOrdinaryErrandOptions["dependencies"]["provision"]) {
   let record: OrdinaryErrandRecord | null = null;
   let provisioned = false;
   let authority: unknown;
@@ -372,11 +377,46 @@ function newOpenFixture() {
   };
   return {
     run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox" | "type">> = {}) =>
-      openOrdinaryErrand({ ...options, ...overrides }),
+      openOrdinaryErrand({ ...options, ...overrides,
+        dependencies: provision === undefined ? options.dependencies : { ...options.dependencies, provision } }),
     read: () => ({ record, provisioned }),
     authority: () => authority,
   };
 }
+
+describe("a refused provisioning that leaves a checkout", () => {
+  it.each([
+    ["marker bytes", Buffer.from("marker"), "a worktree marker at /spawned; Remove the personal file, then retry."],
+    ["no marker bytes", null, "the checkout /spawned for branch chore/fix-output; Remove the personal file, then retry."],
+    ["a malformed marker", "malformed", "a malformed worktree marker at /spawned; Remove the personal file, then retry."],
+  ] as const)("retains the claim and names what remains with %s", async (_label, markerBytes, residue) => {
+    const fixture = newOpenFixture(() => Promise.resolve({ kind: "refused", reason: "path-collision",
+      evidence: { kind: "marker-residue", checkoutPath: "/spawned", markerBytes: markerBytes === "malformed" ? null : markerBytes,
+        ...(markerBytes === "malformed" ? { malformedMarker: true } : {}), detail: "Remove the personal file, then retry." } }));
+    const refusal = await fixture.run();
+    expect(refusal.recommendedPromptText).toBe(
+      `Errand open refused: topology-unknown. The identity claim is retained because provisioning left ${residue}.`);
+    expect(fixture.read().record).toMatchObject({ slug: "fix-output", branch: "chore/fix-output" });
+  });
+});
+
+describe("a compensation check's detail", () => {
+  it("renders the residual observer's malformed-marker repair under open's own refusal, naming no removal", async () => {
+    const checkout = await mkdtemp(join(tmpdir(), "arc-open-compensation-"));
+    onTestFinished(() => rm(checkout, { recursive: true, force: true }));
+    await mkdir(dirname(resolveWorktreeMarkerPath(checkout)), { recursive: true });
+    await writeFile(resolveWorktreeMarkerPath(checkout), "{ malformed marker");
+    const observed = await observeUnprojectedPersonalFiles(checkout);
+    if (observed.kind !== "unobservable") throw new Error("The malformed marker was observed");
+    expect(observed.detail).toMatch(/\. Repair or remove the marker, then retry\.$/u);
+    const fixture = newOpenFixture(() => Promise.resolve({ kind: "refused", reason: "path-collision",
+      evidence: { kind: "marker-residue", checkoutPath: checkout, markerBytes: null, detail: observed.detail } }));
+    const refusal = await fixture.run();
+    expect(refusal.recommendedPromptText).toContain(`Errand open refused: topology-unknown. The identity claim is retained because `
+      + `provisioning left the checkout ${checkout} for branch chore/fix-output; ${observed.detail}`);
+    expect(refusal.recommendedPromptText).not.toContain("removal");
+  });
+});
 
 describe("ordinary Errand branch types", () => {
   it.each(["fix", "refactor", "hotfix"] as const)("opens a new %s identity on its nature-typed branch", async (type) => {

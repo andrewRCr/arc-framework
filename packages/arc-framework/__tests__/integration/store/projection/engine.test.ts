@@ -1,7 +1,9 @@
 /** Command entry over a real repository and the reference store. */
-import { access, lstat, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { accessSync, lstatSync, readdirSync } from "node:fs";
+import { readStat, type ChangeCheck } from "../../../../src/lib/store/projection/change-detection.js";
 import { join, sep } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -167,11 +169,11 @@ describe("projection command entry", () => {
       await config;
       return h.store.version();
     } });
-    const ports = { ...native, walkFs: { readdir, lstat: async (path: string) => {
-      await access(join(h.location.stateDir, PROJECTION_LOCK_FILE));
+    const ports = { ...native, walkFs: { readdir: (path: string) => {
+      accessSync(join(h.location.stateDir, PROJECTION_LOCK_FILE));
       if (path === join(h.checkout, ".arc/backlog")) sharedStarted();
       if (path.startsWith(`${join(h.checkout, ".arc/user")}${sep}`) && !identified) throw new Error("personal walk ran before identity");
-      return lstat(path);
+      return readdirSync(path, { withFileTypes: true });
     } }, exec: (async (command, args, options) => {
       if (args.includes("--get-regexp")) {
         await access(join(h.location.stateDir, PROJECTION_LOCK_FILE));
@@ -184,6 +186,51 @@ describe("projection command entry", () => {
       return result;
     }) as typeof native.exec };
     expect((await startProjection({ store, checkout: h.checkout, ports: () => ports })).kind).toBe("ready");
+  });
+
+  it.each(["linux", "win32"] as const)("observes every walked file while the store is held using %s stats", async platform => {
+    const h = await createEngineFixture(directories);
+    let release = (): void => undefined;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const observed: string[] = [];
+    const store = overrideEngineStore(h.store, { version: async () => { await held; return h.store.version(); } });
+    const ports = { ...h.ports(), stats: { platform,
+      read: async (path: string) => { observed.push(path); return readStat(path); },
+      readSync: (path: string): NonNullable<ChangeCheck["recorded"]> => {
+        observed.push(path);
+        const stat = lstatSync(path, { bigint: true });
+        return { type: stat.isFile() ? "file" : stat.isSymbolicLink() ? "symlink" : "other",
+          size: stat.size, mtimeNs: stat.mtimeNs, ino: stat.ino };
+      },
+    } };
+    const start = startProjection({ store, checkout: h.checkout, ports: () => ports });
+    try {
+      await vi.waitFor(() => expect(observed).toEqual([join(h.checkout, h.path)]));
+    } finally { release(); await start; }
+    expect(await start).toMatchObject({ kind: "ready" });
+  });
+
+  it("lets an asynchronously reached Git call launch before the walk's last folder", async () => {
+    const h = await createEngineFixture(directories), native = h.ports();
+    const backlog = join(h.checkout, ".arc/backlog");
+    await Promise.all(Array.from({ length: 10 }, (_, i) => mkdir(join(backlog, `folder-${i}`), { recursive: true })));
+    let walked = (): void => undefined, folders = 0, gitIssued = false;
+    const walking = new Promise<void>(resolve => { walked = resolve; });
+    const store = overrideEngineStore(h.store, { version: async () => {
+      await walking;
+      for (let i = 0; i < 3; i++) await new Promise<void>(resolve => setImmediate(resolve));
+      gitIssued = true;
+      await h.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"], { cwd: h.checkout });
+      return h.store.version();
+    } });
+    expect(await startProjection({ store, checkout: h.checkout, ports: () => ({ ...native, walkFs: { readdir: path => {
+      if (path === backlog || path.startsWith(`${backlog}${sep}`)) {
+        folders++; walked();
+        if (folders === 11) expect(gitIssued).toBe(true);
+      }
+      return readdirSync(path, { withFileTypes: true });
+    } } }) })).toMatchObject({ kind: "ready" });
+    expect(folders).toBe(11);
   });
 
 

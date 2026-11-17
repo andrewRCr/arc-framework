@@ -6,6 +6,7 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { CandidateRead, PrePublicationCompositionDependencies, PrePublicationComposition,
   PrePublicationCompositionInput, ReviewLane, ReviewPolicyTarget } from "./pre-publication-contract.js";
+import { frontlineResolveRequestFromAdmission } from "./frontline-command-schema.js";
 import { prePublicationGrantContext } from "./pre-publication-lane-judgments.js";
 
 /** A saved explicit input cannot be rebound to the selected composition. */
@@ -68,6 +69,9 @@ async function refusePendingLaneReview(progress: LaneProgressProjection, lane: R
   const pending = progress.attempts.find((attempt) => attempt.outcome === "pending");
   if (pending === undefined) return;
   const handle = pending.hosted?.handle;
+  const admission = pending.frontline?.admission;
+  const frontlineRequest = admission?.target.kind === "change-set"
+    ? frontlineResolveRequestFromAdmission(admission) : null;
   const reference = await dependencies.pendingOperationReference?.(pending);
   const operationRef = reference === undefined ? {} : { operationRef: reference };
   throw new PendingLaneReviewError({
@@ -78,7 +82,7 @@ async function refusePendingLaneReview(progress: LaneProgressProjection, lane: R
       : pending.hosted !== undefined ? "hosted" : "frontline",
     request: pending.local !== undefined
       ? { schemaVersion: 1, operationId: pending.local.operationId ?? pending.attemptId, ...operationRef }
-      : handle ? { schemaVersion: 1, handle, ...operationRef } : null,
+      : handle ? { schemaVersion: 1, handle, ...operationRef } : frontlineRequest,
   });
 }
 

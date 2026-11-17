@@ -2,7 +2,9 @@
 import type { Slug } from "../../kernel/index.js";
 import type { ActiveLayoutContext } from "../../layout/index.js";
 import { onCheckoutChange } from "../../git/checkout-change.js";
+import { canonicalCheckoutSync } from "./checkout-identity.js";
 import type { Store } from "../contract.js";
+import type { RecordReference } from "../identity.js";
 import type { HistoryMemo } from "./base-recovery.js";
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { ProjectionLocation } from "./location.js";
@@ -14,10 +16,15 @@ import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
 import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
 import type { ProjectionStart } from "./engine.js";
 import type { ProjectionResolution } from "./save-resolution.js";
+import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
+import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
+
+/** A round visits every registered checkout; `own` visits the writer's checkout alone. */
+export type FanOutScope = "all" | "own";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
-export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch"; readonly mark: RefusedMark }
+export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
 
 /** Bound edit policy; an absent policy grants the edit. */
 export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark | null>;
@@ -26,6 +33,7 @@ export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark |
 export interface ProjectionCommandBinding {
   readonly store: Store;
   readonly checkout: string;
+  readonly mint?: ProjectionStubMintPort;
 }
 
 /** Per-worktree bindings and copy bookkeeping owned by this command. */
@@ -38,8 +46,12 @@ export interface ProjectionRootState {
   readonly takeIn: TakeInPort;
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
-  readonly blockedByLink: ProjectionLinkBoundary;
+  blockedByLink: ProjectionLinkBoundary;
+  /** Links the command's start already reported here, which a later lay in the same command does not report again. */
+  readonly reportedLinks: readonly string[];
   claim: Slug | null;
+  claimUid?: string;
+  claimKind?: "work-unit" | "errand" | "partial-errand";
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;
   readonly copies: { path: string; copy: string }[];
@@ -47,12 +59,16 @@ export interface ProjectionRootState {
   readonly unsent: Set<string>;
   readonly discovered: string[];
   changed: boolean;
+  sent?: boolean;
+  sweepEmpty?: boolean;
+  fanOutTimes?: number[];
   ready: boolean;
+  spawned?: boolean;
   writable: (path: string) => boolean;
   rights?: ProjectionRights;
   mint?: ProjectionStubMintPort;
-  refresh?: () => Promise<void>;
-  fanOut?: () => Promise<void>;
+  refresh?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
+  reproject?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
   materialize?: () => Promise<void>;
 }
 
@@ -63,8 +79,20 @@ export interface ProjectionProcessState {
   resolution: ProjectionResolution | null;
   skip: ProjectionSkip | null;
   lockHeld: boolean;
+  /** Runs one fan-out round, or a visit to the writer's checkout alone, answering the own writes it could not mark. */
+  fanOut?: (ownWrites: readonly RecordReference[], round: number, scope?: FanOutScope) => Promise<readonly RecordReference[] | undefined>;
+  fanOutBinding?: ProjectionFanOutBinding;
+  fanOutRunning: boolean;
+  fanOutHolds: number;
+  fanOutSuppressed: number;
+  fanOutOwnWrites: RecordReference[];
   history: HistoryMemo | null;
+  materializeSpawn: ((checkout: string) => Promise<void>) | null;
   readonly roots: Map<string, ProjectionRootState>;
+  readonly retiring: Set<string>;
+  /** Checkouts whose marker or layout configuration this command's start could not read; its fan-out leaves them for their next command. */
+  readonly faulted: Set<string>;
+  readonly actors: Map<string, Promise<string>>;
   readonly capabilities: Map<string, boolean>;
   readonly composedCapabilities: Map<string, boolean>;
   readonly engineCapabilityRoots: Set<string>;
@@ -77,7 +105,9 @@ export interface ProjectionProcessState {
 }
 
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
-  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(),
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, fanOutRunning: false,
+    fanOutHolds: 0, fanOutSuppressed: 0, fanOutOwnWrites: [],
+    history: null, materializeSpawn: null, roots: new Map(), retiring: new Set(), faulted: new Set(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };
@@ -109,14 +139,24 @@ function setEffectiveCapability(state: ProjectionProcessState, checkoutRoot: str
 
 /** Start a new command, dropping old ports, memoized history, skip verdicts, and copy bookkeeping. */
 export function beginProjectionCommand(): ProjectionProcessState {
+  processState[key]?.fanOutBinding?.close();
   return processState[key] = freshState(projectionProcessState().composedCapabilities);
 }
 
 onCheckoutChange(change => {
   const state = projectionProcessState();
-  if (change.kind === "marker") { state.layoutContexts.delete(change.checkoutRoot); return; }
-  state.layoutContexts.delete(change.from);
-  state.layoutContexts.delete(change.to);
+  // Layout contexts are cached under a reader's spelling and under the projection's canonical one, so a change drops both.
+  const dropLayout = (checkout: string): void => {
+    state.layoutContexts.delete(checkout);
+    state.layoutContexts.delete(canonicalCheckoutSync(checkout));
+  };
+  if (change.kind === "marker") { dropLayout(change.checkoutRoot); return; }
+  // Roots take the canonical spelling; the capability maps keep the store's own root spelling.
+  if (state.roots.delete(canonicalCheckoutSync(change.from))) state.diagnostics.push({ path: change.from, copy: null, mark: {
+    reason: `Projection checkout moved from ${change.from} to ${change.to}; its old binding was released.`,
+    remedy: { text: "The next projection visit binds the new path; kept copies settle at its next command." } } });
+  dropLayout(change.from);
+  dropLayout(change.to);
   for (const capabilities of [state.capabilities, state.composedCapabilities]) {
     const value = capabilities.get(change.from);
     if (value !== undefined) capabilities.set(change.to, value);

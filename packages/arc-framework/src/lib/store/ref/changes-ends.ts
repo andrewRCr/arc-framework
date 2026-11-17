@@ -30,7 +30,7 @@ export async function readChangeEnds(context: RefBackendContext, interval: RefCh
     registryBatches: new Set(), beforeRegistry: interval.before.get("refs/arc/project/registry") };
   const scanned = await scanEndRefs(context, interval, readWindow, result, restrictedOwners(context, interval));
   if (scanned.status === "refused") return scanned;
-  const moved = [...new Set([...interval.before.keys(), ...interval.after.keys()])].some((ref) => isLifecycleRef(ref) && interval.before.get(ref) !== interval.after.get(ref));
+  const moved = [...new Set([...interval.before.keys(), ...interval.after.keys()])].some((ref) => isLifecycleRef(ref) && interval.before.has(ref) !== interval.after.has(ref));
   if (moved || result.changed.size || result.origins.size) {
     const folders = await readEndSnapshots(context, interval, result, restrictedOwners(context, interval));
     if (folders.status === "refused") return folders;

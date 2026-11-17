@@ -1,4 +1,5 @@
 /** Unbound checkout recovery names every generation and offers only admitted exits. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { expect, it } from "vitest";
 import { classifyUnboundMarker } from "../../../src/lib/locus/unbound-marker.js";
 import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
@@ -107,7 +108,7 @@ it.each(["bound", "husk"] as const)("does not classify a %s marker as unbound", 
   const h = createDecomposeHarness(), primary = await h.seedMeta("example");
   if (primary.reference.owner.type === "person" || primary.reference.owner.uid === undefined) throw new Error("Expected owner UUID");
   const observed: WorktreeMarker = kind === "bound" ? { ...marker(), createdFor: { kind: "work-unit", name: "example", uid: primary.reference.owner.uid } }
-    : { ...marker(), husk: { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z", branch: "feat/example", subject: { kind: "work-unit", name: "example" } } };
+    : { ...marker(), husk: makeHuskStamp({ sha: "a".repeat(40), at: "2026-10-24T00:00:00Z", branch: "feat/example", subject: { kind: "work-unit", name: "example" } }) };
   expect(await classifyUnboundMarker({ store: h.store, cwd: "/checkout", marker: observed, identity: "test-user" }))
     .toMatchObject({ kind: "unreadable", reason: expect.stringContaining("Expected an unbound work-unit marker") });
 });

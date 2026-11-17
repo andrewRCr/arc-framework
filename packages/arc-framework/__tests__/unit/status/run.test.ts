@@ -1,3 +1,4 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Composite status orchestration through faithful injected probe fixtures. */
 
 import { describe, it, expect, vi } from "vitest";
@@ -2370,7 +2371,7 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
         worktreePath: "/wt/shipped",
         subject: { kind: "work-unit" as const, name: "shipped" },
         branch: "feat/shipped",
-        stamp: { kind: "legacy" as const, authorization: "merged-preserved" as const },
+        stamp: fixtureHuskProof,
       };
       const probes = sessionInitProbes({
         remoteContext: async () => context,

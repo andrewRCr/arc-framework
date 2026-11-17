@@ -1,4 +1,5 @@
 /** Read native markerless branch candidates without deriving a session or conferring checkout ownership. */
+import type { CheckoutObservation } from "./checkout-observation.js";
 import { realpath, stat } from "node:fs/promises";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
@@ -10,20 +11,20 @@ import { findWorkBranchCheckoutPaths } from "./markerless-work-units.js";
 
 /** Find branch advice for the selected exact primary, preserving unavailable or ambiguous native evidence. */
 export async function findNativeMarkerlessWorkUnitCheckouts(input: {
-  store: Store; record: StoreRecord; checkout: string; exec: GitExec;
+  store: Store; record: StoreRecord; checkout: string; exec: GitExec; observation?: CheckoutObservation; projectId?: () => Promise<string>;
 }): Promise<string[]> {
   if ((input.record.links?.branches?.length ?? 0) === 0) return [];
   const exec: GitExec = (command, args, options) => input.exec(command, args, { cwd: input.checkout, ...options });
-  const scan = await scanRegisteredWorktrees(exec);
+  const scan = await (input.observation?.scan() ?? scanRegisteredWorktrees(exec));
   if (!scan.ok) throw new Error(`${scan.message} Repair the registered-worktree listing, then retry.`);
   if (scan.worktrees.length === 0) throw new Error("The registered-worktree listing is incomplete. Run again once Git lists all registered worktrees.");
   const seen = new Set<string>();
   const candidates: RegisteredWorktree[] = [];
-  for (const row of scan.worktrees) if (await isNativeMarkerlessCandidate(row, seen)) candidates.push(row);
-  return findWorkBranchCheckoutPaths(input.record, await createProjectIdentityReader(input.store)(), candidates);
+  for (const row of scan.worktrees) if (await isNativeMarkerlessCandidate(row, seen, input.observation?.readMarker)) candidates.push(row);
+  return findWorkBranchCheckoutPaths(input.record, await (input.projectId ?? createProjectIdentityReader(input.store))(), candidates);
 }
 
-async function isNativeMarkerlessCandidate(row: RegisteredWorktree, seen: Set<string>): Promise<boolean> {
+async function isNativeMarkerlessCandidate(row: RegisteredWorktree, seen: Set<string>, readMarker = readWorktreeMarkerGeneration): Promise<boolean> {
   if (!row.folderPresent || !(await stat(row.path)).isDirectory()) {
     throw new Error(`Registered checkout ${row.path} is unavailable. Repair or prune its registration, then retry.`);
   }
@@ -31,7 +32,7 @@ async function isNativeMarkerlessCandidate(row: RegisteredWorktree, seen: Set<st
   if (seen.has(canonical)) throw new Error(`Duplicate registrations identify checkout ${row.path}. Repair the registered-worktree listing, then retry.`);
   seen.add(canonical);
   let marker;
-  try { marker = await readWorktreeMarkerGeneration(row.path); }
+  try { marker = await readMarker(row.path); }
   catch (error) {
     throw new Error(`Cannot read ${resolveWorktreeMarkerPath(row.path)}: ${error instanceof Error ? error.message : String(error)}. Repair its marker, then retry.`, { cause: error });
   }

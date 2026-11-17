@@ -177,7 +177,7 @@ describe("integration boundary locus", () => {
     });
   });
 
-  it("normalizes the exact legacy delivery placeholder during a persisted-boundary read", () => {
+  it("refuses the retired delivery placeholder during a persisted-boundary read", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
@@ -198,18 +198,11 @@ describe("integration boundary locus", () => {
       },
     };
 
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        workUnitId: "example",
-        command: "arc review status --work-unit example",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
-  it("normalizes the former work-unit delivery action without admitting it as a canonical boundary", () => {
+  it("refuses the former work-unit delivery action through both parser entry points", () => {
     const current = projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
@@ -228,13 +221,8 @@ describe("integration boundary locus", () => {
     };
 
     assertSchemaRefuses(IntegrationBoundaryLocusSchema, legacy);
-    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
+    expect(() => parseIntegrationBoundaryLocus(legacy)).toThrow();
+    expect(parseIntegrationBoundaryLocus(current)).toEqual(current);
   });
 
   it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {

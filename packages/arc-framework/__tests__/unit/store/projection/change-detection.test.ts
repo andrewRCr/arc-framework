@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import {
-  checkChange, PROJECTION_REFERENCE, readReference, type ChangeCheck,
+  checkChange, PROJECTION_REFERENCE, readReference, readStat, type ChangeCheck,
 } from "../../../../src/lib/store/projection/change-detection.js";
 
 let checkout: string;
@@ -41,6 +41,22 @@ async function recorded(content: string, at: Date, referenceAt: Date): Promise<C
 }
 
 describe("change detection", () => {
+  it("uses a caller's absent observation when a file appears after that observation", async () => {
+    const observed = await readStat(path);
+    const check = { ...await recorded("version one\n", T, new Date(T.getTime() + 1_000)), observed };
+    expect(await checkChange(check)).toEqual({ status: "absent" });
+  });
+
+  it("rechecks a racy observed file before hashing when a link has replaced it", async () => {
+    const basis = await recorded("version one\n", T, T), observed = await readStat(path);
+    const target = join(checkout, "external-target.md");
+    await writeFile(target, "external bytes\n");
+    await unlink(path); await symlink(target, path, "file");
+    reads.length = 0;
+    expect(await checkChange({ ...basis, observed }, recordingRead)).toEqual({ status: "absent" });
+    expect(reads).toEqual([]);
+  });
+
   it("finds a same-size rewrite within one modification-time tick by the hash", async () => {
     const check = await recorded("version one\n", T, T);
     await writeFile(path, "version two\n");

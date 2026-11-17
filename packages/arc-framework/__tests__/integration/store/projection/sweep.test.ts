@@ -9,9 +9,9 @@ import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { PROJECTION_REFERENCE, readStat } from "../../../../src/lib/store/projection/change-detection.js";
-import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { commitProjectionIndex, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
-import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { ASIDE_FILES_ROOT, nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
 import { readStamplessFile } from "../../../../src/lib/store/projection/stampless.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -73,7 +73,7 @@ async function leftBy(
 }
 
 async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]): Promise<ProjectionIndex> {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   return read.index;
 }
@@ -83,6 +83,31 @@ async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], 
   if (entry?.kind !== "record") throw new Error(`expected a record entry at ${path}`);
   return entry;
 }
+
+it("prunes empty scaffolding while preserving recovery names, foreign bytes, and linked directories", async () => {
+  const h = await leftBy(null);
+  await h.sweep(unreached);
+  const empty = join(h.checkout, ASIDE_FILES_ROOT, "backlog/planned/empty/notes-empty.md");
+  const opaque = nameAsideFile({ path: h.path, base: h.staged.base.blob, writer: SWEEPER, role: "aside" });
+  const foreign = join(h.checkout, ASIDE_FILES_ROOT, "foreign/saved.txt");
+  const external = join(h.checkout, "external-aside-directory");
+  await mkdir(empty, { recursive: true });
+  await mkdir(join(h.checkout, opaque), { recursive: true });
+  await mkdir(dirname(foreign), { recursive: true });
+  await writeFile(foreign, "Foreign bytes.\n");
+  await mkdir(external);
+  await symlink(external, join(h.checkout, ASIDE_FILES_ROOT, "linked"), "dir");
+  await h.sweep(unreached);
+  expect(await readStat(empty)).toBeNull();
+  expect((await lstat(join(h.checkout, opaque))).isDirectory()).toBe(true);
+  expect(await readFile(foreign, "utf8")).toBe("Foreign bytes.\n");
+  expect((await lstat(external)).isDirectory()).toBe(true);
+  const copy = nameAsideFile({ path: ".arc/backlog/planned/empty/notes-empty.md", base: h.staged.base.blob, writer: SWAP_WRITER, role: "aside" });
+  await mkdir(dirname(join(h.checkout, copy)), { recursive: true });
+  await writeFile(join(h.checkout, copy), "Unrecorded save.\n");
+  expect(await h.sweep(unreached)).toMatchObject({ left: expect.arrayContaining([expect.objectContaining({ copy, reason: "unrecorded" })]) });
+  expect(await readFile(join(h.checkout, copy), "utf8")).toBe("Unrecorded save.\n");
+});
 
 describe("the sweep", () => {
   it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {
@@ -509,7 +534,10 @@ describe("the sweep's ignore guard", () => {
 
   it("makes no Git call once a pass is recorded and no ignore file has changed since", async () => {
     const left = await leftBy(null);
-    expect((await left.sweep(unreached, { writer: SWAP_WRITER })).ignores.kind).toBe("passed");
+    const first = await left.sweep(unreached, { writer: SWAP_WRITER });
+    expect(first.ignores.kind).toBe("passed");
+    if (first.index === null) throw new Error("Missing swept index");
+    await commitProjectionIndex({ location: left.location, checkout: left.checkout, index: first.index });
     const refusing = async (): Promise<string> => { throw new Error("Git was called"); };
     const guard = { root: left.checkout, identity, exec: refusing, fs: gitFs };
     expect((await left.sweep(unreached, { writer: SWAP_WRITER, guard })).ignores.kind).toBe("unchanged");

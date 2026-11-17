@@ -13,19 +13,18 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                                                          | Cohort             |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------- | ------------------ |
-| `Planning` | cutover-flip                    | P1       | andrew | projection-worktrees, projection-team-scale, cutover-window-tooling | storage-cutover    |
-| `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                                                        | storage-cutover    |
-| `Planning` | projection-team-scale           | P1       | andrew | projection-worktrees                                                | storage-projection |
-| `Active`   | projection-worktrees            | P1       | andrew | —                                                                   | storage-projection |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                     | —                  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                   | —                  |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                   | —                  |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                   | —                  |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                   | —                  |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                   | —                  |
-| `Planning` | cli-output-contract             | P2       | andrew | —                                                                   | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on      | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | --------------- | ------------------ |
+| `Active`   | cutover-flip                    | P1       | andrew | —               | storage-cutover    |
+| `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip    | storage-cutover    |
+| `Planning` | projection-team-scale           | P1       | andrew | —               | storage-projection |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —               | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —               | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —               | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —               | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —               | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —               | —                  |
 
 ## Ready
 
@@ -40,7 +39,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-evaluator-isolation            | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority               | P1       | andrew | —          | review-protocol-alignment  |
 | storage-native-windows-bulk-transport | P1       | andrew | —          | state-storage              |
-| cutover-window-tooling                | P1       | andrew | —          | storage-cutover            |
 | compact-schema-declarations           | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety       | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
@@ -56,6 +54,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | method-conventions                    | P2       | andrew | —          | doc-conventions            |
 | storage-ref-release-hardening         | P2       | andrew | —          | state-storage              |
+| projection-narrowed-views             | P2       | andrew | —          | storage-projection         |
 | agent-session-bridge                  | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
@@ -123,7 +122,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | work-item-relations             | P1       | andrew | cutover-flip                                | —                          |
 | wu-lifecycle-state-model        | P1       | andrew | cutover-flip                                | —                          |
 | unit-scoped-review              | P2       | andrew | commit-increments                           | approval-flow-refinement   |
-| projection-narrowed-views       | P2       | andrew | projection-worktrees                        | storage-projection         |
 | errand-promotion-concurrency    | P2       | andrew | cutover-flip                                | —                          |
 | framework-core-from-package     | P2       | andrew | cutover-flip                                | —                          |
 | ghost-mode                      | P2       | andrew | cutover-flip                                | —                          |

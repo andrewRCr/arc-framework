@@ -1,4 +1,6 @@
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 /** Cleanup orientation retains published authorization and outside-checkout boundaries. */
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { describe, expect, it } from "vitest";
 import { createAgendaFixtureInput, frameWithRow, workUnitRow } from "../../helpers/agenda-fixtures.js";
 import { sessionInitFixture, worktreeSync } from "../../helpers/session-init-fixtures.js";
@@ -16,17 +18,17 @@ import { orderOrientationSurfaces } from "../../../src/commands/agenda/orientati
 import { type AgendaStep } from "../../../src/commands/agenda/schema.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
-async function huskInput(kind: "current" | "legacy" | "manual-only", primary = true) {
+async function huskInput(kind: "current" | "manual-only", primary = true) {
   const original = workUnitRow(false, true);
   const row = { ...original, checkout: { ...original.checkout, path: "/repo/work" } };
   const base = frameWithRow(row);
   const frame = primary ? base : { ...base, roster: [row], primaryAvailability: { kind: "unsafe" as const, checkoutPath: null, reasons: ["primary is unavailable"] } };
   const marker: WorktreeMarkerReadResult = { kind: "present", marker: { spawnedByArc: true, wuName: "work",
-    spawningIdentity: "andrew", createdAt: "2026-11-01T00:00:00Z", husk: { sha: "a".repeat(40),
+    spawningIdentity: "andrew", createdAt: "2026-11-01T00:00:00Z", husk: makeHuskStamp({ sha: "a".repeat(40),
       at: "2026-11-01T00:00:00Z", subject: { kind: "work-unit", name: "work" }, branch: "feat/work",
       ...(kind === "current" ? { authorization: "discard-confirmed", remoteRef: null,
         evidence: { kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"b".repeat(64)}` } } : {}),
-    } } };
+    }) } };
   const husk = deriveCurrentHuskAdvisory({ worktreePath: "/repo/work", branch: null, head: "a".repeat(40), marker,
     stateOffBranch: kind === "manual-only" });
   if (husk === null) throw new Error("Expected a husk fixture");
@@ -38,18 +40,18 @@ async function huskInput(kind: "current" | "legacy" | "manual-only", primary = t
 function offers(steps: AgendaStep[]) { return steps.filter(step => step.type === "offer"); }
 
 describe("agenda current husk cleanup", () => {
-  it.each(["current", "legacy"] as const)("offers %s teardown from the primary and hands off", async kind => {
-    const value = await huskInput(kind);
+  it("offers current teardown from the primary and hands off", async () => {
+    const value = await huskInput("current");
     const steps = orderOrientationSurfaces(compileCleanupOrientation(value));
     expect(steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "husk",
-      text: expect.stringContaining(kind === "current" ? "discard-confirmed" : "legacy stamp") })]));
+      text: expect.stringContaining("discard-confirmed") })]));
     const offer = offers(steps)[0];
     expect(offer).toMatchObject({ ask: "orientation", choices: [{ kind: "actions", accepts: [],
       actions: [{ argv: ["arc", "teardown", "work", "--husk", "/repo/work"], checkout: "/repo" }], then: { kind: "handoff" } }] });
   });
 
   it("keeps a husk teardown as text when no primary checkout resolves", async () => {
-    const steps = orderOrientationSurfaces(compileCleanupOrientation(await huskInput("legacy", false)));
+    const steps = orderOrientationSurfaces(compileCleanupOrientation(await huskInput("current", false)));
     expect(steps).toEqual([expect.objectContaining({ type: "render", surface: "husk", text: expect.stringContaining("arc teardown") })]);
   });
 
@@ -139,7 +141,7 @@ function huskReport(subject: { kind: "work-unit"; name: string } | { kind: "bran
   const argv = subject.kind === "work-unit" ? ["arc", "teardown", subject.name, ...(linked ? ["--husk", `/repo/${key}`] : [])]
     : subject.kind === "branch" && !linked ? ["arc", "teardown", "--branch", subject.ref] : undefined;
   return { kind: "husk" as const, worktreePath: `/repo/${key}`, branch: null, stampedBranch: `feat/${key}`, completedWorkUnit: null,
-    subject, stamp: { kind: "legacy" as const, authorization: "merged-preserved" as const }, decision: { action: "removable" as const },
+    subject, stamp: fixtureHuskProof, decision: { action: "removable" as const },
     actions: argv === undefined ? [{ text: `No exact husk cleanup driver serves ${key}; cleanup is manual.` }] : [{ text: argv.join(" "), argv }],
   };
 }

@@ -60,12 +60,13 @@ describe("persisted publication boundary versions", () => {
     expect(parseReviewIntegrationBoundary(JSON.stringify({ ...value, deliveryReviewTermini: [first] })))
       .toEqual({ ...value, deliveryReviewTermini: [first] });
   });
-  it.each(["placeholder", "work-unit"] as const)("normalizes version 1's legacy %s delivery action", (kind) => {
+  it.each(["placeholder", "work-unit"] as const)("refuses version 1's retired %s delivery action", (kind) => {
     const original = boundaryV1Fixture("delivery-status-required");
     const nextAction = kind === "placeholder" ? { kind: "continue-hosted-review", command: "arc review status --target '{targetRef}' --json",
       interactionText: "Resolve retained delivery status." } : { ...original.nextAction, kind: "continue-hosted-review" };
     expect(parseReviewIntegrationBoundary(JSON.stringify({ ...original, locus: "hosted-review-pending", nextAction })))
-      .toMatchObject({ locus: "delivery-status-required", nextAction: { kind: "resolve-delivery-status", workUnitId: "example" } });
+      .toBeNull();
+    expect(parseReviewIntegrationBoundary(JSON.stringify(original))).toEqual(original);
   });
   it("keeps the post-attest continuation's field requirements specific to each version", () => {
     const original = boundaryV1Fixture("candidate-convergence-verification-pending");

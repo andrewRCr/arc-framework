@@ -617,9 +617,17 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
 
 ### Ship — partial protection
 
-No branch and no PR: the Errand is a direct base-branch commit, so there is no merge step. The base push follows
-the project's normal discipline. It cannot pause, await merge, materialize, or hand off; completion must pop the
-exact partial role and remove any originating capture before the session can leave.
+The Errand is a direct base-branch commit on the configured base. Push that head to `origin` through the project's
+normal gates before `arc errand close <slug> --json` can release its occupancy and remove its originating capture.
+
+Follow a `preservation-unproven` refusal's branch, push, and retry instructions. For a gate failure reproduced on
+base, use a passing project-supported runtime or environment where available. If that cannot clear the gate, follow
+[DEV-RULES.ARC § Quality gate failure][dev-rules-arc]: a `fix-now` approval must explicitly cover the prerequisite
+repair within the occupied partial Errand, as a separately approved commit with normal checks. Then perform the
+normal gated push and retry close. A `defer` decision leaves the Errand open; retain its occupancy and capture.
+
+Partial protection cannot pause, await merge, materialize, or hand off; completion must release the exact partial
+role before the session can leave.
 
 ### Complete
 
