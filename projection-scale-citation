@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "projection-scale-citation",
+  "claimId": "2a934992ab23dc0f7e3fe76ac26b7459",
+  "createdAt": "2026-11-17T16:01:05.380Z",
+  "updatedAt": "2026-11-17T16:01:05.380Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Replace the machine-local scale-assessment citation with the finding it supports.",
+  "branch": "chore/projection-scale-citation",
+  "origin": "inbox",
+  "originEntry": "Drop the machine path from the storage-projection cohort record's scale-assessment citation",
+  "originEntrySourceDigest": "sha256:77847ff90a2629cdc9a336d01a0867155241e91ca3c44146a6dc2a9acfd8c867",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
