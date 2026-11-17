@@ -1,3 +1,4 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { retirementRecording, retirementRetainedBase, interruptedRetirementCopy, interruptedRetirementReplacement } from "../helpers/store/projection-retirement.js";
 import { createRefusingStore } from "../helpers/store/projection/refusing-store.js";
@@ -373,6 +374,7 @@ describe("store retirement real Git", () => {
     await seedProjection({ checkout: h.checkout, store: h.store, identity: SlugSchema.parse("test-user"), files: [
       { path: h.path, reference: h.record.reference }, { path, reference: record.reference },
     ] });
+    await openArchivedProjectionFile(h, path);
     const authored = "local prefix\nopening\nbase\nclosing\n";
     if (operation === "history") lifecycleSuccess(await h.store.write({ action: "put", reference: record.reference,
       expected: record.version, content: `${record.content}remote footer\n`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -704,6 +706,7 @@ describe("store retirement real Git", () => {
     const projected = await seedProjection({ checkout: h.checkout, store: h.store, identity: SlugSchema.parse("test-user"), files: [{ path, reference: record.reference }] });
     const entry = projected.index.entries[path];
     if (entry?.kind !== "record") throw new Error("No archived metadata entry");
+    await openArchivedProjectionFile(h, path);
     const bytes = renderStampedFile({ content: "No metadata heading or table.\n", stamp: entry.base.blob });
     await writeFile(join(h.checkout, path), bytes);
     expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("parser accepts") });

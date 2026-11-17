@@ -2,6 +2,7 @@
  * The replace guard: before a file is replaced or removed, it is re-checked by the racy rule, and an edit found there is
  * taken in first, then, for a replacement, the record's current version restaged, for at most three passes.
  */
+import { projectionLayMode } from "./lay-mode.js";
 import { removeProjectionAsideFile } from "./aside-cleanup.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -24,6 +25,8 @@ export const GUARD_PASSES = 3;
 /** What a guarded replacement checks and stages. */
 export interface ReplaceGuardInput {
   readonly checkpoint?: () => Promise<void>;
+  /** A take-in restaged by this guard is landing in the saving checkout. */
+  readonly saveLanding?: boolean;
   readonly checkout: string;
   /** The file's repository-relative path. */
   readonly path: string;
@@ -162,7 +165,8 @@ async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: Sta
   if (read.status !== "ok") return { ...read, entry };
   const restaged = await stageRecordFile({
     checkout: input.checkout, path: input.path, record: read.result, replacing: entry.base.blob, writer: input.writer,
-    format: input.format, readOnly: entry.protected, renderer: input.renderer, checkpoint: input.checkpoint,
+    format: input.format, layMode: projectionLayMode(input.path, entry, input.saveLanding),
+    readOnly: entry.protected, renderer: input.renderer, checkpoint: input.checkpoint,
   });
   if (restaged.status === "refused") return { ...restaged, entry: { ...entry, unshown: unshownConflicts(entry, read.result.conflicts) } };
   await input.checkpoint?.();

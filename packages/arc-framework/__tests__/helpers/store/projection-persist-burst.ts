@@ -1,4 +1,6 @@
 /** Native interrupted replacements and target-owned evidence for saves during retirement. */
+import { projectionLayMode } from "../../../src/lib/store/projection/lay-mode.js";
+
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
@@ -26,7 +28,7 @@ export async function interruptBurstReplacement(f: Fixture, root: string): Promi
   if (disk.kind !== "index" || previous?.kind !== "record") throw new Error("No native record to replace");
   const record = success(await f.h.a.store.read({ reference: BURST_REFERENCE }));
   const writer = await ports.writer(), renderer = createRecordRenderer({ store: f.h.a.store });
-  const staged = success(await stageRecordFile({ checkout: root, path: BURST_PATH, record,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(BURST_PATH, previous), checkout: root, path: BURST_PATH, record,
     replacing: previous.base.blob, writer, format: "sha1", renderer }));
   const takeIn: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
   const replace = await guardReplacement({ checkout: root, path: BURST_PATH, entry: previous, staged,

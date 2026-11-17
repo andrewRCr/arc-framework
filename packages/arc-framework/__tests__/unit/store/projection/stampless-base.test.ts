@@ -1,4 +1,6 @@
 /** A stampless save is sent only when its recorded possible bases agree on the merge. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, describe, expect, it } from "vitest";
 import { createWriteBackFixture, refreshWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
@@ -139,7 +141,7 @@ describe("stampless base agreement", () => {
     if (other.status !== "ok") throw new Error("other writer refused");
     const read = await fixture.store.read({ reference: fixture.entry.reference });
     if (read.status !== "ok") throw new Error("record unavailable");
-    const staged = await stageRecordFile({ ...fixture.context, checkout: fixture.checkout, path: fixture.path,
+    const staged = await stageRecordFile({ layMode: projectionLayMode(fixture.path, fixture.entry), ...fixture.context, checkout: fixture.checkout, path: fixture.path,
       record: read.result, replacing: fixture.entry.base.blob });
     if (staged.status !== "ok") throw new Error("staging refused");
     const takeIn = createWriteBackPort(fixture.context);

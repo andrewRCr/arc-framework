@@ -1,4 +1,6 @@
 /** Two real stored records and a staged arrival sharing one projected pathname. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { join } from "node:path";
 import { createWriteBackFixture } from "./write-back-fixture.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
@@ -16,7 +18,7 @@ export async function createHandoffFixture(extension = "md") {
   const read = await h.store.read({ reference: result.result.reference });
   if (read.status !== "ok") throw new Error("Arrival read refused");
   const record = read.result;
-  const staged = await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path, record, replacing: h.entry.base.blob });
+  const staged = await stageRecordFile({ layMode: projectionLayMode(h.path), ...h.context, checkout: h.checkout, path: h.path, record, replacing: h.entry.base.blob });
   if (staged.status !== "ok") throw new Error("Arrival staging refused");
   const arrival = { ...projectionEntryForRecord(record, h.path, "sha1"), stat: await readStat(join(h.checkout, staged.result.location)),
     written: staged.result.written, base: staged.result.base };

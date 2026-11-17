@@ -3,6 +3,8 @@
  * replace it — or to remove, the guard re-checking it with nothing staged, each with a batch over a seeded projection in
  * a new temporary repository.
  */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { chmod, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -66,7 +68,7 @@ export async function prepareSwap(options: PrepareSwapOptions = {}) {
   if (readOnly) await chmod(join(seeded.checkout, path), 0o444);
   await options.guarded?.before?.(join(seeded.checkout, path));
   const renderer = createRecordRenderer({ store: fixture.store });
-  const stagedResult = await stageRecordFile({
+  const stagedResult = await stageRecordFile({ layMode: projectionLayMode(path, laid),
     checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: SWAP_WRITER, format: "sha1", readOnly, renderer,
   });
   if (stagedResult.status !== "ok") throw new Error("staging refused");

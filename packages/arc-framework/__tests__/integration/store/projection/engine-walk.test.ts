@@ -1,5 +1,5 @@
 /** Command-wide discovery across projected roots, excluding machine-local state and links. */
-import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import { lstatSync, readdirSync, rmdirSync, unlinkSync } from "node:fs";
 import { walkProjectionRoots } from "../../../../src/lib/store/projection/engine-walk.js";
 import { readRemovalProjectionRoots } from "../../../../src/lib/store/projection/removal-files.js";
@@ -133,6 +133,7 @@ describe("the command's projected-root walk", () => {
     for (const [i, path] of paths.entries()) {
       const entry = projection.index.entries[path];
       if (entry?.kind !== "record") throw new Error("missing seeded entry");
+      if (path.startsWith(".arc/completed/")) await chmod(join(projection.checkout, path), 0o644);
       await writeFile(join(projection.checkout, path), renderStampedFile({ content: `edited ${i}\n`, stamp: entry.base.blob }));
     }
     await startProjection({ store: h.store, checkout: projection.checkout });

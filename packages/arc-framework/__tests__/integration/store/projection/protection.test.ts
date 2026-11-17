@@ -1,4 +1,6 @@
 /** Protection is laid with winning staged bytes and re-observed when an edit persists. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { chmod, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -81,7 +83,7 @@ async function refresh(h: Awaited<ReturnType<typeof fixture>>) {
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("The seeded entry is missing");
   const renderer = createRecordRenderer(h.context);
-  const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path, record: h.record,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, entry), ...h.context, checkout: h.checkout, path: h.path, record: h.record,
     replacing: entry.base.blob, renderer, readOnly: entry.protected }));
   const takeIn = createWriteBackPort(h.context);
   const replace = await guardReplacement({ ...h.context, checkout: h.checkout, path: h.path, entry, staged, renderer, takeIn, reference: null });
@@ -273,7 +275,7 @@ it("restages writable bytes and clears protection after checkout ownership is re
   const entry = installed.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("The protected entry disappeared");
   const renderer = createRecordRenderer(h.context);
-  const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path, record: h.record,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, entry), ...h.context, checkout: h.checkout, path: h.path, record: h.record,
     replacing: entry.base.blob, renderer, readOnly: entry.protected }));
   expect(staged.rendering?.protected).toBe(true);
   await rm(resolveWorktreeMarkerPath(h.holder));
@@ -374,7 +376,7 @@ it.each([
       createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(h.record) });
   }
   const renderer = createRecordRenderer(h.context);
-  const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path, record: h.record,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, entry), ...h.context, checkout: h.checkout, path: h.path, record: h.record,
     replacing: entry.base.blob, renderer, readOnly: entry.protected }));
   expect(staged.rendering?.protected).toBe(!scenario.protected);
   if (scenario.rebuild) await rm(join(h.checkout, h.path));

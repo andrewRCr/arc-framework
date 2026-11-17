@@ -12,6 +12,7 @@ import { gateRead } from "./read-gate.js";
 import { readStat } from "./change-detection.js";
 import { parseStampedFile, renderStampedFile } from "./stamp.js";
 import { gitBlobId, storedBlobId, type ObjectFormat } from "./blob-id.js";
+import { projectionLayMode, isOwnSaveLanding } from "./lay-mode.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import type { SwapFile } from "./swap.js";
@@ -92,9 +93,11 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
     return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
   }
   const staged = await stageRenderedRecordFile({ checkout: root.checkout, path, record, replacing: entry.base.blob,
-    content: rendered.content, notices: rendered.notices, rendering: { ...rendered.state, protected: entry.protected },
+    layMode: projectionLayMode(path, entry), content: rendered.content, notices: rendered.notices,
+    rendering: { ...rendered.state, protected: entry.protected },
     readOnly: entry.protected, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
-  const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged, reference: input.reference,
+  const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged,
+    saveLanding: isOwnSaveLanding(root.context.verb, root.checkout), reference: input.reference,
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint, takeIn: root.takeIn, renderer });
   reportGuardHold(root.context.report, path, null, guarded);
   return { index: withProjectionEntry(input.index, path, guarded.entry), ...(guarded.kind === "replace" ? { file: { path, replace: guarded } } : {}) };

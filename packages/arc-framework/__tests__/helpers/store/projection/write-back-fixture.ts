@@ -1,4 +1,6 @@
 /** A file-backed projection over the memory store, without a Git process. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -135,7 +137,7 @@ export async function refreshWriteBackFixture(
   if (entry?.kind !== "record") throw new Error("refresh entry unavailable");
   const read = await context.store.read({ reference: entry.reference });
   if (read.status !== "ok") throw new Error("refresh read refused");
-  const staged = await stageRecordFile({ ...context, checkout, path, record: read.result, replacing: entry.base.blob });
+  const staged = await stageRecordFile({ layMode: projectionLayMode(path, entry), ...context, checkout, path, record: read.result, replacing: entry.base.blob });
   if (staged.status !== "ok") throw new Error("refresh rendering refused");
   const takeIn = createWriteBackPort(context);
   const guarded = await guardReplacement({ ...context, checkout, path, entry, staged: staged.result,

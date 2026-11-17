@@ -1,4 +1,6 @@
 /** Read-back installs the merged stored record while retaining the edit's read baseline. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
@@ -38,7 +40,7 @@ describe("write-back read-back", () => {
     const read = await store.read({ reference: entry.reference });
     if (read.status !== "ok") throw new Error("record unavailable");
     const rendered = "opening\nrendered conflict text\nclosing\n";
-    const staged = await stageRenderedRecordFile({ ...context, checkout, path, record: read.result,
+    const staged = await stageRenderedRecordFile({ layMode: projectionLayMode(path, entry), ...context, checkout, path, record: read.result,
       replacing: entry.base.blob, content: rendered, markerLength: 7 });
     const bytes = await readFile(join(checkout, staged.location));
     expect(parseStampedFile(bytes.toString("utf8"))).toMatchObject({ content: rendered, stamp: entry.base.blob });

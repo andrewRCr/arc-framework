@@ -1,4 +1,6 @@
 /** The replace guard over a seeded projection: an edit found at the re-check is taken in before the file is replaced. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -38,7 +40,7 @@ async function projected(content = "# Cohort: one\n\nBody.\n", path = PATH) {
   const stage = async (): Promise<StagedFile> => {
     const read = await fixture.store.read({ reference });
     if (read.status !== "ok") throw new Error("the fixture read was refused");
-    const result = await stageRecordFile({ checkout: seeded.checkout, path, record: read.result, replacing: entry.base.blob, writer: WRITER, format: "sha1", renderer });
+    const result = await stageRecordFile({ layMode: projectionLayMode(path, entry), checkout: seeded.checkout, path, record: read.result, replacing: entry.base.blob, writer: WRITER, format: "sha1", renderer });
     if (result.status !== "ok") throw new Error("staging refused");
     return result.result;
   };

@@ -1,5 +1,7 @@
 /** Retirement feasibility reads the target checkout without granting mutation authority. */
-import { access, link, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
+import { chmod, access, link, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { readdirSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -137,7 +139,7 @@ async function interruptedReplacement(target: Awaited<ReturnType<typeof targetCh
   const renderer = createRecordRenderer({ store: target.h.store });
   const writer = { pid: process.pid, processInstance: "interrupted-swap", processScope: "removal-copy-tests" };
   const takeIn = async (request: import("../../../../src/lib/store/projection/take-in-port.js").TakeInRequest) => ({ answer: "deferred" as const, entry: request.entry });
-  const staged = success(await stageRecordFile({ checkout: target.checkout, path: target.h.path, record,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(target.h.path, entry), checkout: target.checkout, path: target.h.path, record,
     replacing: entry.base.blob, writer, format: "sha1", renderer }));
   const replace = await guardReplacement({ checkout: target.checkout, path: target.h.path, entry, staged,
     reference: await readReference(target.checkout), format: "sha1", store: target.h.store, writer, renderer, takeIn });
@@ -843,7 +845,7 @@ it.each(["markers", "metadata"] as const)("holds an aside copy's %s refusal and 
   onTestFinished(h.dispose);
   await initializeEngineCheckout(h.checkout);
   const takeIn = async (request: import("../../../../src/lib/store/projection/take-in-port.js").TakeInRequest) => ({ answer: "deferred" as const, entry: request.entry });
-  const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, h.entry), ...h.context, checkout: h.checkout, path: h.path,
     record: success(await h.store.read({ reference: h.entry.reference })), replacing: h.entry.base.blob }));
   const replace = await guardReplacement({ ...h.context, checkout: h.checkout, path: h.path, entry: h.entry,
     staged, reference: await readReference(h.checkout), takeIn });
@@ -898,7 +900,7 @@ it("holds a copy once its current file would send first, even if that file match
   const current = success(await target.h.store.read({ reference: entry.reference }));
   const writer = { pid: process.pid, processInstance: "later-refresh", processScope: "removal-order-tests" };
   const renderer = createRecordRenderer({ store: target.h.store });
-  const next = success(await stageRecordFile({ checkout: target.checkout, path: target.h.path, record: current,
+  const next = success(await stageRecordFile({ layMode: projectionLayMode(target.h.path, entry), checkout: target.checkout, path: target.h.path, record: current,
     replacing: entry.base.blob, format: "sha1", writer, renderer }));
   const takeIn = async (request: import("../../../../src/lib/store/projection/take-in-port.js").TakeInRequest) => ({ answer: "deferred" as const, entry: request.entry });
   const replace = await guardReplacement({ checkout: target.checkout, path: target.h.path, entry, staged: next,
@@ -930,6 +932,7 @@ it("holds a new edit to another person's archived record and passes once it is r
   const entry = projected.index.entries[path];
   if (entry?.kind !== "record") throw new Error("No archived note entry");
   const original = await readFile(join(target.checkout, path));
+  await chmod(join(target.checkout, path), 0o644);
   await writeFile(join(target.checkout, path), renderStampedFile({ content: "A hand correction since the last command.\n", stamp: entry.base.blob }));
   expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse",
     remedy: { text: expect.stringContaining("blair") } });

@@ -8,6 +8,7 @@ import type { StoreRecord } from "../read.js";
 import { createStagedFile, nameAsideFile, type AsideWriterInput } from "./aside.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { renderStampedFile } from "./stamp.js";
+import type { ProjectionLayMode } from "./lay-mode.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 
 /** Rendering metadata applies only when this staged file wins replacement. */
@@ -38,7 +39,7 @@ export interface StagedFile {
 export async function stageRecordFile(input: {
   checkpoint?: () => Promise<void>;
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
-  readOnly?: boolean; renderer: RecordRenderer; content?: string; markerLength?: number;
+  layMode: ProjectionLayMode; readOnly?: boolean; renderer: RecordRenderer; content?: string; markerLength?: number;
   rendering?: Pick<RenderedFileState, "refused" | "keepPending">;
 }): Promise<StoreResult<StagedFile>> {
   const rendered = await input.renderer({ record: input.record, content: input.content ?? input.record.content,
@@ -66,15 +67,15 @@ export function renderedRecordText(input: {
 export async function stageRenderedRecordFile(input: {
   checkpoint?: () => Promise<void>;
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
-  content: string; markerLength?: number; notices?: readonly string[]; readOnly?: boolean; rendering?: RenderedFileState;
+  content: string; markerLength?: number; notices?: readonly string[]; layMode: ProjectionLayMode; readOnly?: boolean; rendering?: RenderedFileState;
 }): Promise<StagedFile> {
   const { record, format } = input;
   const blob = gitBlobId(record.content, format);
   const text = renderedRecordText(input);
   const location = nameAsideFile({ path: input.path, base: input.replacing, writer: input.writer, role: "staged" });
   await createStagedFile(input.checkout, location, text, input.checkpoint);
-  // A link shares its file's mode, so a protected file is staged read-only and linked in that way.
-  if (input.readOnly === true) {
+  // A link shares its file's mode: protection and archive policy both apply before linking.
+  if (input.readOnly === true || input.layMode === "read-only") {
     await input.checkpoint?.();
     await chmod(join(input.checkout, location), 0o444);
   }

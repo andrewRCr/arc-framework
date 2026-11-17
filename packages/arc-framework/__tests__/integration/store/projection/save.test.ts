@@ -1,4 +1,7 @@
 /** Save runs through the registered CLI, its start hook, and a real reference backend. */
+import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -115,6 +118,7 @@ it("saves a completed-file edit and returns the version after that write", async
   const h = await createEngineFixture(directories, { kind: "work-item/notes",
       path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await openArchivedProjectionFile(h, h.path);
   await h.edit("completed edit\n");
   const saved = await save(h);
   expect(saved.result).toMatchObject({ status: "ok", result: { version: success(await h.store.version()) } });
@@ -160,6 +164,7 @@ async function archivedView(artifact: "meta" | "tasks" | "companion" = "meta", i
 
 it("pulls an archived owner's named history under the save lease and keeps its assigned archive number", async () => {
   const h = await archivedView();
+  await openArchivedProjectionFile(h, h.path);
   const content = `${h.record.content}\nOwner correction.\n`;
   await h.edit(content);
   const missing = lackingEndedHistory(h.store, h.record.reference.owner);
@@ -179,6 +184,7 @@ it("pulls an archived owner's named history under the save lease and keeps its a
 
 it("routes history-pull notices through the command reporter before output and flushes them once", async () => {
   const h = await archivedView();
+  await openArchivedProjectionFile(h, h.path);
   const content = `${h.record.content}\nReported correction.\n`;
   await h.edit(content);
   const missing = lackingEndedHistory(h.store, h.record.reference.owner);
@@ -207,10 +213,12 @@ it("routes history-pull notices through the command reporter before output and f
 
 async function staleArchivedView() {
   const h = await archivedView();
+  await openArchivedProjectionFile(h, h.path);
   const base = `${h.record.content}\nFirst note.\n\nSeparate note.\n\nSecond note.\n`;
   await h.edit(base);
   expect((await save(h)).errors).toBe("");
   const previous = await h.stored();
+  await openArchivedProjectionFile(h, h.path);
   const remote = base.replace("First note.", "Remote first note.");
   success(await h.store.write({ action: "put", reference: h.record.reference, expected: previous.version,
     content: remote, placement: { kind: "completed", quarter: h.placement.quarter },
@@ -256,6 +264,7 @@ function blockedHistoryPull(kind: BlockedHistoryPull): Awaited<ReturnType<Store[
 it.each<BlockedHistoryPull>(["lock-held", "state-failed", "candidate-failed", "designation-needed"])(
   "keeps an archived edit and its original remedy when its pull is %s, then saves after repair", async kind => {
     const h = await archivedView();
+    await openArchivedProjectionFile(h, h.path);
     const content = `${h.record.content}\nRetry this archived correction.\n`;
     const missing = lackingEndedHistory(h.store, h.record.reference.owner);
     const first = await missing.write({ action: "put", reference: h.record.reference, expected: h.record.version,
@@ -284,6 +293,7 @@ it.each<BlockedHistoryPull>(["lock-held", "state-failed", "candidate-failed", "d
 
 it.each(["history", "primary-read"] as const)("keeps a late archived aside edit offline at ordinary command start and names save as its repair (%s)", async fault => {
   const h = await archivedView();
+  await openArchivedProjectionFile(h, h.path);
   const stamp = parseStampedFile(await h.file()).stamp;
   if (stamp === null) throw new Error("The archived projection lost its stamp");
   const editor = await editors.open(join(h.checkout, h.path));
@@ -343,7 +353,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   const current = await h.stored();
   const writer = { ...await createProjectionEnginePorts(h.checkout).writer(), processInstance: "interrupted-archive-writer" };
   const renderer = createRecordRenderer({ store: h.store });
-  const staged = success(await stageRecordFile({ checkout: h.checkout, path: h.path, record: current,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, original), checkout: h.checkout, path: h.path, record: current,
     replacing: original.base.blob, writer, format: "sha1", readOnly: false, renderer }));
   const takeIn = async () => { throw new Error("The unedited original must not be sent"); };
   const replace = await guardReplacement({ checkout: h.checkout, path: h.path, entry: original, staged,
@@ -353,6 +363,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
     readBack: false, writer, format: "sha1", takeIn, hooks: { afterRecheck: async () => { throw new Error("interrupted before moving"); } },
   })).rejects.toThrow("interrupted before moving");
   const content = `${next}\nOwner correction after interruption.\n`;
+  await chmod(join(h.checkout, h.path), 0o644);
   await writeFile(join(h.checkout, h.path), content);
   const missing = lackingEndedHistory(h.store, h.owner);
   let pulls = 0;
@@ -402,11 +413,12 @@ it.each(["meta", "tasks"] as const)("protects another person's archived %s and l
   expect((await h.stored()).placement).toEqual(h.placement);
   const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   expect(disk).toMatchObject({ kind: "index", index: { entries: { [h.path]: { protected: false, refused: null } } } });
-  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).not.toBe(0);
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
 });
 
 it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an archived %s refusal and saves after local repair", async kind => {
   const h = await archivedView();
+  await openArchivedProjectionFile(h, h.path);
   const content = `${h.record.content}\nLocally repaired correction.\n`;
   await h.edit(content);
   const bytes = await h.file();
@@ -1071,6 +1083,7 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   const h = await archivedView("companion");
   const native = createProjectionEnginePorts(h.checkout);
   const ports = (instance: string) => ({ ...native, writer: async () => ({ ...await native.writer(), processInstance: instance }) });
+  await openArchivedProjectionFile(h, h.path);
   await writeFile(join(h.checkout, h.path), "archived hand edit\n");
   await expect(startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({
     ...ports("interrupted-archive-command"), hooks: { afterMove: async () => { throw new Error("stopped archive swap"); } },

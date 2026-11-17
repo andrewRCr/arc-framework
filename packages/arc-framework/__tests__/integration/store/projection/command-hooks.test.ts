@@ -10,7 +10,7 @@ import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/regist
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { success } from "../../../helpers/store/suite-tools.js";
-import { access, mkdir, readFile, utimes, writeFile } from "node:fs/promises";
+import { chmod, access, mkdir, readFile, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -112,6 +112,7 @@ describe("projection command hooks", () => {
     const h = await createEngineFixture(directories, { kind: "work-item/notes",
       path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+    await chmod(join(h.checkout, h.path), 0o644);
     await h.edit("saved archive edit\n");
     const program = new Command("arc").exitOverride();
     program.command("save").action(() => undefined);

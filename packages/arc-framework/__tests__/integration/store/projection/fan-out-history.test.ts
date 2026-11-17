@@ -1,4 +1,5 @@
 /** A save-start history pull releases its merged changes even when the retried archive write refuses. */
+import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +38,7 @@ it("fans out a history pull after releasing the save-start lease even when its r
   const siblingInput = { store: h.store, checkout, location: sibling.location };
   expect(await startProjection(siblingInput)).toMatchObject({ kind: "ready" });
   await endProjection(siblingInput);
+  await openArchivedProjectionFile(first, h.path);
   await h.edit("An archive edit waiting for its writer.\n");
   const missing = lackingEndedHistory(h.store, h.record.reference.owner);
   const fetched = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "scratch/fetched.md" });

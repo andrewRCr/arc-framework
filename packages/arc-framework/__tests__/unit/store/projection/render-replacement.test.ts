@@ -1,4 +1,6 @@
 /** Every guarded replacement retains stored conflicts and yields safely when rendering cannot read them. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { afterEach, describe, expect, it } from "vitest";
 import { createWriteBackFixture, refreshWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { createCheckoutFixture } from "../../../helpers/store/projection/checkout-fixture.js";
@@ -146,7 +148,7 @@ describe("rendered replacements", () => {
     const memo = createHistoryMemo(boundary.store);
     const renderer = createRecordRenderer({ store: boundary.store, memo });
     const context = { ...fixture.context, store: boundary.store, memo, renderer };
-    const staged = success(await stageRecordFile({ ...context, checkout: fixture.checkout, path: fixture.path,
+    const staged = success(await stageRecordFile({ layMode: projectionLayMode(fixture.path, fixture.entry), ...context, checkout: fixture.checkout, path: fixture.path,
       record: fixture.record, replacing: fixture.entry.base.blob }));
     boundary.breakRead();
     await fixture.edit(base.replace("tail", "hand tail"));

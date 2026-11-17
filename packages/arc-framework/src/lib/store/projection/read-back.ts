@@ -1,4 +1,5 @@
 /** Install a write-back's read-back through the guarded swap owned by the file walk. */
+import { projectionLayMode, isOwnSaveLanding } from "./lay-mode.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { AsideWriterInput } from "./aside.js";
 import type { ProjectionIndex } from "./index-schema.js";
@@ -40,6 +41,7 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
   let updated = index;
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: sent.record,
+    layMode: projectionLayMode(request.path, sent.result.entry, isOwnSaveLanding(context.verb, request.checkout)),
     replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, checkpoint: context.checkpoint, readOnly: sent.result.entry.protected, renderer });
   if (staged.status === "refused") {
     const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, sent.record.conflicts) };
@@ -49,7 +51,8 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
   }
   const takeIn = context.takeIn ?? createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
-    staged: staged.result, renderer, baseline: sent.result.read, reference: await readReference(request.checkout), format: context.format,
+    staged: staged.result, renderer, saveLanding: isOwnSaveLanding(context.verb, request.checkout),
+    baseline: sent.result.read, reference: await readReference(request.checkout), format: context.format,
     store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
     return { result: holdReadBack(context, request, sent.result, guarded), index: withProjectionEntry(updated, request.path, guarded.entry) };

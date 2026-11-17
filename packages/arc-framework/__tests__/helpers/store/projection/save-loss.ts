@@ -3,6 +3,8 @@
  * reads an edit only once its save has settled, a saver on its own thread that fires a save at a sampled moment, and a
  * run of commands over one projected file that finds where each save ended.
  */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { runSaveLossRefresh } from "./save-loss-refresh.js";
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
@@ -417,7 +419,7 @@ async function stageNext(run: SaveLossRun, entry: RecordEntry, cycle: number): P
   await writeNext(run, cycle);
   const record = await run.store.read({ reference: run.reference });
   if (record.status !== "ok") throw new Error("the fixture read was refused");
-  const staged = await stageRecordFile({
+  const staged = await stageRecordFile({ layMode: projectionLayMode(run.path, entry),
     checkout: run.seeded.checkout, path: run.path, record: record.result, replacing: entry.base.blob, writer: SWAP_WRITER,
     format: "sha1", renderer: createRecordRenderer({ store: run.store }),
   });

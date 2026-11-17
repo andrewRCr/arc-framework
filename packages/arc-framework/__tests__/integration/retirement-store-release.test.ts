@@ -1,6 +1,7 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Anchored releases retain the Git checkout after persisting its projection. */
 import { afterEach, describe, expect, it } from "vitest";
-import { lstat, mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTempDir } from "../helpers/integration.js";
@@ -441,10 +442,12 @@ describe("projected checkout release", () => {
       files: [{ path, reference: record.reference }, { path: h.path, reference: h.record.reference }] });
     const entry = seeded.index.entries[path];
     if (entry?.kind !== "record") throw new Error("No metadata entry");
+    await openArchivedProjectionFile(h, path);
     let saved = false;
     h.configure({ ports: checkout => ({ ...createProjectionEnginePorts(checkout), hooks: { afterMove: async moved => {
       if (saved || moved !== path) return;
       const copy = await removalCopy(h, path);
+      await chmod(join(checkout, copy), 0o644);
       await writeFile(join(checkout, copy), renderStampedFile({ content: "No metadata heading or table.\n", stamp: entry.base.blob })); saved = true;
     } } }) });
     expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("parser accepts") });

@@ -1,4 +1,5 @@
 /** Install a checkout-only clash through the same guarded swap as a stored read-back. */
+import { projectionLayMode, isOwnSaveLanding } from "./lay-mode.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
@@ -24,6 +25,7 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
   const refused = mark ?? (sent.result.entry.refused?.reason === "bases-disagree" ? sent.result.entry.refused : null);
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: drawing.record,
+    layMode: projectionLayMode(request.path, sent.result.entry),
     replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, checkpoint: context.checkpoint,
     content: drawing.content, markerLength: drawing.length, readOnly: sent.result.entry.protected,
     renderer, rendering: { keepPending: true, refused } });
@@ -35,7 +37,8 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
   }
   const takeIn = context.takeIn ?? createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
-    staged: staged.result, renderer, baseline: sent.read, reference: await readReference(request.checkout), format: context.format,
+    staged: staged.result, renderer, saveLanding: isOwnSaveLanding(context.verb, request.checkout),
+    baseline: sent.read, reference: await readReference(request.checkout), format: context.format,
     store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
     return { result: holdReadBack(context, request, sent.result, guarded),

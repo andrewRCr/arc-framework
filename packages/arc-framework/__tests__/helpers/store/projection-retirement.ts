@@ -1,4 +1,6 @@
 /** Native Git retirement fixtures over the reference Store, shared by removal and release coverage. */
+import { projectionLayMode } from "../../../src/lib/store/projection/lay-mode.js";
+
 import { boundHolderLookup } from "./bound-checkout.js";
 import { boundWorkUnitSubject } from "./bound-checkout.js";
 import { expect } from "vitest";
@@ -184,7 +186,7 @@ export async function interruptedRetirementReplacement(h: Awaited<ReturnType<typ
   at: "afterMove" | "afterFirstCheck" = "afterMove") {
   const record = lifecycleSuccess(await h.store.read({ reference: h.record.reference }));
   const writer = await createProjectionEnginePorts(h.checkout).writer(), renderer = createRecordRenderer({ store: h.store });
-  const staged = lifecycleSuccess(await stageRecordFile({ checkout: h.checkout, path: h.path, record,
+  const staged = lifecycleSuccess(await stageRecordFile({ layMode: projectionLayMode(h.path, previous), checkout: h.checkout, path: h.path, record,
     replacing: previous.base.blob, writer, format: "sha1", renderer }));
   const takeIn: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
   const replace = await guardReplacement({ checkout: h.checkout, path: h.path, entry: previous, staged,

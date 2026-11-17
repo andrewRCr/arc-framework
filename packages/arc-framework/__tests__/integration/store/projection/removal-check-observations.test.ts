@@ -1,4 +1,6 @@
 /** Failed target observations never become local edit refusals during retirement feasibility. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { mkdir, readdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -40,7 +42,7 @@ async function interruptedCopy() {
   onTestFinished(h.dispose);
   await initializeEngineCheckout(h.checkout);
   const takeIn: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
-  const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path,
+  const staged = success(await stageRecordFile({ layMode: projectionLayMode(h.path, h.entry), ...h.context, checkout: h.checkout, path: h.path,
     record: success(await h.store.read({ reference: h.entry.reference })), replacing: h.entry.base.blob }));
   const replace = await guardReplacement({ ...h.context, checkout: h.checkout, path: h.path, entry: h.entry,
     staged, reference: await readReference(h.checkout), takeIn });

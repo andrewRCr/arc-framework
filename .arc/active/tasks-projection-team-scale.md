@@ -62,65 +62,21 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
           Late partition mismatches invalidate the partition under its lease; a retry rebuilds and opens it. The built
           CLI refuses unsupported before the storage switch and leaves tracked archives writable.
 
-### `[ ]` **1.3 Lay an archived file by its lay mode at every staging — § 2.1, § 2.3**
+### `[x]` **1.3 Lay an archived file by its lay mode at every staging — § 2.1, § 2.3**
 
 - _Goal:_ Every staging lays an archived file read-only unless the target worktree's own entry for it is opened, where
   it lays writable — save that `arc save`'s own landing lays it read-only in its own worktree — and lays every file
   outside `completed/` by its protection mark as today, so no staging path leaves an unopened archived file writable.
 
-- _Approach:_ One lay-mode function, given the path, the target worktree's own entry for it, and whether the staging
-  belongs to `arc save`'s landing in that worktree, answers read-only or writable; `stageRenderedRecordFile`
-  (`staging.ts`) lays a file read-only where the protection mark protects it or the lay mode lays it read-only. The lay
-  mode is never written into the entry's `protected` field, which stays the edit rights' mark (`renderedEntry`,
-  `swap.ts`).
+    - `[x]` **1.3.a The rule in staging**
+        - Both staging functions require an explicit lay mode, combined with edit-rights protection without changing
+          the stored protection mark. Archive test corrections now open explicitly; forced edits retain their chmod.
 
-- _Note:_ A root the fan-out binds for another worktree carries the command's own `save` mode (`bindProjectionRoot`
-  from `fan-out.ts`, `context.verb`), so "`arc save`'s landing in that worktree" is the save verb on the command's own
-  checkout's root, never the verb alone. A pass over a usable index keeps a settled, unchanged file in place without
-  staging it, its mode untouched (`keepSettledFileInPlace`, `settled-in-place.ts`, from `prepareMaterializationFile`),
-  and the lay mode is not part of that comparison (spec § 2.3), so a test of a refresh's, a fan-out's, or `arc sync`'s
-  lay changes the record or deletes the file.
-
-    - `[ ]` **1.3.a The rule in staging**
-        - `stageRecordFile` and `stageRenderedRecordFile` take the lay mode beside the rendering's protection
-          (`rendered.result.protected ?? input.readOnly` today), and a file is laid read-only where either says so.
-        - An archived file the edit rights protect lays read-only with the rights' own notice; any other archived file
-          lays by the lay mode; a file outside `completed/` lays by its protection mark alone.
-        - The test seed helper stages through `stageRecordFile` (`seedProjection`,
-          `__tests__/helpers/store/projection/seeded-projection.ts`), so its archived files lay read-only too. Each
-          existing test that writes a staged archived file in place or asserts its mode migrates here by what it
-          pins, opening the file first or writing through the mode, as `notes-projection-team-scale.md` § Test
-          migrations gives it; so do the direct test callers of the two staging functions.
-        - Build `test-first` (one behavior at a time):
-            - an archived file whose rights allow the edit lays read-only unless the lay mode says writable, and
-              another person's archived work lays read-only whatever its entry holds
-            - a file outside `completed/` lays as its protection mark says
-
-    - `[ ]` **1.3.b Every caller passes the lay mode from the target worktree's own entry**
-        - The read-back after a landing (`installWriteBack`, `read-back.ts`), the drawing of a clash
-          (`drawCheckoutClash`, `checkout-drawing.ts`), the replace guard's restage (`guardReplacement`,
-          `replace-guard.ts`), a materialization's file (`prepareMaterializationFile`, `materialization-file.ts`), which
-          a spawn, a rebuild with no usable index, `arc sync`'s restoration, a refresh, and a fan-out's visit each
-          reach, and the installation at a reused path (`installProjectionHandoff`, `ownership-install.ts`).
-        - Each reads the target worktree's own entry, never the round's shared protection evidence
-          (`protection-evidence.ts`), which answers per record across worktrees. At a reused path that entry is the
-          arriving record's, never the leaving record's the path's entry holds until the handoff reconciles.
-        - Inside `arc save`, the landing's stagings in its own worktree — the read-back, the guard's restage after it
-          takes a save in, and an adoption's read-back (`resumeAdoptionReadBack`, `adoption-read-back.ts`) — lay
-          read-only; its fan-out into a worktree where the file is opened lays it writable there.
-        - Build `test-first` (one behavior at a time):
-            - each staging of spec § 2.3 lays an archived file whose rights allow the edit read-only where the
-              target's entry is not opened (Success Criterion 3)
-            - each but the spawn and the rebuild lays it writable where the target's entry is opened, while its copy
-              in every other worktree stays read-only
-            - inside `arc save`, the read-back, the guard's restage, and an adoption's read-back lay the opened file
-              read-only in `arc save`'s worktree, and its fan-out lays the same file writable where another worktree
-              has it opened
-            - a clash drawn into an archived file that is not opened lays read-only
-            - a record arriving at a reused path lays read-only even where the leaving record was opened
-            - a refresh that moves an opened record's file lays it writable at its new path, a reused one among them
-            - a refresh over an unchanged record keeps the file in place with its mode: an opened file writable, an
-              unopened one read-only
+    - `[x]` **1.3.b Every caller passes the lay mode from the target worktree's own entry**
+        - Read-back, clash drawing, guard restaging, materialization, and reused-path installation compute the mode
+          from the target entry. Save landings distinguish the saving checkout from its fan-out targets.
+        - Coverage exercises spawn, rebuild, sync restoration, refresh, fan-out, adopted read-back, clashes, path
+          moves and ownership arrivals, including unchanged files kept in place with their modes.
 
 ### `[ ]` **1.4 The `arc edit` notice — § 2.2**
 

@@ -1,4 +1,6 @@
 /** A real projection seeded from a store: stamped files at the paths a test gives, and the index that matches them. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { link, lstat, mkdir, readFile, realpath, rm } from "node:fs/promises";
@@ -81,7 +83,7 @@ async function stageFile(store: Store, checkout: string, file: SeededFile, forma
   if (read.status !== "ok") throw new Error(`The store refused to read ${file.path}: ${read.refusal.code}`);
   const record = read.result;
   const blob = gitBlobId(record.content, format);
-  const stagedResult = await stageRecordFile({ checkout, path: file.path, record, replacing: blob, format, renderer,
+  const stagedResult = await stageRecordFile({ layMode: projectionLayMode(file.path), checkout, path: file.path, record, replacing: blob, format, renderer,
     writer: { pid: process.pid, processInstance: "seed-projection", processScope: "seed-projection" } });
   if (stagedResult.status !== "ok") throw new Error("seed rendering refused");
   const staged = stagedResult.result;

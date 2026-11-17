@@ -1,4 +1,6 @@
 /** Aside copies over a seeded projection, each made as the swap makes it: the file renamed aside, a new one linked in. */
+import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
+
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { link, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -62,7 +64,7 @@ async function swapped(path = PATH, contents: readonly [string, string] = ["# Co
   const aside = join(seeded.checkout, name);
   await mkdir(dirname(aside), { recursive: true });
   await rename(file, aside);
-  const stagedResult = await stageRecordFile({ checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: WRITER, format: "sha1", renderer: createRecordRenderer({ store: fixture.store }) });
+  const stagedResult = await stageRecordFile({ layMode: projectionLayMode(path, laid), checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: WRITER, format: "sha1", renderer: createRecordRenderer({ store: fixture.store }) });
   if (stagedResult.status !== "ok") throw new Error("staging refused");
   const staged = stagedResult.result;
   await link(join(seeded.checkout, staged.location), file);
