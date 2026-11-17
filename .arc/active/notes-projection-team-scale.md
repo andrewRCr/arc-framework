@@ -298,6 +298,29 @@ The accepted timing evidence is Linux run `54790e0d0f3446158da7d3a0f1f2b041`, Wi
 intermittent, with their precise cause unproven. This disposition accepts those valid measurements and leaves the
 failed Windows extraction diagnostic recorded as failed.
 
+## The archive correction scenario
+
+`archive-correction-worktrees.test.ts` runs the native reference backend with two real linked worktrees, separate
+Andrew and Bob identities, active holder work units, and archived work whose history remains readable. Commander
+inputs drive the real edit and save handlers with projection hooks; status and sync use their public projection
+operations, excluding unrelated status composition and network synchronization. The freshly merged base is
+`a065b748e5908c2482329d101e52db0f6d052fb5`, merged at `d1da8aae0b9a9c53fee1186f491d4f6265523c2a`.
+
+The scenario checks both ordinary-command meta corrections in the backend and the still-open working copy, save's
+re-lock report and modes, adoption of a truly absent companion and Errand description, another person's correction
+to a shared archived cohort, and the owner's existing archived Errand description. Other worktrees receive read-only
+copies. A deliberately invalid, settled cold-quarter partition remains untouched by a no-change save, with archive
+directory discovery refused at the filesystem boundary. The removal check names sync; sync repairs that checkout's
+partition and the removal check then succeeds with the corrected metadata retained.
+
+Disabling only `relockOpenedProjectionFiles`' iteration produced the expected behavioral failure at the first save's
+missing re-lock report in run `fdb1e8f776984b16a2c59780fc1411e4`. The implementation was restored without a product
+change. Run `8832105d79a545a2a798fc5589528e87` stopped at the helper's blanket stderr assertion on an advisory command
+start notice, 27.8 ms against its 25 ms notice threshold. Run `ebeee4981f2b425daaddeab49dd4b5b5` passed unchanged on
+the Linux pool runner. The helper now permits only recognized timing notices while rejecting other diagnostics;
+this functional scenario sets no timing acceptance bound. Its corrected form passes in local routed run
+`49fa6de37e7f4edb92ae516960d804ee`. The timing acceptance remains the separately recorded reference measurements.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches

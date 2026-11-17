@@ -190,17 +190,15 @@ names it.
   misses retained as intermittent; environments, source coordinates, raw records, and the controlled source comparison
   are in `notes-projection-team-scale.md` § The scale benchmark's results.
 
-### `[ ]` **2.7 An archived file corrected in place** — validate exit criterion at segment scope
+### `[x]` **2.7 An archived file corrected in place** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
-    - Exercise Success Criterion 2's correction end to end over the reference backend: an owner's archived meta opened,
-      edited across two ordinary commands, and saved, in a checkout holding its ended item's history; a new file in an
-      archived work unit's folder and an archived Errand's new description, each opened, adopted at the next command,
-      and re-locked at `arc save`; an archived cohort document opened and corrected by another person, and an archived
-      Errand's existing description by its owner; a no-change `arc save` reading no unmarked archive partition; and
-      `arc sync` remedying a mismatched archive partition, as the removal check names it.
-    - Request `arc check segment` and record the scenario and its result.
+- _Outcome:_ `archive-correction-worktrees.test.ts` exercises native reference-store corrections through command hooks
+  in two linked worktrees on merged base `a065b748e5`: two-command meta pickup, new companion and Errand-description
+  adoption, shared cohort and owned Errand corrections, re-lock reports and read-only fan-out, cold save without archive
+  discovery, and sync repair after the removal check's remedy. The complete scenario passes; reconstruction and run
+  evidence are in `notes-projection-team-scale.md` § The archive correction scenario.
 
 ## **Phase 3:** What the whole-archive read carried
 
