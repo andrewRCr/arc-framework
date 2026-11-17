@@ -177,7 +177,7 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   (`createProjectionFanOutDependencies`), so Task 2.2's `tracked-state` skip covers both. Windows removal and release
   rest on runs 43964135813 and 43974177580.
 
-### `[ ]` **2.2 The hook commands skip the projection, and every other command refuses, while `HEAD` tracks state — § 3.2**
+### `[x]` **2.2 The hook commands skip the projection, and every other command refuses, while `HEAD` tracks state — § 3.2**
 
 - _Goal:_ While a checkout's `HEAD` tracks ARC state and its composed store is the ref backend, the commands its Git
   hooks run — `arc check pre-commit`, `commit-msg`, and `pre-push`, and the pre-commit hook's `hook-*` commands
@@ -185,26 +185,11 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   commit, merge, and push pass their hooks, while every other command refuses with § 3.2's remedy before its projection
   starts.
 
-- _Context:_ Every command composes a store in write-back's root hook (`registerProjectionHooks`,
-  `lib/store/projection/command-hooks.ts`), whose start takes the projection lock and begins reading the store before it
-  can skip for a missing identity (`startUnderLease`, `lib/store/projection/engine-start.ts`); only the skip switch
-  (`--skip-projection`, `startProjection`, `lib/store/projection/engine.ts`) returns before either. The hook is the one
-  `projection-worktrees` reshapes, so this task follows Task 2.1.
-
-    - The root hook evaluates Task 1.1's predicate when the composed store reports `stateOffBranch`, before
-      `startProjection`. A hook command takes the skip under a new `ProjectionSkip` reason, `tracked-state`
-      (`lib/store/projection/process-state.ts`), whose mark names the refusal's remedy, and `endProjection` returns
-      early for it as for `switch`; any other command throws the `tracked-state` refusal from Task 1.1's remedy builder.
-    - The default stays in-repo until the switch, so the tests bind the root hook's input to Task 1.1's selection. In
-      this repository the hooks run the `hook-*` scripts through `tsx`, outside the root hook, so the tests invoke the
-      CLI commands directly.
-    - Build `test-first` (one behavior at a time):
-        - each hook command over a tracked-state tree runs, opens no ref store, and writes nothing under
-          `<commonDir>/arc/` or the projection's lock directory
-        - the pre-commit hook's cohort check runs only over a staged cohort record or planned meta, and a commit that
-          only deletes stages neither
-        - any other command over the same tree refuses with § 3.2's remedy before its projection starts
-        - over a tree that tracks nothing, every command, the hook commands among them, starts its projection as before
+- _Outcome:_ Before `startProjection`, the root hook evaluates `findTrackedStateRefusal` through the `findTrackedState`
+  predicate its native input supplies (`lib/store/projection/command-hooks.ts`): a Git hook command,
+  `arc check pre-commit`, `commit-msg`, or `pre-push` or a `hook-*` command, starts under the `tracked-state` skip, and
+  any other command throws the refusal. `projectionSwitchedOff` (`process-state.ts`) now decides every site that tested
+  for `switch`. No hook command's action, and no commit- or push-gate check here, composes a store or runs `arc`.
 
 ### `[ ]` **2.3 `arc sync` onto `pull` and `push`, with ADR-035's item 2 amendment — § 4.1, § 16**
 

@@ -26,7 +26,7 @@ export async function materializeSpawnedProjection(checkout: string): Promise<vo
 
 /** Bind after command start, which resets process state, retaining the command's selected store. */
 export function bindSpawnMaterialization(command: ProjectionCommandInput): void {
-  if (!command.store.capabilities.stateOffBranch || command.skipProjection) return;
+  if (!command.store.capabilities.stateOffBranch || command.skipProjection || command.trackedState !== undefined) return;
   // The command's configuration is keyed by the spelling its start took.
   const state = projectionProcessState();
   const input = { ...command, checkout: state.command?.checkout ?? command.checkout };

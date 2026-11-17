@@ -2,7 +2,7 @@
 import type { Store } from "../contract.js";
 import type { StateVersion } from "../identity.js";
 import type { Remedy, StoreRefusal } from "../refusal.js";
-import { projectionProcessState } from "./process-state.js";
+import { projectionProcessState, projectionSwitchedOff } from "./process-state.js";
 import { projectionStartRefusal } from "./start-refusal.js";
 import { saveProjectionChanges } from "./save-changed.js";
 import { projectionSaveStep } from "../pre-flip-steps.js";
@@ -21,7 +21,7 @@ export type ProjectionSaveResult =
 /** Read the start outcome rather than sending every file a second time. */
 export async function projectionSaveResult(store: Store): Promise<ProjectionSaveResult> {
   const skip = projectionProcessState().skip;
-  if (skip?.reason === "switch") return { status: "refused", refusal: { code: "projection-skipped",
+  if (skip !== null && projectionSwitchedOff(skip)) return { status: "refused", refusal: { code: "projection-skipped",
     condition: skip.mark.reason, remedy: skip.mark.remedy } };
   if (!store.capabilities.stateOffBranch) return { status: "refused", refusal: { code: "unsupported",
     condition: "Projection save is unavailable with the current storage backend.",
