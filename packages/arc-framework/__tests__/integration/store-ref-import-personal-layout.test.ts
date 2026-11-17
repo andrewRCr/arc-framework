@@ -40,6 +40,21 @@ it("imports a disk-only prototype-named personal file without changing its bytes
   expect(success(await store.read({ reference: target })).content).toBe(content);
 }, 40_000);
 
+it("leaves editor and folder side files out of the personal import", async () => {
+  const h = await importFixture();
+  await put(h.root, "drafts/plan.md", "Keep this plan.\n");
+  for (const side of ["drafts/.DS_Store", "drafts/plan.md~", "drafts/.plan.md.swp", "Thumbs.db"]) await put(h.root, side, "Side file\n");
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const owner = RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "andrew" } }).owner;
+  const listed = success(await store.list({ family: "personal", owner }));
+  expect(listed.status).toBe("complete");
+  if (listed.status !== "complete") throw new Error("No personal inventory");
+  const keys = listed.records.map(record => record.reference.key);
+  expect(keys).toContain("scratch/drafts/plan.md");
+  expect(keys.filter(key => typeof key === "string" && /DS_Store|Thumbs|~$|\.swp$/u.test(key))).toEqual([]);
+}, 40_000);
+
 it("folds the owner's live session prose through the meta writer and retires obsolete handoff fields", async () => {
   const h = await importFixture();
   await meta(h, "alpha", makeMetaFixture("alpha", { owner: "andrew", branch: "feat/alpha", nextTask: "Task 1.1", lastCompleted: "Task 1.0", blockers: "Wait for the dependency." }));
