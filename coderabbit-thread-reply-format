@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "coderabbit-thread-reply-format",
+  "claimId": "fbcece506097639cd036edef4575fa56",
+  "createdAt": "2026-11-17T17:10:18.450Z",
+  "updatedAt": "2026-11-17T17:10:18.450Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Recognize CodeRabbit's replies in earlier review threads by their structure rather than an exact footer, so a footer change no longer fails a hosted pass",
+  "branch": "fix/coderabbit-thread-reply-format",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
