@@ -13,9 +13,9 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** create-spec — `spec-cutover-decompose-removal.md`
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Final task-file inventory awaits the fixed flip head or landed base.
 
 - **Next Action:** [begin current workflow]
 
