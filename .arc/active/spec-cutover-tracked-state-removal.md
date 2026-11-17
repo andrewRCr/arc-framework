@@ -401,13 +401,13 @@ that change; D8, the stop rule for this specification's planning review, governs
   specification's entry rather than at the flip's landing, since a hand split runs none of the unrehearsed
   decomposition procedure). This change stays one above the project's mark of about 10,000 changed lines by the
   Owner's explicit decision. Estimated on 2026-11-10 against `9c63a803ae`, it holds about 6,500–8,000 source lines,
-  12,000–15,000 test lines from read-only census sweeps, the merge-gate recipe's 384 shipped lines, and about
-  2,000–4,000 lines deleting the window's tooling, a figure that stands until that tooling's specification measures
-  it: about 21,000–27,500 changed lines in all, re-measured with the census (§ 2.11). Most of the excess is pure
-  deletion of self-contained subsystems: the import transform with its tests, about 9,000 lines, and the window's
-  tooling. It stays whole for the reason the Owner accepted for keeping the notes-sync and old-decomposition deletions
-  whole: another branch and review would not shrink the subsystem a reviewer must check. Moving the import to the
-  collapse would also leave `arc store migrate --import` visible until then. _ADR:_ `none`, temporary: the split
+  12,000–15,000 test lines from read-only census sweeps, and the merge-gate recipe's 384 shipped lines; the window's
+  tooling, measured once landed (`2217aef746`), adds about 13,400 lines, about 5,700 of them source and 7,600 tests:
+  about 32,000–37,000 changed lines in all, re-measured with the census (§ 2.11). Most of the excess is pure deletion
+  of self-contained subsystems: the import transform with its tests, about 9,000 lines, and the window's tooling,
+  about 13,400. It stays whole for the reason the Owner accepted for keeping the notes-sync and old-decomposition
+  deletions whole: another branch and review would not shrink the subsystem a reviewer must check. Moving the import to
+  the collapse would also leave `arc store migrate --import` visible until then. _ADR:_ `none`, temporary: the split
   holds until both changes land.
 - **D3. `archive.cadence` stays.** `spec-seam-locus.md` A26 reads both arms, and the flip keeps integrate's dispatch.
   Retiring the key at the flip is rejected; only its in-repo-only readers go, with the dormant machinery. The store
