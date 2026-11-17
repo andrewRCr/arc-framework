@@ -121,8 +121,9 @@ it("selects every test under a store/projection/ folder, and no other test file,
 it("selects exactly the named file for each package-relative portability selector", () => {
   const tests = readdirSync(fileURLToPath(new URL("..", import.meta.url)), { recursive: true, encoding: "utf8" })
     .map((path) => path.replaceAll("\\", "/")).filter((path) => /\.test\.ts$/u.test(path));
-  const named = localVitestTierArguments("portability").filter((selector) => /^(unit|integration)\/.+\.test\.ts$/u.test(selector));
-  expect(named).toEqual(expect.arrayContaining(["integration/teardown.test.ts", "unit/locus/release.test.ts"]));
+  const named = localVitestTierArguments("portability").filter((selector) => /^(unit|integration|e2e)\/.+\.test\.ts$/u.test(selector));
+  expect(named).toEqual(expect.arrayContaining(["integration/teardown.test.ts", "unit/locus/release.test.ts",
+    "e2e/errand-open-provisioning-recovery.e2e.test.ts"]));
   for (const selector of named) expect(tests.filter((path) => path.includes(selector)), selector).toEqual([selector]);
 });
 

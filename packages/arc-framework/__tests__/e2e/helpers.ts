@@ -51,8 +51,42 @@ function runBsdPseudoTerminal(
   command: readonly string[],
   options: PseudoTerminalOptions,
 ): Promise<{ stdout: string; stderr: string }> {
+  return runWithIgnoredInput("script", ["-q", "/dev/null", ...command], options, false);
+}
+
+/**
+ * Run a shell script beneath one persistent anchor shell, reading its output as a terminal shows it.
+ *
+ * Windows has no pseudo-terminal utility, so there the shell runs on pipes with its error stream merged into its
+ * output, as a terminal merges them; it is not interactive and sets no terminal size, whose warnings would join that
+ * output. Git Bash reads backslashes inside a quoted command-line argument as escapes, which would halve those in a
+ * Windows path, so the script reaches it through the environment rather than its command line.
+ */
+async function runInAnchorShell(
+  shell: string,
+  script: string,
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  if (process.platform === "win32") {
+    const env = { ...options.env, ARC_TEST_ANCHOR_SCRIPT: script };
+    return runWithIgnoredInput(shell, ["--noprofile", "--norc", "-c", 'eval "$ARC_TEST_ANCHOR_SCRIPT"'],
+      { ...options, env }, true);
+  }
+  return runInPseudoTerminal(
+    [shell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${script}`],
+    options,
+  );
+}
+
+/** Spawn with closed input, optionally merging the error stream into the output stream in arrival order. */
+function runWithIgnoredInput(
+  file: string,
+  args: readonly string[],
+  options: PseudoTerminalOptions,
+  mergeStderr: boolean,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveResult, rejectResult) => {
-    const child = spawn("script", ["-q", "/dev/null", ...command], {
+    const child = spawn(file, args, {
       cwd: options.cwd,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -62,7 +96,7 @@ function runBsdPseudoTerminal(
     let timedOut = false;
     let settled = false;
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => (mergeStderr ? stdout : stderr).push(chunk));
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
@@ -85,7 +119,7 @@ function runBsdPseudoTerminal(
         resolveResult(result);
         return;
       }
-      rejectResult(Object.assign(new Error(`script exited with ${code ?? signal ?? "unknown status"}`), {
+      rejectResult(Object.assign(new Error(`${file} exited with ${code ?? signal ?? "unknown status"}`), {
         code: timedOut ? "ETIMEDOUT" : (code ?? 1),
         killed: timedOut,
         signal,
@@ -209,10 +243,7 @@ export async function runArcAnchored(
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await runInPseudoTerminal(
-      ["bash", "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${interactiveCommand}`],
-      { cwd, timeout, env },
-    );
+    const { stdout, stderr } = await runInAnchorShell("bash", interactiveCommand, { cwd, timeout, env });
     return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
   } catch (error) {
     const failure = error as { stdout?: string; stderr?: string; code?: number | string };
@@ -266,10 +297,7 @@ export async function runArcAnchoredSequence(
   });
   const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await runInPseudoTerminal(
-      [anchorShell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${command}`],
-      { cwd, timeout, env },
-    );
+    const { stdout, stderr } = await runInAnchorShell(anchorShell, command, { cwd, timeout, env });
     const normalized = normalizeAnchoredOutput(stdout);
     return { stdout: normalized, stderr, exitCode: 0, results: parseJsonLines(normalized) };
   } catch (error) {
