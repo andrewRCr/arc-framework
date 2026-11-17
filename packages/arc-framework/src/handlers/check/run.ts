@@ -27,7 +27,7 @@ import type { CheckPassStore, CheckPassWrite } from "../../lib/checks/record.js"
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
-import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
+import { findInstalledVersionMismatches, findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 import type { CheckContentContext } from "../../lib/checks/environment-policy.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
@@ -638,11 +638,25 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   const gap = selected.routed ? undefined : await installGap(selected, { exitCode: evidence.exitCode, output: result.output });
   if (gap !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: gap };
   if (evidence.kind === "no-evidence") return { id, kind, ...details, outcome: "no evidence" };
-  if (evidence.kind === "failure") return { id, kind, ...details, outcome: "failed" };
+  if (evidence.kind === "failure") {
+    const drift = await localInstallVersionDrift(selected);
+    return { id, kind, ...details, outcome: "failed", ...(drift === undefined ? {} : {
+      reason: [incomplete, drift].filter(Boolean).join("; "),
+    }) };
+  }
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
     : await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
   return { id, kind, ...details, outcome: "passed", record };
+}
+
+/** Installed-version differences are advisory and describe only the checkout that ran a native check. */
+async function localInstallVersionDrift(selected: SelectedCheck): Promise<string | undefined> {
+  if (selected.routed) return undefined;
+  const mismatches = await findInstalledVersionMismatches(
+    [...new Set([resolve(selected.root, selected.check.root), selected.root])]);
+  return mismatches.length === 0 ? undefined
+    : `Local npm install differs from package-lock.json: ${mismatches.join(", ")}; run npm ci, then retry`;
 }
 
 /** A check that failed for want of a package its npm lockfile declares could not run; name the install to repair. */
