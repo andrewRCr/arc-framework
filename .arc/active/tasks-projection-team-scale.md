@@ -41,69 +41,26 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
           defers the old path until that state has a carrier, and parks it by record identity at a reused path;
           installation and withdrawal preserve it through retries without opening a different arriving record.
 
-### `[ ]` **1.2 `arc edit` — § 3**
+### `[x]` **1.2 `arc edit` — § 3**
 
 - _Goal:_ `arc edit <path>` opens one archived file in this worktree — after its start takes pending edits in, under the
   worktree's projection lock, setting the opened mark and then the write bit, changing no content — and refuses every
   other path with its reason and remedy, so it stays the one way an archived file opens and moves no authority.
 
-    - `[ ]` **1.2.a The command and its help**
-        - Registered as `arc save` and `arc selection` are: `program.command("edit")` with a `<path>` argument
-          (`cli.ts`); its handler (`handlers/edit.ts`), which exports its command-input registration and policy
-          declarations as `handlers/save.ts` and `handlers/selection.ts` do, and `command-input-registrations.ts`,
-          which imports them; and its help (`lib/cli-help-content.ts`, `lib/cli-help-summaries.ts`), with the
-          command-loading boundary and command-input registry unit tests.
-        - The help text says the command opens a file for editing, not an editor, and names `arc save` as the step
-          that lays it read-only again; `arc editor` is unchanged.
-        - Existing tests migrate as `notes-projection-team-scale.md` § Test migrations gives them.
-        - Build `test-first` (one behavior at a time):
-            - `arc edit` loads through the command-loading boundary and registers its input as `arc selection`'s does
-            - its help names opening a file for editing and `arc save`, and `arc editor`'s help is unchanged
+    - `[x]` **1.2.a The command and its help**
+        - Registered the lazy edit handler, owned path and JSON inputs, and command help. The help distinguishes
+          opening a file for editing from opening an editor, and names arc save's read-only lay.
 
-    - `[ ]` **1.2.b Opening a file**
-        - The projection-side operation sits beside `selection.ts` in `lib/store/projection/`, reached after the
-          command's start, and runs under the worktree's projection lock with the opt-in under which a partition whose
-          read throws `ProjectionPartitionMismatch` is deleted (`invalidatePartition`, `lock.ts`).
-        - It resolves the path against the current directory, reads its entry, writes the opened mark, commits the
-          index, and only then sets the file's owner write bit, leaving the file's bytes as they are. A hook point
-          between the index commit and the write bit, on the engine's hook ports (`ProjectionEnginePorts`, `hooks`),
-          lets a test stop it there, as this task's order test and § 9.2 test 1 (2.4.b) do.
-        - It opens an archived record's file whose rights allow the edit (`readProjectionEditRights`, `rights.ts`), a
-          file already changed, and a file already opened, whose write bit it sets again; and a new archived path, by its
-          work unit's or Errand's owner once its file exists, as an ownerless entry carrying the opened mark.
-        - Its report names the opened path, that it stays writable until `arc save`, and that `arc save` lays it
-          read-only again.
-        - Build `test-first` (one behavior at a time):
-            - an archived work unit's owner opens its meta, made read-only first, and the file turns writable with its
-              bytes and index content otherwise unchanged, the opened mark committed before the write bit
-            - opening an opened file sets its write bit again and changes nothing else; opening a changed file succeeds
-            - an owner opens a new file in an archived work unit's folder, and an archived Errand's owner a new
-              description, each recorded as an ownerless entry carrying the opened mark; anyone opens an archived
-              cohort document, and an archived Errand's owner its existing description
+    - `[x]` **1.2.b Opening a file**
+        - Added the leased opening operation and its checkpoint hook: opened intent commits before the owner write
+          bit changes, without altering bytes or writing a record. Existing and new archived work-unit and Errand
+          files open under their owner's rights; anyone may open an archived cohort document.
 
-    - `[ ]` **1.2.c The refusals**
-        - Each of spec § 3.3's refusals, with its reason and remedy: a path outside this checkout's `completed/` — an
-          in-flight file, a protected one, or one in another checkout, each with its own remedy; a file whose rights
-          refuse the edit, naming its owner (`protectedRights`); any other new path under `completed/`, naming
-          adoption's own remedy; a path with no file; a path write-back never adopts; a withheld file, naming its
-          remedy, and a held one, naming its own; a checkout that holds no projection; an archive partition that does
-          not hash to its name, after deleting it, naming a retry; `--skip-projection`; no identity; a start that could
-          not take its lock, lost its lease, or found the Git directory gone (`projectionStartRefusal`,
-          `start-refusal.ts`); and `unsupported` before the flip, naming in-place editing, where
-          `capabilities.stateOffBranch` is false.
-        - A new path under `completed/` opens or refuses as adoption's read-only verdict answers (spec § 12): the
-          target's resolution (`resolveProjectionAdoptionIntent`, `adoption-intent.ts`) and the file's verdict
-          (`inspectProjectionAdoption`, `adoption-verdict.ts`), which adoption calls before it writes, composed as the
-          removal check composes them (`checkProjectionAdoption`, `removal-adoption.ts`) and stopping before
-          admission, so `arc edit` repeats none of their checks. Adoption's pending gate and withheld report sit
-          outside the verdict (`adoptProjectionFile`, `adoption.ts`), and `arc edit` states those refusals itself.
-        - A mistyped `arc edit vscode` refuses naming no such path.
-        - Build `test-first` (one behavior at a time):
-            - each refusal refuses, names its remedy, and succeeds once its condition is repaired, the mismatched
-              partition on the retry and a held file once a rebuild with whole evidence settles it (Success
-              Criterion 4)
-            - over the in-repo implementation `arc edit` refuses `unsupported` and archived files lay as today
-              (Success Criterion 11)
+    - `[x]` **1.2.c The refusals**
+        - Composed adoption's read-only target and file verdicts, with distinct remedies for invalid locations,
+          ownership, missing and excluded files, held evidence, projection availability, identity, and lock failures.
+          Late partition mismatches invalidate the partition under its lease; a retry rebuilds and opens it. The built
+          CLI refuses unsupported before the storage switch and leaves tracked archives writable.
 
 ### `[ ]` **1.3 Lay an archived file by its lay mode at every staging — § 2.1, § 2.3**
 

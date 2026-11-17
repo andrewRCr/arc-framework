@@ -31,6 +31,8 @@ export interface SwapFile {
 
 /** Points in each file's swap where a test or the harness can place a save. */
 export interface SwapHooks {
+  /** After opening intent is committed, before the file becomes writable. */
+  readonly afterOpenIndexCommit?: (path: string) => Promise<void>;
   /** After the re-check, before the file is moved aside. */
   readonly afterRecheck?: (path: string) => Promise<void>;
   /** After the move, before the staged file is linked. */

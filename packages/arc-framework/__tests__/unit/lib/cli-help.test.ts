@@ -12,6 +12,19 @@ function program(): Command {
 }
 
 describe("ARC help", () => {
+  it("explains opening an archived file and saving it without changing editor help", () => {
+    const root = program();
+    const edit = root.command("edit <path>");
+    const editor = root.command("editor <editor>").description("Configure checkout editor settings for projected files");
+    const before = editor.helpInformation();
+    applyArcHelp(root);
+    const help = edit.helpInformation().replace(/\s+/gu, " ");
+    expect(help).toContain("opens the file for editing");
+    expect(help).toContain("arc save");
+    expect(help).toContain("read-only");
+    expect(editor.helpInformation()).toBe(before);
+  });
+
   it("places explanations beneath long quoted examples while keeping the invocation intact", () => {
     const root = program();
     const open = root.command("errand").command("open <slug>");

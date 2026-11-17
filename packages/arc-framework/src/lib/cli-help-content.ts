@@ -18,7 +18,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "cohort", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
-    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "save", "sync", "user"]],
+    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "edit", "save", "sync", "user"]],
     ["Set up and maintain ARC:", ["init", "join", "editor", "update", "health", "diff", "selection", "check", "config", "schema"]],
   ],
   review: [
@@ -106,6 +106,11 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   ...Object.fromEntries(automaticRequestPaths.map((path) => [path, {
     summary: COMMAND_SUMMARIES[path], notes: requestSourceNotes,
   }])),
+  "edit": {
+    summary: COMMAND_SUMMARIES["edit"],
+    purpose: "arc edit opens the file for editing, not an editor. The file stays writable until arc save lays it read-only again.",
+    examples: [["arc edit <archived-file>", "Open an archived file for an in-place correction"]],
+  },
   "store repair-review-roots": {
     summary: COMMAND_SUMMARIES["store repair-review-roots"],
     purpose: "Preview competing approvals and explicitly select one eligible branch while retaining every approved response.",

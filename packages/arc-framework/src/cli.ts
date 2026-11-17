@@ -1871,6 +1871,21 @@ program
     },
   ));
 
+// --- Edit ---
+
+program
+  .command("edit")
+  .description("Open one archived file for editing until arc save")
+  .argument("<path>", "Archived file to open for editing")
+  .option("--json", "Emit the complete edit result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: opts => opts.json === true },
+    async (_context, path: string, opts: { json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/edit.js")).handleEdit({ path, ...opts }, binding.store, binding.checkout);
+    },
+  ));
+
 // --- Save ---
 
 program

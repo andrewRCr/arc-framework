@@ -14,6 +14,14 @@ import {
 import { commandInputRegistrations } from "../../../src/command-input-registrations.js";
 
 describe("command-input schema adapter and registry", () => {
+  it("registers the archive edit path and machine output in one owned schema", () => {
+    const registry = createCommandInputRegistry(commandInputRegistrations);
+    const schema = registry.getCommand("edit");
+    expect(schema).toBeDefined();
+    expect(schema?.safeParse({ path: ".arc/completed/2026-q4/example.txt", json: true }).success).toBe(true);
+    expect(schema?.safeParse({}).success).toBe(false);
+  });
+
   it("parses equivalent argument and prompt values through one command-owned schema", () => {
     const schema = z.object({ name: z.string().trim().min(1) }).strict();
 
