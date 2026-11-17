@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-bursts-shard-split",
+  "claimId": "3421b3d49dc8107219e388c07f86f0ca",
+  "createdAt": "2026-11-17T02:10:31.961Z",
+  "updatedAt": "2026-11-17T02:10:31.961Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Split the projection bursts suite by layout and give Windows a seventh portability shard",
+  "branch": "chore/windows-bursts-shard-split",
+  "origin": "inbox",
+  "originEntry": "Find why one Windows portability shard runs 32–42 minutes while the others take 11–24",
+  "originEntrySourceDigest": "sha256:8e9d66e1cdc1029f059be6521bab208b3ac769ac3202124d719ebc6804d7e580",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
