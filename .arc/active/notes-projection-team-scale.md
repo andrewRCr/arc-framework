@@ -238,6 +238,27 @@ at 81.116/113.963 ms; one/ten-file fan-out and materialization fit at 579.162/20
 standard beneath-Git, concurrent-pair, and single-Git baselines were 33.394, 53.613, and 46.538 ms. The unchanged-head
 repeat therefore preserves an unresolved absolute-start miss; it does not establish a passing absolute-bound verdict.
 
+### Source comparison on one runner
+
+The diagnostic compares pre-feature source `53a349d7cb` with current source in four separate Vitest processes, ordered
+old–current–current–old on one runner. Each block warms twice, then retains eleven standard-fixture starts and the
+beneath-Git, concurrent-Git-pair, and single-Git controls. The start's timed boundary and two-Git-call check match the
+ordinary benchmark; end work, imports, materialization, and process startup remain outside the timed interval.
+
+Every block copies one shared native 800-file template and verifies identical stored refs and local configuration.
+Each revision builds and reads its own index. Separate processes keep the revisions' shared global projection-state
+key from joining their states; the unchanged observer and template builder are checked by Git object identity. The
+baseline's complete package source is extracted from its pinned commit, with the current installed dependencies and
+an identical lockfile. This compares source revisions under today's environment, rather than recreating a past host.
+
+The diagnostic artifact has its own `projection-start-source-control/v1` identity and keeps process order, raw samples,
+source-tree objects, revision commits, and host controls. No numerical bound is asserted or replaced, and no Git-time
+credit is applied. The ordinary full projection benchmark runs separately afterward on that runner, with its own raw
+record, to expose any difference between the isolated standard fixture and the larger benchmark context.
+
+Linux mechanics run `f053138e23114c95bd540d6cc2f4d5c1` completed all four blocks, with matching refs and configuration,
+ready starts, no diagnostics, and two Git calls per start.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches
