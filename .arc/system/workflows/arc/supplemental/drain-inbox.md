@@ -77,6 +77,8 @@ route-discovered-work:
   `hold`, and its owner takes it up there. For a live target, draft the message that points its session at the
   routed entry for the plan. A failed or ambiguous status lookup stops with its diagnostic, never with a
   checkout-local path guess.
+- **Decision-only holds.** For each held entry waiting only on a decision, put that decision to the Owner at § 3
+  in this drain. Route the entry according to the answer in § 4 of the same drain.
 - **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
   grouping with its rationale. Entry count alone never establishes concern identity.
 - **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,

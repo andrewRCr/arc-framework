@@ -27,6 +27,24 @@ README, public repo, community infrastructure, and release automation.
   `storage-cutover` owns the interim `user.notes_push: manual` until notes retire. The remaining planning question is
   release timing relative to the cutover.
 
+### `[ ]` **Cut releases only from commits that passed the full suite on Linux, Windows and macOS**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Release Automation.
+
+- _Observation:_ nothing in `release-readiness`' drafts requires a release commit to have passed CI, and the
+  repository has no publish workflow yet. A push to `main` runs CI on Linux only; the Windows/macOS pair runs weekly
+  over a fixed list of about 70 files, so nothing records which commits passed everything on all three platforms.
+  `main`'s `errand open` path comparison (on `main` since 2026-07-30) and session-init's checkout selection (since
+  2026-10-16) fail on Windows, and no run tested them there until 2026-11-16 (runs 43917592586, 43925523017).
+
+- _Approach:_ (Owner, 2026-11-16) cut a release only from a commit with a recorded full pass on all three platforms,
+  the record coming from the post-merge full run in "Run every retirement, teardown and park suite on hosted
+  Windows". Settle where the release path reads that record before ARC first publishes for adopters.
+
+- _Captured during:_ `project-manager.ARC`, from a quote on validation tiers the Owner shared, 2026-11-16.
+
 ---
 
 ## Scope

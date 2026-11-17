@@ -27,17 +27,18 @@ it.each(["list", "write"] as const)("releases the vanished attempt before restar
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
   const directory = join(f.root, ".git", "arc", "store");
+  if (seeded.reference.owner.type !== "work-item") throw new Error("Expected a work-item owner");
   const path = join(f.root, "restart-trace.json");
-  let moved = false, failed = false, exitedAtRestart: boolean | undefined;
+  let moved = false, exitedAtRestart: boolean | undefined;
   const store = createRefStore({ ...f.ports, rawExec: async (args, options) => {
-    if (failed && !args.includes(`--git-dir=${directory}`) && exitedAtRestart === undefined) exitedAtRestart = await allReadersExited(path);
-    if (!moved && args.includes("diff-tree")) {
+    if (moved && !args.includes(`--git-dir=${directory}`) && exitedAtRestart === undefined) exitedAtRestart = await allReadersExited(path);
+    const result = await f.ports.rawExec(args, options);
+    if (!moved && args.includes("cat-file")) {
       moved = true;
       await f.exec("git", ["fetch", directory, "refs/arc/*:refs/arc/*"]);
       await f.ports.fs.removeDirectory(directory);
     }
-    try { return await f.ports.rawExec(args, options); }
-    catch (error) { if (moved) failed = true; throw error; }
+    return result;
   } });
   vi.stubEnv("GIT_TRACE2_EVENT", path);
   const result = operation === "list" ? await store.list({ family: "work-item" }) : await store.write({
@@ -45,7 +46,7 @@ it.each(["list", "write"] as const)("releases the vanished attempt before restar
     content: makeMetaFixture("alpha") + "\nAfter move.\n", placement: { kind: "active" }, provenance,
   });
   expect(result).toMatchObject({ status: "ok" });
-  expect(failed).toBe(true);
+  expect(moved).toBe(true);
   expect(exitedAtRestart).toBe(true);
   expect(await allReadersExited(path)).toBe(true);
   expect(success(await f.store.read({ reference: seeded.reference })).content)

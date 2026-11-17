@@ -1,4 +1,5 @@
 /** Install a write-back's read-back through the guarded swap owned by the file walk. */
+import { withProjectionEntry } from "./index-memory.js";
 import type { AsideWriterInput } from "./aside.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
@@ -27,7 +28,7 @@ export async function writeBackFile(context: ReadBackContext, index: ProjectionI
   result: TakeInResult; index: ProjectionIndex;
 }> {
   const sent = await sendWriteBack(context, request);
-  const updated = { ...index, entries: { ...index.entries, [request.path]: sent.result.entry } };
+  const updated = withProjectionEntry(index, request.path, sent.result.entry);
   if (sent.kind === "clashed") return drawCheckoutClash(context, updated, request, sent);
   if (sent.kind !== "landed") return { result: sent.result, index: updated };
   return installWriteBack(context, updated, request, sent);
@@ -44,16 +45,14 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
     const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, sent.record.conflicts) };
     context.report?.({ path: request.path, copy: request.copy, mark: {
       reason: `The edit landed, but read-back rendering failed: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
-    return { result: { answer: "pending", entry }, index: { ...updated, entries: { ...updated.entries, [request.path]: entry } } };
+    return { result: { answer: "pending", entry }, index: withProjectionEntry(updated, request.path, entry) };
   }
   const takeIn = context.takeIn ?? createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
     staged: staged.result, renderer, baseline: sent.result.read, reference: await readReference(request.checkout), format: context.format,
     store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
-    return { result: holdReadBack(context, request, sent.result, guarded), index: {
-      ...updated, entries: { ...updated.entries, [request.path]: guarded.entry },
-    } };
+    return { result: holdReadBack(context, request, sent.result, guarded), index: withProjectionEntry(updated, request.path, guarded.entry) };
   }
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index: updated,
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,

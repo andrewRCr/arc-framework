@@ -9,6 +9,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { settlePartialErrandAtRuntime } from "../../../src/lib/errand/partial-settle-runtime.js";
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 
@@ -90,7 +91,7 @@ describe("partial Errand settlement", () => {
   });
 });
 
-it("settles a version-bound capture before releasing the partial marker", async () => {
+async function versionBoundPartial() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-partial-origin-"));
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
   const entry = "personal:abcd1234", version = "v1:0123456789abcdef", head = "a".repeat(40);
@@ -108,15 +109,37 @@ it("settles a version-bound capture before releasing the partial marker", async 
     if (["check-ref-format", "fetch", "update-ref", "status"].includes(args[0] ?? "")) return { stdout: "" };
     throw new Error(`Unexpected Git command: ${args.join(" ")}`);
   };
-  const result = await settlePartialErrandAtRuntime({ ...options(frame(occupied)), exec,
-    settleInbox: async (binding) => {
+  const settle = { ...options(frame(occupied)), exec,
+    settleInbox: async (binding: { originEntry: string | null; originEntryVersion?: string }) => {
       if (binding.originEntry === null || entries.get(binding.originEntry) !== binding.originEntryVersion)
-        return { kind: "refused", reason: "The capture version changed." };
+        return { kind: "refused" as const, reason: "The capture version changed." };
       entries.delete(binding.originEntry);
-      return { kind: "applied", nextOffer: null };
+      return { kind: "applied" as const, nextOffer: null };
     },
-  });
+  };
+  return { cwd, entry, entries, settle };
+}
+
+it("settles a version-bound capture before releasing the partial marker", async () => {
+  const h = await versionBoundPartial();
+  const result = await settlePartialErrandAtRuntime(h.settle);
   expect(result).toMatchObject({ outcome: "applied" });
-  expect(entries.has(entry)).toBe(false);
-  expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
+  expect(h.entries.has(h.entry)).toBe(false);
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
+});
+
+it("refuses before settling its capture while the primary's projection release would refuse, then closes", async () => {
+  const h = await versionBoundPartial();
+  let held = true;
+  const slots = { ...passingProjectionRemovalSlots, check: async (...args: Parameters<typeof passingProjectionRemovalSlots.check>) =>
+    held ? { kind: "would-refuse" as const, remedy: { text: "Save the held edit, then retry." } } : passingProjectionRemovalSlots.check(...args) };
+  const refused = await settlePartialErrandAtRuntime({ ...h.settle, projectionRemovalSlots: slots });
+  expect(refused).toMatchObject({ outcome: "refused", reason: "preservation-unproven",
+    recommendedPromptText: expect.stringContaining("Save the held edit, then retry.") });
+  expect(h.entries.has(h.entry)).toBe(true);
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present" });
+  held = false;
+  expect(await settlePartialErrandAtRuntime({ ...h.settle, projectionRemovalSlots: slots })).toMatchObject({ outcome: "applied" });
+  expect(h.entries.has(h.entry)).toBe(false);
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
 });

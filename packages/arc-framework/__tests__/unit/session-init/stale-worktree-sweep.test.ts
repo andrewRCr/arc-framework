@@ -1,6 +1,7 @@
 import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 import { beforeEach, describe, it, expect, vi } from "vitest";
+import { fixturePath } from "../../helpers/fixture-path.js";
 
 import {
   findStaleWorktreeCandidates,
@@ -193,15 +194,15 @@ const emptyUserSurfaceFs: UserSurfaceMigrationFs = {
 
 const divergentUnknownUserSurfaceFs: UserSurfaceMigrationFs = {
   readDir: async (path) => {
-    if (path === "/wt/wor/.arc/user") {
+    if (fixturePath(path) === "/wt/wor/.arc/user") {
       return [{ name: "andrew", isDirectory: () => true, isFile: () => false }];
     }
-    if (path === "/wt/wor/.arc/user/andrew") {
+    if (fixturePath(path) === "/wt/wor/.arc/user/andrew") {
       return [{ name: "FUTURE.md", isDirectory: () => false, isFile: () => true }];
     }
     return [];
   },
-  readFile: async (path) => path.startsWith("/primary/") ? "primary\n" : "linked\n",
+  readFile: async (path) => fixturePath(path).startsWith("/primary/") ? "primary\n" : "linked\n",
   writeFile: async () => {},
   mkdir: async () => {},
 };

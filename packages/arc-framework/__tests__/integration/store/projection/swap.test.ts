@@ -3,7 +3,7 @@ import { link, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile 
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  deferring, landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions,
+  deferring, landingCopies, prepareSwap, SWAP_PATH, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { gitBlobId, storedBlobId } from "../../../../src/lib/store/projection/blob-id.js";
@@ -20,7 +20,6 @@ const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 const PATH = SWAP_PATH;
-const WRITER = SWAP_WRITER;
 
 /** A prepared swap whose checkout this file removes after each test. */
 async function prepared(
@@ -93,13 +92,15 @@ describe("the swap", () => {
     const { laid, file, swap, seeded } = await prepared();
     if (laid.stat === null) throw new Error("Expected the laid file's stat");
     const held = await readFile(file, "utf8");
+    const physical = await readStat(file);
+    if (physical === null) throw new Error("Expected the original file");
     const busy = Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
     const tick = new Date(Number(laid.stat.mtimeNs / 1_000_000n) + (age === "racy" ? -1000 : 1000));
     const result = await swap({ fs: { rename: async () => { throw busy; } }, retrySleep: async () => undefined,
       hooks: { afterRecheck: async () => { await utimes(join(seeded.checkout, PROJECTION_REFERENCE), tick, tick); } } });
     expect(await readFile(file, "utf8")).toBe(held);
     expect(result.index.entries[PATH]).toEqual({ ...laid, pending: true,
-      stat: { ...laid.stat, size: age === "racy" ? 0n : laid.stat.size } });
+      stat: { ...laid.stat, size: age === "racy" ? 0n : physical.size } });
     expect(result.copies).toEqual([]);
     const entry = result.index.entries[PATH];
     if (entry?.kind !== "record") throw new Error("The restored entry is missing");
@@ -190,7 +191,7 @@ describe("the swap", () => {
       entry: record, text: await readFile(other.file, "utf8"), mtimeNs: stat.mtimeNs, format: "sha1",
       memo: createHistoryMemo(other.fixture.store),
     });
-    expect(read).toEqual({ status: "ok", result: { kind: "unedited" } });
+    expect(read).toEqual({ status: "ok", result: { kind: "unedited", current: false } });
   });
 
   it("leaves a file pending after a stop between the move and the link, its aside copy holding no edit", async () => {
@@ -201,7 +202,7 @@ describe("the swap", () => {
     expect(await readStat(file)).toBeNull();
     const [copy] = written.copies;
     if (copy === undefined) throw new Error("expected the aside copy's record");
-    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring, writer: WRITER }))
+    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring }))
       .toEqual({ kind: "no-edit", entry: written });
   });
 });
@@ -310,7 +311,7 @@ describe("a swap whose link fails after the move for another reason", () => {
 
 /** The entry the index on disk holds for a path. */
 async function onDisk(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<RecordEntry> {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   const entry = read.index.entries[path];
   if (entry?.kind !== "record") throw new Error(`expected a record entry at ${path}`);

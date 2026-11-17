@@ -5,14 +5,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
-import { checkChange, PROJECTION_REFERENCE, readReference } from "../../../../src/lib/store/projection/change-detection.js";
+import { checkChange, PROJECTION_REFERENCE, readReference, recordCleanStat } from "../../../../src/lib/store/projection/change-detection.js";
+import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("a seeded projection", () => {
-  it("lays stamped files whose stats are clean against its index once the reference is newer than them", async () => {
+  it("lays stamped files whose stats hash once before a clean observation is recorded", async () => {
     const fixture = createReferenceFixture();
     const markdown = fixture.reference("cohort/document", "one");
     const text = fixture.reference("cohort/document", "two");
@@ -39,14 +40,26 @@ describe("a seeded projection", () => {
     await utimes(join(seeded.checkout, PROJECTION_REFERENCE), later, later);
     const reference = await readReference(seeded.checkout);
     const reads: string[] = [];
+    let observed = seeded.index;
     for (const [path, entry] of Object.entries(seeded.index.entries)) {
       if (entry.kind !== "record") throw new Error("expected record entries");
       const verdict = await checkChange(
         { path: join(seeded.checkout, path), recorded: entry.stat, written: entry.written, reference, format: "sha1" },
         async (target) => { reads.push(target); return readFile(target); },
       );
-      expect(verdict.status).toBe("clean");
+      expect(verdict.status).toBe("hashed-clean");
+      if (verdict.status !== "hashed-clean") throw new Error("Expected an initial clean hash");
+      observed = recordCleanStat(observed, path, verdict.stat);
     }
-    expect(reads).toEqual([]);
+    expect(reads.sort()).toEqual(Object.values(paths).map(path => join(seeded.checkout, path)).sort());
+    const clean = await commitProjectionIndex({ location: seeded.location, checkout: seeded.checkout, index: observed });
+    await utimes(join(seeded.checkout, PROJECTION_REFERENCE), later, later);
+    for (const [path, entry] of Object.entries(clean.entries)) {
+      if (entry.kind !== "record") throw new Error("Expected a record entry");
+      expect(await checkChange({ path: join(seeded.checkout, path), recorded: entry.stat, written: entry.written,
+        reference: await readReference(seeded.checkout), format: "sha1" }, async () => {
+        throw new Error("A recorded clean stat must not read the file");
+      })).toMatchObject({ status: "clean" });
+    }
   });
 });

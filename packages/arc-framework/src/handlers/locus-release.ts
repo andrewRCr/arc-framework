@@ -8,6 +8,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runDormantStoreCommand } from "../commands/store-command-support.js";
 import { runLocusRelease } from "../lib/locus/release.js";
 import { requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 /** Explicit operational and projection bindings for the mutation boundary. */
 export interface LocusReleaseHandlerContext {
   cwd?: string; store?: Store; exec?: GitExec; identity?: string;
@@ -30,7 +31,7 @@ export async function handleLocusRelease(slug: string | undefined, options: { js
   }
   const [{ settings }, identity] = await Promise.all([readConfigSettings(cwd), context.identity ?? resolveUserIdentity(exec)]);
   const result = await runLocusRelease({ cwd, exec, store, identity, baseBranch: settings["branch.base"],
-    projectionRemovalSlots: context.projectionRemovalSlots, chdir: context.chdir }, slug);
+    projectionRemovalSlots: context.projectionRemovalSlots ?? createProjectionRemovalSlots({ store, identity }), chdir: context.chdir }, slug);
   if (result.status === "refused") process.exitCode = 1;
   if (options.json) process.stdout.write(`${JSON.stringify(result)}\n`);
   else if (result.status === "refused") process.stderr.write(`Error: ${result.reason}\n`);

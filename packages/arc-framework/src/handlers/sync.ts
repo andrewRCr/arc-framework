@@ -48,6 +48,8 @@
  */
 
 import { access } from "node:fs/promises";
+import type { Store } from "../lib/store/contract.js";
+import { restoreSyncProjection } from "../lib/store/projection/sync-materialization.js";
 
 import {
   buildSaveSummary,
@@ -101,10 +103,7 @@ import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import type { PromptOutcome } from "../lib/command-input/prompter.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
-import {
-  ARC_PROJECT_ROOT_ERROR,
-  resolveUserIdentity,
-} from "./shared.js";
+import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "./shared.js";
 import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
 
@@ -407,7 +406,7 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  context: InteractionContext,
+  context: InteractionContext, store: Store,
 ): Promise<void> {
   output.intro("arc sync");
 
@@ -423,7 +422,7 @@ export async function handleSync(
     throw err;
   }
 
-  const cwd = await resolveSyncRoot(opts, output);
+  const cwd = await prepareSyncRoot(opts, output, store);
   if (!cwd) return;
 
   const io = createUserIOContext(context.subprocess);
@@ -1347,7 +1346,7 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
 }
 
 /** The ARC root sync runs in, or null once it has reported why sync cannot run here. */
-async function resolveSyncRoot(opts: SyncOptions, output: SyncOutput): Promise<string | null> {
+async function prepareSyncRoot(opts: SyncOptions, output: SyncOutput, store: Store): Promise<string | null> {
   const cwd = resolveArcRoot(process.cwd());
   if (!cwd) {
     output.log.error(ARC_PROJECT_ROOT_ERROR);
@@ -1359,6 +1358,7 @@ async function resolveSyncRoot(opts: SyncOptions, output: SyncOutput): Promise<s
     emitErrorEnvelope(opts, "store-imported");
     return null;
   }
+  await restoreSyncProjection(store, cwd, opts);
   return cwd;
 }
 

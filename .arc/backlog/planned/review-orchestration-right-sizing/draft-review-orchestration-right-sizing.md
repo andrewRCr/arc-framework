@@ -1218,6 +1218,38 @@
 
 - _Captured during:_ `repeat-review-guard` Errand, PR #1297's first findings round, 2026-11-07.
 
+### `[ ]` **Make each review round on a large change cheaper, at the same rigor**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope, beside the buffered "Let a Candidate fix's verified-fix record defer its approved suite to
+  convergence".
+
+- _Observation:_ `projection-worktrees` (about 27,000 changed lines, 382 files) ran three independent criteria passes
+  (3, 25 and 16 findings) with six fix checks, then three complete standard passes with five, between verification
+  start (2026-11-12 10:40 pm CT) and publication (11-16 9:26 am). The Owner judged that count, and the balance of
+  complete passes to fix checks, right for the change: stopping earlier ships code likelier to carry major issues
+  (2026-11-16). The cost to cut is each round's. In standard review about 12 hours fell inside the eight operations
+  (start to approval) and about 10 daytime hours between them, mostly after the complete passes (4 h 46 m after pass
+  1, 3 h 5 m after pass 3; pass 2's fixes ran overnight). Each complete pass's approved set fixed nearly all of its
+  43–49 findings, nearly all minor (3, 2 and 0 major), over 58–79 files (+1,238/−369, +1,459/−247, +1,599/−376), all
+  at `full` verification scope, so each set ran the forced merge gate (see the Errand "Find why one check runs
+  several times on identical content…"); fix checks' findings named recurrences ("recurs: A26", "a propagation
+  gap"). The elapsed times mix review, fix work, checks and Owner waits.
+
+- _Approach:_ first split the time between operations into fix authoring, checks and Owner waits, from the session
+  logs. Then weigh, against prior art: the verification scope minor repairs are approved at (`full` forces the merge
+  gate; `focused`, for a bounded interaction, the push gate over the range); how a large fix set is authored (serially
+  in one session, or split by chunk); and whether fixes breed the next pass's findings, which pass 3's findings
+  sitting in lines the earlier fix sets touched would show. Minor findings stay fixed in the unit: the Owner reads
+  deferring them as the change dodging its own responsibility (2026-11-16), and any change to their default
+  disposition waits on an idiom research pass (how teams treat minor review comments on a large change).
+
+- _Evidence:_ the unit's review-gate records, and the post-implementation summary kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`'s review of `projection-worktrees`' post-implementation time, at the
+  Owner's request, 2026-11-16.
+
 ---
 
 ## Problem / Motivation

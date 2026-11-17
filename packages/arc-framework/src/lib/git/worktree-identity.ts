@@ -25,6 +25,7 @@ export const WorktreeIdentitySchema = z.discriminatedUnion("kind", [
 ]);
 
 import type { GitExec } from "./exec.js";
+import { nativeGitPath } from "../local-path-identity.js";
 
 /**
  * Which physical worktree the session is in.
@@ -55,7 +56,7 @@ export async function resolveWorktreeIdentity(exec: GitExec): Promise<WorktreeId
 
   const toplevel = await revParse(exec, "--show-toplevel");
   if (toplevel === null) return { kind: "primary" };
-  return { kind: "linked", path: toplevel };
+  return { kind: "linked", path: nativeGitPath(toplevel) };
 }
 
 /** Run `git rev-parse <flag>` and return the trimmed value, or `null` on failure/empty. */

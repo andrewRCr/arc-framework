@@ -6,9 +6,10 @@ import { z } from "zod";
 import { SlugSchema, isManagedPath } from "../../kernel/index.js";
 import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "../identity.js";
 import { RemedySchema } from "../refusal.js";
+import { isProjectionIndexGroup, projectionIndexGroup } from "./index-memory.js";
 
 /** The index format this build reads and writes. */
-export const PROJECTION_INDEX_FORMAT = 1;
+export const PROJECTION_INDEX_FORMAT = 2;
 
 /** A Git blob id in the repository's object format, SHA-1 or SHA-256. */
 export const BlobIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -69,7 +70,7 @@ const AsideCopyRecordSchema = z.strictObject({
 });
 
 /** A file bound to a record, including adoption before its first rendering; null `stat` records absence. */
-export const RecordEntrySchema = z.strictObject({
+const RecordBasisSchema = z.strictObject({
   kind: z.literal("record"),
   reference: RecordReferenceSchema,
   stat: FileStatSchema.nullable(),
@@ -93,6 +94,14 @@ export const RecordEntrySchema = z.strictObject({
   ]).optional(),
 });
 
+/**
+ * A path retains its leaving basis and, during exclusive installation, one complete arriving basis. A record a refresh
+ * moves here with its changed mark, before its arrival can be journaled, is named in `arrivingChanged` until the
+ * installation carries the mark onto that arrival.
+ */
+export const RecordEntrySchema = RecordBasisSchema.extend({ handoff: RecordBasisSchema.optional(),
+  arrivingChanged: RecordReferenceSchema.optional() });
+
 /** The exact accepted creation retained until its metadata basis can be read. */
 const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>
   reference.kind === "work-item/meta" && reference.owner.type === "work-item" && reference.owner.uid !== undefined,
@@ -103,6 +112,7 @@ export type MintedStubReceipt = z.infer<typeof MintedStubReceiptSchema>;
 /** A file not yet bound to a usable record basis, optionally retaining an accepted stub receipt. */
 const OwnerlessEntrySchema = z.strictObject({
   kind: z.literal("ownerless"),
+  withheld: z.literal(true).optional(),
   minted: MintedStubReceiptSchema.optional(),
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema,
@@ -125,6 +135,7 @@ const ProjectedUnderSchema = z.strictObject({
   view: z.strictObject({ mode: z.enum(["mine", "cohort", "all"]), pins: z.array(SlugSchema) }),
   identity: SlugSchema,
   claim: SlugSchema.nullable(),
+  claimUid: z.uuid().optional(),
   layoutActive: z.enum(["nested", "flat"]),
 });
 
@@ -140,17 +151,30 @@ const IgnoreGuardBasisSchema = z.strictObject({
   roots: z.array(z.string().min(1)).min(1), configuration: IgnoreRulesSelectionSchema,
 });
 
-/** The index as JSON stores it, decoded into bigints and validated references. Unknown fields fail. */
+/**
+ * The whole index, decoded into bigints and validated references; unknown fields fail. On disk it is stored as a header
+ * (`ProjectionIndexHeaderSchema`) and one partition per root (`ProjectionIndexPartitionSchema`).
+ */
 export const ProjectionIndexSchema = z.strictObject({
   format: z.literal(PROJECTION_INDEX_FORMAT),
   state: StateVersionSchema.nullable(),
   projectedUnder: ProjectedUnderSchema,
+  reprojectionPending: z.literal(true).optional(),
   withheldCopies: z.array(z.string().min(1)),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),
   entries: z.record(EntryPathSchema, IndexEntrySchema),
 });
+
+/** The persisted header's contract, its group keys held to the groups the reader accepts. */
+export const ProjectionIndexHeaderSchema = ProjectionIndexSchema.omit({ entries: true }).extend({
+  groups: z.record(z.string().refine(isProjectionIndexGroup, "Expected a projection index group"),
+    z.strictObject({ name: z.string().regex(/^index-[a-f0-9]{40}$/u), unsettled: z.boolean() })),
+});
+/** A single root partition's persisted contract: entries of one group only, as the reader loads it. */
+export const ProjectionIndexPartitionSchema = ProjectionIndexSchema.shape.entries.refine(
+  entries => new Set(Object.keys(entries).map(projectionIndexGroup)).size <= 1, "Expected the paths of one group");
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;
@@ -172,7 +196,8 @@ export type AsideCopyRecord = z.output<typeof AsideCopyRecordSchema>;
 export type RefusedMark = z.output<typeof RefusedMarkSchema>;
 
 /**
- * Decode an index from its parsed JSON form.
+ * Decode a whole index from one parsed JSON value. Only tests hold an index in this form; the file stores a header and
+ * partitions.
  * @param value - The parsed JSON value.
  * @returns The decoded index, or the schema's failure.
  */
@@ -181,7 +206,7 @@ export function decodeProjectionIndex(value: unknown): z.ZodSafeParseResult<Proj
 }
 
 /**
- * Encode an index as the JSON text the index file holds.
+ * Encode a whole index as one JSON text, the form only tests hold; the file stores a header and partitions.
  * @param index - A decoded index.
  * @returns Its JSON text, bigints as decimal strings.
  */

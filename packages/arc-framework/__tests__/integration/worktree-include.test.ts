@@ -98,6 +98,25 @@ describe("copyWorktreeIncludes", () => {
     expect(await git(target, "status", "--porcelain")).toBe("");
   });
 
+  it("keeps projected and machine-local files out of a broad include while copying env", async () => {
+    await writeAt(primary, ".gitignore", `${PRIMARY_IGNORES}.arc/active/\n.arc/system/.local/\n`);
+    await git(primary, "commit", "-am", "ignore projection and machine-local state");
+    await writeAt(primary, ".worktreeinclude", "*\n");
+    await writeAt(primary, ".arc/active/current/notes-primary.md", "Unsaved primary work.\n");
+    await writeAt(primary, ".arc/system/.local/config.local.yml", "local: primary\n");
+    const target = join(worktreeParent, "broad-include");
+    await git(primary, "worktree", "add", "-b", "broad-include", target, "main");
+
+    await copyWorktreeIncludes(includeContext(makeGitExec(primary)), primary, target);
+
+    expect({
+      projected: await exists(join(target, ".arc/active/current/notes-primary.md")),
+      machineLocal: await exists(join(target, ".arc/system/.local/config.local.yml")),
+    }).toEqual({ projected: false, machineLocal: false });
+    expect(await readFile(join(target, ".env"), "utf8")).toBe("PRIMARY=1\n");
+    expect(await git(target, "status", "--porcelain")).toBe("");
+  });
+
   it("copies nothing and runs no Git command when the primary has no include file", async () => {
     await rm(join(primary, ".worktreeinclude"));
     const target = join(worktreeParent, "empty");

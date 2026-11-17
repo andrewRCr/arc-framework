@@ -717,6 +717,29 @@
 
 - _Captured during:_ the `frontline-clean-coverage` Errand (#1272), 2026-11-04 (Owner-approved capture).
 
+### `[ ]` **Record a failed provider-executable probe as not started, so a plain rerun clears it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16), split from "Stop a sandboxed first
+  frontline run from becoming a durable failure", whose file-argument half stays an Errand.
+
+- _Shapes:_ § Provider-owned Capabilities, beside the buffered "Stop CodeRabbit's next format change from failing a
+  whole hosted review": what a provider's unlaunched failure does to the pass and to its retry.
+
+- _Observation:_ in a sandboxed run, CodeRabbit's executable probe (`coderabbit --version`) fails writing its log
+  under its home folder, and the frontline run is stored as `unexpected-adapter-failure`. Since the 11-12 host rule
+  to escalate only after a refusal, every Codex frontline run here failed that way first (five in the errands
+  session, one in `projection-worktrees`).
+
+- _Observation:_ the failure is durable though the provider never launched: replaying the request returns it, and a
+  retry needs a fresh resolve, `retryOfOperationId` and Owner direction (`code-review.md`). No review was spent.
+
+- _Approach:_ record a failed provider-executable probe as not started, which a plain rerun clears, rather than a
+  durable failure; design it against the frontline operation's replay and retry contract.
+
+- _Evidence:_ the stored failed run, Codex's rule-matching checks and the sandbox tests, kept outside the repository.
+
+- _Captured during:_ the project manager's look at Codex's CodeRabbit retries (Owner-approved capture, 2026-11-13).
+
 ---
 
 ## Operator Selection Override

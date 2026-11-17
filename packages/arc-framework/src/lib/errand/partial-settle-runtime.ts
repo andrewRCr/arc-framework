@@ -11,6 +11,7 @@ import {
   type ErrandTerminalSubject,
 } from "./terminal-authority.js";
 import {
+  checkPrimaryProjectionRelease,
   createTerminalOccupancyIO,
   settleTerminalOccupancy,
 } from "./terminal-occupancy.js";
@@ -110,6 +111,9 @@ export async function settlePartialErrandAtRuntime(
         + "as a separate commit. Retain the Errand and capture until the gated push succeeds.",
     );
   }
+  // The primary's projection release refuses a held edit; check it before the capture settles, the first write.
+  const release = await checkPrimaryProjectionRelease(options.exec, authority.checkoutPath, options.projectionRemovalSlots);
+  if (release !== null) return refusal(operation, "preservation-unproven", release);
   const inbox = await options.settleInbox({
     originEntry: authority.row.origin?.entry ?? null,
     ...(authority.row.origin !== null && "version" in authority.row.origin

@@ -1,6 +1,6 @@
 /** Discovery distinguishes editor/system side files and legacy views from ordinary managed prose. */
 import { expect, it } from "vitest";
-import { isExcludedProjectionFile } from "../../../../src/lib/store/projection/discovery-exclusions.js";
+import { isExcludedProjectionFile, isExcludedProjectionPath, isMachineLocalProjectionPath } from "../../../../src/lib/store/projection/discovery-exclusions.js";
 
 it.each(["note.md~", ".#note.md", "#note.md#", ".note.md.swp", ".note.md.swx", "4913",
   "note.md.tmp.123.Abc123", ".DS_Store", "._note.md", "Thumbs.db", "desktop.ini", ".directory"])(
@@ -25,3 +25,13 @@ it.each([".arc/active/current/ROADMAP.md", ".arc/backlog/planned/alpha/ROADMAP.m
     expect(isExcludedProjectionFile(path)).toBe(false);
   },
 );
+
+it.each([
+  [".arc/system/.internal/worktree-marker.json", true],
+  [".arc/system/.internal/pristine.json", true],
+  [".arc/system/.internal/schemas/project.schema.json", true],
+  [".arc/system/.internal/project-owned.md", false],
+] as const)("classifies named machine-local state without excluding its neighbor: %s", (path, expected) => {
+  expect(isMachineLocalProjectionPath(path)).toBe(expected);
+  expect(isExcludedProjectionPath(path)).toBe(expected);
+});

@@ -4,6 +4,8 @@ import type { Store, ReadOnlyStore } from "./contract.js";
 import type { StoreConflictInput, StoreConflictResult, StoreCreationDesignationResult, StoreMigrateInput, StoreMigrateResult,
   StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
+import { withFanOut } from "./projection/with-fan-out.js";
+import { createProjectionFanOutDependencies } from "./projection/fan-out-binding.js";
 import { recordComposedStoreCapability } from "./projection/process-state.js";
 import { composeRefStorePorts, findTrackedStateRefusal, IN_REPO_STORE_OVERRIDE, refusingStore } from "./selection.js";
 
@@ -12,8 +14,9 @@ import { composeRefStorePorts, findTrackedStateRefusal, IN_REPO_STORE_OVERRIDE, 
  * @returns The operational state contract over the checkout's current substrates.
  */
 export function createStore(ports: StorePorts): Store {
-  return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
+  const store = lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
     .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
+  return withFanOut(store, createProjectionFanOutDependencies(ports.checkoutRoot));
 }
 
 /** Compose a checkout's operational store, choosing its implementation without reading the repository.

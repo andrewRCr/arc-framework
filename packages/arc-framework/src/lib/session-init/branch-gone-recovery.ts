@@ -12,6 +12,8 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
 import { stat } from "node:fs/promises";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
@@ -47,6 +49,7 @@ import { projectCleanupRemoteEvidence, type CleanupBaseEvidence } from "./cleanu
 export const RECOVERY_RECENCY_DAYS = 30;
 
 export interface RunBranchGoneRecoveryOptions {
+  store?: Store;
   /** The same reader-owned checkout rows used by session entry. */
   derivedRoster: readonly DerivedCheckoutRow[] | null;
   /** Projection policy used by read-only removal observations. */
@@ -94,6 +97,7 @@ export async function runBranchGoneRecovery(
   const candidates = await Promise.all(
     worktreeEntries.map((entry) =>
       buildWorktreeCandidate(entry, {
+        store: options.store,
         exec,
         readMarker,
         row: rows.get(entry.worktreePath),
@@ -138,6 +142,7 @@ export async function runBranchGoneRecovery(
 }
 
 interface CandidateContext {
+  store?: Store;
   row: DerivedCheckoutRow | undefined;
   folderExists?: (path: string) => Promise<boolean>;
   projectionRemovalSlots?: ProjectionRemovalSlots;
@@ -184,7 +189,7 @@ async function buildWorktreeCandidate(
     ctx.readMarker(entry.worktreePath),
     checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath, disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists }),
     resolveCandidateMerged(ctx, entry.branch),
-    linkedIdentityGlobalUserSurfacesAreSafe({
+    usesOffBranchState(ctx.store) ? true : linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath: ctx.primaryWorktreePath,
       worktreePath: entry.worktreePath,
       fs: ctx.userSurfaceFs,

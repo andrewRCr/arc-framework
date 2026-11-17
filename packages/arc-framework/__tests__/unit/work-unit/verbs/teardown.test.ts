@@ -10,6 +10,7 @@ import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-
 
 import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 import { describe, it, expect, onTestFinished } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -106,12 +107,12 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       if (entries === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       if (content === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(content);
     },
@@ -956,10 +957,10 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
-    ctx.worktreeFs.readFile = async (path) => path.startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
+    ctx.worktreeFs.readFile = async (path) => fixturePath(path).startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
 
     const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
@@ -976,12 +977,12 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
     let linkedReads = 0;
     ctx.worktreeFs.readFile = async (path) => {
-      if (path.startsWith("/repo/.arc/user")) {
+      if (fixturePath(path).startsWith("/repo/.arc/user")) {
         linkedReads += 1;
         return "linked\n";
       }

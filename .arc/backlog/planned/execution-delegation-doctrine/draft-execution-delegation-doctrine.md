@@ -180,6 +180,42 @@ members consume.
 
 - _Captured during:_ `storage-ref-backend` verification (process lessons), 2026-10-22.
 
+### `[ ]` **Move the delegation doctrine's Codex arm onto native custom roles, and fold in the economics research**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the draft's delegation-log entry, items (4) per-harness carrier, (5) and (6) economics; "Ground delegation
+  choices in verification-cost economics".
+
+- _Observation:_ the Codex worker path the draft and `.claude/agents/delegation-log.md` describe is stale.
+    - On Codex 0.167.2, native `spawn_agent` with `agent_type: "worker"` resolved a custom role's pinned model and
+      effort (gpt-6.1-terra, medium), checked in a session log on 2026-11-12. So the `codex exec --profile worker`
+      subprocess path, kept only because native spawns inherited the parent's model, has lost its reason. The profile's
+      configuration file also pins a superseded model, and its own comment says to migrate to a native
+      role at this point. No host-wide `worker` role exists (one was installed and withdrawn on 2026-11-12), so a
+      Codex primary asking for `worker` gets Codex's built-in role, which inherits the session's model: no step-down,
+      no delegation-log duty, none of `arc-worker`'s gates. Moving ARC's Codex arm to a native role means ARC defines
+      that role itself; whether Codex loads a project-level `.codex/agents/` is untested.
+    - A native custom role carries a description and instructions, so it can be the Codex carrier item (4) lacks,
+      as `arc-worker`'s description is on Claude. The draft's "interim WORKING-MEMORY carrier" is no longer in
+      `WORKING-MEMORY`.
+    - Effort differs by arm: `arc-worker` inherits the session's and the old Codex profile ran high. Log entries are
+      not comparable unless each records it.
+
+- _Evidence:_ external research for item (6), a medium-research pass with no adversarial verification, unverified
+  figures marked (kept outside the repository: `runs/inbox/delegation-economics/research.md` under the agents folder):
+    - No public eval measures strong primary, cheap worker, then verification, at equal quality.
+    - The eval-backed savings come from a cheap model driving with brief strong-model consults (Anthropic's advisor
+      strategy: +2.7 points at 11.9% lower cost on SWE-bench Multilingual, confounded) and from cutting accumulated
+      context (masking old observations halved SWE-agent's cost at an equal solve rate).
+    - Verification is cheap only against a correct oracle that already exists (TDFlow: human-written tests 94.3% at
+      $1.01 an issue, LLM-written 68.0% at $4.12). "Primary writes the tests" has no external ablation.
+    - Local speed (`dotfiles-ai-7e`, 1,604 Codex sessions since 2026-10-29, per model call): terra at high effort
+      about 60 output tokens a second and 3.3 s a call, sol at high about 34 and 8.0 s; sol's rate does not change
+      with effort. Calls per task, and the primary's brief and verification time, are unmeasured.
+
+- _Captured during:_ `project-manager.ARC`, relayed from `dotfiles-ai-7e`, 2026-11-12 (corrected the same day).
+
 ---
 
 ## Problem / Motivation

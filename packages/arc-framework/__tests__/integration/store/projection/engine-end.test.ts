@@ -1,5 +1,6 @@
 /** Fresh index authority and copy settlement at the command's end. */
-import { access, mkdir, readFile, utimes, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -12,16 +13,91 @@ import { PROJECTION_LOCK_FILE } from "../../../../src/lib/store/projection/lock.
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
 import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
+import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
+import { success } from "../../../helpers/store/suite-tools.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
+/** A command whose ports count each projection lease it takes, so a test sees whether its end took one. */
+function countingLeases(h: Awaited<ReturnType<typeof createEngineFixture>>) {
+  const counter = { leases: 0 };
+  const native = h.ports();
+  const input = { store: h.store, checkout: h.checkout, ports: () => ({ ...native, lock: {
+    resolveProcessScope: async () => { counter.leases++; return NATIVE_LEASE_PROCESS.resolveProcessScope(); },
+  } }) };
+  return { counter, input };
+}
+
 describe("projection command end", () => {
+  it("takes only the start lock and leaves the header unchanged when there is nothing to settle", async () => {
+    const h = await createEngineFixture(directories), base = { store: h.store, checkout: h.checkout };
+    await startProjection(base); await endProjection(base);
+    let leases = 0;
+    const native = h.ports();
+    const input = { ...base, ports: () => ({ ...native, lock: {
+      resolveProcessScope: async () => { leases++; return NATIVE_LEASE_PROCESS.resolveProcessScope(); },
+    } }) };
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    const path = join(h.location.stateDir, "index"), before = await stat(path, { bigint: true }), bytes = await readFile(path, "utf8");
+    await endProjection(input);
+    const after = await stat(path, { bigint: true });
+    expect(leases).toBe(1);
+    expect({ ino: after.ino, mtimeNs: after.mtimeNs }).toEqual({ ino: before.ino, mtimeNs: before.mtimeNs });
+    expect(await readFile(path, "utf8")).toBe(bytes);
+  });
+
+  it.each([false, true])("settles an otherwise empty end after a store send, refused=%s", async refused => {
+    const h = await createEngineFixture(directories), base = { store: h.store, checkout: h.checkout };
+    await startProjection(base); await endProjection(base);
+    await writeFile(join(h.checkout, ".gitignore"), "");
+    await h.edit("A send still requires collection.\n");
+    const fault = createRefusingStore(h.store);
+    if (refused) fault.refuse("batch", { code: "record-malformed", class: "recoverable", rule: "fixture.send",
+      condition: "Injected batch refusal", remedy: { text: "Repair the batch boundary and retry." } });
+    let leases = 0;
+    const native = h.ports();
+    const input = { checkout: h.checkout, store: fault.store, ports: () => ({ ...native, lock: {
+      resolveProcessScope: async () => { leases++; return NATIVE_LEASE_PROCESS.resolveProcessScope(); },
+    } }) };
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    const root = projectionProcessState().roots.get(h.checkout);
+    expect(root).toMatchObject({ copies: [], removals: [], sweepEmpty: true });
+    expect(fault.calls("batch")).toBeGreaterThan(0);
+    const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
+    await mkdir(folder, { recursive: true }); await writeFile(join(folder, "orphan"), "retained orphan\n");
+    const beforeEnd = leases;
+    await endProjection(input);
+    expect(leases).toBe(beforeEnd + 1);
+    await expect(access(join(folder, "orphan"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await h.stored()).content).toBe(refused ? h.record.content : "A send still requires collection.\n");
+  });
+
+  it("takes the end lease for a recorded removal whose file was already absent, without a send or aside copy", async () => {
+    const h = await createEngineFixture(directories), base = { store: h.store, checkout: h.checkout };
+    await startProjection(base); await endProjection(base);
+    success(await h.store.write({ action: "remove", reference: h.record.reference, expected: h.record.version,
+      provenance: { verb: "merge", lifecycleAction: "remove" } }));
+    await rm(join(h.checkout, h.path));
+    let leases = 0;
+    const native = h.ports();
+    const input = { ...base, ports: () => ({ ...native, lock: {
+      resolveProcessScope: async () => { leases++; return NATIVE_LEASE_PROCESS.resolveProcessScope(); },
+    } }) };
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    expect(projectionProcessState().roots.get(h.checkout)).toMatchObject({ sent: false, copies: [], removals: [h.path], sweepEmpty: true });
+    await endProjection(input);
+    expect(leases).toBe(2);
+    await expect(access(join(h.checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("reads the current index under the end lock, keeps its named content copy, and removes orphaned copies", async () => {
     const h = await createEngineFixture(directories);
+    await h.edit("An initial send requires end settlement.\n");
     await startProjection({ store: h.store, checkout: h.checkout });
     const recorded = await recordWriteBack({ location: h.location, entry: h.entry, stamp: h.entry.base.blob,
       takenIn: "hand edit the merge did not store verbatim\n", outcome: { kind: "landed", version: h.record.version },
@@ -42,14 +118,21 @@ describe("projection command end", () => {
     const h = await createEngineFixture(directories, { path: ".arc/user/andrew/scratch/document.txt" });
     await h.edit("hand edit\n");
     await startProjection({ store: h.store, checkout: h.checkout });
-    expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: { replaces: h.entry.base } });
+    const stored = await h.stored();
+    expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: { replaces: {
+      blob: gitBlobId(stored.content, "sha1"), version: stored.version } } });
     await endProjection({ store: h.store, checkout: h.checkout });
     expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: null, copies: [] });
     expect(await h.file()).toBe("hand edit\n");
   });
 
-  it("preserves all files and retained content when an index is unusable, then retries after repair", async () => {
+  it("preserves files and retained content when the index becomes unusable at command end, then retries after repair", async () => {
     const h = await createEngineFixture(directories);
+    const { counter, input } = countingLeases(h);
+    // A sent edit gives the end work, so it takes its lease and reads the index it then finds unusable.
+    await h.edit("first edit\n");
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    expect((await h.stored()).content).toBe("first edit\n");
     const original = await readFile(join(h.location.stateDir, "index"), "utf8");
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
@@ -57,8 +140,9 @@ describe("projection command end", () => {
     await h.edit("hand edit\n");
     const saved = await h.file();
     await writeFile(join(h.location.stateDir, "index"), "unreadable");
-    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "refused" });
-    await endProjection({ store: h.store, checkout: h.checkout });
+    const started = counter.leases;
+    await endProjection(input);
+    expect(counter.leases).toBe(started + 1);
     expect(await h.file()).toBe(saved);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("retained input");
     await writeFile(join(h.location.stateDir, "index"), original);
@@ -68,13 +152,18 @@ describe("projection command end", () => {
     await expect(access(join(folder, "orphan"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("does not run a ready root's end when the caller's backend keeps state in the checkout", async () => {
+  it("does not run a ready root's end when the caller's backend keeps state in the checkout, though the end has work", async () => {
     const h = await createEngineFixture(directories);
-    await startProjection({ store: h.store, checkout: h.checkout });
+    const { counter, input } = countingLeases(h);
+    await h.edit("a sent edit\n");
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+    expect((await h.stored()).content).toBe("a sent edit\n");
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
     await writeFile(join(folder, "orphan"), "must remain");
+    const started = counter.leases;
     await endProjection({ store: inRepoStore(createDefaultStorePorts({ checkoutRoot: h.checkout })), checkout: h.checkout });
+    expect(counter.leases).toBe(started);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("must remain");
   });
 

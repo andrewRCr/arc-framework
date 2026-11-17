@@ -1,5 +1,8 @@
 /** Command-wide discovery across projected roots, excluding machine-local state and links. */
-import { lstat, mkdir, readFile, readdir, rename, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
+import { lstatSync, readdirSync, rmdirSync, unlinkSync } from "node:fs";
+import { walkProjectionRoots } from "../../../../src/lib/store/projection/engine-walk.js";
+import { readRemovalProjectionRoots } from "../../../../src/lib/store/projection/removal-files.js";
 import { dirname, join, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -18,6 +21,94 @@ const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("the command's projected-root walk", () => {
+  it("uses typed folder entries, statting only an entry typed as a link, and yields between folders", async () => {
+    const h = await createEngineFixture(directories);
+    const root = ".arc/backlog", folder = join(h.checkout, root);
+    await mkdir(join(folder, "a/deep"), { recursive: true });
+    await writeFile(join(folder, "a/one.md"), "one\n");
+    await writeFile(join(folder, "a/deep/two.md"), "two\n");
+    await symlink(join(h.checkout, ".arc/user/andrew/scratch"), join(folder, "link"), "junction");
+    let lstatCalls = 0, first = true, yielded = false, laterFolderYielded = false;
+    const fs = {
+      lstat: (path: string) => { lstatCalls++; return lstatSync(path); },
+      readdir: (path: string) => {
+        if (first) { first = false; setImmediate(() => { yielded = true; }); }
+        else laterFolderYielded ||= yielded;
+        return readdirSync(path, { withFileTypes: true });
+      },
+    };
+    const result = await walkProjectionRoots(h.checkout, [root], fs);
+    expect({ result, lstatCalls }).toEqual({ result: {
+      files: [`${root}/a/deep/two.md`, `${root}/a/one.md`], links: [`${root}/link`],
+    }, lstatCalls: 1 });
+    expect(laterFolderYielded).toBe(true);
+  });
+
+  it("walks a file or folder a listing types as a link when its own stat says it is not one", async () => {
+    const h = await createEngineFixture(directories);
+    const root = ".arc/backlog", folder = join(h.checkout, root);
+    await mkdir(join(folder, "synced"), { recursive: true });
+    await writeFile(join(folder, "tagged.md"), "an edited file a sync engine tagged\n");
+    await writeFile(join(folder, "synced/inner.md"), "inside a tagged folder\n");
+    await symlink(join(h.checkout, ".arc/user/andrew/scratch"), join(folder, "link"), "junction");
+    // A Windows listing types every reparse point as a link, whatever its tag.
+    const tagged = new Set([join(folder, "tagged.md"), join(folder, "synced")]);
+    const result = await walkProjectionRoots(h.checkout, [root], { readdir: (path: string) =>
+      readdirSync(path, { withFileTypes: true }).map(entry => !tagged.has(join(path, entry.name)) ? entry
+        : { name: entry.name, isDirectory: () => false, isFile: () => false, isSymbolicLink: () => true }) });
+    expect(result).toEqual({ files: [`${root}/synced/inner.md`, `${root}/tagged.md`], links: [`${root}/link`] });
+  });
+
+  it("keeps a folder's other files when one entry vanishes while an untyped read types it", async () => {
+    const h = await createEngineFixture(directories);
+    const root = ".arc/backlog", folder = join(h.checkout, root);
+    await mkdir(join(folder, "a"), { recursive: true });
+    await writeFile(join(folder, "a/kept.md"), "kept\n");
+    await writeFile(join(folder, "a/vanishing.md"), "renamed away by an editor\n");
+    let typed = 0;
+    const result = await walkProjectionRoots(h.checkout, [root], { readdir: (path: string) => {
+      if (path === join(folder, "a") && typed++ === 0) {
+        unlinkSync(join(folder, "a/vanishing.md"));
+        throw Object.assign(new Error("lstat of an untyped entry failed"), { code: "ENOENT" });
+      }
+      return readdirSync(path, { withFileTypes: true });
+    } });
+    expect(result).toEqual({ files: [`${root}/a/kept.md`], links: [] });
+    expect(await walkProjectionRoots(h.checkout, [`${root}/missing`])).toEqual({ files: [], links: [] });
+  });
+
+  it("keeps every other identity's personal tree in a removal's roots when one identity folder vanishes", async () => {
+    const h = await createEngineFixture(directories);
+    const personal = join(h.checkout, ".arc/user");
+    await mkdir(join(personal, "other/scratch"), { recursive: true });
+    await mkdir(join(personal, "leaving"), { recursive: true });
+    let typed = 0;
+    const roots = await readRemovalProjectionRoots(h.checkout, [".arc/active"], { walkFs: { readdir: (path: string) => {
+      if (path === personal && typed++ === 0) {
+        rmdirSync(join(personal, "leaving"));
+        throw Object.assign(new Error("lstat of an untyped entry failed"), { code: "ENOENT" });
+      }
+      return readdirSync(path, { withFileTypes: true });
+    } } });
+    expect([...roots].sort()).toEqual([".arc/active", ".arc/user/andrew", ".arc/user/other"]);
+  });
+
+  it("surfaces a folder observation failure and takes in the edit after a repaired retry", async () => {
+    const h = await createEngineFixture(directories);
+    await mkdir(join(h.checkout, ".arc/backlog"), { recursive: true });
+    await h.edit("An edit survives a failed folder read.\n");
+    const native = h.ports(), failure = Object.assign(new Error("directory denied"), { code: "EACCES" });
+    await expect(startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...native,
+      walkFs: { readdir: path => {
+        if (path === join(h.checkout, ".arc/backlog")) throw failure;
+        return readdirSync(path, { withFileTypes: true });
+      } },
+    }) })).rejects.toBe(failure);
+    expect((await h.stored()).content).toBe(h.record.content);
+    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+    expect((await h.stored()).content).toBe("An edit survives a failed folder read.\n");
+  });
+
   it("finds edited files across active, backlog, and personal roots while leaving completed files unsent", async () => {
     const h = await createEngineFixture(directories, { registryOverrides: { "work-item/meta": { parser: META_REGISTRATION.parser } } });
     const active = await seed(h, h.reference("work-item/meta", "active"), makeMetaFixture("work-item-active", {
@@ -61,9 +152,9 @@ describe("the command's projected-root walk", () => {
     await symlink(join(h.checkout, ".arc/user/andrew/.internal"), join(h.checkout, ".arc/backlog/internal-link"), "dir");
     const native = h.ports();
     const result = await startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...native,
-      walkFs: { readdir, lstat: path => {
+      walkFs: { readdir: path => {
         if (path.split(sep).includes(".internal")) throw new Error("Private folders must not be probed by discovery");
-        return lstat(path);
+        return readdirSync(path, { withFileTypes: true });
       } },
     }) });
     expect(result).toMatchObject({ kind: "ready", discovered: [paths[0]] });
@@ -79,7 +170,7 @@ describe("the command's projected-root walk", () => {
     expect(success(await h.store.read({ reference: adopted.reference })).content).toBe("new file\n");
   });
 
-  it("ignores editor side files before statting a dangling Emacs lock", async () => {
+  it("ignores editor side files before inspecting or stating a dangling Emacs lock entry", async () => {
     const h = await createEngineFixture(directories);
     const folder = join(h.checkout, ".arc/active/current"), lock = join(folder, ".#note.md");
     await mkdir(folder, { recursive: true });
@@ -88,9 +179,15 @@ describe("the command's projected-root walk", () => {
     await writeFile(join(folder, "note.md.tmp.123.abcd"), "editor temporary content");
     const before = success(await h.store.version()), native = h.ports();
     expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...native,
-      walkFs: { readdir, lstat: path => {
-        if (path === lock) throw new Error("An editor lock must be excluded before stat");
-        return lstat(path);
+      walkFs: { readdir: path => {
+        return readdirSync(path, { withFileTypes: true }).map(entry => ({ name: entry.name,
+          isDirectory: () => {
+            if (join(path, entry.name) === lock) throw new Error("An editor lock must be excluded before type inspection");
+            return entry.isDirectory();
+          }, isFile: () => entry.isFile(), isSymbolicLink: () => entry.isSymbolicLink() }));
+      }, lstat: path => {
+        if (path === lock) throw new Error("An editor lock must be excluded before its own stat");
+        return lstatSync(path);
       } },
     }) })).toMatchObject({ kind: "ready", discovered: [] });
     expect(success(await h.store.version())).toBe(before);

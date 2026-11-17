@@ -11,8 +11,12 @@ import { resolveCohortAdoption } from "./cohort-adoption.js";
 import { resolveProjectInboxAdoption } from "./project-adoption.js";
 import { resolveErrandAdoption } from "./errand-adoption.js";
 
-/** A classified file still needs generation authority before it can be created. */
-export type AdoptionReference = { kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark };
+/**
+ * A classified file still needs generation authority before it can be created. A refusal marked `readFailure` rests on a
+ * read that failed, not on anything the read found.
+ */
+export type AdoptionReference = { kind: "reference"; reference: RecordReference }
+  | { kind: "refused"; mark: RefusedMark; readFailure?: true };
 
 /** Resolve this checkout's own folder through its marker claim, preserving refusal diagnostics. */
 export async function resolveLocatedAdoption(root: ProjectionSelectionContext, index: BacklogOwnershipInput["index"], path: string): Promise<AdoptionReference> {

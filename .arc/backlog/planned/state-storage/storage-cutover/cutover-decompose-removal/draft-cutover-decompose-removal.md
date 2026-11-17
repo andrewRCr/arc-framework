@@ -35,10 +35,11 @@ version in `lib/decompose/` survives with `handlers/decompose-store.ts` and the 
 - **#25's deletion set,** which this draft holds: every module the store version does not import, with
   `decompose-candidate.ts`'s callers in teardown (`verbs/teardown.ts`) and in-flight derivation
   (`in-flight-derivation.ts`). `cutover-flip` takes #25's representative rehearsal cut and workflow end state.
-- **What `cutover-in-repo-removal` leaves for it:** each module the old machine still imports, deleted with
-  its last caller: the transition-record cluster, `transition-overlay.ts`, `artifactMatcher` and
-  `pruneEmptyBacklogSource`, `resolveProjectReadinessViewInput`, and the `ProtectionMode` type where nothing else
-  uses them (`cohort-storage-cutover.md` § Coordination).
+- **What `cutover-in-repo-removal` leaves for it:** each module the old machine reaches, directly or through what it
+  calls, deleted with its last caller: the transition-record cluster, `transition-overlay.ts`, `artifactMatcher` and
+  `pruneEmptyBacklogSource`, `resolveProjectReadinessViewInput`, `deriveInFlight` (`lib/git/in-flight-derivation.ts`)
+  and the readers it reaches, `remote-ref-reader.ts`'s meta-at-ref readers among them, and the `ProtectionMode` type
+  where nothing else uses them (`cohort-storage-cutover.md` § Coordination).
 
 ---
 
@@ -68,5 +69,25 @@ None on unlanded members.
   today's separate finish-preview stop gone.
 
 - _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
+
+### `[ ]` **Remove the `--advance-base` parse and render leftovers with the old decomposition machine**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its Scope, the old machine's deletion set, beside the store version that survives in `lib/decompose/`.
+
+- _Observation:_ `cutover-tracked-state-removal` removes `arc decompose`'s `--advance-base` and `--finish` given a map,
+  with their `cli.ts` registrations and the store arm's refusals, and leaves the repository arm's handling for this
+  work unit. Three pieces of it sit in modules that outlive the old machine: `v3DecomposeAdvanceBaseArgv` and
+  `renderV3DecomposeAdvanceBaseCommand` (`lib/work-unit/decompose-command-renderer.ts`, whose only caller is
+  `decompose-v3-refusal.ts`), the `"advanceBase"` mode key (`lib/work-unit/decompose-command-routing.ts`), and the
+  input schema's field with its `option.advance-base` mapping (`handlers/decompose.ts`). This draft keeps
+  `decompose-command-renderer.ts` among the survivors, so without an owner they stay as orphaned references to a
+  removed option.
+
+- _Approach:_ delete the three with the old machine's last caller, and check `--finish`'s map form the same way.
+
+- _Captured during:_ `cutover-tracked-state-removal` design review, pass 3's fix check, 2026-11-10 (Owner-approved; the
+  target has no session).
 
 ---
