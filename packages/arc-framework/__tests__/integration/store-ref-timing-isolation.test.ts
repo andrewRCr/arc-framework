@@ -7,7 +7,8 @@ import { makeVitestControllerFixture, runVitestControllerFixture } from "../help
 import { nestedRunLimit } from "../helpers/call-limit.js";
 import { localVitestTierArguments } from "../../src/lib/local-vitest-runner.js";
 
-const isolatedSuites = ["store-ref-timing", "store-ref-projection-timing", "store-ref-bursts", "store-ref-projection-bursts"];
+const isolatedSuites = ["store-ref-timing", "store-ref-projection-timing", "store-ref-bursts", "store-ref-projection-bursts-default",
+  "store-ref-projection-bursts-separate"];
 const selectedSuites = ["store-ref-parallel-a", "store-ref-parallel-b", ...isolatedSuites];
 
 it("runs timing and bursts once without overlap while ordinary store suites still overlap", async () => {
