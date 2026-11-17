@@ -1,4 +1,5 @@
 /** Projected conflict notices preserve addresses and remedies without guessing placement. */
+import { writeBackFixturePath } from "../../../helpers/store/projection/write-back-fixture.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { createStoredConflictFixture } from "../../../helpers/store/projection/stored-conflict-fixture.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
@@ -22,7 +23,7 @@ describe("record conflict rendering", () => {
     const conflict = fixture.conflicts[0];
     if (conflict === undefined) throw new Error("Conflict missing");
     const content = fixture.record.content.replace("left", "later left");
-    const rendered = await renderRecordContent({ store: fixture.store, memo: fixture.context.memo }, { record: fixture.record, content, stamped: true });
+    const rendered = await renderRecordContent({ store: fixture.store, memo: fixture.context.memo }, { path: fixture.path, record: fixture.record, content, stamped: true });
     expect(rendered.status).toBe("ok");
     if (rendered.status !== "ok") throw new Error("Render refused");
     const token = formatConflictToken(conflict.reference);
@@ -41,7 +42,7 @@ describe("record conflict rendering", () => {
       incoming: base.replace("base first", "incoming first").replace("base second", "incoming second") });
     fixtures.push(fixture);
     const content = fixture.record.content.replace("left first", "later left first");
-    const rendered = await renderRecordContent({ store: fixture.store, memo: fixture.context.memo }, { record: fixture.record, content, stamped: false });
+    const rendered = await renderRecordContent({ store: fixture.store, memo: fixture.context.memo }, { path: fixture.path, record: fixture.record, content, stamped: false });
     expect(rendered.status).toBe("ok");
     if (rendered.status !== "ok") throw new Error("Render refused");
     expect(rendered.result.notices).toEqual([]);
@@ -72,16 +73,16 @@ describe("record conflict rendering", () => {
     const data = ConflictRecordSchema.parse(JSON.parse(success(await fixture.store.read({ reference })).content));
     expect(data.location.kind).toBe("record");
     const context = { store: fixture.store, memo: createHistoryMemo(fixture.store) };
-    const rendered = success(await renderRecordContent(context, { record, content: record.content, stamped: true }));
+    const rendered = success(await renderRecordContent(context, { path: writeBackFixturePath(record.reference), record, content: record.content, stamped: true }));
     expect(rendered.content).toBe(record.content);
     expect(rendered.state.markers).toBeNull();
     expect(rendered.state.notices).toEqual([reference]);
     expect(rendered.notices[0]).toContain(formatConflictToken(reference));
     // Omitting a prior notice from the content never resolves its stored conflict.
-    expect(success(await renderRecordContent(context, { record, content: record.content, stamped: true })).notices).toEqual(rendered.notices);
+    expect(success(await renderRecordContent(context, { path: writeBackFixturePath(record.reference), record, content: record.content, stamped: true })).notices).toEqual(rendered.notices);
     success(await fixture.store.write({ ...update(fixture, record, record.content), resolves: record.conflicts }));
     const repaired = success(await fixture.store.read({ reference: base.reference }));
-    expect(success(await renderRecordContent(context, { record: repaired, content: repaired.content, stamped: true })).notices).toEqual([]);
+    expect(success(await renderRecordContent(context, { path: writeBackFixturePath(repaired.reference), record: repaired, content: repaired.content, stamped: true })).notices).toEqual([]);
   });
 
   it("shows an entry merge's prose hunk spanning an entry as a notice", async () => {
@@ -92,7 +93,7 @@ describe("record conflict rendering", () => {
     fixtures.push(fixture);
     expect(fixture.conflicts.map(conflict => conflict.data.location.kind)).toEqual(["hunk"]);
     const rendered = success(await renderRecordContent({ store: fixture.store, memo: fixture.context.memo },
-      { record: fixture.record, content: fixture.record.content, stamped: true }));
+      { path: fixture.path, record: fixture.record, content: fixture.record.content, stamped: true }));
     expect(rendered.state.markers).toBeNull();
     expect(rendered.state.notices).toEqual(fixture.record.conflicts);
     expect(rendered.notices[0]).toContain("arc save --resolve");
@@ -111,7 +112,7 @@ describe("record conflict rendering", () => {
     const content = fixture.record.content.replace("stored first\n", renderer.render(first.data, { shows: "stored", conflict: first.reference }))
       + renderer.render(first.data, { shows: "checkout" });
     const rendered = success(await renderRecordContent({ store: fixture.store, memo: fixture.context.memo },
-      { record: fixture.record, content, markerLength: renderer.length, stamped: true }));
+      { path: fixture.path, record: fixture.record, content, markerLength: renderer.length, stamped: true }));
     expect(rendered.state.markers?.sets).toEqual([{ shows: "stored", conflict: first.reference },
       { shows: "stored", conflict: second.reference }, { shows: "checkout" }]);
     expect(scanMarkerSets(rendered.content, rendered.state.markers?.length ?? 0)).toHaveLength(3);
@@ -130,11 +131,11 @@ describe("record conflict rendering", () => {
     const content = fixture.record.content.replace("stored first\n", renderer.render(first.data, { shows: "stored", conflict: first.reference }))
       + renderer.render(first.data, { shows: "checkout" });
     const context = { store: fixture.store, memo: fixture.context.memo };
-    const rendered = success(await renderRecordContent(context, { record: fixture.record, content, markerLength: renderer.length, stamped: true }));
+    const rendered = success(await renderRecordContent(context, { path: fixture.path, record: fixture.record, content, markerLength: renderer.length, stamped: true }));
     expect(rendered.state.markers?.length).toBe(11);
     expect(scanMarkerSets(rendered.content, 11)).toHaveLength(3);
     expect(rendered.content.match(/^<!-- arc-resolve-by-hand:/gmu)).toHaveLength(3);
-    const again = success(await renderRecordContent(context, { record: fixture.record, content: rendered.content, markerLength: 11, stamped: true }));
+    const again = success(await renderRecordContent(context, { path: fixture.path, record: fixture.record, content: rendered.content, markerLength: 11, stamped: true }));
     expect(again).toEqual(rendered);
   });
 
@@ -147,7 +148,7 @@ describe("record conflict rendering", () => {
       ? { ...common, class: "recoverable", reference: fixture.entry.reference, historyRefs: [] }
       : { ...common, class: "terminal", namespace: "memory" }));
     const render = () => renderRecordContent({ store: boundary.store, memo: createHistoryMemo(boundary.store) },
-      { record: fixture.record, content: fixture.record.content, stamped: true });
+      { path: fixture.path, record: fixture.record, content: fixture.record.content, stamped: true });
     const held = success(await render());
     expect(held.state).toMatchObject({ markers: null, notices: fixture.record.conflicts });
     expect(held.notices).toHaveLength(1);
@@ -163,13 +164,13 @@ describe("record conflict rendering", () => {
       current: "left\nstored\nright\n", incoming: "left\nincoming\nright\n" });
     fixtures.push(fixture);
     const context = { store: fixture.store, memo: fixture.context.memo };
-    const drawn = success(await renderRecordContent(context, { record: fixture.record, content: fixture.record.content, stamped: true }));
+    const drawn = success(await renderRecordContent(context, { path: fixture.path, record: fixture.record, content: fixture.record.content, stamped: true }));
     const conflict = fixture.record.conflicts[0];
     if (conflict?.owner.type !== "work-item" || conflict.owner.uid === undefined) throw new Error("Stored work-item generation missing");
     success(await fixture.store.write({ action: "put", reference: fixture.entry.reference, expected: fixture.record.version,
       content: "left\nresolved elsewhere\nright\n", resolves: fixture.record.conflicts, provenance: { verb: "edit", lifecycleAction: "edit" } }));
     const closed = success(await fixture.store.read({ reference: fixture.entry.reference }));
-    const kept = success(await renderRecordContent(context, { record: closed, content: drawn.content + "hand note\n",
+    const kept = success(await renderRecordContent(context, { path: fixture.path, record: closed, content: drawn.content + "hand note\n",
       markerLength: drawn.state.markers?.length, stamped: true }));
     expect(kept.state.markers?.sets).toEqual([{ shows: "stored", conflict }]);
     expect(kept.notices).toEqual([]);

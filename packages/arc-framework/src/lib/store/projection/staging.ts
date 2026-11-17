@@ -42,7 +42,7 @@ export async function stageRecordFile(input: {
   layMode: ProjectionLayMode; readOnly?: boolean; renderer: RecordRenderer; content?: string; markerLength?: number;
   rendering?: Pick<RenderedFileState, "refused" | "keepPending">;
 }): Promise<StoreResult<StagedFile>> {
-  const rendered = await input.renderer({ record: input.record, content: input.content ?? input.record.content,
+  const rendered = await input.renderer({ path: input.path, record: input.record, content: input.content ?? input.record.content,
     stamped: input.path.endsWith(".md"), markerLength: input.markerLength });
   if (rendered.status === "refused") return rendered;
   const staged = await stageRenderedRecordFile({ ...input, content: rendered.result.content, notices: rendered.result.notices,

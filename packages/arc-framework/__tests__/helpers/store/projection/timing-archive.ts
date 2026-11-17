@@ -53,13 +53,13 @@ export async function expandSettledTimingArchive(checkout: string, template: Pre
           ? resolveArcPath({ kind: "work-unit-companion", slug, placement, key: record.reference.key }) : null;
       if (path === null) throw new Error("Unsupported native archive timing record");
       const entry = projectionEntryForRecord(record, path, "sha1");
-      const rendered = success(await renderer({ record, content: record.content, stamped: true }));
+      const rendered = success(await renderer({ path, record, content: record.content, stamped: true }));
       const bytes = renderStampedFile({ content: rendered.content, stamp: entry.base.blob, notices: rendered.notices });
       const absolute = join(checkout, path), folder = dirname(absolute);
       if (!folders.has(folder)) { await mkdir(folder, { recursive: true }); folders.add(folder); }
       await chmod(absolute, 0o644).catch(error => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; });
       await writeFile(absolute, bytes);
-      if (rendered.protected) await chmod(absolute, 0o444);
+      await chmod(absolute, 0o444);
       entries[path] = { ...entry, pending: false, stat: await readStat(absolute), written: gitBlobId(bytes, "sha1"),
         protected: rendered.protected ?? false, markers: rendered.state.markers, notices: rendered.state.notices, unshown: rendered.state.unshown };
     }

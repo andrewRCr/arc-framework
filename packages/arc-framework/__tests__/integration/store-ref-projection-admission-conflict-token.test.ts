@@ -30,7 +30,7 @@ for (const backend of ["reference", "default", "separate"] as const) {
       const only = current.conflicts[0];
       if (!only) throw new Error("Expected a real filed conflict");
       const conflict = success(await f.store.read({ reference: only }));
-      const rendered = success(await createRecordRenderer({ store: f.store })({ record: current,
+      const rendered = success(await createRecordRenderer({ store: f.store })({ path: h.path, record: current,
         content: current.content, stamped: true }));
       expect(rendered.state).toMatchObject({ markers: null, notices: [only] });
       const blob = gitBlobId(current.content, "sha1");

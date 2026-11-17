@@ -20,7 +20,7 @@ it("keeps newer entry text through a notice, independent save, and explicit reso
   success(await f.store.write({ action: "put", reference: f.entry.reference, expected: f.record.version,
     content: newer, provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const record = success(await f.store.read({ reference: f.entry.reference }));
-  const unshown = success(await renderRecordContent(f.context, { record, content: newer, stamped: false }));
+  const unshown = success(await renderRecordContent(f.context, { path: f.path, record, content: newer, stamped: false }));
   expect(unshown).toMatchObject({ content: newer, notices: [], state: { markers: null, unshown: record.conflicts } });
   const index = await refreshWriteBackFixture(f, f.index);
   const entry = index.entries[f.path];

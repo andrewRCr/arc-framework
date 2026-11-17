@@ -78,29 +78,15 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
         - Coverage exercises spawn, rebuild, sync restoration, refresh, fan-out, adopted read-back, clashes, path
           moves and ownership arrivals, including unchanged files kept in place with their modes.
 
-### `[ ]` **1.4 The `arc edit` notice — § 2.2**
+### `[x]` **1.4 The `arc edit` notice — § 2.2**
 
 - _Goal:_ Every archived Markdown file whose edit rights allow the edit carries a notice line naming `arc edit <path>`
   then `arc save`, the same whether or not the file is opened, so opening a file and re-locking an unchanged one change
   only its mode, never its bytes.
 
-    - `protectRenderedContent` (`record-render.ts`) adds the notice beside the rights' own for a record placed in
-      `completed/` whose rights allow the edit; another person's archived work keeps the rights' notice naming its
-      owner, and a file other than Markdown carries no notice line.
-    - The renderer learns the placement from the projected path its caller passes in `RecordRenderInput`, which today
-      carries only whether the file is stamped; the path is required, so the type names every caller.
-      `stageRecordFile` and `prepareMaterializationFile` each hold the path, as does a conflicted refresh, which calls
-      the renderer directly (`prepareConflictedRefresh`, `conflicted-refresh.ts`); the lay mode reads the same path.
-    - The notice says that `arc edit` opens the file for editing rather than opening an editor.
-    - Existing tests that call the renderer directly pass the path (`notes-projection-team-scale.md` § Test migrations).
-
-    - Build `test-first` (one behavior at a time):
-        - an owner's archived Markdown file, an archived cohort document, and an owner's archived Errand description
-          each carry the notice
-        - another person's archived work carries the rights' notice naming its owner, and an in-flight file carries
-          neither
-        - an archived file other than Markdown carries no notice line
-        - the bytes laid for an opened file and for the same file not opened are identical
+- _Outcome:_ Render inputs require the projected path. Editable archived Markdown carries the open-then-save
+  notice; protected files retain their rights notice, and other formats carry none. Opening and refreshing the same
+  archive file preserves its bytes and inode.
 
 ### `[ ]` **1.5 `arc status` lists opened files — § 4**
 

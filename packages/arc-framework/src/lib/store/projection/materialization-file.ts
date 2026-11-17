@@ -68,7 +68,7 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   // A path at or below a walked link waits for the link's own report and remedy; its file lives elsewhere.
   if (input.blocked) return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }) };
   if (input.rebuilding) entry = await rebuildBasis(input, entry);
-  const rendered = input.rendered === undefined ? await renderer({ record, content: record.content, stamped: path.endsWith(".md") })
+  const rendered = input.rendered === undefined ? await renderer({ path, record, content: record.content, stamped: path.endsWith(".md") })
     : { status: "ok" as const, result: input.rendered };
   if (rendered.status === "refused") {
     const mark = markStoreRefusal(rendered.refusal);

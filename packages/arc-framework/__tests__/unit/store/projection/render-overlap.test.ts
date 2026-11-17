@@ -35,7 +35,7 @@ describe("rendered conflict overlap", () => {
     expect(record.conflicts).toHaveLength(2);
     const ordered = [...record.conflicts].sort((a, b) => formatConflictToken(a) < formatConflictToken(b) ? -1 : 1);
     const rendered = success(await renderRecordContent({ store: fixture.store, memo: fixture.context.memo },
-      { record, content: record.content, stamped }));
+      { path: fixture.path, record, content: record.content, stamped }));
     expect(rendered.state.markers?.sets).toEqual([{ shows: "stored", conflict: ordered[0] }]);
     expect(rendered.state.notices).toEqual(stamped ? [ordered[1]] : []);
     expect(rendered.state.unshown).toEqual(stamped ? [] : [ordered[1]]);
@@ -62,7 +62,7 @@ describe("rendered conflict overlap", () => {
     const ordered = [...record.conflicts].sort((a, b) => formatConflictToken(a) < formatConflictToken(b) ? -1 : 1);
     expect(ordered).toHaveLength(2);
     const rendered = success(await renderRecordContent({ store: fixture.store, memo: fixture.context.memo },
-      { record, content: record.content, stamped: true }));
+      { path: fixture.path, record, content: record.content, stamped: true }));
     expect(rendered.state.markers?.sets).toEqual([{ shows: "stored", conflict: ordered[0] }]);
     expect(rendered.state.notices).toEqual([ordered[1]]);
   });

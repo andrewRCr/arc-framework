@@ -44,7 +44,7 @@ export async function prepareConflictedRefresh(context: ConflictedRefreshContext
     currentLabel: { actor: input.current.version, time }, incomingLabel: { actor: context.actor, time } });
   if (merged.conflicts.length > 0) return pending({ reason: "A stored change overlaps an unresolved marker set.",
     remedy: { text: "Resolve the file's open markers and save again; a later command will retry the refresh." } });
-  const rendered = await renderRecordContent(context, { record: input.current, content: merged.content,
+  const rendered = await renderRecordContent(context, { path: input.path, record: input.current, content: merged.content,
     markerLength: incoming.length, stamped });
   return rendered.status === "refused" ? pending({ reason: rendered.refusal.condition, remedy: rendered.refusal.remedy })
     : { kind: "ready", rendered: rendered.result };

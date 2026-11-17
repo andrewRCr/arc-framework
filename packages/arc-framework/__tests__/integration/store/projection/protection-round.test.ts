@@ -76,7 +76,7 @@ it("renders one owner's files with one meta read and one worktree listing", asyn
   const protection = createProjectionProtection({ store, checkout: h.checkout, identity: SlugSchema.parse("alice"), exec, evidence });
   const render = createRecordRenderer({ store: source, memo: createHistoryMemo(store), protection });
   for (const record of [h.primary, h.tasks]) {
-    const rendered = success(await render({ record, content: record.content, stamped: true }));
+    const rendered = success(await render({ path: h.path, record, content: record.content, stamped: true }));
     expect(rendered).toMatchObject({ protected: true });
     expect(rendered.notices.join("\n")).toContain(h.holder);
   }
@@ -95,7 +95,7 @@ function renderer(h: Awaited<ReturnType<typeof fixture>>) {
 it("refuses a later edit at the current holder while a completed render keeps its earlier observation", async () => {
   const h = await fixture();
   const render = renderer(h);
-  const prior = success(await render({ record: h.primary, content: h.primary.content, stamped: true }));
+  const prior = success(await render({ path: h.path, record: h.primary, content: h.primary.content, stamped: true }));
   expect(prior.notices.join("\n")).toContain(h.holder);
   const entry = h.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("Projection entry missing");
@@ -113,9 +113,9 @@ it("refuses a later edit at the current holder while a completed render keeps it
   expect(taken).toMatchObject({ status: "done", value: { answer: "refused", mark: { remedy: { text: expect.stringContaining(moved) } } } });
   expect(await readFile(join(h.checkout, h.path), "utf8")).toBe(edited);
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
-  expect(success(await render({ record: h.primary, content: h.primary.content, stamped: true })).notices.join("\n")).not.toContain(moved);
+  expect(success(await render({ path: h.path, record: h.primary, content: h.primary.content, stamped: true })).notices.join("\n")).not.toContain(moved);
   await writeFile(join(h.checkout, h.path), renderStampedFile({ content: h.primary.content, stamp: entry.base.blob, notices: prior.notices }));
-  const fresh = success(await renderer(h)({ record: h.primary, content: h.primary.content, stamped: true }));
+  const fresh = success(await renderer(h)({ path: h.path, record: h.primary, content: h.primary.content, stamped: true }));
   expect(fresh.notices.join("\n")).toContain(moved);
 });
 

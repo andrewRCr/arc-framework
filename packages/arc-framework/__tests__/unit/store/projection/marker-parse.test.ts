@@ -28,7 +28,7 @@ describe("marker parse-back", () => {
   it.each([false, true])("preserves an unchanged EOF conflict with stamped=%s through an independent edit", async stamped => {
     const fixture = await createMarkerFixture({ base: "heading\nbase", current: "heading\nstored", incoming: "heading\nincoming" });
     fixtures.push(fixture);
-    const rendered = await fixture.context.renderer({ record: fixture.record, content: fixture.record.content, stamped });
+    const rendered = await fixture.context.renderer({ path: fixture.path, record: fixture.record, content: fixture.record.content, stamped });
     if (rendered.status !== "ok" || rendered.result.state.markers === null) throw new Error("No rendered EOF conflict");
     const { content, state } = rendered.result;
     expect(content.endsWith("\n")).toBe(false);
