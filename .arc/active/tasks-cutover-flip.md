@@ -191,7 +191,7 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   any other command throws the refusal. `projectionSwitchedOff` (`process-state.ts`) now decides every site that tested
   for `switch`. No hook command's action, and no commit- or push-gate check here, composes a store or runs `arc`.
 
-### `[ ]` **2.3 `arc sync` onto `pull` and `push`, with ADR-035's item 2 amendment — § 4.1, § 16**
+### `[x]` **2.3 `arc sync` onto `pull` and `push`, with ADR-035's item 2 amendment — § 4.1, § 16**
 
 - _Goal:_ On an off-branch store, `arc sync` pulls then pushes the store after the rebuild of deleted files, publishing
   state first and alone whatever the branch push's outcome, reporting each leg and the push's tripwire figures, running
@@ -210,11 +210,10 @@ the fence harness pass over the ref backend; and the full suite passes with no b
           `prompt.sync.store-designation` site, and reports a cancelled or failed designation with its remedy as it
           reports an unanswered one. `arc sync`'s help, which still names the notes leg, joins Task 4.2.c (A11).
 
-    - `[ ]` **2.3.b ADR-035's item 2 amendment**
-        - A dated amendment in its § Amending This Document: `arc sync` publishes state first and alone and reports each
-          leg separately, rather than carrying state in the branch's `--atomic` push; a task capture may already name an
-          unpushed commit, so no reader changes. It states that it supersedes the 2026-09-29 amendment's order, code leg
-          first, for when `--atomic` is unavailable.
+    - `[x]` **2.3.b ADR-035's item 2 amendment**
+        - ADR-035's 2026-11-17 amendment: `arc sync` publishes state first and alone and reports each push, rather than
+          carrying state in the branch's `--atomic` push, grounded in task close's local reachability check and the
+          copy key's author and patch ID; it supersedes the 2026-09-29 amendment's code-first order and keeps the rest.
 
 ### `[x]` **2.4 The capture gates' `arc inbox` reads over the ref backend — § 4.2**
 

@@ -259,6 +259,16 @@ code remote holds no notes refs, and no other machine keeps a clone past the qui
 copy. It is deleted after the quiesce → import → flip window, together with the other leftover notes refs that notes
 sync made. Notes still retire through the one-time import.
 
+**Amendment (2026-11-17):** The cutover refines item 2's push order for `arc sync`. Sync publishes state first and
+alone, whatever its branch push's outcome, and reports each push separately, rather than carrying the state refs in the
+branch's `--atomic` push, so a slow or failing push gate on the branch no longer holds state back. Sync paired the two
+pushes while state lived in Git notes, which are keyed to commits; the store keys nothing to a commit a remote must
+hold. A task capture may already name a commit no remote holds, since task close checks only that the commit is
+reachable locally, and a capture's copy key, built from the commit's author and patch ID, survives a rebase that leaves
+the patch text unchanged; no reader changes. This supersedes the 2026-09-29 amendment's order where `--atomic` is
+unavailable, code leg first and state leg second: sync publishes state first there too, and the rest of that amendment
+stands.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md
