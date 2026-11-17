@@ -1,4 +1,5 @@
 /** Advisory fan-out refuses unavailable destinations and leaves each command's recovery path intact. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -56,15 +57,15 @@ it("reports an unreadable marker and continues the write, then refreshes after t
 it("skips an older index format and leaves its next command to rebuild it", async () => {
   const h = await createFanOutFixture(directories), path = join(h.sibling.location.stateDir, "index"), before = await h.file();
   const header = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
-  await writeFile(path, JSON.stringify({ ...header, format: 1 }));
+  await writeFile(path, JSON.stringify({ ...header, format: 2 }));
   expect(await write(h, "Stored after the sibling's format expired.\n")).toMatchObject({ status: "ok" });
   expect(await h.file()).toBe(before);
-  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: 1 });
+  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: 2 });
   await endProjection(h.input);
   expect(await startProjection({ store: h.h.store, checkout: h.sibling.checkout, location: h.sibling.location,
     ports: () => createProjectionEnginePorts(h.sibling.checkout) })).toMatchObject({ kind: "ready" });
   expect(await h.file()).toContain("Stored after the sibling's format expired.");
-  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: 2 });
+  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: PROJECTION_INDEX_FORMAT });
 });
 
 it("skips an unresolvable anchor without inventory reads, then rebuilds it at the next command", async () => {

@@ -1,4 +1,5 @@
 /** Hand edits pass through preparation and the store without taking over the caller's projection state. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +37,7 @@ beforeEach(async () => {
 afterEach(async () => { vi.restoreAllMocks(); await rm(checkout, { recursive: true, force: true }); });
 
 function indexFor(path: string, entry: RecordEntry): ProjectionIndex {
-  return { format: 2, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
+  return { format: PROJECTION_INDEX_FORMAT, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("test-user"), claim: null, layoutActive: "nested" },
     entries: { [path]: entry } };
 }

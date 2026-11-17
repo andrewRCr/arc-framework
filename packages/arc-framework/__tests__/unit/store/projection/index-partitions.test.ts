@@ -1,4 +1,5 @@
 /** The header commits content-addressed root partitions independently of unloaded roots. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,7 +26,7 @@ afterEach(async () => { await rm(checkout, { recursive: true, force: true }); })
 const held = { kind: "ownerless" as const, stat: { type: "file" as const, size: 0n, ino: 18_446_744_073_709_551_615n, mtimeNs: 1_761_234_567_890_123_456n },
   refused: { reason: "unadoptable", remedy: { text: "Repair ownership." } } };
 function index(): ProjectionIndex {
-  return { format: 2, state: null, projectedUnder: { identity: SlugSchema.parse("andrew"), claim: null,
+  return { format: PROJECTION_INDEX_FORMAT, state: null, projectedUnder: { identity: SlugSchema.parse("andrew"), claim: null,
     layoutActive: "nested", view: { mode: "mine", pins: [] } }, withheldCopies: [], tripwires: {},
   ignoreFiles: null, ignoreGuard: null, entries: {
     ".arc/active/current/a.md": held,

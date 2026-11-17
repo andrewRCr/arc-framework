@@ -1,4 +1,5 @@
 /** A real projection seeded from a store: stamped files at the paths a test gives, and the index that matches them. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { link, lstat, mkdir, readFile, realpath, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -58,7 +59,7 @@ export async function seedProjection(input: {
   const index = await commitProjectionIndex({
     location, checkout,
     index: {
-      format: 2, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries,
+      format: PROJECTION_INDEX_FORMAT, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries,
       projectedUnder: {
         view: { mode: "mine", pins: [] }, identity: input.identity ?? SlugSchema.parse("andrew"), claim: null,
         layoutActive: "nested",

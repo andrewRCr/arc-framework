@@ -1,4 +1,5 @@
 /** A file-backed projection over the memory store, without a Git process. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -88,7 +89,7 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     base: { blob, version: read.result.version }, markers: null, notices: [], unshown: [], protected: false,
     changed: false, pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
   const index: ProjectionIndex = await commitProjectionIndex({ location, checkout, index: {
-    format: 2, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity, claim, layoutActive: "nested" },
+    format: PROJECTION_INDEX_FORMAT, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity, claim, layoutActive: "nested" },
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];

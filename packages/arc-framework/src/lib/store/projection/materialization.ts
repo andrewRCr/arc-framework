@@ -34,7 +34,7 @@ import { sameReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionSource } from "./record-source.js";
 import type { ProjectionConfiguration } from "./configuration.js";
-import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
 
@@ -66,7 +66,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
   if (!excluded.ok) throw excluded.error;
-  let index: ProjectionIndex = input.index ?? { format: 2, state: null, entries: {}, withheldCopies: [], tripwires: {},
+  let index: ProjectionIndex = input.index ?? { format: PROJECTION_INDEX_FORMAT, state: null, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;

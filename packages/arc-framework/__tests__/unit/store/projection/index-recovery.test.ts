@@ -1,4 +1,5 @@
 /** Publication failures and lock-free readers recover through the header's whole-index boundary. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { copyFileSync, readdirSync, rmSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -58,7 +59,7 @@ function location() {
   return { gitDir, commonDir: gitDir, primary: true, stateDir: fault.stateDir };
 }
 function index(): ProjectionIndex {
-  return { format: 2, state: null, projectedUnder: { identity: SlugSchema.parse("andrew"), claim: null,
+  return { format: PROJECTION_INDEX_FORMAT, state: null, projectedUnder: { identity: SlugSchema.parse("andrew"), claim: null,
     layoutActive: "nested", view: { mode: "mine", pins: [] } }, withheldCopies: [], tripwires: {}, ignoreFiles: null,
   ignoreGuard: null, entries: { [path]: entry } };
 }

@@ -1,4 +1,5 @@
 /** Reading a checkout's projection index, and what a command makes of one it cannot use. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +10,7 @@ import { type ProjectionIndex } from "../../../../src/lib/store/projection/index
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 
 const index: ProjectionIndex = {
-  format: 2, state: null,
+  format: PROJECTION_INDEX_FORMAT, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
   withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
 };
@@ -38,7 +39,7 @@ describe("reading a checkout's index", () => {
   it.each([
     ["missing", undefined],
     ["unreadable", "{\"format\":1,"],
-    ["unreadable", JSON.stringify({ format: 2 })],
+    ["unreadable", JSON.stringify({ format: PROJECTION_INDEX_FORMAT })],
     ["other-format", JSON.stringify({ format: 0 })],
     ["other-format", JSON.stringify({ format: 1 })],
   ] as const)("reads a checkout holding a projection as unusable, %s", async (cause, content) => {

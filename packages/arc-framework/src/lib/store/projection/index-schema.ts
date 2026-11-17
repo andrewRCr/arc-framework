@@ -9,7 +9,7 @@ import { RemedySchema } from "../refusal.js";
 import { isProjectionIndexGroup, projectionIndexGroup } from "./index-memory.js";
 
 /** The index format this build reads and writes. */
-export const PROJECTION_INDEX_FORMAT = 2;
+export const PROJECTION_INDEX_FORMAT = 3;
 
 /** A Git blob id in the repository's object format, SHA-1 or SHA-256. */
 export const BlobIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);

@@ -1,4 +1,5 @@
 /** The ignore files a guard pass rests on, recorded in the index and compared by the racy rule, over real files. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { lstat, mkdir, mkdtemp, rm, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -29,7 +30,7 @@ beforeEach(async () => {
 afterEach(async () => { await rm(checkout, { recursive: true, force: true }); });
 
 const EMPTY_INDEX: ProjectionIndex = {
-  format: 2, state: null,
+  format: PROJECTION_INDEX_FORMAT, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
   withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
 };

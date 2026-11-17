@@ -1,4 +1,5 @@
 /** The integration guard holds every index header and partition the writer's file seam publishes against the schemas. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,7 +20,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { await rm(checkout, { recursive: true, force: true }); });
 
-const header = (groups: Record<string, unknown>) => JSON.stringify({ format: 2, state: null,
+const header = (groups: Record<string, unknown>) => JSON.stringify({ format: PROJECTION_INDEX_FORMAT, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: "andrew", claim: null, layoutActive: "nested" },
   withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, groups });
 const partition = "index-" + "a".repeat(40);
@@ -41,7 +42,7 @@ it("records a partition holding the paths of two groups", async () => {
 it("ignores files that are no index header or partition, and passes the writer's own index", async () => {
   await atomicWriteFile(join(location.stateDir, "lock"), "not an index");
   await atomicWriteFile(join(checkout, "index"), header({ ".arc/system": {} }));
-  await commitProjectionIndex({ location, checkout, index: { format: 2, state: null, entries: {}, withheldCopies: [],
+  await commitProjectionIndex({ location, checkout, index: { format: PROJECTION_INDEX_FORMAT, state: null, entries: {}, withheldCopies: [],
     tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" } } });
   expect(takeProjectionIndexViolations()).toEqual([]);

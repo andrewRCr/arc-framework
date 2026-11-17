@@ -1,4 +1,5 @@
 /** Where a checkout's projection index lives, over a real repository with a linked worktree. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { execFile } from "node:child_process";
 import { access, lstat, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -44,7 +45,7 @@ afterEach(async () => {
 
 function index(state: string): ProjectionIndex {
   return {
-    format: 2, state: StateVersionSchema.parse(state),
+    format: PROJECTION_INDEX_FORMAT, state: StateVersionSchema.parse(state),
     projectedUnder: {
       view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested",
     },

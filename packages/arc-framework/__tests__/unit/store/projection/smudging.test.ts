@@ -1,4 +1,5 @@
 /** Smudging racy entries at each index write, over real files and a real index. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { lstat, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -39,7 +40,7 @@ async function statOf(target: string): Promise<FileStat> {
 
 function indexWith(stat: FileStat, written: string, pending = false): ProjectionIndex {
   return {
-    format: 2, state: null,
+    format: PROJECTION_INDEX_FORMAT, state: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     entries: {

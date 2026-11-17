@@ -1,4 +1,5 @@
 /** Registered Errand exits retain projected primary edits before clearing their claims. */
+import { PROJECTION_INDEX_FORMAT } from "../../src/lib/store/projection/index-schema.js";
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -108,7 +109,7 @@ it.each([
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A primary edit saved before retirement.\n");
   expect(await readFile(join(h.root, h.path), "utf8")).toContain("A primary edit saved before retirement.");
   expect(JSON.parse(await readFile(join(h.location.stateDir, PROJECTION_INDEX_FILE), "utf8"))).toMatchObject({
-    format: 2, groups: { ".arc/user/test-user": { unsettled: false } },
+    format: PROJECTION_INDEX_FORMAT, groups: { ".arc/user/test-user": { unsettled: false } },
   });
 }, 60_000);
 

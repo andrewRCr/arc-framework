@@ -1,4 +1,5 @@
 /** The projection index's strict schema and its JSON form. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { describe, expect, it } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import {
@@ -17,7 +18,7 @@ const remedy = { text: "Repair the entry, then run the command again." };
 
 function fullIndex(): ProjectionIndex {
   return {
-    format: 2,
+    format: PROJECTION_INDEX_FORMAT,
     state: StateVersionSchema.parse("state-7"),
     projectedUnder: {
       view: { mode: "cohort", pins: [SlugSchema.parse("beta")] }, identity: SlugSchema.parse("andrew"),
@@ -130,7 +131,7 @@ describe("the projection index", () => {
       .toBe(false);
   });
 
-  it.each([0, 1, 3])("does not parse an index of format version %i", (format) => {
+  it.each([0, 1, 2, PROJECTION_INDEX_FORMAT + 1])("does not parse an index of format version %i", (format) => {
     const json = JSON.parse(encodeProjectionIndex(fullIndex())) as Record<string, unknown>;
     expect(decodeProjectionIndex({ ...json, format }).success).toBe(false);
   });

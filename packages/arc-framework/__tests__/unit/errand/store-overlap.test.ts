@@ -1,4 +1,5 @@
 /** State targets use store identity while code targets retain Git probes and marker self-exclusion. */
+import { PROJECTION_INDEX_FORMAT } from "../../../src/lib/store/projection/index-schema.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { workUnitHoldersFixture } from "../../helpers/store/work-unit-holders.js";
 import { claimFrame } from "../../helpers/store/claim-frame.js";
@@ -20,7 +21,7 @@ import { PROJECTION_STATE_FOLDER } from "../../../src/lib/store/projection/locat
 
 function indexedRecord(path: string, record: StoreRecord) {
   const blob = gitBlobId(record.content, "sha1");
-  return ProjectionIndexSchema.parse({ format: 2, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
+  return ProjectionIndexSchema.parse({ format: PROJECTION_INDEX_FORMAT, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: "alice", claim: null, layoutActive: "nested" },
     entries: { [path]: { kind: "record", reference: record.reference, stat: null,
       written: gitBlobId(renderStampedFile({ content: record.content, stamp: blob }), "sha1"),

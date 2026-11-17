@@ -32,17 +32,9 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
           unsettled, so the walked load finds it while other archive quarters stay unread; opened ownerless entries
           round-trip and report without a fabricated refusal.
 
-    - `[ ]` **1.1.b The format version**
-        - `PROJECTION_INDEX_FORMAT` moves from 2 to 3 (`index-schema.ts`), and the fresh index
-          `materializeProjectionRoot` builds (`materialization.ts`) takes the constant rather than its literal `2`.
-        - An index of another format reads `unusable` (`decodeHeader`, `index-file.ts`), so its start rebuilds it, and
-          its fan-out and end skip the worktree, as they do for any index a command cannot use.
-        - Existing tests that write the format as a literal take the constant (`notes-projection-team-scale.md`
-          § Test migrations); the integration suites' schema guard checks every index header and partition a test
-          writes against the schema (`index-schema-guard.ts`), so a literal it misses fails there.
-        - Build `test-first` (one behavior at a time):
-            - an index written at format 2 is rebuilt at the next start, and the fan-out and the end skip that worktree
-              until then (Success Criterion 9)
+    - `[x]` **1.1.b The format version**
+        - Format 3 records opened state; materialization and test fixtures use the shared format constant. Format-2
+          indexes stay untouched by fan-out and command end, and rebuild at the next start.
 
     - `[ ]` **1.1.c Adoption and a moved path keep the mark**
         - `recordAdoptionAcceptance` (`adoption-read-back.ts`) and `attachExistingProjectionFile`

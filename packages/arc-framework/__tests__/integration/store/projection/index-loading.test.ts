@@ -1,4 +1,5 @@
 /** Command entry leaves settled archive partitions cold and contains corruption discovered at command end. */
+import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { parseProjectionJson } from "../../../../src/lib/store/projection/index-memory.js";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -45,4 +46,20 @@ it("invalidates a late mismatch in the command's own root while retaining the he
   await expect(access(join(h.location.stateDir, name))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readFile(headerPath, "utf8")).toBe(headerBytes);
   expect(await readProjectionIndex(h.location, true)).toEqual({ kind: "unusable", cause: "unreadable", header: parseProjectionJson(headerBytes) });
+});
+
+it("leaves a format-2 index untouched at command end and rebuilds it at the next start", async () => {
+  const h = await createEngineFixture(directories);
+  await h.edit("A send leaves end settlement to do.\n");
+  const input = { store: h.store, checkout: h.checkout };
+  expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+  const path = join(h.location.stateDir, "index");
+  const header = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  const old = JSON.stringify({ ...header, format: 2 });
+  await writeFile(path, old);
+  await endProjection(input);
+  expect(await readFile(path, "utf8")).toBe(old);
+  expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: PROJECTION_INDEX_FORMAT });
+  await endProjection(input);
 });
