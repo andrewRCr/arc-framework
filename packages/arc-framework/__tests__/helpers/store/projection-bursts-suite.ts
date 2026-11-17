@@ -1,22 +1,25 @@
-/** Saves across process boundaries while native refresh, fan-out, removal, and rebuild replace projected files. */
+/**
+ * Saves across process boundaries while native refresh, fan-out, removal, and rebuild replace projected files,
+ * registered once per storage layout so each layout runs as its own file and takes its own exclusive shard.
+ */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ProjectionHook } from "../fixtures/store/projection-process-protocol.js";
+import type { ProjectionHook } from "../../fixtures/store/projection-process-protocol.js";
 import { projectionBurstFixture, projectionSaveEvidence, preservedProjectionSave, burstEntry, burstContent,
-  BURST_PATH, BURST_REFERENCE, BURST_PROVENANCE, BURST_ORIGINAL, PROJECTION_BURST_TIMEOUT_MS } from "../helpers/store/projection-burst-fixture.js";
-import { success } from "../helpers/store/suite-tools.js";
-import { nameAsideFile } from "../../src/lib/store/projection/aside.js";
-import { gitBlobId } from "../../src/lib/store/projection/blob-id.js";
-import { refSyncFixture } from "../helpers/store/ref-sync.js";
-import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
-import { configureEngineCheckout } from "../helpers/store/projection/engine-fixture.js";
-import { commitProjectionIndex } from "../../src/lib/store/projection/index-file.js";
-import { withProjectionEntry } from "../../src/lib/store/projection/index-memory.js";
-import { observeAsideCopy } from "../../src/lib/store/projection/aside-copies.js";
-import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
-import { canonicalLocalPath } from "../../src/lib/local-path-identity.js";
-import { interruptBurstReplacement, assertPersistedBurstSaves } from "../helpers/store/projection-persist-burst.js";
+  BURST_PATH, BURST_REFERENCE, BURST_PROVENANCE, BURST_ORIGINAL, PROJECTION_BURST_TIMEOUT_MS } from "./projection-burst-fixture.js";
+import { success } from "./suite-tools.js";
+import { nameAsideFile } from "../../../src/lib/store/projection/aside.js";
+import { gitBlobId } from "../../../src/lib/store/projection/blob-id.js";
+import { refSyncFixture } from "./ref-sync.js";
+import { seedProjection } from "./projection/seeded-projection.js";
+import { configureEngineCheckout } from "./projection/engine-fixture.js";
+import { commitProjectionIndex } from "../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../src/lib/store/projection/index-memory.js";
+import { observeAsideCopy } from "../../../src/lib/store/projection/aside-copies.js";
+import { renderStampedFile } from "../../../src/lib/store/projection/stamp.js";
+import { canonicalLocalPath } from "../../../src/lib/local-path-identity.js";
+import { interruptBurstReplacement, assertPersistedBurstSaves } from "./projection-persist-burst.js";
 
 type Fixture = Awaited<ReturnType<typeof projectionBurstFixture>>;
 
@@ -43,7 +46,15 @@ async function placedSaves(f: Fixture, hook: ProjectionHook, create = false): Pr
   console.info(`projection bursts: ${hook}, ${f.roots.length} processes, ${entries.length} completed saves preserved`);
 }
 
-describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate"] as const)("native projection bursts (%s)", layout => {
+/**
+ * Register the native projection bursts for one storage layout; they run only when `ARC_STORE_BURSTS` is `1`.
+ * @param layout - Storage layout every case's fixture uses
+ */
+export function registerProjectionBurstSuite(layout: "default" | "separate"): void {
+  describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")(`native projection bursts (${layout})`, () => burstCases(layout));
+}
+
+function burstCases(layout: "default" | "separate"): void {
   for (const hook of ["beforeAsideCopy", "beforeLastCheck"] as const) it(`keeps twenty rotated saves during persist ${hook}`, async () => {
     const f = await projectionBurstFixture(layout);
     await Promise.all(f.writers.map(writer => writer.send({ action: "open" })));
@@ -150,4 +161,4 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     const evidence = await projectionSaveEvidence({ roots: [h.cloneA], reports: [], stored: BURST_ORIGINAL });
     expect(preservedProjectionSave(saved, evidence)).toBe(state === "edited");
   }, PROJECTION_BURST_TIMEOUT_MS);
-});
+}
