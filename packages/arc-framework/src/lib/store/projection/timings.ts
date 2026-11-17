@@ -17,13 +17,18 @@ export interface ProjectionPerformanceBounds {
   readonly oneFileFanOut: number;
   readonly tenFileFanOut: number;
   readonly materialization: number;
+  readonly saveArchiveGrowth: number;
+  readonly openedStartIncrement: number;
 }
 
 /** Use each platform's calibrated limits; one fan-out notice uses the ten-file bound. */
 export function projectionPerformanceBounds(platform: NodeJS.Platform = process.platform): ProjectionPerformanceBounds {
-  if (platform === "win32") return { start: 145, startTripwire: 200, oneFileFanOut: 2800, tenFileFanOut: 6000, materialization: 8000 };
-  if (platform === "darwin") return { start: 45, startTripwire: 60, oneFileFanOut: 600, tenFileFanOut: 2800, materialization: 4000 };
-  return { start: 20, startTripwire: 25, oneFileFanOut: 300, tenFileFanOut: 750, materialization: 1500 };
+  if (platform === "win32") return { start: 145, startTripwire: 200, oneFileFanOut: 2800, tenFileFanOut: 6000, materialization: 8000,
+    saveArchiveGrowth: 10, openedStartIncrement: 145 - 107.40 };
+  if (platform === "darwin") return { start: 45, startTripwire: 60, oneFileFanOut: 600, tenFileFanOut: 2800, materialization: 4000,
+    saveArchiveGrowth: 10, openedStartIncrement: 45 - 32.04 };
+  return { start: 20, startTripwire: 25, oneFileFanOut: 300, tenFileFanOut: 750, materialization: 1500,
+    saveArchiveGrowth: 5, openedStartIncrement: 20 - 14.64 };
 }
 
 const keys: readonly ProjectionTimingKey[] = ["start", "fan-out", "materialization"];

@@ -1,3 +1,5 @@
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
+import { projectionSaveResult } from "../../src/lib/store/projection/save.js";
 /** Isolated native projection medians with cold archive partitions and twenty real linked destinations. */
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,6 +59,22 @@ async function startCases(checkout: string, observer: ProjectionTimingObserver, 
   const namespace = new TextDecoder().decode((await client.ports.rawExec(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout);
   return {
     files: expected,
+    openArchive: async () => {
+      const index = await indexAt(checkout, client, true);
+      const path = Object.keys(index.entries).find(path => path.startsWith(".arc/completed/"));
+      if (path === undefined) throw new Error("No archived timing record");
+      await openArchivedProjectionFile(input, path);
+      await command(checkout, client); await command(checkout, client);
+    },
+    noChangeSave: async () => {
+      const measured = await observer.measure(async () => {
+        expect(await startProjection({ ...input, mode: "save" })).toMatchObject({ kind: "ready" });
+        expect(await projectionSaveResult(client.store)).toMatchObject({ status: "ok" });
+        await endProjection(input);
+      });
+      expect(projectionProcessState().diagnostics).toEqual([]);
+      return measured.sample;
+    },
     noChange: async () => {
       const measured = await observer.measure(() => startProjection(input));
       expect(measured.value.kind).toBe("ready"); await endProjection(input);
@@ -100,6 +118,34 @@ async function pairedStartMedians(baselineRoot: string, archiveRoot: string, obs
   const summarize = (files: number, retained: typeof baselineSamples) => ({ files, noChange: medianTiming(retained.noChange),
     beneathGit: medianTiming(retained.beneathGit), gitPair: medianTiming(retained.gitPair), gitSingle: medianTiming(retained.gitSingle) });
   return { baseline: summarize(baseline.files, baselineSamples), archive: summarize(archive.files, archiveSamples), pairs };
+}
+
+async function pairedOperationMedians(baseline: () => Promise<TimingSample>, variant: () => Promise<TimingSample>) {
+  const baselineSamples: TimingSample[] = [], variantSamples: TimingSample[] = [];
+  const pairs: { first: "baseline" | "variant"; differenceMs: number }[] = [];
+  for (let iteration = 0; iteration < SAMPLES; iteration++) {
+    const order = iteration % 2 === 0 ? [baseline, variant] : [variant, baseline];
+    for (const measure of order) (measure === baseline ? baselineSamples : variantSamples).push(await measure());
+    pairs.push({ first: order[0] === baseline ? "baseline" : "variant",
+      differenceMs: variantSamples[iteration]!.wallMs - baselineSamples[iteration]!.wallMs });
+  }
+  const differences = pairs.map(pair => pair.differenceMs).sort((left, right) => left - right);
+  return { baseline: medianTiming(baselineSamples), variant: medianTiming(variantSamples), pairs,
+    medianPairedDifferenceMs: differences[Math.floor(differences.length / 2)]! };
+}
+
+async function archiveSaveMedians(baselineRoot: string, archiveRoot: string, observer: ProjectionTimingObserver) {
+  const baseline = await startCases(baselineRoot, observer, 800), archive = await startCases(archiveRoot, observer, 60_320);
+  return { baselineFiles: baseline.files, variantFiles: archive.files,
+    ...await pairedOperationMedians(baseline.noChangeSave, archive.noChangeSave) };
+}
+
+async function openedStartMedians(fixture: Templates, observer: ProjectionTimingObserver, directories: string[]) {
+  const closedRoot = await copyProjectionTimingRepository(fixture.baseline); directories.push(closedRoot);
+  const openedRoot = await copyProjectionTimingRepository(fixture.baseline); directories.push(openedRoot);
+  const closed = await startCases(closedRoot, observer, 800), opened = await startCases(openedRoot, observer, 800);
+  await opened.openArchive();
+  return { baselineOpened: 0, variantOpened: 1, ...await pairedOperationMedians(closed.noChange, opened.noChange) };
 }
 
 async function addLinked(checkout: string, client: Client, owner: Templates["owners"][number], parent: string, name: string) {
@@ -185,7 +231,7 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
 }
 
 describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing", () => {
-  it("reports eleven-sample starts, cold archive growth, fan-outs, and full materialization", async () => {
+  it("reports paired starts, archive saves, opened-start increments, fan-outs, and full materialization", async () => {
     const fixture = await createProjectionTimingTemplates(), directories: string[] = [];
     try {
       const observer = new ProjectionTimingObserver();
@@ -195,6 +241,8 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
       await command(archiveRoot, archiveClient);
       await expandSettledTimingArchive(archiveRoot, fixture.archive, archiveClient.store, archiveClient.enginePorts);
       const { baseline, archive, pairs: archivePairs } = await pairedStartMedians(baselineRoot, archiveRoot, observer);
+      const archiveSave = await archiveSaveMedians(baselineRoot, archiveRoot, observer);
+      const openedStart = await openedStartMedians(fixture, observer, directories);
       const fanOut = await fanOutMedians(fixture, observer, directories);
       const materialization = await materializationMedians(fixture.baseline, fixture.owners, observer, directories);
       const bounds = projectionPerformanceBounds();
@@ -204,10 +252,12 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
         reason: "Process counts and baselines do not establish exposed critical-path delay." };
       const measured = {
         gitSingle: "git for-each-ref --format='%(objectname) %(refname)' refs/arc/, history refs included, which the start's version() excludes",
+        archiveSave: "complete start, save result and end, alternating standard and expanded fixtures",
+        openedStart: "complete starts, alternating two standard fixtures with zero and one archived file opened",
         materialization: "every sample after the first reuses the process-wide lookup capture the first one built",
       };
       const result = { platform: process.platform, node: process.version, samples: SAMPLES, bounds, measured,
-        baseline, archive, archivePairs, fanOut, materialization, rawMediansMs, gitAdjustment, qualifiedMediansMs: rawMediansMs };
+        baseline, archive, archivePairs, archiveSave, openedStart, fanOut, materialization, rawMediansMs, gitAdjustment, qualifiedMediansMs: rawMediansMs };
       const directory = resolve(import.meta.dirname, "../../.test-cost-runs");
       await mkdir(directory, { recursive: true });
       await writeFile(join(directory, "projection-timing.json"), JSON.stringify(result, null, 2) + "\n");
