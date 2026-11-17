@@ -1,3 +1,4 @@
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 /**
  * Unit tests for the `teardown` verb — the arc-state authority gate, branch
  * resolution (slug enumeration + ambiguity), and the presence-guarded dispatch
@@ -7,7 +8,9 @@
  * orchestration is asserted in isolation.
  */
 
+import { makeHuskStamp } from "../../../helpers/worktree-husk-fixture.js";
 import { describe, it, expect, onTestFinished } from "vitest";
+import { fixturePath } from "../../../helpers/fixture-path.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,12 +107,12 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   return {
     readdir: (path) => {
-      const entries = dirs.get(path);
+      const entries = dirs.get(fixturePath(path));
       if (entries === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(entries);
     },
     readFile: (path) => {
-      const content = files.get(path);
+      const content = files.get(fixturePath(path));
       if (content === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(content);
     },
@@ -348,12 +351,14 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
     createdFor: { kind: "work-unit", name: "demo" },
     spawningIdentity: "andrew",
     createdAt: "2026-07-14T19:00:00.000Z",
-    husk: {
+    husk: makeHuskStamp({
       sha: "def",
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "demo" },
       branch: pathBranch,
-    },
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: SHIPPED_RESULT_DIGEST, baseProofOid: "abc" },
+    }),
   };
 }
 
@@ -421,6 +426,8 @@ function branchMarkerWithHusk(branch: string): WorktreeMarker {
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "branch", ref: branch },
       branch,
+      authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest({ subject: { kind: "branch", ref: branch } }), baseProofOid: "abc" },
     },
   };
 }
@@ -950,10 +957,10 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
-    ctx.worktreeFs.readFile = async (path) => path.startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
+    ctx.worktreeFs.readFile = async (path) => fixturePath(path).startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
 
     const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
@@ -970,12 +977,12 @@ describe("runTeardown — linked self-husk", () => {
     const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
     const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
     if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
-    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+    ctx.worktreeFs.readDir = async (path) => fixturePath(path).endsWith("/.arc/user")
       ? [directory("andrew")]
       : [file("FUTURE.md")];
     let linkedReads = 0;
     ctx.worktreeFs.readFile = async (path) => {
-      if (path.startsWith("/repo/.arc/user")) {
+      if (fixturePath(path).startsWith("/repo/.arc/user")) {
         linkedReads += 1;
         return "linked\n";
       }
@@ -1259,7 +1266,7 @@ describe("runTeardown — detached husk replay", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
-      branchDeleteThrows: true,
+      updateRefThrows: true,
       branchSurvivesDelete: true,
     });
     ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
@@ -1272,7 +1279,7 @@ describe("runTeardown — detached husk replay", () => {
     expect(result.branchDeleted).toBe(false);
     expect(result.worktreeRemoved).toBeNull();
     expect(result.notices).toHaveLength(1);
-    expect(result.notices[0]).toMatch(/retry teardown from the husk or primary/iu);
+    expect(result.notices[0]).toMatch(/Could not compare-and-delete local branch/iu);
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
   });
 

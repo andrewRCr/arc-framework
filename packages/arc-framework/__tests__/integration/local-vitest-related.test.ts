@@ -7,6 +7,7 @@ import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { EMPTY_RELATED_SELECTION_EXIT_CODE } from "../../src/lib/local-vitest-runner.js";
 import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 import { gitExec } from "../../src/lib/io-context.js";
 
 const roots: string[] = [];
@@ -50,7 +51,7 @@ it("runs both related unit projects for a supplied source despite a clean Git di
   expect(result.stdout + result.stderr).not.toContain("UNRELATED-UNIT-RAN");
   expect(result.stdout).toContain("2 passed");
   expect(result.stdout).not.toContain("ISOLATION-GUARD-RAN");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it.each([
   { path: "__tests__/unit/named.test.mjs", absolute: false, marker: "RELATED-UNIT-RAN" },
@@ -64,7 +65,7 @@ it.each([
   expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
   expect(result.stdout + result.stderr).not.toContain("UNRELATED-UNIT-RAN");
   expect(result.stdout).toContain("2 passed");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("propagates a selected isolation guard's failure", async () => {
   const setup = await fixture();
@@ -73,7 +74,7 @@ it("propagates a selected isolation guard's failure", async () => {
   const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/named.test.mjs"]);
   expect(result.code, result.stdout + result.stderr).toBe(1);
   expect(result.stdout + result.stderr).toContain("ISOLATION-GUARD-FAILED");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("reports no evidence for an unimported unit helper after running the guard", async () => {
   const setup = await fixture();
@@ -84,7 +85,7 @@ it("reports no evidence for an unimported unit helper after running the guard", 
   expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
   expect(result.stderr).toContain("No unit tests reach the changed files");
   expect((await readFile(setup.events, "utf8")).split("\n").filter(line => line === "initialized")).toHaveLength(1);
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("retains no evidence when native exclusions remove every original related test", async () => {
   const setup = await fixture();
@@ -93,7 +94,7 @@ it("retains no evidence when native exclusions remove every original related tes
   expect(result.code, result.stdout + result.stderr).toBe(EMPTY_RELATED_SELECTION_EXIT_CODE);
   expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
   expect(result.stdout).not.toContain("RELATED-UNIT-RAN");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it.each([false, true])("rejects all-skipped originals with native pre-parsing=%s", async (preParse) => {
   const setup = await fixture(preParse);
@@ -103,7 +104,7 @@ it.each([false, true])("rejects all-skipped originals with native pre-parsing=%s
   expect(result.code, result.stdout + result.stderr).toBe(preParse ? EMPTY_RELATED_SELECTION_EXIT_CODE : 1);
   expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
   expect(result.stderr).toContain(preParse ? "No unit tests reach the changed files" : "No test cases completed");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("keeps the guard for unit helpers reached by an original related test", async () => {
   const setup = await fixture();
@@ -115,7 +116,7 @@ it("keeps the guard for unit helpers reached by an original related test", async
   expect(result.code, result.stdout + result.stderr).toBe(0);
   expect(result.stdout).toContain("HELPER-COVERAGE-RAN");
   expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("counts a direct edit to the guard as original related coverage", async () => {
   const setup = await fixture();
@@ -124,7 +125,7 @@ it("counts a direct edit to the guard as original related coverage", async () =>
   expect(result.code, result.stdout + result.stderr).toBe(0);
   expect(result.stdout.match(/ISOLATION-GUARD-RAN/g)).toHaveLength(1);
   expect(result.stdout).toContain("1 passed");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("preserves a guard failure when the original related selection is empty", async () => {
   const setup = await fixture();
@@ -134,7 +135,7 @@ it("preserves a guard failure when the original related selection is empty", asy
   const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/unimported-helper.mjs"]);
   expect(result.code, result.stdout + result.stderr).toBe(1);
   expect(result.stdout + result.stderr).toContain("ISOLATION-GUARD-FAILED");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("reports an empty related selection with its own status before executing either configured unit project", async () => {
   const setup = await fixture();
@@ -143,7 +144,7 @@ it("reports an empty related selection with its own status before executing eith
   expect(result.stderr).toContain("No unit tests reach the changed files");
   expect(result.stdout).not.toContain("RELATED-UNIT-RAN");
   expect(result.stdout).not.toContain("RELATED-MOCK-RAN");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("keeps a controller-close failure's status when an empty related selection closes the controller", async () => {
   const setup = await fixture();
@@ -153,7 +154,7 @@ it("keeps a controller-close failure's status when an empty related selection cl
   expect(result.stderr).toContain("No unit tests reach the changed files");
   expect(result.stderr).toContain("closing failure retained");
   expect(result.code, result.stderr).toBe(1);
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("declares the empty related selection's status as the related-tests check's no-evidence status", async () => {
   const declaration = CheckDeclarationSchema.parse(load(await readFile(

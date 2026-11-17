@@ -40,8 +40,10 @@ describe("ref store metadata facts", () => {
   });
 
   it("lists valid metadata under its owner without adding fields to the listing schema", async () => {
-    const { store } = fixture();
+    const { store, batches, rootTree } = fixture();
     const result = await store.list({ family: "work-item" });
+    // A listing enumerates through the batch reader, reading the root tree object by its id.
+    expect(batches.flat()).toContain(rootTree);
     expect(result).toMatchObject({ status: "ok", result: { status: "complete", missed: false,
       records: [expect.objectContaining({ content: "kept", reference: expect.objectContaining({ owner: expect.objectContaining({ name: "alpha" }) }) })], diagnostics: [],
     } });
@@ -50,9 +52,9 @@ describe("ref store metadata facts", () => {
   });
 
   it("reads present path-query metadata without enumerating its tree", async () => {
-    const { store, calls, reference } = fixture();
+    const { store, batches, rootTree, reference } = fixture();
     expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { content: "kept", reference } });
-    expect(calls.some(args => args[0] === "diff-tree")).toBe(false);
+    expect(batches.flat()).not.toContain(rootTree);
   });
 
   it("refuses present malformed path-query metadata with a forward repair", async () => {

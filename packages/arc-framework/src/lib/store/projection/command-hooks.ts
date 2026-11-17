@@ -7,6 +7,7 @@ import { createStore } from "../create.js";
 import { createDefaultStorePorts } from "../default-store-ports.js";
 import { resolveArcRoot } from "../../paths.js";
 import { createProjectionReporter } from "./report.js";
+import { bindSpawnMaterialization } from "./spawn-materialization.js";
 
 /** Command bindings and output boundary, native when omitted. */
 export interface ProjectionHookOptions {
@@ -25,6 +26,7 @@ export function registerProjectionHooks(program: Command, options: ProjectionHoo
     input = { ...bound, mint: bound.mint ?? options.mint, mode: saving ? "save" : "write-back", resolve: saving ? action.opts<{ resolve?: string }>().resolve : undefined,
       skipProjection: program.opts<{ skipProjection?: boolean }>().skipProjection === true };
     await startProjection(input);
+    bindSpawnMaterialization(input);
     report = createProjectionReporter(input.store, options.writeError);
     report();
   });

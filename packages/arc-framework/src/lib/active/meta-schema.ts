@@ -48,7 +48,7 @@ export const MetaWorkClassSchema = z.union([WorkClassSchema, z.literal("TBD")]);
 /** Resolved or deliberately unresolved work-unit priority. */
 export const MetaPrioritySchema = z.union([PrioritySchema, z.literal("TBD")]);
 
-/** Semantic origin value, including the internal-origin token. */
+/** Semantic origin: a locator, the internal token, or an `[internal] — <prose>` narrative. */
 export const MetaOriginSchema = SemanticStringSchema;
 
 /** Canonical originating Errand generation retained by a promoted work unit. */

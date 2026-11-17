@@ -1,13 +1,13 @@
 /** Writes from a build that predates the storage cutover refuse once the repository's store has been imported. */
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createStore } from "../../src/lib/store/create.js";
 import { storeImported, StoreImportedError, storeImportedRefusal } from "../../src/lib/store/store-imported.js";
-import { runUserRenameWorkspace, runUserSave } from "../../src/commands/user/save-load.js";
+import { runUserLoad, runUserRenameWorkspace, runUserSave } from "../../src/commands/user/save-load.js";
 import { runUserFetch, runUserPull, runUserPush } from "../../src/commands/user/push-fetch.js";
 import { runUserCompact } from "../../src/commands/user/compact.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
@@ -95,6 +95,20 @@ describe("sealed writes", () => {
     expect((await runUserSave({ cwd: root, io, identity: IDENTITY })).fileCount).toBeGreaterThan(0);
   });
 
+  it("refuses a saved notes load without restoring files, then restores after the registry is removed", async () => {
+    const io = makeUserIO(root);
+    const path = join(root, ".arc", "user", IDENTITY, "WORKING-MEMORY.md");
+    await writeFile(path, "# Saved for load\n", "utf8");
+    await runUserSave({ cwd: root, io, identity: IDENTITY });
+    await rm(path);
+    await whileImported(async () => {
+      await expect(runUserLoad({ cwd: root, io, identity: IDENTITY })).rejects.toBeInstanceOf(StoreImportedError);
+      await expect(readFile(path, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    });
+    expect(await runUserLoad({ cwd: root, io, identity: IDENTITY })).not.toBeNull();
+    expect(await readFile(path, "utf8")).toBe("# Saved for load\n");
+  });
+
   it("refuses every other notes writer, running no Git beyond the import lookup", async () => {
     const real = makeGitExec(root);
     const exec = vi.fn<GitExec>((command, args, execOptions) => real(command, args, execOptions));
@@ -102,6 +116,7 @@ describe("sealed writes", () => {
     const options = { cwd: root, io, identity: IDENTITY };
     const writers = [
       () => runUserRenameWorkspace({ ...options, oldWuName: "alpha", newWuName: "beta" }),
+      () => runUserLoad(options),
       () => runUserPush(options), () => runUserFetch(options), () => runUserPull(options), () => runUserCompact(options),
     ];
     await whileImported(async () => {

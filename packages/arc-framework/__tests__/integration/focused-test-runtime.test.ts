@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
 import { makeFocusedVitestFixture, runFocusedTestFixture } from "../helpers/focused-vitest-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true }))); });
@@ -39,7 +40,7 @@ it("runs without owned runtime", () => {
   expect(result, result.stderr).toMatchObject({ code: 0 });
   expect(result.stdout).toContain("1 passed");
   await expectNoPreparation(fixture);
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it.each([["unit/named.test.mjs", "integration", "e2e"]])(
   "shares one owned generation and reuses it for root targets %j", async (...tiers) => {
@@ -79,7 +80,7 @@ it("consumes the prepared native generation", async () => {
     for (const path of [join(fixture.packageRoot, ".arc-build.lock"), join(fixture.root, ".git/arc/test-suite/.local-heavy-tests.lock")]) {
       await expect(access(path)).rejects.toMatchObject({ code: "ENOENT" });
     }
-  }, 60_000,
+  }, nestedRunLimit(60_000),
 );
 
 it("fails unmatched runtime case names after required preparation despite native empty-run permission", async () => {
@@ -90,7 +91,7 @@ it("fails unmatched runtime case names after required preparation despite native
   expect(result.stderr).not.toContain("No configured test specifications");
   expect(readBuildQualification(fixture.packageRoot, "runtimeMetafile").status).toBe("qualified");
   expect(await readFile(fixture.events, "utf8")).toContain('"stage":"integration:teardown"');
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("rejects a natively refined empty selection before ownership or preparation", async () => {
   const fixture = await makeFixture(true);
@@ -99,7 +100,7 @@ it("rejects a natively refined empty selection before ownership or preparation",
   await expectNoPreparation(fixture);
   expect(result.stderr).toContain("No configured test specifications");
   expect(await readFile(fixture.events, "utf8")).not.toContain("integration:setup");
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it("retains initial operand eligibility when native cross-file only skips the heavy file", async () => {
   const fixture = await makeFixture(true);
@@ -110,4 +111,4 @@ it("retains initial operand eligibility when native cross-file only skips the he
   expect(result.stdout).toContain("ONLY-UNIT-RAN");
   expect(await readFile(fixture.events, "utf8")).not.toContain("integration:setup");
   await expectNoPreparation(fixture);
-}, 30_000);
+}, nestedRunLimit(30_000));

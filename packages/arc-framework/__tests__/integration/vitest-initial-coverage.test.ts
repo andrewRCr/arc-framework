@@ -4,6 +4,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
+import { NESTED_CALL_LIMIT, nestedRunLimit } from "../helpers/call-limit.js";
 
 it("reports unexecuted fixture source during supported initial coverage", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -34,12 +35,12 @@ try { await selection.controller.runTestSpecifications(selection.specifications)
 finally { await selection.controller.close(); }
 `);
     const native = await execa(process.execPath, ["--import", "tsx", "tests/coverage-control.mjs"],
-      { cwd: fixture.packageRoot, reject: false, timeout: 30_000 });
+      { cwd: fixture.packageRoot, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(native, native.stderr).toMatchObject({ exitCode: 0 });
     expect(JSON.parse(await readFile(report, "utf8"))).toEqual({ sourceFiles: [] });
     const supported = await execa("npm", ["run", "-s", "test:unit", "-w", "packages/arc-framework", "--", "__tests__/unit/named.test.mjs"],
-      { cwd: fixture.root, reject: false, timeout: 30_000 });
+      { cwd: fixture.root, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(supported, supported.stderr).toMatchObject({ exitCode: 0 });
     expect(JSON.parse(await readFile(report, "utf8"))).toEqual({ sourceFiles: [unexecuted] });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));

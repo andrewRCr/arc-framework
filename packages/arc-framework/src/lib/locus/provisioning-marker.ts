@@ -263,6 +263,7 @@ function markerMismatchEvidence(
     kind: "marker-residue",
     checkoutPath,
     markerBytes: result.kind === "present" ? result.bytes : null,
+    ...(result.kind === "malformed" ? { malformedMarker: true } : {}),
   };
 }
 

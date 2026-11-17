@@ -7,6 +7,7 @@ import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
 import { refCompletedFailureRule } from "./eslint/ref-completed-failure.ts";
+import { projectionRemovalBindingRule } from "./eslint/projection-removal-binding.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -35,11 +36,27 @@ const schemaOwners = ["lib/change-facts.schema.ts", "scripts/review-gate/core/ga
 const viewerFiles = ["lib/view-artifact.ts", "lib/view-renderer.ts", "lib/view/types.ts", "lib/view/format.ts", "lib/view/clock.ts"].map(src);
 const validationBan = restrictedReference("(?:^|/)validation\\.js$");
 const architectureBans = [
+  {
+    files: [subtree("lib/store/projection")],
+    patterns: [referencePattern("(?:^|/)user-surface-migration[.]js$")],
+    syntax: [
+      ...referenceSyntax('/(?:user-surfaces|user-surface-migration)[.]js$/'),
+      ...["ImportDefaultSpecifier", "ImportNamespaceSpecifier",
+        'ImportSpecifier:not([imported.name="IDENTITY_STATUS_FILENAME"]):not([imported.value="IDENTITY_STATUS_FILENAME"])']
+        .map((specifier) => ({ selector: `ImportDeclaration[source.value=/user-surfaces[.]js$/] > ${specifier}`,
+          message: "Keep projected personal files checkout-local" })),
+      ...["ExportAllDeclaration", "ExportNamedDeclaration"].map((declaration) => ({
+        selector: `${declaration}[source.value=/(?:user-surfaces|user-surface-migration)[.]js$/]`,
+        message: "Keep projected personal files checkout-local",
+      })),
+    ],
+  },
   { files: [`src/${TYPESCRIPT_SCOPE}`],
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
     syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-production"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-reference"] },
   { files: [`__tests__/${TYPESCRIPT_SCOPE}`], predicates: ["store-tests"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-private"] },
   { files: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["layout-dependencies"] },
@@ -47,9 +64,9 @@ const architectureBans = [
   { files: [`src/lib/store/concurrency/${TYPESCRIPT_SCOPE}`], predicates: ["store-concurrency"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts")], predicates: ["surface-names"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["work-unit-paths"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [subtree("scripts/cutover-window")], predicates: ["store-raw-state"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts"), subtree("scripts/cutover-window")], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, subtree("scripts/cutover-window")], predicates: ["work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
@@ -162,6 +179,7 @@ export default tseslint.config(
             [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
           "module-doc-comment": moduleDocCommentRule,
           "ref-completed-failure": refCompletedFailureRule,
+          "projection-removal-binding": projectionRemovalBindingRule,
         },
       },
     },
@@ -234,6 +252,10 @@ export default tseslint.config(
   {
     files: ["src/lib/store/ref/**/*.ts"],
     rules: { "arc/ref-completed-failure": "error" },
+  },
+  {
+    files: [src("commands/start.ts"), src("commands/rename.ts"), src("commands/rename-store.ts"), src("handlers/lifecycle.ts")],
+    rules: { "arc/projection-removal-binding": "error" },
   },
   ...composeArchitectureBans(architectureBans),
   {

@@ -1,4 +1,5 @@
 /** Establish physical backlog ownership before interpreting an unindexed file's name. */
+import { loadProjectionPathGroup } from "./index-memory.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gateRead } from "./read-gate.js";
@@ -35,7 +36,7 @@ export interface BacklogOwnershipInput {
 export type BacklogOwnership = { readonly kind: "owned"; readonly container: WorkItemContainer; readonly record: StoreRecord }
   | { readonly kind: "prospective"; readonly container: WorkItemContainer; readonly metaPath: string;
       readonly params: Extract<ProspectiveStub, { kind: "stub" }>["params"] }
-  | { readonly kind: "refused"; readonly mark: RefusedMark };
+  | { readonly kind: "refused"; readonly mark: RefusedMark; readonly readFailure?: true };
 
 type OwnedContainer = Exclude<BacklogOwnership, { kind: "refused" }>;
 type StoredOwner = Extract<BacklogOwnership, { kind: "owned" }>;
@@ -113,6 +114,7 @@ function describeOwner(owner: OwnedContainer): string {
 }
 
 async function readIndexedOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<IndexedProbe> {
+  loadProjectionPathGroup(input.index.entries, resolveArcPath(container));
   const owners: StoredOwner[] = [];
   for (const [path, entry] of Object.entries(input.index.entries)) {
     const reference = entry.kind === "record" ? entry.reference : entry.minted?.reference;
@@ -194,7 +196,7 @@ async function readProspectiveOwner(input: BacklogOwnershipInput, container: Wor
     return inspected.kind === "refused" ? { kind: "invalid", mark: inspected.mark }
       : { kind: "prospective", container, metaPath, params: inspected.params };
   } catch (error) {
-    return { kind: "refused", mark: { reason: `Cannot read prospective metadata ${metaPath}: ${error instanceof Error ? error.message : String(error)}`,
+    return { kind: "refused", readFailure: true, mark: { reason: `Cannot read prospective metadata ${metaPath}: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Restore readable metadata at the named path, then retry adoption." } } };
   }
 }

@@ -362,14 +362,14 @@ export const ReviewPolicyRequestSchema = z.strictObject({
       context.addIssue({
         code: "custom",
         message: "explicit selection must name a configured standard-review source",
-        path: ["invocation", "sourceId"],
+        path: ["invocation", "sourceId"], params: { reviewPolicySourceSelection: "unconfigured" },
       });
     } else if (selectedSourceIndex < previousSourceIndex
       && !request.attempts.some((attempt) => attempt.sourceId === selectedSourceId)) {
       context.addIssue({
         code: "custom",
         message: "explicit standard-review source cannot precede recorded source progress",
-        path: ["invocation", "sourceId"],
+        path: ["invocation", "sourceId"], params: { reviewPolicySourceSelection: "precedes-progress" },
       });
     }
   }

@@ -16,7 +16,7 @@ const metadata = canonicalize({ formatVersion: 1, slug: "alpha", formats: {},
   primary: { role: "work-item/meta", placement: { kind: "active" } } });
 
 describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (format) => {
-  it("reads and lists a planted record under its metadata owner in one and three processes", async () => {
+  it("reads and lists a planted record under its metadata owner in one and two processes", async () => {
     const f = await fixture(format);
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata },
       { path: "extra-alpha.md", content: "# A planted companion\n" }]);
@@ -29,7 +29,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", records: [read.status === "ok" ? read.result : null],
       diagnostics: [], missed: false } });
-    expect(f.processes() - before).toBe(4);
+    expect(f.processes() - before).toBe(3);
   });
   it("splits overflowing blob batches and still lists every record", async () => {
     const f = await fixture(format, 4096);
@@ -80,7 +80,7 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const before = f.processes();
     const unresolved = RecordReferenceSchema.parse({ ...reference, owner: { type: "work-item", name: "alpha" } });
     expect(await f.store.read({ reference: unresolved })).toMatchObject({ status: "ok", result: { reference, content: "found" } });
-    expect(f.processes() - before).toBe(3);
+    expect(f.processes() - before).toBe(2);
   });
   it("refuses person-owned reads without an identity and names arc.identity", async () => {
     const f = await fixture(format);
@@ -154,10 +154,10 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
       expect.objectContaining({ reference, conflicts: [conflictReference] }),
       expect.objectContaining({ reference: conflictReference, conflicts: [] }),
     ]), diagnostics: [], missed: false } });
-    expect(f.processes() - before).toBe(4);
+    expect(f.processes() - before).toBe(3);
     expect(await f.store.list({ family: "work-item", kind: "work-item/companion" })).toMatchObject({ status: "ok",
       result: { status: "complete", records: [expect.objectContaining({ reference, conflicts: [conflictReference] })] } });
-    expect(f.processes() - before).toBe(7);
+    expect(f.processes() - before).toBe(5);
   });
   it("reads a record beside conflict entries whose names are not UTF-8 or name no conflict key, as its listing reports them", async () => {
     const f = await fixture(format);

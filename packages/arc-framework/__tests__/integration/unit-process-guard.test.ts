@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { UNIT_PROCESS_LAUNCH_COUNT_META } from "../../src/lib/unit-process-metadata.js";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 interface NativeGuardReport {
   testResults: { name: string; status: string; message: string; assertionResults: { fullName: string; status: string; failureMessages: string[]; meta?: Record<string, unknown> }[] }[];
@@ -95,7 +96,7 @@ it("blocks direct, named-import and execa launches while admitting native execFi
     expect(blocked.every((test) => test.status === "failed"
       && test.failureMessages.join("\n").includes("Unit process launch blocked"))).toBe(true);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 const lateTeardowns = {
   returned: 'beforeAll(() => () => launch()); it("body", () => {});',
@@ -151,7 +152,7 @@ ${body}
     }
     expect(events).toHaveLength(12);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it.each(["list", "stack", "parallel"] as const)("finalizes caught file teardown launches with %s hooks", async (hooks) => {
   const { root, packageRoot, reportPath } = await createGuardFixture([], hooks);
@@ -172,7 +173,7 @@ ${teardown}
     expect(report.testResults.every((file) => file.message.includes("Unit process launch blocked"))).toBe(true);
     expect(native.code, native.stdout + native.stderr).toBe(1);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it.each(["list", "stack", "parallel"] as const)("counts allowlisted cleanup-only launches with %s hooks", async (hooks) => {
   const files = Object.keys(lateTeardowns).map((name) => `tests/guard-late-${name}.test.ts`);
@@ -194,7 +195,7 @@ ${teardown}
     expect(native.code, native.stdout + native.stderr).toBe(0);
     expect(native.stdout + native.stderr).not.toContain("Unit launch allowlist idle:");
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("checks the launch floor with command-line JSON reporting and retains a final suite-hook launch", async () => {
   const files = ["tests/guard-floor-afterall.test.ts", "tests/guard-floor-idle.test.ts"];
@@ -224,7 +225,7 @@ it("idle legacy body", () => {});
     expect(diagnostics).toHaveLength(2);
     expect(diagnostics.every((line) => line.includes("guard-floor-idle.test.ts"))).toBe(true);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("fails caught helper/execa launches and caught suite-hook launches in both unit projects", async () => {
   const { root, packageRoot, reportPath } = await createGuardFixture();
@@ -260,7 +261,7 @@ it("caught ${hook} body", () => {});
     expect(hookFiles.filter((file) => file.status !== "failed")).toEqual([]);
     expect(hookFiles.every((file) => file.message.includes("Unit process launch blocked"))).toBe(true);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("counts each esbuild file's own service and denies reuse by an off-list file in the same worker", async () => {
   const files = ["tests/guard-esbuild-first.test.ts", "tests/guard-esbuild-second.test.ts"];
@@ -304,4 +305,4 @@ await installUnitProcessGuard(["tests/guard-allowed.test.ts", ${JSON.stringify(f
     expect(blocked.filter((test) => test.status !== "failed"
       || !test.failureMessages.join("\n").includes("Unit process launch blocked"))).toEqual([]);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));

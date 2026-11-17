@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import { TEST_CONTROLLER_TOKEN_ENV } from "../../src/lib/build-ownership.js";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it("pins inherited CLI children and refuses tokenless source drift", async () => {
   const fixture = await makeVitestRuntimeFixture();
@@ -47,4 +48,4 @@ it("uses the controller lease after source changes", () => {
     expect(outcomes).toMatchObject({ inherited: { code: 0, stdout: "new-native-runtime\n", stderr: "" },
       ordinary: { code: 1, stderr: expect.stringContaining("arc dev build is stale") } });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));

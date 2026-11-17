@@ -7,7 +7,7 @@
  * @module
  */
 
-import { join, dirname, basename, relative } from "node:path";
+import { join, dirname, basename, relative, posix, win32 } from "node:path";
 import { readdir, stat, writeFile, rename, unlink, mkdir, link } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 
@@ -172,6 +172,30 @@ export function classifyFilesystemAccessFault(error: unknown): FilesystemAccessF
  */
 export function toForwardSlash(p: string): string {
   return p.replaceAll("\\", "/");
+}
+
+/**
+ * Spell a local path for display from `cwd`.
+ *
+ * A path inside `cwd` shows relative to it with forward slashes on every platform. A path outside it, including one
+ * on another Windows drive, shows absolute in the platform's own spelling, since Windows reads `C:\\repo`, not
+ * `C:/repo`, as a canonical absolute path.
+ *
+ * @param cwd - Directory the display is relative to
+ * @param path - Path to display
+ * @param pathApi - Path semantics of the platform, defaulting to the host's
+ * @returns A forward-slash relative path, `.` for `cwd` itself, or the native absolute path
+ */
+export function displayLocalPath(
+  cwd: string,
+  path: string,
+  pathApi: typeof posix = process.platform === "win32" ? win32 : posix,
+): string {
+  if (!pathApi.isAbsolute(path)) return toForwardSlash(path);
+  const rel = pathApi.relative(cwd, path);
+  if (rel === "") return ".";
+  const local = toForwardSlash(rel);
+  return local === ".." || local.startsWith("../") || pathApi.isAbsolute(rel) ? path : local;
 }
 
 /**

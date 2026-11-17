@@ -6,7 +6,7 @@ import { join, dirname } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createViewDependencies } from "../../../src/handlers/view.js";
 import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema } from "../../../src/lib/store/identity.js";
-import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeOwnershipMarker, writeWorktreeMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { resolveViewArtifact } from "../../../src/lib/view-artifact.js";
 import { runView } from "../../../src/commands/view.js";
 import { WorkUnitReadPlacementSchema } from "../../../src/lib/store/placement.js";
@@ -121,8 +121,8 @@ it("retains malformed metadata's repair evidence and resolves after repair", asy
 
 it.each(["none", "errand"] as const)("names the explicit target remedy for a %s checkout claim", async claim => {
   const f = await fixture();
-  if (claim === "errand") await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
-    createdFor: { kind: "errand", slug: "fix-it" } });
+  if (claim === "errand") await writeWorktreeMarker(f.cwd, { spawnedByArc: true, spawningIdentity: "alice", createdAt: new Date(0).toISOString(),
+    createdFor: { kind: "errand", slug: "fix-it", claimId: "a".repeat(32) }, provisioning: "ready" });
   const result = await runView({ cwd: f.cwd, project: false, identity: "alice", kind: "meta" }, {
     resolveArtifact: input => resolveViewArtifact(input, f.deps), readFile: f.deps.readFile });
   expect(result.exitCode).toBe(1);

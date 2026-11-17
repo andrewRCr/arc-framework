@@ -1,4 +1,7 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 import { beforeEach, describe, it, expect, vi } from "vitest";
+import { fixturePath } from "../../helpers/fixture-path.js";
 
 import {
   findStaleWorktreeCandidates,
@@ -9,12 +12,12 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
-import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import type { WorktreeMarkerReadResult, WorktreeSubject } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
-import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 
 it("does not report a reused live slug as a husk's completed work unit", async () => {
@@ -160,7 +163,7 @@ const presentMarker: WorktreeMarkerReadResult = {
 };
 
 function stampedMarker(
-  subject: { kind: "work-unit"; name: string } | { kind: "errand"; slug: string } | { kind: "branch"; ref: string },
+  subject: WorktreeSubject,
   options: { identity?: string; sha?: string; branch?: string } = {},
 ): WorktreeMarkerReadResult {
   const branch = options.branch
@@ -169,15 +172,15 @@ function stampedMarker(
     kind: "present",
     marker: {
       spawnedByArc: true,
-      createdFor: subject,
+      ...(subject.kind === "errand" ? { createdFor: { ...subject, claimId: "a".repeat(32) }, provisioning: "ready" } : { createdFor: subject }),
       spawningIdentity: options.identity ?? "andrew",
       createdAt: "2026-05-01T00:00:00.000Z",
-      husk: {
+      husk: makeHuskStamp({
         sha: options.sha ?? "stamped",
         at: "2026-07-14T20:00:00.000Z",
         subject,
         branch,
-      },
+      }),
     },
   };
 }
@@ -191,15 +194,15 @@ const emptyUserSurfaceFs: UserSurfaceMigrationFs = {
 
 const divergentUnknownUserSurfaceFs: UserSurfaceMigrationFs = {
   readDir: async (path) => {
-    if (path === "/wt/wor/.arc/user") {
+    if (fixturePath(path) === "/wt/wor/.arc/user") {
       return [{ name: "andrew", isDirectory: () => true, isFile: () => false }];
     }
-    if (path === "/wt/wor/.arc/user/andrew") {
+    if (fixturePath(path) === "/wt/wor/.arc/user/andrew") {
       return [{ name: "FUTURE.md", isDirectory: () => false, isFile: () => true }];
     }
     return [];
   },
-  readFile: async (path) => path.startsWith("/primary/") ? "primary\n" : "linked\n",
+  readFile: async (path) => fixturePath(path).startsWith("/primary/") ? "primary\n" : "linked\n",
   writeFile: async () => {},
   mkdir: async () => {},
 };
@@ -479,6 +482,10 @@ describe("runStaleWorktreeSweep", () => {
   it("reports detached stamped husks through exact-HEAD cleanup decisions", async () => {
     const huskMarker = stampedMarker({ kind: "work-unit", name: "work-organization-reform" });
     const result = await runStaleWorktreeSweep({
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: "b".repeat(40) } },
+        objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: true } }, history: { kind: "complete" } },
+      revalidateEvidence: async () => true,
       roster: { entries: [], warnings: [] },
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
@@ -493,16 +500,16 @@ describe("runStaleWorktreeSweep", () => {
       }),
     });
 
-    expect(result.worktrees).toEqual([
+    expect(result.worktrees).toMatchObject([
       {
         kind: "husk",
         worktreePath: "/wt/husk",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
         stampedBranch: "feat/work-organization-reform",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: "work-organization-reform",
-        decision: { action: "blocked", reason: "evidence-unavailable" },
+        decision: { action: "removable" },
       },
       {
         kind: "husk",
@@ -510,7 +517,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
         stampedBranch: "feat/work-organization-reform",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: "work-organization-reform",
         decision: { action: "blocked", reason: "head-moved" },
       },
@@ -576,6 +583,10 @@ describe("runStaleWorktreeSweep", () => {
 
   it("blocks a dirty stamped husk", async () => {
     const result = await runStaleWorktreeSweep({
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: "b".repeat(40) } },
+        objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: true } }, history: { kind: "complete" } },
+      revalidateEvidence: async () => true,
       roster: { entries: [], warnings: [] },
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
@@ -617,7 +628,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "branch", ref: "review/orphan" },
         stampedBranch: "review/orphan",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: null,
         decision: { action: "blocked", reason: "evidence-unavailable" },
       },
@@ -627,7 +638,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "errand", slug: "tidy-hooks" },
         stampedBranch: "chore/tidy-hooks",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: null,
         decision: { action: "blocked", reason: "evidence-unavailable" },
       },
@@ -838,6 +849,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.worktreePath).toBe("/wt/readable");
     expect(result.warnings).toEqual([
       "Could not read detached worktree marker at /wt/unreadable: permission denied",
+      "Retirement evidence at /wt/readable could not be revalidated without exact base evidence.",
     ]);
   });
 
@@ -946,6 +958,48 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
 
 describe("husk session actions", () => {
   const baseOid = "b".repeat(40);
+  it("keeps a branch husk's strict Git proof under off-branch storage", async () => {
+    const h = createLifecycleHarness(), subject = { kind: "branch" as const, ref: "review/leftover" };
+    const marker = stampedMarker(subject, { sha: baseOid });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("missing stamp");
+    marker.marker.husk.authorization = "merged-preserved";
+    marker.marker.husk.evidence = { kind: "shipped", expectedLifecycle: "completed",
+      resultDigest: canonicalDigest({ subject }), baseProofOid: baseOid };
+    const ordinaryExec = buildExec({ clean: true, merged: true });
+    const checkout = { folderPresent: true, path: "/wt/husk", head: baseOid, branch: null, detached: true, primary: false };
+    const result = await runStaleWorktreeSweep({ store: h.store,
+      derivedRoster: [DerivedCheckoutRowSchema.parse({ kind: "unmanaged-checkout", checkout, subject: null,
+        markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+        lifecycleLocation: null, diagnostics: [] })],
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" }, baseBranch: "main",
+      exec: async (command, args, options) => args[0] === "rev-parse" ? { stdout: baseOid, stderr: "" }
+        : args[0] === "merge-base" ? { stdout: "", stderr: "" } : ordinaryExec(command, args, options),
+      readMarker: async () => marker,
+      scanWorktrees: async () => ({ ok: true, worktrees: [checkout] }),
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } }, history: { kind: "complete" } },
+    });
+    expect(result.worktrees[0]).toMatchObject({ kind: "husk", decision: { action: "removable" },
+      actions: [{ argv: ["arc", "teardown", "--branch", subject.ref] }] });
+  });
+  it("quotes a spaced native husk path in display text while preserving argv", async () => {
+    const path = "/wt/husk with spaces", uid = "10000000-0000-4000-8000-000000000001";
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true,
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "retired", uid }),
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { folderPresent: true, path, head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } }, history: { kind: "complete" } },
+    });
+    const action = result.worktrees[0]?.actions?.[0];
+    expect(action?.argv).toEqual(["arc", "teardown", uid, "--husk", path]);
+    expect(action?.text).toContain("'" + path + "'");
+  });
   it.each([
     ["work-unit", "primary", ["arc", "teardown", "retired"]],
     ["work-unit", "linked", ["arc", "teardown", "retired", "--husk", "/wt/husk"]],
@@ -959,7 +1013,7 @@ describe("husk session actions", () => {
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] },
       worktreeIdentity: locus === "primary" ? { kind: "primary" } : { kind: "linked", path: "/wt/current" },
-      baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true,
       readMarker: async () => stampedMarker(subject),
       scanWorktrees: async () => ({ ok: true, worktrees: [
         { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
@@ -978,10 +1032,10 @@ describe("husk session actions", () => {
   it("leaves an untrusted stamp for a manual decision", async () => {
     const marker = stampedMarker({ kind: "work-unit", name: "retired" });
     if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("missing stamp");
-    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.authorization = "future-policy";
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
-      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true, readMarker: async () => marker,
       scanWorktrees: async () => ({ ok: true, worktrees: [
         { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
       ] }),

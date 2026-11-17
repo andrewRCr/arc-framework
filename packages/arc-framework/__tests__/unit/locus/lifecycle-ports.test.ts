@@ -1,6 +1,7 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
 /** Lifecycle lookup fails closed on marker and topology uncertainty. */
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
-import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, readFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -72,7 +73,7 @@ it("rejects duplicate holders and passes over a husk-stamped marker", async () =
   await h.marker();
   await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(h.record), spawningIdentity: "andrew", now: 0 });
   await expect(h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => null })).rejects.toThrow(h.other);
-  await stampWorktreeHusk(h.other, { sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" });
+  await stampWorktreeHusk(h.other, makeHuskStamp({ sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" }));
   expect(await h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => null })).toEqual({ kind: "held", path: h.cwd });
 });
 
@@ -143,4 +144,19 @@ it("excludes an unbound entering checkout from both owner holder queries", async
   const request = { ...ownerHolderRequest(h.record), checkoutPath: h.other };
   expect(await h.ports.findHoldingCheckout(request)).toEqual({ kind: "none" });
   expect(await h.ports.checkMarkerExclusivity(request)).toEqual({ kind: "clear" });
+});
+
+it.each([false, true])("excludes a physical alias of its entering checkout and retains a different holder, unbound=%s", async unbound => {
+  const h = await fixture(), alias = join(h.cwd, "holder-alias");
+  await symlink(h.other, alias, "junction");
+  if (unbound) await writeWorktreeOwnershipMarker(h.other, { createdByArc: true,
+    createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", now: 0 });
+  else await h.marker();
+  const request = { ...ownerHolderRequest(h.record), checkoutPath: alias };
+  expect(await h.ports.findHoldingCheckout(request)).toEqual({ kind: "none" });
+  expect(await h.ports.checkMarkerExclusivity(request)).toEqual({ kind: "clear" });
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(h.record),
+    spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
+  expect(await h.ports.findHoldingCheckout(request)).toEqual({ kind: "held", path: h.cwd });
+  expect(await h.ports.checkMarkerExclusivity(request)).toMatchObject({ kind: "refused", checkoutPath: h.cwd });
 });

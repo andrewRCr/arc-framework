@@ -19,10 +19,10 @@ function success<T>(result: DecomposeResult<T>): T {
   return result.result;
 }
 
-async function fixture(profile: "draft" | "single-spec" | "paired-spec" = "draft") {
+async function fixture(profile: "draft" | "single-spec" | "paired-spec" = "draft", origin = "Source origin.") {
   const h = createDecomposeHarness();
   await h.seedStub("provider");
-  let primary = await h.seedMeta("origin", { state: "Planning", owner: "source-owner", priority: "P1", origin: "Source origin.",
+  let primary = await h.seedMeta("origin", { state: "Planning", owner: "source-owner", priority: "P1", origin,
     currentWorkflow: null, dependsOn: ["provider"] }, { kind: "backlog", commitment: "planned" });
   const owner = primary.reference.owner;
   const sourceDesign = profile === "paired-spec" ? ["spec-origin-prd.md", "spec-origin-rfc.md"]
@@ -153,4 +153,15 @@ it.each(["descriptor", "segmentation"] as const)("names a legacy source's %s dia
   await h.handEdit(h.source, taskText);
   const repaired = success(await h.planCompanion());
   lifecycleSuccess(await h.store.batch({ writes: [...repaired.writes], provenance: { verb: "decompose", lifecycleAction: "additive" } }));
+});
+
+it("inherits a narrative internal Origin without wrapping or losing its inline Markdown", async () => {
+  const origin = "[internal] — split the `catalog` entry after **review**";
+  const h = await fixture("draft", origin), planned = success(h.plan());
+  lifecycleSuccess(await h.store.batch({ writes: [...planned.writes], provenance: { verb: "decompose", lifecycleAction: "additive" } }));
+  for (const member of planned.members) {
+    const record = lifecycleSuccess(await h.store.read({ reference: member.primary }));
+    expect(record.content).toContain(`- **Origin:** ${origin}\n`);
+    expect(lifecycleSuccess(readLifecycleMetaFields(record)).origin).toBe(origin);
+  }
 });

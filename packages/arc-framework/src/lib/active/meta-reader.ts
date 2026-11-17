@@ -37,7 +37,7 @@ import {
   writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
 } from "../store/kinds/meta/writers.js";
 import {
-  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel,
+  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel, isNarrativeInternalOrigin,
   type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
 } from "../store/kinds/meta/projection.js";
 export * from "../store/kinds/meta/projection.js";
@@ -569,16 +569,16 @@ export function parseMetaProjectionRecord(content: string): MetaProjectionRecord
   const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
     const raw = field.render === "core-table" ? table[field.name] ?? null : extractField(section, field.name);
-    // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
-    // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
-    // keeps its code spans. (Core table values arrive pre-stripped and are all
-    // non-narrative, so the strip is a no-op there.)
-    if (raw === null || field.valueClass === "narrative") {
+    // Token fields strip to a bare value; locators also unwrap autolinks.
+    // Narrative values, including internal Origin explanations, retain code spans.
+    if (raw === null || field.valueClass === "narrative"
+      || field.valueClass === "origin" && isNarrativeInternalOrigin(raw)) {
       record[field.name] = raw;
       continue;
     }
 
-    const stripped = stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
+    const locator = field.valueClass === "url" || field.valueClass === "origin";
+    const stripped = stripInlineCode(locator ? stripAutolink(raw) : raw);
     record[field.name] =
       field.valueClass === "identifier-list" ? normalizeIdentifierListValue(stripped) : stripped;
   }

@@ -1,4 +1,5 @@
 /** Shared repository reads and results for pre-publication composition. */
+import type { FrontlineResolveRequest } from "./frontline-command-schema.js";
 import type { PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
 import type { CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -228,6 +229,7 @@ export type PrePublicationComposition =
       kind: "local" | "hosted" | "frontline";
       request: { schemaVersion: 1; operationId: string; operationRef?: string }
         | { schemaVersion: 1; handle: NonNullable<NonNullable<LanePolicyAttempt["hosted"]>["handle"]>; operationRef?: string }
+        | FrontlineResolveRequest
         | null;
     };
   };

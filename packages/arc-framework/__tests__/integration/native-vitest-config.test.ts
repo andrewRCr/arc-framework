@@ -5,6 +5,7 @@ import { stripVTControlCharacters } from "node:util";
 import { afterEach, expect, it } from "vitest";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -33,4 +34,4 @@ it("accepts an empty group beside an executed case under the actual native confi
   });
   expect(result.code, result.stdout + result.stderr).toBe(0);
   expect(stripVTControlCharacters(result.stdout)).toMatch(/Tests\s+1 passed/);
-}, 60_000);
+}, nestedRunLimit(60_000));

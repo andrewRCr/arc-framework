@@ -16,7 +16,7 @@ export interface StubParams {
   priority: string | undefined;
   /** Identity owning the new stub — the meta `Owner`. */
   owner: string;
-  /** Parsed external reference (issue / URL) → meta `Origin`, when supplied. */
+  /** External reference or `[internal] — <prose>` narrative → meta `Origin`, when supplied. */
   origin?: string;
   /** Parsed ARC artifact (spec / draft) → meta `Design`, when supplied. */
   design?: string;

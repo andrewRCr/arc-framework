@@ -289,6 +289,7 @@ export async function runUserLoad(
   options: UserLoadOptions,
 ): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
+  await refuseWriteIfStoreImported(cwd, io.exec);
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   const resolver = await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
   const snapshot = await buildUserLoadManifestSnapshot({

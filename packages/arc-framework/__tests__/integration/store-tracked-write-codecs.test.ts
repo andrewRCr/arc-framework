@@ -108,7 +108,7 @@ describe("canonical tracked writer inputs", () => {
     expect(success(await h.store.read({ reference }))).toMatchObject({ content: winning, version: trackedDigest(winning) });
   });
 
-  it("upgrades a legacy boundary to exactly today's writer bytes and returns the digest its read gives", async () => {
+  it("writes a current boundary with the canonical writer bytes and read digest", async () => {
     const h = await trackedWriteFixture();
     const candidateId = `sha256:${"c".repeat(64)}`;
     const reservation = createStandardReviewReservation({ candidateId, sourceId: "coderabbit-pr",
@@ -117,12 +117,10 @@ describe("canonical tracked writer inputs", () => {
         rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`), retrigger: "full-final", count: 1 } });
     const current = projectPublicationBoundary({ workUnit: "example", candidateId, branch: "feat/example", reservation,
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 } }, 1);
-    const legacy = { ...current, locus: "hosted-review-pending", nextAction: { kind: "continue-hosted-review",
-      command: "arc review status --target '{targetRef}' --json", interactionText: current.nextAction.interactionText } };
-    const parsed = parseIntegrationBoundaryLocus(legacy);
+    const parsed = parseIntegrationBoundaryLocus(current);
     expect(parsed.locus).toBe("delivery-status-required");
     const reference = h.reference("review/integration-boundary");
-    const result = success(await h.store.write({ action: "put", reference, content: JSON.stringify(legacy), expected: null, provenance }));
+    const result = success(await h.store.write({ action: "put", reference, content: JSON.stringify(current), expected: null, provenance }));
     const comparisonRoot = join(h.root, "comparison");
     await mkdir(comparisonRoot);
     const existingPath = await writeSubmissionBoundary(comparisonRoot, parsed, null);

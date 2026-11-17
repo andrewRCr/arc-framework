@@ -1,3 +1,4 @@
+import { makeHuskStamp } from "../helpers/worktree-husk-fixture.js";
 import { SessionInitProbeResultSchema } from "../../src/commands/status/schema.js";
 import { teardownOperand } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
@@ -17,6 +18,7 @@ import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { writeMetaPause } from "../../src/lib/store/kinds/meta/writers.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -29,6 +31,7 @@ async function checkout(h: Fixture, name: string, record?: StoreRecord) {
   await writeWorktreeMarker(path, { spawnedByArc: false,
     createdFor: record === undefined ? { kind: "work-unit", name: "example" } : boundWorkUnitSubject(record),
     spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  await seedImportedUserProjection(path, h.store);
   return path;
 }
 async function fixture(backlog = false) {
@@ -272,8 +275,8 @@ it.each([false, true])("session init reports the same pre-store husk manually, e
   const h = await fixture(), livePath = await checkout(h, "live", h.live);
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.archivedPath })).stdout.trim();
   await writeWorktreeMarker(h.archivedPath, { spawnedByArc: true, createdFor: { kind: "work-unit", name: "example" },
-    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z", husk: { sha: head, at: "2026-10-24T01:00:00Z",
-      subject: { kind: "work-unit", name: "example" }, branch: "feat/example" } });
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z", husk: makeHuskStamp({ sha: head, at: "2026-10-24T01:00:00Z",
+      subject: { kind: "work-unit", name: "example" }, branch: "feat/example" }) });
   const marker = await readFile(resolveWorktreeMarkerPath(h.archivedPath)), liveMarker = await readFile(resolveWorktreeMarkerPath(livePath));
   const before = lifecycleSuccess(await h.store.version());
   const result = await repairCli({ ...h, cwd: ownCheckout ? h.archivedPath : h.cwd }, ["status", "--session-init", "--json"], { store: h.store });

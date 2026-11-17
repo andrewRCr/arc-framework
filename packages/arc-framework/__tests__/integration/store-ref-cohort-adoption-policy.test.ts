@@ -9,6 +9,9 @@ import { startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { checkProjectionRemoval } from "../../src/lib/store/projection/removal-check.js";
+import { retirementRefusal } from "../../src/lib/store/projection/removal-verdict.js";
 
 afterEach(() => { vi.resetAllMocks(); beginProjectionCommand(); });
 
@@ -20,23 +23,29 @@ it("preserves a dropped cohort document until its cohort exists, then adopts the
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
+  const checked = await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") });
+  expect(checked).toMatchObject({ kind: "would-refuse" });
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.version())).toBe(before);
   expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing cohort admission index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringMatching(/existing live cohort/iu),
     remedy: { text: expect.stringMatching(/restore.*cohort|existing cohort.*canonical/iu) },
   } });
+  const mark = refused.index.entries[path]?.refused;
+  if (mark === undefined || mark === null) throw new Error("No adoption mark recorded");
+  expect(checked).toEqual({ kind: "would-refuse", remedy: retirementRefusal(f.root, path, mark, "remove") });
   const established = await seed(f, reference, content.replace("Authored cohort prose", "Stored cohort prose"));
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: established.reference })).content).toBe(content);
   const listing = success(await f.store.list({ family: "cohort", kind: "cohort/document" }));
   if (listing.status !== "complete") throw new Error("Expected complete cohort inventory");
   expect(listing.records.map(record => record.reference)).toEqual([established.reference]);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired cohort index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference: established.reference,
     pending: false, refused: null });
@@ -68,7 +77,7 @@ it("refuses when an established cohort disappears before attachment and adopts a
   if (absent.status !== "refused") throw new Error("The real cohort removal did not establish absence");
   expect(absent.refusal.code).toBe("not-found");
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("Missing removed-cohort admission index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: absent.refusal.condition, remedy: absent.refusal.remedy,
@@ -76,7 +85,7 @@ it("refuses when an established cohort disappears before attachment and adopts a
   const restored = await seed(f, reference, content.replace("Authored correction", "Restored cohort prose"));
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await read({ reference: restored.reference })).content).toBe(content);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing restored-cohort admission index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference: restored.reference,
     pending: false, refused: null });
@@ -90,11 +99,12 @@ it("creates a missing fixed personal record through ordinary file adoption", asy
   expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   await mkdir(dirname(join(f.root, path)), { recursive: true });
   await writeFile(join(f.root, path), content);
+  expect(await checkProjectionRemoval(f.root, { store: f.store, identity: SlugSchema.parse("andrew") })).toEqual({ kind: "passes" });
   await startProjection({ store: f.store, checkout: f.root });
   const stored = success(await f.store.read({ reference }));
   expect(stored.content).toBe(content);
   expect(stored.reference).toEqual(reference);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing personal record adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   expect(parseStampedFile(await readFile(join(f.root, path), "utf8")).content).toBe(content);

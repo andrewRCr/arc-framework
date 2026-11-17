@@ -1,4 +1,8 @@
 /** Record-based edit rights shared by persistence, protection, and adoption. */
+import type { ProjectionSource } from "./record-source.js";
+import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
+import { markerMatchesWorkUnitOwner } from "../../locus/holder-match.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { SlugSchema, WorkUnitStateSchema, type Slug } from "../../kernel/index.js";
 import type { Store } from "../contract.js";
 import type { ProjectionAdmission } from "../projection-admission.js";
@@ -19,6 +23,8 @@ export interface ProjectionEditRightsInput {
   readonly identity: Slug;
   readonly checkout: string;
   readonly local?: ProjectionAdmission["local"];
+  readonly source?: Pick<ProjectionSource, "read" | "list">;
+  readonly readMarker?: (checkout: string) => Promise<WorktreeMarkerReadResult>;
 }
 
 /** Authorization facts kept separate from the notice or refusal that presents them. */
@@ -39,7 +45,7 @@ export async function readProjectionEditRights(input: ProjectionEditRightsInput)
       : protectedRights(input, "identity", input.reference.owner.name);
   }
   if (input.reference.owner.type !== "work-item") return protectedRights(input, "verb", null);
-  const primary = await input.store.read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
+  const primary = await (input.source ?? input.store).read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
   if (primary.status === "refused") return primary;
   return primary.result.reference.kind === "work-item/record" ? errandRights(input, primary.result) : workUnitRights(input, primary.result);
 }
@@ -58,7 +64,7 @@ async function workUnitRights(input: ProjectionEditRightsInput, primary: StoreRe
   if (primary.placement?.kind === "completed") return { status: "ok", result: { kind: "editable" } };
   if (primary.placement?.kind === "active") {
     if (input.reference.kind === "work-item/meta" || input.reference.kind === "work-item/task-list") {
-      return checkoutRights(input, owner.data);
+      return checkoutRights(input, owner.data, primary);
     }
     return { status: "ok", result: { kind: "editable" } };
   }
@@ -83,12 +89,13 @@ function malformedRights(reference: RecordReference, condition: string): StoreRe
     remedy: { text: "Repair the record's ownership and lifecycle metadata, then retry the edit." } } };
 }
 
-async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug): Promise<StoreResult<ProjectionEditRights>> {
+async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug, primary: StoreRecord): Promise<StoreResult<ProjectionEditRights>> {
   if (input.local !== undefined) {
-    return frozenCheckoutRights(input, owner, input.local);
+    return frozenCheckoutRights(input, owner, primary, input.local);
   }
+  if (await markerNamesAnotherOwner(input, primary)) return protectedRights(input, "checkout", owner);
   const warnings: string[] = [];
-  const claim = await readClaimedCurrentWorkUnit({ cwd: input.checkout, store: input.store }, warnings);
+  const claim = await readClaimedCurrentWorkUnit({ cwd: input.checkout, store: input.store, source: input.source, readMarker: input.readMarker }, warnings);
   if (claim.kind === "absent" && claim.cause !== undefined) {
     const native = nativeRefusalReport(claim.cause);
     if (native?.refusal !== undefined) return { status: "refused", refusal: native.refusal };
@@ -106,12 +113,31 @@ async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug): Pr
     ? { status: "ok", result: { kind: "editable" } } : protectedRights(input, "checkout", owner);
 }
 
-async function frozenCheckoutRights(input: ProjectionEditRightsInput, owner: Slug,
+async function frozenCheckoutRights(input: ProjectionEditRightsInput, owner: Slug, primary: StoreRecord,
   local: NonNullable<ProjectionEditRightsInput["local"]>): Promise<StoreResult<ProjectionEditRights>> {
+  const marker = local.marker;
+  if (marker?.kind === "current" && marker.subject.kind === "work-unit" && !namesFileOwner(marker.subject, primary)) {
+    return protectedRights(input, "checkout", owner);
+  }
   const claim = await readFrozenProjectionClaim(input.store, local);
   if (claim.status === "refused") return claim;
   return claim.result?.reference.kind === "work-item/meta" && sameOwner(claim.result.reference.owner, input.reference.owner)
     ? { status: "ok", result: { kind: "editable" } } : protectedRights(input, "checkout", owner);
+}
+
+async function markerNamesAnotherOwner(input: ProjectionEditRightsInput, primary: StoreRecord): Promise<boolean> {
+  // Failed or malformed reads retain the normal claim reader's refusal and repair route.
+  const marker = await (input.readMarker ?? readWorktreeMarker)(input.checkout).catch(() => null);
+  if (marker?.kind !== "present" || marker.marker.husk !== undefined) return false;
+  const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+  return ownership.kind === "current" && ownership.subject.kind === "work-unit" && !namesFileOwner(ownership.subject, primary);
+}
+
+function namesFileOwner(subject: { name: string; uid?: string }, primary: StoreRecord): boolean {
+  const owner = primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) return true;
+  return markerMatchesWorkUnitOwner(subject, { uid: owner.uid,
+    names: { current: owner.name, former: primary.aliases ?? [] } }, true);
 }
 
 function unavailableCheckout(input: ProjectionEditRightsInput, condition: string, remedy: Remedy): StoreResult<ProjectionEditRights> {

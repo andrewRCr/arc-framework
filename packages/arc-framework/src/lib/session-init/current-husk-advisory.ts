@@ -36,7 +36,6 @@ const RetirementEvidenceRefSchema = z.discriminatedUnion("kind", [
 ]);
 
 const DecodedWorktreeHuskStampSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("legacy"), authorization: z.literal("merged-preserved") }),
   z.strictObject({
     kind: z.literal("current"),
     authorization: z.enum(["merged-preserved", "discard-confirmed", "planning-relocated"]),
@@ -49,14 +48,14 @@ const DecodedWorktreeHuskStampSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("manual-only"),
-    reason: z.enum(["mixed-presence", "unknown-authorization", "unknown-evidence", "evidence-mismatch", "pre-store-husk"]),
+    reason: z.enum(["unknown-authorization", "unknown-evidence", "evidence-mismatch", "pre-store-husk"]),
   }),
 ]);
 
 /** Terminal orientation for a WU husk at the current worktree. */
 export const CurrentHuskAdvisorySchema = z.strictObject({
   worktreePath: z.string(),
-  subject: z.strictObject({ kind: z.literal("work-unit"), name: z.string() }),
+  subject: z.strictObject({ kind: z.literal("work-unit"), name: z.string(), uid: z.uuid().optional() }),
   branch: z.string(),
   stamp: DecodedWorktreeHuskStampSchema,
 });

@@ -4,6 +4,7 @@ import { access, cp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
+import { NESTED_CALL_LIMIT, nestedRunLimit } from "../helpers/call-limit.js";
 import { assertRetainedTestCostRun, normalizeRetainedTestCostRuns } from "../../src/lib/test-cost/retained.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
@@ -16,7 +17,7 @@ it("retains a heavy measurement only after owned setup, teardown, and controller
     const output = join(fixture.packageRoot, "retained.json");
     const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1", "--output", output],
-      { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
+      { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const events = await readFile(fixture.events, "utf8");
     expect(events.match(/"stage":"integration:setup"/gu)).toHaveLength(2);
@@ -34,7 +35,7 @@ it("retains a heavy measurement only after owned setup, teardown, and controller
       mode: { projectSet: "integration", workerSizing: "1" }, requestedWorkerSizing: "1", fileCount: 1, testCount: 1 });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("retains qualified runtime generations across default measurement output", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -44,7 +45,7 @@ it("retains qualified runtime generations across default measurement output", as
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
         "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1"],
-        { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
+        { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: NESTED_CALL_LIMIT });
       expect(result, result.stderr).toMatchObject({ exitCode: 0 });
       const summary = JSON.parse(result.stdout) as { outputPath: string; wallClockMs: number };
       expect(summary.outputPath).toContain(join(fixture.packageRoot, ".test-cost-runs"));
@@ -58,7 +59,7 @@ it("retains qualified runtime generations across default measurement output", as
       expect(qualified.evidence.generation).toBe(generation);
     }
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("includes real controller closing and retains native case metadata for existing consumers", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -80,7 +81,7 @@ it("native metadata case", () => {
     const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "unit", "--workers", "1", "--output", output],
       { cwd: fixture.packageRoot, env: { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "", TEST: undefined, VITEST: undefined,
-        NODE_ENV: undefined }, reject: false, timeout: 30_000 });
+        NODE_ENV: undefined }, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const events = await readFile(fixture.events, "utf8");
     expect(events).toContain("config:true:true:test");
@@ -110,7 +111,7 @@ it("native metadata case", () => {
     await expect(access(join(fixture.packageRoot, "dist/dev-build-stamp.json"))).rejects.toMatchObject({ code: "ENOENT" });
     await expect(access(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("uses refined projects for ownership when full measurement pre-parsing retains only unit cases", async () => {
   const fixture = await makeFocusedVitestFixture(true);
@@ -125,7 +126,7 @@ it("uses refined projects for ownership when full measurement pre-parsing retain
     const output = join(fixture.packageRoot, "retained.json");
     const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "full", "--workers", "1", "--output", output],
-      { cwd: fixture.packageRoot, env: { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "" }, reject: false, timeout: 30_000 });
+      { cwd: fixture.packageRoot, env: { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "" }, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const record: unknown = JSON.parse(await readFile(output, "utf8"));
     assertRetainedTestCostRun(record, output);
@@ -137,7 +138,7 @@ it("uses refined projects for ownership when full measurement pre-parsing retain
     expect(events).not.toContain('"stage":"e2e:setup"');
     await expect(access(join(fixture.packageRoot, "dist/dev-build-stamp.json"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
 
 it("loads the package measurement configuration when its script starts at repository root", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -146,9 +147,9 @@ it("loads the package measurement configuration when its script starts at reposi
     const output = join(fixture.packageRoot, "retained.json");
     const result = await execa(process.execPath, ["--import", "tsx", "packages/arc-framework/src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1", "--output", output],
-      { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
+      { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: NESTED_CALL_LIMIT });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ mode: { projectSet: "integration" }, testCount: 1 });
     expect(await readFile(fixture.events, "utf8")).toContain("closing-owned:true:false");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));

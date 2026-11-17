@@ -7,8 +7,8 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `ARC CLI Commands` —
-load on demand when workflow steps reference them.
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands`, `Platform Commands` — load on demand when workflow
+steps reference them.
 
 ### Critical Path Reference
 

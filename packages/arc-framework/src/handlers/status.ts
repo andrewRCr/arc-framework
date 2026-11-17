@@ -1,5 +1,6 @@
 /** Status CLI validation and dispatch to lifecycle, view, and session handlers. */
 
+import { createProjectionRemovalSlots } from "../lib/store/projection/removal-slots.js";
 import * as p from "../lib/terminal.js";
 import { withPausedCurrentWuActions } from "../lib/session-init/paused-current-wu-actions.js";
 import { openDefaultStore } from "./lifecycle-shared.js";
@@ -56,6 +57,7 @@ import { createGitExec, createRawGitExec, readGitBlobBytes } from "../lib/io-con
 import { SlugSchema } from "../lib/kernel/index.js";
 import { RECOVERY_RECENCY_DAYS, runBranchGoneRecovery } from "../lib/session-init/branch-gone-recovery.js";
 import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { validateStoreHuskEvidence } from "../lib/work-unit/store-retirement-husk.js";
 import { runCurrentWuReconcileSessionProbe } from "../lib/session-init/current-wu-reconcile.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
@@ -234,6 +236,7 @@ export async function composeSessionInitStatus(
     readUserInbox,
   } = context;
   const store = context.store ?? openDefaultStore(cwd, exec);
+  const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity });
   const stateOffBranch = store.capabilities.stateOffBranch;
   const projectId = store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined;
   // A missing stdin-capable executor degrades object availability inside the remote
@@ -457,6 +460,8 @@ export async function composeSessionInitStatus(
       }, async (stamp, decoded) => {
         const baseBranch = resolved.settings["branch.base"];
         const baseOid = exactSessionBaseOid(sessionCleanupBaseEvidence(context), baseBranch);
+        if (stateOffBranch) return baseOid !== null && marker.kind === "present"
+          && await validateStoreHuskEvidence({ store, exec, marker: marker.marker, baseOid });
         return baseOid !== null && await revalidateDecodedHuskRetirementEvidenceStrict(
           exec,
           stamp,
@@ -716,13 +721,14 @@ export async function composeSessionInitStatus(
           })
         : { branches: [], pendingBranchCount: 0 };
       return runBranchGoneRecovery({
-        roster,
+        store, roster,
         derivedRoster,
         currentBranch,
         baseBranch,
         recentBranches: recent.branches,
         recentPendingBranchCount: recent.pendingBranchCount,
         baseEvidence,
+        projectionRemovalSlots,
         exec,
       });
     },
@@ -743,6 +749,7 @@ export async function composeSessionInitStatus(
         excludeWorktreePath: stateOffBranch ? cwd : worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
         readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
         derivedRoster, store, projectId,
+        projectionRemovalSlots,
       });
     },
     orphanBranchSweep: async (context, worktreeIdentity) => {
