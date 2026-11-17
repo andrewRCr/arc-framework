@@ -1,7 +1,8 @@
-/** Compiler-free self-hosting freshness checks and isolated owned refresh. */
+/** Compiler-free self-hosting freshness checks, rebuild-and-rerun admission and isolated owned refresh. */
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { constants } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { selectFirstPartyInputs } from "./build-inputs.js";
 import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "./build-evidence.js";
@@ -65,6 +66,9 @@ export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
 
 /** Internal build-time override used to direct a fast build into a staging directory. */
 export const DEV_BUILD_OUTPUT_DIRECTORY_ENV = "ARC_DEV_BUILD_OUT_DIR";
+
+/** Marks the one re-run of a command after its stale build was rebuilt, which refuses rather than rebuilding again. */
+export const DEV_BUILD_RERUN_ENV = "ARC_DEV_BUILD_RERUN";
 
 /** Command families whose successful action may change the running development bundle's inputs. */
 export const DEV_BUILD_REFRESH_COMMAND_PATHS = Object.freeze([
@@ -131,42 +135,73 @@ export interface DevBuildGuardInput {
   readonly writeCompactionSeed?: boolean;
 }
 
-/** Independent lease, freshness and process-output boundaries for command admission. */
+/** Independent lease, freshness, rebuild and process-output boundaries for command admission. */
 export interface DevBuildGuardDeps {
   readonly token: string | undefined;
   readonly readHolder: () => AdvisoryLockReadResult;
   readonly now: () => number;
   readonly freshness: DevCheckDeps;
+  /** Whether this process is the re-run of a command whose stale build was already rebuilt. */
+  readonly rerunning: boolean;
+  /** Bring the runtime build current under checkout ownership. */
+  readonly rebuild: DevBuildRefreshDeps["rebuild"];
   readonly writeStderr: (message: string) => void;
   readonly exit: (code: number) => void;
 }
 
+/** What a command does once the development build guard admits it. */
+export type DevBuildAdmission =
+  | { readonly kind: "run"; readonly refreshEligible: boolean }
+  | { readonly kind: "rerun" };
+
+const RUN_WITHOUT_REFRESH: DevBuildAdmission = { kind: "run", refreshEligible: false };
+
 /**
  * Admit a command against the live controller lease or ordinary build qualification.
+ *
+ * This process has already loaded the bundle it checks, so a stale build is rebuilt and the command runs again in a
+ * fresh process. A failed rebuild, a rebuild that leaves the bundle stale, and the re-run itself refuse instead.
  * @param input - Command path and compaction-seed exception
- * @param deps - Synchronous holder, freshness and process boundaries
- * @returns Whether this command is eligible for a post-action development rebuild
+ * @param deps - Holder, freshness, rebuild and process boundaries
+ * @returns Whether to run the command here and refresh the build after it, or to run it again on the rebuilt bundle
  */
-export function runDevBuildGuard(input: DevBuildGuardInput, deps: DevBuildGuardDeps): boolean {
-  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return false;
+export async function runDevBuildGuard(
+  input: DevBuildGuardInput, deps: DevBuildGuardDeps,
+): Promise<DevBuildAdmission> {
+  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return RUN_WITHOUT_REFRESH;
   const verdict = checkDevBuildStaleness(deps.freshness);
-  if (verdict.kind === "skip") return false;
-  if (verdict.kind === "fresh") return isDevBuildRefreshCommandPath(input.commandPath);
+  if (verdict.kind === "skip") return RUN_WITHOUT_REFRESH;
+  if (verdict.kind === "fresh") {
+    return { kind: "run", refreshEligible: isDevBuildRefreshCommandPath(input.commandPath) };
+  }
+  const staleness = describeStaleness(verdict);
+  // A stale seed is revalidated during recovery and is preferable to no seed.
+  if (input.writeCompactionSeed === true) {
+    deps.writeStderr(`warn: arc dev build is stale (${staleness}). Run \`npm run build:fast\` before relying on output.\n`);
+    return RUN_WITHOUT_REFRESH;
+  }
+  if (!deps.rerunning) {
+    deps.writeStderr(`info: rebuilding the stale arc dev build (${staleness}), `
+      + `then running \`${input.commandPath}\` again.\n`);
+    const refreshed = await refreshStaleDevBuild({
+      check: () => checkDevBuildStaleness(deps.freshness), rebuild: deps.rebuild,
+    });
+    if (refreshed.kind !== "failed") return { kind: "rerun" };
+    deps.writeStderr(`error: arc could not rebuild the dev build (${refreshed.message}).\n`);
+  }
+  deps.writeStderr(`error: arc dev build is stale (${staleness}). Refusing \`${input.commandPath}\` against stale `
+    + "dist; run `npm run build:fast`, then retry.\n");
+  deps.exit(1);
+  return RUN_WITHOUT_REFRESH;
+}
+
+function describeStaleness(verdict: Extract<DevCheckResult, { kind: "stale" }>): string {
   const distAgeText = verdict.distAge === null ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
   const staleCause = verdict.basis === "content-hash"
     ? verdict.qualificationReason
     : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
-  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
-  // A stale seed is revalidated during recovery and is preferable to no seed.
-  if (input.writeCompactionSeed === true) {
-    deps.writeStderr(`warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`);
-    return false;
-  }
-  deps.writeStderr(`error: ${baseMsg} Refusing \`${input.commandPath}\` against stale dist; `
-    + "run `npm run build:fast`, then retry.\n");
-  deps.exit(1);
-  return false;
+  return `${staleCause}; ${distAgeText}`;
 }
 
 function formatAge(seconds: number): string {
@@ -182,17 +217,76 @@ function formatAge(seconds: number): string {
  * @returns Native synchronous dependencies without performing a freshness read
  */
 export function createDevBuildGuardDeps(cliJsPath: string): DevBuildGuardDeps {
+  const packageRoot = dirname(dirname(cliJsPath));
+  const rerunning = process.env[DEV_BUILD_RERUN_ENV] === "1";
+  // Commands this one starts check their own build rather than inheriting its single re-run.
+  Reflect.deleteProperty(process.env, DEV_BUILD_RERUN_ENV);
   return {
     token: process.env[TEST_CONTROLLER_TOKEN_ENV], now: () => Date.now(),
     readHolder: () => {
       try {
-        return classifyAdvisoryLockRead({ text: readFileSync(join(dirname(dirname(cliJsPath)), BUILD_ARTIFACT_LOCK_NAME), "utf8") });
+        return classifyAdvisoryLockRead({ text: readFileSync(join(packageRoot, BUILD_ARTIFACT_LOCK_NAME), "utf8") });
       } catch (error) { return classifyAdvisoryLockRead({ error }); }
     },
     freshness: createDevCheckDeps(cliJsPath),
+    rerunning,
+    rebuild: () => prepareDevBuild(packageRoot),
     writeStderr: (message) => { process.stderr.write(message); },
     exit: (code) => { process.exit(code); },
   };
+}
+
+/**
+ * Build the runtime under checkout ownership only if it is still unqualified once owned, so commands that found the
+ * same stale build wait for one build instead of each publishing their own. A wait for another owner and any build
+ * error show on this process's standard error; standard output stays the command's.
+ */
+async function prepareDevBuild(packageRoot: string): Promise<{ kind: "completed" } | { kind: "failed"; message: string }> {
+  return await new Promise((settle) => {
+    const child = spawn(process.execPath,
+      ["--import", "tsx", join(packageRoot, "src/scripts/run-build.ts"), "prepare"],
+      { cwd: packageRoot, env: process.env, stdio: ["ignore", "ignore", "inherit"] });
+    child.once("error", (error) => { settle({ kind: "failed", message: error.message }); });
+    child.once("exit", (code, signal) => {
+      settle(code === 0 ? { kind: "completed" }
+        : { kind: "failed", message: `the build exited with ${signal ?? `code ${String(code)}`}` });
+    });
+  });
+}
+
+/** Signals a supervisor may send to this process alone, which the re-run must receive as well. */
+const RERUN_FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ["SIGTERM", "SIGHUP"];
+
+/**
+ * Run this command again in a fresh process on the rebuilt bundle, ending this process with the re-run's status.
+ *
+ * The re-run inherits the standard streams, so input this process never read reaches it. A terminal interrupt already
+ * reaches the whole foreground process group, so this process only outlasts one rather than delivering it twice.
+ * @returns Never: this process exits with the re-run's exit code, or by the signal that ended it
+ */
+export function rerunDevCommand(): Promise<never> {
+  return new Promise<never>(() => {
+    const child = spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)],
+      { stdio: "inherit", env: { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" } });
+    const forward = (signal: NodeJS.Signals): void => { child.kill(signal); };
+    const outlast = (): void => undefined;
+    for (const signal of RERUN_FORWARDED_SIGNALS) process.on(signal, forward);
+    process.on("SIGINT", outlast);
+    const detach = (): void => {
+      for (const signal of RERUN_FORWARDED_SIGNALS) process.off(signal, forward);
+      process.off("SIGINT", outlast);
+    };
+    child.once("error", (error) => {
+      detach();
+      process.stderr.write(`error: arc could not run the command again on the rebuilt dev build (${error.message}).\n`);
+      process.exit(1);
+    });
+    child.once("exit", (code, signal) => {
+      detach();
+      if (signal !== null) process.kill(process.pid, signal);
+      process.exit(code ?? 128 + (signal === null ? 0 : constants.signals[signal]));
+    });
+  });
 }
 
 /**

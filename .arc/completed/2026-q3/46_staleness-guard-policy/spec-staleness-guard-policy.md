@@ -101,6 +101,14 @@ Two properties of the surrounding system make a strict policy affordable now:
    would have to be built. Refusal is additionally **legible**: a silent rebuild is silent when it works and
    equally silent when it misbehaves, and its failure modes end in running stale code.
 
+   _Reversed 2026-11-17:_ a stale bundle now rebuilds and runs the command again instead of refusing. The structural
+   fact above still holds for the stale process itself, but that process can rebuild and then run the same command in
+   a fresh process on the new bundle. The single freshness check therefore stays inside the bundle, with no launcher
+   copy of the hash contract and no `bin` change. Builds already serialize under the checkout's build lease and
+   publish from staging, and the rebuild builds only when the output is still unqualified once it holds that lease.
+   The rebuild is not silent: it is noted on stderr. Refusal remains for a rebuild that fails or leaves the bundle
+   stale, and for the re-run itself, which never rebuilds again; the compaction-seed exception is unchanged.
+
 ## Scope boundary (No-gos)
 
 - **No launcher, no entry-point move, no `bin` change.** Out per Decision 9. Adopters are unaffected by
@@ -108,6 +116,7 @@ Two properties of the surrounding system make a strict policy affordable now:
   helpers keep spawning `dist/cli.js` at its fixed path. (That path stability is what the no-go buys; it is not a
   claim that test behavior is unchanged, which Decision 2 does affect — see § Open items.)
 - **No rebuild-on-invoke**, and no auto-rebuild escape-hatch environment variable (no call site requires one).
+  _Rebuild-on-invoke reversed 2026-11-17; see Decision 9._
 - **No cross-process build publication.** Concurrent builders and atomic publication of `dist/` belong to
   `e2e-build-coordination`, which already owns that boundary.
 - **No widening of freshness-detection scope.** The stamp hashes first-party `src/**/*.ts` only, so a
