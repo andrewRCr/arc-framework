@@ -3,14 +3,20 @@
   "slug": "coderabbit-thread-reply-format",
   "claimId": "fbcece506097639cd036edef4575fa56",
   "createdAt": "2026-11-17T17:10:18.450Z",
-  "updatedAt": "2026-11-17T17:10:18.450Z",
+  "updatedAt": "2026-11-17T20:12:27.451Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Recognize CodeRabbit's replies in earlier review threads by their structure rather than an exact footer, so a footer change no longer fails a hosted pass",
   "branch": "fix/coderabbit-thread-reply-format",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/coderabbit-thread-reply-format",
+    "headSha": "b517115884317bb7456d0f3229b5233d52642ef5"
+  }
 }
