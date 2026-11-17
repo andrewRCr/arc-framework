@@ -202,7 +202,8 @@ the fence harness pass over the ref backend; and the full suite passes with no b
         - Off the branch, `handleSync` hands the inspected worktree to `finishStoreSync` (`handlers/sync.ts`): the state
           leg (`runStateLeg`, `handlers/sync-state-leg.ts`), then the branch leg alone over the push and fast-forward the
           notes path now shares (`pushBranch`, `pullBranchInbound`), under `state+…` and `state-only` cells. A rebase in
-          progress holds only the branch push; state still publishes.
+          progress holds only the branch push; state still publishes. The pull and the push each fan out to the other
+          projected checkouts after the rebuild's take-in does, as the decoration does for every pull and push.
         - The outcome's `state` holds the pull and push records, and `tripwires` the push's report when a figure exceeds
           its bound; the audit's `state` token is the pull's leg token, then the push's, joined by ` | `.
         - `arc join`'s designation question and its subprocess moved into `offerStoreDesignation`

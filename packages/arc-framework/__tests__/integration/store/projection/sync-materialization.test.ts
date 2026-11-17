@@ -215,15 +215,20 @@ it("fans out a materialization take-in once after releasing its native lease", a
   const h = await createFanOutFixture(directories); await endProjection(h.input);
   await writeFile(join(h.h.checkout, h.h.path), "");
   const old = new Date(Date.now() - 1_000); await utimes(join(h.h.checkout, h.h.path), old, old);
-  let edited = false, landed = false, batches = 0, rounds = 0;
+  let edited = false, landed = false;
+  // The take-in, each fan-out round after it, and the state pull and push sync runs after the take-in.
+  const events: string[] = [];
   const observed = overrideEngineStore(h.h.store, {
     batch: async input => {
       const result = await h.h.store.batch(input);
-      if (result.status === "ok") { expect(projectionProcessState().lockHeld).toBe(true); landed = true; batches++; }
+      if (result.status === "ok") { expect(projectionProcessState().lockHeld).toBe(true); landed = true; events.push("take-in"); }
       return result;
-    }, version: async () => {
+    },
+    pull: input => { events.push("pull"); return h.h.store.pull(input); },
+    push: input => { events.push("push"); return h.h.store.push(input); },
+    version: async () => {
       if (landed) {
-        rounds++;
+        events.push("round");
         expect(projectionProcessState().lockHeld).toBe(false);
         expect(await withProjectionLock(h.h.location, async () => "unlocked", { maxWaitMs: 100 }))
           .toMatchObject({ status: "done", value: "unlocked" });
@@ -237,7 +242,8 @@ it("fans out a materialization take-in once after releasing its native lease", a
     edited = true; await h.h.edit("An edit arriving during materialization.\n");
   } } });
   await sync({ checkout: h.h.checkout, store });
-  expect(edited).toBe(true); expect(batches).toBe(1); expect(rounds).toBe(1);
+  expect(edited).toBe(true);
+  expect(events).toEqual(["take-in", "round", "pull", "round", "push", "round"]);
   expect(await h.h.file()).toContain("An edit arriving during materialization.");
   expect(await h.file()).toBe(await h.h.file());
   expect((await h.h.stored()).content).toBe("An edit arriving during materialization.\n");
