@@ -8,11 +8,11 @@
 - **Depends On:** `cutover-flip`
 
 - **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
-- **Design:** `draft-cutover-decompose-removal.md`
+- **Design:** `spec-cutover-decompose-removal.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
