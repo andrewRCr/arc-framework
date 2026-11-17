@@ -240,8 +240,8 @@ repeat therefore preserves an unresolved absolute-start miss; it does not establ
 
 ### Source comparison on one runner
 
-The diagnostic compares pre-feature source `53a349d7cb` with current source in four separate Vitest processes, ordered
-old–current–current–old on one runner. Each block warms twice, then retains eleven standard-fixture starts and the
+The diagnostic at `c4a6bb42f8` compares pre-feature source `53a349d7cb` with current source in four separate Vitest
+processes, ordered old–current–current–old on one runner. Each block warms twice, then retains eleven starts and the
 beneath-Git, concurrent-Git-pair, and single-Git controls. The start's timed boundary and two-Git-call check match the
 ordinary benchmark; end work, imports, materialization, and process startup remain outside the timed interval.
 
@@ -258,6 +258,40 @@ record, to expose any difference between the isolated standard fixture and the l
 
 Linux mechanics run `f053138e23114c95bd540d6cc2f4d5c1` completed all four blocks, with matching refs and configuration,
 ready starts, no diagnostics, and two Git calls per start.
+
+Hosted run `44150655723` used both diagnostic inputs: the named source-control file, then the existing timing-only
+suites. macOS job `134278343343` completed both. Its image was `macos-26-arm64` version `20261112.0504.1`, with
+Node `v26.13.1` and Git `2.56.1`, the same recorded image and tool versions as the first slow run. The source-tree
+objects were `f07f98b6dd6bc957abb7efa9040b555450426f62` for the baseline and
+`6f7c702dccae208e4a358fb48e0355353c157637` for current source, which matches `24d91d6636`'s production source.
+
+| Block | Source   | Start (ms) | Beneath Git (ms) | Git pair (ms) | Single Git (ms) |
+| ----- | -------- | ---------- | ---------------- | ------------- | --------------- |
+| 0     | Baseline | 36.056     | 16.129           | 20.803        | 19.774          |
+| 1     | Current  | 38.686     | 18.041           | 24.079        | 18.827          |
+| 2     | Current  | 31.328     | 15.049           | 18.742        | 16.700          |
+| 3     | Baseline | 28.766     | 13.609           | 16.227        | 14.541          |
+
+All four block medians fit 45 ms. The comparison does not reproduce the earlier 80–114 ms starts; it does not establish
+an exact source-only penalty or rule out a smaller one. The block order also shows variation over time in both source
+versions and their independent controls.
+
+The full benchmark afterward measured 30.761/30.278 ms standard/expanded starts, 400.013/1254.834 ms one/ten-file
+fan-out, and 2152.699 ms materialization, all within the retained absolute bounds. Save growth was +1.858 ms and the
+opened-start increment +1.470 ms, again within their unchanged bounds. Beneath-Git, Git-pair, and single-Git controls
+were 14.867, 17.226, and 16.336 ms, substantially below those in both slow runs. The logs also establish that the
+projection benchmark ran before the store timing file in both earlier jobs, so preceding test-file work does not
+explain those attempts.
+
+The evidence supports intermittent host or runtime variation rather than a reproduced large source regression. The
+precise cause remains unproven, and the earlier misses remain part of the record. The passing current measurement
+does not by itself replace the failed measurements or authorize their acceptance. Every raw control and benchmark
+sample is retained in the job log and artifact `14359301819`, and with this unit's measurement evidence.
+
+The same run's Windows job `134278343409` failed during archive extraction with `write EOF`, before measurements;
+the diagnostic workflow therefore failed overall. A file-backed extraction completed all four blocks on the Windows
+feedback runner in `244d9e0e07a0406f9312916f71b33e83`, whose raw record is retained. That is feedback, not a passing
+hosted Windows result.
 
 ## Workflows that write under `completed/`
 
