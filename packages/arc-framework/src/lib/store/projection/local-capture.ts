@@ -6,7 +6,7 @@ import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import type { StoreResult } from "../refusal.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
-import { readProjectionIndex } from "./index-file.js";
+import { readProjectionIndex, projectionIndexRecoveryCommand } from "./index-file.js";
 import { loadProjectionGroups, projectionIndexGroup } from "./index-memory.js";
 import { ownershipHandoffMark } from "./ownership-hold.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
@@ -46,7 +46,7 @@ export async function captureProjectionLocal(input: ProjectionLocalCaptureInput)
   if (index === undefined) {
     const disk = await readProjectionIndex(input.location, true, { retry: true, groups: [projectionIndexGroup(input.path)] });
     if (disk.kind === "unusable") return { ...refusedLocal(`The projection index at ${input.checkout} is ${disk.cause}.`,
-      `Let the command publishing the projection index at ${input.checkout} finish, or run arc save there to rebuild it, then retry.`), nativeRefusal: true };
+      `Let the command publishing the projection index at ${input.checkout} finish, or run ${projectionIndexRecoveryCommand(disk.header)} there to rebuild it, then retry.`), nativeRefusal: true };
     index = disk.index;
   }
   const settings = input.settings ?? index.projectedUnder;

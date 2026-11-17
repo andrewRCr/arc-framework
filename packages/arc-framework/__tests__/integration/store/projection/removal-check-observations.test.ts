@@ -278,7 +278,7 @@ it("keeps a file awaiting adoption unobservable while a publication leaves its i
     } }) };
   expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "unobservable", detail: `${path} in ${f.root}: `
     + `projection.local: The projection index at ${f.root} is unreadable. `
-    + `Let the command publishing the projection index at ${f.root} finish, or run arc save there to rebuild it` });
+    + `Let the command publishing the projection index at ${f.root} finish, or run arc sync there to rebuild it` });
   await rename(held, live);
   configurations = 2;
   expect(await checkProjectionRemoval(f.root, context)).toEqual({ kind: "passes" });

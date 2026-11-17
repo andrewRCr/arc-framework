@@ -80,7 +80,7 @@ export async function withPersistedProjection(checkout: string, context: Project
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
     if (disk.kind === "no-projection") return await persistUnprojected(checkout, context, disposition);
-    if (disk.kind === "unusable") return refuse(unusableProjectionIndexDetail(checkout, disk.cause));
+    if (disk.kind === "unusable") return refuse(unusableProjectionIndexDetail(checkout, disk.cause, disk.header));
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "refused", remedy: configuration.identity.remedy };
     const targetIdentity = configuration.identity.identity;
@@ -110,7 +110,7 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
   complete: ProjectionPersistCompletion): Promise<ProjectionPersistResult> {
   await input.session.step();
   const disk = await readProjectionIndex(input.location, true, { groups: "all" });
-  if (disk.kind !== "index") return refuse(unusableProjectionIndexDetail(input.checkout, disk.cause));
+  if (disk.kind !== "index") return refuse(unusableProjectionIndexDetail(input.checkout, disk.cause, disk.header));
   const root = await bindProjectionRoot(input);
   try {
     let index = disk.index;

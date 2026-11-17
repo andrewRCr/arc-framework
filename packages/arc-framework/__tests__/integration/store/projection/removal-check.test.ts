@@ -13,6 +13,7 @@ import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/r
 import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { PROJECTION_LOCK_FILE, withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
@@ -778,9 +779,14 @@ it.each([true, false])("reads every cold completed partition and repairs its cor
   await rm(join(target.checkout, path));
   await writeFile(join(target.location.stateDir, partition.name), "Altered cold partition bytes\n");
   expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "unobservable",
-    detail: expect.stringContaining("arc save") });
-  const command = { checkout: target.checkout, store: target.h.store, ports: target.h.ports, mode: "save" as const };
+    detail: expect.stringContaining("arc sync") });
+  for (const result of [await persistProjectionRemoval(target.checkout, target.context),
+    await releaseProjectionRemoval(target.checkout, false, target.context)]) {
+    expect(result).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("arc sync") } });
+  }
+  const command = { checkout: target.checkout, store: target.h.store, ports: target.h.ports };
   expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  await restoreSyncProjection(target.h.store, target.checkout, {});
   await endProjection(command);
   if (!claimed) {
     expect(await checkProjectionRemoval(target.checkout, target.context)).toMatchObject({ kind: "would-refuse",
@@ -792,6 +798,8 @@ it.each([true, false])("reads every cold completed partition and repairs its cor
     }
   }
   expect(await checkProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "passes" });
+  expect(await persistProjectionRemoval(target.checkout, target.context)).toEqual({ kind: "persisted" });
+  expect(await releaseProjectionRemoval(target.checkout, false, target.context)).toEqual({ kind: "released" });
 });
 
 it("holds a projected conflict drawing and passes its resolved edit without resolving the stored conflict", async () => {

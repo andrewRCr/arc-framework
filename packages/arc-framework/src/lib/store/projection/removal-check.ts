@@ -6,7 +6,7 @@ import { observeUnprojectedPersonalFiles, type ProjectionResidualFs } from "./re
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection } from "./location.js";
 import { checkoutHoldsProjection } from "./ownership.js";
-import { readProjectionIndex, type UnusableIndexCause } from "./index-file.js";
+import { readProjectionIndex, projectionIndexRecoveryCommand, type ProjectionIndexHeader, type UnusableIndexCause } from "./index-file.js";
 import type { ProjectionRetirement } from "./removal-verdict.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { bindReadOnlyProjectionRoot } from "./engine-read-only.js";
@@ -27,8 +27,8 @@ export interface ProjectionRemovalContext {
 }
 
 /** The repair for a target whose projection index cannot be used, which the check and the persist step both name. */
-export function unusableProjectionIndexDetail(checkout: string, cause: UnusableIndexCause): string {
-  return `The projection index at ${checkout} is ${cause}. Run arc save from that checkout to rebuild it, then retry removal or release there.`;
+export function unusableProjectionIndexDetail(checkout: string, cause: UnusableIndexCause, header?: ProjectionIndexHeader): string {
+  return `The projection index at ${checkout} is ${cause}. Run ${projectionIndexRecoveryCommand(header)} from that checkout to rebuild it, then retry removal or release there.`;
 }
 
 /** Check projected retirement safety without acquiring a lease or changing local or stored state. */
@@ -37,7 +37,7 @@ export async function checkProjectionRemoval(checkout: string, context: Projecti
     const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
-    if (disk.kind === "unusable") return { kind: "unobservable", detail: unusableProjectionIndexDetail(checkout, disk.cause) };
+    if (disk.kind === "unusable") return { kind: "unobservable", detail: unusableProjectionIndexDetail(checkout, disk.cause, disk.header) };
     if (disk.kind === "no-projection") return disposition === "release" ? { kind: "passes" }
       : await observeUnprojectedPersonalFiles(checkout, context.residualFs);
     const configuration = await readProjectionConfiguration(ports.exec, checkout);

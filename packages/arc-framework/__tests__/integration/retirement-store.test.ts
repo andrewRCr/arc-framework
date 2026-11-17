@@ -47,6 +47,7 @@ import { createProjectionEnginePorts } from "../../src/lib/store/projection/engi
 import { guardProjectionIgnores } from "../../src/lib/store/projection/ignore-guard.js";
 import { PROJECTION_INDEX_FILE, readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.js";
+import { restoreSyncProjection } from "../../src/lib/store/projection/sync-materialization.js";
 import { startProjection, endProjection } from "../../src/lib/store/projection/engine.js";
 import { createStagedFile, nameAsideFile, parseAsideFile } from "../../src/lib/store/projection/aside.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -646,7 +647,7 @@ describe("store retirement real Git", () => {
     expect(await checkProjectionRemoval(h.checkout, context)).toEqual({ kind: "passes" });
   });
 
-  it("holds an altered cold archive partition until arc save rebuilds it", async () => {
+  it("holds an altered cold archive partition until arc sync rebuilds it", async () => {
     const h = await projectedRetirement();
     const archived = await h.seedMeta("archived", { owner: "blair", state: "Shipped", currentWorkflow: null },
       { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
@@ -664,9 +665,10 @@ describe("store retirement real Git", () => {
     expect(partition.unsettled).toBe(false);
     await rm(join(h.checkout, path));
     await writeFile(join(h.location.stateDir, partition.name), "Altered cold partition bytes\n");
-    expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc save") });
-    const command = { checkout: h.checkout, store: h.store, mode: "save" as const };
+    expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc sync") });
+    const command = { checkout: h.checkout, store: h.store };
     expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+    await restoreSyncProjection(h.store, h.checkout, {});
     await endProjection(command);
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
     expect(lifecycleSuccess(await h.store.read({ reference: archived.reference })).version).toBe(archived.version);

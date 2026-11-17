@@ -29,10 +29,15 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
         const configuration = await observeProjectionConfiguration(checkout, () => readProjectionConfiguration(root.ports.exec, checkout));
         const version = await store.version();
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
-        const disk = await readProjectionIndex(root.location, true);
-        if (disk.kind !== "index") { report("Projection restoration needs a usable index; retry after command-start recovery."); return; }
-        const materialized = await materializeProjectionRoot({ root, source: store, configuration, version: version.result, index: disk.index, onlyDeleted: true,
-          reportedLinks: root.reportedLinks });
+        const disk = await readProjectionIndex(root.location, true, { groups: "all" });
+        const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks };
+        const materialized = await materializeProjectionRoot(disk.kind === "index"
+          ? { ...basis, index: disk.index, onlyDeleted: true }
+          : { ...basis, index: null, recovered: disk.header });
+        if (disk.kind !== "index") {
+          const copies = new Map(root.copies.map(copy => [copy.copy, copy]));
+          root.copies.splice(0, root.copies.length, ...copies.values());
+        }
         if (materialized.kind === "refused") report(materialized.mark.reason, materialized.mark.remedy.text);
       } finally { root.checkpoint = null; }
     }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);

@@ -118,42 +118,15 @@ names it.
   adoptions retain opened intent and writable mode; missing-history refusals name explicit save, while an absent new
   path drops its opening and reports how to reopen it. Unopened forced edits stay outside the ordinary walk.
 
-### `[ ]` **2.2 `arc sync` remedies a mismatched archive partition — § 7.2, § 10.2**
+### `[x]` **2.2 `arc sync` remedies a mismatched archive partition — § 7.2, § 10.2**
 
 - _Goal:_ `arc sync` run from a checkout whose archive partition does not hash to its name materializes that checkout in
   full at once, deleting nothing, and the removal check and the persist and release steps name it for such a partition
   before `arc save` stops reading every partition, so the remedy they print always works.
 
-    - `restoreSyncProjection` (`sync-materialization.ts`) reads the index it restores with every group loaded, so
-      `readProjectionIndex` (`index-file.ts`) answers a partition that does not hash to its name as `unusable` with its
-      header, inside the sync's own lock callback, before the lock's deletion under `invalidatePartition` can reach it.
-    - An `unusable` index there takes the path any index a command cannot use takes — `materializeProjectionRoot` with
-      no index, recovering the header's withheld copies — in place of the report that asks for a retry after
-      command-start recovery. As any rebuild with no usable index, it withholds every file holding an edit not yet
-      landed, in any partition, and drops every opened mark in the checkout (spec § 7.2).
-    - The sync's start has already swept the checkout and recorded its aside copies (`root.copies`, `engine-start.ts`),
-      and the rebuild's own sweep records them again (`materializeProjectionRoot`), so the rebuild keeps each copy
-      once in what the end re-checks.
-    - `unusableProjectionIndexDetail` (`removal-check.ts`), which the check and the persist and release steps print,
-      names `arc sync` run from that checkout where the unusable read carries its header — a missing or mismatched
-      partition — and keeps `arc save` for a missing, unreadable, or other-format header. The local capture's refusal
-      (`captureProjectionLocal`, `local-capture.ts`), which a write-back's preparation prints where the index it
-      re-reads is unusable, the check's and the persist step's among them, takes the same rule after its first clause,
-      which lets a publication finish.
-    - `integration/store/projection/sync-materialization.test.ts`, and the removal check's and the retirement suite's
-      cold-partition repairs, move to this contract (`notes-projection-team-scale.md` § Test migrations).
-
-    - Build `test-first` (one behavior at a time):
-        - with an unmarked archive partition holding bytes that do not hash to its name, `arc sync` materializes the
-          checkout in full, leaves a usable index, and deletes no partition first
-        - in that checkout, an opened file whose edit `arc sync`'s own start could not take in, a refused take-in among
-          them, is withheld and named by the rebuild, as at any rebuild, and one whose edit the start took in is laid
-          read-only
-        - a sync rebuild in a checkout holding a live aside copy leaves that copy listed once
-        - the removal check over that partition answers `unobservable` naming `arc sync` run from that checkout, and
-          the persist and release steps refuse naming it, each succeeding after it (Success Criterion 7); the local
-          capture's refusal names it where the path's partition goes missing after the check's own read; over an index
-          missing its header the remedy still names `arc save`
+- _Outcome:_ Sync loads every partition under its own lease and rebuilds unusable indexes immediately, preserving
+  the header's withheld copies and keeping each end-check copy once. Refused edits are withheld and opened marks drop
+  through the normal rebuild. Partition-damage remedies name sync; missing or unreadable headers still name save.
 
 ### `[ ]` **2.3 `arc save` reads what is opened, unsettled, or resolved — § 6.1**
 

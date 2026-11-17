@@ -95,6 +95,11 @@ export type ProjectionIndexRead =
   | { readonly kind: "index"; readonly index: ProjectionIndex }
   | { readonly kind: "no-projection" }
   | { readonly kind: "unusable"; readonly cause: UnusableIndexCause; readonly header?: ProjectionIndexHeader };
+/** A retained header identifies partition damage, repaired by a full sync rather than a save's narrow read. */
+export function projectionIndexRecoveryCommand(header: ProjectionIndexHeader | undefined): "arc save" | "arc sync" {
+  return header === undefined ? "arc save" : "arc sync";
+}
+
 /** Explicit initial groups, with one whole-read retry for readers that hold no lease. */
 export interface ProjectionIndexReadOptions {
   readonly groups?: Parameters<typeof loadProjectionGroups>[1];

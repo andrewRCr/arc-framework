@@ -1,5 +1,5 @@
 /** Sync restores deleted projected files before its existing network orchestration. */
-import { access, lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -185,7 +185,7 @@ it("retains the old refresh anchor when newer source restores a different delete
   expect(await h.file()).toContain("A newer source after command start.");
 });
 
-it.each([false, true])("keeps an untouched archive partition cold and invalidates a selected one: deleted=%s", async deleted => {
+it.each([false, true])("rebuilds a damaged cold archive partition during the same sync: deleted=%s", async deleted => {
   const quarter = ".arc/completed/2026-q4";
   const h = await createEngineFixture(directories, { kind: "work-item/notes",
     path: `${quarter}/01_work-item-one/notes-work-item-one.md`, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -199,16 +199,11 @@ it.each([false, true])("keeps an untouched archive partition cold and invalidate
   if (deleted) await rm(join(h.checkout, h.path));
   await writeFile(join(h.location.stateDir, partition.name), "Damaged cold partition bytes");
   const result = await sync(h);
-  if (!deleted) {
-    expect(await readFile(join(h.location.stateDir, partition.name), "utf8")).toBe("Damaged cold partition bytes");
-    expect(await h.file()).toContain(h.record.content);
-    return;
-  }
-  expect(result.errors).toContain(partition.name);
-  await expect(access(join(h.location.stateDir, partition.name))).rejects.toMatchObject({ code: "ENOENT" });
-  await expect(h.file()).rejects.toMatchObject({ code: "ENOENT" });
-  expect(await startProjection(command)).toMatchObject({ kind: "ready" }); await endProjection(command);
+  expect(result.errors).not.toContain("mismatched index partition");
   expect(await h.file()).toContain(h.record.content);
+  expect((await h.disk()).entries[h.path]).toMatchObject({ kind: "record", withheld: false });
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0);
+
 });
 
 it("fans out a materialization take-in once after releasing its native lease", async () => {
