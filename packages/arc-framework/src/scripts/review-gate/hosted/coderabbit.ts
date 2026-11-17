@@ -1,6 +1,7 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
 import {
+  carriesSeverity,
   diagnostic,
   finding,
   parseCodeRabbitReviewBody,
@@ -47,12 +48,6 @@ const INCREMENTAL_REPLY = /(?<!\bfull )\breview (?:finished|completed?)\b/iu;
 /** Wording of a tagged reply CodeRabbit has not yet edited to report the review's result. */
 const IN_PROGRESS_REPLY = /\breview (?:triggered|started|queued|in progress)\b/iu;
 const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
-const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
-  String.raw`(?:^|\r?\n)✅ Review thread resolved\.\s*`
-    + String.raw`_You are interacting with an AI system\._\s*`
-    + String.raw`<!-- This is an auto-generated reply by CodeRabbit -->\s*$`,
-  "u",
-);
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -341,17 +336,22 @@ function deduplicateTerminalFindings(findings: UnorderedFinding[]):
   return { kind: "deduplicated", findings: [...retained.values()].map(({ finding }) => finding) };
 }
 
-function isPriorThreadResolutionReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
+/**
+ * A CodeRabbit reply without a severity badge in a thread an earlier review opened: conversation about that thread, such
+ * as a confirmation or a withdrawn finding, never a finding of this review. Its wording and footer change from week to
+ * week, so only its place in the thread and the missing badge decide; a graded reply there still reads as a finding.
+ */
+function isPriorThreadReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
   return comment.actorIdentity === BOT_USER_ID
     && comment.replyToReviewId !== null
     && comment.replyToReviewId !== reviewId
-    && RESOLVED_THREAD_REPLY_FOOTER.test(comment.body);
+    && !carriesSeverity(comment.body);
 }
 
 function isConfirmationOnlyReview(review: HostedGitHubReview, threads: readonly HostedGitHubThread[]): boolean {
   if (review.state !== "commented" || review.body.trim() !== "") return false;
   const comments = threads.flatMap((thread) => thread.comments.filter((comment) => comment.reviewId === review.id));
-  return comments.length > 0 && comments.every((comment) => isPriorThreadResolutionReply(comment, review.id));
+  return comments.length > 0 && comments.every((comment) => isPriorThreadReply(comment, review.id));
 }
 
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
@@ -513,7 +513,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
               comment.actorIdentity === BOT_USER_ID
               && comment.headSha === target.headSha
               && comment.reviewId === terminalReview.id
-              && !isPriorThreadResolutionReply(comment, terminalReview.id))
+              && !isPriorThreadReply(comment, terminalReview.id))
             .map((comment) => ({ threadId: thread.id, comment })));
         const parsedComments = candidateComments.map(({ threadId, comment }) => ({
           threadId,

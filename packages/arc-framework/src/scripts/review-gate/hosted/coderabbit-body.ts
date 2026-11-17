@@ -64,6 +64,11 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
+/** Whether a comment carries a severity badge, the mark of a finding rather than conversation. */
+export function carriesSeverity(body: string): boolean {
+  return severity(body) !== null;
+}
+
 function severityOnMetadataLine(body: string, start: number): ReturnType<typeof severity> {
   return severity(body.slice(start).split(/\r?\n/u, 1)[0] ?? "");
 }
