@@ -22,7 +22,9 @@ adapters live in [the check handlers](../../handlers/check/).
   inputs, plans portable invocations, holds one JSON-RPC conversation per check and owns the capture until the adapter
   proves settlement. The [package guide](../../../README.md) documents the public protocol.
 - `install-gap.ts` reads a failure naming a package the npm lockfile declares within the importer's reach, but no
-  install there holds, as a check that could not run, and names `npm ci` as the repair.
+  install there holds, as a check that could not run, and names `npm ci` as the repair. Failed local checks also name
+  version differences between the lockfile and npm's installed record, without changing the failure verdict. Routed
+  failures never receive a diagnosis from the caller's local install.
 
 The default merge gate checks the whole project. File checks with `widen: false` receive only their own changed inputs;
 unchanged inputs leave them unselected. An unavailable change retains the complete input set. Explicit `--all` checks

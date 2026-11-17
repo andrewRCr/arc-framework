@@ -524,6 +524,32 @@ it("reports a check that fails on a locked but uninstalled package as couldn't r
   });
 });
 
+it("names local installed-version drift beside a failed check and permits a repaired retry", async () => {
+  const { root, io, ids } = await fixture({ lint: {} });
+  await mkdir(join(root, "node_modules"));
+  await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3,
+    packages: { "": {}, "node_modules/zod": { version: "4.6.6" } } }));
+  const installed = join(root, "node_modules/.package-lock.json");
+  await writeFile(installed, JSON.stringify({ lockfileVersion: 3,
+    packages: { "node_modules/zod": { version: "4.4.3" } } }));
+  const output = "registry.ts: type-aware lint failed";
+  io.execute = async () => ({ started: true, exitCode: 2, output });
+  const failed = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(failed).toMatchObject({ kind: "result", exitCode: 1, result: { checks: [{
+    id: "lint", outcome: "failed", output,
+    reason: "Local npm install differs from package-lock.json: node_modules/zod (installed 4.4.3, locked 4.6.6); run npm ci, then retry",
+  }] } });
+  if (failed.kind !== "result") throw new Error(failed.error.message);
+  expect(failed.result.checks[0]).not.toHaveProperty("record");
+
+  await writeFile(installed, JSON.stringify({ lockfileVersion: 3,
+    packages: { "node_modules/zod": { version: "4.6.6" } } }));
+  io.execute = async () => ({ started: true, exitCode: 0, output: "lint passed" });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ id: "lint", outcome: "passed", output: "lint passed" }] },
+  });
+});
+
 it("keeps a missing package the lockfile does not declare as a failed check", async () => {
   const { root, io, ids } = await fixture({ lint: {} });
   await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {} } }));
