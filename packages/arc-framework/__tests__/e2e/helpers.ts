@@ -101,17 +101,21 @@ function runWithIgnoredInput(
       stdout: Buffer.concat(stdout).toString("utf8"),
       stderr: Buffer.concat(stderr).toString("utf8"),
     });
-    // A killed process's children can keep its output open, so a timeout settles without waiting for it to close.
+    // A killed process's children can keep its output open, so a timeout settles without waiting for it to close and
+    // releases the output streams, ending further capture.
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
       if (settled) return;
       settled = true;
+      const result = captured();
+      child.stdout.destroy();
+      child.stderr.destroy();
       rejectResult(Object.assign(new Error(`${file} timed out after ${options.timeout}ms`), {
         code: "ETIMEDOUT",
         killed: true,
         signal: "SIGKILL",
-        ...captured(),
+        ...result,
       }));
     }, options.timeout);
     child.on("error", (error) => {
