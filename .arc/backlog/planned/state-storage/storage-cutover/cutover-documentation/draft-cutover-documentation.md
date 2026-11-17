@@ -162,4 +162,44 @@ item cited here that this draft does not hold is in another member's draft under
 - _Captured during:_ `cutover-tracked-state-removal` design review, pass 1, 2026-11-10 (Owner-approved; the target has
   no session).
 
+### `[ ]` **Record against ADR-021's lighter merge gate and its recipe consequence that ADR-035 retires them**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its buffered entry "Retire § Auto-Merge Lane, and move the draft-lock model it holds", and its ADR scope
+  (the register's ADR row, "note-level passages in ADR-… 021 …").
+
+- _Observation:_ `cutover-tracked-state-removal` retires the shipped merge-gate recipe whole (its D10). ADR-021 names
+  the path-graded lighter merge gate among its Decision's operational conventions (planning and grooming auto-merge
+  through a conditional "merge-ok" status job), and its Consequences say ARC owns "the classification and a
+  recommended recipe". Retiring the recipe carries the lane's retirement through rather than changing what ADR-021
+  decided: ADR-035 lets the classifiers that exist only because state rides code history be deleted, and the planning
+  lane's is one. The lane's record is true from `cutover-flip`'s landing. The recipe consequence's is true only once
+  `cutover-tracked-state-removal` removes the recipe, its install entries, and `arc review planning-lane`, since the
+  recipe ships until then; record that half with or after that unit's landing.
+
+- _Approach:_ record both passages by the ADR methodology's tiers, leaving the Decision text as written. ADR-021's
+  dated note for ADR-037, which retired its create rule and threshold criterion 3 with "Neither record is superseded",
+  is the project's form for a later ADR retiring part of an earlier one.
+
+- _Captured during:_ `cutover-tracked-state-removal` design review, pass 2 and its fix check, 2026-11-10
+  (Owner-approved; the target has no session). It extends the buffered entry above, which the 2026-11-10 housekeep
+  routed before this part was added.
+
+### `[ ]` **Rewrite the integration strategy's post-landing hand-back for the store**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope's strategy rewrites.
+
+- _Observation:_ `strategy-integration.md` § Post-Landing Hand-Back step 1 retires the work unit's personal session
+  workspace after the terminal merge. After the flip no such workspace exists: session context lives in the meta, and
+  `cutover-flip`'s rewrite removed `arc user close` from `integrate-work-unit.md`, so the strategy's fixed hand-back
+  order names a step nothing runs.
+
+- _Approach:_ drop step 1, leaving delivery closeout and then teardown, as `integrate-work-unit.md` Step 11 runs them.
+
+- _Captured during:_ `cutover-flip` Task 5.6 (the delivery, review, and archive rewrite), 2026-11-14 (approved
+  capture).
+
 ---

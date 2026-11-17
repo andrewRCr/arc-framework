@@ -19,6 +19,109 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Derive the hand-kept artifact-kind lists from the record-family registry**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its _Exposes_ line in `cohort-storage-cutover.md`, and that record's register-shares row "Hand-maintained
+  artifact-kind lists", whose flip share moves here.
+
+- `WU_Target: cutover-in-repo-removal`
+
+- _Observation:_ The register's fate for that row has the flip derive the surviving artifact-kind lists from the
+  family registry, the `design` selector included. The selector is already in `VIEW_KINDS` (`lib/view/types.ts`), and
+  no surviving list breaks or misleads once state leaves the branch, so `cutover-flip`'s spec derives none and moves
+  the derivation here (Owner, 2026-11-10, at that unit's create-spec).
+
+- _Approach:_ derive `WorkUnitArtifactKindSchema` (`lib/layout/schema.ts`), `VIEW_KINDS`, and the kind maps in
+  `lib/store/target-classification.ts` and `lib/store/lifecycle-storage.ts` from the registry (`createKindRegistry`,
+  `lib/store/registry.ts`), beside this member's deletion of the write-context and branch-classification patterns. The
+  row closes when its last share lands; tracked-state removal deletes the hook patterns.
+
+- _Captured during:_ `cutover-flip` create-spec, Gate 1 decisions, 2026-11-10 (Owner-decided).
+
+### `[ ]` **Remove the override's CI condition and test-setup clearing, and rename the flip's refusal**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its item deleting "the environment override in `createStore` and the flip build's unimported-repository
+  refusal".
+
+- `WU_Target: cutover-in-repo-removal`
+
+- _Observation:_ `cutover-flip`'s spec review (pass 1, F5 and F6) changed both pieces. The refusal is now the
+  tracked-state refusal: without the override, the flip build refuses a ref store over any tree that still tracks ARC
+  state, whether or not the registry ref exists, reading the tree at `HEAD`; while it holds, the commands the Git hooks
+  run (`arc check pre-commit`, `commit-msg`, `pre-push`, and the pre-commit hook's `hook-*` commands) run with the
+  projection off and open no ref store, so the refusal's own remedy can commit. The override gained two pieces: CI's
+  two `arc` steps (`.github/workflows/ci.yml`, `check gate merge --ci --dry-run` and `check run lint:md:underwrap`) set
+  it in their step environment only when the head branch is the flip's and its tree still tracks ARC state, and the
+  test setup clears it so no test inherits it.
+
+- _Approach:_ delete the CI steps' condition and the test setup's clearing with the override, delete the hook
+  commands' exemption with the refusal, and name the refusal as the tracked-state refusal in the item.
+
+- _Captured during:_ `cutover-flip` create-spec, spec review pass 1 (F5, F6) and pass 2 (S2-2, S2-4), 2026-11-10
+  (Owner-approved).
+
+### `[ ]` **Remove the review gate's local records nothing reads, once the import and the in-repo arms are gone**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its items "The in-repo arms the seam members left" (`seam-delivery-review`'s retired arms, the per-clone
+  repository ID record) and "The import's capability-false arms".
+
+- _Observation:_ `cutover-tracked-state-removal` held #35, "Remove the review gate's inert local folders" (about 26 MB
+  under `.git/arc/review-gate/` on the Owner's clones that predate the flip). Its spec review moved the item here
+  (Owner, 2026-11-10), after three looks found each authored keep-or-remove list wrong. Until the import
+  (`readImportReviewGate` reads every file there) and the review gate's capability-false arms are deleted, a static
+  check finds every folder read, so "remove each file nothing reads" is exact only after both deletions: this unit's,
+  and `cutover-tracked-state-removal`'s import removal (its § 2.7).
+
+- _Approach:_ derive the removal set from the code's readers at that point, not from an authored list.
+    - Decide per file or record kind, not per folder: `operations/` mixes imported durable records with live
+      frontline-run and review-suspension working state.
+    - Do not use the import's left-behind listing as the removal set: it lists live machinery (the owner index,
+      quarantine, operation locks, working state), and it is printed, never saved.
+    - Store-path readers today, as examples: the hosted-request owner index (`identity/hosted-request-owner-*.json`,
+      `HostedRequestOwnerIndex`), `operation-locks/` (`withRepositoryReviewOperationLock`), `materializations/` (the
+      source sweep), `sources/` (`RepositoryLocalReviewSourceStore`), and `in-flight/`
+      (`NativeReviewInFlightStateStore`).
+    - No store-path reader today: `identity/repository-identity.json` (read only on the capability-false arm and by the
+      import) and `quarantine/` (only the import's review mapping names it).
+    - The step lists every path before removing it, so nothing depends on the import's report.
+
+- _Open:_ on the Owner's clones other than the one the import ran on, the review records were never carried into the
+  store (the review gate's ID is minted per clone, and only the importing clone's facts are read). Once nothing reads
+  them they are still the only copy: decide whether to keep or delete them.
+
+- _Captured during:_ `cutover-tracked-state-removal` create-spec, spec review pass 1, fix check round 2 (Q1, Q6),
+  2026-11-10 (Owner-approved).
+
+### `[ ]` **Drop the agenda's `onGroomingBranch` argument with the pre-flip grooming branches**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ Purpose and § Scope: the dormant pre-flip arms it deletes.
+
+- _Observation:_ session-init's planning entry passes draft-design `onGroomingBranch` (`isGroomingBranch`,
+  `commands/agenda/signal-plan.ts`), whether the checkout is on the stub's grooming branch. From `cutover-flip`'s
+  workflow rewrite, draft-design no longer reads it: planning needs no branch, and its grooming-entry skip went. Before
+  the flip the in-repo arm still makes grooming branches, so the value still describes something; after it, nothing
+  reads it.
+
+- _Approach:_ remove the argument and `isGroomingBranch` with the other pre-flip branch arms, and the two e2e
+  expectations that carry it (`e2e/agenda-plan.e2e.test.ts`, `e2e/agenda-passivity.e2e.test.ts`).
+
+- _Captured during:_ `cutover-flip` Task 5.3 (the draft-design rewrite), 2026-11-14 (approved capture).
+
+---
+
 ## Planning state
 
 - **Readiness:** rough. Its scope and boundary were settled in `cutover-tracked-state-removal`'s draft-design; its

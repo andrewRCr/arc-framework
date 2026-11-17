@@ -61,6 +61,21 @@
 
 - _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
 
+### `[ ]` **Condense the orientation brief's release-wrapper lines and the strategy index's description suffixes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its design tier for `AGENT-BRIEF.ARC` and `STRATEGY-INDEX`.
+
+- _Observation:_ `AGENT-BRIEF.ARC` § How ARC Works › Release wrappers (61 words) restates argument shapes
+  `DEV-RULES.ARC` § Commit control already routes (about 35 condensable); `STRATEGY-INDEX`'s description suffixes on
+  planning-module, work-planning, task-list-formatting and testing-methodology add about 35. Vocabulary usage, as
+  irrelevance evidence the analysis's unresolved defect governs: `deliverable` has no hits in the rules or the index
+  and six in methods and workflows; `replication` appears in three files; the segment modes are restated in
+  `resolve-plan-segmentation.md`, the method holding the duplicate.
+
+- _Captured during:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12; Owner-approved).
+
 ---
 
 ## Problem

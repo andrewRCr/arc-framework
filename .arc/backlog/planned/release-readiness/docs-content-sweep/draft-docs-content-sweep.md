@@ -160,6 +160,35 @@ WU activation.
 - _Captured during:_ `adr-accept-timing`'s generate-tasks, independent review pass 1, 2026-11-04 (Owner-approved
   capture).
 
+### `[ ]` **Drop the two hook keys `cutover-tracked-state-removal` removes from the configuration reference**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its configuration reference pass, `docs/customization/configuration.md`'s `hooks` keys.
+
+- _Observation:_ `docs/customization/configuration.md` documents `hooks.task_numbering` and
+  `hooks.contributor_protected_paths` (its rows near L220 and L227). `cutover-tracked-state-removal` removes both keys
+  from the configuration schema with the pre-commit checks they configure, after `cutover-flip` lands; the page would
+  then describe keys the schema no longer has.
+
+- _Approach:_ drop the two rows once that unit lands, or with the sweep if it runs later.
+
+- _Captured during:_ `cutover-tracked-state-removal` design review, fix check round 2, 2026-11-10 (Owner-approved; the
+  target has no session).
+
+### `[ ]` **Document the working copy for users once the flip lands**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ its in-scope pass over model changes in user-facing prose (getting started, principles, contributing).
+
+- _Observation:_ `spec-storage-contract.md` hands the cutover documenting the working copy: `arc save`, write-back,
+  protected-file notices, conflicts shown in files, the `active/` layout, the close verb, session context, and
+  `scratch/` ("the documentation says so at that point"). `cutover-flip` rewrites only the agent-facing text, the
+  always-loaded text and QUICK-REFERENCE's verb index, and no cutover draft names the explanation for users.
+
+- _Captured during:_ `cutover-flip`'s create-spec planning pass (2026-11-10).
+
 ---
 
 ## Why a Dedicated Plan

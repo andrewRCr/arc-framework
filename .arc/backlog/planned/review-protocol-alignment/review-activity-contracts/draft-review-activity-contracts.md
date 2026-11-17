@@ -793,6 +793,32 @@
 
 - _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
 
+### `[ ]` **State what each review activity's evaluator needs, so reviewers spawn without ambient instructions**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Audit Activity Control and § Hosted Guidance Contract; beside its inbound "Bound and disclose read-only
+  scouts inside review activities" and "Settle which reviewers `AGENTS.md`'s review guidance reaches when trimming it".
+
+- _Observation:_ from 2026-10-29 to 11-12, 653 Opus subagents took 19.2B input and cache tokens in this repository's
+  Claude sessions; review and verification subagents were 609 of them and 95% of those tokens, averaging 147 turns
+  each (`dotfiles-ai-7e`'s count). Spawned as general-purpose agents, each loads the whole instruction chain (the
+  host's global rules, about 2.5k tokens, and the repository `AGENTS.md`, its hosted-review block about 550), so every
+  1,000 always-loaded tokens costs about 96M cache-read tokens per two weeks; Codex's 491 default-role subagents start
+  with about 4k tokens of `AGENTS.md` and 1.4k of skills catalog. `adversarial-review`'s prompt is already
+  self-contained ("Use only the context supplied in this prompt plus source files you inspect directly"), naming its
+  rubric, artifacts and orientation by path, so the ambient chain is cost without a reader.
+
+- _Approach:_ give each review activity a declared evaluator profile (the context its brief names, its tools, a turn
+  budget, a brief-size bound) and install it per harness as ARC installs `arc-worker`: a Claude agent with
+  `omitClaudeMd`, a Codex role with the skills catalog and repository instructions off. Model choice stays host-side
+  (the Owner runs formal review lanes on Opus). An interim host-side `reviewer` agent in the Owner's `dotfiles-ai`
+  carries the trims until this lands (Owner-approved, 2026-11-12). The repository `AGENTS.md`'s review block (about 282
+  words, about 200 condensable under D3.1) also loads into every Claude main session through `CLAUDE.md`'s import,
+  though its scope note excludes development sessions (always-loaded audit, 2026-11-12).
+
+- _Captured during:_ `project-manager.ARC`, relayed from `dotfiles-ai-7e` with the Owner's approval, 2026-11-12.
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly

@@ -86,6 +86,46 @@ without the agent judging what it may do or the Owner being surprised.
 
 - _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
 
+### `[ ]` **Let the Owner pre-decide a session's stops for a stated absence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § The grant and § Kinds of stop; adjacent to its inbound "Bound fix-check rounds when a level lets the agent
+  approve review fixes".
+
+- _Observation:_ deferred review lets a session work through an approved range, but every finding-driven fix, design
+  fork or failing measurement still stops it for the Owner, so an implementation session idles while the Owner is
+  away. `projection-worktrees`' Codex session stopped at 11:13 pm CT on 2026-11-11 for approval of a fix its own
+  advisory review had found, and waited 7 hours 41 minutes. Over 11-10 to 11-12 it waited eleven times: four
+  finding-driven fixes, three spec amendments, two measurement calls, two merge or recovery stops.
+
+- _Approach:_ an interim global skill holds the protocol: `away` in the Owner's `dotfiles-ai`, installed 2026-11-12 for
+  Claude Code and Codex (`/away on|off|status`, `$away` in Codex; Owner-only, model invocation blocked). In-scope
+  finding fixes and advisor-concurred design choices undoable in about an hour are taken as conditional approvals,
+  each in its own commit and recorded as provisional amendments; cheap measurement evidence without verdicts;
+  recovery continuation when the session's own checks agree; park, don't halt; a hard never-list; an away log in
+  SESSION-NOTES; an `off` summary leading with every provisional decision, each then confirmed or reversed. The level
+  model should absorb it, and the skill retires when it does.
+
+- _Draft-side inputs_ (from `dotfiles-ai-7e`, the session that installed the skill, 2026-11-12):
+    1. **Park, don't halt.** The draft pauses the span at a break-out; away mode pauses only the line of work that
+       depends on it and continues independent tasks.
+    2. **Provisional design calls.** Away mode releases design stops (advisor-concurred, about an hour to undo, the
+       Owner confirming on return) while holding publication. The ordinal ladder holds design stops through
+       merge-ready, so it cannot express this cut: an off-ladder modifier is needed, or away-mode reversal rates become
+       the evidence for or against design-delegated.
+    3. **Recovery-audit stops under a grant.** The grant survives compaction, but `session-recover.md` says an
+       instruction given before a stop does not authorize resuming. The draft needs a rule, such as continuing when
+       the session's own checks agree and logging the stop as an ARC defect.
+    4. **Advisor concurrence** as the gate for a provisional design call appears nowhere in the draft.
+    5. **Log storage.** The autonomy log's storage form is deferred to the spec, but it must sit in the recovery load
+       set. SESSION-NOTES leaves that set at the storage cutover (`stateOffBranch`), so the away log's home stops being
+       read by recovery then too.
+    6. **Absence-bounded grants.** The draft's one-off range is bounded by tasks; away mode is bounded by the absence
+       and ends at the Owner's `off`, a temporary grant shape the draft lacks.
+
+- _Captured during:_ `project-manager.ARC`, at the Owner's request, 2026-11-12.
+
 ---
 
 ## Grooming Status
