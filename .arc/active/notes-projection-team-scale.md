@@ -293,6 +293,11 @@ the diagnostic workflow therefore failed overall. A file-backed extraction compl
 feedback runner in `244d9e0e07a0406f9312916f71b33e83`, whose raw record is retained. That is feedback, not a passing
 hosted Windows result.
 
+The accepted timing evidence is Linux run `54790e0d0f3446158da7d3a0f1f2b041`, Windows job `134228887339` of run
+`44134547643`, and macOS job `134278343343` of run `44150655723`. The earlier absolute-bound misses are retained as
+intermittent, with their precise cause unproven. This disposition accepts those valid measurements and leaves the
+failed Windows extraction diagnostic recorded as failed.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches

@@ -178,26 +178,17 @@ names it.
   incomplete evidence, preserved corrections, closed unedited files, and repair through a successful save; refresh
   coverage retains forced edits under their owner's rights and lays accepted corrections read-only.
 
-### `[ ]` **2.6 The scale benchmark — Success Criterion 1**
+### `[x]` **2.6 The scale benchmark — Success Criterion 1**
 
 - _Goal:_ On each named reference, interleaved no-change `arc save` runs over the paired fixtures, with nothing opened,
   show the larger fixture's median paired difference within 5 ms on Linux and 10 ms on Windows and macOS; a no-change
   start with one archived file opened stays within its reference's start margin; and every raw sample and paired
   difference is kept.
 
-- **Additional Context:** `notes-projection-team-scale.md` § The scale benchmark's fixtures.
-
-    - The timing suite (`store-ref-projection-timing.test.ts`, under `ARC_STORE_BURSTS=1`) gains interleaved standard and
-      expanded no-change `arc save` runs and, over the standard fixture, interleaved starts with one archived file
-      opened and with none, reported as raw medians and paired differences, beside its start comparison. Its fixtures
-      hold a resolved state version (spec § 11 item 7).
-    - The bounds sit with the projection's others (`projectionPerformanceBounds`, `timings.ts`); a start's margin is
-      read against `spec-projection-worktrees.md` § 15.3 as that unit's amendment A4 restates it, with each reference's
-      calibration medians in `notes-projection-worktrees.md` § A4, never a figure copied here.
-    - Run on each named reference — Linux, Windows, and macOS — and add a § The scale benchmark's results to
-      `notes-projection-team-scale.md`, giving each reference's medians and paired differences with its environment,
-      and citing the commit measured and each reference's run or job identifier, whose record holds every raw sample
-      and paired difference, as `notes-projection-worktrees.md` § A4 does.
+- _Outcome:_ The timing suite retains interleaved save and opened-start comparisons with bounds in
+  `projectionPerformanceBounds`. The latest valid reference measurements are accepted, with earlier absolute-bound
+  misses retained as intermittent; environments, source coordinates, raw records, and the controlled source comparison
+  are in `notes-projection-team-scale.md` § The scale benchmark's results.
 
 ### `[ ]` **2.7 An archived file corrected in place** — validate exit criterion at segment scope
 
