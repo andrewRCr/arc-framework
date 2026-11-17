@@ -107,6 +107,8 @@ route-discovered-work:
   and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at § 3;
   never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its diagnostic,
   never with a checkout-local path guess.
+- **Decision-only holds.** For each held entry waiting only on a decision, put that decision to the Owner at § 3
+  in this drain. Route the entry according to the answer in § 5 of the same drain.
 - **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
   grouping with its rationale. Entry count alone never establishes concern identity.
 - **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,
