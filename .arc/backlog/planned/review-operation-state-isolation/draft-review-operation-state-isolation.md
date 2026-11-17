@@ -121,4 +121,19 @@
 
 - _Captured during:_ `storage-contract` Standard Pass 3 continuation, 2026-10-03; Owner requested a separate capture.
 
+### `[ ]` **Collect settled local-review operation records before they can block a new Candidate**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16), split from a capture on review
+  materializations' reap gap.
+
+- _Shapes:_ the buffered "Isolate review continuations from unrelated malformed operation records".
+
+- _Observation:_ terminal local-review operation records have no lifecycle owner, as the review lane's expired
+  materializations have none: nothing collects them once settled, so repository-wide parsing keeps reading them.
+
+- _Approach:_ collect unrelated settled residue before repository-wide parsing can block a new Candidate, while
+  preserving strict failure for records named by the current exact review lineage.
+
+- _Captured during:_ session-init noise-over-signal investigation, free-primary session, 2026-08-11 (follow-up).
+
 ---

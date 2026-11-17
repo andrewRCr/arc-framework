@@ -432,6 +432,14 @@
   `pullRequest: null` and `completedPasses` was 2, the fix check's logical pass. Composing the approval again meant
   reading `approvedPolicyVehicleMatches` in `runtime/respond-command.ts`.
 
+- _Additional evidence:_ `projection-worktrees`' standard review passes 1–3, 2026-11-16 (routed from
+  `USER-INBOX § Errand`, housekeep drain, 2026-11-16). The first `arc review respond -` result,
+  `awaiting-approval / obtain-approval`, returns `operationId`, `proposal`, the disposition report texts and
+  `provisionalPassAssessment`, but the approval request it asks for must also carry the `policyRequest` (target, lane,
+  `standardReview`, `completedPasses`, `attempts`) and the disposition set's digest, which each pass rebuilt by hand
+  from earlier envelopes. Returning the exact approval request, or at least those two, would leave approval adding only
+  the Owner's decision.
+
 ### `[ ]` **Give a fix's verification evidence a typed reference the CLI can check**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
@@ -644,6 +652,40 @@
 - _Approach:_ keep the verb as a thin wrapper, or retire it for `arc schema get delivery-design-inventory-input`.
 
 - _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+### `[ ]` **Release a hosted review pass whose request never reached the host**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ the buffered "Retire an acknowledged hosted review request before changing providers" and "Make a hosted
+  review request idempotent for its exact target": what a request that never reached the host leaves held.
+
+- _Observation:_ a hosted review request whose `gh api` comment write fails with anything other than an HTTP 4xx or a
+  rate limit is recorded `ambiguous-delivery` (`writeFailure` in `hosted/gh-process.ts`), which is right while the
+  comment might exist. But nothing ever checks the host afterwards. The attempt holds that logical pass against every
+  hosted source (`hostedPassHold` in `lane-progress-hosted-request.ts`), and `arc review local prepare` refuses the
+  forced `delegated-agent` source too (`source-outcome-ambiguous-delivery`), so the lane has no route to the review a
+  sensitive change requires. No verb verifies the host and releases the pass.
+
+- _Evidence:_ PR #1336 at `eba5db55a7` (2026-11-12). The hosted request for `coderabbit-pr` returned
+  `ambiguous-delivery / stop` with empty stderr; the pull request had no comments afterwards, so nothing was
+  delivered. The recorded attempt has no handle and `requestFailureReason: null`; `arc review status` still reported
+  `review-required / run-review`. An empty commit moved the head to `9937e7dfd3`, and the request there returned
+  `ambiguous-delivery` again without recording a new attempt, so the hold spans heads within one Errand claim. The
+  original failure's cause is unrecoverable: `requestHostedReview` wraps `adapter.request` in a bare
+  `catch { ambiguous-delivery }` (`hosted/request.ts` ~677), and `writeFailure` keeps no detail. Afterwards the
+  pre-write reads (`readHead`, `currentActorIdentity`) succeeded, and a probe POST to a missing issue returned HTTP 404
+  in 0.25 s, so the write path works.
+
+- _Also:_ that bare catch also classifies exceptions thrown before the write (a failed or malformed `readHead` or
+  actor read) as ambiguous, though nothing was sent; those should conclude as transient or terminal. Record the
+  failure detail on the attempt either way.
+
+- _Approach:_ a typed reconcile for an ambiguous attempt: read the pull request's comments for one matching the
+  request body and actor after the attempt's admission, bind it as the handle when found, and otherwise record the
+  attempt undelivered so the pass is released. Never replay without that read.
+
+- _Captured during:_ the `dev-rules-project-condense` Errand's hosted review (Owner-approved capture, 2026-11-12).
 
 ---
 

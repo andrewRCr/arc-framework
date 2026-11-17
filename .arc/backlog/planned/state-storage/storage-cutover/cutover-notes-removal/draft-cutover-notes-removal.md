@@ -192,4 +192,19 @@ None on unlanded members.
 - _Captured during:_ `cutover-tracked-state-removal` draft-design, the same sweep, 2026-11-10 (Owner-approved; the
   target has no session).
 
+### `[ ]` **Stop loading working-memory tombstones once notes no longer merge**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-16).
+
+- _Shapes:_ § Scope, the notes deletion set and what survives it.
+
+- _Observation:_ `WORKING-MEMORY.md`'s `## Removed:` tombstones load in full every session (`load-set/projection.ts`),
+  but they expire only at a notes merge (`TOMBSTONE_TTL_MS`, seven days, `merge.ts:382`), and `arc user load` and
+  `pull` stay off until the flip; eight expired ones (about 200 words) were removed by hand on 2026-11-12. With notes
+  retired, tombstones serve nothing.
+
+- _Approach:_ when notes sync goes, drop the tombstone format from working memory (and from any loader that reads it).
+
+- _Captured during:_ the always-loaded audit, a `reviewer` pass for `project-manager.ARC` (2026-11-12; Owner-approved).
+
 ---
