@@ -1,9 +1,10 @@
-/** Pure admission rules for kind-declared writers and explicit conflict removals. */
+/** Pure admission rules for kind-declared writers, new personal records and explicit conflict removals. */
 
 import type { Mutation } from "../write.js";
 import type { StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { sameReference, type RecordReference } from "../identity.js";
+import { namesSideFile } from "../projection/discovery-exclusions.js";
 
 /** Refuse a mutation issued outside its kind's declared writer authority. */
 export function checkRefWriterRules(mutation: Mutation, verb: string,
@@ -13,6 +14,12 @@ export function checkRefWriterRules(mutation: Mutation, verb: string,
     code: "record-malformed", class: "recoverable", reference: mutation.reference, rule: "store.writer",
     condition: "This write-once record may only be changed by its declared writer verbs.",
     remedy: { text: "Use one of this kind's declared writer verbs, then retry the mutation." },
+  };
+  if (mutation.action === "put" && mutation.expected === null && mutation.reference.kind === "personal/document"
+    && typeof mutation.reference.key === "string" && namesSideFile(mutation.reference.key)) return {
+    code: "record-malformed", class: "recoverable", reference: mutation.reference, rule: "store.key",
+    condition: "A new personal record cannot be stored at an editor or folder side file, which no checkout lays.",
+    remedy: { text: "Choose a key that does not name an editor or folder side file, then retry." },
   };
   if (mutation.action === "remove" && mutation.reference.kind.endsWith("/conflict-record")
     && !mutation.resolves?.some((reference) => namesResolved ? sameReference(reference, mutation.reference)
