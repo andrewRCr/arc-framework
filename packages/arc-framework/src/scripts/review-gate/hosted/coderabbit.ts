@@ -1,9 +1,9 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
 import {
-  carriesSeverity,
   diagnostic,
   finding,
+  leadsWithSeverity,
   parseCodeRabbitReviewBody,
   type UnorderedFinding,
 } from "./coderabbit-body.js";
@@ -337,15 +337,16 @@ function deduplicateTerminalFindings(findings: UnorderedFinding[]):
 }
 
 /**
- * A CodeRabbit reply without a severity badge in a thread an earlier review opened: conversation about that thread, such
- * as a confirmation or a withdrawn finding, never a finding of this review. Its wording and footer change from week to
- * week, so only its place in the thread and the missing badge decide; a graded reply there still reads as a finding.
+ * A CodeRabbit reply that does not open with a severity badge, in a thread an earlier review opened: conversation about
+ * that thread, such as a confirmation or a withdrawn finding, never a finding of this review. Its wording and footer
+ * change from week to week, so only its place in the thread and its leading line decide; a reply that opens with a
+ * badge there still reads as a finding.
  */
 function isPriorThreadReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
   return comment.actorIdentity === BOT_USER_ID
     && comment.replyToReviewId !== null
     && comment.replyToReviewId !== reviewId
-    && !carriesSeverity(comment.body);
+    && !leadsWithSeverity(comment.body);
 }
 
 function isConfirmationOnlyReview(review: HostedGitHubReview, threads: readonly HostedGitHubThread[]): boolean {

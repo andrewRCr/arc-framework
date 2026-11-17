@@ -443,6 +443,9 @@ Full review finished.`,
       + "<sub><i>You are interacting with an AI system.</i></sub>\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
     "no footer": "<!-- coderabbit-ai-generated:v1 -->\n\nUnderstood; the snapshot settles it.\n\n"
       + "<!-- This is an auto-generated reply by CodeRabbit -->",
+    "analysis output quoting a badge": "<!-- coderabbit-ai-generated:v1 -->\n\n<details>\n<summary>Analysis chain</summary>"
+      + "\n\n```\n__tests__/coderabbit.test.ts:12:  \"_🟠 Major_ prior concern\",\n```\n\n</details>\n\n"
+      + "The fix holds.\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
   };
 
   it.each(Object.entries(priorThreadReplies))(

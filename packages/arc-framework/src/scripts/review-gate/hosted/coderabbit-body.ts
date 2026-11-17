@@ -64,9 +64,17 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
-/** Whether a comment carries a severity badge, the mark of a finding rather than conversation. */
-export function carriesSeverity(body: string): boolean {
-  return severity(body) !== null;
+/**
+ * Whether a comment opens with a severity badge, the mark of a finding rather than conversation.
+ *
+ * Only the first line that is neither blank nor an HTML comment marker counts: every finding layout leads with its
+ * badge line, while conversation can quote badge-shaped text further down, such as script output in a collapsed
+ * analysis section.
+ */
+export function leadsWithSeverity(body: string): boolean {
+  const leading = body.split(/\r?\n/u)
+    .find((line) => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line));
+  return leading !== undefined && severity(leading) !== null;
 }
 
 function severityOnMetadataLine(body: string, start: number): ReturnType<typeof severity> {
