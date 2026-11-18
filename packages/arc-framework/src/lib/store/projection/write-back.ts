@@ -192,11 +192,11 @@ async function checkContent(context: WriteBackContext, request: TakeInRequest, b
 async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
   const entry = request.rendering === undefined ? request.entry : { ...request.entry, ...request.rendering };
   const grammar = (context.registry ?? kinds)[entry.reference.kind].entry;
-  if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo);
+  if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo, undefined, request.copy === null ? request.path : undefined);
   const selected = await readBaseContent(context, request.entry, base);
   if (selected.status === "refused") return selected;
   return prepareMarkerContent(context.store, entry, content, context.memo,
-    { grammar, base: selected.result, aside: request.copy !== null });
+    { grammar, base: selected.result, aside: request.copy !== null }, request.copy === null ? request.path : undefined);
 }
 
 async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, read: TakeInRead, random?: () => number): Promise<StoreResult<CheckoutMerge>> {

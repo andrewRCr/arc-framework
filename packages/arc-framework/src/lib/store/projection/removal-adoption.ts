@@ -76,8 +76,8 @@ async function readRemovalAdoptionTarget(root: ReadOnlyProjectionRoot, index: Pr
 async function checkExistingProjectionAdoption(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry,
   disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const prepared = await prepareWriteBack(root.context, pendingFileRequest(root.checkout, path, entry));
-  if (prepared.kind !== "ready") return projectionFeasibilityRefusal(prepared, root.checkout, path, disposition) ?? { kind: "passes" };
-  const conflict = unresolvedRemovalConflicts(root.checkout, path, entry.unshown, prepared.write.resolves ?? [], disposition);
+  if (prepared.kind !== "ready") return projectionFeasibilityRefusal(prepared, root.checkout, path, disposition, entry) ?? { kind: "passes" };
+  const conflict = unresolvedRemovalConflicts(root.checkout, path, entry.unshown, prepared.write.resolves ?? [], disposition, entry);
   if (conflict !== null) return conflict;
   const invalid = checkSerializationRules(entry.reference, prepared.write.content);
   return invalid === undefined ? { kind: "passes" } : markedRemovalRefusal(root.checkout, path, markStoreRefusal(invalid), disposition);

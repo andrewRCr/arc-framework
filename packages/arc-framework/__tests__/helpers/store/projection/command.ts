@@ -16,7 +16,8 @@ export async function projectionCommand(input: ProjectionCommandInput, args: rea
   program.command("edit <path>").option("--json").action(async (path: string, options: { json?: boolean }) => {
     await handleEdit({ path, ...options }, input.store, input.checkout);
   });
-  program.command("save").option("--json").action(async (options: { json?: boolean }) => { await handleSave(options, input.store); });
+  program.command("save").option("--json").option("--resolve <conflict>")
+    .action(async (options: { json?: boolean; resolve?: string }) => { await handleSave(options, input.store); });
   program.command("status").option("--json").action(async () => {
     process.stdout.write(JSON.stringify(await readProjectionStatus(input)) + "\n");
   });

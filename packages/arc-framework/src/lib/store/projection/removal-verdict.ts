@@ -3,8 +3,10 @@ import type { ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import type { ProjectionFeasibility } from "./engine-read-only.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Remedy, StoreRefusal } from "../refusal.js";
-import type { RefusedMark } from "./index-schema.js";
+import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import { formatConflictToken } from "../../status/conflict-token.js";
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
@@ -74,13 +76,13 @@ export function ignoreRefusalMark(reason: string, remedy: string): RefusedMark {
 
 /** Preserve failed observations separately from locally refused authored changes. */
 export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, checkout: string, path: string,
-  disposition: ProjectionRetirement): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
+  disposition: ProjectionRetirement, entry?: RecordEntry): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
   if (prepared.kind === "ready") {
     const plan = prepared.submission.plan;
     // Write-back lands an edit that keeps a retained mark and then refuses it, so persistence would refuse it too.
     if (plan.prepared.retained !== null) return markedRemovalRefusal(checkout, path, plan.prepared.retained, disposition);
     const current = plan.observations.find(observation => sameReference(observation.reference, plan.mutation.reference));
-    return unresolvedRemovalConflicts(checkout, path, current?.expected?.conflicts ?? [], plan.mutation.resolves ?? [], disposition);
+    return unresolvedRemovalConflicts(checkout, path, current?.expected?.conflicts ?? [], plan.mutation.resolves ?? [], disposition, entry);
   }
   // A failed read leaves the edit unjudged. A refusal preparation reached on what it read is the edit's own; a Store
   // read that failed beneath it is still retained by the check's read observation.
@@ -96,7 +98,18 @@ export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, ch
 
 /** A preparation that preserves open conflicts cannot finish retirement's conflict hold. */
 export function unresolvedRemovalConflicts(checkout: string, path: string, open: readonly RecordReference[],
-  resolves: readonly RecordReference[], disposition: ProjectionRetirement): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
-  return open.some(conflict => !resolves.some(reference => sameReference(conflict, reference)))
-    ? { kind: "would-refuse", remedy: { text: `Resolve the conflicts in ${path} by hand, then run arc save from ${checkout} and retry ${retirementName(disposition)}.` } } : null;
+  resolves: readonly RecordReference[], disposition: ProjectionRetirement, entry?: RecordEntry): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
+  const remaining = open.filter(conflict => !resolves.some(reference => sameReference(conflict, reference)));
+  if (remaining.length === 0) return null;
+  const repair = archivedConflictRepair(path, entry, remaining)
+    ?? `Resolve the conflicts in ${path} by hand, then run arc save`;
+  return { kind: "would-refuse", remedy: { text: `${repair} from ${checkout} and retry ${retirementName(disposition)}.` } };
+}
+
+function archivedConflictRepair(path: string, entry: RecordEntry | undefined, remaining: readonly RecordReference[]): string | null {
+  if (!path.startsWith(".arc/completed/") || entry === undefined) return null;
+  const notice = entry.notices.find(conflict => remaining.some(reference => sameReference(conflict, reference)));
+  if (notice !== undefined) return `Run arc save --resolve ${formatConflictToken(notice)}`;
+  return entry.markers !== null && entry.opened !== true
+    ? `Run arc edit ${renderRemedyArgument(path)} first. Resolve the conflicts in ${path} by hand, then run arc save` : null;
 }

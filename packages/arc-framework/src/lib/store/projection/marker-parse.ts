@@ -1,4 +1,5 @@
 /** Interpret indexed marker origins and substitute accepted sides before record parsing. */
+import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import type { TextConflictRecord } from "../conflict.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
@@ -18,11 +19,20 @@ export type MarkerParseResult = (
   | { readonly kind: "held"; readonly mark: RefusedMark }) & { readonly unshown?: readonly RecordReference[]; readonly open?: readonly RecordReference[] };
 interface MarkerInput {
   content: string; markers: NonNullable<RecordEntry["markers"]>; conflicts: readonly MarkerConflict[];
-  open: readonly RecordReference[]; entries?: MarkerEntryPolicy;
+  open: readonly RecordReference[]; entries?: MarkerEntryPolicy; path?: string; opened?: boolean;
 }
 
 /** Substitute stored sides using only the conflicts the file's index names. */
 export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
+  const result = parseMarkers(input);
+  const mark = result.kind === "held" ? result.mark : result.retained;
+  if (mark === undefined || !input.path?.startsWith(".arc/completed/") || input.opened === true) return result;
+  const opened = { ...mark, remedy: { ...mark.remedy,
+    text: `Run arc edit ${renderRemedyArgument(input.path)} first. ${mark.remedy.text}` } };
+  return result.kind === "held" ? { ...result, mark: opened } : { ...result, retained: opened };
+}
+
+function parseMarkers(input: MarkerInput): MarkerParseResult {
   const scan = scanMarkers(input.content, input.markers.length);
   const malformed = [...scan.malformed];
   const shown: RecordReference[] = [];
@@ -71,7 +81,7 @@ function partialEntries(input: MarkerInput, malformed: readonly { start: number;
   const ranges = malformedEntries(input.content, input.entries.grammar, malformed, controls, identities);
   if (ranges === null) return { kind: "held", mark };
   const content = restoreMalformedEntries(input.content, input.entries.base, input.entries.grammar, ranges, input.markers.length);
-  const ready = parseMarkerContent({ ...input, content, entries: undefined });
+  const ready = parseMarkers({ ...input, content, entries: undefined });
   if (ready.kind === "held") return ready;
   const blocked = input.conflicts.filter(conflict => {
     const location = conflict.data.location;

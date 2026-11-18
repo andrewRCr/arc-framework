@@ -25,6 +25,23 @@ const fixtures: Awaited<ReturnType<typeof createMarkerFixture>>[] = [];
 afterEach(async () => { await Promise.all(fixtures.splice(0).map(fixture => fixture.dispose())); });
 
 describe("marker parse-back", () => {
+  it.each(["edited-side", "missing-end"])("names opening a closed archived file before repairing %s markers", async damage => {
+    const fixture = await createMarkerFixture({ kind: "work-item/companion" });
+    fixtures.push(fixture);
+    if (fixture.entry.markers === null) throw new Error("No marker origins");
+    const path = ".arc/completed/2026-q4/01_alpha/correction.md";
+    const content = damage === "edited-side" ? fixture.content.replace("stored side", "edited side")
+      : fixture.content.replace(/^>>>>>>>[^\n]*\n?/mu, "");
+    const input = { content, markers: fixture.entry.markers, conflicts: fixture.conflicts,
+      open: fixture.record.conflicts, path, opened: false };
+    expect(parseMarkerContent(input)).toMatchObject({ kind: "held", mark: {
+      remedy: { text: expect.stringContaining(`Run arc edit ${path} first.`) },
+    } });
+    expect(parseMarkerContent({ ...input, opened: true })).toMatchObject({ kind: "held", mark: {
+      remedy: { text: expect.not.stringContaining("arc edit") },
+    } });
+  });
+
   it.each([false, true])("preserves an unchanged EOF conflict with stamped=%s through an independent edit", async stamped => {
     const fixture = await createMarkerFixture({ base: "heading\nbase", current: "heading\nstored", incoming: "heading\nincoming" });
     fixtures.push(fixture);

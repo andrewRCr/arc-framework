@@ -244,34 +244,11 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
   `would-refuse` or `passes` (`checkProjectionRemoval`, `removal-check.ts`). Behaviors the landed code already has are
   regression guards; the forced edit, the new file, and the conflict remedies fail first.
 
-    - `[ ]` **3.2.a The removal check**
-        - The check still walks the whole archive. Each archived file answers by the first that applies (spec § 8): a
-          read that fails, `unobservable`; edit rights that refuse, the owner's remedy, as today; a forced edit or a
-          file under `completed/` with no entry, 3.1's remedy — at a new archived path `arc edit` then `arc save` run in
-          that checkout or the owner, elsewhere adoption's remedy; and otherwise today's answers, in the check's
-          per-file answer (`checkIndexedRemovalEdit`, `removal-files.ts`) and its adoption check
-          (`checkProjectionAdoption`). An opened entry whose file is absent, or emptied past the settle window, passes,
-          as today.
-        - A file held by a stored conflict keeps its hold, which the check makes unedited or edited
-          (`unresolvedRemovalConflicts`, `removal-verdict.ts`); its remedy changes: for a conflict shown by a notice
-          line, `arc save --resolve <token>` (`formatConflictToken`) in place of resolving by hand; for markers in an
-          archived file not opened, `arc edit <path>` first, in that remedy and in the marker marks preparation retains
-          (`marker-parse.ts`), as the check wraps them. An edited file not opened answers first as a forced edit.
-        - § 12.2's phrase for the entries it deliberately holds, "whose walk finishes it", reads "which finishes it";
-          no code holds the phrase, and those entries' remedies already name `arc save`.
-        - Build `test-first` (one behavior at a time):
-            - a forced edit, and a new archived file made without `arc edit`, each make the check answer
-              `persist-would-refuse` naming `arc edit` then `arc save` run in that checkout, the check run from another
-              checkout among them, and `removable` once those have run there
-            - a forced edit that also fails to parse answers as a forced edit; another person's archived work changed
-              in place answers naming its owner, and an opened entry whose file is absent or emptied past the settle
-              window passes
-            - a conflict shown by a notice line in an archived file not opened holds the check, naming
-              `arc save --resolve <token>`, pinned before its remedy changes, until `arc save --resolve` runs in that
-              checkout; and one shown by markers until `arc edit`, the edit, and `arc save` (Success Criterion 8)
-            - an archived recording left unfinished holds the check naming `arc save`, which finishes it (2.3)
-            - an opened file holding an edit, withheld after its index was lost, makes the check answer
-              `persist-would-refuse` until it is deleted, opened again, its edit re-applied, and saved (§ 9.2 test 10)
+    - `[x]` **3.2.a The removal check**
+        - Removal uses the shared archive inspection before admission. Stored notices name `arc save --resolve`;
+          closed archived markers name `arc edit` first, including preparation's retained marks. Native composed
+          checks cover both caller checkouts, rights, absent and empty files, unfinished recording, and lost-index
+          withholding with successful repair. Evidence is in `notes-projection-team-scale.md` § Archived removal checks.
 
     - `[ ]` **3.2.b The persist and release steps**
         - `persistFiles` (`removal-persist.ts`) takes every forced edit and every file under `completed/` with no

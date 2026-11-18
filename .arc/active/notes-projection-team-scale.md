@@ -374,6 +374,36 @@ with focused sync coverage retaining the same file, link, and backend outcomes.
 The final projection integration run `bccd89f1c3bd4045a31d0a7a7f94af8a` passes all 93 files and 939 cases, including
 the twelve new sync cases and the unchanged ownership-handoff contract.
 
+## Archived removal checks
+
+`removal-archive.test.ts` composes `checkWorktreeRemoval` with native reference stores in a real linked checkout.
+Commander-generated edit and save inputs exercise the normal projection hooks and handlers. A notice conflict comes
+from divergent native repositories and their merged archive metadata, with its named history acquired before the peer
+writes. Marker conflicts come from ordinary concurrent text writes. Neither conflict is a hand-built index fixture.
+
+The forced, malformed forced, and unopened new-file cases fail before inspection is added in
+`26c7b44597e341ebb613d26ab4b25dfd`, then pass in `e14f603acf9642a2b903741e78595a06`. Both old conflict remedies fail
+in `f29979de26744b39ae27191228921a6d`; notice resolution and marker editing then make removal feasible in
+`512d86da2f1a4d2692b346bfb135d0a9`. Parser refusal marks independently fail to name opening in
+`dc602123e5814ee9add5bbd514c5ec5c`, then pass with the parser wrapper in `f3709fb598f44c59aea0c4d47e37dca4`.
+
+Regression reconstructions retain their distinct behavior:
+
+- Removing the owner decision fails the foreign-edit remedy in `9532a6436298438a939f10a042413a96`; restored ownership
+  passes in `77d501d596944336a4affb9e94ab02e0`, including restoration of the original projected bytes.
+- Requiring opened files to remain present and nonempty fails both no-edit cases in
+  `dd2d26c1a4f047069f704bce3622f04e`; normal missing-file discovery and settled-empty handling pass in
+  `30e1a76573bd4c6981d580adda97d0e9`, with the stored version unchanged.
+- Skipping unfinished recording's hold fails in `6f2f125486ec4e4fb1e964fe07f68ce8`. The fixture interrupts read-back
+  after a real accepted batch. Restoring the hold lets save finish it without another stored version in
+  `75e434de25a94721a3208a31b5dc7ad5`.
+- Skipping withholding's hold fails after real index loss in `6d282190383e4eb6ba3d78671562717e`. Restored withholding
+  retains the bytes and clears after deletion, reprojection, reopening, reapplication and save in
+  `f1ffc9c8bbb74c11b2b312e0045cb77e`, which passes all 69 focused removal and marker cases.
+
+All temporary reconstructions are restored. Forced edits still take precedence over marker parsing, and failed
+archive observations retain their unobservable result rather than becoming local refusal evidence.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches
