@@ -9,7 +9,7 @@ export async function readArchivedOwners(store: Pick<Store, "list">, kind: "work
   { kind: "records"; records: readonly StoreRecord[] } | { kind: "refused"; mark: RefusedMark; readFailure?: true }
 > {
   const listed = await store.list({ family: "work-item", kind, filter: { locations: ["completed"] } });
-  if (listed.status === "refused") return { kind: "refused", mark: markStoreRefusal(listed.refusal) };
+  if (listed.status === "refused") return { kind: "refused", readFailure: true, mark: markStoreRefusal(listed.refusal) };
   const result = listed.result;
   if (result.status === "unreadable") return { kind: "refused", readFailure: true, mark: { reason: result.condition, remedy: result.remedy } };
   if (result.status === "absent") return { kind: "records", records: [] };

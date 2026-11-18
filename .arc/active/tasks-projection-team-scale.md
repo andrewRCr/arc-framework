@@ -220,42 +220,16 @@ _Design decisions:_ An archived file answers the removal check and the persist a
 that fails, edit rights that refuse, a forced edit or a file with no entry, and the answers `projection-worktrees`'
 removal steps give today (spec § 8); one function answers its remedy for 3.1's report and 3.2's check and steps.
 
-### `[ ]` **3.1 `arc sync` reports forced edits and new archived files — § 7.2**
+### `[x]` **3.1 `arc sync` reports forced edits and new archived files — § 7.2**
 
 - _Goal:_ `arc sync` names every forced edit and every file under `completed/` the index does not hold, each with its
   remedy, taking nothing in and adopting nothing.
 
-    - Its restoration already stats every path the projection lays (`selectDeletedFiles`,
-      `materialization-selection.ts`); those stats pass to `checkChange` (`change-detection.ts`) as its observation,
-      which today discards them, so the comparison stats nothing more.
-    - Over every partition, loaded by 2.2's read, it names each forced edit — a record entry neither opened nor
-      unsettled whose file reads changed by the racy rule and not as deleted (`gateRead`, `read-gate.ts`): `arc edit`
-      then `arc save` where the rights allow the edit (`readProjectionEditRights`), and the rights' remedy naming the
-      owner otherwise.
-    - From the walk of every projected root its restoration already makes (`walkProjectionRoots`, `engine-walk.ts`,
-      from `materialization.ts`), it names each file under `completed/` the index does not hold, skipping editor side
-      files and operating-system folder files as adoption does (`isExcludedProjectionPath`,
-      `discovery-exclusions.ts`): at a new archived path, `arc edit` then `arc save` or the owner; elsewhere,
-      adoption's own remedy. A symbolic link there keeps the report the walk already makes of it and is not named as
-      a new archived file.
-    - Each is reported through the root's report (`root.context.report`) to the projection's diagnostics, as the
-      sync's other reports are (`report.ts`).
-    - One function, given the root, the index, a path, and its entry if any, answers an archived file's remedy,
-      `unobservable` where a read it needs fails, or nothing: `unobservable` before any refusal; the rights' mark
-      naming the owner where they refuse (`readProjectionProtection`, `protection.ts`); adoption's mark where the
-      target's resolution or the file's verdict refuses (spec § 12); and otherwise `arc edit <path>` then `arc save` in
-      that checkout. 3.2's check and persist step call it too, wrapping its mark as they wrap any
-      (`markedRemovalRefusal`, `retirementRefusal`, `removal-verdict.ts`), and one check of whether an archived file
-      holds a forced edit serves the report and the removal alike, so they never name different remedies.
-
-    - Build `test-first` (one behavior at a time):
-        - a forced edit is named with `arc edit` then `arc save`, and another person's archived file changed in place
-          with the remedy naming its owner; neither is taken in
-        - a new file in an archived work unit's folder made without `arc edit` is named with `arc edit` then `arc save`,
-          and a new file directly in `completed/` with adoption's remedy; neither is adopted
-        - an editor's side file and an operating-system folder file under `completed/` are not named, and a symbolic
-          link there keeps the walk's link report and is not named as a new archived file
-        - an archived Markdown file emptied past the settle window is restored, not named as a forced edit
+- _Outcome:_ Sync reports forced edits and unindexed archive files through `inspectArchivedProjectionFile`, with
+  shared owner and adoption remedies and failed reads kept unobservable. Restoration reuses its existing stats and
+  root walk, excludes side files, retains link reporting, and restores settled empty Markdown without calling it a
+  forced edit. Native command coverage and reconstruction evidence are in `notes-projection-team-scale.md`
+  § Sync's archive report.
 
 ### `[ ]` **3.2 The removal check and the persist and release steps over archived entries — § 8, § 10.2**
 

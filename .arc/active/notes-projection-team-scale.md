@@ -339,6 +339,41 @@ the Linux pool runner. The helper now permits only recognized timing notices whi
 this functional scenario sets no timing acceptance bound. Its corrected form passes in local routed run
 `49fa6de37e7f4edb92ae516960d804ee`. The timing acceptance remains the separately recorded reference measurements.
 
+## Sync's archive report
+
+`inspectArchivedProjectionFile` supplies one read-only inspection and remedy for sync and retirement. It detects an
+unopened, settled record's forced edit by the racy rule, excluding deleted files, and resolves an unindexed file through
+the existing adoption readers without submitting it. `observeProjectionProtection` retains unavailable ownership
+evidence separately from denied rights; `readProjectionProtection` keeps its existing mark-returning interface.
+`reportArchivedProjectionFile` uses sync's existing stats, and `reportUnknownArchivedFiles` uses its existing root walk.
+Rebuilds keep their withholding rules; usable-index restoration retains the link report and excludes side files.
+
+The native `sync-archive-report.test.ts` cases drive Commander inputs through projection hooks and the sync restoration
+seam, checking report text, preserved file bytes, and unchanged backend records. The initial forced-edit and new-file
+report failures are retained as runs `279436ddb6cf48ea9810249f04172886` and `fc51fefeb310446d9d7ddf102b56bdbe`.
+Reconstruction checks retain the boundary distinctions:
+
+- Demoting returned, rejected, and missing required ownership evidence into ordinary protection fails three cases in
+  `dd1a704385de45f6a35cf981d7880852`.
+- Removing side-file exclusion makes sync name editor and folder files, failing
+  `d89b7c05e6504c34ab4da6ce08e9a127`.
+- Disabling settled empty-Markdown restoration leaves the file empty, failing
+  `5f6cffd9d83a4ee38f9090371e76d4fd`.
+- Demoting failed new-file ownership and record observations fails both first-failure cases in
+  `337f0d65cc96491e93f9fba6de33fec1`; an actually absent companion still receives the opening remedy after repair.
+
+The restored new-file code still fails the owner-read case in `bd8989b456a64273a4d89440350b1625`: `readIndexedOwners`
+did not retain its failed-read marker. Preserving it makes all 29 focused sync cases pass in
+`ea2e8a78ff0c4e87b5a63a26180714bb`. The equivalent inventory case fails in `3e45a24839a2484ab94210c11e96fb3f`;
+`readArchivedOwners` now retains that marker for a refused list, as it already does for unreadable or partial lists.
+
+All reconstructions are reverted. The broader projection integration directory passes its 93 files and 936 cases in
+`3cd78608cb42446598a2c55c036cfb8c`. Subsequent changes extract the common report and restoration-selection helpers,
+with focused sync coverage retaining the same file, link, and backend outcomes.
+
+The final projection integration run `bccd89f1c3bd4045a31d0a7a7f94af8a` passes all 93 files and 939 cases, including
+the twelve new sync cases and the unchanged ownership-handoff contract.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches

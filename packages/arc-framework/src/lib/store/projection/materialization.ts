@@ -37,6 +37,7 @@ import type { ProjectionConfiguration } from "./configuration.js";
 import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
+import { reportUnknownArchivedFiles } from "./archive-report.js";
 
 /** Inputs observed by the lease-owning caller. */
 interface ProjectionMaterializationBasis {
@@ -91,6 +92,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
   index = selection.index;
   const selected = selection.files;
+  if (input.onlyDeleted) await reportUnknownArchivedFiles(root, index, walked.files);
   // A link is reported, never recorded: only walked files can be unknown files.
   if (input.index === null) index = await recordUnknownFiles(root, index, walked.files, desired.files, whole);
   const files: SwapFile[] = [];

@@ -11,7 +11,7 @@ import type { ObjectFormat } from "./blob-id.js";
 import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { parseStampedFile } from "./stamp.js";
-import { readProjectionProtection } from "./protection.js";
+import { observeProjectionProtection } from "./protection.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 
@@ -26,7 +26,7 @@ export type ProjectionAdoptionVerdict =
   | { readonly kind: "existing"; readonly record: StoreRecord; readonly read: TakeInRead }
   | { readonly kind: "new"; readonly reference: RecordReference; readonly read: TakeInRead;
       readonly file: ProjectionAdmission["input"]["file"] }
-  | { readonly kind: "refused"; readonly mark: RefusedMark; readonly stat: FileStat | null };
+  | { readonly kind: "refused"; readonly mark: RefusedMark; readonly stat: FileStat | null; readonly readFailure?: true };
 
 /** An accepted mint retains its initial authored input obligation until that file can be read. */
 export function missingMintedMetadataMark(): RefusedMark {
@@ -37,9 +37,10 @@ export function missingMintedMetadataMark(): RefusedMark {
 /** Apply protection, link, existence, and primary-creation rules in the adopter's ordinary order. */
 export async function inspectProjectionAdoption(root: AdoptionObservationRoot, path: string,
   reference: RecordReference, stat: FileStat): Promise<ProjectionAdoptionVerdict> {
-  const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout,
+  const denied = await observeProjectionProtection({ store: root.store, checkout: root.checkout,
     identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
-  if (denied !== null) return { kind: "refused", mark: denied, stat };
+  if (denied.kind !== "editable") return { kind: "refused", mark: denied.mark, stat,
+    ...(denied.kind === "unobservable" ? { readFailure: true as const } : {}) };
   const boundary = await readProjectionLinkBoundary(root.checkout, [path]);
   const linked = boundary(path);
   if (linked !== null) return { kind: "refused", stat: null, mark: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
@@ -48,7 +49,8 @@ export async function inspectProjectionAdoption(root: AdoptionObservationRoot, p
   const existing = await root.store.read({ reference });
   if (existing.status === "ok") return { kind: "existing", record: existing.result, read };
   if (existing.refusal.code !== "not-found" || reference.kind === "cohort/document") {
-    return { kind: "refused", stat, mark: markStoreRefusal(existing.refusal, root.context.verb) };
+    return { kind: "refused", stat, mark: markStoreRefusal(existing.refusal, root.context.verb),
+      ...(existing.refusal.code === "not-found" ? {} : { readFailure: true as const }) };
   }
   if (reference.kind === "work-item/meta") return { kind: "refused", stat, mark: {
     reason: "New work-unit metadata must be created through arc stub.",

@@ -122,7 +122,7 @@ async function readIndexedOwners(input: BacklogOwnershipInput, container: WorkIt
     const address = identifyArcFileAddress(path, { workItem: container });
     if (address?.kind !== "work-unit-artifact" || address.artifact !== "meta") continue;
     const read = await input.store.read({ reference });
-    if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal) };
+    if (read.status === "refused") return { kind: "refused", readFailure: true, mark: markStoreRefusal(read.refusal) };
     if (read.result.reference.kind !== "work-item/meta") return { kind: "refused", mark: {
       reason: `Indexed metadata ${path} now names ${read.result.reference.kind}; its work-unit folder cannot be established.`,
       remedy: { text: "Reproject the work item's current role, or move the new file into an established work-unit folder, then retry." },

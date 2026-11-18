@@ -18,6 +18,10 @@ export type ProjectionProtection = (record: StoreRecord) => Promise<RefusedMark 
 /** Native evidence bound to the checkout whose projected file holds the edit. */
 export interface ProjectionProtectionInput { store: Store; checkout: string; identity: Slug; exec: GitExec; verb?: "save" | "write-back"; evidence?: ProjectionProtectionEvidence }
 
+/** A failed ownership observation grants neither edit rights nor a semantic protection verdict. */
+export type ProjectionProtectionObservation = { readonly kind: "editable" }
+  | { readonly kind: "protected" | "unobservable"; readonly mark: RefusedMark };
+
 /** Bind fresh protection by default, or use supplied rendering-round observations. */
 export function createProjectionProtection(input: ProjectionProtectionInput): ProjectionProtection {
   return record => readProjectionProtection(input, record.reference);
@@ -25,31 +29,39 @@ export function createProjectionProtection(input: ProjectionProtectionInput): Pr
 
 /** Re-observe rights and local destination evidence for rendering or persistence. */
 export async function readProjectionProtection(input: ProjectionProtectionInput, reference: RecordReference): Promise<RefusedMark | null> {
+  const observed = await observeProjectionProtection(input, reference);
+  return observed.kind === "editable" ? null : observed.mark;
+}
+
+/** Preserve failure provenance for callers that must distinguish unreadable evidence from denied rights. */
+export async function observeProjectionProtection(input: ProjectionProtectionInput, reference: RecordReference): Promise<ProjectionProtectionObservation> {
   try {
     const read = await readProjectionEditRights({ ...input, reference, source: input.evidence?.source, readMarker: input.evidence?.checkouts.readMarker });
-    if (read.status === "refused") return markStoreRefusal(read.refusal, input.verb);
-    if (read.result.kind === "editable") return null;
-    return reference.owner.type === "work-item" ? await workItemProtection(input, read.result) : protectedMark(read.result);
+    if (read.status === "refused") return { kind: "unobservable", mark: markStoreRefusal(read.refusal, input.verb) };
+    if (read.result.kind === "editable") return { kind: "editable" };
+    return reference.owner.type === "work-item" ? await workItemProtection(input, read.result)
+      : { kind: "protected", mark: protectedMark(read.result) };
   } catch (error) {
     const native = nativeRefusalReport(error);
-    return native?.refusal === undefined ? { reason: error instanceof Error ? error.message : String(error),
+    return { kind: "unobservable", mark: native?.refusal === undefined ? { reason: error instanceof Error ? error.message : String(error),
       remedy: { text: "Inspect and repair the named ownership or checkout evidence, then retry the edit." } }
-      : markStoreRefusal(native.refusal, input.verb);
+      : markStoreRefusal(native.refusal, input.verb) };
   }
 }
 
-async function workItemProtection(input: ProjectionProtectionInput, rights: Extract<ProjectionEditRights, { kind: "protected" }>): Promise<RefusedMark> {
+async function workItemProtection(input: ProjectionProtectionInput, rights: Extract<ProjectionEditRights, { kind: "protected" }>): Promise<ProjectionProtectionObservation> {
   const primary = await (input.evidence?.source ?? input.store).read({ reference: recordReferences["work-item/meta"](rights.reference.owner) });
-  if (primary.status === "refused") return markStoreRefusal(primary.refusal, input.verb);
-  if (primary.result.reference.kind !== "work-item/meta" || primary.result.placement?.kind !== "active") return protectedMark(rights);
+  if (primary.status === "refused") return { kind: "unobservable", mark: markStoreRefusal(primary.refusal, input.verb) };
+  if (primary.result.reference.kind !== "work-item/meta" || primary.result.placement?.kind !== "active") return { kind: "protected", mark: protectedMark(rights) };
   const evidence = input.evidence;
   const holder = await createLocusPorts({ cwd: input.checkout, exec: input.exec, store: input.store, observation: input.evidence?.checkouts,
     listing: evidence === undefined ? undefined : () => evidence.source.list({ family: "work-item", kind: "work-item/meta" }) })
     .findHoldingCheckout(ownerHolderRequest(primary.result));
-  if (holder.kind === "unbound") return unboundProtection(holder);
-  if (holder.kind === "held") return { reason: `This file belongs to ${rights.owner}; ${holder.path} holds ${primary.result.reference.owner.name}.`,
-    remedy: { text: `Apply the edit in ${holder.path}, then run arc save there.` } };
-  return rights.reason === "identity" ? protectedMark(rights) : materializationProtection(input, primary.result, rights);
+  if (holder.kind === "unbound") return { kind: "protected", mark: unboundProtection(holder) };
+  if (holder.kind === "held") return { kind: "protected", mark: {
+    reason: `This file belongs to ${rights.owner}; ${holder.path} holds ${primary.result.reference.owner.name}.`,
+    remedy: { text: `Apply the edit in ${holder.path}, then run arc save there.` } } };
+  return { kind: "protected", mark: rights.reason === "identity" ? protectedMark(rights) : await materializationProtection(input, primary.result, rights) };
 }
 
 async function materializationProtection(input: ProjectionProtectionInput, primary: StoreRecord,

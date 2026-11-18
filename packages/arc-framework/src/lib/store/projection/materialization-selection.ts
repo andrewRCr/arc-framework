@@ -1,13 +1,14 @@
 /** Bound a deleted-file restoration before loading index groups or planning ownership changes. */
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
-import { readStat } from "./change-detection.js";
+import { readStat, readReference } from "./change-detection.js";
 import { readProjectionLinkBoundary, type ProjectionLinkBoundary } from "./discovery-links.js";
 import { gateRead } from "./read-gate.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
+import { reportArchivedProjectionFile } from "./archive-report.js";
 
 interface SelectionInput {
   root: ProjectionRootState;
@@ -35,18 +36,23 @@ async function selectDeletedFiles(input: SelectionInput): Promise<{ files: Reado
   const links = new Set<string>();
   if (!input.onlyDeleted) return { files: input.files, links };
   const selected = new Map<string, StoreRecord>();
+  const reference = await readReference(input.root.checkout);
   for (const [path, record] of input.files) {
-    if (!input.root.writable(path)) continue;
+    if (!input.root.writable(path) && !path.startsWith(".arc/completed/")) continue;
     const blocked = input.boundary(path);
     if (blocked !== null && blocked !== path) continue;
     const stat = await readStat(join(input.root.checkout, path));
-    if (stat === null) selected.set(path, record);
-    else if (await deletedIndexedFile(input, path, stat)) {
-      selected.set(path, record);
-      if (stat.type === "symlink") links.add(path);
-    }
+    await reportArchivedProjectionFile(input.root, input.index, path, { reference, stat });
+    if (!await shouldRestoreFile(input, path, stat)) continue;
+    selected.set(path, record);
+    if (stat?.type === "symlink") links.add(path);
   }
   return { files: selected, links };
+}
+
+async function shouldRestoreFile(input: SelectionInput, path: string, stat: FileStat | null): Promise<boolean> {
+  if (!input.root.writable(path)) return false;
+  return stat === null || await deletedIndexedFile(input, path, stat);
 }
 
 async function deletedIndexedFile(input: SelectionInput, path: string,
