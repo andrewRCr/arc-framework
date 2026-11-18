@@ -257,23 +257,13 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 - _Outcome:_ Appended the dated archive-opening amendment under ADR-035's Amending This Document, preserving
   item 6's decision and every earlier annotation verbatim.
 
-### `[ ]` **3.4 The errata convention where the flip landed first — § 10.4**
+### `[x]` **3.4 The errata convention where the flip landed first — § 10.4**
 
 - _Goal:_ Where the flip landed before this change, the archive's errata convention has a person correct a shipped
   Release Notes Entry through `arc edit` and `arc save`; where it has not, the convention stays the flip's to write.
 
-- _Note:_ The condition is read from the base's text, never from a work unit's recorded state, which can trail its
-  merge; 3.5 and verification read it again on their freshly merged base, and where it first holds there, the rewrite
-  lands then.
-
-    - On the base as last merged, read § Post-`Shipped` errata convention in
-      `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md`. While it still calls
-      git history the lock, the flip has not landed there: change nothing. Where it describes correcting the archived
-      meta and names no `arc edit`, the flip landed first.
-    - Then rewrite it: an erratum runs `arc edit` on the archived meta, the edit to its Release Notes Entry, then
-      `arc save`; a substantial change is a new work unit linked to its origin, since no verb reopens archived work.
-      Write it in the shipped-content register, and carry the same edit to its `.arc/` copy (`DEV-RULES.PROJECT`
-      § Package-Project Sync).
+- _Outcome:_ At merged base `a065b748e5908c2482329d101e52db0f6d052fb5`, the convention still names git history as
+  the lock. Its rewrite condition is false, so both workflow copies stay unchanged.
 
 ### `[ ]` **3.5 No archived edit lost silently** — validate exit criterion at segment scope
 
