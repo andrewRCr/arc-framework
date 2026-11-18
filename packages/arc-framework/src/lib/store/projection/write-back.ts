@@ -11,17 +11,17 @@ import { join } from "node:path";
 import type { Store } from "../contract.js";
 import { HAND_EDIT_VERBS } from "../links.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
-import type { FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { ProjectionLocation } from "./location.js";
 import { gateRead, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult, TakeInResolution } from "./take-in-port.js";
-import type { WriteInput } from "../write.js";
+import type { WriteInput, WriteResult } from "../write.js";
 import type { WritePlacement } from "../placement.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { recordWriteBackSent } from "./aside-copies.js";
-import { readProjectionIndex, writeProjectionIndex } from "./index-file.js";
+import { commitProjectionIndex, projectionIndexRecoveryCommand, readProjectionIndex, writeProjectionIndex } from "./index-file.js";
 import { createHistoryMemo, type HistoryMemo } from "./base-recovery.js";
 import { readStamplessFile } from "./stampless.js";
 import type { StoreRecord } from "../read.js";
@@ -45,6 +45,7 @@ import { normalizeStubEdit } from "./stub-normalization.js";
 import { observeProjectionEdit } from "./edit-observation.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
+import { isOwnSaveLanding } from "./lay-mode.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -414,7 +415,7 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
     return heldPreparation(context, request, prepared);
   }
   request = observeProjectionEdit(request, prepared.read.blob);
-  let entry = await markOtherCopies(context, request);
+  const entry = await markOtherCopies(context, request);
   await context.checkpoint?.();
   const submission = await prepareIndexedProjectionSubmission(context, request, prepared);
   if (submission.status === "refused") return { kind: "store-refused", refusal: submission.refusal, entry };
@@ -424,25 +425,41 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
   delete original.retained;
   prepared = { ...original, write: { ...submission.result.plan.mutation, provenance: submission.result.batch.provenance },
     stamp: receipt.stamp, takenIn: receipt.takenIn, ...(receipt.retained === null ? {} : { retained: receipt.retained }) };
+  const journal = needsOpenedSaveJournal(context, request) ? await readProjectionIndex(context.location, true) : null;
+  if (journal?.kind === "unusable") return pendingRecordingResult(context, request, entry, {
+    reason: `The projection index is ${journal.cause}. The archive edit could not be recorded.`,
+    remedy: { text: `Run ${projectionIndexRecoveryCommand(journal.header)} from this checkout to rebuild the index, then retry arc save.` },
+  });
   const sent = await submitProjectionBatch(context, submission.result.batch);
   if (sent.status === "refused") {
     return { kind: "store-refused", refusal: sent.refusal, entry };
   }
-  if (sent.result.version === undefined) throw new Error("A landed content put returned no version");
+  return finishAcceptedWrite(context, request, prepared, entry, sent.result, journal?.index);
+}
+
+async function finishAcceptedWrite(context: WriteBackContext, request: TakeInRequest,
+  prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, accepted: WriteResult,
+  journal: ProjectionIndex | undefined): Promise<WriteBackSend> {
+  if (accepted.version === undefined) throw new Error("A landed content put returned no version");
   if (isAdopting(request)) entry = { ...entry, adoption: { kind: "read-back", read: prepared.read } };
+  if (journal !== undefined) {
+    entry = await pendingAcceptedRecording(context, request, prepared, entry, accepted.version);
+    await commitProjectionIndex({ location: context.location, checkout: request.checkout, checkpoint: context.checkpoint,
+      index: withProjectionEntry(journal, request.path, { ...entry, pending: true }) });
+  }
   if (request.resolution !== undefined) context.reportExplicitResolution?.();
   for (const reference of prepared.write.resolves ?? []) {
     context.reportResolution?.({ path: request.path, copy: request.copy, reference });
   }
-  const read = await context.store.read({ reference: sent.result.reference });
+  const read = await context.store.read({ reference: accepted.reference });
   if (read.status === "refused") {
     const mark = { reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy };
     context.report?.({ path: request.path, copy: request.copy, mark });
-    entry = await pendingAcceptedRecording(context, request, prepared, entry, sent.result.version);
+    if (entry.persisted?.recording !== true) entry = await pendingAcceptedRecording(context, request, prepared, entry, accepted.version);
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true, refused: mark } } };
   }
   const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp,
-    takenIn: prepared.takenIn, outcome: { kind: "landed", version: sent.result.version }, readBack: read.result,
+    takenIn: prepared.takenIn, outcome: { kind: "landed", version: accepted.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
   if (recorded.mark !== undefined) return pendingRecordingResult(context, request,
@@ -459,6 +476,11 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
     entry: { ...recorded.entry, refused: null, copies: entry.copies.map(copy => (
       copy.name === request.copy ? { ...copy, landed: prepared.read.blob } : copy
     )) } } };
+}
+
+function needsOpenedSaveJournal(context: WriteBackContext, request: TakeInRequest): boolean {
+  return request.copy === null && request.entry.opened === true && request.path.startsWith(".arc/completed/")
+    && isOwnSaveLanding(context.verb, request.checkout);
 }
 
 function isAdopting(request: TakeInRequest): boolean {

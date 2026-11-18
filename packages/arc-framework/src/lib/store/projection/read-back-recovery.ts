@@ -9,17 +9,31 @@ import { pendingFileRequest } from "./pending-request.js";
 import { installWriteBack } from "./read-back.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
+import { completeWriteBackRecording } from "./write-back-recording.js";
 
 /** Recognize accepted bytes left before installation and finish their read-back when this save can authorize it. */
 export async function checkUnchangedProjectionEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
-    index: ProjectionIndex; edited: false; reobserve?: true;
+    index: ProjectionIndex; edited: boolean; reobserve?: true;
   } | null> {
+  const completing = entry.opened === true && entry.persisted?.recording === true;
+  if (completing) {
+    const completed = await completeWriteBackRecording(root.context, entry);
+    entry = completed.mark === undefined ? completed.entry : { ...completed.entry, pending: true, refused: completed.mark };
+    index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
+    if (completed.mark !== undefined) {
+      root.unsent.add(path);
+      root.context.report?.({ path, copy: null, mark: completed.mark });
+      return { index, edited: false, reobserve: true };
+    }
+  }
   const read = await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry));
-  if (read === null) return null;
+  if (read === null) return completing
+    ? { index: withProjectionEntry(index, path, { ...entry, changed: true }), edited: true, reobserve: true } : null;
   root.unsent.delete(path);
   const recovered = await recoverAcceptedReadBack(root, index, path, entry, read);
-  if (recovered === null) return { index, edited: false };
+  if (recovered === null) return { index, edited: false, ...(completing ? { reobserve: true } : {}) };
   onFile?.(recovered.observation);
   return { index: recovered.index, edited: false, reobserve: true };
 }

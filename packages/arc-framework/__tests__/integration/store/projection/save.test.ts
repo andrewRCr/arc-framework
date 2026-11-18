@@ -440,11 +440,18 @@ it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an ar
   expect(refused.errors).toContain(refusal.remedy.text);
   expect((await h.stored()).content).toBe(h.record.content);
   expect(await h.file()).toBe(bytes);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
+  expect(held).toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
   expect(pulls).toBe(0);
   blocked = false;
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
+  const repaired = await readProjectionIndex(h.location, true, { groups: "all" });
+  if (repaired.kind !== "index") throw new Error("The archive index did not survive repair");
+  expect(repaired.index.entries[h.path]).not.toHaveProperty("opened");
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
   expect(pulls).toBe(0);
 });
 

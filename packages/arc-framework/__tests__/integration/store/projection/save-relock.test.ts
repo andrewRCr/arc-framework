@@ -47,6 +47,9 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
+import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
@@ -143,6 +146,7 @@ it.each([false, true])("re-locks an empty archived text companion after a late e
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
+
 it("keeps a refused edit writable and opened with its remedy, then re-locks after repair", async () => {
   const h = await fixture();
   await openArchivedProjectionFile(h, h.path);
@@ -246,15 +250,31 @@ it("keeps an identical writable replacement open until a save makes it read-only
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
-it.each(["after lay", "before swap", "after swap"] as const)("retains an opening after a stop %s and repairs through an ordinary command then save", async point => {
+it.each([
+  ["after lay", false], ["before read-back", false], ["before journal", false], ["before swap", false], ["after swap", false],
+  ["before read-back", true], ["before journal", true],
+] as const)("recovers an archive opening after a stop %s (retry directly with save=%s)", async (point, directSave) => {
   const h = await fixture(), file = join(h.checkout, h.path);
   await openArchivedProjectionFile(h, h.path);
   const original = success(await h.store.read({ reference: h.primary.reference }));
   const content = point === "after lay" ? original.content : await edit(h);
   const stop = async (path: string): Promise<void> => { if (path === h.path) throw new Error(`Stopped ${point}`); };
-  binding.hooks = point === "after lay" ? { afterSaveReadOnly: stop }
-    : point === "before swap" ? { afterRecheck: stop } : { beforeSaveMarkClear: stop };
-  await expect(save(h)).rejects.toThrow(`Stopped ${point}`);
+  let submissions = 0, interruptReadBack = point === "before read-back";
+  const store = overrideEngineStore(h.store, {
+    batch: async input => { submissions += 1; return h.store.batch(input); },
+    read: async input => {
+      if (interruptReadBack && submissions > 0) await stop(h.path);
+      return h.store.read(input);
+    },
+  });
+  const command = { ...h, store };
+  if (point === "after lay") binding.hooks = { afterSaveReadOnly: stop };
+  if (point === "before journal") binding.hooks = { afterSaveGuard: stop };
+  if (point === "before swap") binding.hooks = { afterRecheck: stop };
+  if (point === "after swap") binding.hooks = { beforeSaveMarkClear: stop };
+  await expect(save(command)).rejects.toThrow(`Stopped ${point}`);
+  interruptReadBack = false;
+  const submitted = submissions;
   const accepted = success(await h.store.read({ reference: h.primary.reference }));
   const interrupted = await diskEntry(h);
   expect(interrupted).toHaveProperty("opened", true);
@@ -268,17 +288,20 @@ it.each(["after lay", "before swap", "after swap"] as const)("retains an opening
     expect(interrupted).toMatchObject({ persisted: { takenIn: { version: accepted.version } } });
   }
   const mode = (await lstat(file)).mode;
-  if (point === "before swap") expect(mode & 0o200).toBe(0o200);
+  if (point.startsWith("before ")) expect(mode & 0o200).toBe(0o200);
   else expect(mode & 0o222).toBe(0);
   binding.hooks = undefined;
-  await startProjection(h); await endProjection(h);
-  expect(await diskEntry(h)).toHaveProperty("opened", true);
-  expect(await diskEntry(h)).not.toHaveProperty("persisted.recording", true);
-  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(accepted.version);
-  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  if (!directSave) {
+    await startProjection(command); await endProjection(command);
+    expect(await diskEntry(h)).toHaveProperty("opened", true);
+    expect(await diskEntry(h)).not.toHaveProperty("persisted.recording", true);
+    expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(accepted.version);
+  }
+  expect(await save(command)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
   expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(accepted.version);
+  expect(submissions).toBe(submitted);
 });
 it.each([false, true])("retains a link-only rebuilt opening after deletion between guard and swap (new adoption=%s)", async adoption => {
   const h = await fixture(), path = adoption ? `${h.folder}/new-note.txt` : h.path;
@@ -343,6 +366,38 @@ it("keeps a young empty save deferred and writable until the editor finishes", a
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+it("retains an opening and retry remedy for a deferred take-in before finishing save", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  await startProjection(h);
+  const state = projectionProcessState(), root = state.command && state.roots.get(state.command.checkout);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (!root || disk.kind !== "index") throw new Error("No opened archive projection");
+  const entry = disk.index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing opened archive record");
+  const bytes = await readFile(file);
+  await writeFile(file, "");
+  const observation = { path: h.path, result: { answer: "deferred", entry }, installation: "attempted" } as const;
+  const held = await withProjectionLock(root.location, async session => {
+    root.checkpoint = session.step;
+    try {
+      const saveRoot = { ...root, context: { ...root.context, verb: "save" as const } };
+      return await relockOpenedProjectionFiles(saveRoot, disk.index, new Map([[h.path, observation]]),
+        async index => ({ index, observation }));
+    } finally { root.checkpoint = null; }
+  });
+  expect(held).toMatchObject({ status: "done" });
+  expect(state.diagnostics).toContainEqual(expect.objectContaining({ path: h.path,
+    mark: expect.objectContaining({ remedy: { text: expect.stringContaining("let saving finish, and retry arc save") } }) }));
+  expect(await diskEntry(h)).toMatchObject({ opened: true });
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+
+  await writeFile(file, bytes);
+  expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
 it.each([false, true])("takes in saves between acceptance and replacement or retains an unsettled guard (ongoing=%s)", async ongoing => {
