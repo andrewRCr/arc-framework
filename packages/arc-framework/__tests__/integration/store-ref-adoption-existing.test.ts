@@ -242,17 +242,17 @@ it.each([
   ["incomplete", "The archived cohort inventory is incomplete. Restore the missing cohort archive inventory"],
   ["diagnostic", "Cohort archive entry core cannot be read. Restore the cohort archive entry"],
   ["unreadable", "The cohort archive cannot be listed. Restore the cohort archive"],
-] as const)("answers an archived cohort file unobservable while the cohort archive listing is %s, then passes", async (fault, detail) => {
+] as const)("holds an archived cohort correction while its listing is %s and until the correction is opened and saved", async (fault, detail) => {
   const { f } = await createAdoptionFixture();
   const name = SlugSchema.parse("core"), reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
   const body = "# Cohort: core\n\n**Parent:** [none]\n\n**Purpose:** Coordinate old work.\n\nOriginal archived prose\n";
   const prior = await seed(f, reference, body);
   success(await f.store.write({ ...update(f, prior, body), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  const path = completedCohortPath(success(await f.store.read({ reference: prior.reference })));
+  const archived = success(await f.store.read({ reference: prior.reference }));
+  const path = completedCohortPath(archived), content = body.replace("Original archived prose", "Archived correction");
   await mkdir(dirname(join(f.root, path)), { recursive: true });
-  await writeFile(join(f.root, path), renderStampedFile({ content: body.replace("Original archived prose", "Archived correction"),
-    stamp: gitBlobId(body, "sha1") }));
+  await writeFile(join(f.root, path), renderStampedFile({ content, stamp: gitBlobId(body, "sha1") }));
   let incomplete = true;
   const store = overrideEngineStore(f.store, { list: async request => {
     const listed = await f.store.list(request);
@@ -262,9 +262,16 @@ it.each([
     return { ...listed, result: { ...listed.result, ...fault === "incomplete" ? { missed: true } : { diagnostics: [{ kind: "unreadable",
       key: "core", condition: "Cohort archive entry core cannot be read.", remedy: { text: "Restore the cohort archive entry, then retry." } }] } } };
   } });
-  const check = () => checkProjectionRemoval(f.root, { store, identity: SlugSchema.parse("andrew") });
+  const input = { store, checkout: f.root };
+  const check = () => checkProjectionRemoval(input.checkout, { store, identity: SlugSchema.parse("andrew") });
   expect(await check()).toEqual({ kind: "unobservable", detail: `${path} in ${f.root}: ${detail}` });
   incomplete = false;
+  expect(await check()).toMatchObject({ kind: "would-refuse", remedy: { text: expect.stringContaining(`arc edit ${path} then arc save`) } });
+  expect(success(await store.read({ reference: archived.reference })).content).toBe(body);
+  await openArchivedProjectionFile(input, path);
+  await startProjection({ ...input, mode: "save" });
+  await endProjection(input);
+  expect(success(await store.read({ reference: archived.reference })).content).toBe(content);
   expect(await check()).toEqual({ kind: "passes" });
 });
 
