@@ -61,8 +61,12 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
   await root.ports.hooks?.afterOpenIndexCommit?.(path);
   await root.checkpoint?.();
   const absolute = join(root.checkout, path);
-  const observed = await lstat(absolute);
-  if (!observed.isFile()) return refuse({ reason: `${path} is no longer a regular file.`,
+  const observed = await lstat(absolute).catch((error: unknown) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return null;
+    throw error;
+  });
+  if (observed?.isFile() !== true) return refuse({ reason: `${path} is no longer a regular file.`,
     remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
   await root.checkpoint?.();
   try {

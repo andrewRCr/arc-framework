@@ -105,6 +105,21 @@ async function archived(owner = "andrew") {
   return { ...h, path: Object.keys(h.projected.index.entries)[0]! };
 }
 
+it("reports how to retry when the file disappears after the opening is recorded", async () => {
+  const h = await archived(), file = join(h.f.root, h.path);
+  const bytes = await readFile(file);
+  binding.afterOpen = async () => { await rm(file); };
+  const refused = await edit(h.f.store, h.f.root, h.path);
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: expect.stringContaining(h.path), remedy: { text: expect.stringContaining("retry arc edit") } } });
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
+    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  binding.afterOpen = null;
+  await writeFile(file, bytes, { mode: 0o444 });
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+  expect((await stat(file)).mode & 0o200).toBe(0o200);
+});
+
 it.each(["outside", "missing-new", "side-file", "symlink", "unowned", "missing-stored"] as const)(
   "refuses a %s path with a remedy and opens once the path is repaired", async kind => {
     const h = await archived();

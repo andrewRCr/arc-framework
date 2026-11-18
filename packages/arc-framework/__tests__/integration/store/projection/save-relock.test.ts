@@ -2,7 +2,7 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
-import { update } from "../../../helpers/store/suite-tools.js";
+import { seed, update } from "../../../helpers/store/suite-tools.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 /** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
@@ -11,7 +11,18 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ProjectionSaveResult } from "../../../../src/lib/store/projection/save.js";
-const binding = vi.hoisted(() => ({ store: null as Store | null, hooks: undefined as import("../../../../src/lib/store/projection/swap.js").SwapHooks | undefined }));
+const binding = vi.hoisted(() => ({
+  store: null as Store | null,
+  hooks: undefined as import("../../../../src/lib/store/projection/swap.js").SwapHooks | undefined,
+  beforeChmod: null as ((path: Parameters<typeof chmod>[0], mode: Parameters<typeof chmod>[1]) => Promise<void>) | null,
+}));
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  return { ...actual, chmod: async (...args: Parameters<typeof actual.chmod>) => {
+    await binding.beforeChmod?.(...args);
+    await actual.chmod(...args);
+  } };
+});
 vi.mock("../../../../src/lib/store/create.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/create.js")>();
   return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>) => binding.store ?? actual.createStore(...args) };
@@ -33,7 +44,12 @@ import { startProjection, endProjection } from "../../../../src/lib/store/projec
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 const directories: string[] = [];
-afterEach(async () => { binding.store = null; binding.hooks = undefined; await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => {
+  binding.store = null;
+  binding.hooks = undefined;
+  binding.beforeChmod = null;
+  await removeGitBackedDirs(directories.splice(0));
+});
 async function fixture() {
   const h = await createAdoptionFixture({ placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
   directories.push(h.f.root);
@@ -102,6 +118,26 @@ it.each([false, true])("re-locks a new archived file adopted by save after ordin
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
   expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
 });
+it.each([false, true])("re-locks an empty archived text companion after a late edit=%s", async lateEdit => {
+  const h = await fixture(), path = `${h.folder}/empty.txt`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "empty.txt");
+  await seed(h.f, reference, lateEdit ? "Text before the edit.\n" : "");
+  await startProjection(h); await endProjection(h);
+  await utimes(file, new Date(0), new Date(0));
+  await openArchivedProjectionFile(h, path);
+  if (lateEdit) binding.hooks = { afterSaveReadOnly: async laying => {
+    if (laying !== path) return;
+    await chmod(file, 0o644);
+    await writeFile(file, "");
+    await utimes(file, new Date(0), new Date(0));
+  } };
+  const saved = await save(h);
+  expect(saved.errors).not.toContain("arc sync");
+  expect(saved.result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+  expect(success(await h.store.read({ reference })).content).toBe("");
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
 it("keeps a refused edit writable and opened with its remedy, then re-locks after repair", async () => {
   const h = await fixture();
   await openArchivedProjectionFile(h, h.path);
@@ -123,6 +159,23 @@ it.each(["absent", "emptied"] as const)("keeps an opened stored file %s with syn
   await openArchivedProjectionFile(h, h.path);
   if (damage === "absent") await rm(file);
   else { await writeFile(file, ""); await utimes(file, new Date(0), new Date(0)); }
+  const saved = await save(h);
+  expect(saved.errors).toContain("arc sync");
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  await startProjection(h); await restoreSyncProjection(h.store, h.checkout, { dryRun: false }); await endProjection(h);
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+it("retains an opening when the file disappears at the read-only lay", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  binding.beforeChmod = async (target, mode) => {
+    if (target !== file || typeof mode !== "number" || (mode & 0o222) !== 0) return;
+    binding.beforeChmod = null;
+    await rm(file);
+  };
   const saved = await save(h);
   expect(saved.errors).toContain("arc sync");
   expect(await diskEntry(h)).toHaveProperty("opened", true);
