@@ -25,15 +25,18 @@ reaches the default changes its expectation by the end of Phase 3. It lands in s
 1. The installed files and their presence test leave the projected roots (Task 3.1), since an `arc-in-git` install that
    commits them would meet the tracked-state refusal once the switch lands.
 2. The seeding helper lands, and the spawn helpers set the override by default (Task 3.2), inert until the switch.
-3. The switch changes `createStore` and the expectations of the tests that reach the default in process (Task 3.3);
-   every spawned test still runs the in-repo implementation, through the spawn helpers' override or, where it spawns
-   outside them, its own (Task 3.2.b).
-4. Each family of spawned tests seeds through the store and drops the override, one family per commit (Task 3.4); a test
-   whose subject is the in-repo arm keeps it explicitly.
-5. The spawn helpers' default goes (Task 3.6), so the slice cannot close with a family still hidden behind it.
+3. The switch changes `createStore` and the expectations of the direct callers Task 1.4 recorded as expecting the ref
+   backend; every other test file that then fails without the override runs under it from the switch's ledger, which
+   a per-file setup reads (Task 3.3.d, A12).
+4. The failures the switch exposed that may be product defects are diagnosed against the ref default, and the listed
+   files no family of spawned tests reaches move by group (Task 3.R).
+5. Each family of spawned tests seeds through the store, drops the override, and takes its listed files off the ledger,
+   one family per commit (Task 3.4); a test whose subject is the in-repo arm keeps it explicitly.
+6. The spawn helpers' default and the emptied ledger go (Task 3.6), so the slice cannot close with a test still hidden
+   behind either.
 
-The spawn helpers' default is the one suite-wide override, confined to Phase 3; the test setup's clearing (Task 1.2)
-still keeps the flip's checkout's own override from every test. A test seeds through the helper's in-process writes
+The spawn helpers' default and the ledger are the only defaults, confined to Phase 3; the test setup's clearing (Task
+1.2) still keeps the flip's checkout's own override from every test. A test seeds through the helper's in-process writes
 through the ref backend's ports, which run without spawning the CLI, or through the verb it tests; running the import
 under the override and deleting its tracked state is reserved for the tests whose subject is the import.
 
@@ -105,7 +108,8 @@ The search § 7.7 asks for, at `a7c65b4239`. Task 1.4 and Task 3.6 record each f
 
 - **Spawned outside the spawn helpers, composing the default store:** `integration/validate-cohort-consistency.test.ts`,
   which runs `validate-cohort-consistency.ts` through `tsx` over a fixture that is not a Git repository; of the four
-  scripts that call `createStore(`, the only one a test spawns.
+  scripts that call `createStore(`, the only one a test spawns. The run over the switched default found tests that
+  start the CLI or `git` outside the spawn helpers too, such as `e2e/config-validate.e2e.test.ts` (§ A12).
 - **Spawned asserting an in-repo refusal over an untracked fixture:** `e2e/review-cli-surfaces.e2e.test.ts`'s
   adversarial-recording case (Task 1.5), beside `e2e/store-command-dormancy.e2e.test.ts`.
 - **Spawned with no `cwd`, over this checkout:** `e2e/run-cli.e2e.test.ts`'s bare `integrate` case (`runCli`,
@@ -172,7 +176,8 @@ override whatever the default builds.
     - the import sources the five `store-ref-import-*` suites build by hand: `lineage`, `links`, `parked`,
       `personal-layout`, and `review-mapping`;
     - `integration/identity-setup-store-cli`'s mock of `lib/store/create.js`, whose fall-through serves only the
-      registered legacy join.
+      registered legacy join;
+    - of these, five files still reach the default in some cases under the switched default (§ A12).
 - **Expect the ref backend at the switch (Task 3.3.b):** `integration/command-surface-documentation`'s
   remote-designation case, which asserts the default stays in-repo; and the partial mocks of `lib/store/create.js` that
   bind a reference store around each in-process dispatch and fall through to the default when none is bound:
@@ -571,6 +576,69 @@ untracked copy at the path, identical or not, and names the removal, and the pat
 ignores only `.arc/user/*/`). At Task 2.1 no worktree held an untracked copy. A checkout that does meets the refusal at
 its next merge of `main`, ahead of the window where § 10.1 requires one, or at § 10.6 step 2, with Git's own remedy; no
 step is added.
+
+## A12 — the switch's ledger
+
+§ 3.2 ¶4 ended: "no suite-wide override is set, since one would hide the flipped default from the tests that should see
+it and would reach the CLI processes the end-to-end and integration tests spawn (§ 7), apart from the spawn helpers'
+default, confined to the switch's staging and gone before its slice closes (§ 7.3)." § 7.3 ¶2 opened: "The spawned tests
+move in stages, each commit green. [...] The spawn helpers then set the override by default, inert until the switch, so
+the switch's commit changes only the tests that reach the default in process; each family of spawned tests then seeds
+through the store and drops the default, and the default goes before the switch's slice closes. It is the one suite-wide
+override, confined to that staging." § 7.2's bullet on tests that reach the default through handlers and scripts had
+those whose subject is the in-repo arm "build it explicitly and pass it in", with no route for a path that takes no
+store, and § 7.7's closure ended "and the spawn helpers set no override by default." § 7.3 ¶1 gave a spawned test two
+routes: "A spawned test whose subject survives the flip seeds its state through the store; one whose subject is the
+in-repo arm sets the override in its spawn environment and leaves with that arm". § 3.1's paragraph on the override
+opened "The override reaches no test."; it now names the flip's checkout's override, which the paragraph already
+concerned, so the row does not list it.
+
+A full run over the switched default, before any test changed, failed 141 files: 37 unit files (514 tests), 87
+integration files, 16 end-to-end files (61 tests), and one store suite (two tests). Task 1.4's classification covered
+the tests that call `createStore` or stub it, yet five files it recorded as building the in-repo store explicitly still
+fail in cases that reach the default (`unit/lib/store/current-work-unit`, `unit/lib/checks/projected-selection`,
+`unit/handlers/review`, `integration/store-lifecycle-storage`, and `store-imported-seal`), some testing the in-repo arm
+and some a subject that survives, so a listed file moves case by case. Most failures reach the default through handlers
+and scripts, and they reach it three ways:
+
+- **In process:** the window tooling's check composes the default over fixtures that track state and refuses, through
+  its checkout-holder read, which passes no store (`readWindowEndedCheckoutFindings`,
+  `scripts/cutover-window/checkout-holders.ts`), and its import context (`createWindowImportContext`); review handlers
+  bind stored review ports without the invocation's exact work item (`requireReviewWorkItem`); unit tests with a
+  scripted `exec` meet the tracked-state predicate's tree read; and in 16 unit files the default store launches Git for
+  that read, which the unit tier's process guard blocks (`UnitProcessGuard`,
+  `__tests__/helpers/unit-process-guard-core.ts`). Past that read neither class reaches the ref backend in the unit
+  tier, since it reads through its own Git executor (`rawExec`), which no scripted `exec` replaces.
+- **Spawned outside the spawn helpers:** `e2e/config-validate.e2e.test.ts` runs the CLI by `spawnSync` with the test's
+  environment over a directory that is not a Git repository, which Task 1.5's classification missed.
+- **Through what a projection leaves:** once the ref default projects into a fixture repository, the projection ignores
+  `.arc/active`, so the test's later `git add` there refuses (`e2e/delivery-position`, `user`); a hook the test's own
+  `git` runs inherits the test's environment, as the CLI it spawns does.
+
+One commit judging every file would put about 140 files from every subsystem into one review and carry that diff across
+compactions. Running the in-process tests in-repo by default through Phase 3 would avoid that, but the run measured only
+which files break under the ref default, not which break under an in-repo one: a blanket default would need a second
+full run to find its opt-outs, would break Task 1.2's test that no worker sees the override, and would hide the flipped
+default from every unlisted and every new test. The ledger lists only the measured files, so an unlisted test sees the
+flipped default in process from the switch on, and the end state is checkable: the ledger is empty, then gone at Task
+3.6 with a test against either default returning. Setting the override in the process running a listed file reaches all
+three paths. Each family moves as before; a listed file a family of spawned tests reaches, through a shared seeder such
+as `registerCandidateLineageSuite` or its own spawned cases, moves in that family's commit, since a seeder moves once.
+
+Four failures may be product defects rather than stale expectations, and Task 3.R.a diagnoses them first against the
+ref default so the ledger does not hide them: the designation and minting `store-ref-init-designation` now sees, the
+Class `set-class` writes, the symbolic-link refusal in `install-symlink-refusal`, and the projection warning outside a
+Git repository. The staging and the defect tasks follow the Owner's direction and the project manager's three
+conditions (2026-11-17): the slice ends where one commit would have, the suspected defects are tasks of their own, and
+the families are grouped into a few review increments.
+
+## A13 — the retired-subdirectory slot
+
+§ 17.2's bullet on the current-work-unit reconciliation and stale-worktree sweep slots ended: "The slot leaves with the
+in-repo arm." The Owner moved its remaining share to notes removal at that unit's draft-design review (2026-11-17),
+relayed by the project manager: the slot's recommendation rides the notes-load channel, reading
+`session.init_load.notes` and naming `arc user load`, both of which notes removal deletes. The flip's own share in the
+row is unchanged.
 
 ## Kept sites
 

@@ -464,6 +464,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   until each family moves onto it, the spawn helpers carry every spawned test across the switch on the in-repo
   implementation.
 
+    - _Amended in:_ 3.R (A12).
+
     - `[x]` **3.2.a The seeding helper**
         - `seedStore` (`__tests__/helpers/store/seed-store.ts`) creates the given records in one batch through
           `createDefaultRefStorePorts` as the given identity, and returns each reference, its minted owner UID included,
@@ -484,6 +486,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 - _Goal:_ `createStore` builds through Task 1.1's selection, so every store a command opens reports `stateOffBranch`
   true, and every surviving test that reaches the default in process expects the ref backend.
 
+    - _Amended in:_ 3.R (A12).
+
     - `[ ]` **3.3.a The switch**
         - `createStore` (`lib/store/create.ts`) calls the selection; its signature is unchanged, so `openDefaultStore`
           (`handlers/lifecycle-shared.ts`) and every other default caller follow, `projection-worktrees`' fan-out
@@ -494,9 +498,10 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           tracked-state refusal there means.
 
     - `[ ]` **3.3.b Direct callers and in-process dispatch whose subject survives**
-        - The callers Task 1.4 recorded as expecting the ref backend, and the tests that dispatch the CLI in process
-          (`dispatchRegisteredCli`), whose root hook composes the real default; a test composing the default over a
-          scripted `exec` now meets the tracked-state predicate's tree read at first use.
+        - The callers Task 1.4 recorded as expecting the ref backend move here.
+        - Any other test that dispatches the CLI in process (`dispatchRegisteredCli`), whose root hook composes the real
+          default, or composes the default over a scripted `exec`, which now meets the tracked-state predicate's tree
+          read at first use, joins the switch's ledger where it fails and moves in Task 3.R or with its Task 3.4 family.
 
     - `[ ]` **3.3.c Through handlers and scripts**
         - `repair-cli`'s mock (`__tests__/helpers/repair-cli.ts`) binds a store rather than falling through to the
@@ -506,6 +511,62 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           (`commands/agenda/legacy-materialize.ts`) go, with their tests, now that Task 2.14's store arm serves every
           resume.
 
+    - `[ ]` **3.3.d The switch's ledger**
+        - The ledger lists the test files that fail without the override once the switch lands, less those Tasks 3.3.b
+          and 3.3.c move. A setup file every test project loads for each test file sets the override in the process
+          running a listed file, before the file composes a store, and restores it after.
+        - _Retired in:_ Phase 3
+
+### `[ ]` **3.R The switch's ledger, its suspected defects first — § 7.3**
+
+- _Goal:_ Each file the switch's ledger lists that no Task 3.4 family or Task 3.5 moves leaves the ledger, each of its
+  cases expecting the ref backend or, where the case's subject is the in-repo arm or an operation that runs only on
+  `main`'s pre-flip build, selecting the in-repo implementation itself: building it explicitly, or setting the override
+  where its path takes no store. Each failure the switch exposed that may be a product defect is diagnosed against the
+  ref default first (A12).
+
+- _Note:_ A listed file that a Task 3.4 family's shared seeder or spawned cases reach moves with that family, and
+  `e2e/markdown-fix.e2e.test.ts` with Task 3.5; the rest move here by group, one review increment per group.
+
+- _Note:_ A unit test that reaches the default store cannot reach the ref backend through it, whether its `exec` is
+  scripted or real: the ref backend reads through its own Git executor (`rawExec`, `lib/store/default-ports.ts`), which
+  no scripted `exec` replaces and the unit tier's process guard blocks (`UnitProcessGuard`,
+  `__tests__/helpers/unit-process-guard-core.ts`). A case whose subject survives binds a store or moves to the
+  integration tier; only a case expecting the tracked-state refusal scripts the predicate's read; the guard's allowlist
+  only shrinks (`__tests__/helpers/unit-process-allowlist.ts`).
+
+    - `[ ]` **3.R.a The suspected defects**
+        - Each is diagnosed with its file off the ledger: a product defect is fixed with a test that fails without the
+          fix, and an expectation the flip makes stale moves to the ref backend.
+        - `integration/store-ref-init-designation.test.ts`, whose two cases that run `init` through the default,
+          expecting the in-repo implementation, now see it designate `origin` and mint a project ID.
+        - `integration/set-class.test.ts`, which reads `Light` from the meta after `handleSetClass` sets `Heavy`.
+        - `integration/install-symlink-refusal.test.ts`, whose init over a linked personal directory no longer refuses
+          with a `UserFacingError`.
+        - The projection warning a command run outside a Git repository prints ("The worktree's Git directory is
+          missing"), from `e2e/config-validate.e2e.test.ts`'s spawns outside the spawn helpers.
+
+    - `[ ]` **3.R.b The window tooling**
+        - The listed `integration/cutover-window-*` and `e2e/cutover-window*` files, which compose the default in
+          process over fixtures that track state. Until the merge the window tooling runs from the importing checkout's
+          source at `main`'s pre-flip head, and after it `compare`, `confirm`, and `close` read only Git and disk, so
+          they run from either build (`spec-cutover-window-tooling.md` § 1.4). A case keeps the override itself around
+          the operations before the merge, its fixture's setup included, and runs `compare`, `confirm`, and `close`
+          without it; a failure there is diagnosed as Task 3.R.a's are.
+
+    - `[ ]` **3.R.c Review, Candidate, publication, and delivery**
+        - The review-gate and integration scripts' unit tests (`unit/scripts/review-gate/`,
+          `unit/scripts/integration/`), the review and Errand handlers' (`unit/handlers/review`, `errand-check`), and
+          the local review, pre-publication, review status, and delivery eligibility integration tests. Most bind stored
+          review ports without the invocation's exact work item, which the ref backend requires
+          (`requireReviewWorkItem`, `lib/store/kinds/review/access-shared.ts`).
+
+    - `[ ]` **3.R.d Session, status, lifecycle, user, and release**
+        - The rest: the session and status readers, the lifecycle verbs, `init`, `join`, `user`, `sync`, release commit
+          and push, and the projection's hook dispatch (`integration/store/projection/cli-hooks.test.ts`). Among them
+          are the unit tests whose scripted `exec` meets the tracked-state predicate's tree read at first use, and the
+          end-to-end tests that start the CLI or `git` outside the spawn helpers and that no Task 3.4 family reaches.
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -514,6 +575,9 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 
 - _Note:_ A test that adds `origin` after `arc init` meets an undesignated state remote on push and archive; see
   `notes-cutover-flip.md` § Undesignated remotes in tests.
+
+- _Note:_ A file the switch's ledger lists that the family's shared seeders or spawned cases reach moves in the
+  family's commit, its in-process cases with it, and leaves the ledger.
 
     - `[ ]` **3.4.a Session-init and the agenda**
         - Among them `prepareSessionEnvelopeFixture` (`__tests__/helpers/session-envelope-compat.ts`).
@@ -554,6 +618,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
       `readProjectedSelection` (`lib/checks/projected-selection.ts`) maps that to `unavailable`, which the fixer refuses
       as `markdown.selection-unavailable` (`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`); with one, the store
       holds no records, so the selection is empty and the fixer's corpus is today's.
+    - The test leaves the switch's ledger.
 
 ### `[ ]` **3.6 Every default-store caller in the tests classified, and the temporary override gone — § 7.7**
 
@@ -571,6 +636,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
     - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case, which spawns with no `cwd` (`helpers/run-cli.ts`), runs from a
       temporary directory (§ 7.2).
     - Remove the spawn helpers' default override (Task 3.2.b).
+    - Remove the switch's ledger, empty by now, and the per-file setup that reads it (Task 3.3.d).
+    - A test fails if a test setup or spawn helper sets the override by default.
 
 ### `[ ]` **3.7 The flipped CLI end to end** — validate exit criterion at segment scope
 
@@ -579,6 +646,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 
     - The scenario's commands drop the session's override, save the probe run under it (`notes-cutover-flip.md`
       § The flip's checkout).
+    - The run also confirms that the switch's ledger and its per-file setup are gone and that the test against a
+      default override passes.
 
 ## **Phase 4:** Text and checks the flip makes false outside the workflows
 
@@ -1274,6 +1343,10 @@ landing after verification).
 
 - `[ ]` After the switch, a write a command lands through `createStore` reaches the other projected checkouts through
   the projection's fan-out (A9).
+
+- `[ ]` No test setup or spawn helper sets the in-repo override by default, a test guarding it: in process and spawned,
+  a test reaches the ref backend unless its subject is the in-repo arm or an operation that runs only on `main`'s
+  pre-flip build, and it selects the in-repo implementation itself (A12).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

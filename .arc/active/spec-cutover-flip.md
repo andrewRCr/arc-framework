@@ -345,15 +345,15 @@ dormant commands, `arc handoff write`, `arc inbox`, and `arc route` among them (
 names that step concretely, independent of any workflow's text: a remedy that points to "the existing" workflow, or to a
 command that does not carry the state the verb would have saved, is rewritten to name the pre-flip step itself.
 
-The override reaches no test. A check's command inherits its caller's environment apart from the four channels the check
-engine clears (`CHECK_EXECUTION_ENVIRONMENT`, `lib/checks/environment-policy.ts`), so the test setup clears the
-override, and no test, nor any CLI a test spawns, sees it from the flip's checkout. The routed checks — the type checks,
-`lint:ts`, and the test tiers — run no ARC command over the checkout, and a runner applies only a check's declared
-`environment_inputs` (`.arc/system/arc-checks.yml`), so none needs it. CI runs the CLI over its own checkout in two
-steps (`check gate merge --ci --dry-run` and `check run lint:md:underwrap`, `.github/workflows/ci.yml`); each exports
-the override in its own step script only when the run's branch is the flip's and the checked-out tree still tracks a
-file under § 3.2's paths. The step computes both itself rather than through a workflow expression, which sets an empty
-value when its condition is false: a pull-request run checks out the merge ref and names the branch in
+The flip's checkout's override reaches no test (A12). A check's command inherits its caller's environment apart from the
+four channels the check engine clears (`CHECK_EXECUTION_ENVIRONMENT`, `lib/checks/environment-policy.ts`), so the test
+setup clears the override, and no test, nor any CLI a test spawns, sees it from the flip's checkout. The routed checks —
+the type checks, `lint:ts`, and the test tiers — run no ARC command over the checkout, and a runner applies only a
+check's declared `environment_inputs` (`.arc/system/arc-checks.yml`), so none needs it. CI runs the CLI over its own
+checkout in two steps (`check gate merge --ci --dry-run` and `check run lint:md:underwrap`, `.github/workflows/ci.yml`);
+each exports the override in its own step script only when the run's branch is the flip's and the checked-out tree still
+tracks a file under § 3.2's paths. The step computes both itself rather than through a workflow expression, which sets
+an empty value when its condition is false: a pull-request run checks out the merge ref and names the branch in
 `GITHUB_HEAD_REF`, and a dispatched run has no head ref, so its branch is `GITHUB_REF_NAME`. The head with the deletion
 commit applied, the one that merges, therefore runs without it, as the run on a branch of its own did ahead of the
 window (§ 10.1), and so does every later pull request, which still meets § 3.2's refusal in CI if its tree tracks state.
@@ -401,9 +401,9 @@ guard refuses its writes (`refuseWriteIfStoreImported`).
 Both pieces leave with the in-repo implementation, the CI steps' condition, the test setup's clearing, and the hook
 commands' exemption with them. Tests that target the in-repo backend build it explicitly through `createInRepoBackend`
 (`lib/store/in-repo/backend.ts`), mostly in the store test helpers (`__tests__/helpers/store/`); no suite-wide override
-is set, since one would hide the flipped default from the tests that should see it and would reach the CLI processes the
-end-to-end and integration tests spawn (§ 7), apart from the spawn helpers' default, confined to the switch's staging
-and gone before its slice closes (§ 7.3).
+is set outside the switch's staging, since one would hide the flipped default from the tests that should see it and
+would reach the CLI processes the end-to-end and integration tests spawn (§ 7). That staging holds two defaults, the
+spawn helpers' and a ledger of the test files the switch breaks, both gone before its slice closes (§ 7.3; A12).
 
 ### 4. Store paths the flip completes
 
@@ -697,8 +697,12 @@ build it explicitly through `createInRepoBackend`; none sets the override suite-
   `integration/errand-store-imported-cli.test.ts`, which asserts the sealing refusal from an in-repo build,
   `integration/session-inbox-compatibility.test.ts`, which reads in-repo captures through the session context's store,
   and `unit/scripts/review-gate/runtime/invocation-extra-pass-references.test.ts`, which asserts the in-repo refusal the
-  capability skips. Readers of the Errand identity refs the import retires, such as `readTransientInFlightIndexes`
-  (`lib/errand/record.ts`), are asserted only in the in-repo store suites.
+  capability skips. A test of the in-repo arm whose path takes no store sets the override itself instead, as does a test
+  of an operation that runs only on `main`'s pre-flip build (`spec-cutover-window-tooling.md` § 1.4), such as the window
+  tooling's check, whose checkout-holder read passes none (`readWindowEndedCheckoutFindings`,
+  `scripts/cutover-window/checkout-holders.ts`) and whose import context composes the default itself
+  (`createWindowImportContext`) (A12). Readers of the Errand identity refs the import retires, such as
+  `readTransientInFlightIndexes` (`lib/errand/record.ts`), are asserted only in the in-repo store suites.
 - **Tests run over this checkout.** `integration/handoff-write-store.test.ts` dispatches the CLI in process over the
   live checkout; it binds a temporary repository. `e2e/run-cli.e2e.test.ts`'s bare `integrate` case spawns the CLI with
   no `cwd`, so over this checkout (`helpers/run-cli.ts`), where the root hook composes the default; it runs from a
@@ -716,20 +720,28 @@ arms are tested on their own; so is `e2e/review-cli-surfaces.e2e.test.ts`'s adve
 that command's in-repo refusal and remedy. A test that spawns a script composing the default store, outside the spawn
 helpers, takes the same rule and sets the override itself until it moves:
 `integration/validate-cohort-consistency.test.ts` runs the cohort hook's script over a fixture that is not a Git
-repository, where the ref backend refuses.
+repository, where the ref backend refuses. A spawned test of the window tooling's operations before the merge, which run
+only on `main`'s pre-flip build (`spec-cutover-window-tooling.md` § 1.4), sets the override around them and leaves with
+the tooling, as `e2e/cutover-window.e2e.test.ts` does (A12).
 
-The spawned tests move in stages, each commit green. The installed files leave the projected roots first (§ 5.2, § 5.3),
-since an `arc-in-git` install that commits them would meet the tracked-state refusal. The spawn helpers then set the
-override by default, inert until the switch, so the switch's commit changes only the tests that reach the default in
-process; each family of spawned tests then seeds through the store and drops the default, and the default goes before
-the switch's slice closes. It is the one suite-wide override, confined to that staging. A test seeds through one helper
-that writes records in process through the ref backend's ports into its temporary repository's store, or through the
-verb it tests. The shared seeders move with their families: `registerCandidateLineageSuite`, `positionFixture`,
-`prepareSessionEnvelopeFixture`, `importFixture`, `movementPaths`, and the review fan-out harness's `installCandidate`
-and `writeBoundary`. `movementPaths`' regenerable and evidence-neutral kinds commit `ROADMAP.md` and a work unit's notes
-to exercise classifier arms that leave with the in-repo implementation, so their cases keep the override. Whether a
-spawned test that only runs the root hook projects in its temporary repository follows `projection-worktrees`' first
-materialization, and CI shows any that a materialization changes.
+The tests move in stages, each commit green. The installed files leave the projected roots first (§ 5.2, § 5.3), since
+an `arc-in-git` install that commits them would meet the tracked-state refusal. The spawn helpers then set the override
+by default, inert until the switch. The switch's commit adds a ledger of the test files that fail without the override
+once it lands, less those that commit moves itself, and a per-file setup that every test project loads sets the override
+in the process running each listed file, before the file composes a store, and restores it after. The stores that file
+composes, and the CLIs and Git hooks that inherit its environment, inside the spawn helpers or outside them, build the
+in-repo implementation; an unlisted test sees the flipped default in process from the switch on (A12). Each family then
+moves in one commit, seeding through the store, dropping the spawn helpers' default where it spawns, and taking its
+files off the ledger; a listed file that a family's shared seeder or spawned cases reach moves with that family. Both
+defaults go, the ledger empty, before the switch's slice closes, with a test that fails if a test setup or spawn helper
+sets the override by default. A test seeds through one helper that writes records in process through the ref backend's
+ports into its temporary repository's store, or through the verb it tests. The shared seeders move with their families:
+`registerCandidateLineageSuite`, `positionFixture`, `prepareSessionEnvelopeFixture`, `importFixture`, `movementPaths`,
+and the review fan-out harness's `installCandidate` and `writeBoundary`. `movementPaths`' regenerable and
+evidence-neutral kinds commit `ROADMAP.md` and a work unit's notes to exercise classifier arms that leave with the
+in-repo implementation, so their cases keep the override. Whether a spawned test that only runs the root hook projects
+in its temporary repository follows `projection-worktrees`' first materialization, and CI shows any that a
+materialization changes.
 
 #### 7.4 Tests over the deleted installed files
 
@@ -781,8 +793,9 @@ which run over this checkout, processes spawned outside the spawn helpers that c
 `cwd`, spawned commands asserting an in-repo `unsupported` refusal or its remedy, and the test entry points into
 production default sites — in-process dispatch, which runs the root hook, the import's source, the session context, the
 review invocation, the projected selection, and partial mocks of the default — finds each caller either building the
-in-repo backend explicitly or expecting the ref backend, and the spawn helpers set no override by default. Task
-generation takes the file-level list from that search at its own head.
+in-repo backend explicitly or expecting the ref backend, and neither the spawn helpers nor the test setup set the
+override by default, the switch's ledger gone (A12). Task generation takes the file-level list from that search at its
+own head.
 
 ### 8. The workflow rewrite
 
@@ -1997,7 +2010,10 @@ None closes by being listed here.
   patterns.
 - **Current-work-unit reconciliation and stale-worktree sweep slots.** The rebuilt slots read the store, but the fate
   removes the `retiredSubdirs` slot once no lingering subdirectory remains, and the store path only reports it empty
-  (`handlers/status.ts`) while the in-repo arm still fills it. The slot leaves with the in-repo arm.
+  (`handlers/status.ts`) while the in-repo arm still fills it. The slot leaves with notes removal
+  (`cutover-notes-removal`), with `inferRetiredSubdirs` (`lib/session-init/recommended-action.ts`) and
+  `lib/session-init/retired-subdir-detection.ts`, since its recommendation reads `session.init_load.notes`
+  (`commands/status/run.ts`) and names `arc user load`, which that removal also removes (Owner, 2026-11-17; A13).
 - **Lifecycle hook checks.** No state record reaches the hooks once state leaves the branch (§ 1.1). The meta check's
   rules run as the meta kind's write checks (`meta.field-block`, `meta.stage`, `meta.design-entry`, `meta.cohort`, and
   `meta.prepare-tasks`, `lib/store/kinds/meta/`), the cohort check's Purpose as `cohort.purpose`, and its member
@@ -2064,6 +2080,14 @@ fact every flip build can read for itself on any machine and in CI. The registry
 
 **Explicit in-repo construction in tests, not a suite-wide override.** A suite-wide override would hide the flipped
 default from the tests that should see it and reach every CLI process the end-to-end and integration tests spawn.
+
+**A ledger of the test files the switch breaks, not one commit, a blanket default, or per-file markers (A12).** A full
+run over the switched default measured which test files fail under the ref default, 141 of them; judging every one in
+the switch's commit would put about 140 files from every subsystem into one review. A blanket in-repo default in the
+test setup would need a second full run to find its opt-outs, would break the test that no worker sees the override,
+and would hide the flipped default from tests the switch did not break. A marker in each listed file would touch each
+file twice, and when the default goes its calls could not be told from the permanent ones of tests whose subject is the
+in-repo arm. The ledger lists only the measured files, families empty it, and its absence is checkable.
 
 **Two rehearsal stages on full copies, not one, and not a hosted throwaway.** One stage could not start until the last
 projection member lands and the flip change builds, so every step's first run would sit just ahead of the window.
@@ -2206,5 +2230,9 @@ None.
   _Supersedes:_ § 1.3 (the npm policy file). _Trigger:_ 2.1 must-stop. _Work:_ none. _Revalidated:_ 2.1.
 - **A11** — 2026-11-17 — task: rewrite `arc sync`'s help, which describes the notes leg, for the store's arms.
   _Supersedes:_ none. _Trigger:_ 2.3 must-stop. _Work:_ 4.2. _Revalidated:_ pending → 7.1.
+- **A12** — 2026-11-17 — design: a ledger keeps the tests the switch breaks in-repo through Phase 3; families empty it.
+  _Supersedes:_ § 3.2 ¶4; § 7.2; § 7.3 ¶1–2; § 7.7. _Trigger:_ 3.3 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.7.
+- **A13** — 2026-11-17 — design: the retired-subdirectory slot leaves with notes removal, not with the in-repo arm.
+  _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
 
 ---
