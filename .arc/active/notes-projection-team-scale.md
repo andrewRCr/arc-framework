@@ -298,6 +298,24 @@ The accepted timing evidence is Linux run `54790e0d0f3446158da7d3a0f1f2b041`, Wi
 intermittent, with their precise cause unproven. This disposition accepts those valid measurements and leaves the
 failed Windows extraction diagnostic recorded as failed.
 
+## The ownership-handoff corrective
+
+Task 1.1.c's `12aa224ad1` regressed the existing `projection-worktrees` contract that a held ownership handoff reports
+its ownership-specific mark without a generic withheld-basis warning. Earlier green checks omitted the integration
+tier, so the failure surfaced in run `44164130996` at `ff3646eddd6e09562297eb8baba71047ffd3f8bc`, in both Linux
+integration job `134326631311` and portability job `134326630979`. That run's targeted Windows and macOS archive jobs
+each pass their seven files and 47 cases; those results do not make the complete workflow pass.
+
+With all uncommitted Phase 3 work stashed, routed run `6d02d804c5874fc0a824919ebc974921` reproduces the one failure
+in the unchanged 21-case `refresh-path-reuse.test.ts` suite on committed head `ff3646eddd`. An initial candidate in
+materialization, run `b27a943fc03448e9897e6aea76bf4eec`, retains that same failure. The extra warning originates in
+`checkFileAtPath`'s withheld branch during command write-back, which now reports the entry's existing refusal before
+falling back to the generic withheld mark. The test and its expectation remain unchanged; the correction preserves
+the existing hold and recovery route.
+
+The isolated corrected tree passes all 21 original cases in routed run `7e3ec821436c4cfe8dfa5cb5bc7afd54`, with the
+Phase 3 stash still unapplied. Hosted confirmation for this correction remains separate from that focused pass.
+
 ## The archive correction scenario
 
 `archive-correction-worktrees.test.ts` runs the native reference backend with two real linked worktrees, separate

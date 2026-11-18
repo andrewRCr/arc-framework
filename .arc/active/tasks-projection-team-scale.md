@@ -40,6 +40,10 @@ assigned to the parent that wires it (`notes-projection-team-scale.md` § Lifecy
         - Adoption acceptance and attachment retain opened state. A refresh carries it before staging the new path,
           defers the old path until that state has a carrier, and parks it by record identity at a reused path;
           installation and withdrawal preserve it through retries without opening a different arriving record.
+        - Corrective: command write-back retains a journaled handoff's ownership-specific hold rather than reporting a
+          generic withheld basis. This restores the existing path-reuse contract regressed by `12aa224ad1`; the original
+          integration test and its expectation are unchanged. The isolated reproduction and correction are recorded in
+          `notes-projection-team-scale.md` § The ownership-handoff corrective.
 
 ### `[x]` **1.2 `arc edit` — § 3**
 

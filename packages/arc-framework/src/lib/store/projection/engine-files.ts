@@ -103,7 +103,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: withheldProjectionMark(path) });
+    root.context.report?.({ path, copy: null, mark: entry.refused ?? withheldProjectionMark(path) });
     return { index, edited: false };
   }
   await root.checkpoint?.();
