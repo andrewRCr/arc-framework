@@ -9,14 +9,12 @@ import { createProjectionFanOutDependencies } from "./projection/fan-out-binding
 import { recordComposedStoreCapability } from "./projection/process-state.js";
 import { composeRefStorePorts, findTrackedStateRefusal, IN_REPO_STORE_OVERRIDE, refusingStore } from "./selection.js";
 
-/** Construct a lazy store without reading configuration, files, or Git topology.
- * @param ports - Explicit file, Git, policy, clock, and write-lock dependencies.
- * @returns The operational state contract over the checkout's current substrates.
+/** Compose a checkout's default store through the backend selection, beneath the projection's fan-out.
+ * @param ports - The caller's ports, which the selection uses as they are or composes into the ref backend's.
+ * @returns A lazy store that reads no configuration, files, or Git topology until its first operation.
  */
 export function createStore(ports: StorePorts): Store {
-  const store = lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
-    .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
-  return withFanOut(store, createProjectionFanOutDependencies(ports.checkoutRoot));
+  return withFanOut(selectStore(ports), createProjectionFanOutDependencies(ports.checkoutRoot));
 }
 
 /** Compose a checkout's operational store, choosing its implementation without reading the repository.

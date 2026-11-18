@@ -19,10 +19,10 @@ export function compileContextSignal(input: AgendaCompileInput): Promise<Session
 }
 
 async function compileCheckoutEntry(input: AgendaCompileInput, orientation: AgendaOrientation, tail: AgendaStep): Promise<SessionInitAgenda> {
-  const prefix = compileSyncPrefix(input, "notes");
+  const prefix = compileSyncPrefix(input, "none");
   if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input),
-    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes")), tail,
+    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), tail,
   ]));
 }

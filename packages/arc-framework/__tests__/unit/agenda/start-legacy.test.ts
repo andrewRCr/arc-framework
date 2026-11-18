@@ -80,7 +80,7 @@ it("withholds next auto-proceed when a failed Start target precedes an otherwise
 });
 
 
-it.each(["manual", "always"] as const)("carries the notes channel under %s Start policy", async policy => {
+it.each(["manual", "always"] as const)("runs no notes pull at Start under %s notes policy", async policy => {
   const config = configSessionInit(); config.settings["session.init_pull.notes"] = policy;
   const { input } = await fixture(false, { config: async () => config,
     user: async () => userSessionInit({ identity: "test-user", state: "remote-ahead", shouldPromptToPull: true }) });
@@ -88,10 +88,7 @@ it.each(["manual", "always"] as const)("carries the notes channel under %s Start
   const result = await compileSessionInitAgenda(input);
   expect(result.ok, JSON.stringify(result)).toBe(true);
   if (!result.ok) throw Error("Expected Start agenda");
-  if (policy === "always") {
-    expect(result.agenda.steps).toEqual([expect.objectContaining({ type: "exec", id: "notes:pull", actions: [{ text: "arc user pull", argv: ["arc", "user", "pull"] }] })]);
-  } else {
-    expect(result.agenda.steps).toContainEqual(expect.objectContaining({ type: "render", surface: "notes-behind" }));
-    expect(result.agenda.steps.at(-1)).toEqual({ type: "gate", kind: "launch", autoProceed: false });
-  }
+  expect(result.agenda.steps.some(step => step.type === "exec")).toBe(false);
+  expect(result.agenda.steps).not.toContainEqual(expect.objectContaining({ surface: "notes-behind" }));
+  expect(result.agenda.steps.at(-1)).toEqual({ type: "gate", kind: "launch", autoProceed: false });
 });

@@ -3,7 +3,6 @@ import { basename } from "node:path";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
-import { compileLegacyMaterializeChoices } from "./legacy-materialize.js";
 import { renderDegradedSlot } from "./render.js";
 import { agendaQuestionKey, buildAgendaArgv } from "./argv.js";
 import type { AgendaCompileInput } from "./compile-input.js";
@@ -43,7 +42,6 @@ function workUnitRoutes(input: AgendaCompileInput): OrientationSurface[] {
     ...candidates.map(item => `- \`${item.name}\`${item.branch === undefined ? "" : ` (\`${item.branch}\`)`} — materialize and resume?`)].join("\n");
   const choices: OfferChoice[] = candidates.flatMap(item => item.actions ?? []).flatMap(action => action.argv === undefined ? []
     : [compileRouteChoice(input, { ...action, argv: action.argv })]);
-  choices.push(...compileLegacyMaterializeChoices(input, candidates));
   if (slot.value.refreshRemedy !== null) choices.push(compileRouteChoice(input, slot.value.refreshRemedy));
   const refresh = slot.value.refreshRemedy === null ? "" : `\n${slot.value.refreshRemedy.text}`;
   return [routeSurface("materializable-work-units", text + refresh,

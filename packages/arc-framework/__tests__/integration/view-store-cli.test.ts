@@ -31,23 +31,27 @@ async function fixture() {
   return { ...h, cwd, meta, spec, run: (args: string[]) => runHandlerAt(cwd, () => dispatchRegisteredCli(["--no-input", "view", ...args])) };
 }
 
+// The command's default store keeps its own state under `.git`; view itself writes nothing in the working tree.
+const workingTree = async (cwd: string) => (await readdir(cwd, { recursive: true })).filter(path => !/^\.git(?:[\\/]|$)/u.test(path));
+
 it("renders the claimed work unit's furthest record without a projected file or file writes", async () => {
-  const f = await fixture(), before = await readdir(f.cwd, { recursive: true });
+  const f = await fixture(), before = await workingTree(f.cwd);
   const result = await f.run([]);
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("Selected record content.");
-  expect(await readdir(f.cwd, { recursive: true })).toEqual(before);
+  expect(await workingTree(f.cwd)).toEqual(before);
 }, 30_000);
 
 it("keeps a projected conflict's path usable and emits its notice in text and path modes", async () => {
   const f = await fixture(), current = await conflictViewRecord(f, f.spec,
     f.spec.content.replace("Selected record content.", "Local intent."), f.spec.content.replace("Selected record content.", "Incoming intent."));
   if (current.conflicts.length === 0) throw new Error("Expected genuine merge conflict evidence");
-  const path = join(f.cwd, ".arc/active/spec-demo.md");
-  await mkdir(join(f.cwd, ".arc/active"), { recursive: true });
+  // The checkout claims the work unit, so its projected files sit in the claimed active folder.
+  const path = join(f.cwd, ".arc/active/current/spec-demo.md");
+  await mkdir(join(f.cwd, ".arc/active/current"), { recursive: true });
   await writeFile(path, "# Spec\n\n**Purpose:** Projected content.\n");
   const result = await f.run(["spec", "--for", "demo", "--path"]);
-  expect(result.exitCode).toBe(0); expect(result.stdout).toBe(`${path}\n`);
+  expect(result.exitCode, result.stderr).toBe(0); expect(result.stdout).toBe(`${path}\n`);
   for (const conflict of current.conflicts) expect(result.stderr).toContain(`arc status --conflicts ${formatConflictToken(conflict)}`);
   const text = await f.run(["spec", "--for", "demo"]);
   expect(text.exitCode).toBe(0); expect(text.stdout).toContain("Projected content.");

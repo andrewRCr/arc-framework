@@ -3,7 +3,6 @@
 import { compileAdvisoryOrientation } from "./advisories.js";
 import { compileCheckoutOrientation } from "./checkout.js";
 import { compileCleanupOrientation } from "./cleanup.js";
-import { compileNotesOrientation } from "./notes.js";
 import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
 import { pullResultNotices } from "../../lib/store/operational-sync.js";
@@ -21,10 +20,9 @@ export interface OrientationSurface { id: string; steps: AgendaStep[] }
 export const ORIENTATION_SURFACE_ORDER = [
   "header", "delivery-position", "locus", "degraded-slot", "worktree-diverged", "superseded", "branch-gone",
   "local-ahead", "worktree-behind", "worktree-remote-unavailable", "base-drift", "stale-base", "current-wu-reconcile",
-  "user-references", "hooks-path", "notes-lag", "notes-compaction", "notes-reconciling", "notes-conflict",
-  "local-ahead-notes", "notes-behind", "notes-remote-unavailable", "notes-drift", "notes-load-pending", "store-sync",
-  "no-upstream", "husk", "detached-head", "no-remote", "dirty", "retirements", "rename-moves", "stale-worktrees",
-  "missing-folders", "branch-orphans", "cleanup-residues", "retired-subdirs", "reminder", "in-flight-work-units",
+  "user-references", "hooks-path", "store-sync", "no-upstream", "husk", "detached-head", "no-remote", "dirty",
+  "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans", "cleanup-residues", "reminder",
+  "in-flight-work-units",
   "materializable-work-units", "materializable-errands", "housekeep", "concurrent-workload",
 ] as const;
 const ORDER = new Map<string, number>(ORIENTATION_SURFACE_ORDER.map((id, index) => [id, index]));
@@ -42,7 +40,7 @@ export function orderOrientationSurfaces(surfaces: OrientationSurface[]): Agenda
 /** Compile the shared orientation surfaces without selecting synchronization or a terminal gate. */
 export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input), consumed: { seed?: boolean; next?: boolean; start?: boolean } = { next: true }): OrientationSurface[] {
   return [...compileCoreOrientation(input, findings, sync, consumed), ...compileCheckoutOrientation(input, sync),
-    ...compileNotesOrientation(input, sync), ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
+    ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
 }
 
 /** Frame an explicit entry on checkout-local facts without work-unit or discovery surfaces. */
@@ -62,7 +60,7 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
     if (degraded !== null) steps.push(degraded);
   }
   return [...steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []),
-    ...compileCheckoutOrientation(input, sync), ...compileNotesOrientation(input, sync)];
+    ...compileCheckoutOrientation(input, sync)];
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */

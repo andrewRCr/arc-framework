@@ -152,23 +152,12 @@ describe("agenda work-unit resume", () => {
   it.each(["user", "worktree", "baseBranchSync", "userReferenceReconcile", "currentWuReconcile", "sweep", "orphanBranchSweep", "errandSweep"] as const)("isolates a failed %s slot while healthy synchronization remains available", async name => {
     const fail = async (): Promise<never> => { throw new Error(`${name} probe failed`); };
     const value = await input({ worktree: async () => worktreeSync({ branch: "feat/work", state: "remote-ahead", behind: 2 }),
-      user: async () => userSessionInit({ loadNeeded: true }), [name]: fail });
+      baseBranchSync: async () => baseBranchSync({ state: "remote-ahead", behind: 3 }), [name]: fail });
     const agenda = await compile(value);
     expect(agenda.steps).toEqual(expect.arrayContaining([{ type: "render", surface: "degraded-slot", text: expect.stringContaining(`${name} unavailable (runtime): ${name} probe failed`) }]));
     expect(agenda.steps.some(step => step.type === "offer")).toBe(true);
     expect(agenda.steps.some(step => step.type === "exec")).toBe(false);
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
-  });
-
-  it("keeps a healthy retired-subdirectory load after user failure and does not repeat it", async () => {
-    const config = configSessionInit(); config.settings["session.init_load.notes"] = "always";
-    const value = await input({ config: async () => config, user: async () => { throw new Error("Notes unreadable"); },
-      retiredSubdirs: async () => ({ candidates: [SlugSchema.parse("shipped")] }) });
-    expect((await compile(value)).steps).toMatchObject([{ type: "exec", id: "notes:load" }]);
-    value.answers.done.push("notes:load");
-    const steps = (await compile(value)).steps;
-    expect(steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "degraded-slot" })]));
-    expect(steps.some(step => step.type === "exec")).toBe(false);
   });
 
   it("does not surface dormant slots that the resume never consumes", async () => {
@@ -186,13 +175,6 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
-  it("includes pending notes attention in resume orientation", async () => {
-    const config = configSessionInit(); config.settings["session.init_load.notes"] = "manual";
-    const agenda = await compile(await input({ config: async () => config, user: async () => userSessionInit({ loadNeeded: true }) }));
-    expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "notes-load-pending" })]));
-    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
-  });
-
   it("assembles cleanup attention as standing offers before the proceed gate", async () => {
     const sweep = StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "exact", missingFolders: [], renameMoves: [], retirements: [], warnings: [],
       worktrees: [{ kind: "branched", branch: "feat/ended", worktreePath: "/repo/ended", decision: { action: "removable" },
@@ -206,9 +188,9 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
-  it("orders simultaneous checkout, notes, cleanup and reminder surfaces", async () => {
+  it("orders simultaneous checkout, cleanup and reminder surfaces, rendering none of the notes slots", async () => {
     const config = configSessionInit();
-    config.settings["session.init_pull.base"] = "manual"; config.settings["session.init_load.notes"] = "manual";
+    config.settings["session.init_pull.base"] = "manual";
     const moving = { path: "/repo/old-name", head: "a".repeat(40), branch: "feat/new-name", detached: false, primary: false, folderPresent: true };
     const move = projectRenameMoveRemedy(moving, { kind: "present", marker: { spawnedByArc: true, wuName: "new-name",
       createdFor: { kind: "work-unit", name: "new-name" }, spawningIdentity: "andrew", createdAt: "2026-06-01T00:00:00Z",
@@ -242,10 +224,9 @@ describe("agenda work-unit resume", () => {
     }, { next: true }));
     const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note");
     expect(surfaces.map(step => step.surface)).toEqual(["header", "worktree-diverged", "base-drift", "stale-base", "hooks-path",
-      "notes-lag", "notes-compaction", "notes-conflict", "dirty", "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans",
-      "retired-subdirs", "reminder", "in-flight-work-units"]);
+      "dirty", "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans", "reminder", "in-flight-work-units"]);
     expect(surfaces.flatMap(step => step.type === "render" && step.marker ? [step.marker.path] : [])).toEqual([
-      ".arc/user/andrew/.internal/compact", ".arc/user/andrew/.internal/reminder", ".arc/user/andrew/.internal/wu-reminder",
+      ".arc/user/andrew/.internal/reminder", ".arc/user/andrew/.internal/wu-reminder",
     ]);
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
@@ -264,15 +245,5 @@ describe("agenda work-unit resume", () => {
     }, {}, true));
     expect(agenda.steps.filter(step => step.type === "render" || step.type === "note")).toEqual(
       baseline.steps.filter(step => step.type === "render" || step.type === "note"));
-  });
-
-  it("ends at automatic notes synchronization before reading context", async () => {
-    const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
-    const value = await input({ config: async () => config,
-      user: async () => userSessionInit({ state: "remote-ahead", refState: "remote-ahead", shouldPromptToPull: true }) });
-    const unexpected = async (): Promise<never> => { throw new Error("Sync must recompile before reads"); };
-    value.read = { exists: unexpected, size: unexpected, read: unexpected, git: unexpected };
-    expect((await compile(value)).steps).toMatchObject([{ type: "exec", id: "notes:pull", then: { kind: "recompile" } }]);
-    expect((await compile(value)).steps).toHaveLength(1);
   });
 });

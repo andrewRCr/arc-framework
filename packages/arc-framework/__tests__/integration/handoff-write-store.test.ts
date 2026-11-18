@@ -167,16 +167,18 @@ async function invokeHandoff(h: Awaited<ReturnType<typeof fixture>>, sync: Store
   } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); }
 }
 it("serves the request schema through the registered CLI", async () => {
+  const h = await fixture();
   let output = "";
   const capture = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output += String(chunk); return true; });
-  const exitCode = process.exitCode;
+  const cwd = process.cwd(); const exitCode = process.exitCode;
+  selected.store = h.store; process.chdir(h.cwd);
   try {
     await dispatchRegisteredCli(["schema", "get", "handoff-write-request"]);
     const served = JSON.parse(output) as { status: string; schema: { properties: Record<string, unknown> } };
     expect(served.status).toBe("ok");
     expect(served.schema.properties).toHaveProperty("sessionContext");
     expect(served.schema.properties).not.toHaveProperty("stateAtHandoff");
-  } finally { capture.mockRestore(); process.exitCode = exitCode; }
+  } finally { process.chdir(cwd); capture.mockRestore(); process.exitCode = exitCode; selected.store = undefined; }
 });
 it("dispatches a real file request through the registered handoff action into the selected store", async () => {
   const h = await fixture();

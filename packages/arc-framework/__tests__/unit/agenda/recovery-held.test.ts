@@ -154,7 +154,7 @@ describe("held recovery context", () => {
       input.signals = signals;
       const agenda = await compile(input);
       const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note").map(step => step.surface);
-      expect(surfaces).toEqual(["header", "degraded-slot", "branch-gone", "notes-behind", "dirty"]);
+      expect(surfaces).toEqual(["header", "degraded-slot", "branch-gone", "dirty"]);
       expect(agenda.steps.some(step => step.type === "exec" || step.type === "offer" || step.type === "fragment")).toBe(false);
       expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
     },

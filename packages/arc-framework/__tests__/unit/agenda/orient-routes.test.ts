@@ -89,7 +89,7 @@ it.each([false, true])("offers discovery refresh exactly once with candidates=%s
 });
 
 
-it("adds the legacy in-place materialize and notes-pull sequence", async () => {
+it("offers a legacy candidate only its published spawning command", async () => {
   const result = findMaterializableWorkUnits({ identity: "test-user", entries: [{ kind: "work-unit", name: "legacy", branch: "feat/legacy",
     owner: "test-user", state: "Active", remoteOnly: true, dependsOn: [] }] });
   const { input } = await createSignalAgendaFixture(undefined, { materializableWorkUnits: async () =>
@@ -100,10 +100,6 @@ it("adds the legacy in-place materialize and notes-pull sequence", async () => {
   const offer = compiled.agenda.steps.find(step => step.type === "offer" && step.id === "materialize:legacy");
   expect(offer).toMatchObject({ type: "offer", choices: [
     { kind: "actions", actions: result.candidates[0]?.actions, then: { kind: "handoff" } },
-    { kind: "actions", actions: [
-      { argv: ["arc", "materialize", "legacy", "--here"], checkout: "/repo" },
-      { argv: ["arc", "user", "pull"] },
-    ], then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--done", "fragment:discover-next-work"] } },
   ] });
 });
 

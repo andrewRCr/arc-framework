@@ -227,10 +227,10 @@ describe("documented command surface", () => {
       .toEqual([{ name: "input", required: false }]);
   });
 
-  it("registers remote designation while the default operational backend stays in-repo", async () => {
+  it("registers remote designation for the default operational backend, which keeps state off the branch", async () => {
     expect(registered.has("store remote")).toBe(true);
     const store = createStore(createDefaultStorePorts({ checkoutRoot: root }));
-    expect(store.capabilities.stateOffBranch, "A live operational backend must register every corrective command.").toBe(false);
+    expect(store.capabilities.stateOffBranch, "The default operational backend is the ref store.").toBe(true);
     expect(await createStoreSyncPort().pull()).toEqual({ status: "no-remote" });
   });
 

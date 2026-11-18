@@ -19,6 +19,9 @@ import type { Store } from "../../../../src/lib/store/contract.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { createStore } from "../../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../../src/lib/store/default-ports.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -71,6 +74,16 @@ it("refreshes both native worktree files after a createRefStore write", async ()
     content: "A native ref write.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
   expect(await ownFile()).toContain("A native ref write.");
   expect(await siblingFile()).toContain("A native ref write.");
+}, 30_000);
+
+it("refreshes the sibling after a write through the default store a command opens", async () => {
+  const { h, reference, siblingFile } = await fixture();
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cloneA, exec: h.a.exec, identity: SlugSchema.parse("andrew") }));
+  expect(store.capabilities.stateOffBranch).toBe(true);
+  const current = success(await store.read({ reference }));
+  success(await store.write({ action: "put", reference: current.reference, expected: current.version,
+    content: "Written through the default store.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(await siblingFile()).toContain("Written through the default store.");
 }, 30_000);
 
 it("refreshes remote pull merges in both native worktrees without setting verb changed marks", async () => {

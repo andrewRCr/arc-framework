@@ -14,11 +14,11 @@ import { carryAgendaAnswers } from "./progress.js";
 import { compileUniversalReads } from "./reads.js";
 import type { AgendaOrientation, AgendaStep, OfferChoice, SessionInitAgenda } from "./schema.js";
 
-/** Compile the notes prefix and hand a selected concern to its owning workflow. */
+/** Hand a selected concern to its owning workflow. */
 export async function compileErrandSignal(input: AgendaCompileInput): Promise<SessionInitAgenda> {
   const seed = typeof input.signals.errand === "string" ? input.signals.errand : null;
   const orientation: AgendaOrientation = { shape: "subject", subject: { kind: "errand", key: seed } };
-  const prefix = compileSyncPrefix(input, "notes");
+  const prefix = compileSyncPrefix(input, "none");
   if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   if (input.signals.next) return compileQueueHead(input, prefix);
   const { entries, notes } = await readCaptures(input);
@@ -29,7 +29,7 @@ export async function compileErrandSignal(input: AgendaCompileInput): Promise<Se
     ...(capture === undefined ? {} : { fromInbox: capture }) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input),
-    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes")), ...notes, decision,
+    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), ...notes, decision,
   ]));
 }
 
@@ -65,6 +65,6 @@ async function compileQueueHead(input: AgendaCompileInput, prefix: AgendaStep[])
     : { type: "gate", kind: "stop", autoProceed: false };
   return createSessionInitAgenda(input, { shape: "subject", subject: { kind: "errand", key } }, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input), { type: "render", surface: "errand-next", text: result.recommendedPromptText },
-    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes", { next: true })), tail,
+    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none", { next: true })), tail,
   ]));
 }

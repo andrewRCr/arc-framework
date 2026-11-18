@@ -29,7 +29,7 @@ describe("superseded reset orientation", () => {
 
   it("renders the explanation on a row that runs only the notes channel", async () => {
     const value = await input(true);
-    expect(compileSyncPrefix(value, "notes")).toEqual([]);
+    expect(compileSyncPrefix(value, "none")).toEqual([]);
     expect(renderSuperseded(value)).toEqual({ type: "render", surface: "superseded", text: head });
   });
 

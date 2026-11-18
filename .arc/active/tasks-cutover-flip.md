@@ -481,41 +481,52 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           spawn of the cohort hook's script. No command selects through it until the switch.
         - _Retired in:_ Phase 3
 
-### `[ ]` **3.3 The switch, with the in-process tests whose expectations rest on the default — § 2.1, § 7.2**
+### `[x]` **3.3 The switch, with the in-process tests whose expectations rest on the default — § 2.1, § 7.2**
 
 - _Goal:_ `createStore` builds through Task 1.1's selection, so every store a command opens reports `stateOffBranch`
   true, and every surviving test that reaches the default in process expects the ref backend.
 
     - _Amended in:_ 3.R (A12).
 
-    - `[ ]` **3.3.a The switch**
-        - `createStore` (`lib/store/create.ts`) calls the selection; its signature is unchanged, so `openDefaultStore`
-          (`handlers/lifecycle-shared.ts`) and every other default caller follow, `projection-worktrees`' fan-out
-          decoration (`withFanOut`) kept over the composed store, with a test that a write it lands over the ref backend
-          reaches another projected checkout (A9).
-        - Before this commit, the flip's checkout sets the override in the environment of every command it runs, `git`
-          included, by the mechanism `notes-cutover-flip.md` § The flip's checkout names, which also says what a
-          tracked-state refusal there means.
+    - `[x]` **3.3.a The switch**
+        - `createStore` (`lib/store/create.ts`) wraps `selectStore` in the fan-out decoration, so `openDefaultStore` and
+          every other default caller open the ref backend unless the override is set.
+          `integration/store/projection/fan-out-ref.test.ts` writes through the default store a command opens and finds
+          the sibling checkout's file refreshed (A9).
+        - The flip's checkout sets `ARC_IN_REPO_STORE=1` in its worktree's untracked `.claude/settings.local.json`.
 
-    - `[ ]` **3.3.b Direct callers and in-process dispatch whose subject survives**
-        - The callers Task 1.4 recorded as expecting the ref backend move here.
-        - Any other test that dispatches the CLI in process (`dispatchRegisteredCli`), whose root hook composes the real
-          default, or composes the default over a scripted `exec`, which now meets the tracked-state predicate's tree
-          read at first use, joins the switch's ledger where it fails and moves in Task 3.R or with its Task 3.4 family.
+    - `[x]` **3.3.b Direct callers and in-process dispatch whose subject survives**
+        - Of the callers Task 1.4 recorded as expecting the ref backend, two failed at the switch and moved:
+          `integration/command-surface-documentation`'s remote-designation case expects the default to keep state off
+          the branch, and `integration/view-store-cli` compares the working tree alone, the command's default store
+          keeping its own state under `.git`, and writes its projected spec in the claimed folder
+          (`.arc/active/current/`). The rest pass unchanged.
+        - Every other in-process failure is on the switch's ledger (Task 3.3.d).
 
-    - `[ ]` **3.3.c Through handlers and scripts**
-        - `repair-cli`'s mock (`__tests__/helpers/repair-cli.ts`) binds a store rather than falling through to the
-          default factory.
-        - `integration/handoff-write-store.test.ts` binds a temporary repository rather than the live checkout.
-        - The agenda's notes module (`commands/agenda/notes.ts`) and in-place materialize
-          (`commands/agenda/legacy-materialize.ts`) go, with their tests, now that Task 2.14's store arm serves every
-          resume.
+    - `[x]` **3.3.c Through handlers and scripts**
+        - `repair-cli`'s mock returns only a bound store and throws when a test composes one with none bound; the 47
+          files that reach it pass.
+        - `integration/handoff-write-store.test.ts`'s schema case dispatches from a temporary repository, its store
+          bound.
+        - `commands/agenda/notes.ts` and `legacy-materialize.ts` are gone with their tests, and `combine.ts` with them,
+          which only joined a worktree pull to a notes pull or load: the agenda compiles no notes pull or load, renders
+          no notes or retired-subdirectory surface, offers no in-place materialize, and renders checkout history for
+          any absent SESSION-NOTES. The sync channel value that ran only notes is now `none`. The envelope's notes slots
+          stay for notes removal.
 
-    - `[ ]` **3.3.d The switch's ledger**
-        - The ledger lists the test files that fail without the override once the switch lands, less those Tasks 3.3.b
-          and 3.3.c move. A setup file every test project loads for each test file sets the override in the process
-          running a listed file, before the file composes a store, and restores it after.
+    - `[x]` **3.3.d The switch's ledger**
+        - `IN_REPO_STORE_LEDGER` (`__tests__/helpers/in-repo-store-ledger.ts`) lists 138 files: 37 unit, 85
+          integration, the store suite `store-ref-init-designation` among them, and 16 end-to-end.
+          `applyInRepoStoreLedger` names the collected file (`getCurrentSuite().file`), sets the override for a listed
+          one, and restores it after the file; `unit-setup.ts` calls it after clearing the override, and the other four
+          projects load `in-repo-store-ledger-setup.ts`. `unit/in-repo-store-ledger.test.ts` pins the collected path
+          and the list's form. The store suites' reach map widens on both files, which the configuration loads by path,
+          and `store-ref-timing-isolation`'s synthetic checkout stubs the setup as it stubs the index guard.
         - _Retired in:_ Phase 3
+
+- _Outcome:_ Run without the ledger, each of the 138 listed files fails; with it, the unit, integration, end-to-end, and
+  store suites pass, so every test that reaches the default in process either expects the ref backend or runs from the
+  ledger until Task 3.R or its Task 3.4 family moves it.
 
 ### `[ ]` **3.R The switch's ledger, its suspected defects first — § 7.3**
 

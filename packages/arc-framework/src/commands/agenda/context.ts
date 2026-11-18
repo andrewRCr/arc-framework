@@ -7,7 +7,7 @@ import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-conten
 import type { HistoryEntry, Store } from "../../lib/store/contract.js";
 import type { StateVersion } from "../../lib/store/identity.js";
 import type { AgendaCompileInput } from "./compile-input.js";
-import { compileResumeReads, renderCheckoutHistory, selectedAgendaContext, type AgendaResumeReadContext, type AgendaReadOptions } from "./reads.js";
+import { compileResumeReads, renderCheckoutHistory, selectedAgendaContext, type AgendaResumeReadContext } from "./reads.js";
 import type { AgendaStep } from "./schema.js";
 
 type Note = Extract<AgendaStep, { type: "note" }>;
@@ -36,7 +36,7 @@ export function resolveAgendaSessionType(current: LoadSetSessionType | null, aut
 }
 
 /** Read current session fields before compiling their effective context. */
-export async function compileResumeContext(input: AgendaCompileInput, options: AgendaReadOptions = {}): Promise<AgendaResumeContext> {
+export async function compileResumeContext(input: AgendaCompileInput): Promise<AgendaResumeContext> {
   const context = selectedAgendaContext(input);
   if (context === null) return { steps: [], metaContent: null };
   const metaContent = await optionalContent(input, context.metaPath);
@@ -45,7 +45,7 @@ export async function compileResumeContext(input: AgendaCompileInput, options: A
   const override = resolveAgendaSessionType(context.sessionType, authored);
   const effective = override.warning === null && authored !== null
     ? overriddenContext(input, override.sessionType, metaContent ?? "") : context;
-  const steps = await compileResumeReads(input, effective, options);
+  const steps = await compileResumeReads(input, effective);
   if (fields.sessionContextAbsent) {
     const meta = steps.findIndex(step => step.type === "read" && step.path === context.metaPath);
     steps.splice(meta < 0 ? steps.length : meta + 1, 0, await renderCheckoutHistory(input, "The work unit's meta records no session context."));

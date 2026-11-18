@@ -13,7 +13,7 @@ import type { AgendaOrientation, AgendaStep, SessionInitAgenda } from "./schema.
 export async function compilePlanSignal(input: AgendaCompileInput): Promise<SessionInitAgenda> {
   const requested = typeof input.signals.plan === "string" ? input.signals.plan : "";
   const orientation: AgendaOrientation = { shape: "subject", subject: { kind: "groom", key: requested || null } };
-  const prefix = compileSyncPrefix(input, "notes");
+  const prefix = compileSyncPrefix(input, "none");
   if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   const { stub, failure } = await lookupStub(input, requested);
   if (stub !== null) orientation.subject.key = stub.slug;
@@ -22,7 +22,7 @@ export async function compilePlanSignal(input: AgendaCompileInput): Promise<Sess
   }, args: { stub: stub.slug, onGroomingBranch: isGroomingBranch(input, stub.slug) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input),
-    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes")), tail,
+    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "none")), tail,
   ]));
 }
 
