@@ -2,8 +2,9 @@
 import { spawn } from "node:child_process";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { afterAll, beforeAll, expect, it } from "vitest";
-import { TEST_CONTROLLER_TOKEN_ENV } from "../../src/lib/build-ownership.js";
+import { setTimeout as delay } from "node:timers/promises";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TEST_CONTROLLER_TOKEN_ENV, withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import {
   checkDevBuildStaleness, createDevCheckDeps, DEV_BUILD_RERUN_ENV, refreshDevBuildAfterAction,
 } from "../../src/lib/dev-check.js";
@@ -33,22 +34,31 @@ if (process.argv[2] === "wait") {
 `;
 }
 
-/** Run the built CLI as an ordinary command outside any test controller. */
-function start(args: readonly string[]) {
+/**
+ * Run the built CLI as an ordinary command outside any test controller. A grouped run leads its own process group,
+ * with no controlling terminal, so cleanup can end it and everything it started together.
+ */
+function start(args: readonly string[], { grouped = false }: { grouped?: boolean } = {}) {
   const env: NodeJS.ProcessEnv = { ...process.env, ARC_E2E_SKIP_BUILD: undefined, [DEV_BUILD_RERUN_ENV]: undefined,
     [TEST_CONTROLLER_TOKEN_ENV]: undefined };
-  const child = spawn(process.execPath, [cli, ...args], { cwd: packageRoot, env, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [cli, ...args],
+    { cwd: packageRoot, env, stdio: ["pipe", "pipe", "pipe"], detached: grouped });
   let stdout = "";
   let stderr = "";
   child.stdout.setEncoding("utf8").on("data", (chunk: string) => { stdout += chunk; });
   child.stderr.setEncoding("utf8").on("data", (chunk: string) => { stderr += chunk; });
   const ended = new Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }>(
     (settle) => { child.once("close", (code, signal) => { settle({ code, signal, stdout, stderr }); }); });
-  return { child, ended, stdout: () => stdout };
+  return { child, ended, stdout: () => stdout, stderr: () => stderr };
 }
 
-function killIfRunning(pid: number): void {
-  try { process.kill(pid, "SIGKILL"); } catch { /* Already ended. */ }
+/** End a grouped run's whole process group, and wait a bounded time for its streams to close. */
+async function endGroup(run: ReturnType<typeof start>): Promise<void> {
+  const pid = run.child.pid;
+  if (pid !== undefined) {
+    try { process.kill(-pid, "SIGKILL"); } catch { /* The group has already ended. */ }
+  }
+  await Promise.race([run.ended, delay(10_000)]);
 }
 
 beforeAll(async () => {
@@ -72,28 +82,37 @@ it("rebuilds a stale bundle and runs the command again with its input and exit s
   expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
 }, 60_000);
 
-it.skipIf(process.platform === "win32")(
-  "ends the re-run when its parent is terminated and exits by the same signal",
-  async () => {
-    await writeFile(join(packageRoot, "src/cli.ts"), runtime("third"));
-    const run = start(["wait"]);
-    let rerunPid: number | undefined;
+describe.skipIf(process.platform === "win32")("signals sent to the command alone", () => {
+  it.each(["SIGTERM", "SIGINT"] as const)("pass %s on to the re-run, and the command exits by it", async (signal) => {
+    await writeFile(join(packageRoot, "src/cli.ts"), runtime(`waiting-${signal}`));
+    const run = start(["wait"], { grouped: true });
     try {
       await expect.poll(run.stdout, { timeout: 30_000 }).toMatch(/^\d+\n$/u);
-      rerunPid = Number(run.stdout().trim());
+      const rerunPid = Number(run.stdout().trim());
       expect(rerunPid).not.toBe(run.child.pid);
-      run.child.kill("SIGTERM");
-      await expect(run.ended).resolves.toMatchObject({ code: null, signal: "SIGTERM" });
-      expect(() => process.kill(rerunPid ?? 0, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
-    } finally {
-      // A failed case must not leave the waiting CLI or its re-run running past the fixture.
-      if (rerunPid !== undefined) killIfRunning(rerunPid);
-      if (run.child.exitCode === null && run.child.signalCode === null) run.child.kill("SIGKILL");
-      await run.ended;
-    }
-  },
-  60_000,
-);
+      run.child.kill(signal);
+      await expect(run.ended).resolves.toMatchObject({ code: null, signal });
+      expect(() => process.kill(rerunPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
+    } finally { await endGroup(run); }
+  }, 60_000);
+
+  it("ends the build it is waiting on, and exits by the termination", async () => {
+    await writeFile(join(packageRoot, "src/cli.ts"), runtime("held"));
+    const prior = await readFile(cli, "utf8");
+    await withBuildArtifactOwnership({ packageRoot, operation: "a test hold" }, async () => {
+      const run = start(["0"], { grouped: true });
+      run.child.stdin.end();
+      try {
+        await expect.poll(run.stderr, { timeout: 30_000 }).toContain("Waiting for checkout artifacts held by a test hold");
+        run.child.kill("SIGTERM");
+        // The build shares the command's standard error, so the streams close only once the build has ended too.
+        await expect(Promise.race([run.ended, delay(10_000).then(() => "still open")]))
+          .resolves.toMatchObject({ code: null, signal: "SIGTERM" });
+      } finally { await endGroup(run); }
+    });
+    expect(await readFile(cli, "utf8")).toBe(prior);
+  }, 60_000);
+});
 
 it("refuses with the remedy and keeps the prior build when the rebuild fails", async () => {
   const prior = await readFile(cli, "utf8");
