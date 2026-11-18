@@ -1,8 +1,6 @@
-/** The root hook binds a command's projection to its ARC root or, without one, its Git work tree's top level, and
- * binds none outside any work tree. */
+/** The root hook binds a command's projection to its ARC root, and binds none where ARC is not installed. */
 import { Command } from "commander";
-import { realpathSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
@@ -14,7 +12,7 @@ const original = process.cwd();
 afterEach(async () => { process.chdir(original); await removeGitBackedDirs(directories.splice(0)); });
 
 /** Run one command through the native root hook from the directory, returning its projection start and diagnostics. */
-async function runFrom(cwd: string): Promise<{ start: string | undefined; checkout: string | undefined; stderr: string }> {
+async function runFrom(cwd: string): Promise<{ start: string | undefined; stderr: string }> {
   const errors: string[] = [];
   const program = new Command("arc").exitOverride();
   program.command("probe").action(() => undefined);
@@ -22,8 +20,14 @@ async function runFrom(cwd: string): Promise<{ start: string | undefined; checko
   process.chdir(cwd);
   try { await program.parseAsync(["probe"], { from: "user" }); }
   finally { process.chdir(original); }
-  const state = projectionProcessState();
-  return { start: state.start?.kind, checkout: state.command?.checkout, stderr: errors.join("") };
+  return { start: projectionProcessState().start?.kind, stderr: errors.join("") };
+}
+
+async function repository(): Promise<string> {
+  const root = await createTempRepoCore({ prefix: "arc-hook-unprojected-repo-" });
+  directories.push(root);
+  await commitAll(root, "chore: start the repository");
+  return root;
 }
 
 describe("native projection binding", () => {
@@ -33,15 +37,25 @@ describe("native projection binding", () => {
     expect(await runFrom(outside)).toMatchObject({ start: "no-projection", stderr: "" });
   });
 
-  it("binds a subdirectory of a repository where ARC is not installed to the repository's top level", async () => {
-    const root = await createTempRepoCore({ prefix: "arc-hook-unprojected-repo-" });
+  it.each([
+    ["at its top level", repository],
+    ["in a subdirectory", async () => {
+      const nested = join(await repository(), "nested");
+      await mkdir(nested);
+      return nested;
+    }],
+  ])("runs a command in a repository where ARC is not installed, %s, with no projection and no diagnostic",
+    async (_place, place) => {
+      expect(await runFrom(await place())).toMatchObject({ start: "no-projection", stderr: "" });
+    });
+
+  it("reports an installed ARC root outside any Git repository as missing its Git directory", async () => {
+    const root = await makeTempRoot("arc-hook-installed-");
     directories.push(root);
-    await commitAll(root, "chore: start the repository");
-    const nested = join(root, "nested");
-    await mkdir(nested);
-    const fromNested = await runFrom(nested);
-    expect(fromNested.checkout).toBe(realpathSync(root));
-    expect(fromNested.stderr).not.toContain("Git directory is missing");
-    expect(fromNested.start).toBe((await runFrom(root)).start);
+    await mkdir(join(root, ".arc", "system"), { recursive: true });
+    await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+    const result = await runFrom(root);
+    expect(result.start).toBe("skipped");
+    expect(result.stderr).toContain("The worktree's Git directory is missing.");
   });
 });

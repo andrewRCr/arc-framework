@@ -12,7 +12,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/e2e/candidate-lineage.e2e.test.ts",
   "__tests__/e2e/check-pre-commit-hook.e2e.test.ts",
   "__tests__/e2e/commit-message-consumers.e2e.test.ts",
-  "__tests__/e2e/config-validate.e2e.test.ts",
   "__tests__/e2e/cutover-window-after-merge.e2e.test.ts",
   "__tests__/e2e/cutover-window-rehearse.e2e.test.ts",
   "__tests__/e2e/cutover-window.e2e.test.ts",

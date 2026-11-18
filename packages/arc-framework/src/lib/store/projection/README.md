@@ -206,10 +206,11 @@ from that durable hold, which a successful send clears.
 development refresh registration, so Commander's reverse completion order settles copies before rebuilding. Root `save`
 uses save provenance and includes completed roots. Every start outcome remains in process state for the action to
 inspect. Native bindings check the backend capability before resolving a root; the in-repo backend returns without
-projection I/O. A native binding projects into the ARC root above the working directory, or without one into the Git
-work tree's top level; outside any work tree the command starts with no projection and no diagnostic. `report.ts`
-flushes new diagnostics and resolutions to stderr before the action and after completion, including corrective argv,
-unseen conflicts, pending saves, and retained aside copies with their original paths.
+projection I/O. A native binding projects into the ARC root above the working directory; with none, where ARC is not
+installed or outside any repository, the command starts with no projection and no diagnostic. An installed root with no
+Git directory still binds, so its start reports that directory missing. `report.ts` flushes new diagnostics and
+resolutions to stderr before the action and after completion, including corrective argv, unseen conflicts, pending
+saves, and retained aside copies with their original paths.
 
 `status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, recorded aside copies, and the timing
 notices `timings.ts` raises, without a lease or index write. Its JSON view omits filesystem stats, and its summary

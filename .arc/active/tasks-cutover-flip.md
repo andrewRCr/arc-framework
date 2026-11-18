@@ -554,10 +554,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           refusal stays an in-repo case.
         - The warning outside a Git repository was a defect: with no ARC root the root hook bound the working directory,
           so a command outside any work tree, or in a subdirectory of one, reported that directory's Git directory
-          missing. It now binds the work tree's top level, and outside any work tree starts with no projection
-          (`command-hooks.ts`, `integration/store/projection/command-hooks-native.test.ts`).
-        - `e2e/config-validate.e2e.test.ts` stays listed: its nested-directory case, an ARC root outside any Git
-          repository, reads the same as a primary whose Git directory is missing, which `save` refuses with a retry.
+          missing, and in a repository where ARC is not installed, `arc init` included, the ignore guard asked for the
+          rule `init` writes. Without an ARC root a command now starts with no projection (`command-hooks.ts`,
+          `integration/store/projection/command-hooks-native.test.ts`). An installed root with no Git directory still
+          reports it missing, as a primary whose Git directory went does (Owner, 2026-11-18), so
+          `e2e/config-validate.e2e.test.ts`'s nested-directory case left the ledger as an installed project's
+          repository.
 
     - `[ ]` **3.R.b The window tooling**
         - The listed `integration/cutover-window-*` and `e2e/cutover-window*` files, which compose the default in

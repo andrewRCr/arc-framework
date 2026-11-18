@@ -52,6 +52,9 @@ async function repository(tracksState: boolean): Promise<string> {
   const path = tracksState ? ".arc/active/meta-example.md" : ".arc/system/notes.md";
   await mkdir(dirname(join(root, path)), { recursive: true });
   await writeFile(join(root, path), "tracked\n", "utf8");
+  // An installed project, so the checkout keeps its ARC root once the remedy deletes the tracked state.
+  await mkdir(join(root, ".arc", "system"), { recursive: true });
+  await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n", "utf8");
   await commitAll(root, `track ${path}`);
   return root;
 }
