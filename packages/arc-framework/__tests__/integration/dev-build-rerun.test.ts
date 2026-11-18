@@ -47,6 +47,10 @@ function start(args: readonly string[]) {
   return { child, ended, stdout: () => stdout };
 }
 
+function killIfRunning(pid: number): void {
+  try { process.kill(pid, "SIGKILL"); } catch { /* Already ended. */ }
+}
+
 beforeAll(async () => {
   ({ root, packageRoot } = await makeNativeBuildFixture());
   cli = join(packageRoot, "dist/cli.js");
@@ -73,12 +77,20 @@ it.skipIf(process.platform === "win32")(
   async () => {
     await writeFile(join(packageRoot, "src/cli.ts"), runtime("third"));
     const run = start(["wait"]);
-    await expect.poll(run.stdout, { timeout: 30_000 }).toMatch(/^\d+\n$/u);
-    const rerunPid = Number(run.stdout().trim());
-    expect(rerunPid).not.toBe(run.child.pid);
-    run.child.kill("SIGTERM");
-    await expect(run.ended).resolves.toMatchObject({ code: null, signal: "SIGTERM" });
-    expect(() => process.kill(rerunPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
+    let rerunPid: number | undefined;
+    try {
+      await expect.poll(run.stdout, { timeout: 30_000 }).toMatch(/^\d+\n$/u);
+      rerunPid = Number(run.stdout().trim());
+      expect(rerunPid).not.toBe(run.child.pid);
+      run.child.kill("SIGTERM");
+      await expect(run.ended).resolves.toMatchObject({ code: null, signal: "SIGTERM" });
+      expect(() => process.kill(rerunPid ?? 0, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
+    } finally {
+      // A failed case must not leave the waiting CLI or its re-run running past the fixture.
+      if (rerunPid !== undefined) killIfRunning(rerunPid);
+      if (run.child.exitCode === null && run.child.signalCode === null) run.child.kill("SIGKILL");
+      await run.ended;
+    }
   },
   60_000,
 );
