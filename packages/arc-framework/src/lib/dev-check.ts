@@ -268,8 +268,10 @@ export async function rerunDevCommand(): Promise<never> {
   const args = [...process.execArgv, ...process.argv.slice(1)];
   const env = { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" };
   if (process.platform !== "win32" && typeof process.execve === "function") {
-    // Nothing after the replacement runs, so output already written must leave this process first.
+    // Nothing after the replacement runs, so output already written must leave this process first, and the
+    // descriptors it shares with its caller must be back in blocking mode, as Node's own exit would leave them.
     await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+    for (const stream of [process.stdin, process.stdout, process.stderr]) restoreBlockingMode(stream);
     try {
       process.execve(process.execPath, [process.execPath, ...args], env);
     } catch (error) {
@@ -290,6 +292,17 @@ function reportUnstartedRerun(message: string): never {
 /** Resolve once output already written to a stream has been handed to the system, or the stream has failed. */
 async function flushed(stream: NodeJS.WriteStream): Promise<void> {
   await new Promise<void>((settle) => { stream.write("", () => { settle(); }); });
+}
+
+/**
+ * Return a standard stream's descriptor to blocking mode. Node opens a pipe or socket for a standard stream in
+ * non-blocking mode, whichever module first touches it, and restores the mode only on exit, which a replaced process
+ * never reaches; the mode belongs to the descriptor the caller shares. Node offers no public control for it, so this
+ * uses the stream's own handle. A file has no handle and is never switched, and opening a stream here does not read it.
+ */
+function restoreBlockingMode(stream: NodeJS.ReadStream | NodeJS.WriteStream): void {
+  const handle = (stream as { _handle?: { setBlocking?: (blocking: boolean) => number } | null })._handle;
+  handle?.setBlocking?.(true);
 }
 
 /** How a supervised child ended, and the first signal this process received while it ran. */

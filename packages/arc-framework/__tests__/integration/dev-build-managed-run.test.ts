@@ -1,4 +1,4 @@
-/** A managed controller pins CLI children while ordinary children still qualify source. */
+/** A managed controller pins CLI children, while a tokenless re-run child still qualifies source and refuses. */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -8,7 +8,7 @@ import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 import { nestedRunLimit } from "../helpers/call-limit.js";
 
-it("pins inherited CLI children and refuses tokenless source drift", async () => {
+it("pins inherited CLI children, and a tokenless re-run child refuses source drift", async () => {
   const fixture = await makeVitestRuntimeFixture();
   try {
     await writeFile(join(fixture.packageRoot, "src/cli.ts"), `
