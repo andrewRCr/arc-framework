@@ -1,13 +1,29 @@
 /** Observe and change an archived file through its checkout-local path and file identity. */
 import { constants, type BigIntStats } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionLinkRemedy, readProjectionLinkBoundary } from "./discovery-links.js";
 import type { RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 
 type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "ports" | "checkpoint">;
 type ArchiveFile = { kind: "file"; stat: BigIntStats } | { kind: "missing" } | { kind: "blocked"; mark: RefusedMark };
+
+/** Identity of the regular file authorized at the opening inspection. */
+export type ArchiveFileIdentity = Pick<BigIntStats, "dev" | "ino">;
+
+/** Identify the Git checkout holding a path, including a checkout nested below the current one. */
+export async function archiveCheckoutRefusal(root: ArchiveRoot, path: string): Promise<RefusedMark | null> {
+  try {
+    const { stdout } = await root.ports.exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(join(root.checkout, path)) });
+    if (stdout.trim() !== "" && await canonicalCheckout(stdout.trim()) === root.checkout) return null;
+  } catch {
+    return { reason: `Could not identify the checkout holding ${path}.`,
+      remedy: { text: "Restore the checkout's Git metadata, then retry arc edit." } };
+  }
+  return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
+}
 
 /** Resolve the link boundary of an individually selected archive path. */
 export async function archiveLinkRefusal(root: ArchiveRoot, path: string): Promise<RefusedMark | null> {
@@ -21,25 +37,31 @@ export async function readArchiveFile(root: ArchiveRoot, path: string): Promise<
   if (mark !== null) return { kind: "blocked", mark };
   const stat = await unavailableFile(lstat(join(root.checkout, path), { bigint: true }));
   if (stat === null) return { kind: "missing" };
-  return stat.isFile() ? { kind: "file", stat } : changedArchiveFile(path);
+  return stat.isFile() ? { kind: "file", stat } : { kind: "blocked", mark: archiveFileChangeMark(path) };
 }
 
 /** Change the mode only on a handle that still identifies the validated archive file. */
-export async function changeArchiveFileMode(root: ArchiveRoot, path: string, writable: boolean): Promise<ArchiveFile> {
+export async function changeArchiveFileMode(root: ArchiveRoot, path: string, writable: boolean, opening?: ArchiveFileIdentity): Promise<ArchiveFile> {
   const observed = await readArchiveFile(root, path);
   if (observed.kind !== "file") return observed;
   const handle = await unavailableFile(open(join(root.checkout, path),
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK));
   if (handle === null) {
     const current = await readArchiveFile(root, path);
-    return current.kind === "file" ? changedArchiveFile(path) : current;
+    return current.kind === "file" ? { kind: "blocked", mark: archiveFileChangeMark(path) } : current;
   }
   try {
     const stat = await handle.stat({ bigint: true });
     await root.checkpoint?.();
+    if (opening !== undefined) {
+      const foreign = await archiveCheckoutRefusal(root, path);
+      if (foreign !== null) return { kind: "blocked", mark: foreign };
+    }
     const current = await readArchiveFile(root, path);
     if (current.kind !== "file") return current;
-    if (!stat.isFile() || !sameFile(stat, observed.stat) || !sameFile(stat, current.stat)) return changedArchiveFile(path);
+    if (!stat.isFile() || !sameFile(stat, opening ?? observed.stat) || !sameFile(stat, current.stat)) {
+      return { kind: "blocked", mark: archiveFileChangeMark(path) };
+    }
     const mode = Number(stat.mode);
     await handle.chmod(writable ? mode | 0o200 : mode & ~0o222);
     return current;
@@ -48,13 +70,14 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
   }
 }
 
-function sameFile(first: BigIntStats, second: BigIntStats): boolean {
+function sameFile(first: ArchiveFileIdentity, second: ArchiveFileIdentity): boolean {
   return first.dev === second.dev && first.ino === second.ino;
 }
 
-function changedArchiveFile(path: string): ArchiveFile {
-  return { kind: "blocked", mark: { reason: `The regular file at ${path} changed while it was being checked.`,
-    remedy: { text: "Restore the regular file or let the editor finish, then retry the current command." } } };
+/** Retain a retry when the originally observed file disappears or is replaced during inspection. */
+export function archiveFileChangeMark(path: string): RefusedMark {
+  return { reason: `The regular file at ${path} changed while it was being checked.`,
+    remedy: { text: "Restore the regular file or let the editor finish, then retry the current command." } };
 }
 
 async function unavailableFile<T>(operation: Promise<T>): Promise<T | null> {

@@ -60,15 +60,20 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
     index: withProjectionEntry(disk.index, path, { ...inspected.entry, opened: true }) });
   await root.ports.hooks?.afterOpenIndexCommit?.(path);
   await root.checkpoint?.();
+  let changed: Awaited<ReturnType<typeof changeArchiveFileMode>>;
   try {
-    const changed = await changeArchiveFileMode(root, path, true);
-    if (changed.kind === "blocked") return refuse(changed.mark);
-    if (changed.kind === "missing") return refuse({ reason: `${path} is no longer a regular file.`,
-      remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
+    changed = await changeArchiveFileMode(root, path, true, inspected.identity);
   } catch (error) {
     return refuse({ reason: `Could not make ${path} writable: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the file's permissions or restore it, then retry arc edit; its opened intent is retained." } });
   }
+  if (changed.kind === "blocked") {
+    if (disk.index.entries[path]?.opened !== true) await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      checkpoint: root.context.checkpoint, index: disk.index });
+    return refuse(changed.mark);
+  }
+  if (changed.kind === "missing") return refuse({ reason: `${path} is no longer a regular file.`,
+    remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
   return { status: "ok", result: { path } };
 }
 

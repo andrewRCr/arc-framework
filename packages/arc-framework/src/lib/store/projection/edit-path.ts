@@ -1,9 +1,8 @@
 /** Read an archive opening's path, ownership, and adoption evidence without changing content or admitting a record. */
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { archiveLinkRefusal } from "./archive-file.js";
-import { canonicalCheckout } from "./checkout-identity.js";
+import { archiveCheckoutRefusal, archiveFileChangeMark, archiveLinkRefusal, readArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
 import { readProjectionProtection } from "./protection.js";
@@ -12,7 +11,7 @@ import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { evidenceHeldProjectionMark, isEvidenceHeldEntry, withheldProjectionMark } from "./materialization-file.js";
 
 /** The entry an opening may mark, or the same repair evidence its owner reports. */
-export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry: ProjectionIndex["entries"][string] }
+export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry: ProjectionIndex["entries"][string]; readonly identity: ArchiveFileIdentity }
   | { readonly kind: "refused"; readonly mark: RefusedMark };
 
 /** Compose the existing path, protection, and adoption readers, stopping before store admission. */
@@ -30,20 +29,20 @@ export async function inspectProjectionEditPath(root: ProjectionRootState, index
     remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." } });
   if (!root.writable(path)) return refuse({ reason: `The projection ignore guard does not permit changing ${path}.`,
     remedy: { text: "Repair the reported projection ignore rules and retry arc edit." } });
-  if (entry?.kind === "record") return { kind: "ready", entry };
+  if (entry?.kind === "record") return { kind: "ready", entry, identity: gate.identity };
   const target = await resolveProjectionAdoptionIntent(root, index, path);
   if (target.kind === "refused") return refuse(target.mark);
   if (target.kind !== "reference") return refuse({ reason: `${path} has no established archive owner.`,
     remedy: { text: "Place the file in its existing archived work unit or Errand's folder, then retry arc edit." } });
   const verdict = await inspectProjectionAdoption(root, path, target.reference, gate.stat);
   if (verdict.kind === "refused") return refuse(verdict.mark);
-  return { kind: "ready", entry: { ...entry, kind: "ownerless", stat: gate.stat, opened: true } };
+  return { kind: "ready", entry: { ...entry, kind: "ownerless", stat: gate.stat, opened: true }, identity: gate.identity };
 }
 
 function refuse(mark: RefusedMark): Extract<ProjectionEditInspection, { kind: "refused" }> { return { kind: "refused", mark }; }
 
 async function readEditFile(root: ProjectionRootState, path: string, stored: boolean):
-Promise<{ kind: "read"; stat: FileStat } | Extract<ProjectionEditInspection, { kind: "refused" }>> {
+Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extract<ProjectionEditInspection, { kind: "refused" }>> {
   if (isExcludedProjectionPath(path)) return refuse({
     reason: `${path} is an editor or system side file, not an adoptable projected file.`,
     remedy: { text: "Keep side files outside projected roots, or remove the side file and open the intended document." },
@@ -59,20 +58,10 @@ Promise<{ kind: "read"; stat: FileStat } | Extract<ProjectionEditInspection, { k
     remedy: gate.deleted === "not-a-file" ? gate.remedy : { text: "Restore a regular file, then retry arc edit." } });
   if (gate.kind === "pending") return refuse({ reason: `${path} is still being saved (${gate.reason}).`,
     remedy: { text: "Let the editor finish saving, then retry arc edit." } });
-  if (path.startsWith(".arc/completed/")) {
-    const foreign = await archiveCheckoutRefusal(root, path, absolute);
-    if (foreign !== null) return refuse(foreign);
-  }
-  return gate;
-}
-
-async function archiveCheckoutRefusal(root: ProjectionRootState, path: string, absolute: string): Promise<RefusedMark | null> {
-  try {
-    const { stdout } = await root.ports.exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(absolute) });
-    if (stdout.trim() !== "" && await canonicalCheckout(stdout.trim()) === root.checkout) return null;
-  } catch {
-    return { reason: `Could not identify the checkout holding ${path}.`,
-      remedy: { text: "Restore the checkout's Git metadata, then retry arc edit." } };
-  }
-  return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
+  const foreign = await archiveCheckoutRefusal(root, path);
+  if (foreign !== null) return refuse(foreign);
+  const file = await readArchiveFile(root, path);
+  if (file.kind === "blocked") return refuse(file.mark);
+  if (file.kind === "missing" || file.stat.ino !== gate.stat.ino) return refuse(archiveFileChangeMark(path));
+  return { ...gate, identity: { dev: file.stat.dev, ino: file.stat.ino } };
 }

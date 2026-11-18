@@ -1,6 +1,6 @@
 /** Archive opening through the registered command preserves content and records intent before changing mode. */
-import { chmod, lstat, readFile, stat, writeFile, rm, symlink, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, lstat, mkdir, readFile, stat, writeFile, rm, symlink, rename } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ProjectionEditResult } from "../../../../src/lib/store/projection/edit.js";
@@ -35,6 +35,7 @@ import { cohortDoc } from "../../../helpers/store/cohort-rule-input.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -113,10 +114,12 @@ async function archived(owner = "andrew") {
   return { ...h, path: Object.keys(h.projected.index.entries)[0]! };
 }
 
-it("refuses to open a file owned by a nested checkout", async () => {
-  const h = await archived(), checkout = join(h.f.root, h.folder, "linked");
-  const path = `${h.folder}/linked/note.txt`, file = join(h.f.root, path);
+it.each([true, false])("refuses a nested checkout's file when the checkout is inside the parent archive=%s", async insideArchive => {
+  const h = await archived();
+  const prefix = insideArchive ? `${h.folder}/linked` : "linked";
+  const checkout = join(h.f.root, prefix), path = `${prefix}/${h.folder}/note.txt`, file = join(h.f.root, path);
   await h.f.ports.exec("git", ["worktree", "add", "--detach", checkout], { cwd: h.f.root });
+  await mkdir(dirname(file), { recursive: true });
   await writeFile(file, "Nested checkout's note.\n", { mode: 0o444 });
   expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
     condition: expect.stringContaining("another checkout"), remedy: { text: expect.stringContaining("checkout that holds") },
@@ -140,6 +143,45 @@ it("leaves permissions alone when the local boundary changes after recording the
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
+it("keeps a nested checkout's replacement read-only when it arrives after the opening is recorded", async () => {
+  const h = await archived(), folder = join(h.f.root, h.folder), file = join(h.f.root, h.path);
+  const original = `${folder}-original`, replacement = "The nested checkout owns these bytes.\n";
+  binding.afterOpen = async () => {
+    await rename(folder, original);
+    await h.f.ports.exec("git", ["worktree", "add", "--detach", folder], { cwd: h.f.root });
+    await writeFile(file, replacement, { mode: 0o444 });
+  };
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("another checkout"), remedy: { text: expect.stringContaining("checkout that holds") },
+  } });
+  expect(await readFile(file, "utf8")).toBe(replacement);
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(disk).toMatchObject({ kind: "index" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[h.path]).not.toHaveProperty("opened");
+  binding.afterOpen = null;
+  await chmod(file, 0o644);
+  await h.f.ports.exec("git", ["worktree", "remove", "--force", folder], { cwd: h.f.root });
+  await rename(original, folder);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("keeps an editor's replacement read-only until a new opening inspects it", async () => {
+  const h = await archived(), file = join(h.f.root, h.path), bytes = await readFile(file);
+  binding.afterOpen = async () => {
+    await rename(file, `${file}.bak`);
+    await writeFile(file, bytes, { mode: 0o444 });
+  };
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("changed while it was being checked"), remedy: { text: expect.stringContaining("retry") },
+  } });
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  binding.afterOpen = null;
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+  expect((await stat(file)).mode & 0o200).toBe(0o200);
+});
+
 it("reports how to retry when the file disappears after the opening is recorded", async () => {
   const h = await archived(), file = join(h.f.root, h.path);
   const bytes = await readFile(file);
@@ -155,14 +197,13 @@ it("reports how to retry when the file disappears after the opening is recorded"
   expect((await stat(file)).mode & 0o200).toBe(0o200);
 });
 
-it.each(["outside", "missing-new", "side-file", "symlink", "unowned", "missing-stored"] as const)(
+it.each(["outside", "missing-new", "side-file", "symlink", "missing-stored"] as const)(
   "refuses a %s path with a remedy and opens once the path is repaired", async kind => {
     const h = await archived();
-    const valid = h.path, original = await readFile(join(h.f.root, valid));
+    const valid = h.path;
     const path = kind === "outside" ? "README.md"
       : kind === "missing-new" ? `${h.folder}/new.txt`
       : kind === "side-file" ? `${h.folder}/.DS_Store`
-      : kind === "unowned" ? ".arc/completed/2026-q4/unknown.txt"
       : kind === "symlink" ? `${h.folder}/link.txt` : valid;
     if (kind === "symlink") await symlink(join(h.f.root, valid), join(h.f.root, path));
     else if (kind === "missing-stored") await rm(join(h.f.root, valid));
@@ -172,12 +213,28 @@ it.each(["outside", "missing-new", "side-file", "symlink", "unowned", "missing-s
       condition: expect.stringContaining(path), remedy: { text: expect.any(String) } } });
     if (kind === "missing-stored") expect(refused).toMatchObject({ refusal: { remedy: { text: expect.stringContaining("arc sync") } } });
     let repaired = valid;
-    if (kind === "missing-stored") await writeFile(join(h.f.root, valid), original);
+    if (kind === "missing-stored") await projectionCommand({ store: h.f.store, checkout: h.f.root }, ["sync"]);
     if (kind === "missing-new") { await writeFile(join(h.f.root, path), "New archive prose\n"); repaired = path; }
     if (kind === "symlink") { await rm(join(h.f.root, path)); await writeFile(join(h.f.root, path), "Regular file\n"); repaired = path; }
     expect(await edit(h.f.store, h.f.root, repaired)).toMatchObject({ status: "ok" });
   },
 );
+
+it("names the adoption remedy for invalid archive locations and opens files after relocation", async () => {
+  const h = await archived(), archivedRecord = await archiveCohort(h.f);
+  const cohortFolder = dirname(completedCohortPath(archivedRecord)).replaceAll("\\", "/");
+  const folders = [".arc/completed", `.arc/completed/${quarter}`, cohortFolder];
+  for (const [ordinal, folder] of folders.entries()) {
+    const path = `${folder}/correction-${ordinal}.txt`, recovered = `${h.folder}/correction-${ordinal}.txt`;
+    await mkdir(join(h.f.root, folder), { recursive: true });
+    await writeFile(join(h.f.root, path), "Archive prose with a valid destination.\n");
+    expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+      condition: expect.stringContaining(path), remedy: { text: expect.stringContaining("a work item's folder") },
+    } });
+    await rename(join(h.f.root, path), join(h.f.root, recovered));
+    expect(await edit(h.f.store, h.f.root, recovered)).toMatchObject({ status: "ok" });
+  }
+});
 
 it("refuses another person's archive and opens it under its owner's identity", async () => {
   const h = await archived("beth");
@@ -343,13 +400,17 @@ it("opens a forced edit without changing its bytes or publishing it", async () =
   expect(await h.f.store.version()).toEqual(version);
 });
 
+async function archiveCohort(f: Awaited<ReturnType<typeof archived>>["f"]) {
+  const prior = await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    cohortDoc().content);
+  success(await f.store.write({ ...update(f, prior, prior.content), placement: { kind: "completed", quarter },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  return success(await f.store.read({ reference: prior.reference }));
+}
+
 it("lets anyone open an archived cohort document", async () => {
   const h = await archived();
-  const prior = await seed(h.f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
-    cohortDoc().content);
-  success(await h.f.store.write({ ...update(h.f, prior, prior.content), placement: { kind: "completed", quarter },
-    provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  const archivedRecord = success(await h.f.store.read({ reference: prior.reference })), path = completedCohortPath(archivedRecord);
+  const archivedRecord = await archiveCohort(h.f), path = completedCohortPath(archivedRecord);
   await rm(join(h.f.root, h.path));
   await seedProjection({ store: h.f.store, checkout: h.f.root, files: [
     { reference: h.primary.reference, path: h.path }, { reference: archivedRecord.reference, path },

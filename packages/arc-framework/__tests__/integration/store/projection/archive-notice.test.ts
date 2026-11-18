@@ -40,7 +40,8 @@ it.each(["work-unit", "cohort", "errand"] as const)("names the exact open and sa
     writer: { pid: process.pid, processInstance: "archive-notice", processScope: "archive-notice" } }));
   const bytes = await readFile(join(h.f.root, file.location), "utf8");
   expect(bytes).toContain(`arc edit ${path}`);
-  expect(bytes).toContain("for editing");
+  expect(bytes).toContain("make this file writable");
+  expect(bytes).toContain("your editor");
   expect(bytes.indexOf(`arc edit ${path}`)).toBeLessThan(bytes.indexOf("arc save"));
   expect(file.rendering?.protected).toBe(false);
 });
