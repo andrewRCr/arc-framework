@@ -22,6 +22,7 @@ import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
 import { archiveLinkRefusal } from "./archive-file.js";
+import { unopenedArchiveEditHold } from "./archive-inspection.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
@@ -147,7 +148,8 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
   index: ProjectionIndex; result: TakeInResult; installation: ProjectionFileWriteObservation["installation"]; rebuilt?: boolean;
 }> {
   const { path, entry } = request;
-  const denied = await root.rights?.(request);
+  const unopened = root.context.verb === "save" && request.resolution === undefined ? unopenedArchiveEditHold(entry) : null;
+  const denied = unopened ?? await root.rights?.(request);
   if (denied !== undefined && denied !== null) {
     root.unsent.add(path);
     root.context.report?.({ path, copy: request.copy, mark: denied });

@@ -32,6 +32,10 @@ it.each(["persist", "release"] as const)("refuses a late closed archive correcti
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content: before.content, version: before.version });
   expect(await readFile(absolute, "utf8")).toContain(content);
   expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
+  const saved = await projectionCommand(h.input, ["save"]);
+  expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content: before.content, version: before.version });
+  expect(await readFile(absolute, "utf8")).toContain(content);
+  expect(saved.diagnostics).toContain(`arc edit ${h.path} then arc save`);
   await h.openAndSave(h.path);
   expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);

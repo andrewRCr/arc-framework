@@ -19,10 +19,15 @@ export interface ArchiveObservation { readonly reference: bigint | null; readonl
 
 const forcedArchiveEdit = "An archived file was edited without opening it.";
 
+/** A retirement refusal holds the correction until its entry is explicitly opened. */
+export function unopenedArchiveEditHold(entry: ProjectionIndex["entries"][string]): RefusedMark | null {
+  return entry.opened !== true && entry.refused?.reason === forcedArchiveEdit ? entry.refused : null;
+}
+
 /** Opened entries and outstanding work may finish, while a retirement refusal cannot authorize its own retry. */
 export function canRecoverArchiveEntry(entry: ProjectionIndex["entries"][string] | undefined): boolean {
   return entry !== undefined && (entry.opened === true
-    || (isProjectionEntryUnsettled(entry) && entry.refused?.reason !== forcedArchiveEdit));
+    || (isProjectionEntryUnsettled(entry) && unopenedArchiveEditHold(entry) === null));
 }
 
 /** Keep the repair identical when observation or capture discovers an unopened archive correction. */
