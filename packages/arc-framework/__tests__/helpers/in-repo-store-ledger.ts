@@ -2,8 +2,7 @@
  * only shrinks: a file leaves it once its cases expect the ref backend or select the in-repo implementation
  * themselves, and the list goes once it is empty. */
 import { relative, resolve, sep } from "node:path";
-import { afterAll } from "vitest";
-import { getCurrentSuite } from "vitest/suite";
+import { afterAll, TestRunner } from "vitest";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 /** Package-relative paths of the listed test files, sorted. */
@@ -66,7 +65,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/integration/frontline-target-materialization.test.ts",
   "__tests__/integration/history-shape-ambiguity.test.ts",
   "__tests__/integration/init.test.ts",
-  "__tests__/integration/install-symlink-refusal.test.ts",
   "__tests__/integration/local-review-delivery-binding.test.ts",
   "__tests__/integration/local-review-live-context-refusal.test.ts",
   "__tests__/integration/local-review-target-recovery.test.ts",
@@ -92,7 +90,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/integration/review-status-errand-fallback.test.ts",
   "__tests__/integration/review-status-errand.test.ts",
   "__tests__/integration/scripts/integration/checkpoint-lifecycle-artifacts.test.ts",
-  "__tests__/integration/set-class.test.ts",
   "__tests__/integration/start-dispatch.test.ts",
   "__tests__/integration/status-conflicts-cli.test.ts",
   "__tests__/integration/status-project.test.ts",
@@ -101,7 +98,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/integration/store-imported-seal.test.ts",
   "__tests__/integration/store-in-repo-fixture-sync.test.ts",
   "__tests__/integration/store-lifecycle-storage.test.ts",
-  "__tests__/integration/store-ref-init-designation.test.ts",
   "__tests__/integration/store-review-access.test.ts",
   "__tests__/integration/store-sync-admission.test.ts",
   "__tests__/integration/store-sync-derived-status.test.ts",
@@ -154,7 +150,7 @@ const packageRoot = resolve(import.meta.dirname, "../..");
  * @returns The collected file's path, such as `__tests__/unit/example.test.ts`.
  */
 export function collectedTestFile(): string {
-  return relative(packageRoot, getCurrentSuite().file.filepath).split(sep).join("/");
+  return relative(packageRoot, TestRunner.getCurrentSuite().file.filepath).split(sep).join("/");
 }
 
 /** Set the override in this process before a listed file composes a store, and restore the prior value after the file.

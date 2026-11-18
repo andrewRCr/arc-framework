@@ -8,11 +8,12 @@ import { expect, it, onTestFinished } from "vitest";
 import { runInit, type InitOptions } from "../../src/commands/init.js";
 import { runJoin } from "../../src/commands/join.js";
 import { createRefStore, runStoreCreationDesignation } from "../../src/lib/store/create.js";
-import { createDefaultRefStorePorts } from "../../src/lib/store/default-ports.js";
+import { createDefaultRefStorePorts, createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
 import { DEFAULT_PROMPTS, createTempRepo, makeIOContext } from "../helpers/integration.js";
 import { getArcTemplatePath, getInternalTemplatePath, loadRecipe } from "../helpers/init-temp-repo.js";
-import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { inRepoStore } from "../helpers/store/in-repo-ports.js";
+import { commitAll, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const exec = promisify(execFile);
 const git = async (cwd: string, ...args: string[]): Promise<string> => (await exec("git", args, { cwd })).stdout.trim();
@@ -29,8 +30,24 @@ async function repository(remote: string | null) {
   const cwd = await createTempRepo();
   onTestFinished(() => removeGitBackedDir(cwd));
   if (remote !== null) await git(cwd, "remote", "add", "origin", remote);
+  return checkout(cwd);
+}
+
+function checkout(cwd: string) {
   const ports = createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null });
   return { cwd, ports, store: createRefStore(ports) };
+}
+
+/** Clone an initialized project whose state was never published: its installed files arrive, its store does not. */
+async function unpublishedClone(source: Repository) {
+  await commitAll(source.cwd, "chore: install ARC");
+  const parent = await mkdtemp(join(tmpdir(), "arc-join-clone-"));
+  onTestFinished(() => removeGitBackedDir(parent));
+  const cwd = join(parent, "clone");
+  await exec("git", ["clone", "-q", source.cwd, cwd]);
+  await git(cwd, "config", "user.email", "test@test.com");
+  await git(cwd, "config", "user.name", "Test User");
+  return checkout(cwd);
 }
 type Repository = Awaited<ReturnType<typeof repository>>;
 
@@ -88,8 +105,9 @@ it("keeps one project ID when an init refused after designation runs again", asy
 }, 90_000);
 
 it("joins without minting a project ID", async () => {
-  const r = await repository(await bareRemote());
-  await runInit(await options(r, "test-user"));
+  const initialized = await repository(null);
+  await init(initialized);
+  const r = await unpublishedClone(initialized);
   await runJoin({ cwd: r.cwd, io: makeIOContext(r.cwd), templateDir: getArcTemplatePath(), internalTemplateDir: getInternalTemplatePath(),
     prompts: { role: "maintainer", tools: [] }, identityResult: "other-user", store: r.store });
   await expect(readProjectIdentityBinding(r.store)).rejects.toThrow("Project identity record is missing.");
@@ -97,7 +115,7 @@ it("joins without minting a project ID", async () => {
 
 it("neither designates nor mints on the in-repo implementation", async () => {
   const r = await repository(await bareRemote());
-  await runInit(await options(r, "test-user"));
+  await runInit({ ...await options(r, "test-user"), store: inRepoStore(createDefaultStorePorts({ checkoutRoot: r.cwd })) });
   expect(await roles(r.cwd)).toBe("");
   expect(await git(r.cwd, "for-each-ref", "refs/arc/")).toBe("");
 }, 60_000);

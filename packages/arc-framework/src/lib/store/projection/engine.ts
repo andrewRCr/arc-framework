@@ -17,7 +17,7 @@ import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { bindProjectionFanOut, disposeProjectionFanOut } from "./fan-out-binding.js";
 import { runProjectionFanOut } from "./fan-out.js";
 import { settleUnmarkedOwnWrites } from "./fan-out-scheduler.js";
-import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
+import { startUnderLease, startWithoutProjection, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 import { projectionTimingNow } from "./timings.js";
 
@@ -31,6 +31,8 @@ export interface ProjectionCommandInput {
   readonly skipProjection?: boolean;
   /** The refusal a Git hook command runs under while `HEAD` tracks ARC state, with its projection switched off. */
   readonly trackedState?: TrackedStateRefusal;
+  /** The command runs where no checkout holds a projection, so it starts with none and reads nothing to find one. */
+  readonly unprojected?: boolean;
   readonly ports?: () => ProjectionEnginePorts;
   readonly location?: ProjectionLocation;
   readonly mint?: ProjectionStubMintPort;
@@ -91,6 +93,7 @@ export function projectionCommandBinding(): ProjectionCommandBinding {
 async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = projectionProcessState();
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
+  if (input.unprojected === true) return startWithoutProjection(input);
   const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
   const startedAt = projectionTimingNow(ports);

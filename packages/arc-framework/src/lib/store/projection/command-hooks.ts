@@ -1,6 +1,8 @@
 /** Bind command entry and completion to projection write-back and stderr reporting. */
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { Command } from "commander";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { ProjectionCommandInput } from "./engine.js";
 import { startProjection, endProjection } from "./engine.js";
 import { createStore } from "../create.js";
@@ -65,8 +67,19 @@ function nativeProjectionInput(): ProjectionHookInput {
   const ports = createDefaultStorePorts({ checkoutRoot: cwd });
   const store = createStore(ports);
   if (!store.capabilities.stateOffBranch) return { store, checkout: cwd };
-  const checkout = resolveArcRoot(cwd) ?? cwd;
   // The predicate reads `HEAD`'s tree from the repository's top level, whichever directory runs it.
+  const findTrackedState = () => findTrackedStateRefusal(ports.exec);
+  // Without an ARC root the checkout is the work tree's top level; outside any work tree there is none to project into.
+  const checkout = resolveArcRoot(cwd) ?? workTreeRoot(cwd);
+  if (checkout === null) return { store, checkout: cwd, unprojected: true, findTrackedState };
   return { checkout, store: checkout === cwd ? store : createStore(createDefaultStorePorts({ checkoutRoot: checkout })),
-    findTrackedState: () => findTrackedStateRefusal(ports.exec) };
+    findTrackedState };
+}
+
+/** The nearest directory at or above the given one holding a `.git` entry, or null outside any Git work tree. */
+function workTreeRoot(from: string): string | null {
+  for (let dir = resolve(from); ; dir = dirname(dir)) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    if (dirname(dir) === dir) return null;
+  }
 }

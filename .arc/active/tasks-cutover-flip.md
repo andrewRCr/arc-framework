@@ -546,16 +546,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   integration tier; only a case expecting the tracked-state refusal scripts the predicate's read; the guard's allowlist
   only shrinks (`__tests__/helpers/unit-process-allowlist.ts`).
 
-    - `[ ]` **3.R.a The suspected defects**
-        - Each is diagnosed with its file off the ledger: a product defect is fixed with a test that fails without the
-          fix, and an expectation the flip makes stale moves to the ref backend.
-        - `integration/store-ref-init-designation.test.ts`, whose two cases that run `init` through the default,
-          expecting the in-repo implementation, now see it designate `origin` and mint a project ID.
-        - `integration/set-class.test.ts`, which reads `Light` from the meta after `handleSetClass` sets `Heavy`.
-        - `integration/install-symlink-refusal.test.ts`, whose init over a linked personal directory no longer refuses
-          with a `UserFacingError`.
-        - The projection warning a command run outside a Git repository prints ("The worktree's Git directory is
-          missing"), from `e2e/config-validate.e2e.test.ts`'s spawns outside the spawn helpers.
+    - `[x]` **3.R.a The suspected defects**
+        - Three held stale expectations and left the ledger. `set-class` seeds its meta through the store; its refusal
+          over a missing checkout copy runs on the in-repo implementation. `init` with no store passed now designates
+          and mints, so the in-repo case builds that store, and the join runs in a clone whose state was never
+          published. `init` over a linked personal directory seeds the store and writes nothing through the link; its
+          refusal stays an in-repo case.
+        - The warning outside a Git repository was a defect: with no ARC root the root hook bound the working directory,
+          so a command outside any work tree, or in a subdirectory of one, reported that directory's Git directory
+          missing. It now binds the work tree's top level, and outside any work tree starts with no projection
+          (`command-hooks.ts`, `integration/store/projection/command-hooks-native.test.ts`).
+        - `e2e/config-validate.e2e.test.ts` stays listed: its nested-directory case, an ARC root outside any Git
+          repository, reads the same as a primary whose Git directory is missing, which `save` refuses with a retry.
 
     - `[ ]` **3.R.b The window tooling**
         - The listed `integration/cutover-window-*` and `e2e/cutover-window*` files, which compose the default in

@@ -34,10 +34,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
-    if (!await projectionStartEligible(input.checkout, location)) {
-      await bindResolution(input, null);
-      return { kind: "no-projection" };
-    }
+    if (!await projectionStartEligible(input.checkout, location)) return await startWithoutProjection(input);
     const pending = launchProjectionStart(input, ports, location);
     const read = await Promise.allSettled([pending.configuration, pending.version, pending.shared, pending.personal, pending.index] as const);
     const config = fulfilled(read[0]);
@@ -121,6 +118,13 @@ async function resolveNewlyProjectedSubject(root: ProjectionRootState,
   if (selected.target === null) return updated.index;
   await recheckProjectionResolution(root, updated.index, selected);
   return selected.refusal === null ? writeBackProjectionFiles(root, updated.index, [selected.target.path]) : updated.index;
+}
+
+/** Start a command whose checkout holds no projection: nothing is taken in, and a save's resolution is selected with no
+ * index to name its copy. */
+export async function startWithoutProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
+  await bindResolution(input, null);
+  return { kind: "no-projection" };
 }
 
 async function bindResolution(input: ProjectionCommandInput, index: ProjectionIndex | null): Promise<void> {
