@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — The opened mark and the index's format version
+- **Last Completed:** Task 3.5 — No archived edit lost silently (Phase 3 complete)
+- **Next Task:** Task 4.1 — Complete verification (line ~281 in `tasks-projection-team-scale.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — the opened mark and what it makes unsettled
+- **Next Action:** Begin Task 4.1 in a fresh session — load and follow `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
