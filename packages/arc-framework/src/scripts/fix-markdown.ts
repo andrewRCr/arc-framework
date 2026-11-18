@@ -1,7 +1,7 @@
 /** On-demand Markdown fixing over the validated Git-plus-projected lint corpus. */
+import { isMainModule } from "../lib/main-module.mjs";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { execa } from "execa";
 import { formatUnexpectedError } from "../lib/errors.js";
@@ -45,4 +45,4 @@ export async function main(cwd = process.cwd(), args: readonly string[] = proces
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = await main();
+if (await isMainModule(import.meta, process.argv[1])) process.exitCode = await main();

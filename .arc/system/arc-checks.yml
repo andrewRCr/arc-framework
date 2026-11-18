@@ -412,6 +412,7 @@ checks:
     root: packages/arc-framework
     inputs:
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
       - '!packages/arc-framework/__tests__/integration/**/*.test.ts'
       - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'

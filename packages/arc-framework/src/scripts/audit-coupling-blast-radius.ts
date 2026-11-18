@@ -4,10 +4,10 @@
  * @module
  */
 
+import { isMainModule } from "../lib/main-module.mjs";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { canonicalJson } from "../lib/coupling-audit/canonical.js";
 import {
@@ -251,10 +251,7 @@ export async function runCouplingAuditCommand(
   }
 }
 
-if (
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === resolve(process.argv[1])
-) {
+if (await isMainModule(import.meta, process.argv[1])) {
   process.exitCode = await runCouplingAuditCommand(
     process.argv.slice(2),
     createCouplingAuditScriptContext(resolveRepoRoot()),

@@ -1,9 +1,10 @@
 /** Canonical, byte-preserving facts derived from Git raw-diff output. */
 
+import { isMainModule } from "./main-module.mjs";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { open, readFile, type FileHandle } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sanitizeGitRepositoryEnvironment } from "./git/repository-environment.mjs";
 
@@ -698,12 +699,10 @@ async function runExecutable(args: string[]): Promise<void> {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const invokedPath = process.argv[1];
 const modulePath = fileURLToPath(import.meta.url);
 if (
-  invokedPath !== undefined
-  && /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
-  && modulePath === resolve(invokedPath)
+  /(?:^|[/\\])change-facts\.(?:ts|js)$/u.test(modulePath)
+  && await isMainModule(import.meta, process.argv[1])
 ) {
   try {
     await runExecutable(process.argv.slice(2));
