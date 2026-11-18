@@ -64,6 +64,30 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
+/** The badge run opening a line, in either layout of {@link BADGE_RUN}. */
+const LEADING_BADGE_RUNS = [
+  new RegExp(`^[\\t ]*${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*`, "u"),
+  new RegExp(`^[\\t ]*${SPAN}(?:[\\t ]*·[\\t ]*${SPAN})+`, "u"),
+];
+
+/**
+ * Whether a comment opens with a severity badge, the mark of a finding rather than conversation.
+ *
+ * Only the first line that is neither blank nor an HTML comment marker counts, and only the badge run that opens it
+ * may carry the grade: every finding layout leads with its badge run, sometimes a category badge before the grade,
+ * while conversation can quote badge-shaped text after an opening span or further down, such as script output in a
+ * collapsed analysis section.
+ */
+export function leadsWithSeverity(body: string): boolean {
+  const leading = body.split(/\r?\n/u)
+    .find((line) => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line));
+  if (leading === undefined) return false;
+  return LEADING_BADGE_RUNS.some((run) => {
+    const opening = run.exec(leading)?.[0];
+    return opening !== undefined && severity(opening) !== null;
+  });
+}
+
 function severityOnMetadataLine(body: string, start: number): ReturnType<typeof severity> {
   return severity(body.slice(start).split(/\r?\n/u, 1)[0] ?? "");
 }
