@@ -1,8 +1,9 @@
 /** Read an archive opening's path, ownership, and adoption evidence without changing content or admitting a record. */
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
+import { archiveLinkRefusal } from "./archive-file.js";
+import { canonicalCheckout } from "./checkout-identity.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
 import { readProjectionProtection } from "./protection.js";
@@ -47,9 +48,10 @@ Promise<{ kind: "read"; stat: FileStat } | Extract<ProjectionEditInspection, { k
     reason: `${path} is an editor or system side file, not an adoptable projected file.`,
     remedy: { text: "Keep side files outside projected roots, or remove the side file and open the intended document." },
   });
-  const linked = (await readProjectionLinkBoundary(root.checkout, [path]))(path);
-  if (linked !== null) return refuse({ reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(linked) });
-  const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
+  const linked = await archiveLinkRefusal(root, path);
+  if (linked !== null) return refuse(linked);
+  const absolute = join(root.checkout, path);
+  const gate = await gateRead({ path: absolute, markdown: false });
   if (gate.kind === "absent") return refuse({ reason: `No file exists at ${path}.`,
     remedy: stored ? { text: "Run arc sync to restore the deleted projected file, then retry arc edit.", argv: ["arc", "sync"] }
       : { text: "Create the file in its archived owner's folder first, then run arc edit on that file." } });
@@ -57,5 +59,20 @@ Promise<{ kind: "read"; stat: FileStat } | Extract<ProjectionEditInspection, { k
     remedy: gate.deleted === "not-a-file" ? gate.remedy : { text: "Restore a regular file, then retry arc edit." } });
   if (gate.kind === "pending") return refuse({ reason: `${path} is still being saved (${gate.reason}).`,
     remedy: { text: "Let the editor finish saving, then retry arc edit." } });
+  if (path.startsWith(".arc/completed/")) {
+    const foreign = await archiveCheckoutRefusal(root, path, absolute);
+    if (foreign !== null) return refuse(foreign);
+  }
   return gate;
+}
+
+async function archiveCheckoutRefusal(root: ProjectionRootState, path: string, absolute: string): Promise<RefusedMark | null> {
+  try {
+    const { stdout } = await root.ports.exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(absolute) });
+    if (stdout.trim() !== "" && await canonicalCheckout(stdout.trim()) === root.checkout) return null;
+  } catch {
+    return { reason: `Could not identify the checkout holding ${path}.`,
+      remedy: { text: "Restore the checkout's Git metadata, then retry arc edit." } };
+  }
+  return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
 }

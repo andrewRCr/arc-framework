@@ -1,6 +1,5 @@
 /** Open one archived projected file for an in-place correction. */
-import { chmod, lstat } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Store } from "../contract.js";
 import type { RefusedMark } from "./index-schema.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
@@ -11,6 +10,7 @@ import { recordProjectionLockSkip } from "./engine.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
+import { changeArchiveFileMode } from "./archive-file.js";
 
 /** An opened local path, or the reason opening could not run. */
 export type ProjectionEditResult =
@@ -60,17 +60,11 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
     index: withProjectionEntry(disk.index, path, { ...inspected.entry, opened: true }) });
   await root.ports.hooks?.afterOpenIndexCommit?.(path);
   await root.checkpoint?.();
-  const absolute = join(root.checkout, path);
-  const observed = await lstat(absolute).catch((error: unknown) => {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return null;
-    throw error;
-  });
-  if (observed?.isFile() !== true) return refuse({ reason: `${path} is no longer a regular file.`,
-    remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
-  await root.checkpoint?.();
   try {
-    await chmod(absolute, observed.mode | 0o200);
+    const changed = await changeArchiveFileMode(root, path, true);
+    if (changed.kind === "blocked") return refuse(changed.mark);
+    if (changed.kind === "missing") return refuse({ reason: `${path} is no longer a regular file.`,
+      remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } });
   } catch (error) {
     return refuse({ reason: `Could not make ${path} writable: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the file's permissions or restore it, then retry arc edit; its opened intent is retained." } });

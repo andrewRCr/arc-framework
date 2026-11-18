@@ -40,6 +40,22 @@ it.each(["andrew", "bob"])("names a forced edit with the remedy for owner %s wit
   expect(success(await h.f.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
 }, 30_000);
 
+it("names an indexed forced edit omitted from the restoration inventory", async () => {
+  const h = await fixture();
+  const content = (await readFile(h.absolute, "utf8")) + "\nA correction missing from the inventory.\n";
+  await chmod(h.absolute, 0o644);
+  await writeFile(h.absolute, content);
+  const store = overrideEngineStore(h.f.store, { list: async request => request.family === "work-item" && request.asOf !== undefined
+    ? { status: "ok", result: { status: "unreadable", condition: "The work-item inventory is unavailable.",
+      remedy: { text: "Restore the inventory." } } }
+    : h.f.store.list(request) });
+  const report = await projectionCommand({ ...h.input, store }, ["sync"]);
+  expect(report.diagnostics).toContain("The work-item inventory is unavailable.");
+  expect(report.diagnostics).toContain(`arc edit ${h.path} then arc save`);
+  expect(await readFile(h.absolute, "utf8")).toBe(content);
+  expect(success(await h.f.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
+}, 30_000);
+
 it("skips editor and folder side files and retains the walk's symbolic-link report", async () => {
   const h = await fixture(), link = `${h.folder}/linked.md`;
   await writeFile(join(h.f.root, `${h.folder}/meta-alpha.md~`), "Editor side file.\n");

@@ -37,6 +37,7 @@ export interface ProjectionRootBindingInput {
   readonly mint?: ProjectionStubMintPort;
   readonly unsent?: Set<string>;
   readonly links?: readonly string[];
+  readonly refuseCapturedEdit?: ReadBackContext["refuseCapturedEdit"];
 }
 
 /** Bind reads, rights, capture, and replacement bookkeeping to the target checkout. */
@@ -54,6 +55,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: input.history, versionRecoveries: [],
     registry: ports.registry,
+    refuseCapturedEdit: input.refuseCapturedEdit,
     captureLocal: createProjectionLocalCapture(input),
     protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec, verb: input.mode ?? "write-back" }),
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request),

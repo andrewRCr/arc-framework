@@ -64,6 +64,7 @@ export interface WriteBackContext {
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
+  readonly refuseCapturedEdit?: (request: TakeInRequest, read: TakeInRead) => RefusedMark | null;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
   readonly reportExplicitResolution?: () => void;
   readonly versionRecoveries?: RecordReference[];
@@ -98,7 +99,11 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   if (held !== null) return { kind: "held", result: held, diagnostic: held.mark };
   request = observeProjectionEdit(request);
   const file = await captureWriteBackFile(context, request);
-  return file.kind === "held" ? file : prepareCapturedWriteBack(context, request, file);
+  if (file.kind === "held") return file;
+  const denied = context.refuseCapturedEdit?.(request, file.read);
+  if (denied != null) return { kind: "held", result: { answer: "refused", mark: denied,
+    entry: { ...request.entry, refused: denied } } };
+  return prepareCapturedWriteBack(context, request, file);
 }
 
 /** Settled authored bytes retained independently of store-derived normalization and base selection. */

@@ -2,8 +2,10 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
-import { seed, update } from "../../../helpers/store/suite-tools.js";
+import { seed } from "../../../helpers/store/suite-tools.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
+import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 /** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { readFile, chmod, writeFile, lstat, rename, rm, utimes } from "node:fs/promises";
@@ -14,13 +16,14 @@ import type { ProjectionSaveResult } from "../../../../src/lib/store/projection/
 const binding = vi.hoisted(() => ({
   store: null as Store | null,
   hooks: undefined as import("../../../../src/lib/store/projection/swap.js").SwapHooks | undefined,
-  beforeChmod: null as ((path: Parameters<typeof chmod>[0], mode: Parameters<typeof chmod>[1]) => Promise<void>) | null,
+  beforeModeOpen: null as ((path: unknown) => Promise<void>) | null,
+  linkedPath: null as string | null,
 }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, chmod: async (...args: Parameters<typeof actual.chmod>) => {
-    await binding.beforeChmod?.(...args);
-    await actual.chmod(...args);
+  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+    await binding.beforeModeOpen?.(args[0]);
+    return actual.open(...args);
   } };
 });
 vi.mock("../../../../src/lib/store/create.js", async original => {
@@ -31,6 +34,7 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original =
   const actual = await original<typeof import("../../../../src/lib/store/projection/engine-ports.js")>();
   return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => ({
     ...actual.createProjectionEnginePorts(...args), hooks: binding.hooks,
+    linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
   }) };
 });
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
@@ -47,7 +51,8 @@ const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
   binding.hooks = undefined;
-  binding.beforeChmod = null;
+  binding.beforeModeOpen = null;
+  binding.linkedPath = null;
   await removeGitBackedDirs(directories.splice(0));
 });
 async function fixture() {
@@ -171,9 +176,9 @@ it.each(["absent", "emptied"] as const)("keeps an opened stored file %s with syn
 it("retains an opening when the file disappears at the read-only lay", async () => {
   const h = await fixture(), file = join(h.checkout, h.path);
   await openArchivedProjectionFile(h, h.path);
-  binding.beforeChmod = async (target, mode) => {
-    if (target !== file || typeof mode !== "number" || (mode & 0o222) !== 0) return;
-    binding.beforeChmod = null;
+  binding.beforeModeOpen = async target => {
+    if (target !== file) return;
+    binding.beforeModeOpen = null;
     await rm(file);
   };
   const saved = await save(h);
@@ -183,6 +188,20 @@ it("retains an opening when the file disappears at the read-only lay", async () 
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+it("keeps an open archive file untouched while a parent is reported as a link", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  binding.linkedPath = join(h.checkout, h.folder);
+  const saved = await save(h);
+  expect(saved.errors).toContain("symbolic link");
+  expect(saved.result).toMatchObject({ status: "ok" });
+  expect(saved.result).not.toHaveProperty("result.relocked");
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  binding.linkedPath = null;
+  expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
 });
 
 it.each(["write", "rename"] as const)("takes in a %s save between an unchanged file's read-only lay and its final check", async method => {
@@ -205,20 +224,61 @@ it.each(["write", "rename"] as const)("takes in a %s save between an unchanged f
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
-it.each(["after lay", "before swap", "after swap"] as const)("retains an opening after a stop %s and repairs through an ordinary command then save", async point => {
-  const h = await fixture();
+
+it("keeps an identical writable replacement open until a save makes it read-only", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
   await openArchivedProjectionFile(h, h.path);
-  if (point !== "after lay") await edit(h);
+  const bytes = await readFile(file);
+  binding.hooks = { afterSaveReadOnly: async path => {
+    if (path !== h.path) return;
+    await chmod(file, 0o644);
+    await writeFile(`${file}.editor`, bytes);
+    await rename(`${file}.editor`, file);
+  } };
+  const saved = await save(h);
+  expect(saved.result).toMatchObject({ status: "ok" });
+  expect(saved.result).not.toHaveProperty("result.relocked");
+  expect(saved.errors).toContain("retry arc save");
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  binding.hooks = undefined;
+  expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+it.each(["after lay", "before swap", "after swap"] as const)("retains an opening after a stop %s and repairs through an ordinary command then save", async point => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  const original = success(await h.store.read({ reference: h.primary.reference }));
+  const content = point === "after lay" ? original.content : await edit(h);
   const stop = async (path: string): Promise<void> => { if (path === h.path) throw new Error(`Stopped ${point}`); };
   binding.hooks = point === "after lay" ? { afterSaveReadOnly: stop }
-    : point === "before swap" ? { afterSaveGuard: stop } : { beforeSaveMarkClear: stop };
+    : point === "before swap" ? { afterRecheck: stop } : { beforeSaveMarkClear: stop };
   await expect(save(h)).rejects.toThrow(`Stopped ${point}`);
-  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  const accepted = success(await h.store.read({ reference: h.primary.reference }));
+  const interrupted = await diskEntry(h);
+  expect(interrupted).toHaveProperty("opened", true);
+  expect(await readFile(file, "utf8")).toContain(content.trim());
+  expect(accepted.content).toBe(content);
+  if (point === "after lay") {
+    expect(accepted.version).toBe(original.version);
+    expect(interrupted).toHaveProperty("persisted", null);
+  } else {
+    expect(accepted.version).not.toBe(original.version);
+    expect(interrupted).toMatchObject({ persisted: { takenIn: { version: accepted.version } } });
+  }
+  const mode = (await lstat(file)).mode;
+  if (point === "before swap") expect(mode & 0o200).toBe(0o200);
+  else expect(mode & 0o222).toBe(0);
   binding.hooks = undefined;
   await startProjection(h); await endProjection(h);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect(await diskEntry(h)).not.toHaveProperty("persisted.recording", true);
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(accepted.version);
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(accepted.version);
 });
 it.each([false, true])("retains a link-only rebuilt opening after deletion between guard and swap (new adoption=%s)", async adoption => {
   const h = await fixture(), path = adoption ? `${h.folder}/new-note.txt` : h.path;
@@ -310,22 +370,28 @@ it.each([false, true])("takes in saves between acceptance and replacement or ret
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
-it("keeps a concurrent archive clash opened and writable until its markers are resolved", async () => {
-  const h = await fixture(), file = join(h.checkout, h.path);
-  await openArchivedProjectionFile(h, h.path);
-  const entry = await diskEntry(h);
-  if (entry?.kind !== "record") throw new Error("Missing archive entry");
-  success(await h.store.write(update(h.f, h.primary, h.primary.content.replace("[internal]", "[external]"))));
-  await writeFile(file, renderStampedFile({ content: h.primary.content.replace("[internal]", "[local]"), stamp: entry.base.blob }));
-  const saved = await save(h);
-  expect(saved.errors).toMatch(/conflict|markers/u);
+it("keeps a clash from a competing checkout open until its markers are resolved", async () => {
+  const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
+  const peer = { checkout: h.f.root, store: h.f.store };
+  await openArchivedProjectionFile(h.input, h.path);
+  await openArchivedProjectionFile(peer, h.path);
+  const local = h.primary.content.replace("[internal]", "[local]");
+  const remote = h.primary.content.replace("[internal]", "[external]");
+  await h.write(h.path, local);
+  await h.write(h.path, remote, peer.checkout);
+  expect((await projectionCommand(peer, ["status"])).result).toMatchObject({ kind: "ready" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(remote);
+  const saved = await projectionCommand(h.input, ["save"]);
+  expect(saved.diagnostics).toMatch(/conflict|markers/u);
   expect(await readFile(file, "utf8")).toContain("<<<<<<<");
-  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await h.disk()).index.entries[h.path]).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
-  const content = await edit(h, "The chosen correction.");
-  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  const content = remote + "\nThe chosen correction.\n";
+  await h.write(h.path, content);
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
-  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await h.disk()).index.entries[h.path]).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
 it("re-locks the read-only opening left by an interrupted edit command", async () => {

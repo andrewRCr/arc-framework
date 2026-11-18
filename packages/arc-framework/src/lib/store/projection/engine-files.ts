@@ -21,6 +21,7 @@ import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
+import { archiveLinkRefusal } from "./archive-file.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
@@ -84,6 +85,7 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
   const entry = index.entries[path];
+  if (await archivePickupBlocked(root, path, entry)) return { index, edited: false };
   if (entry?.kind !== "record") {
     const adopted = await adoptProjectionFile(root, index, path, onFile), bound = adopted.entries[path];
     return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back", reobserve: true };
@@ -121,6 +123,17 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
     ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
   if (unchanged !== null) return unchanged;
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
+}
+
+async function archivePickupBlocked(root: ProjectionRootState, path: string, entry: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
+  if (!path.startsWith(".arc/completed/")) return false;
+  const mark = await archiveLinkRefusal(root, path);
+  if (mark === null) return false;
+  // Save reports a held stored opening at re-lock, which observes the same path again.
+  if (!(root.context.verb === "save" && entry?.kind === "record" && entry.opened === true)) {
+    root.context.report?.({ path, copy: null, mark });
+  }
+  return true;
 }
 
 function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntry,

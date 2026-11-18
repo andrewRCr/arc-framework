@@ -8,8 +8,34 @@ import { beginProjectionCommand } from "../../../../src/lib/store/projection/pro
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
+import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 afterEach(() => { beginProjectionCommand(); });
+
+it.each(["persist", "release"] as const)("refuses a late closed archive correction during %s", async operation => {
+  const h = await archiveRetirementFixture(), absolute = join(h.checkout, h.path);
+  const before = success(await h.store.read({ reference: h.primary.reference }));
+  const content = h.primary.content + "\nAn archive correction saved during retirement.\n";
+  let changed = false;
+  const edit = async () => {
+    if (changed) return;
+    changed = true;
+    await h.write(h.path, content);
+  };
+  const retired = operation === "persist"
+    ? await persistProjectionRemoval(h.checkout, { ...h.context, hooks: { afterFileSelection: edit } })
+    : await releaseProjectionRemoval(h.checkout, false, { ...h.context, ports: checkout => ({ ...createProjectionEnginePorts(checkout),
+      hooks: { afterRecheck: path => path === h.path ? edit() : Promise.resolve() } }) });
+  expect(changed).toBe(true);
+  expect(retired).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
+  expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content: before.content, version: before.version });
+  expect(await readFile(absolute, "utf8")).toContain(content);
+  expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(`arc edit ${h.path} then arc save`) } });
+  await h.openAndSave(h.path);
+  expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+}, 30_000);
 
 it.each(["persist", "release"] as const)("%s retains a lost-index edit until deletion and explicit reapplication", async operation => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);

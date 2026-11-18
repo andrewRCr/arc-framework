@@ -1,5 +1,5 @@
 /** Archive opening through the registered command preserves content and records intent before changing mode. */
-import { chmod, readFile, stat, writeFile, rm, symlink, rename } from "node:fs/promises";
+import { chmod, lstat, readFile, stat, writeFile, rm, symlink, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -10,7 +10,8 @@ import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
-const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null, timeOffset: 0 }));
+const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
+  timeOffset: 0, linkedPath: null as string | null }));
 vi.mock("../../../../src/lib/store/create.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/create.js")>();
   return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>) => binding.store ?? actual.createStore(...args) };
@@ -20,6 +21,7 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original =
   return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => ({
     ...actual.createProjectionEnginePorts(...args), maxWaitMs: 25, lock: { now: () => Date.now() + binding.timeOffset },
     hooks: { afterOpenIndexCommit: (path: string) => binding.afterOpen?.(path) ?? Promise.resolve() },
+    linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
   }) };
 });
 
@@ -35,7 +37,13 @@ import { configureEngineCheckout } from "../../../helpers/store/projection/engin
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 
 const directories: string[] = [];
-afterEach(async () => { binding.store = null; binding.afterOpen = null; binding.timeOffset = 0; await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => {
+  binding.store = null;
+  binding.afterOpen = null;
+  binding.timeOffset = 0;
+  binding.linkedPath = null;
+  await removeGitBackedDirs(directories.splice(0));
+});
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
 
 async function edit(store: Store, checkout: string, path: string, configure?: Parameters<typeof dispatchRegisteredCli>[1], flags: readonly string[] = []) {
@@ -104,6 +112,33 @@ async function archived(owner = "andrew") {
   directories.push(h.f.root);
   return { ...h, path: Object.keys(h.projected.index.entries)[0]! };
 }
+
+it("refuses to open a file owned by a nested checkout", async () => {
+  const h = await archived(), checkout = join(h.f.root, h.folder, "linked");
+  const path = `${h.folder}/linked/note.txt`, file = join(h.f.root, path);
+  await h.f.ports.exec("git", ["worktree", "add", "--detach", checkout], { cwd: h.f.root });
+  await writeFile(file, "Nested checkout's note.\n", { mode: 0o444 });
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("another checkout"), remedy: { text: expect.stringContaining("checkout that holds") },
+  } });
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[path]).toBeUndefined();
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("leaves permissions alone when the local boundary changes after recording the opening", async () => {
+  const h = await archived(), file = join(h.f.root, h.path);
+  binding.afterOpen = async () => { binding.linkedPath = join(h.f.root, h.folder); };
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("symbolic link"), remedy: { text: expect.stringContaining("Replace the symbolic link") },
+  } });
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  binding.afterOpen = null;
+  binding.linkedPath = null;
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
 
 it("reports how to retry when the file disappears after the opening is recorded", async () => {
   const h = await archived(), file = join(h.f.root, h.path);

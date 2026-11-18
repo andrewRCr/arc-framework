@@ -1,7 +1,8 @@
-/** Name new archive files from sync's existing walk without binding them into the index or store. */
+/** Name archive edits from sync's existing observations without binding them into the index or store. */
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { inspectArchivedProjectionFile, type ArchiveObservation } from "./archive-inspection.js";
+import { readReference } from "./change-detection.js";
 
 /** Retain the inspection's native mark in the command's existing diagnostic channel. */
 export async function reportArchivedProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -10,11 +11,12 @@ export async function reportArchivedProjectionFile(root: ProjectionRootState, in
   if (inspected !== null) root.context.report?.({ path, copy: null, mark: inspected.mark });
 }
 
-/** Report only files without entries; opened or unsettled files keep their ordinary command handling. */
-export async function reportUnknownArchivedFiles(root: ProjectionRootState, index: ProjectionIndex,
-  files: readonly string[]): Promise<void> {
+/** Report walked archive paths that the inventory-based restoration did not inspect. */
+export async function reportRemainingArchivedFiles(root: ProjectionRootState, index: ProjectionIndex,
+  files: readonly string[], inventoried: ReadonlyMap<string, unknown>): Promise<void> {
+  const reference = await readReference(root.checkout);
   for (const path of files) {
-    if (index.entries[path] !== undefined) continue;
-    await reportArchivedProjectionFile(root, index, path);
+    if (inventoried.has(path)) continue;
+    await reportArchivedProjectionFile(root, index, path, { reference });
   }
 }
