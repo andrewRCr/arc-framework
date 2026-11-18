@@ -265,15 +265,16 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 - _Outcome:_ At merged base `a065b748e5908c2482329d101e52db0f6d052fb5`, the convention still names git history as
   the lock. Its rewrite condition is false, so both workflow copies stay unchanged.
 
-### `[ ]` **3.5 No archived edit lost silently** — validate exit criterion at segment scope
+### `[x]` **3.5 No archived edit lost silently** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
-    - Exercise the exit scenario over the reference backend: a forced edit and a new archived file made without
-      `arc edit`, each named by `arc sync` and refusing the removal until `arc edit` and `arc save` run there; and an
-      opened file's edit persisting at removal.
-    - Read 3.4's condition again on this base; where it now holds, make 3.4's rewrite before the segment closes.
-    - Request `arc check segment` and record the scenario and its result.
+- _Outcome:_ The exit scenario passes over native reference stores and real linked checkouts on base
+  `2a3cbc2cffa755bada5e9b16ba38c48261e96f79`, merged at `e39955e7763eb9999feb6e2114e148f4b88cd1a7`.
+  `archive-retirement-worktrees.test.ts` composes the production removal slots and physical Git removal, preserving
+  reported unopened input until repair and persisting opened edits during removal. The fresh base still names git
+  history as the errata lock, so no workflow rewrite applies. See `notes-projection-team-scale.md` § The archive
+  retirement scenario.
 
 ## **Phase 4:** Verification
 

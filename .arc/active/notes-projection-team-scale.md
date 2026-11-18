@@ -439,6 +439,24 @@ All reconstructions are restored. The complete projection integration directory 
 The real CLI retirement E2E file passes its four cases in `0aea71bf95a24da786a9457ae60f2a95`; that installed CLI still
 selects the in-repo backend, while the archive proofs use the native reference backend through the retirement slots.
 
+## The archive retirement scenario
+
+The fresh base is `2a3cbc2cffa755bada5e9b16ba38c48261e96f79`, merged append-only at
+`e39955e7763eb9999feb6e2114e148f4b88cd1a7`. Its CLI hook update merged cleanly with the archive commands. The new-head
+request from `cb601c8f2047492f45be3dc317b9e857e9847697` passes, and the base's errata convention still names git
+history as the lock. The conditional rewrite remains inapplicable on that freshly merged source.
+
+`archive-retirement-worktrees.test.ts` uses native reference stores, real linked checkouts, Commander-driven sync,
+edit and save, and `createProjectionRemovalSlots` composed into `removeWorktreeCheckout`. Sync names the forced edit
+and unopened new file without admitting either. Physical removal refuses until edit and save, then removes the
+checkout with the corrected record readable through the primary's store. A separate opened edit remains absent from
+the store until removal's persistence lands it, and its checkout is then physically gone.
+
+Disabling only archive report emission and skipping opened archive persistence fails all three scenario cases in
+`ccda3f68791c4f02b4156aa6dba91fbe`. Both reconstructions are restored without a production change. The actual scenario
+and the real CLI retirement E2E file pass all seven cases in `18e2c642770b42a491b793ba3b18585b`. The complete native
+projection integration directory then passes 96 files and 973 cases in `d5531db7ef4a479fb0ef5a44155290f5`.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches
