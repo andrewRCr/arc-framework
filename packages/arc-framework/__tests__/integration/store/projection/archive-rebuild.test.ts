@@ -1,5 +1,5 @@
 /** Forced edits and lost-index rebuilds preserve archive corrections and their repair route. */
-import { chmod, lstat, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
@@ -7,7 +7,7 @@ import { createAdoptionFixture } from "../../../helpers/store/projection/adoptio
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
-import { success, update } from "../../../helpers/store/suite-tools.js";
+import { seed, success, update } from "../../../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
@@ -15,6 +15,7 @@ import { readProjectionIndex } from "../../../../src/lib/store/projection/index-
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { handleSave } from "../../../../src/handlers/save.js";
+import { recordReferences } from "../../../../src/lib/store/identity.js";
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 async function fixture(owner = "andrew") {
@@ -94,4 +95,21 @@ it("rebuilds an unedited opened archive file closed and read-only after its inde
   expect(await entry(h)).toMatchObject({ kind: "record", withheld: false });
   expect(await entry(h)).not.toHaveProperty("opened");
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
+});
+
+it("rebuilds an unchanged empty archive text companion closed after index loss", async () => {
+  const h = await fixture(), path = `${h.folder}/empty.txt`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "empty.txt");
+  const stored = await seed(h.f, reference, "");
+  await startProjection(h); await endProjection(h);
+  await utimes(file, new Date(0), new Date(0));
+  await openArchivedProjectionFile(h, path);
+  await rm(join(h.projected.location.stateDir, "index"));
+  await startProjection(h); await endProjection(h);
+  const rebuilt = await entry({ ...h, path });
+  expect(rebuilt).toMatchObject({ withheld: false });
+  expect(rebuilt).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+  expect(await readFile(file, "utf8")).toBe("");
+  expect(success(await h.store.read({ reference }))).toMatchObject({ content: "", version: stored.version });
 });

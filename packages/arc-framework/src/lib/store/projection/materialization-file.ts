@@ -114,7 +114,8 @@ async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry)
   const after = await readStat(absolute);
   const text = bytes.toString("utf8"), markdown = input.path.endsWith(".md");
   const stamp = markdown ? parseStampedFile(text).stamp : null;
-  const safe = bytes.length > 0 && isDeepStrictEqual(gate.stat, after)
+  const canMatchEmpty = !markdown && input.path.startsWith(".arc/completed/");
+  const safe = (bytes.length > 0 || canMatchEmpty) && isDeepStrictEqual(gate.stat, after)
     && storedBlobId(text, { format: input.root.context.format, markdown }) === (stamp ?? entry.base.blob);
   return { ...entry, stat: gate.stat, written: gitBlobId(bytes, input.root.context.format), changed: true, withheld: !safe };
 }
