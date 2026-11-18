@@ -10,6 +10,10 @@ import { rehearseWindow } from "../../src/scripts/cutover-window/rehearse.js";
 import { readWindowCheckouts } from "../../src/scripts/cutover-window/checkouts.js";
 import type { WindowRehearsalPlan } from "../../src/scripts/cutover-window/rehearse-run.js";
 import { errandPlant, plantedErrandCollateral } from "../../src/scripts/cutover-window/rehearse-plan-abort.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 /** A run that reaches the import needs a limit only Linux enforces and exposes. */
 const linux = it.runIf(process.platform === "linux");

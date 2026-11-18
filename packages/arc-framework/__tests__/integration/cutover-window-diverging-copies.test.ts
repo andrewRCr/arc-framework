@@ -9,6 +9,10 @@ import { checkFixture } from "../helpers/cutover-window/check.js";
 import { createWindowImportContext } from "../../src/scripts/cutover-window/import-context.js";
 import { readWindowLiveState } from "../../src/scripts/cutover-window/live-state.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses a diverging non-stale copy and passes after both branches carry the work", async () => {
   const h = await windowFixture(), branch = "feat/copy", meta = ".arc/active/meta-alpha.md";

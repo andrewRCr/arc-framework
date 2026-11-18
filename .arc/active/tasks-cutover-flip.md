@@ -561,13 +561,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           `e2e/config-validate.e2e.test.ts`'s nested-directory case left the ledger as an installed project's
           repository.
 
-    - `[ ]` **3.R.b The window tooling**
-        - The listed `integration/cutover-window-*` and `e2e/cutover-window*` files, which compose the default in
-          process over fixtures that track state. Until the merge the window tooling runs from the importing checkout's
-          source at `main`'s pre-flip head, and after it `compare`, `confirm`, and `close` read only Git and disk, so
-          they run from either build (`spec-cutover-window-tooling.md` § 1.4). A case keeps the override itself around
-          the operations before the merge, its fixture's setup included, and runs `compare`, `confirm`, and `close`
-          without it; a failure there is diagnosed as Task 3.R.a's are.
+    - `[x]` **3.R.b The window tooling**
+        - The 32 listed window files left the ledger. Each sets the override around its cases
+          (`useInRepoStoreForEach`), its fixtures and the operations before the merge included, while `invokeWindow`
+          (`helpers/cutover-window/run.ts`) runs `compare`, `confirm`, and `close` with it cleared
+          (`withoutInRepoStore`) and the end-to-end spawns drop it for them; all three open no store, so none failed.
 
     - `[ ]` **3.R.c Review, Candidate, publication, and delivery**
         - The review-gate and integration scripts' unit tests (`unit/scripts/review-gate/`,

@@ -11,6 +11,10 @@ import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { parkedWindowFixture } from "../helpers/cutover-window/parked.js";
 import { readWindowHold } from "../../src/scripts/cutover-window/hold.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function carryMainToFlip(h: Awaited<ReturnType<typeof windowFixture>>) {
   await h.git("git", ["checkout", h.flip.branch]); await h.git("git", ["merge", "--no-edit", "main"]);

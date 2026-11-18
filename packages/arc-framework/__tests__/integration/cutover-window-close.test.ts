@@ -6,6 +6,10 @@ import { expect, it } from "vitest";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { invokeWindow } from "../helpers/cutover-window/run.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses before the flip merges and preserves the complete hold", async () => {
   const h = await windowFixture();

@@ -19,6 +19,18 @@ export function useInRepoStore(): void {
   onTestFinished(() => { restore(); });
 }
 
+/** Run an operation with the in-repo store override cleared, restoring it afterwards, so it composes the default
+ * store whatever the test around it selects.
+ * @param operation - The operation to run without the override.
+ * @returns The operation's result.
+ */
+export async function withoutInRepoStore<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = process.env[IN_REPO_STORE_OVERRIDE];
+  Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
+  try { return await operation(); }
+  finally { if (previous !== undefined) process.env[IN_REPO_STORE_OVERRIDE] = previous; }
+}
+
 /** Set the in-repo store override around every test in the enclosing file or `describe` block, its own `beforeEach`
  * fixtures included when registered before them.
  */

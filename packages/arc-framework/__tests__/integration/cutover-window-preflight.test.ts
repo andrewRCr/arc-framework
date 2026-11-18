@@ -7,6 +7,10 @@ import { checkFixture } from "../helpers/cutover-window/check.js";
 import { writeWindowHold, type WindowRecord } from "../../src/scripts/cutover-window/hold.js";
 import { seedTransients } from "../helpers/store/import-transients.js";
 import { writeBackingRepository } from "../../src/lib/config/status-reader.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it.each([
   { key: "remote.origin.arc-state", value: "push" },

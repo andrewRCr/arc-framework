@@ -4,6 +4,10 @@ import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-windo
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses unlanded local and fetched candidates and passes once main contains their tips", async () => {
   const h = await windowFixture();

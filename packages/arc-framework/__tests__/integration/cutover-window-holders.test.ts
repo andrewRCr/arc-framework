@@ -16,6 +16,10 @@ import { runBranchTeardown, runTeardown, type TeardownContext } from "../../src/
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses an unmarked linked checkout and passes after it is removed", async () => {
   const h = await windowFixture();

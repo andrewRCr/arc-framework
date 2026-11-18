@@ -8,6 +8,10 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import type { WindowHostPort } from "../../src/scripts/cutover-window/host.js";
 import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { lastReadFixture, deleteWindowFile } from "../helpers/cutover-window/last-read.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 function lastRead(h: Awaited<ReturnType<typeof lastReadFixture>>, options: WindowLastReadOptions = {}, supplied = true) {
   return invokeWindow(h.root, "last-read", ["--flip-branch", h.flip.branch, "--flip-pr", String(h.flip.pullRequest),

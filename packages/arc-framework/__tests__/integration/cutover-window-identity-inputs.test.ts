@@ -6,6 +6,10 @@ import { ordinaryErrand, seedTransients } from "../helpers/store/import-transien
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { retireFixtureErrand, windowClaims } from "../helpers/cutover-window/identity-inputs.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses a local Errand record and passes once the Errand is abandoned", async () => {
   const h = await windowFixture(), tip = await seedTransients(h, [ordinaryErrand]);

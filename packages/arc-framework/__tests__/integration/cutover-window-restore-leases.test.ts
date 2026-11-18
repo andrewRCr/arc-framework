@@ -7,6 +7,10 @@ import { seedTransients, transientSourceRef } from "../helpers/store/import-tran
 import { writeTreeCommit } from "../../src/lib/git/ref-tree.js";
 import { saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("refuses moved and deleted origin refs before any push and admits exact accepted values", async () => {
   const h = await windowFixture();

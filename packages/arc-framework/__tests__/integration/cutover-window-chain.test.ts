@@ -12,6 +12,10 @@ import type { WindowCandidateComparison } from "../../src/scripts/cutover-window
 import { invokeWindow } from "../helpers/cutover-window/run.js";
 import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { importWindowFixture } from "../helpers/cutover-window/import.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 function chain(h: Awaited<ReturnType<typeof windowFixture>>, report: string) {
   return invokeWindow(h.root, "chain", ["--report", report]);

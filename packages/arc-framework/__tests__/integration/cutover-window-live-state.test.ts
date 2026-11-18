@@ -16,6 +16,10 @@ import { acquireWindowOriginRefs } from "../../src/scripts/cutover-window/hold.j
 import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
 import { checkFixture } from "../helpers/cutover-window/check.js";
 import { listWindowRefs } from "../../src/scripts/cutover-window/git.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function inspectLive(h: Awaited<ReturnType<typeof windowFixture>>) {
   const stdout: string[] = [], stderr: string[] = [];

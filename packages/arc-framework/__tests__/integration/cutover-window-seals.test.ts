@@ -7,6 +7,10 @@ import { windowFixture } from "../helpers/cutover-window/fixture.js";
 import { runWindow } from "../../src/scripts/cutover-window/main.js";
 import { readWindowSealAnchor } from "../../src/scripts/cutover-window/seals.js";
 import { checkFixture, mergeMainIntoFixtureFlip } from "../helpers/cutover-window/check.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 it("derives the source-adding merge on main's first-parent history", async () => {
   const h = await windowFixture({ sealed: false });

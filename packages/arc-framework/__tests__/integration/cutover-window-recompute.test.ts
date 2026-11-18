@@ -11,6 +11,10 @@ import { saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { windowClaims } from "../helpers/cutover-window/identity-inputs.js";
 import { seedTransients, transientSourceRef, ordinaryErrand } from "../helpers/store/import-transients.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The window runs its operations before the merge from the base's pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 async function importedFixture() {
   const h = await windowFixture();
