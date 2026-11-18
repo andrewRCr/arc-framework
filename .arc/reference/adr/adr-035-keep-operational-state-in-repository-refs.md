@@ -252,6 +252,11 @@ stored meta and its history are the record.
 moves in-flight derivation onto the store: a work unit in planning keeps its own worktree, detached at the base branch's
 tip, and activation creates its work branch there.
 
+**Amendment (2026-11-17):** Item 6's projection lays `.arc/completed/` read-only. A correction to archived work opens
+one file with `arc edit <path>`, which makes it writable in that worktree under the same edit rights. The edit
+persists at the next command, as any edit does, and `arc save` lays the file read-only again. The decision stands: the
+store is authoritative, and the working copy sits at the familiar paths, opened in a person's own editor.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md

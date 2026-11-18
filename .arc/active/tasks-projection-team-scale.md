@@ -249,15 +249,13 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
           index-loss repair. Empty-copy release keeps its second-check hold until save; see
           `notes-projection-team-scale.md` § Archived persistence.
 
-### `[ ]` **3.3 ADR-035's amendment — § 10.3**
+### `[x]` **3.3 ADR-035's amendment — § 10.3**
 
 - _Goal:_ ADR-035 records, under its § Amending This Document, that item 6's projection lays `.arc/completed/` read-only
   and that a correction opens one file with `arc edit`, the decision standing.
 
-- **Additional Context:** `strategy-adr-methodology.md` § Tier 2: Amendments — append-only with annotation.
-
-    - Append spec § 10.3's amendment to `adr-035-keep-operational-state-in-repository-refs.md`, dated the day it is
-      written, after the existing dated amendments.
+- _Outcome:_ Appended the dated archive-opening amendment under ADR-035's Amending This Document, preserving
+  item 6's decision and every earlier annotation verbatim.
 
 ### `[ ]` **3.4 The errata convention where the flip landed first — § 10.4**
 
