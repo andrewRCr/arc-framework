@@ -404,6 +404,41 @@ Regression reconstructions retain their distinct behavior:
 All temporary reconstructions are restored. Forced edits still take precedence over marker parsing, and failed
 archive observations retain their unobservable result rather than becoming local refusal evidence.
 
+## Archived persistence
+
+`persistFiles` filters its existing root walk through `inspectArchivedProjectionFile` before calling write-back,
+sharing the ignore check's reference. Every blocked archive input stays out of the send set, while the first mark
+supplies `retirementRefusal`. Opened and unfinished entries keep their existing persistence paths. Release uses the
+same step, including on the primary; only linked release removes the projection afterward.
+
+The native `removal-archive-persist.test.ts` cases cover persist and release invoked with either checkout's store,
+primary release, backend content and versions, preserved local bytes, and successful continuation after edit and save.
+All nine initial refusal cases fail in `a6d91579d1144b3f983db07dfb7018a2`, then pass with the filter in
+`e04fc6deb95241608b0523897726bff2`. Additional reconstructions exercise the existing contracts:
+
+- Refusing opened files fails all four existing-edit and new-adoption cases in
+  `aebdc0f45b87448a901a22f1e7c3b2b5`; restoration passes in `521facab2c924b29a6bd98241618486d`.
+- Requiring opened files to remain present and nonempty fails the absent, empty, and deleted-new-entry cases in
+  `7ed61d2d8f3e4c208442cb19625176d0`. The deleted new entry is observed dropped before linked release's last check.
+- Excluding only the first blocked file lets a second unopened file adopt, failing
+  `d0ebe0fddf13474a92f226b39113454d`; filtering every input passes in `4c244d9b832c45fbb268bb1ca456e361`.
+- Treating a withheld index as no projection incorrectly returns persistence/release success after real index loss,
+  failing both cases in `cada1dd8a0e3482cbbd18254fffcc5bc`. The actual path keeps the edit and its deletion/reopening
+  remedy, then succeeds after reprojection, reopening, reapplication and save.
+
+A settled-empty original holds no edit at persistence. Linked release subsequently creates a new empty swap copy,
+which the existing second-check contract retains until the next sweep (`spec-projection-worktrees.md` § 12.3 and its
+A10 residual annotation). The exploratory immediate-release assertion in `b359d29f0a0c4040844bd36027447349` demanded a
+stronger guarantee than that contract. The final test instead checks the initial refusal, retained empty copy and
+index, successful save, successful release, and unchanged stored version. Disabling only second check's `keepEmpty`
+fails it in `ee40ad89675c46b8b5378a62b1bfced2`; restoration passes all eighteen then-current cases in
+`1ac008e08ec94e728013a630847e7b3e`. The production empty-copy guard is unchanged.
+
+All reconstructions are restored. The complete projection integration directory passes 95 files and 970 cases in
+`672a4f1527df464b8eae7b56b9439b3f`, including all 21 new persistence cases and the unchanged ownership-handoff test.
+The real CLI retirement E2E file passes its four cases in `0aea71bf95a24da786a9457ae60f2a95`; that installed CLI still
+selects the in-repo backend, while the archive proofs use the native reference backend through the retirement slots.
+
 ## Workflows that write under `completed/`
 
 No workflow amends an archived design: `amend-design.md` amends a work unit's design in flight and never touches

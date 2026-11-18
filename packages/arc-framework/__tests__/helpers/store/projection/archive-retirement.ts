@@ -20,6 +20,8 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { locateProjection } from "../../../../src/lib/store/projection/location.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
+import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/removal-release.js";
 
 export async function archiveRetirementFixture(owner = "andrew", layout: RefFixtureLayout = "default") {
   const h = await createAdoptionFixture({ owner, layout, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -39,26 +41,32 @@ export async function archiveRetirementFixture(owner = "andrew", layout: RefFixt
   const context = { store, identity };
   expect((await projectionCommand(input, ["status"])).result).toMatchObject({ kind: "ready" });
   const path = Object.keys(h.projected.index.entries)[0]!;
-  const disk = async () => {
-    const location = await locateProjection(checkout, createProjectionEnginePorts(checkout));
+  const disk = async (from = checkout) => {
+    const location = await locateProjection(from, createProjectionEnginePorts(from));
     const found = await readProjectionIndex(location, true, { groups: "all" });
     if (found.kind !== "index") throw new Error("No usable archive retirement index");
     return { location, index: found.index };
   };
-  const write = async (path: string, content: string) => {
-    const entry = (await disk()).index.entries[path];
-    if (entry?.kind === "record") await chmod(join(checkout, path), 0o644);
-    await writeFile(join(checkout, path), entry?.kind === "record" ? renderStampedFile({ content, stamp: entry.base.blob }) : content);
+  const write = async (path: string, content: string, from = checkout) => {
+    const entry = (await disk(from)).index.entries[path];
+    if (entry?.kind === "record") await chmod(join(from, path), 0o644);
+    await writeFile(join(from, path), entry?.kind === "record" ? renderStampedFile({ content, stamp: entry.base.blob }) : content);
   };
   const check = (from = h.f.root) => checkWorktreeRemoval({ checkoutPath: checkout, disposition: "remove",
     exec: (command, args, options) => h.f.ports.exec(command, args, { cwd: from, ...options }),
     check: target => checkProjectionRemoval(target, { store: from === checkout ? store : h.f.store, identity }),
   });
   expect(await check()).toEqual({ kind: "removable" });
-  const openAndSave = async (path: string, content?: string) => {
-    expect((await projectionCommand(input, ["edit", join(checkout, path)])).result).toMatchObject({ status: "ok" });
-    if (content !== undefined) await write(path, content);
-    expect((await projectionCommand(input, ["save"])).result).toMatchObject({ status: "ok" });
+  const openAndSave = async (path: string, content?: string, from = checkout) => {
+    const command = from === checkout ? input : { checkout: from, store: h.f.store };
+    expect((await projectionCommand(command, ["edit", join(from, path)])).result).toMatchObject({ status: "ok" });
+    if (content !== undefined) await write(path, content, from);
+    expect((await projectionCommand(command, ["save"])).result).toMatchObject({ status: "ok" });
   };
-  return { ...h, checkout, store, input, context, path, disk, write, check, openAndSave };
+  const retire = (operation: "persist" | "release", target = checkout, from = h.f.root) => {
+    const caller = { store: from === checkout ? store : h.f.store, identity };
+    return operation === "persist" ? persistProjectionRemoval(target, caller)
+      : releaseProjectionRemoval(target, target === h.f.root, caller);
+  };
+  return { ...h, checkout, store, input, context, path, disk, write, check, openAndSave, retire };
 }

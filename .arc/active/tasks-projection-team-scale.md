@@ -231,18 +231,11 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
   forced edit. Native command coverage and reconstruction evidence are in `notes-projection-team-scale.md`
   § Sync's archive report.
 
-### `[ ]` **3.2 The removal check and the persist and release steps over archived entries — § 8, § 10.2**
+### `[x]` **3.2 The removal check and the persist and release steps over archived entries — § 8, § 10.2**
 
 - _Goal:_ A checkout is removed or released only once every archived edit in it has persisted or was never made: an
   opened file's edit persists and an opened new file adopts, while a forced edit, a new archived file with no entry, an
   edit its rights refuse, or a conflict held in an archived file refuses with its remedy, each clearing once repaired.
-
-- **Additional Context:** `spec-projection-worktrees.md` § 12.2, § 12.3, § 16.2.
-
-- _Note:_ Tests asserting `persist-would-refuse` or `removable` run through the composed check
-  (`checkWorktreeRemoval`, `lib/git/worktree-removal.ts`) or the retirement harness; slot-level suites assert
-  `would-refuse` or `passes` (`checkProjectionRemoval`, `removal-check.ts`). Behaviors the landed code already has are
-  regression guards; the forced edit, the new file, and the conflict remedies fail first.
 
     - `[x]` **3.2.a The removal check**
         - Removal uses the shared archive inspection before admission. Stored notices name `arc save --resolve`;
@@ -250,25 +243,11 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
           checks cover both caller checkouts, rights, absent and empty files, unfinished recording, and lost-index
           withholding with successful repair. Evidence is in `notes-projection-team-scale.md` § Archived removal checks.
 
-    - `[ ]` **3.2.b The persist and release steps**
-        - `persistFiles` (`removal-persist.ts`) takes every forced edit and every file under `completed/` with no
-          entry out of what it hands `writeBackProjectionFiles`, and refuses over the first through
-          `retirementRefusal` with 3.1's remedy, the file keeping its content; an opened file's edit persists and an
-          opened new file adopts. The release step runs the same steps through `withPersistedProjection`
-          (`removal-persist.ts`), which `releaseProjectionRemoval` (`removal-release.ts`) calls, the primary among them.
-        - Build `test-first` (one behavior at a time):
-            - a forced edit, and a new archived file made without `arc edit`, each make the persist and release steps
-              refuse, the file keeping its content, the removal run from another checkout among them; once `arc edit`
-              and `arc save` have run there, each succeeds (Success Criterion 5)
-            - the primary's release refuses over a forced edit in its archive, the file keeping its content, and
-              releases once `arc edit` and `arc save` run on the primary (spec § 11 item 8)
-            - an opened file's edit persists at removal and at release, and an opened new file adopts
-            - an opened entry whose file is absent or emptied past the settle window lets the removal proceed, its
-              stored version kept, and a linked release over an opened new file whose file is gone proceeds, its entry
-              dropped
-            - an opened file holding an edit, withheld after its index was lost, makes the persist and release steps
-              refuse, the file keeping its content, until it is deleted, opened again, its edit re-applied, and saved
-              (§ 9.2 test 10)
+    - `[x]` **3.2.b The persist and release steps**
+        - Persist and release exclude unopened archive input before write-back, preserving every blocked file and its
+          shared remedy. Native checks cover both callers, the primary, opened edits/adoptions, no-edit files and
+          index-loss repair. Empty-copy release keeps its second-check hold until save; see
+          `notes-projection-team-scale.md` § Archived persistence.
 
 ### `[ ]` **3.3 ADR-035's amendment — § 10.3**
 

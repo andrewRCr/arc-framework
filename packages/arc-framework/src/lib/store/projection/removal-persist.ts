@@ -38,6 +38,7 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { persistProjectionAsides, changedProjectionAsides } from "./removal-persist-asides.js";
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead } from "./read-gate.js";
+import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
 export interface ProjectionPersistHooks {
@@ -139,9 +140,9 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
 
 async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionRootState, initial: ProjectionIndex,
   disposition: ProjectionRetirement): Promise<{ index: ProjectionIndex; refusal?: Remedy; ignoreMark?: RefusedMark }> {
-  const walked = await walkPersistedRoots(root);
+  const walked = await walkPersistedRoots(root), reference = await readReference(root.checkout);
   const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs },
-    records: initial.ignoreFiles, recordedGuard: initial.ignoreGuard, reference: await readReference(root.checkout),
+    records: initial.ignoreFiles, recordedGuard: initial.ignoreGuard, reference,
     format: root.context.format, ignoreRules: input.configuration.ignoreRules,
     readIgnoreRules: async () => (await readProjectionConfiguration(root.ports.exec, root.checkout)).ignoreRules });
   root.writable = writableUnder(ignores, guardedProjectionRoots(root.identity).map(root => root.path));
@@ -149,8 +150,10 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
   index = await reconcileProjectionHandoffs(root, index, Object.keys(index.entries));
   const diagnosticFrom = projectionProcessState().diagnostics.length;
   const observed: ProjectionFileWriteObservation[] = [];
-  index = await writeBackProjectionFiles(root, index, walked.files, undefined, outcome => { observed.push(outcome); });
+  const selected = await selectPersistedFiles(root, index, walked.files, reference, disposition);
+  index = await writeBackProjectionFiles(root, index, selected.files, undefined, outcome => { observed.push(outcome); });
   index = await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
+  if (selected.refusal !== undefined) return { index, refusal: selected.refusal };
   const ignoreMark = ignores.kind === "refused" ? ignoreRefusalMark(ignores.reason, ignores.remedy) : undefined;
   for (const { path, result, installation } of observed) {
     if (result.answer === "no-edit" || result.answer === "taken-in" && installation === "attempted") continue;
@@ -162,6 +165,18 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
     return { index, refusal };
   }
   return { index, ...(ignoreMark === undefined ? {} : { ignoreMark }) };
+}
+
+async function selectPersistedFiles(root: ProjectionRootState, index: ProjectionIndex, paths: readonly string[],
+  reference: bigint | null, disposition: ProjectionRetirement): Promise<{ files: string[]; refusal?: Remedy }> {
+  const files: string[] = [];
+  let refusal: Remedy | undefined;
+  for (const path of paths) {
+    const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
+    if (archive === null) files.push(path);
+    else refusal ??= retirementRefusal(root.checkout, path, archive.mark, disposition);
+  }
+  return { files, ...(refusal === undefined ? {} : { refusal }) };
 }
 
 async function walkPersistedRoots(root: ProjectionRootState): ReturnType<typeof walkProjectionRoots> {
