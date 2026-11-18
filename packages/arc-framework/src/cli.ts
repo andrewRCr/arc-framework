@@ -2571,7 +2571,7 @@ program.hook("preAction", async (_thisCommand, actionCommand) => {
     },
     createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
-  // The stale bundle stays loaded in this process, so the rebuilt command runs in a fresh one instead.
+  // The stale bundle stays loaded in this process, so the command runs again on the rebuilt one instead.
   if (admission.kind === "rerun") return await rerunDevCommand();
   devBuildRefreshEligible = admission.refreshEligible;
 });

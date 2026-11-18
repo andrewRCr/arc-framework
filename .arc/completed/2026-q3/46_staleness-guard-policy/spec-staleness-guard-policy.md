@@ -102,8 +102,8 @@ Two properties of the surrounding system make a strict policy affordable now:
    equally silent when it misbehaves, and its failure modes end in running stale code.
 
    _Reversed 2026-11-17:_ a stale bundle now rebuilds and runs the command again instead of refusing. The structural
-   fact above still holds for the stale process itself, but that process can rebuild and then run the same command in
-   a fresh process on the new bundle. The single freshness check therefore stays inside the bundle, with no launcher
+   fact above still holds for the stale process itself, but that process can rebuild and then run the same command
+   again on the new bundle. The single freshness check therefore stays inside the bundle, with no launcher
    copy of the hash contract and no `bin` change. Builds already serialize under the checkout's build lease and
    publish from staging, and the rebuild builds only when the output is still unqualified once it holds that lease.
    The rebuild is not silent: it is noted on stderr. Refusal remains for a rebuild that fails or leaves the bundle

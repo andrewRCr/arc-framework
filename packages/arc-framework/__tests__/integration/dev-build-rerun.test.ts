@@ -1,9 +1,9 @@
-/** A stale development bundle rebuilds and hands the same command to a fresh process on the new build. */
+/** A stale development bundle rebuilds and runs the same command again on the new build. */
 import { spawn } from "node:child_process";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { TEST_CONTROLLER_TOKEN_ENV, withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import {
   checkDevBuildStaleness, createDevCheckDeps, DEV_BUILD_RERUN_ENV, refreshDevBuildAfterAction,
@@ -15,7 +15,11 @@ let root: string;
 let packageRoot: string;
 let cli: string;
 
-/** A CLI that admits itself through the guard, then echoes its input under a label or waits to be ended. */
+/**
+ * A CLI that admits itself through the guard, then echoes its input under a label, or prints its label and process ID
+ * and waits for an interrupt or termination. A waiting CLI reports how many of that signal arrived within half a
+ * second, then exits by it.
+ */
 function runtime(label: string): string {
   return `
 import { readFileSync } from "node:fs";
@@ -25,7 +29,17 @@ const admission = await runDevBuildGuard({ commandPath: "arc marker" },
   createDevBuildGuardDeps(fileURLToPath(import.meta.url)));
 if (admission.kind === "rerun") await rerunDevCommand();
 if (process.argv[2] === "wait") {
-  process.stdout.write(\`\${process.pid}\\n\`);
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    let count = 0;
+    process.on(signal, () => {
+      if (count++ > 0) return;
+      setTimeout(() => {
+        process.removeAllListeners(signal);
+        process.stdout.write(\`\${signal} x\${count}\\n\`, () => { process.kill(process.pid, signal); });
+      }, 500);
+    });
+  }
+  process.stdout.write(\`${label} \${process.pid}\\n\`);
   setInterval(() => undefined, 1_000);
 } else {
   process.stdout.write(\`${label}:\${readFileSync(0, "utf8")}\`);
@@ -52,13 +66,24 @@ function start(args: readonly string[], { grouped = false }: { grouped?: boolean
   return { child, ended, stdout: () => stdout, stderr: () => stderr };
 }
 
+/** Settle with a run's end, or with "still running" if it has not ended within ten seconds. */
+async function within(run: ReturnType<typeof start>) {
+  return await Promise.race([run.ended, delay(10_000).then(() => "still running" as const)]);
+}
+
+/** Signal a grouped run's command alone, or its whole process group as a terminal does. */
+function send(run: ReturnType<typeof start>, signal: NodeJS.Signals, target: "command" | "group"): void {
+  const pid = run.child.pid ?? 0;
+  process.kill(target === "group" ? -pid : pid, signal);
+}
+
 /** End a grouped run's whole process group, and wait a bounded time for its streams to close. */
 async function endGroup(run: ReturnType<typeof start>): Promise<void> {
   const pid = run.child.pid;
   if (pid !== undefined) {
     try { process.kill(-pid, "SIGKILL"); } catch { /* The group has already ended. */ }
   }
-  await Promise.race([run.ended, delay(10_000)]);
+  await within(run);
 }
 
 beforeAll(async () => {
@@ -82,36 +107,46 @@ it("rebuilds a stale bundle and runs the command again with its input and exit s
   expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
 }, 60_000);
 
-describe.skipIf(process.platform === "win32")("signals sent to the command alone", () => {
-  it.each(["SIGTERM", "SIGINT"] as const)("pass %s on to the re-run, and the command exits by it", async (signal) => {
-    await writeFile(join(packageRoot, "src/cli.ts"), runtime(`waiting-${signal}`));
-    const run = start(["wait"], { grouped: true });
-    try {
-      await expect.poll(run.stdout, { timeout: 30_000 }).toMatch(/^\d+\n$/u);
-      const rerunPid = Number(run.stdout().trim());
-      expect(rerunPid).not.toBe(run.child.pid);
-      run.child.kill(signal);
-      await expect(run.ended).resolves.toMatchObject({ code: null, signal });
-      expect(() => process.kill(rerunPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
-    } finally { await endGroup(run); }
+describe.skipIf(process.platform === "win32")("signals", () => {
+  let run: ReturnType<typeof start> | undefined;
+
+  // Cleanup runs here rather than in the case, because a case that times out never reaches its own cleanup.
+  afterEach(async () => {
+    if (run !== undefined) await endGroup(run);
+    run = undefined;
+  });
+
+  it.each([
+    ["SIGINT", "command"], ["SIGTERM", "command"], ["SIGINT", "group"], ["SIGTERM", "group"],
+  ] as const)("deliver %s sent to the %s to the re-run once, and the command exits by it", async (signal, target) => {
+    const label = `waiting-${signal}-${target}`;
+    await writeFile(join(packageRoot, "src/cli.ts"), runtime(label));
+    run = start(["wait"], { grouped: true });
+    await expect.poll(run.stdout, { timeout: 30_000 }).toMatch(/\n$/u);
+    // The rebuilt command replaced the stale one, keeping its process ID.
+    expect(run.stdout()).toBe(`${label} ${String(run.child.pid)}\n`);
+    send(run, signal, target);
+    await expect(within(run)).resolves.toMatchObject({ code: null, signal,
+      stdout: `${label} ${String(run.child.pid)}\n${signal} x1\n` });
   }, 60_000);
 
-  it("ends the build it is waiting on, and exits by the termination", async () => {
-    await writeFile(join(packageRoot, "src/cli.ts"), runtime("held"));
-    const prior = await readFile(cli, "utf8");
-    await withBuildArtifactOwnership({ packageRoot, operation: "a test hold" }, async () => {
-      const run = start(["0"], { grouped: true });
-      run.child.stdin.end();
-      try {
-        await expect.poll(run.stderr, { timeout: 30_000 }).toContain("Waiting for checkout artifacts held by a test hold");
-        run.child.kill("SIGTERM");
+  it.each([
+    ["SIGINT", "command"], ["SIGTERM", "command"], ["SIGINT", "group"],
+  ] as const)("end the build the command waits on when %s is sent to the %s, and the command exits by it",
+    async (signal, target) => {
+      await writeFile(join(packageRoot, "src/cli.ts"), runtime(`held-${signal}-${target}`));
+      const prior = await readFile(cli, "utf8");
+      await withBuildArtifactOwnership({ packageRoot, operation: "a test hold" }, async () => {
+        const held = start(["0"], { grouped: true });
+        run = held;
+        held.child.stdin.end();
+        await expect.poll(held.stderr, { timeout: 30_000 }).toContain("Waiting for checkout artifacts held by a test hold");
+        send(held, signal, target);
         // The build shares the command's standard error, so the streams close only once the build has ended too.
-        await expect(Promise.race([run.ended, delay(10_000).then(() => "still open")]))
-          .resolves.toMatchObject({ code: null, signal: "SIGTERM" });
-      } finally { await endGroup(run); }
-    });
-    expect(await readFile(cli, "utf8")).toBe(prior);
-  }, 60_000);
+        await expect(within(held)).resolves.toMatchObject({ code: null, signal, stdout: "" });
+      });
+      expect(await readFile(cli, "utf8")).toBe(prior);
+    }, 60_000);
 });
 
 it("refuses with the remedy and keeps the prior build when the rebuild fails", async () => {

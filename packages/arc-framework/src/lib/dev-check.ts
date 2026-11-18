@@ -1,7 +1,7 @@
 /** Compiler-free self-hosting freshness checks, rebuild-and-rerun admission and isolated owned refresh. */
 import { createHash } from "node:crypto";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { constants } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { selectFirstPartyInputs } from "./build-inputs.js";
@@ -159,8 +159,8 @@ const RUN_WITHOUT_REFRESH: DevBuildAdmission = { kind: "run", refreshEligible: f
 /**
  * Admit a command against the live controller lease or ordinary build qualification.
  *
- * This process has already loaded the bundle it checks, so a stale build is rebuilt and the command runs again in a
- * fresh process. A failed rebuild, a rebuild that leaves the bundle stale, and the re-run itself refuse instead.
+ * This process has already loaded the bundle it checks, so a stale build is rebuilt and the command runs again on the
+ * new bundle. A failed rebuild, a rebuild that leaves the bundle stale, and the re-run itself refuse instead.
  * @param input - Command path and compaction-seed exception
  * @param deps - Holder, freshness, rebuild and process boundaries
  * @returns Whether to run the command here and refresh the build after it, or to run it again on the rebuilt bundle
@@ -240,12 +240,16 @@ export function createDevBuildGuardDeps(cliJsPath: string): DevBuildGuardDeps {
  * Build the runtime under checkout ownership only if it is still unqualified once owned, so commands that found the
  * same stale build wait for one build instead of each publishing their own. A wait for another owner and any build
  * error show on this process's standard error; standard output stays the command's. A command cancelled during the
- * build ends as asked once the build has ended, rather than refusing.
+ * build ends the build, then ends as asked rather than refusing.
  */
 async function prepareDevBuild(packageRoot: string): Promise<{ kind: "completed" } | { kind: "failed"; message: string }> {
-  const ended = await superviseChild(spawn(process.execPath,
+  // On POSIX the build leads its own process group, so a signal reaches it only through this process, once, and
+  // ends the compiler it starts as well. Windows' console signals every attached process directly.
+  const ownGroup = process.platform !== "win32";
+  const child = spawn(process.execPath,
     ["--import", "tsx", join(packageRoot, "src/scripts/run-build.ts"), "prepare"],
-    { cwd: packageRoot, env: process.env, stdio: ["ignore", "ignore", "inherit"] }));
+    { cwd: packageRoot, env: process.env, stdio: ["ignore", "ignore", "inherit"], detached: ownGroup });
+  const ended = await superviseChild(child, ownGroup ? (signal) => { signalGroup(child, signal); } : undefined);
   if (ended.kind === "unstarted") return { kind: "failed", message: ended.message };
   if (ended.received !== null) endBySignal(ended.received);
   return ended.code === 0 ? { kind: "completed" }
@@ -253,20 +257,39 @@ async function prepareDevBuild(packageRoot: string): Promise<{ kind: "completed"
 }
 
 /**
- * Run this command again in a fresh process on the rebuilt bundle, ending this process with the re-run's status.
+ * Run this command again on the rebuilt bundle, ending this process with the re-run's status.
  *
- * The re-run inherits the standard streams, so input this process never read reaches it.
- * @returns Never: this process exits with the re-run's exit code, or by the signal that ended it
+ * On POSIX the re-run replaces this process, keeping its process ID, process group and standard streams, so every
+ * signal reaches the re-run directly and exactly once, and input this process never read stays unread for it. On
+ * Windows the re-run is a child that inherits the standard streams, and the console signals both directly.
+ * @returns Never: the re-run replaces this process, or this process exits with its exit code or by its signal
  */
 export async function rerunDevCommand(): Promise<never> {
-  const ended = await superviseChild(spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)],
-    { stdio: "inherit", env: { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" } }));
-  if (ended.kind === "unstarted") {
-    process.stderr.write(`error: arc could not run the command again on the rebuilt dev build (${ended.message}).\n`);
-    process.exit(1);
+  const args = [...process.execArgv, ...process.argv.slice(1)];
+  const env = { ...process.env, [DEV_BUILD_RERUN_ENV]: "1" };
+  if (process.platform !== "win32" && typeof process.execve === "function") {
+    // Nothing after the replacement runs, so output already written must leave this process first.
+    await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+    try {
+      process.execve(process.execPath, [process.execPath, ...args], env);
+    } catch (error) {
+      reportUnstartedRerun(error instanceof Error ? error.message : String(error));
+    }
   }
+  const ended = await superviseChild(spawn(process.execPath, args, { stdio: "inherit", env }));
+  if (ended.kind === "unstarted") reportUnstartedRerun(ended.message);
   if (ended.signal !== null) endBySignal(ended.signal);
   process.exit(ended.code ?? 1);
+}
+
+function reportUnstartedRerun(message: string): never {
+  process.stderr.write(`error: arc could not run the command again on the rebuilt dev build (${message}).\n`);
+  process.exit(1);
+}
+
+/** Resolve once output already written to a stream has been handed to the system, or the stream has failed. */
+async function flushed(stream: NodeJS.WriteStream): Promise<void> {
+  await new Promise<void>((settle) => { stream.write("", () => { settle(); }); });
 }
 
 /** How a supervised child ended, and the first signal this process received while it ran. */
@@ -275,25 +298,22 @@ type SupervisedEnd =
       readonly received: NodeJS.Signals | null }
   | { readonly kind: "unstarted"; readonly message: string };
 
-/** Signals a supervisor may send to this process alone, which a child it waits on must receive as well. */
-const FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ["SIGTERM", "SIGHUP"];
+/** Signals that end a command, as a POSIX supervisor or terminal may send them and as Windows' console raises them. */
+const SUPERVISED_SIGNALS: readonly NodeJS.Signals[] = process.platform === "win32"
+  ? ["SIGINT", "SIGHUP"]
+  : ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
 
 /**
- * Wait for a child of this process, passing on the signals sent to this process. A terminal interrupt reaches the
- * whole foreground process group, so where a terminal could have delivered one, this process only outlasts it
- * rather than delivering it to the child twice.
+ * Wait for a child of this process, recording the first ending signal this process receives meanwhile and handing
+ * each one to `passOn`. Without `passOn` the child is signalled only directly, so this process outlasts the signal.
  */
-async function superviseChild(child: ChildProcess): Promise<SupervisedEnd> {
-  const passInterrupt = !terminalDeliversInterrupts();
+async function superviseChild(
+  child: ChildProcess, passOn?: (signal: NodeJS.Signals) => void,
+): Promise<SupervisedEnd> {
   let received: NodeJS.Signals | null = null;
-  const forward = (signal: NodeJS.Signals): void => { received ??= signal; child.kill(signal); };
-  const interrupt = (): void => { received ??= "SIGINT"; if (passInterrupt) child.kill("SIGINT"); };
-  for (const signal of FORWARDED_SIGNALS) process.on(signal, forward);
-  process.on("SIGINT", interrupt);
-  const detach = (): void => {
-    for (const signal of FORWARDED_SIGNALS) process.off(signal, forward);
-    process.off("SIGINT", interrupt);
-  };
+  const handle = (signal: NodeJS.Signals): void => { received ??= signal; passOn?.(signal); };
+  for (const signal of SUPERVISED_SIGNALS) process.on(signal, handle);
+  const detach = (): void => { for (const signal of SUPERVISED_SIGNALS) process.off(signal, handle); };
   return await new Promise((settle) => {
     child.on("error", (error) => {
       // A started child reports its end through `exit`; only a launch failure settles here.
@@ -305,14 +325,13 @@ async function superviseChild(child: ChildProcess): Promise<SupervisedEnd> {
   });
 }
 
-/** Whether a terminal could deliver an interrupt to this process's whole group, as Windows' console always does. */
-function terminalDeliversInterrupts(): boolean {
-  if (process.platform === "win32") return true;
+/** Signal every process in the group a child leads, including any it started; a group already ended is left alone. */
+function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
   try {
-    closeSync(openSync("/dev/tty", "r"));
-    return true;
+    process.kill(-child.pid, signal);
   } catch {
-    return false;
+    // Every process in the group has already ended.
   }
 }
 
