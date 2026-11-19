@@ -22,7 +22,7 @@ import {
   WORKTREE_TOKEN,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
-import { git, runArcNoTty } from "./helpers.js";
+import { git, runArcNoTty } from "./store-default.js";
 
 const GOLDEN_DIR = join(import.meta.dirname, "..", "fixtures", "session-envelope");
 const UPDATE_GOLDENS = process.env.UPDATE_SESSION_ENVELOPE_GOLDENS === "1";

@@ -552,6 +552,44 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       queue. Its first command projects the seeded personal records, as any command's root hook does in a fresh
       checkout, so its snapshot follows one compile. The recovery plan reads only Git topology; its seeded work unit
       keeps the fixture faithful and no assertion reads it.
+    - _The session envelope's wire locks, as moved (Task 3.4.a.2):_ the test file and `prepareSessionEnvelopeFixture`
+      spawn through `e2e/store-default.ts`, and the seeder holds each work unit and task list through `seedWorkUnit` and
+      the cohort as a record. Its metas render canonically, since the store refused the hand-rolled table's `—`
+      Priority and Origin as malformed durable fields. The orient arm runs `arc attest` over its bound work unit, then
+      moves the stored meta to Integrating and replaces the stored boundary with the version-two publication-pending
+      one, each at its read version: a seeded Candidate whose subject is not the checkout's reads as changed and routes
+      the session to verification closeout. Orient and branch-gone each commit one code file where they committed ARC
+      state, so each branch stays one commit ahead of base; branch-gone's commit, which its envelope lists as unclosed
+      with its times and copy key, lands at a fixed time, as both derive from its author line. Active-resume commits
+      nothing, its linked checkout now at base. The current-husk arm stamps its husk and marker with a seeded Shipped
+      work unit's UID, keeping its unknown-authorization arm, since a stamp without one reads `pre-store-husk` on the
+      store. The normalizer maps minted UIDs to stable valid ones. `seedWorkUnit` now takes a meta's exact content and further
+      records its work unit owns, and loads no Vitest, so the benchmark that reuses the seeder still runs; it spawns
+      through the same helpers and clears a checkout's own override, as the unit setup does. With the helpers' default
+      removed the file passes as with it, twice over the same goldens, and the eight unit files reading them pass.
+    - _Golden changes, each traced:_
+        - Work-unit paths name `.arc/active/current/` (§ 8.3); each load set loses the work unit's `SESSION-NOTES.md`
+          and nothing else (§ 8.9); the notes-compaction advisory goes with the notes (§ 12).
+        - Store arms § 2.2 turns on: identity discovery reads the store's Errand and claims acquisitions, so the
+          in-flight oracle's unavailability warning goes and a work branch no active item or claim names is residue
+          (`deriveStoreInFlight`), the husk's leftover `feat/current-husk` among them. Roster rows are registrations
+          carrying store placement and priority in place of `metaFilePath`, the primary listed without an identity;
+          subjects carry their UID and bound rows their marker generation; the boundary is version two. The user slot
+          reads the store's state remote, none designated here, and the user-reference reconcile takes the store's
+          authority and scratch plan. Current-WU reconcile's held dependencies, inbound back-pressure, the inbox's queue
+          survivors, recovery's state basis with its seed's store version, and the in-flight composition join.
+        - Context fields: `pause` (§ 8.5), and `unclosedTaskCommits` with the recovery verdict's (§ 8.4). The husk's row
+          reads retired, its parked location gone with park (§ 8.5), and offers cleanup.
+        - Fixture-driven: the canonical meta's `P3` priority, a linked head at base where active-resume no longer
+          commits, and OIDs, digests, and UIDs renumbered by encounter order.
+    - _Open rows, settled:_ current-husk is _Store_ and identity-missing _Ref_, its one change the primary's roster row.
+    - _Possible defect, diagnosed (A12):_ every store envelope's orphan-branch sweep declines with "Claims acquisition is
+      not complete. Restore a complete claims acquisition for this identity…". `completeClaimBranches`
+      (`lib/session-init/orphan-store-candidates.ts`) reads an authoritatively absent claims acquisition, a person with
+      no claim records as in any fresh checkout, as incomplete, and `integration/orphan-store-branches.test.ts` asserts
+      it. `spec-seam-locus.md` A20 makes absence an empty inventory for Errand terminal and merge admission alone, so
+      the sweep keeps its "not complete declines" text; its remedy names no step a person can take, and it offers no
+      cleanup until a claim exists. The goldens lock today's behavior; the routing is the Owner's.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

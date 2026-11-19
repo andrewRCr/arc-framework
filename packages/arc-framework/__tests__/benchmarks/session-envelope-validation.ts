@@ -12,7 +12,11 @@ import {
   prepareSessionEnvelopeFixture,
   type SessionEnvelopeFixture,
 } from "../helpers/session-envelope-compat.js";
-import { runArcNoTty } from "../e2e/helpers.js";
+import { runArcNoTty } from "../e2e/store-default.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+
+// A checkout that selects the in-repo store for its own commands must not select it for the fixture this measures.
+Reflect.deleteProperty(process.env, IN_REPO_STORE_OVERRIDE);
 
 const execFileAsync = promisify(execFile);
 const WARMUP_WARM_SAMPLES = 20;

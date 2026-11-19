@@ -656,8 +656,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               temporary-ref families stay in-repo, beside a store case for the inspections' passivity
               (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.a.2 The session envelope's wire locks**
-            - `e2e/session-envelope-compat.e2e.test.ts`, with `prepareSessionEnvelopeFixture` and its seven goldens.
+        - `[x]` **3.4.a.2 The session envelope's wire locks**
+            - `e2e/session-envelope-compat.e2e.test.ts` and `prepareSessionEnvelopeFixture` spawn through
+              `e2e/store-default.ts` and seed through `seedWorkUnit`, the orient arm attesting through the verb; each of
+              the seven goldens changes only where a traced store contract does, and the benchmark reusing the seeder
+              clears a checkout's own override (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.a.3 Session initialization and recovery**
             - `e2e/session-init.e2e.test.ts`.
