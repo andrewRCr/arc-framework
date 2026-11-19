@@ -576,6 +576,20 @@ heading that only a former name matches, and a section a removed member left eac
 until removed or renamed, as the hook refuses the next commit that stages the record today. No cohort record in this
 repository has such a section.
 
+#### 4.11 The orphan sweep reads absent claims as an empty inventory
+
+From the flip the orphan-branch sweep leaves out a branch one of the identity's claims names, and
+`spec-seam-locus.md` § 12.4 has it decline otherwise: "A lookup that fails, or a claims acquisition that is not
+complete, declines the sweep". That design's A20 makes an authoritatively absent claims acquisition an empty inventory
+for an Errand's terminal and merge admission alone (`storeTerminalAcquisitionRefusal`,
+`lib/errand/store-terminal-basis.ts`). The acquisition reads absent when the identity holds no claim records at the
+version it pins (`acquireStoreClaims`, `lib/errand/store-discovery.ts`), as in any fresh checkout, so for such a person
+every session-init's sweep declines with "Claims acquisition is not complete." and a remedy no step satisfies, and the
+sweep's store-backed outcome § 9.8 runs is unreachable. From the flip the sweep's claims check
+(`completeClaimBranches`, `lib/session-init/orphan-store-candidates.ts`) reads an absent acquisition as no claimed
+branches, as A20's gates read it (A15). An acquisition that failed, one that missed entries, one carrying diagnostics,
+and a missing identity still decline the sweep, and the rest of § 12.4 holds.
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2211,6 +2225,9 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
     it exists to test.
 13. **A refused notes writer says notes are retired.** On the flip build each `arc user` notes writer the sealing guard
     refuses states that Git notes are retired and names the store step that replaces it, never a rebuild (A14).
+14. **The orphan sweep runs for a person holding no claims.** On the store, session-init for an identity with no claim
+    records offers the sweep's cleanup for a branch whose upstream is gone, while a failed claims read, a listing that
+    missed entries, or one carrying diagnostics still declines the sweep (A15).
 
 ## Open Questions
 
@@ -2246,5 +2263,7 @@ None.
   _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
 - **A14** — 2026-11-18 — spec-depth: a sealed notes writer on the flip build names notes retirement and its replacement.
   _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
+- **A15** — 2026-11-19 — design: the orphan sweep, like the Errand gates, reads absent claims as an empty inventory.
+  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.7.
 
 ---

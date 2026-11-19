@@ -589,7 +589,7 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       no claim records as in any fresh checkout, as incomplete, and `integration/orphan-store-branches.test.ts` asserts
       it. `spec-seam-locus.md` A20 makes absence an empty inventory for Errand terminal and merge admission alone, so
       the sweep keeps its "not complete declines" text; its remedy names no step a person can take, and it offers no
-      cleanup until a claim exists. The goldens lock today's behavior; the routing is the Owner's.
+      cleanup until a claim exists. The goldens lock today's behavior; the routing is the Owner's. Settled by A15.
     - _Session initialization and recovery, as moved (Task 3.4.a.3):_ the file spawns through `e2e/store-default.ts`
       over two templates, one initialized on the store and one under the override for an in-repo block
       (`useInRepoStoreForEach`) holding the valid v3 Errand identity, the all-heads original, and the omitted-blob husk.
@@ -1056,6 +1056,21 @@ in-repo arm." The Owner moved its remaining share to notes removal at that unit'
 relayed by the project manager: the slot's recommendation rides the notes-load channel, reading
 `session.init_load.notes` and naming `arc user load`, both of which notes removal deletes. The flip's own share in the
 row is unchanged.
+
+## A15 — the orphan sweep's absent claims
+
+`spec-seam-locus.md` § 12.4 ¶4, on a transient branch from the flip, ended: "A lookup that fails, or a claims
+acquisition that is not complete, declines the sweep, as an incomplete transient read does today." Read with that
+design's A20, which made an authoritatively absent claims acquisition an empty inventory for an Errand's terminal and
+merge admission alone, an absent acquisition is not complete there, and `completeClaimBranches` declines it, as
+`integration/orphan-store-branches.test.ts`'s "declines an absent claims acquisition as incomplete" asserts. Task
+3.4.a.2's envelope trace found every store envelope's sweep declining for that reason (§ Test callers), since a person
+with no claim records, as in any fresh checkout, reads absent; its remedy, "Restore a complete claims acquisition for
+this identity", names no step such a person can take. A20's reason holds for the sweep unchanged: absence read at a
+pinned version is an inventory, not a failure, so § 4.11 extends it there while every other decline stays. The project
+manager's triage set the fix's bounds, and the Owner approved it at Task 3.4.a.3's stop: only an authoritatively absent
+acquisition becomes empty, an incomplete one still declines, the failing test comes first, and the sweep's residue
+reason for a branch a completed work unit links changes only if the fix exposes it.
 
 ## Kept sites
 

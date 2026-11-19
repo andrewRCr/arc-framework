@@ -631,6 +631,19 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           in-repo arm and the derived locus withhold it, so `arc active status --session-init` now leaves its session
           type unresolved (`commands/active/status.ts`).
 
+### `[ ]` **3.R2 The orphan sweep reads absent claims as an empty inventory — § 4.11**
+
+- _Goal:_ On the store the orphan-branch sweep reads an authoritatively absent claims acquisition as no claimed
+  branches, so a person holding no claim records gets its cleanup offers, while a failed acquisition, one that missed
+  entries, one carrying diagnostics, and a missing identity still decline the sweep (A15).
+
+    - `integration/orphan-store-branches.test.ts`'s absent-claims case expects an empty inventory first, failing,
+      beside the decline cases it keeps; then `completeClaimBranches` (`lib/session-init/orphan-store-candidates.ts`)
+      takes the absent arm.
+    - Each session-envelope golden whose orphan-sweep slot changes is diffed and traced to § 4.11, with the end-to-end
+      cases that lock the decline. The sweep's residue reason for a branch a completed work unit links changes here
+      only if this fix exposes it.
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -661,6 +674,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               `e2e/store-default.ts` and seed through `seedWorkUnit`, the orient arm attesting through the verb; each of
               the seven goldens changes only where a traced store contract does, and the benchmark reusing the seeder
               clears a checkout's own override (`notes-cutover-flip.md` § Test callers).
+            - _Amended in:_ 3.R2 (A15)
 
         - `[x]` **3.4.a.3 Session initialization and recovery**
             - `e2e/session-init.e2e.test.ts` spawns through `e2e/store-default.ts` and seeds bound work units through
@@ -1459,6 +1473,10 @@ landing after verification).
 
 - `[ ]` On the flip build each `arc user` notes writer the sealing guard refuses states that Git notes are retired and
   names the store step that replaces it, never a rebuild (A14).
+
+- `[ ]` On the store, session-init for an identity with no claim records offers the orphan sweep's cleanup for a branch
+  whose upstream is gone, while a failed claims read, a listing that missed entries, or one carrying diagnostics still
+  declines the sweep (A15).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
