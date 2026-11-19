@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-import-parked-tests",
+  "claimId": "12550efc6aadfacb3bdff8de02e03242",
+  "createdAt": "2026-11-19T21:05:11.405Z",
+  "updatedAt": "2026-11-19T21:05:11.405Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Measure the Windows parked-import cases and fixture cleanup, then fix the timing failure at the narrowest proven boundary",
+  "branch": "chore/windows-import-parked-tests",
+  "origin": "inbox",
+  "originEntry": "Give `store-ref-import-parked`'s tests room on Windows",
+  "originEntrySourceDigest": "sha256:28b4ba40ef161800e965730ba982d700fcb01da2014fca96667a798d005199d6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
