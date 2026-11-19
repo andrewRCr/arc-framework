@@ -49,12 +49,14 @@ export async function readOrphanStoreCandidates(options: OrphanStoreOptions,
   return { status: "ready", candidates };
 }
 
+/** An authoritatively absent acquisition is an empty inventory; a failed, missed, or diagnosed one declines the sweep. */
 function completeClaimBranches(claims: OrphanClaimsAcquisition | undefined):
   { status: "ready"; branches: ReadonlySet<string> } | { status: "unavailable"; reason: string } {
+  if (claims?.kind === "absent") return { status: "ready", branches: new Set() };
   if (claims?.kind === "complete" && !claims.missed && claims.diagnostics.length === 0) {
     return { status: "ready", branches: new Set(claims.identities.flatMap(identity => identity.branch === null ? [] : [identity.branch])) };
   }
-  const detail = claims?.kind === "error" ? claims.message : claims?.kind === "complete"
+  const detail = claims?.kind === "error" ? claims.message : claims?.kind === "complete" && claims.diagnostics.length > 0
     ? claims.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") : "Claims acquisition is not complete.";
   return { status: "unavailable", reason: `${detail} Restore a complete claims acquisition for this identity, then run arc status --session-init --json.` };
 }

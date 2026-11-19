@@ -138,16 +138,33 @@ it.each(["snapshot", "run"] as const)("%s admits the branch retained by the prod
   expect(result.orphans).toEqual([{ branch: "kept-arbitrary-name", merged: true, shippedWorkUnit: "renamed-widget", teardown: { text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }, actions: [{ text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }] }]);
 });
 
-it.each(["snapshot", "run"] as const)("%s declines an absent claims acquisition as incomplete", async path => {
+it.each(["snapshot", "run"] as const)("%s reads an absent claims acquisition as an empty inventory", async path => {
   const h = await fixture();
   await h.branch("linked-branch");
-  await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
+  await h.seedMeta("widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
   const existing = await acquireStoreClaims(h.store, "test-user");
   if (existing.kind !== "complete") throw new Error("Fixture claims must be complete");
   for (const record of existing.records) lifecycleSuccess(await h.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: { verb: "fixture", lifecycleAction: "remove-claim" } }));
   const claims = await acquireStoreClaims(h.store, "test-user");
   expect(claims.kind).toBe("absent");
-  expect(await h.sweep(path, ["linked-branch"], { claims })).toMatchObject({ orphans: [], warnings: [expect.stringContaining("not complete")] });
+  const result = await h.sweep(path, ["linked-branch"], { claims });
+  expect(result.warnings ?? []).toEqual([]);
+  const teardown = { text: "arc teardown widget", argv: ["arc", "teardown", "widget"] };
+  expect(result.orphans).toEqual([{ branch: "linked-branch", merged: true, shippedWorkUnit: "widget", teardown, actions: [teardown] }]);
+});
+
+it.each(["snapshot", "run"] as const)("%s still declines claims that missed entries or carry diagnostics, and a missing identity", async path => {
+  const h = await fixture();
+  await h.branch("linked-branch");
+  await h.seedMeta("widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
+  const diagnostic = { kind: "malformed" as const, key: "claims/housekeep/broken", condition: "Claim broken is malformed.", remedy: { text: "Repair claim broken." } };
+  for (const [claims, warning] of [
+    [{ kind: "complete", identities: [], diagnostics: [], missed: true }, "not complete"],
+    [{ kind: "complete", identities: [], diagnostics: [diagnostic], missed: false }, "Repair claim broken."],
+    [undefined, "not complete"],
+  ] as const) {
+    expect(await h.sweep(path, ["linked-branch"], { claims })).toMatchObject({ orphans: [], warnings: [expect.stringContaining(warning)] });
+  }
 });
 
 it.each(["snapshot", "run"] as const)("%s offers the archived branch holder's UID beside live work", async path => {

@@ -631,18 +631,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           in-repo arm and the derived locus withhold it, so `arc active status --session-init` now leaves its session
           type unresolved (`commands/active/status.ts`).
 
-### `[ ]` **3.R2 The orphan sweep reads absent claims as an empty inventory — § 4.11**
+### `[x]` **3.R2 The orphan sweep reads absent claims as an empty inventory — § 4.11**
 
 - _Goal:_ On the store the orphan-branch sweep reads an authoritatively absent claims acquisition as no claimed
   branches, so a person holding no claim records gets its cleanup offers, while a failed acquisition, one that missed
   entries, one carrying diagnostics, and a missing identity still decline the sweep (A15).
 
-    - `integration/orphan-store-branches.test.ts`'s absent-claims case expects an empty inventory first, failing,
-      beside the decline cases it keeps; then `completeClaimBranches` (`lib/session-init/orphan-store-candidates.ts`)
-      takes the absent arm.
-    - Each session-envelope golden whose orphan-sweep slot changes is diffed and traced to § 4.11, with the end-to-end
-      cases that lock the decline. The sweep's residue reason for a branch a completed work unit links changes here
-      only if this fix exposes it.
+- _Outcome:_ `completeClaimBranches` (`lib/session-init/orphan-store-candidates.ts`) reads an `absent` acquisition as
+  no claimed branches, and a listing that missed entries without diagnostics now declines as not complete rather than
+  with an empty condition. `integration/orphan-store-branches.test.ts` offers a Shipped work unit's branch its teardown
+  with no claims held, beside the failed, missed, diagnosed, and identity-less declines. The four session-envelope
+  goldens that carried the decline (orient, active-resume, branch-gone, current-husk) each lose only its warning, their
+  sweeps finding no orphan; the residue reason is unchanged.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
