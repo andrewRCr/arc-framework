@@ -3,7 +3,7 @@
   "slug": "prompt-build-refusals",
   "claimId": "32db0814f4b1a99ebf044511064cf559",
   "createdAt": "2026-11-19T22:43:51.861Z",
-  "updatedAt": "2026-11-19T22:43:51.861Z",
+  "updatedAt": "2026-11-19T23:22:51.229Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Show terminal local build refusals and their narrow retries promptly while aggregate checks retain their declared results and closure",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Surface local build refusals promptly during aggregate checks",
   "originEntrySourceDigest": "sha256:e33505edd2abcfbcd5d33dfb413a3b3b14807ed9498c247b6031f246ebb63ff7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/prompt-build-refusals",
+    "headSha": "8293feb2682396c0922b954bdc400ffe97701bcd"
+  }
 }
