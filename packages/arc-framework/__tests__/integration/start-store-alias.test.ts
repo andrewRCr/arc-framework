@@ -160,3 +160,20 @@ it("reports a live Planning namesake already started when the archive was listed
   if (h.archived === undefined) throw Error("Expected completed namesake");
   expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 }, START_TIMEOUT_MS);
+
+it.each([["Active", "is occupied"], ["Integrating", "is in review"]] as const)(
+  "refuses to start a live %s work unit and leaves its record unchanged",
+  async (state, reason) => {
+    const h = await fixture("active");
+    const live = await h.seedMeta("live", { state, branch: "feat/live",
+      currentWorkflow: state === "Active" ? "process-task-loop" : "integrate-work-unit" }, { kind: "active" });
+    const errors: string[] = [];
+    vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+    await handleStoreStart(StartCommandInputSchema.parse({ name: "live" }), {
+      cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+    });
+    expect(errors.join("\n")).toContain(`\`live\` ${reason}`);
+    expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
+  },
+  START_TIMEOUT_MS,
+);

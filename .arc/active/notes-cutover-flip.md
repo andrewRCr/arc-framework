@@ -315,15 +315,7 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       edits), and the identity-independent placement, since a store placement claims its checkout for the spawning
       identity (`reconcile-work-unit-worktree.ts`).
     - _Still listed, for Task 3.R.h:_ `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and
-      `integration/start-dispatch`. With the executor carrying the handler's store, as the production binder does, 49 of
-      `lifecycle-verbs`' 99 cases fail on the store arm across promote, resume, materialize, deactivate, abandon,
-      publish, reopen, and attest: its fixture holds no work-unit record, answers no Git topology read, expects the
-      in-repo arm's dispatch parameters, and mocks the meta reader that a seeded meta's write check parses through.
-      Decompose and park are pre-flip only (park refuses over the store for `arc pause`). Start's spec-input
-      classification (`coldStartSeed`) and its pure helpers survive with no store-arm case, while its `plan/` cut,
-      tracked scaffold, and meta-file occupancy guard are the in-repo arm. Store-arm handler counterparts exist for
-      abandon (`abandon-store`), reopen (`reopen-store-branch`), publish (`store-publication-selection`), and attest
-      (the `attest-*-native` suites), and none for resume, materialize, deactivate, or promote's dispatch.
+      `integration/start-dispatch`, whose surviving cases needed store-arm fixtures their files never had (below).
 - **Session and status readers, `arc sync`, recovery, and checks and hooks (Task 3.R.g):** 23 files, 206 of 680 cases
   failing under the ref default before any change.
     - _In-repo, passing the store:_ `unit/active/meta-reader`'s default-root layout cases (a flat scan of meta files,
@@ -394,6 +386,56 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       worktree path, fetch reachability) and `store-project` (the project view's fetch and local split, and its refusal
       of `--staged`); the readiness warnings' channel had no store case, so `store-project` gains one, its dangling edge
       an Errand's slug since the store refuses a write adding one.
+- **Lifecycle handlers and start (Task 3.R.h):** three files, none exposing a product defect.
+    - _Ref backend, the fixture:_ `unit/handlers/lifecycle-verbs` binds a checked store per case through a partial mock
+      of `createStore`, holding the project identity and `foo`'s meta, linked to its branch under the project's UID,
+      beside its task list, and the real `buildExecutorContext` carries it, as production does. Its Git mock answers the
+      worktree topology read the store arm makes ahead of each case's own calls; its meta reader parses the store's
+      records on that arm and each case's mocked fields on the in-repo arm, since the store's write checks parse through
+      it; and its current-work-unit mock returns the held record's reference. With the store bound, 49 of its 99 cases
+      first failed; 52 now run on the store.
+    - _Ref backend, adjusted:_ promote binds a provisional stub with no Class, as promotion finds one, where the default
+      meta's `Light` conflicted with `--class Novel`; deactivate's dispatch carries the base branch the store arm adds;
+      abandon's illegal-source refusal holds an Integrating work unit and asserts the store's `arc reopen` remedy, which
+      no store test asserted, and both abandon refusals read the held record back; attest's Integrating refusal holds an
+      Integrating meta instead of mocking its parse; and promote's and abandon's bare invocations assert their usage
+      refusal. The abandon, attest, spec-input, and seeded-start cases converted in place leave their in-repo forms
+      unasserted in these files.
+    - _In-repo, by describe:_ decompose and park, which run only on the pre-flip build (park refuses over the store for
+      `arc pause`), and resume, whose store arm is `handleStoreResume` (`lifecycle-collaboration`, and `pause-handover`
+      for its `--here` refusal).
+    - _In-repo, by case:_ materialize's four cases dispatching the in-repo verb (the store's is `materialize-store` and
+      `materialize-store-cli`), its interaction-context case staying on the store; abandon's `--yes` dispatch and its
+      branchless teardown advice, since the store's handler tears down within its batch and advises none
+      (`abandon-store`, `abandon-store-holders`), its plan-and-refuse and bare-invocation cases staying on the store;
+      attest's four cases over an interrupted write sequence, which the store writes as one batch
+      (`attest-design-export-native` for its refusal); and three attest cases and one publish case over a schema-1
+      boundary the case supplies: the Owner-accepted recovery, delivery authority while Integrating and while Shipped,
+      and publication's unchanged resume point. Their compositions on version two are
+      `integration-boundary-locus-recovery-v2`'s, and the verb's unchanged outcome `publish-store`'s and
+      `publish-store-native`'s.
+    - _No store case at the handler:_ `handleAttest` threading those three version-two boundaries through its batch
+      (`prepareCandidateRecordPut`), and `handlePublish` persisting a moved resume point on an unchanged outcome
+      (`persistUnchanged`, a version-two write under the Candidate's version). Each needs Candidate and boundary records
+      held in the store.
+    - _`unit/commands/start`:_ cold start's tracked scaffold, its absent marker, the protected base's `plan/` cut, the
+      meta-file occupancy guard, and protection's two allowances select in-repo, 12 cases; the store's cold start
+      anchors a marker and leaves HEAD in place (`start-cold-store`). Spec-input classification (`coldStartSeed`), which
+      had no store case, runs the store's cold start over a checked store, reading Origin, Design, and Current Workflow
+      from the held meta, 6 cases. Create-new's five cases reaching the spawn select in-repo, since the store's detached
+      spawn observes the new checkout through more Git than a scripted executor answers. `start-store` holds the store's
+      detached creation and rollback, and gains cases for a configured base with its provisioning hook and for a failed
+      spawn, which no store test covered; `spawn-rollback-ownership` holds provisioning failures and `start-store-alias`
+      a lock-only failure. The pure helpers and the refusals before either arm need no selection.
+    - _`integration/start-dispatch`:_ 23 of 31 cases select in-repo: committed metas, `plan/` branches, `git mv`
+      graduation, ceremony commits, several active metas, and a sibling's meta on its branch. Its two direct cold
+      starts, given no store, had run the in-repo arm over the default store's reads, and now give the store's cold
+      start a checked store. The four sibling refusals had passed on the ref default for another reason, the store
+      holding no record of the sibling, so they now assert their own; the store refuses a live Planning holder in
+      `start-store-alias` and `store-unbound-holders`, and `start-store-alias` gains its Active and Integrating
+      refusals, which no store test covered. The seeded spawning start's refusal asserts the store's wording, as
+      `start-store-alias` does. Store counterparts: `start-store`, `start-store-marker`, `start-store-alias`, and
+      `start-cold-store`.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

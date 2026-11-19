@@ -31,6 +31,10 @@ import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { useInRepoStore, useInRepoStoreForEach } from "../../helpers/in-repo-store-override.js";
+import type { Store } from "../../../src/lib/store/contract.js";
+import { ParsedMetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
 
 /** A recording mock exec that resolves every call (success). */
 function recordingExec(): { exec: GitExec; calls: string[][] } {
@@ -130,6 +134,10 @@ describe("buildStartSessionNotesSeed", () => {
 });
 
 describe("runColdStart — use-existing scaffolding", () => {
+  // The tracked scaffold and the absent marker are the in-repo implementation's; the store's cold start writes one
+  // Planning record beside an anchored marker (`start-cold-store`).
+  useInRepoStoreForEach();
+
   let worktree: string;
   let calls: string[][];
   let io: UserIOContext;
@@ -218,6 +226,10 @@ describe("runColdStart — use-existing scaffolding", () => {
 });
 
 describe("runColdStart — protected-base auto-cut (candidate J)", () => {
+  // The `plan/` cut is the in-repo implementation's; the store's cold start leaves a protected base's HEAD where it is
+  // (`start-cold-store`).
+  useInRepoStoreForEach();
+
   let worktree: string;
   let calls: string[][];
   let io: UserIOContext;
@@ -337,18 +349,32 @@ describe("runColdStart — protected-base auto-cut (candidate J)", () => {
 describe("runColdStart — spec-input classification (--from)", () => {
   let worktree: string;
   let io: UserIOContext;
+  let store: Store;
 
   beforeEach(async () => {
     worktree = await mkdtemp(join(tmpdir(), "arc-coldstart-from-"));
-    io = { ...createUserIOContext(), exec: recordingExec().exec };
+    io = { ...createUserIOContext(), exec: recordingExecWithPrimary(worktree).exec };
+    store = createLifecycleHarness().store;
   });
+
+  /** The cold start's context over the checked store. */
+  const storeCtx = () => ({ ...ctx(io), store });
+
+  /** The fields of the one Planning meta the cold start wrote to the store. */
+  async function heldMeta() {
+    const listing = lifecycleSuccess(await store.list({ family: "work-item", kind: "work-item/meta" }));
+    if (listing.status !== "complete") throw new Error(`Expected a complete meta listing, got ${listing.status}`);
+    const [record, ...rest] = listing.records;
+    if (record === undefined || rest.length > 0) throw new Error(`Expected one meta, got ${listing.records.length}`);
+    return ParsedMetaRecordSchema.parse(record.fields);
+  }
 
   afterEach(async () => {
     await rm(worktree, { recursive: true, force: true });
   });
 
   it("routes an issue reference to Origin", async () => {
-    const outcome = await runColdStart(ctx(io), {
+    const outcome = await runColdStart(storeCtx(), {
       worktreePath: worktree,
       branch: "feat/widget",
       identity: "andrew",
@@ -359,16 +385,13 @@ describe("runColdStart — spec-input classification (--from)", () => {
     if (!outcome.ok) return;
     expect(outcome.value.origin).toBe("#42");
 
-    const record = parseMetaRecord(
-      await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")),
-    );
-    expect(record.origin).toBe("#42");
+    expect((await heldMeta()).origin).toBe("#42");
   });
 
   it.each(["./draft-widget.md", "./spec-widget.md", "https://example.com/spec-widget.md"])(
     "passes %s through as a document while entering draft-design",
     async (from) => {
-      const outcome = await runColdStart(ctx(io), {
+      const outcome = await runColdStart(storeCtx(), {
         worktreePath: worktree,
         branch: "feat/widget",
         identity: "andrew",
@@ -377,7 +400,7 @@ describe("runColdStart — spec-input classification (--from)", () => {
       expect(outcome.ok).toBe(true);
       if (!outcome.ok) return;
       expect(outcome.value.passthrough).toEqual({ kind: "document", value: from });
-      const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
+      const record = await heldMeta();
       expect(record.design).toEqual([]);
       expect(record.currentWorkflow).toBe("draft-design");
       expect(record.origin).toBe("internal");
@@ -385,7 +408,7 @@ describe("runColdStart — spec-input classification (--from)", () => {
   );
 
   it("passes a plain document through without setting Origin or Design", async () => {
-    const outcome = await runColdStart(ctx(io), {
+    const outcome = await runColdStart(storeCtx(), {
       worktreePath: worktree,
       branch: "feat/widget",
       identity: "andrew",
@@ -399,7 +422,7 @@ describe("runColdStart — spec-input classification (--from)", () => {
   });
 
   it("passes a free-text blurb through as a description", async () => {
-    const outcome = await runColdStart(ctx(io), {
+    const outcome = await runColdStart(storeCtx(), {
       worktreePath: worktree,
       branch: "feat/widget",
       identity: "andrew",
@@ -432,6 +455,9 @@ describe("runColdStart — guards", () => {
   });
 
   it("refuses to scaffold when the worktree already holds an active work unit", async () => {
+    // The meta-file occupancy guard is the in-repo implementation's; the store's refuses on the checkout's marker
+    // (`start-cold-store`).
+    useInRepoStore();
     const activeDir = join(worktree, ".arc", "active");
     await mkdir(activeDir, { recursive: true });
     await writeFile(
@@ -469,6 +495,8 @@ describe("runColdStart — guards", () => {
   // "runColdStart — protected-base auto-cut (candidate J)" below).
 
   it("allows cold-start on the base branch under partial protection", async () => {
+    // Protection decides the in-repo implementation's cut; the store's cold start takes no branch.
+    useInRepoStore();
     await writeArcConfig(worktree, { "branch.protection": "partial", "branch.base": "main" });
 
     const outcome = await runColdStart(ctx(io), {
@@ -484,6 +512,7 @@ describe("runColdStart — guards", () => {
   });
 
   it("allows a feature branch under full protection", async () => {
+    useInRepoStore();
     await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
 
     const outcome = await runColdStart(ctx(io), {
@@ -500,6 +529,9 @@ describe("runColdStart — guards", () => {
 });
 
 describe("runCreateNew — create-new worktree spawn", () => {
+  // A case reaching the spawn runs on the in-repo implementation, which cuts `plan/<name>` and scaffolds tracked files;
+  // the store's detached spawn at the configured base and location, its provisioning, its refusals, and its rollback
+  // are `start-store`'s and `spawn-rollback-ownership`'s, over real checkouts.
   let primaryRoot: string;
 
   beforeEach(async () => {
@@ -519,6 +551,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   }
 
   it("spawns a worktree on a new `plan/<name>` branch via the reconcile-work-unit-worktree spawn leg", async () => {
+    useInRepoStore();
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
@@ -562,6 +595,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   });
 
   it("resolves baseBranch / locationTemplate / repo from config, not hard-coded values", async () => {
+    useInRepoStore();
     await writeArcConfig(primaryRoot, {
       "branch.base": "develop",
       "worktree.location_template": siblingTemplate(),
@@ -595,6 +629,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   });
 
   it("runs configured worktree.post_create after create-new spawns the worktree", async () => {
+    useInRepoStore();
     await writeArcConfig(primaryRoot, {
       "worktree.location_template": siblingTemplate(),
       "worktree.post_create": "npm run setup:worktree",
@@ -650,6 +685,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   });
 
   it("surfaces the resolved worktree path + branch on success", async () => {
+    useInRepoStore();
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
@@ -695,6 +731,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   });
 
   it("returns a refusal (no throw) when the worktree spawn fails", async () => {
+    useInRepoStore();
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     // The primary-path probe answers, but `git worktree add` rejects (e.g. the
     // branch already exists). The spawn leg propagates — runCreateNew must

@@ -25,9 +25,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/integration/review-member-full-final.test.ts",
   "__tests__/integration/review-status-base-movement.test.ts",
   "__tests__/integration/review-status-errand-base-movement.test.ts",
-  "__tests__/integration/start-dispatch.test.ts",
-  "__tests__/unit/commands/start.test.ts",
-  "__tests__/unit/handlers/lifecycle-verbs.test.ts",
 ];
 
 const packageRoot = resolve(import.meta.dirname, "../..");

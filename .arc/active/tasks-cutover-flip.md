@@ -616,12 +616,17 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           refs and the index run in-repo. Two status fixtures gained the ignore policy `arc init` commits, and
           `store-project` gained the store case for the readiness warnings' channel.
 
-    - `[ ]` **3.R.h Lifecycle handlers and start on the store arm**
-        - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and `integration/start-dispatch`, from Task 3.R.f.
-          Each case whose subject survives runs on a store-arm fixture: an executor carrying the handler's store, a
-          seeded work unit and project identity, and the Git reads its arm makes. The old decomposition machine, park,
-          and start's `plan/` cut, tracked scaffold, and meta-file occupancy guard select the in-repo implementation.
-          The diagnosis is in `notes-cutover-flip.md` § Test callers.
+    - `[x]` **3.R.h Lifecycle handlers and start on the store arm**
+        - _Amended (Owner, 2026-11-18):_ the handler-level store cases for attest's and publish's version-two boundaries
+          move to Task 3.4.c.
+        - 3 files left the ledger, classified in `notes-cutover-flip.md` § Test callers; none exposed a product defect.
+          `lifecycle-verbs` binds a checked store holding its work unit through the production executor binder, and 52
+          of its 99 cases run on it; decompose, park, resume, and the cases dispatching the in-repo materialize and
+          abandon verbs select the in-repo implementation. `start`'s spec-input classification runs the store's cold
+          start, while its tracked scaffold, `plan/` cut, occupancy guard, and create-new spawn stay in-repo, as do 23
+          of `start-dispatch`'s 31 cases, four of which had passed on the ref default for another reason. `start-store`
+          and `start-store-alias` gain the store cases create-new's spawn and the live-start refusals lacked. Three
+          attest cases and one publish case over a schema-1 boundary run in-repo with no handler-level store case.
 
     - `[ ]` **3.R.i Candidate session-init projection on the store arm**
         - _Amended (Owner, 2026-11-18):_ from Task 3.R.g, whose Candidate cases in `integration/active` and
@@ -653,6 +658,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
     - `[ ]` **3.4.c Review, attest, candidate, and publication**
         - Among them `registerCandidateLineageSuite` (`__tests__/helpers/candidate-lineage-suite.ts`) and the review
           fan-out harness's `installCandidate` and `writeBoundary` (`__tests__/fixtures/review-fan-out-harness.ts`).
+        - _Amended (Owner, 2026-11-18):_ from Task 3.R.h, the store cases at the handler that
+          `unit/handlers/lifecycle-verbs`' schema-1 cases stand in for: `handleAttest` threading a version-two boundary
+          through its batch for the Owner-accepted recovery and for delivery authority while Integrating and while
+          Shipped, and `handlePublish` persisting a moved resume point on an unchanged outcome, each over Candidate and
+          boundary records the store holds. The list is in `notes-cutover-flip.md` § Test callers.
 
     - `[ ]` **3.4.d Delivery**
         - Among them `positionFixture` (`__tests__/helpers/delivery-position-suite.ts`).
