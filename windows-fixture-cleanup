@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-fixture-cleanup",
+  "claimId": "d8c4947b9372d26a61d2a7f581c4af32",
+  "createdAt": "2026-11-19T21:56:24.270Z",
+  "updatedAt": "2026-11-19T21:56:24.270Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Measure Windows nested-runner fixture removal and fix the cleanup hook timeout at the narrowest proven boundary",
+  "branch": "chore/windows-fixture-cleanup",
+  "origin": "inbox",
+  "originEntry": "Give integration fixture cleanup a Windows-sized hook limit",
+  "originEntrySourceDigest": "sha256:0fb2894897099b6a6ef041a72fe88dafd10e6bf0f0e3c1d59e01e1c9aac0ddbe",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
