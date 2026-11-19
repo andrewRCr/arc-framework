@@ -16,6 +16,7 @@ import { stageRecordFile } from "./staging.js";
 import { retriedMoves } from "./aside-moves.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
+import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
 
 /** A desired record and its new basis, kept separate from the leaving entry's rendering and copies. */
 export interface OwnershipInstallation {
@@ -64,6 +65,13 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   let index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(input.index, path, { ...journaled, refused: ownershipHandoffMark(journaled) }), checkpoint: root.context.checkpoint });
   await root.context.hooks?.beforeRebuildLink?.(path);
+  const foreign = previous.opened === true || arriving.opened === true ? await nestedArchiveCheckoutRefusal(root.checkout, path) : null;
+  if (foreign !== null) {
+    root.context.report?.({ path, copy: null, mark: foreign });
+    await removeProjectionAsideFile(root.checkout, staged.result.location, root.context.checkpoint);
+    return commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      index: withProjectionEntry(index, path, { ...previous, pending: true, refused: foreign }), checkpoint: root.context.checkpoint });
+  }
   const linked = await retriedMoves({ checkpoint: root.context.checkpoint }).linkOnto(join(root.checkout, staged.result.location), join(root.checkout, path));
   if (!linked) index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, { ...previous, pending: true }), checkpoint: root.context.checkpoint });

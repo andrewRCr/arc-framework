@@ -11,18 +11,36 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
+  afterCheckoutRead: null as (() => Promise<void>) | null, removeOnRead: null as string | null,
   timeOffset: 0, linkedPath: null as string | null }));
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  return { ...actual, readFile: async (...args: Parameters<typeof actual.readFile>) => {
+    if (args[0] === binding.removeOnRead && binding.removeOnRead !== null) {
+      await actual.rm(binding.removeOnRead);
+      binding.removeOnRead = null;
+    }
+    return actual.readFile(...args);
+  } };
+});
 vi.mock("../../../../src/lib/store/create.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/create.js")>();
   return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>) => binding.store ?? actual.createStore(...args) };
 });
 vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/projection/engine-ports.js")>();
-  return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => ({
-    ...actual.createProjectionEnginePorts(...args), maxWaitMs: 25, lock: { now: () => Date.now() + binding.timeOffset },
-    hooks: { afterOpenIndexCommit: (path: string) => binding.afterOpen?.(path) ?? Promise.resolve() },
-    linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
-  }) };
+  return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => {
+    const ports = actual.createProjectionEnginePorts(...args);
+    return { ...ports, maxWaitMs: 25, lock: { now: () => Date.now() + binding.timeOffset },
+      exec: async (...invocation: Parameters<typeof ports.exec>) => {
+        const result = await ports.exec(...invocation);
+        if (invocation[1].includes("--show-toplevel")) await binding.afterCheckoutRead?.();
+        return result;
+      },
+      hooks: { afterOpenIndexCommit: (path: string) => binding.afterOpen?.(path) ?? Promise.resolve() },
+      linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
+    };
+  } };
 });
 
 import { createExecaGitExec } from "../../../../src/lib/git/process-executor.js";
@@ -41,6 +59,8 @@ const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
   binding.afterOpen = null;
+  binding.afterCheckoutRead = null;
+  binding.removeOnRead = null;
   binding.timeOffset = 0;
   binding.linkedPath = null;
   await removeGitBackedDirs(directories.splice(0));
@@ -362,6 +382,58 @@ it("keeps opening intent after a lost lease and opens on retry", async () => {
     .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
   binding.afterOpen = null; binding.timeOffset = 0;
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("keeps the file read-only if the lease is lost during checkout validation", async () => {
+  const h = await archived(), file = join(h.f.root, h.path);
+  binding.afterOpen = async () => {
+    binding.afterCheckoutRead = async () => {
+      binding.afterCheckoutRead = null;
+      await rm(join(h.projected.location.stateDir, "lock"));
+      binding.timeOffset = 120_000;
+    };
+  };
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
+    code: "projection-skipped", condition: expect.stringContaining("lost"),
+  } });
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
+    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  binding.afterOpen = null; binding.timeOffset = 0;
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("refuses an alternate spelling before it can open an existing archive file as a new record", async () => {
+  const h = await archived(), path = `${h.folder}/notes-alpha.md`, alias = `${h.folder}/Notes-alpha.md`;
+  const file = join(h.f.root, path);
+  await seed(h.f, recordReferences["work-item/notes"](h.primary.reference.owner), "# Notes\n\nArchive notes.\n");
+  expect((await projectionCommand({ checkout: h.f.root, store: h.f.store }, ["status"])).result).toMatchObject({ kind: "ready" });
+  const insensitive = await lstat(join(h.f.root, alias)).then(() => true, () => false);
+  const result = await edit(h.f.store, h.f.root, alias);
+  expect(result).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining(insensitive ? "on-disk spelling" : "No file exists"),
+  } });
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[alias]).toBeUndefined();
+  expect(disk.index.entries[path]).not.toHaveProperty("opened");
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok" });
+});
+
+it("returns an edit refusal when the new archive file disappears during adoption inspection", async () => {
+  const h = await archived(), path = `${h.folder}/interrupted.txt`, file = join(h.f.root, path);
+  await writeFile(file, "An archive correction.\n");
+  binding.removeOnRead = file;
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    code: "edit-refused", condition: expect.stringContaining("changed while it was being checked"),
+  } });
+  expect(binding.removeOnRead).toBeNull();
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[path]).toBeUndefined();
+  await writeFile(file, "An archive correction.\n");
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok" });
 });
 
 it("refuses a Git directory removed after start and succeeds once restored", async () => {

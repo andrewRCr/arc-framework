@@ -1,8 +1,9 @@
 /** Close archive openings only after a read-only file's final check proves its bytes are stored. */
 import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { formatConflictToken } from "../../status/conflict-token.js";
 import { checkChange, readReference } from "./change-detection.js";
-import { changeArchiveFileMode, readArchiveFile } from "./archive-file.js";
+import { changeArchiveFileMode, nestedArchiveCheckoutRefusal, readArchiveFile } from "./archive-file.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -63,6 +64,8 @@ async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex,
 
 async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<
   { edited: boolean; writable: boolean } | { mark: RefusedMark; restoreWritable: boolean }> {
+  const foreign = await nestedArchiveCheckoutRefusal(root.checkout, path);
+  if (foreign !== null) return { mark: foreign, restoreWritable: false };
   const observed = await readArchiveFile(root, path);
   if (observed.kind !== "file") return { mark: observed.kind === "missing" ? missingMark() : observed.mark, restoreWritable: false };
   const changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
@@ -96,7 +99,7 @@ async function retain(root: ProjectionRootState, index: ProjectionIndex, path: s
   if (writable && !entry.protected) {
     await root.checkpoint?.();
     const changed = await changeArchiveFileMode(root, path, true);
-    if (changed.kind === "blocked") mark = changed.mark;
+    if (changed.kind === "blocked" || changed.kind === "mode-refused") mark = changed.mark;
   }
   root.context.report?.({ path, copy: null, mark });
   return index;
@@ -113,7 +116,7 @@ function pendingMark(): RefusedMark {
 
 function awaitingInstallation(entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): boolean {
   return entry.withheld || entry.refused !== null || entry.adoption !== undefined || entry.archiveSubmission !== undefined || entry.persisted?.recording === true
-    || entry.markers !== null || entry.notices.length > 0 || entry.unshown.length > 0
+    || entry.unshown.length > 0 || outcome !== undefined && (entry.markers !== null || entry.notices.length > 0)
     || outcome === undefined && (entry.pending || entry.inProgress !== null);
 }
 
@@ -137,11 +140,22 @@ async function relockAdmission(root: ProjectionRootState, path: string, entry: R
   if (file.kind === "blocked") return { mark: file.mark, writable: false };
   if (file.kind === "missing") return { mark: missingMark(), writable: false };
   if (file.stat.size === 0n && path.endsWith(".md")) return { mark: emptyMark(outcome) };
-  if (failedInstallation(outcome) || awaitingInstallation(entry, outcome)) return { mark: outcomeMark(entry, outcome) };
+  if (failedInstallation(outcome) || awaitingInstallation(entry, outcome)) return { mark: outcomeMark(path, entry, outcome) };
   return null;
 }
-function outcomeMark(entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
-  return outcome !== undefined && "mark" in outcome.result ? outcome.result.mark : entry.refused ?? pendingMark();
+function outcomeMark(path: string, entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
+  if (outcome !== undefined && "mark" in outcome.result) return outcome.result.mark;
+  if (entry.refused !== null) return entry.refused;
+  if (entry.markers !== null) return { reason: "The opened file still has conflict markers.",
+    remedy: { text: `Resolve the conflict markers in ${renderRemedyArgument(path)}, then retry arc save.` } };
+  const conflict = entry.notices[0] ?? entry.unshown[0];
+  if (conflict !== undefined) {
+    const token = formatConflictToken(conflict);
+    return { reason: "The opened file still has a whole-record conflict.",
+      remedy: { text: `Run arc save --resolve ${renderRemedyArgument(token)} to settle the conflict.`,
+        argv: ["arc", "save", "--resolve", token] } };
+  }
+  return pendingMark();
 }
 
 async function allowMissingFile<T>(operation: Promise<T>): Promise<T | null> {

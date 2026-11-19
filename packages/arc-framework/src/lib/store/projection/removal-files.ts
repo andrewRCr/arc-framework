@@ -21,6 +21,7 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
+import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -46,16 +47,20 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
     return entry?.kind === "record" && entry.adoption !== undefined
-      || entry?.kind === "ownerless" && entry.minted !== undefined;
+      || entry?.kind === "ownerless" && entry.minted !== undefined || hasArchiveSubmission(path, entry);
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);
   const { guard } = input;
   for (const path of new Set([...walked.files, ...retries])) {
-    if (boundary(path) !== null) continue;
+    if (boundary(path) !== null && !hasArchiveSubmission(path, preparedIndex.entries[path])) continue;
     const checked = await checkRemovalFileAtPath({ ...input, root: observingRoot, index: preparedIndex }, path, reference, guard);
     if (checked.kind !== "passes") return { verdict: checked, index: preparedIndex };
   }
   return { verdict: { kind: "passes" }, index: preparedIndex };
+}
+
+function hasArchiveSubmission(path: string, entry: ProjectionIndex["entries"][string] | undefined): boolean {
+  return entry?.archiveSubmission !== undefined && path.startsWith(".arc/completed/") && !isExcludedProjectionPath(path);
 }
 
 async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: string,

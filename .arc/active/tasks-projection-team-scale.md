@@ -283,8 +283,10 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 - _Quality gates:_ All 21 selected merge checks passed, including 460 affected store suites. Full hosted CI
   run `44450640142` passed 40 jobs on `4b723680ae`, including Windows and macOS.
 
-- _Success criteria:_ 14 met. Each reference met both paired timing limits. The current base uses the pre-flip
-  Git-history errata convention. The final independent fix check found no actionable defects.
+- _Success criteria:_ Each reference met both paired timing limits. The current base uses the pre-flip
+  Git-history errata convention. The independent verification fix check found no actionable defects.
+  Candidate review reopened readiness over the inherited macOS absolute start budget. The standard and expanded
+  fixtures took 98.486 and 71.340 ms against 45 ms.
 
 ---
 
@@ -341,4 +343,4 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[x]` Ready for integration
+- `[ ]` Ready for integration

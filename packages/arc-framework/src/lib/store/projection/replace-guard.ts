@@ -18,6 +18,7 @@ import { stageRecordFile, type StagedFile } from "./staging.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
+import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
 
 /** How many times the guard re-checks a file, taking in an edit each finds, before leaving it to the next command. */
 export const GUARD_PASSES = 3;
@@ -56,6 +57,7 @@ export type GuardResult =
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "withheld" }
   /** A directory or other nonregular object stays in place, with its contents and a repair route. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "not-a-file"; readonly remedy: Remedy }
+  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "foreign-checkout"; readonly mark: RefusedMark }
   /** The store refused the refresh's read: retryable, the file left in place and pending. */
   | {
     readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "refresh-refused"; readonly refusal: StoreRefusal;
@@ -69,6 +71,8 @@ export type GuardResult =
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
   // The guard never writes over a withheld file or sends it.
   if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
+  const foreign = await refuseForeignReplacement(input);
+  if (foreign !== null) return foreign;
   if ((await readStat(join(input.checkout, input.path)))?.type === "other") {
     const remedy = notAFileRemedy(join(input.checkout, input.path));
     return { kind: "unreplaced", cause: "not-a-file", remedy,
@@ -76,6 +80,14 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
   }
   // A not-a-file hold settles once its path holds a regular file again, or nothing.
   return recheck(input.entry.refused?.reason === "not-a-file" ? { ...input, entry: { ...input.entry, refused: null } } : input);
+}
+
+async function refuseForeignReplacement(input: ReplaceGuardInput): Promise<GuardResult | null> {
+  if (input.entry.opened !== true) return null;
+  const mark = await nestedArchiveCheckoutRefusal(input.checkout, input.path);
+  if (mark === null) return null;
+  if (input.staged !== null) await removeProjectionAsideFile(input.checkout, input.staged.location, input.checkpoint);
+  return { kind: "unreplaced", entry: { ...input.entry, pending: true, refused: mark }, cause: "foreign-checkout", mark };
 }
 
 /** Re-check the file, taking in an edit found there and restaging, for at most three passes. */
@@ -129,6 +141,7 @@ export function reportGuardHold(report: ((diagnostic: { path: string; copy: stri
 }
 
 function guardHoldMark(guarded: Extract<GuardResult, { kind: "unreplaced" }>): RefusedMark | null {
+  if (guarded.cause === "foreign-checkout") return guarded.mark;
   if (guarded.cause === "not-a-file") return notAFileHoldMark(guarded.remedy);
   if (guarded.cause === "refresh-refused") {
     return { reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy };

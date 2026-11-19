@@ -21,6 +21,7 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
+import type { TakeInPort } from "./take-in-port.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -36,6 +37,7 @@ export interface MaterializationFileInput {
   readonly rendered?: RenderedRecord;
   readonly reference: bigint | null;
   readonly blocked: boolean;
+  readonly takeIn?: TakeInPort;
 }
 /**
  * A withheld or pending entry, or one guarded replacement ready for the batch. `unresolved` is set only where a regular
@@ -99,7 +101,8 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
     readOnly: entry.protected, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
   const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged,
     saveLanding: isOwnSaveLanding(root.context.verb, root.checkout), reference: input.reference,
-    format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint, takeIn: root.takeIn, renderer });
+    format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint,
+    takeIn: input.takeIn ?? root.takeIn, renderer });
   reportGuardHold(root.context.report, path, null, guarded);
   return { index: withProjectionEntry(input.index, path, guarded.entry), ...(guarded.kind === "replace" ? { file: { path, replace: guarded } } : {}) };
 }

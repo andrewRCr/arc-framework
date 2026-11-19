@@ -9,6 +9,7 @@ import type { ProjectionRootState } from "./process-state.js";
 
 type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "ports" | "checkpoint">;
 type ArchiveFile = { kind: "file"; stat: BigIntStats } | { kind: "missing" } | { kind: "blocked"; mark: RefusedMark };
+type ArchiveModeChange = ArchiveFile | { kind: "mode-refused"; mark: RefusedMark };
 
 /** Identity of the regular file authorized at the opening inspection. */
 export type ArchiveFileIdentity = Pick<BigIntStats, "dev" | "ino">;
@@ -22,6 +23,19 @@ export async function archiveCheckoutRefusal(root: ArchiveRoot, path: string): P
     return { reason: `Could not identify the checkout holding ${path}.`,
       remedy: { text: "Restore the checkout's Git metadata, then retry arc edit." } };
   }
+  return foreignArchivePath(path);
+}
+
+/** A nested Git marker makes a path unsafe for the outer projection, even before the nested checkout is usable. */
+export async function nestedArchiveCheckoutRefusal(checkout: string, path: string): Promise<RefusedMark | null> {
+  if (!path.startsWith(".arc/completed/")) return null;
+  for (let folder = dirname(path); folder !== "."; folder = dirname(folder)) {
+    if (await unavailableFile(lstat(join(checkout, folder, ".git"))) !== null) return foreignArchivePath(path);
+  }
+  return null;
+}
+
+function foreignArchivePath(path: string): RefusedMark {
   return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
 }
 
@@ -41,11 +55,15 @@ export async function readArchiveFile(root: ArchiveRoot, path: string): Promise<
 }
 
 /** Change the mode only on a handle that still identifies the validated archive file. */
-export async function changeArchiveFileMode(root: ArchiveRoot, path: string, writable: boolean, opening?: ArchiveFileIdentity): Promise<ArchiveFile> {
+export async function changeArchiveFileMode(root: ArchiveRoot, path: string, writable: boolean, opening?: ArchiveFileIdentity): Promise<ArchiveModeChange> {
   const observed = await readArchiveFile(root, path);
   if (observed.kind !== "file") return observed;
-  const handle = await unavailableFile(open(join(root.checkout, path),
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK));
+  let handle: Awaited<ReturnType<typeof open>> | null;
+  try {
+    handle = await unavailableFile(open(join(root.checkout, path), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK));
+  } catch (error) {
+    return archiveModeRefusal(path, error);
+  }
   if (handle === null) {
     const current = await readArchiveFile(root, path);
     return current.kind === "file" ? { kind: "blocked", mark: archiveFileChangeMark(path) } : current;
@@ -53,21 +71,28 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
   try {
     const stat = await handle.stat({ bigint: true });
     await root.checkpoint?.();
-    if (opening !== undefined) {
-      const foreign = await archiveCheckoutRefusal(root, path);
-      if (foreign !== null) return { kind: "blocked", mark: foreign };
-    }
+    const foreign = opening === undefined ? await nestedArchiveCheckoutRefusal(root.checkout, path) : await archiveCheckoutRefusal(root, path);
+    if (foreign !== null) return { kind: "blocked", mark: foreign };
     const current = await readArchiveFile(root, path);
     if (current.kind !== "file") return current;
     if (!stat.isFile() || !sameFile(stat, opening ?? observed.stat) || !sameFile(stat, current.stat)) {
       return { kind: "blocked", mark: archiveFileChangeMark(path) };
     }
+    await root.checkpoint?.();
     const mode = Number(stat.mode);
-    await handle.chmod(writable ? mode | 0o200 : mode & ~0o222);
+    try { await handle.chmod(writable ? mode | 0o200 : mode & ~0o222); }
+    catch (error) { return archiveModeRefusal(path, error); }
     return current;
   } finally {
     await handle.close();
   }
+}
+
+function archiveModeRefusal(path: string, error: unknown): Extract<ArchiveModeChange, { kind: "mode-refused" }> {
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== "EACCES" && code !== "EPERM" && code !== "EROFS") throw error;
+  return { kind: "mode-refused", mark: { reason: `Cannot change permissions for ${path}: ${code}.`,
+    remedy: { text: "Repair the file's permissions and retry the command; its opened intent is retained." } } };
 }
 
 function sameFile(first: ArchiveFileIdentity, second: ArchiveFileIdentity): boolean {

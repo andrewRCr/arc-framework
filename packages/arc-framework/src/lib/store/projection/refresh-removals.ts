@@ -8,6 +8,7 @@ import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
+import type { TakeInPort } from "./take-in-port.js";
 
 /**
  * An obsolete path's changed mark follows the same logical record to the new path a pass lays, keyed by that path with
@@ -29,8 +30,10 @@ export function movedProjectionChanges(index: ProjectionIndex, plan: ProjectionR
 /** Remove obsolete files through the ordinary take-in guard and record all surviving aside copies. */
 export async function removeObsoleteProjectionPaths(input: {
   root: ProjectionRootState; index: ProjectionIndex; plan: ProjectionRefreshPlan; renderer: RecordRenderer; reference: bigint | null;
+  takeIn?: TakeInPort;
 }): Promise<ProjectionIndex> {
   const { root } = input;
+  const takeIn = input.takeIn ?? root.takeIn;
   let index = input.index;
   const files: SwapFile[] = [];
   const boundary = await readProjectionLinkBoundary(root.checkout, [...input.plan.removals]);
@@ -44,14 +47,14 @@ export async function removeObsoleteProjectionPaths(input: {
     }
     const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged: null, renderer: input.renderer,
       reference: input.reference, format: root.context.format, store: root.store, writer: root.context.writer,
-      checkpoint: root.context.checkpoint, takeIn: root.takeIn });
+      checkpoint: root.context.checkpoint, takeIn });
     reportGuardHold(root.context.report, path, null, guarded);
     index = withProjectionEntry(index, path, guarded.entry);
     if (guarded.kind === "replace") files.push({ path, replace: guarded, relaid: input.plan.paths.has(path) });
   }
   if (files.length === 0) return index;
   const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
-    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn, hooks: root.context.hooks });
+    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks });
   root.context.recordBatch?.(swapped);
   return swapped.index;
 }

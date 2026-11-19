@@ -5,7 +5,7 @@ import type { RefusedMark } from "./index-schema.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { withProjectionLock } from "./lock.js";
+import { ProjectionLockLostError, withProjectionLock } from "./lock.js";
 import { recordProjectionLockSkip } from "./engine.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
@@ -64,9 +64,11 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
   try {
     changed = await changeArchiveFileMode(root, path, true, inspected.identity);
   } catch (error) {
+    if (error instanceof ProjectionLockLostError) throw error;
     return refuse({ reason: `Could not make ${path} writable: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the file's permissions or restore it, then retry arc edit; its opened intent is retained." } });
   }
+  if (changed.kind === "mode-refused") return refuse(changed.mark);
   if (changed.kind === "blocked") {
     if (disk.index.entries[path]?.opened !== true) await commitProjectionIndex({ location: root.location, checkout: root.checkout,
       checkpoint: root.context.checkpoint, index: disk.index });

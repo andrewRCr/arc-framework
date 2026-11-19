@@ -19,6 +19,7 @@ import type { ReadGateDependencies } from "./read-gate.js";
 import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
+import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -214,6 +215,8 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
   const path = join(checkout, swap.path);
   const staged = swap.staged === null ? null : join(checkout, swap.staged.file.location);
   await hooks?.afterRecheck?.(swap.path);
+  const foreign = await refuseForeignSwap(input, swap, swap.original);
+  if (foreign !== null) return foreign;
   if (swap.copy === null) return staged === null ? { entry: swap.entry } : rebuild(input, swap, { staged, path });
   const aside = join(checkout, swap.copy.name);
   await input.checkpoint?.();
@@ -227,6 +230,8 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
     return { entry: { ...swap.original, pending: true } };
   }
   await hooks?.afterMove?.(swap.path);
+  const moved = await refuseForeignSwap(input, swap, { ...swap.original, copies: swap.entry.copies });
+  if (moved !== null) return moved;
   const linked = staged === null ? { entry: swap.entry } : await linkStagedIn(input, moves, swap, { staged, aside, path });
   if (linked.done) return linked;
   const settling = {
@@ -246,10 +251,20 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
 /** Rebuild an absent file by the link alone, yielding to a save that recreated it first. */
 async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly path: string }): Promise<SwapDone> {
   await input.hooks?.beforeRebuildLink?.(swap.path);
+  const foreign = await refuseForeignSwap(input, swap, swap.original);
+  if (foreign !== null) return foreign;
   const linked = await retriedMoves(input).linkOnto(at.staged, at.path);
   await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint);
   return { entry: linked ? swap.entry : yielded(swap) };
+}
+
+async function refuseForeignSwap(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry): Promise<SwapDone | null> {
+  if (entry.opened !== true) return null;
+  const mark = await nestedArchiveCheckoutRefusal(input.checkout, swap.path);
+  if (mark === null) return null;
+  if (swap.staged !== null) await removeProjectionAsideFile(input.checkout, swap.staged.file.location, input.checkpoint);
+  return { entry: { ...entry, pending: true, refused: mark } };
 }
 
 /**

@@ -131,6 +131,10 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
     text: expect.stringContaining(shown === "notice" ? `arc save --resolve ${formatConflictToken(conflict)}` : `arc edit ${path}`),
   } });
   if (shown === "notice") {
+    expect((await projectionCommand(h.input, ["edit", join(h.checkout, path)])).result).toMatchObject({ status: "ok" });
+    expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+    expect((await h.disk()).index.entries[path]).not.toHaveProperty("opened");
+    expect(success(await h.store.read({ reference: base.reference }))).toMatchObject({ version: current.version, conflicts: [conflict] });
     expect((await projectionCommand(h.input, ["save", "--resolve", formatConflictToken(conflict)])).result).toMatchObject({ status: "ok" });
   } else await h.openAndSave(path, current.content);
   expect(success(await h.store.read({ reference: base.reference })).conflicts).toEqual([]);
@@ -143,7 +147,8 @@ it("holds an unedited archive conflict shown by notice until its named repair",
 it("holds an unedited archive conflict shown by markers until its named repair",
   () => checkUneditedArchiveConflictRepair("markers"), 30_000);
 
-it.each(["persist", "release"] as const)("lets %s finish after recovering an interrupted archive adoption", async operation => {
+it.each([["persist", "present"], ["release", "present"], ["persist", "absent"]] as const)(
+  "lets %s finish after recovering an interrupted archive adoption with the path %s", async (operation, presence) => {
   const h = await archiveRetirementFixture(), path = `${h.folder}/after-missed-response.txt`;
   const file = join(h.checkout, path), content = "Adopted before the response was lost.\n";
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "after-missed-response.txt");
@@ -156,6 +161,7 @@ it.each(["persist", "release"] as const)("lets %s finish after recovering an int
   } };
   await expect(projectionCommand({ ...h.input, store }, ["save"])).rejects.toThrow("Stopped after the adopted record was stored");
   const accepted = success(await h.store.read({ reference }));
+  if (presence === "absent") await rm(file);
   expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
     text: expect.stringContaining("arc save"),
   } });

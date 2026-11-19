@@ -1,5 +1,5 @@
 /** Sync restores deleted projected files before its existing network orchestration. */
-import { lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -236,4 +236,37 @@ it("fans out a materialization take-in once after releasing its native lease", a
   expect(await h.h.file()).toContain("An edit arriving during materialization.");
   expect(await h.file()).toBe(await h.h.file());
   expect((await h.h.stored()).content).toBe("An edit arriving during materialization.\n");
+});
+
+it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving during sync restoration of a %s file", async existence => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
+  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
+  await endProjection(h);
+  const entry = (await h.disk()).entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing archive entry");
+  const file = join(h.checkout, h.path);
+  await chmod(file, 0o644);
+  if (existence === "absent") await rm(file);
+  else {
+    await writeFile(file, "");
+    await utimes(file, new Date(0), new Date(0));
+  }
+  let edited = false;
+  const content = "# Notes\n\nA late unopened correction.\n";
+  const expected = renderStampedFile({ content, stamp: entry.base.blob });
+  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
+    if (edited || path !== h.path) return;
+    edited = true;
+    await writeFile(file, expected);
+  } } });
+  const result = await sync(h);
+  expect(edited).toBe(true);
+  expect(result.errors).toContain(`arc edit ${h.path}`);
+  expect(await readFile(file, "utf8")).toBe(expected);
+  expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({
+    version: h.record.version, content: h.record.content,
+  });
 });

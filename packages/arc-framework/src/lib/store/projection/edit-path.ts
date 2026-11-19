@@ -1,5 +1,6 @@
 /** Read an archive opening's path, ownership, and adoption evidence without changing content or admitting a record. */
 import { join } from "node:path";
+import { readdir } from "node:fs/promises";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { archiveCheckoutRefusal, archiveFileChangeMark, archiveLinkRefusal, readArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
@@ -30,12 +31,23 @@ export async function inspectProjectionEditPath(root: ProjectionRootState, index
   if (!root.writable(path)) return refuse({ reason: `The projection ignore guard does not permit changing ${path}.`,
     remedy: { text: "Repair the reported projection ignore rules and retry arc edit." } });
   if (entry?.kind === "record") return { kind: "ready", entry, identity: gate.identity };
+  return inspectNewArchiveEdit(root, index, path, gate, entry);
+}
+
+async function inspectNewArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  gate: { stat: FileStat; identity: ArchiveFileIdentity }, entry: Extract<ProjectionIndex["entries"][string], { kind: "ownerless" }> | undefined):
+Promise<ProjectionEditInspection> {
   const target = await resolveProjectionAdoptionIntent(root, index, path);
   if (target.kind === "refused") return refuse(target.mark);
   if (target.kind !== "reference") return refuse({ reason: `${path} has no established archive owner.`,
     remedy: { text: "Place the file in its existing archived work unit or Errand's folder, then retry arc edit." } });
-  const verdict = await inspectProjectionAdoption(root, path, target.reference, gate.stat);
-  if (verdict.kind === "refused") return refuse(verdict.mark);
+  try {
+    const verdict = await inspectProjectionAdoption(root, path, target.reference, gate.stat);
+    if (verdict.kind === "refused") return refuse(verdict.mark);
+  } catch (error) {
+    if (!missingFile(error)) throw error;
+    return refuse(archiveFileChangeMark(path));
+  }
   return { kind: "ready", entry: { ...entry, kind: "ownerless", stat: gate.stat, opened: true }, identity: gate.identity };
 }
 
@@ -60,8 +72,32 @@ Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extrac
     remedy: { text: "Let the editor finish saving, then retry arc edit." } });
   const foreign = await archiveCheckoutRefusal(root, path);
   if (foreign !== null) return refuse(foreign);
+  if (!await exactPathSpelling(root.checkout, path)) return refuse({
+    reason: `${path} does not match the file's on-disk spelling.`,
+    remedy: { text: "Use the file's exact on-disk path, including its capitalization, and retry arc edit." },
+  });
   const file = await readArchiveFile(root, path);
   if (file.kind === "blocked") return refuse(file.mark);
   if (file.kind === "missing" || file.stat.ino !== gate.stat.ino) return refuse(archiveFileChangeMark(path));
   return { ...gate, identity: { dev: file.stat.dev, ino: file.stat.ino } };
+}
+
+/** Match directory entries so aliases cannot create a second index key for the same on-disk name. */
+async function exactPathSpelling(checkout: string, path: string): Promise<boolean> {
+  let folder = checkout;
+  try {
+    for (const component of path.split("/")) {
+      if (!(await readdir(folder)).includes(component)) return false;
+      folder = join(folder, component);
+    }
+  } catch (error) {
+    if (!missingFile(error)) throw error;
+    return false;
+  }
+  return true;
+}
+
+function missingFile(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }

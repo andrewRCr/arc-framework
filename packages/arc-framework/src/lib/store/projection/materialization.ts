@@ -37,7 +37,8 @@ import type { ProjectionConfiguration } from "./configuration.js";
 import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
-import { reportRemainingArchivedFiles } from "./archive-report.js";
+import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
+import type { TakeInPort } from "./take-in-port.js";
 
 /** Inputs observed by the lease-owning caller. */
 interface ProjectionMaterializationBasis {
@@ -49,6 +50,7 @@ interface ProjectionMaterializationBasis {
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
   /** Links this command's start already reported, which the lay leaves unreported so each is reported once. */
   readonly reportedLinks?: readonly string[];
+  readonly takeIn?: TakeInPort;
 }
 /**
  * A full lay over no usable index, or the restoration of deleted files over a usable one. A usable index never takes a
@@ -63,6 +65,7 @@ export type ProjectionMaterializationResult = { readonly kind: "materialized"; r
 /** Lay the complete visible inventory while preserving every file without a trustworthy basis. */
 export async function materializeProjectionRoot(input: ProjectionMaterializationInput): Promise<ProjectionMaterializationResult> {
   const { root } = input;
+  const takeIn = input.takeIn ?? root.takeIn;
   const startedAt = projectionTimingNow(root.ports);
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
@@ -105,22 +108,17 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   retainUncertainProjectionPaths(index, desired, { paths, removals: collisions });
   const laid = laidProjectionPaths(paths);
   const arrivals = findProjectionArrivals(index, laid);
-  index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference });
+  index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference, takeIn });
   let unlaid = false;
   for (const [path, record] of selected) {
     if (!laid.has(path) || !root.writable(path)) continue;
     const prepared = await prepareMaterializationFile({ root, index, path, record, renderer, rebuilding: input.index === null,
-      reference, blocked: selection.boundary(path) !== null });
+      reference, blocked: selection.boundary(path) !== null, takeIn });
     index = prepared.index;
     unlaid ||= prepared.unresolved === true;
     if (prepared.file !== undefined) files.push(prepared.file);
   }
-  if (files.length > 0) {
-    const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
-      writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn, hooks: root.context.hooks });
-    root.context.recordBatch?.(swapped);
-    index = swapped.index;
-  }
+  index = await installMaterializedFiles(input, index, files, takeIn);
   await ensureProjectionScratch(root);
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: materializationTimings(input, { ...index, state: !input.onlyDeleted && whole && !unlaid
@@ -130,6 +128,21 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   await refreshMaterializationLinks(root, selection.links);
   root.ready = true;
   return { kind: "materialized", index };
+}
+
+async function installMaterializedFiles(input: ProjectionMaterializationInput, index: ProjectionIndex,
+  files: readonly SwapFile[], takeIn: TakeInPort): Promise<ProjectionIndex> {
+  if (files.length === 0) return index;
+  const { root } = input;
+  const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
+    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks });
+  root.context.recordBatch?.(swapped);
+  if (input.takeIn !== undefined) {
+    for (const path of swapped.unreplaced) {
+      if (swapped.index.entries[path]?.refused == null) await reportArchivedProjectionFile(root, index, path);
+    }
+  }
+  return swapped.index;
 }
 
 function materializationTimings(input: ProjectionMaterializationInput, index: ProjectionIndex, startedAt: number): ProjectionIndex {

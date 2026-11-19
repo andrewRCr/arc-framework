@@ -1,4 +1,5 @@
 /** Restore a sync command's projection before its network orchestration begins. */
+import { join } from "node:path";
 import type { Store } from "../contract.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { readProjectionConfiguration } from "./configuration.js";
@@ -9,6 +10,10 @@ import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
+import { unopenedArchiveMark } from "./archive-inspection.js";
+import { refuseProjectionEdit } from "./rights-binding.js";
+import type { TakeInPort } from "./take-in-port.js";
+import { gateRead } from "./read-gate.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -18,6 +23,16 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
   if (state.skip?.reason === "switch") return;
   const root = state.roots.get(checkout);
   if (root === undefined) return;
+  const takeIn: TakeInPort = async request => {
+    if (!request.path.startsWith(".arc/completed/") || request.entry.opened === true) return root.takeIn(request);
+    const gate = await gateRead({ path: join(checkout, request.copy ?? request.path), markdown: request.path.endsWith(".md") });
+    if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "emptied") return { answer: "no-edit", entry: request.entry };
+    if (gate.kind === "pending") return { answer: "deferred", entry: { ...request.entry, pending: true } };
+    const mark = await root.rights?.(request) ?? unopenedArchiveMark(checkout, request.path, true);
+    root.unsent.add(request.path);
+    root.context.report?.({ path: request.path, copy: request.copy, mark });
+    return refuseProjectionEdit(request.entry, mark);
+  };
   const report = (reason: string, remedy = "Repair the reported projection state, then retry arc sync."): void => {
     state.diagnostics.push({ path: checkout, copy: null, mark: { reason, remedy: { text: remedy } } });
   };
@@ -30,7 +45,8 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
         const version = await store.version();
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
         const disk = await readProjectionIndex(root.location, true, { groups: "all" });
-        const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks };
+        root.syncRestorationTakeIn = takeIn;
+        const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks, takeIn };
         const materialized = await materializeProjectionRoot(disk.kind === "index"
           ? { ...basis, index: disk.index, onlyDeleted: true }
           : { ...basis, index: null, recovered: disk.header });

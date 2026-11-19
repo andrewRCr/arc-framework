@@ -21,7 +21,7 @@ import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
-import { archiveLinkRefusal } from "./archive-file.js";
+import { archiveLinkRefusal, nestedArchiveCheckoutRefusal } from "./archive-file.js";
 import { unopenedArchiveEditHold } from "./archive-inspection.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
@@ -140,13 +140,19 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
 
 async function archivePickupBlocked(root: ProjectionRootState, path: string, entry: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
   if (!path.startsWith(".arc/completed/")) return false;
-  const mark = await archiveLinkRefusal(root, path);
+  const mark = await archiveLinkRefusal(root, path) ?? await openedArchiveCheckoutRefusal(root, path, entry);
   if (mark === null) return false;
+  if (entry?.opened === true) root.unsent.add(path);
   // Save reports a held stored opening at re-lock, which observes the same path again.
   if (!(root.context.verb === "save" && entry?.kind === "record" && entry.opened === true)) {
     root.context.report?.({ path, copy: null, mark });
   }
   return true;
+}
+
+async function openedArchiveCheckoutRefusal(root: ProjectionRootState, path: string,
+  entry: ProjectionIndex["entries"][string] | undefined): Promise<RefusedMark | null> {
+  return entry?.opened === true ? nestedArchiveCheckoutRefusal(root.checkout, path) : null;
 }
 
 function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntry,
@@ -161,7 +167,7 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
 }> {
   const { path, entry } = request;
   const unopened = root.context.verb === "save" && request.resolution === undefined ? unopenedArchiveEditHold(entry) : null;
-  const denied = unopened ?? await root.rights?.(request);
+  const denied = unopened ?? await openedArchiveCheckoutRefusal(root, path, entry) ?? await root.rights?.(request);
   if (denied !== undefined && denied !== null) {
     root.unsent.add(path);
     root.context.report?.({ path, copy: request.copy, mark: denied });

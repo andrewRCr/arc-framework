@@ -44,6 +44,8 @@ export interface ProjectionRootState {
   readonly ports: ProjectionEnginePorts;
   readonly context: ReadBackContext;
   readonly takeIn: TakeInPort;
+  /** Continue sync's archive-reporting boundary when settling restoration copies at command end. */
+  syncRestorationTakeIn?: TakeInPort;
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
   blockedByLink: ProjectionLinkBoundary;

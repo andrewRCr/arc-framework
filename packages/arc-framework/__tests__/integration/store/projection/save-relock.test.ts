@@ -116,6 +116,58 @@ it("re-locks an unchanged opened file and prints its edit remedy in human output
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
 });
+
+it.each(["re-lock", "writable restoration"] as const)("retains the permission-blocked opening during %s and re-locks the other file", async transition => {
+  const h = await fixture(), file = join(h.checkout, h.path), second = `${h.folder}/second.txt`;
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "second.txt"), "A second correction.\n");
+  await startProjection(h); await endProjection(h);
+  await openArchivedProjectionFile(h, h.path);
+  await openArchivedProjectionFile(h, second);
+  const bytes = await readFile(file);
+  let deny = transition === "re-lock";
+  if (!deny) binding.hooks = { afterSaveReadOnly: async path => {
+    if (path !== h.path) return;
+    await chmod(file, 0o644);
+    await writeFile(file, "");
+    await chmod(file, 0o444);
+    deny = true;
+  } };
+  binding.beforeModeOpen = async path => {
+    if (path === file && deny) throw Object.assign(new Error("Permissions changed"), { code: "EACCES" });
+  };
+  const held = await save(h);
+  expect(held.result).toMatchObject({ status: "ok", result: { relocked: [{ path: second }] } });
+  expect(held.errors).toContain(`Cannot change permissions for ${h.path}`);
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(transition === "re-lock" ? 0o200 : 0);
+  expect((await lstat(join(h.checkout, second))).mode & 0o222).toBe(0);
+  binding.beforeModeOpen = null;
+  binding.hooks = undefined;
+  if (transition === "writable restoration") {
+    await chmod(file, 0o644);
+    await writeFile(file, bytes);
+  }
+  expect((await save(h)).result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+it("retains an opened path when the file becomes part of a nested Git checkout", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path), folder = join(h.checkout, h.folder);
+  await openArchivedProjectionFile(h, h.path);
+  await h.f.ports.exec("git", ["init", "--quiet", folder], { cwd: h.checkout });
+  const content = await edit(h, "This edit belongs to the nested checkout.");
+  const saved = await save(h);
+  expect(saved.errors).toContain("belongs to another checkout");
+  expect(saved.result).toMatchObject({ status: "ok" });
+  expect(saved.result).not.toHaveProperty("result.relocked");
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  expect(await readFile(file, "utf8")).toContain(content);
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+  await rm(join(folder, ".git"), { recursive: true });
+  expect((await save(h)).result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+});
 it.each([false, true])("re-locks a new archived file adopted by save after ordinary pickup=%s", async ordinary => {
   const h = await fixture(), path = `${h.folder}/new-note.txt`, content = "New archive correction.\n";
   await writeFile(join(h.checkout, path), content);
