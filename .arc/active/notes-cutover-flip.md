@@ -567,6 +567,11 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       records its work unit owns, and loads no Vitest, so the benchmark that reuses the seeder still runs; it spawns
       through the same helpers and clears a checkout's own override, as the unit setup does. With the helpers' default
       removed the file passes as with it, twice over the same goldens, and the eight unit files reading them pass.
+      _Corrected (Task 3.R2's stop):_ two of the nine unit files reading the goldens failed from this change on.
+      `unit/session-envelope/slot-schemas` met the normalized SHA in the new `unclosedTaskCommits`, and its loader now
+      maps object IDs as it maps dates; `unit/status/session-envelope-schema`'s eleven user-slot cases and its
+      notes-compaction case mutated the notes-backed slots the goldens no longer carry, and now run over those slots as
+      the in-repo store reports them, which the schema accepts until notes removal.
     - _Golden changes, each traced:_
         - Work-unit paths name `.arc/active/current/` (§ 8.3); each load set loses the work unit's `SESSION-NOTES.md`
           and nothing else (§ 8.9); the notes-compaction advisory goes with the notes (§ 12).
