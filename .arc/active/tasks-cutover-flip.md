@@ -594,10 +594,17 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           partial mock of `createStore` and a marker-bound meta; the multi-candidate refusal and the resolver's
           active-meta cases run in-repo.
 
-    - `[ ]` **3.R.f Lifecycle verbs, start, `init`, `join`, and the executor**
+    - `[x]` **3.R.f Lifecycle verbs, start, `init`, `join`, and the executor**
         - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, `integration/start-dispatch`, `unit/init`,
           `integration/init`, `unit/join`, `unit/work-unit/executor-context`, `integration/executor-store-rebind`,
           `integration/errand-promote`, `unit/decompose-preflight-handler`, and `integration/store-lifecycle-storage`.
+        - _Amended (Owner, 2026-11-18):_ `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and
+          `integration/start-dispatch` move to Task 3.R.h; their surviving cases need store-arm fixtures their files
+          never had.
+        - 8 files left the ledger, classified in `notes-cutover-flip.md` § Test callers; none exposed a product defect.
+          `init`, `join`, and `executor-context`'s withdrawal cases run on a checked store; `store-lifecycle-storage`
+          gives its compositions the fixture's in-repo store instead of an override, and Errand promotion and the old
+          decomposition machine set the override by file.
 
     - `[ ]` **3.R.g Session and status readers, `arc sync`, checks, and the projection's hooks**
         - The active and status readers (`integration/active`, `status`, `status-project`, `status-conflicts-cli`, and
@@ -609,6 +616,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           (`unit/lib/checks/projected-selection`, `integration/check-projected-selection`,
           `unit/scripts/check-foreign-writes`, `e2e/check-pre-commit-hook`, and
           `integration/store/projection/cli-hooks`).
+
+    - `[ ]` **3.R.h Lifecycle handlers and start on the store arm**
+        - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and `integration/start-dispatch`, from Task 3.R.f.
+          Each case whose subject survives runs on a store-arm fixture: an executor carrying the handler's store, a
+          seeded work unit and project identity, and the Git reads its arm makes. The old decomposition machine, park,
+          and start's `plan/` cut, tracked scaffold, and meta-file occupancy guard select the in-repo implementation.
+          The diagnosis is in `notes-cutover-flip.md` § Test callers.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

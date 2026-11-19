@@ -12,6 +12,13 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+
+// Init's install writes survive the flip; each run binds a checked store with no state remote to designate.
+function boundStore() {
+  return { store: createLifecycleHarness().store,
+    designateStateRemote: async () => ({ status: "ok" as const, result: { state: "local" as const } }) };
+}
 
 // Mock atomicWriteJson — unit tests use virtual IO; the real function
 // needs a real filesystem. Atomic write behavior is tested in fs.test.ts.
@@ -507,7 +514,7 @@ describe("runInit", () => {
     };
     const io = mockIO(templateFiles);
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -542,7 +549,7 @@ describe("runInit", () => {
     const io = mockIO(templateFiles);
     const noToolsPrompts = { ...DEFAULT_PROMPTS, tools: [] as string[] };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -571,7 +578,7 @@ describe("runInit", () => {
       "/templates/reference/PROJECT-PRD.template.md": "# Meta PRD",
     });
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -596,7 +603,7 @@ describe("runInit", () => {
     };
     const io = mockIO({});
 
-    await expect(runInit({
+    await expect(runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -619,7 +626,7 @@ describe("runInit", () => {
     };
     const io = mockIO({});
 
-    await expect(runInit({
+    await expect(runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -646,7 +653,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -676,7 +683,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -705,7 +712,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -738,7 +745,7 @@ describe("runInit", () => {
   it("returns null when prompts is null (user cancelled)", async () => {
     const io = mockIO({});
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -763,7 +770,7 @@ describe("runInit", () => {
     };
 
     atomicWriteJson.mockClear();
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -809,7 +816,7 @@ describe("runInit", () => {
     };
 
     atomicWriteJson.mockClear();
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -849,7 +856,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    const result = await runInit({
+    const result = await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -873,7 +880,7 @@ describe("runInit", () => {
       await write(path, content);
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project", io, templateDir: "/templates", internalTemplateDir: "/internal-templates",
       recipe: { include_files: ["README.md", "system/arc-config.yml"], prompts: minimalRecipe.prompts, conditions: {} },
       prompts: DEFAULT_PROMPTS, identityResult: "andrew",
@@ -904,7 +911,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -970,7 +977,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",
@@ -1003,7 +1010,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",
@@ -1027,7 +1034,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
-    await runInit({
+    await runInit({ ...boundStore(),
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -1058,7 +1065,7 @@ describe("runInit", () => {
     };
 
     await expect(
-      runInit({
+      runInit({ ...boundStore(),
         cwd: "/project",
         io,
         templateDir: "/templates",

@@ -19,6 +19,8 @@ import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { inRepoStore } from "../helpers/store/in-repo-ports.js";
 
+// The fixture's store is the in-repo implementation, its lifecycle the metas committed at each tree; a production
+// composition reading that lifecycle is given the same store.
 async function fixture() {
   const root = await createTempRepo("arc-lifecycle-storage-");
   onTestFinished(async () => cleanupTempDir(root));
@@ -57,7 +59,7 @@ describe("store lifecycle snapshot", () => {
     const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "example" } });
     const meta = success(await h.store.read({ reference, asOf: selected.version }));
     await writeCandidateRecord(h.root, "example", candidateFixture(), null);
-    const dependencies = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store,
       lifecycleStorage: { readSnapshot: async () => selected } });
     const lifecycle = await dependencies.readLifecycle("example");
     expect(lifecycle).toMatchObject({ storageVersion: head, complete: true });
@@ -76,7 +78,7 @@ describe("store lifecycle snapshot", () => {
       settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1,
         mode: "review-merge-method-resolve", repository: "owner/repo", stackPosition: "non-delivery", state: "validated",
         nextAction: "use-method", method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) } };
-    const author = interleaved ? dependencies : createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
+    const author = interleaved ? dependencies : createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store,
       lifecycleStorage: { readSnapshot: async () => selected } });
     if (!interleaved) {
       await expect(author.createHandle(request)).rejects.toThrow(/lifecycle record version.*recompose.*retry/iu);
@@ -239,8 +241,8 @@ describe("store lifecycle snapshot", () => {
       const diagnostic = listing.result.diagnostics[0];
       if (fault === "placement") expect(diagnostic).toHaveProperty("rule", "placement");
       else expect(diagnostic).not.toHaveProperty("rule");
-      const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
-      const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+      const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store });
+      const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, store: h.store, workUnit: "example", changeRequestPort: changeRequestPort(head) });
       const reads = [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")];
       for (const read of reads) {
         if (fault === "placement") await expect(read()).resolves.toBeDefined();
@@ -301,19 +303,19 @@ describe("store lifecycle snapshot", () => {
     const head = await h.save();
     await h.put(".arc/completed/2026-Q4/01_upper/meta-upper.md", makeMetaFixture("upper", { state: "Shipped" }) + completion);
     const next = await h.save();
-    const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
+    const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store });
     expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: next, complete: true });
     expect(await checkpoint.readLifecycle("upper")).toMatchObject({ state: "nonexistent" });
-    const injected = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
+    const injected = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store,
       lifecycleStorage: { readSnapshot: async () => ({ version: head,
         metaVersion: (workUnit) => workUnit === "example" ? "meta-example:v1" : null,
         fs: createGitTreeReadFs({ cwd: h.root, revision: head, exec: h.exec }) }) } });
     expect(await injected.readLifecycle("example")).toMatchObject({ storageVersion: head, complete: true });
     await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
     const mergeHead = await h.save();
-    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead) });
+    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, store: h.store, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead) });
     expect(await merge.readStatus("upper")).toMatchObject({ lifecycleVersion: null, lifecycleComplete: false });
-    const legacyMerge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead),
+    const legacyMerge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, store: h.store, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead),
       lifecycleStorage: { readSnapshot: async () => ({ version: mergeHead,
         metaVersion: (workUnit) => workUnit === "upper" ? "meta-upper:v1" : null,
         fs: createGitTreeReadFs({ cwd: h.root, revision: mergeHead, exec: h.exec }) }) } });
@@ -327,8 +329,8 @@ describe("store lifecycle snapshot", () => {
     await h.put(".arc/completed/2026-Q4/01_upper/meta-upper.md", makeMetaFixture("upper", { state: "Shipped" }) + completion);
     await h.put(broken, makeMetaFixture("broken").replace("- **Design:** [none]", "- **Design:** [TBD]"));
     const head = await h.save();
-    const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
-    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+    const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store });
+    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, store: h.store, workUnit: "example", changeRequestPort: changeRequestPort(head) });
     for (const read of [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")]) {
       await expect(read()).rejects.toMatchObject({ code: "store.lifecycle-incomplete", message: expect.stringContaining(broken) });
       await expect(read()).rejects.toThrow(/Repair.*then/);
@@ -368,8 +370,8 @@ it.each([
   const valid = makeMetaFixture("broken", { state }) + completion;
   await h.put(path, valid.replace(`\`${state}\``, "`Unknown`"));
   const head = await h.save();
-  const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
-  const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+  const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec, store: h.store });
+  const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, store: h.store, workUnit: "example", changeRequestPort: changeRequestPort(head) });
   const reads = [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")];
 
   for (const read of reads) {

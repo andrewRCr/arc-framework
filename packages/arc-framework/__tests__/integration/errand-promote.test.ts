@@ -25,6 +25,10 @@ import {
   makeGitExec,
   makeGitExecInput,
 } from "../helpers/integration.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Promotion through the shared Errand identity refs and a committed meta is the pre-flip build's, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const IDENTITY = "andrew";
 const CREATED_AT = "2026-07-21T00:00:00.000Z";

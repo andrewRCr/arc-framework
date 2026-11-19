@@ -8,6 +8,8 @@ import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
 import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { personalReference } from "../helpers/store/personal-fixture.js";
 
 // --- Test Helpers ---
 
@@ -64,6 +66,7 @@ const DEFAULT_PROMPTS = { role: "maintainer" as const, tools: ["claude"] };
 
 function baseOptions(io: JoinIOContext): JoinOptions {
   return {
+    store: createLifecycleHarness().store,
     cwd: "/project",
     io,
     templateDir: "/templates",
@@ -172,20 +175,13 @@ describe("runJoin", () => {
     );
   });
 
-  it("creates user directory with templates", async () => {
+  it("seeds the personal templates into the store", async () => {
     await runJoin(opts);
 
-    const mkdirCalls = (io.mkdir as ReturnType<typeof vi.fn>).mock.calls as [string, object][];
-    const userDirCall = mkdirCalls.find(
-      (c) => (c[0] as string).includes("user/andrew"),
-    );
-    expect(userDirCall).toBeDefined();
-
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls as [string, string][];
-    const workingMemoryWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/user/andrew/WORKING-MEMORY.md",
-    );
-    expect(workingMemoryWrite).toBeDefined();
+    const read = async (kind: "personal/working-memory" | "personal/inbox") =>
+      opts.store?.read({ reference: personalReference(kind) });
+    expect(await read("personal/working-memory")).toMatchObject({ status: "ok" });
+    expect(await read("personal/inbox")).toMatchObject({ status: "ok" });
   });
 
   it("writes managed gitignore block", async () => {

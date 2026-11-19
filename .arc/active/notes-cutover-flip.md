@@ -296,6 +296,34 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       a marker binds one work unit, by override; and `unit/release/wu-resolution`, the resolver over active meta files,
       passing the in-repo store. Counterparts: `wu-resolution-store`, `integration/release-task-close`, and
       `release-commit-task-close`.
+- **Lifecycle verbs, start, `init`, `join`, and the executor (Task 3.R.f):** eight files settled, with no product defect;
+  the lifecycle handlers and start stay listed for Task 3.R.h (below).
+    - _Ref backend:_ `unit/init` and `unit/join` bind a checked store, `init` with a designation that finds no state
+      remote, since their virtual checkout has no Git directory for the ref store's ports; `join`'s template case reads
+      the seeded records back from that store. `integration/init`'s per-user cases read the seeded working memory and
+      inbox from the store, comparing each with its template beside the identifier the store stamps per entry.
+    - _In-repo, by file:_ `unit/decompose-preflight-handler` (the old decomposition machine) and
+      `integration/errand-promote` (promotion through the shared Errand identity refs and a committed meta; the store's
+      is `errand-promote-store`, `errand-promote-store-cli`, and `store-promotion-settlement`).
+    - _In-repo, passing the store:_ `integration/store-lifecycle-storage`'s cases over metas committed at real trees
+      give the checkpoint and merge compositions the fixture's in-repo store; its cases over stub stores, among them the
+      off-branch omission case, need no selection.
+    - _By case:_ `integration/executor-store-rebind`'s per-checkout rebinding, each checkout reading its own tracked
+      meta, selects in-repo, while its injected-store cases stay on the ref default. `unit/work-unit/executor-context`
+      binds a checked store; its withdrawal cases read the branch the work unit links in the seeded project, and three
+      cases pass the in-repo store: the two binding the in-repo reconcile ceremony (its lifecycle index and staged
+      edits), and the identity-independent placement, since a store placement claims its checkout for the spawning
+      identity (`reconcile-work-unit-worktree.ts`).
+    - _Still listed, for Task 3.R.h:_ `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and
+      `integration/start-dispatch`. With the executor carrying the handler's store, as the production binder does, 49 of
+      `lifecycle-verbs`' 99 cases fail on the store arm across promote, resume, materialize, deactivate, abandon,
+      publish, reopen, and attest: its fixture holds no work-unit record, answers no Git topology read, expects the
+      in-repo arm's dispatch parameters, and mocks the meta reader that a seeded meta's write check parses through.
+      Decompose and park are pre-flip only (park refuses over the store for `arc pause`). Start's spec-input
+      classification (`coldStartSeed`) and its pure helpers survive with no store-arm case, while its `plan/` cut,
+      tracked scaffold, and meta-file occupancy guard are the in-repo arm. Store-arm handler counterparts exist for
+      abandon (`abandon-store`), reopen (`reopen-store-branch`), publish (`store-publication-selection`), and attest
+      (the `attest-*-native` suites), and none for resume, materialize, deactivate, or promote's dispatch.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

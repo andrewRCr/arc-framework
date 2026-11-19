@@ -6,6 +6,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
+import { projectIdentityRecord } from "../../../src/lib/store/project-identity.js";
 
 const mockBuildLifecycleIndex = vi.fn();
 vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
@@ -80,23 +83,31 @@ function fakeIo(): UserIOContext {
   } as unknown as UserIOContext;
 }
 
-function buildCtx(identity: string | null = "andrew") {
+function buildCtx(identity: string | null = "andrew", inRepo = false) {
+  const io = fakeIo();
   return buildExecutorContext({
     cwd: "/repo",
-    io: fakeIo(),
+    io,
+    store: inRepo ? inRepoStoreAt("/repo", io.exec) : createLifecycleHarness().store,
     identity,
     teamMode: false,
     internalTemplateDir: "/tpl",
   });
 }
 
-/** Build a context whose meta read returns `metaContent` — for the branch-resolving side-effects. */
-function buildCtxReadingMeta(metaContent: string) {
-  const io = fakeIo();
-  io.readFile = vi.fn(async () => metaContent);
+const PROJECT_UID = "5f0c2a1e-8d4b-4e6f-9a3c-1b2d3e4f5a6b";
+
+/** Build a context over a checked store whose work unit `foo` links `branch` in this project, or links none. */
+async function buildCtxLinkingBranch(branch: string | null) {
+  const harness = createLifecycleHarness();
+  const identity = projectIdentityRecord(PROJECT_UID);
+  await harness.seed(identity.reference, identity.content);
+  await harness.seedMeta("foo", {}, { kind: "active" }, branch === null ? undefined
+    : { branches: [{ repository: PROJECT_UID, ref: branch, linkedAs: "created", excluded: [] }] });
   return buildExecutorContext({
     cwd: "/repo",
-    io,
+    io: fakeIo(),
+    store: harness.store,
     identity: "andrew",
     teamMode: false,
     internalTemplateDir: "/tpl",
@@ -111,8 +122,10 @@ const REOPEN_CTX = {
 } as const;
 
 describe("buildExecutorContext — current-WU reconcile binding", () => {
+  // The two ceremony cases bind the in-repo implementation's reconcile, its lifecycle index and staged edits; over the
+  // store the executor binds the store's reconcile instead.
   it("prepares through the lifecycle and receipt boundaries", async () => {
-    const ctx = buildCtx();
+    const ctx = buildCtx("andrew", true);
 
     await ctx.currentWuReconcile.prepare({
       slug: "foo",
@@ -127,7 +140,7 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
   });
 
   it("applies the caller's prepared plan without replanning", async () => {
-    const ctx = buildCtx();
+    const ctx = buildCtx("andrew", true);
     const prepared = { slug: "foo", plan: {}, edits: [] };
 
     await ctx.currentWuReconcile.apply(prepared as never);
@@ -137,7 +150,9 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
   });
 
   it("allows identity-independent worktree reconciliation when identity is unresolved", async () => {
-    const ctx = buildCtx(null);
+    // The in-repo implementation's tracked placement carries no owner; a store placement claims its checkout for the
+    // spawning identity.
+    const ctx = buildCtx(null, true);
 
     await expect(ctx.reconcileWorkUnitWorktree?.({
       mutation: "spawn",
@@ -234,7 +249,7 @@ describe("buildExecutorContext — withdraw-pr binding", () => {
   });
 
   it("withdraws via the WU's resolved branch, defaulting to close mode", async () => {
-    const handler = buildCtxReadingMeta(metaWithBranch("feat/foo")).sideEffects?.["withdraw-pr"];
+    const handler = (await buildCtxLinkingBranch("feat/foo")).sideEffects?.["withdraw-pr"];
     if (handler === undefined) throw new Error("withdraw-pr handler was not registered");
 
     const advisory = await handler({ ...REOPEN_CTX, inputs: {} });
@@ -244,7 +259,7 @@ describe("buildExecutorContext — withdraw-pr binding", () => {
   });
 
   it("forwards the draft withdrawal mode from inputs", async () => {
-    const handler = buildCtxReadingMeta(metaWithBranch("feat/foo")).sideEffects?.["withdraw-pr"];
+    const handler = (await buildCtxLinkingBranch("feat/foo")).sideEffects?.["withdraw-pr"];
     if (handler === undefined) throw new Error("withdraw-pr handler was not registered");
 
     await handler({ ...REOPEN_CTX, inputs: { prWithdrawMode: "draft" } });
@@ -254,7 +269,7 @@ describe("buildExecutorContext — withdraw-pr binding", () => {
 
   it("degrades to an advisory (never throws) when the gh op fails", async () => {
     mockWithdrawPr.mockRejectedValueOnce(new Error("gh: command not found"));
-    const handler = buildCtxReadingMeta(metaWithBranch("feat/foo")).sideEffects?.["withdraw-pr"];
+    const handler = (await buildCtxLinkingBranch("feat/foo")).sideEffects?.["withdraw-pr"];
     if (handler === undefined) throw new Error("withdraw-pr handler was not registered");
 
     const advisory = await handler({ ...REOPEN_CTX, inputs: {} });
@@ -263,7 +278,7 @@ describe("buildExecutorContext — withdraw-pr binding", () => {
   });
 
   it("surfaces an advisory and never calls gh when the WU has no recorded branch", async () => {
-    const handler = buildCtxReadingMeta(metaWithBranch("[none]")).sideEffects?.["withdraw-pr"];
+    const handler = (await buildCtxLinkingBranch(null)).sideEffects?.["withdraw-pr"];
     if (handler === undefined) throw new Error("withdraw-pr handler was not registered");
 
     const advisory = await handler({ ...REOPEN_CTX, inputs: {} });
