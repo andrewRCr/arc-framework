@@ -38,6 +38,10 @@ const resolutions = new WeakMap();
  * Anything else found first, such as a wrapper, a shim or a script, keeps the bare name, as does any doubt. The lookup
  * tries each `PATH` entry in order with each `PATHEXT` extension, as execa's command lookup does, but leaves out the
  * working directory that lookup searches first. Its answer is kept for the life of the process.
+ *
+ * A variable spelled more than one way with different values is doubt: execa's lookup reads its last spelling, while
+ * Node passes a child only the first in sorted order, and that is the `PATH` searched for Git started by its bare
+ * name.
  * @param {Record<string, string | undefined> | undefined} environment - The child's environment; when omitted, the
  *   child inherits the host's.
  * @param {GitExecutableHost} [host]
@@ -45,8 +49,9 @@ const resolutions = new WeakMap();
  */
 export function gitExecutable(environment, host = PROCESS_HOST) {
   if (host.platform !== "win32") return "git";
-  const path = variable(environment ?? host.environment, "PATH") ?? "";
-  const pathExt = variable(host.environment, "PATHEXT") ?? ".EXE;.CMD;.BAT;.COM";
+  const [path = "", ...otherPaths] = spellings(environment ?? host.environment, "PATH");
+  const [pathExt = ".EXE;.CMD;.BAT;.COM", ...otherPathExts] = spellings(host.environment, "PATHEXT");
+  if (otherPaths.length > 0 || otherPathExts.length > 0) return "git";
   let known = resolutions.get(host);
   if (known === undefined) {
     known = new Map();
@@ -62,14 +67,14 @@ export function gitExecutable(environment, host = PROCESS_HOST) {
 }
 
 /**
- * Read a Windows environment variable by any spelling, the last spelling winning as in execa's command lookup.
+ * The distinct values a Windows environment variable holds across its spellings, in any case.
  * @param {Record<string, string | undefined>} environment
  * @param {string} name
- * @returns {string | undefined}
+ * @returns {(string | undefined)[]}
  */
-function variable(environment, name) {
-  const key = Object.keys(environment).reverse().find(candidate => candidate.toUpperCase() === name);
-  return key === undefined ? undefined : environment[key];
+function spellings(environment, name) {
+  const keys = Object.keys(environment).filter(candidate => candidate.toUpperCase() === name);
+  return [...new Set(keys.map(key => environment[key]))];
 }
 
 /**

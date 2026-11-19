@@ -67,13 +67,23 @@ describe("the executable a Git child starts", () => {
     expect(gitExecutable({ PATH: `;;"${GIT}\\cmd";` }, host)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
   });
 
-  it("reads PATH by its last spelling, and the host's when the child inherits it", () => {
-    const host = windowsHost([LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`, "C:\\tools\\git.cmd"],
-      { Path: `${GIT}\\cmd` });
+  it("reads PATH in any spelling, and the host's when the child inherits it", () => {
+    const host = windowsHost([LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`], { Path: `${GIT}\\cmd` });
 
-    expect(gitExecutable({ PATH: "C:\\tools", Path: `${GIT}\\cmd` }, host)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
-    expect(gitExecutable({ Path: `${GIT}\\cmd`, PATH: "C:\\tools" }, host)).toBe("git");
+    expect(gitExecutable({ path: `${GIT}\\cmd` }, host)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+    expect(gitExecutable({ Path: `${GIT}\\cmd`, PATH: `${GIT}\\cmd` }, host)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
     expect(gitExecutable(undefined, host)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+  });
+
+  it("keeps the bare name when PATH or PATHEXT is spelled two ways with different values", () => {
+    const files = [LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`];
+    const host = windowsHost(files);
+    const launcherLast = `${SYSTEM32};${GIT}\\cmd`;
+
+    expect(gitExecutable({ PATH: `${GIT}\\cmd`, Path: launcherLast }, host)).toBe("git");
+    expect(gitExecutable({ Path: launcherLast, PATH: `${GIT}\\cmd` }, host)).toBe("git");
+    expect(gitExecutable({ PATH: `${GIT}\\cmd` }, windowsHost(files, { PATHEXT: ".EXE", PathExt: ".EXE;.CMD" })))
+      .toBe("git");
   });
 
   it("follows the host's PATHEXT order and falls back to Windows' default list", () => {
