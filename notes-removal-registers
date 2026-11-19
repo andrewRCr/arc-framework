@@ -3,7 +3,7 @@
   "slug": "notes-removal-registers",
   "claimId": "3cba39ca59ce22cbd522603657c15dde",
   "createdAt": "2026-11-19T22:50:33.051Z",
-  "updatedAt": "2026-11-19T22:50:33.051Z",
+  "updatedAt": "2026-11-19T22:59:46.099Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "notes-removal-registers",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Reconcile the storage cohorts' registers with `cutover-notes-removal`'s approved departures",
   "originEntrySourceDigest": "sha256:e455f47f78c70346454adebefdd0cda72a500093f050a53822ba0c7f74175d0d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/notes-removal-registers",
+    "headSha": "7f53e20f14dc8d4daf8d3c81d71376c5aa0d9e6d"
+  }
 }
