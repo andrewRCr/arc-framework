@@ -110,8 +110,8 @@ describe("locus methodology contracts", () => {
       );
       expect(handoff).toContain("`merged-at-head / complete` → **merged-clean**");
       expect(handoff).toMatch(softWrappedProse(
-        "`open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request waits only on "
-        + "unpushed commits) → **still-pending**",
+        "`open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request lags only a "
+        + "newer head that is unpushed or not yet seen by the host) → **still-pending**",
       ));
       expect(handoff).toMatch(softWrappedProse("`ambiguous / stop` without `headAhead` → **failed / blocked**"));
       expect(handoff).toMatch(softWrappedProse("An unavailable local head is **failed / blocked**"));

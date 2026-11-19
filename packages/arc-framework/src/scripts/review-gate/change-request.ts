@@ -180,7 +180,10 @@ export const ChangeRequestResolveResultSchema = z.union([
     state: z.literal("ambiguous"),
     nextAction: z.literal("stop"),
     candidates: z.array(ChangeRequestCandidateSchema),
-    /** The requested head descends from the open request's head and the remote tip: it waits only on a push. */
+    /**
+     * The requested head descends from the open request's head and the remote tip: the request lags only a newer head
+     * that is unpushed or not yet seen by the host.
+     */
     headAhead: z.literal(true).optional(),
     remedy: SpineRemedySchema.optional(),
   }),
@@ -197,7 +200,7 @@ export const ChangeRequestResolveResultSchema = z.union([
 ]);
 export type ChangeRequestResolveResult = z.infer<typeof ChangeRequestResolveResultSchema>;
 
-async function waitsOnlyOnPush(
+async function lagsOnlyNewerHead(
   port: ChangeRequestResolutionPort,
   requestHead: string,
   remoteHead: string | null,
@@ -242,7 +245,7 @@ async function classifyCandidates(
   if (candidate.state === "CLOSED") {
     return { ...base, state: "closed-unmerged", nextAction: "reopen-change-request", candidate };
   }
-  const headAhead = await waitsOnlyOnPush(
+  const headAhead = await lagsOnlyNewerHead(
     observed.port,
     candidate.headRefOid,
     observed.remoteHead,

@@ -669,8 +669,9 @@ Dispatch only on its typed state and action:
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
   `blocked / stop`, or `ambiguous / stop` without `headAhead` → **failed / blocked** — surface loudly, for both the
   manual- and auto-merge lanes.
-- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request waits only on
-  unpushed commits) → **still-pending** — hand to the session-init completion sweep; no action this session.
+- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request lags only a newer
+  head that is unpushed or not yet seen by the host) → **still-pending** — hand to the session-init completion
+  sweep; no action this session.
 
 ## Notes-sync leg
 

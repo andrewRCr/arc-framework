@@ -180,6 +180,19 @@ describe("exact-head change-request resolution", () => {
     expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [remoteHead, movedHead]]);
   });
 
+  it("marks the request when the host has not caught up with an already pushed head", async () => {
+    const movedHead = "b".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: movedHead }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", headAhead: true });
+    expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [movedHead, movedHead]]);
+  });
+
   it("leaves the mark off when the remote tip has diverged from the requested head", async () => {
     const movedHead = "b".repeat(40);
     const remoteHead = "c".repeat(40);
