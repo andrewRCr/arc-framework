@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "finalize-pass-unpushed-head",
+  "claimId": "24c18981b5376ce308a4f4d85d8cb7b8",
+  "createdAt": "2026-11-19T20:40:10.066Z",
+  "updatedAt": "2026-11-19T20:40:10.066Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Mark an open change request whose head the requested head descends from, so the handoff's finalize pass reads unpushed commits as still pending; resolver states stay as they are for its other callers",
+  "branch": "chore/finalize-pass-unpushed-head",
+  "origin": "inbox",
+  "originEntry": "Keep the handoff's finalize pass from stopping on an unpushed head",
+  "originEntrySourceDigest": "sha256:cfe72d706899cd2f5e2b3ebb9775ea7de8552f84c00133106045b3e5fe15334c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
