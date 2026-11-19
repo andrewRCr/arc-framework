@@ -7,8 +7,11 @@ const GIT = "C:\\Program Files\\Git";
 const LAUNCHER = `${GIT}\\cmd\\git.exe`;
 const SYSTEM32 = "C:\\Windows\\system32";
 
-function windowsHost(files: string[], environment: Record<string, string> = {}): GitExecutableHost & { probes: number } {
+function windowsHost(
+  files: string[], environment: Record<string, string> = {}, directories: string[] = [],
+): GitExecutableHost & { probes: number } {
   const present = new Set(files.map(file => win32.normalize(file).toLowerCase()));
+  const folders = new Set(directories.map(directory => win32.normalize(directory).toLowerCase()));
   const host = {
     platform: "win32" as NodeJS.Platform,
     environment: { PATHEXT: ".COM;.EXE;.BAT;.CMD", ...environment },
@@ -16,6 +19,10 @@ function windowsHost(files: string[], environment: Record<string, string> = {}):
     isFile(path: string): boolean {
       host.probes++;
       return present.has(win32.normalize(path).toLowerCase());
+    },
+    isDirectory(path: string): boolean {
+      host.probes++;
+      return folders.has(win32.normalize(path).toLowerCase());
     },
   };
   return host;
@@ -65,6 +72,19 @@ describe("the executable a Git child starts", () => {
     const host = windowsHost([LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`, ...files], { PATHEXT: pathExt });
 
     expect(gitExecutable({ PATH: path }, host)).toBe("git");
+  });
+
+  it("keeps the launcher when Git's home has a bin directory, which the binary would put first on PATH", () => {
+    const binary = `${GIT}\\ucrt64\\bin\\git.exe`;
+    const host = windowsHost([LAUNCHER, binary], {}, ["C:\\Users\\me\\bin"]);
+    const path = `${GIT}\\cmd`;
+
+    expect(gitExecutable({ PATH: path, HOME: "C:\\Users\\me" }, host)).toBe("git");
+    expect(gitExecutable({ PATH: path, USERPROFILE: "C:\\Users\\me" }, host)).toBe("git");
+    expect(gitExecutable({ PATH: path, HOMEDRIVE: "C:", HOMEPATH: "\\Users\\me" }, host)).toBe("git");
+    expect(gitExecutable({ PATH: path, HOME: "/c/Users/me" }, host)).toBe("git");
+    expect(gitExecutable({ PATH: path, HOME: "C:\\Users\\other", USERPROFILE: "C:\\Users\\me" }, host)).toBe(binary);
+    expect(gitExecutable({ PATH: path, USERPROFILE: "C:\\Users\\other" }, host)).toBe(binary);
   });
 
   it("keeps the launcher when the child's environment sets MSYSTEM, even to nothing", () => {

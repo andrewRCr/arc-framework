@@ -1,6 +1,6 @@
 import { execa } from "execa";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, win32 } from "node:path";
 
@@ -22,9 +22,10 @@ describe("the Git executable a child process starts", () => {
 
   it.runIf(windows)("is Git for Windows' own binary from a stock PATH, whose hooks still run", async () => {
     const { systemDirectory, env } = await stockEnvironment();
+    env.HOME = await temporaryDirectory();
 
     expect(gitExecutable(env)).toBe(win32.join(systemDirectory, "bin", "git.exe"));
-    expect(await hookedCommitMsystem(env)).toBe(win32.basename(systemDirectory).toUpperCase());
+    expect(await hookedCommit(env)).toBe(`${win32.basename(systemDirectory).toUpperCase()} /usr/bin/sed`);
   });
 
   it.runIf(windows)("stays the launcher when MSYSTEM is set, whose hooks still get Git's own system", async () => {
@@ -32,9 +33,25 @@ describe("the Git executable a child process starts", () => {
     env.MSYSTEM = "MSYS";
 
     expect(gitExecutable(env)).toBe("git");
-    expect(await hookedCommitMsystem(env)).toBe(win32.basename(systemDirectory).toUpperCase());
+    expect(await hookedCommit(env)).toBe(`${win32.basename(systemDirectory).toUpperCase()} /usr/bin/sed`);
+  });
+
+  it.runIf(windows)("stays the launcher when the home has a bin, whose tools Git's own still precede", async () => {
+    const { systemDirectory, env } = await stockEnvironment();
+    env.HOME = await temporaryDirectory();
+    await mkdir(join(env.HOME, "bin"));
+    await writeFile(join(env.HOME, "bin", "sed"), "#!/bin/sh\necho shadowed\n");
+
+    expect(gitExecutable(env)).toBe("git");
+    expect(await hookedCommit(env)).toBe(`${win32.basename(systemDirectory).toUpperCase()} /usr/bin/sed`);
   });
 });
+
+async function temporaryDirectory(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), "arc-git-launcher-"));
+  tempDirs.push(directory);
+  return directory;
+}
 
 /** The environment of a stock Windows PATH holding only Git's launcher directory, without Git's own variables. */
 async function stockEnvironment(): Promise<{ systemDirectory: string; env: NodeJS.ProcessEnv }> {
@@ -49,13 +66,13 @@ async function stockEnvironment(): Promise<{ systemDirectory: string; env: NodeJ
   return { systemDirectory, env };
 }
 
-/** Commit through the executor in a new repository, returning the MSYSTEM its pre-commit hook saw. */
-async function hookedCommitMsystem(env: NodeJS.ProcessEnv): Promise<string> {
-  const repo = await mkdtemp(join(tmpdir(), "arc-git-launcher-"));
-  tempDirs.push(repo);
+/** Commit through the executor in a new repository, returning the MSYSTEM and `sed` its pre-commit hook saw. */
+async function hookedCommit(env: NodeJS.ProcessEnv): Promise<string> {
+  const repo = await temporaryDirectory();
   const git = createExecaGitExec(undefined, env);
   await git("git", ["init", "-q"], { cwd: repo });
-  await writeFile(join(repo, ".git", "hooks", "pre-commit"), "#!/bin/sh\nprintf '%s' \"$MSYSTEM\" > hook-ran\n");
+  await writeFile(join(repo, ".git", "hooks", "pre-commit"),
+    "#!/bin/sh\nprintf '%s %s' \"$MSYSTEM\" \"$(command -v sed)\" > hook-ran\n");
   await git("git", ["-c", "core.hooksPath=.git/hooks", "-c", "user.name=ARC", "-c", "user.email=arc@example.invalid",
     "commit", "--allow-empty", "-q", "-m", "hooked"], { cwd: repo });
   return readFile(join(repo, "hook-ran"), "utf8");
