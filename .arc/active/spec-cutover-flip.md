@@ -1706,6 +1706,14 @@ note. No other machine keeps a clone, and so a notes ref, past the quiesce (§ 1
 notes residue refs after the window. The sealing guard's notes-command arm stays until those commands are deleted; its
 in-repo arm leaves with the in-repo implementation.
 
+On the flip build a notes writer's refusal states that Git notes are retired and that personal state lives in the store,
+and names the store step that replaces the refused writer: `arc save` for a save, `arc sync` for a push, fetch, or pull,
+and none for a load or workspace rename, whose files the projection keeps, or for a compact, since no notes history
+remains to compact. It never names the pre-flip remedy, merging the base branch and rebuilding, which reaches a build
+that refuses the same write. The in-repo arm's refusal keeps its condition and remedy, which the window's rehearsal
+compares a pre-flip build's output against (`storeImportedRefusal`, `lib/store/store-imported.ts`;
+`rehearse-window.ts`) (A14).
+
 ### 13. Transition invariants
 
 For each transition the window makes, what every record and checkout must preserve, where code enforces it, and the
@@ -2201,6 +2209,8 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
 11. **ADR-035's two amendments land** for items 2 and 8.
 12. **Both canaries land:** the first Errand and the first work unit after the window, each through the hosted steps
     it exists to test.
+13. **A refused notes writer says notes are retired.** On the flip build each `arc user` notes writer the sealing guard
+    refuses states that Git notes are retired and names the store step that replaces it, never a rebuild (A14).
 
 ## Open Questions
 
@@ -2234,5 +2244,7 @@ None.
   _Supersedes:_ § 3.2 ¶4; § 7.2; § 7.3 ¶1–2; § 7.7. _Trigger:_ 3.3 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.7.
 - **A13** — 2026-11-17 — design: the retired-subdirectory slot leaves with notes removal, not with the in-repo arm.
   _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
+- **A14** — 2026-11-18 — spec-depth: a sealed notes writer on the flip build names notes retirement and its replacement.
+  _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
 
 ---

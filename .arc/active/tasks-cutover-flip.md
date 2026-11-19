@@ -769,6 +769,19 @@ notice, and ADR-035 describe the store's arms.
   namespace that is neither a tag nor pushed, rather than as an archive tag, and is deleted with the notes residue refs
   after the window.
 
+### `[ ]` **4.R A refused notes writer on the flip build — § 12**
+
+- _Goal:_ On the flip build each notes writer the sealing guard refuses states that Git notes are retired and names the
+  store step that replaces it, never a rebuild, while the in-repo arm's refusal keeps its condition and remedy (A14).
+
+    - `[ ]` **4.R.a The notes writers' refusal and its test**
+        - The guard's calls in `runUserSave`, `runUserLoad`, and `runUserRenameWorkspace` (`commands/user/save-load.ts`),
+          in `commands/user/push-fetch.ts`, and in `runUserCompact` (`commands/user/compact.ts`) refuse with a notes
+          refusal of their own; `storeImportedRefusal`, which the in-repo backend and `rehearse-window.ts` read, is
+          unchanged.
+        - A test drives each writer over an imported repository on the ref default and asserts its condition and
+          replacement step.
+
 ## **Phase 5:** The workflow rewrite
 
 _Purpose:_ Rewrite every shipped workflow, method, skill, rule, template, README, and always-loaded step the flip makes
@@ -1390,6 +1403,9 @@ landing after verification).
 - `[ ]` No test setup or spawn helper sets the in-repo override by default, a test guarding it: in process and spawned,
   a test reaches the ref backend unless its subject is the in-repo arm or an operation that runs only on `main`'s
   pre-flip build, and it selects the in-repo implementation itself (A12).
+
+- `[ ]` On the flip build each `arc user` notes writer the sealing guard refuses states that Git notes are retired and
+  names the store step that replaces it, never a rebuild (A14).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
