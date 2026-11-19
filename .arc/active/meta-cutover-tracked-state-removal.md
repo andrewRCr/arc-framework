@@ -15,7 +15,7 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** waits on `cutover-flip` landing (`Depends On`); Task 1.1's census runs at that landing
 
 - **Next Action:** Task list finalized — ready to activate
 
