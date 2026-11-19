@@ -644,17 +644,17 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   goldens that carried the decline (orient, active-resume, branch-gone, current-husk) each lose only its warning, their
   sweeps finding no orphan; the residue reason is unchanged.
 
-### `[ ]` **3.R3 The orphan sweep leaves out a branch no record links — § 4.12**
+### `[x]` **3.R3 The orphan sweep leaves out a branch no record links — § 4.12**
 
 - _Goal:_ On the store the orphan-branch sweep leaves out a gone-upstream branch no record links, offering nothing for
   it, so that branch no longer withholds the offers beside it, while any other refused lookup or read and a conflicting
   or ambiguous link still decline the sweep (A16).
 
-    - `integration/orphan-store-branches.test.ts`'s failed-lookup case expects the unlinked branch left out with a
-      linked Shipped branch beside it keeping its teardown, failing first, beside a case where a lookup refused other
-      than `not-found` still declines; then `resolveStoreBranch` (`lib/session-init/store-branch-classification.ts`)
-      reports a `not-found` lookup apart from a failure, and `readOrphanStoreCandidates` leaves that branch out on both
-      sweep paths.
+- _Outcome:_ `resolveStoreBranch` (`lib/session-init/store-branch-classification.ts`) reads a `not-found` lookup as
+  `unlinked`, apart from a failure, and `readOrphanStoreCandidates` leaves that branch out on both sweep paths, while
+  `storeLocusOwnsBranch` still acts only on a resolved branch. `integration/orphan-store-branches.test.ts` keeps a
+  Shipped work unit's teardown beside an unlinked branch, and a lookup refused for another reason still declines the
+  whole sweep. No session-envelope golden changes.
 
 ### `[ ]` **3.R4 A command runs unprojected when its Git directory is not writable — § 4.13**
 

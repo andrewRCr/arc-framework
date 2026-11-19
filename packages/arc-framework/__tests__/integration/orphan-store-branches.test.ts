@@ -113,10 +113,26 @@ it.each(["snapshot", "run"] as const)("%s excludes active Errands and live groom
   const result = await h.sweep(path, branches, { claims });
   expect(result.orphans).toEqual([{ branch: "chore/ended-errand", merged: true, shippedWorkUnit: null, actions: [{ text: "git branch -D chore/ended-errand", argv: ["git", "branch", "-D", "chore/ended-errand"] }] }]);
 });
-it.each(["snapshot", "run"] as const)("%s declines the whole sweep on a failed branch lookup", async path => {
+it.each(["snapshot", "run"] as const)("%s leaves out a branch no record links and keeps the offers beside it", async path => {
   const h = await fixture();
+  await h.branch("linked-branch");
   await h.branch("unlinked-branch");
-  expect(await h.sweep(path, ["unlinked-branch"])).toMatchObject({ orphans: [], warnings: [expect.stringMatching(/not found|No record/iu)] });
+  await h.seedMeta("widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
+  const result = await h.sweep(path, ["linked-branch", "unlinked-branch"]);
+  expect(result.warnings ?? []).toEqual([]);
+  const teardown = { text: "arc teardown widget", argv: ["arc", "teardown", "widget"] };
+  expect(result.orphans).toEqual([{ branch: "linked-branch", merged: true, shippedWorkUnit: "widget", teardown, actions: [teardown] }]);
+});
+it.each(["snapshot", "run"] as const)("%s still declines the whole sweep on a branch lookup refused for another reason", async path => {
+  const h = await fixture();
+  await h.branch("linked-branch");
+  await h.branch("unreadable-branch");
+  await h.seedMeta("widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "linked-branch", linkedAs: "created", excluded: [] }] });
+  const lookup = h.store.lookup.bind(h.store);
+  vi.spyOn(h.store, "lookup").mockImplementation(input => input.kind === "ref" && input.ref === "unreadable-branch"
+    ? Promise.resolve({ status: "refused", refusal: { code: "refused", class: "terminal", message: "State unreadable", condition: "State unreadable.", remedy: { text: "Repair the state, then retry." } } })
+    : lookup(input));
+  expect(await h.sweep(path, ["linked-branch", "unreadable-branch"])).toMatchObject({ orphans: [], warnings: [expect.stringContaining("Repair the state, then retry.")] });
 });
 it.each(["snapshot", "run"] as const)("%s declines incomplete claims independently of branch lookup", async path => {
   const h = await fixture();

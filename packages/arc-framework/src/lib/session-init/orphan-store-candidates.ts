@@ -35,18 +35,28 @@ export async function readOrphanStoreCandidates(options: OrphanStoreOptions,
   const projectId = options.projectId ?? createProjectIdentityReader(options.store);
   for (const branch of branches) {
     if (claimed.has(branch) || roster.some(row => row.identity?.branch === branch)) continue;
-    const authority = await resolveStoreBranch(options.store, branch, projectId);
-    if (authority.status !== "ready") return authority;
-    const record = authority.record;
-    if (record.reference.kind !== "work-item/meta" && record.reference.kind !== "work-item/record") {
-      return { status: "unavailable", reason: `Branch ${branch} resolves to ${record.reference.kind}; repair its work-item branch link, then retry.` };
-    }
-    if (record.reference.kind === "work-item/record" ? record.placement?.kind === "active"
-      : roster.some(row => (row.kind === "work-unit" || row.kind === "retired")
-        && row.subject.kind === "work-unit" && row.subject.uid === ownerHolderRequest(record).uid)) continue;
-    candidates.push({ branch, authority, ...await candidateTeardown(options.store, authority) });
+    const selected = await selectBranch(options.store, branch, projectId, roster);
+    if (selected.status === "unavailable") return selected;
+    if (selected.status === "candidate") candidates.push(selected.candidate);
   }
   return { status: "ready", candidates };
+}
+
+/** One unclaimed branch's place in the sweep: a cleanup candidate, left out, or the evidence declining the sweep. */
+async function selectBranch(store: Store, branch: string, projectId: () => Promise<string>,
+  roster: readonly DerivedCheckoutRow[]): Promise<{ status: "candidate"; candidate: OrphanStoreCandidate }
+    | { status: "left-out" } | { status: "unavailable"; reason: string }> {
+  const authority = await resolveStoreBranch(store, branch, projectId);
+  if (authority.status === "unlinked") return { status: "left-out" };
+  if (authority.status !== "ready") return authority;
+  const record = authority.record;
+  if (record.reference.kind !== "work-item/meta" && record.reference.kind !== "work-item/record") {
+    return { status: "unavailable", reason: `Branch ${branch} resolves to ${record.reference.kind}; repair its work-item branch link, then retry.` };
+  }
+  if (record.reference.kind === "work-item/record" ? record.placement?.kind === "active"
+    : roster.some(row => (row.kind === "work-unit" || row.kind === "retired")
+      && row.subject.kind === "work-unit" && row.subject.uid === ownerHolderRequest(record).uid)) return { status: "left-out" };
+  return { status: "candidate", candidate: { branch, authority, ...await candidateTeardown(store, authority) } };
 }
 
 /** An authoritatively absent acquisition is an empty inventory; a failed, missed, or diagnosed one declines the sweep. */
