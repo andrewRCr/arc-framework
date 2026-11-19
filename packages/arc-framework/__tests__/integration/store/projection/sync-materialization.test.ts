@@ -247,7 +247,7 @@ it("fans out a materialization take-in once after releasing its native lease", a
   expect((await h.h.stored()).content).toBe("An edit arriving during materialization.\n");
 });
 
-it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving during sync restoration of a %s file", async existence => {
+it.each(["empty", "absent", "replaced", "edited in place"] as const)("holds an unopened edit during sync restoration (%s)", async arrival => {
   const h = await createEngineFixture(directories, { kind: "work-item/notes",
     path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
@@ -258,7 +258,7 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   if (entry?.kind !== "record") throw new Error("Missing archive entry");
   const file = join(h.checkout, h.path);
   await chmod(file, 0o644);
-  if (existence === "absent") await rm(file);
+  if (arrival !== "empty") await rm(file);
   else {
     await writeFile(file, "");
     await utimes(file, new Date(0), new Date(0));
@@ -266,15 +266,19 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   let edited = false;
   const content = "# Notes\n\nA late unopened correction.\n";
   const expected = renderStampedFile({ content, stamp: entry.base.blob });
-  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
+  const installEdit = async (path: string) => {
     if (edited || path !== h.path) return;
-    if (existence === "absent") {
+    if (arrival !== "empty") {
       // The first index publication already carries the requirement if sync stops before settling its link.
       expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
     }
     edited = true;
+    if (arrival === "replaced" || arrival === "edited in place") await chmod(file, 0o644);
+    if (arrival === "replaced") await rm(file);
     await writeFile(file, expected);
-  } } });
+  };
+  binding.ports = ports => ({ ...ports, hooks: arrival === "empty" || arrival === "absent"
+    ? { afterRecheck: installEdit } : { afterRebuildLink: installEdit } });
   const result = await sync(h);
   expect(edited).toBe(true);
   expect(result.errors).toContain(`arc edit ${h.path}`);
@@ -282,7 +286,7 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({
     version: h.record.version, content: h.record.content,
   });
-  if (existence === "absent") {
+  if (arrival !== "empty") {
     binding.ports = null;
     expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
     expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
@@ -292,6 +296,28 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
     expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
     expect((await h.stored()).content).toBe(content);
   }
+});
+
+it("names the archive owner when a nonowner's edit wins sync restoration", async () => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes", workItemOwner: "beth",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
+  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
+  await endProjection(h);
+  const file = join(h.checkout, h.path);
+  const bytes = renderStampedFile({ content: "# Notes\n\nA local correction.\n", stamp: h.entry.base.blob });
+  await chmod(file, 0o644);
+  await rm(file);
+  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async candidate => {
+    if (candidate === h.path) await writeFile(file, bytes);
+  } } });
+  const result = await sync(h);
+  expect(result.errors).toContain("beth");
+  expect(result.errors).not.toContain(`arc edit ${h.path}`);
+  expect(await readFile(file, "utf8")).toBe(bytes);
+  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
+  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
 });
 
 it("requires an explicit opening after sync encounters an unsettled late archive edit", async () => {

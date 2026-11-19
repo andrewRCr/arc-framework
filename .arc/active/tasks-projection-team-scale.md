@@ -287,8 +287,12 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
   Git-history errata convention. The independent verification fix check found no actionable defects.
   Candidate review reopened readiness over the inherited macOS absolute start budget. On Candidate `afc1e91acc`,
   hosted run `44534924205` passed 40 jobs and met both macOS paired limits. In timing job `135598338902`,
-  standard and expanded starts took 71.054 and 65.214 ms against 45 ms. The absolute budget still needs
-  qualifying evidence on the corrected head.
+  standard and expanded starts took 71.054 and 65.214 ms against 45 ms. On Candidate `b4fd993f92`,
+  hosted run `44551744263` passed 40 jobs. Timing job `135657612390` measured 62.755 and 58.851 ms
+  against the same start budget and 728.941 ms against the macOS one-file fan-out budget of 600 ms.
+  Both macOS paired differences passed at −0.565 ms for no-change save and +1.434 ms for opened start.
+  Matched startup diagnostic job `135670676836` found no consistent startup difference between
+  `53a349d7cb` and `b4fd993f92`. Neither absolute condition has qualifying evidence yet.
 
 ---
 

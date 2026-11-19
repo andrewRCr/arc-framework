@@ -3,10 +3,10 @@ import { withProjectionEntry } from "./index-memory.js";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { commitProjectionIndex } from "./index-file.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import { readStat } from "./change-detection.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
-import { archiveDestinationRefusal } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
@@ -34,14 +34,21 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   for (const { path, copy } of input.returned) {
     const entry = index.entries[path];
     if (entry?.kind !== "record" || !entry.copies.some(record => record.name === copy)) continue;
-    if (archiveDestinationRefusal(input.checkout, path) !== null) continue;
-    const at = join(input.checkout, copy);
-    const exists = await readStat(at) !== null;
-    if (exists && !await sameProjectionFile(at, join(input.checkout, path))) continue;
-    const updated = exists
-      ? await deleteAsideCopy({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint })
-      : await finalizeAsideCopy({ checkout: input.checkout, path, entry, copy });
-    index = withProjectionEntry(index, path, updated);
+    const updated = await cleanReturnedAlias({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint });
+    if (updated !== entry) index = withProjectionEntry(index, path, updated);
   }
   return index === published ? published : commitProjectionIndex({ ...input, index });
+}
+
+async function cleanReturnedAlias(input: Parameters<typeof deleteAsideCopy>[0]): Promise<RecordEntry> {
+  const { checkout, path, copy, entry } = input;
+  if (archiveDestinationRefusal(checkout, path) !== null) return entry;
+  const at = join(checkout, copy);
+  if (await readStat(at) === null) return finalizeAsideCopy(input);
+  if (!await sameProjectionFile(at, join(checkout, path))) return entry;
+  try { return await deleteAsideCopy(input); }
+  catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return entry;
+    throw error;
+  }
 }

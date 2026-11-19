@@ -4,6 +4,7 @@
  */
 import { link, rename } from "node:fs/promises";
 import { retryTransientFileSystemRefusal } from "../../kernel/fs-retry.js";
+import { requireArchiveDestination } from "./archive-file.js";
 
 /** The two file-system operations a swap makes, native unless a test injects its own. */
 export interface SwapFileSystem {
@@ -33,10 +34,14 @@ export interface RetriedMoves {
  * @param moves - The operations and sleep a test injects, if any.
  * @returns The retried moves.
  */
-export function retriedMoves(moves: SwapMoves): RetriedMoves {
+export function retriedMoves(moves: SwapMoves, archive?: { checkout: string; path: string; allowLeafLink?: boolean }): RetriedMoves {
   const sleep = moves.retrySleep;
   const retry = <T>(operation: () => Promise<T>): Promise<T> =>
-    retryTransientFileSystemRefusal(async () => { await moves.checkpoint?.(); return operation(); }, sleep === undefined ? {} : { sleep });
+    retryTransientFileSystemRefusal(async () => {
+      await moves.checkpoint?.();
+      if (archive !== undefined) requireArchiveDestination(archive.checkout, archive.path, archive.allowLeafLink);
+      return operation();
+    }, sleep === undefined ? {} : { sleep });
   const renameFile = moves.fs?.rename ?? rename;
   const linkFile = moves.fs?.link ?? link;
   return {

@@ -22,7 +22,7 @@ import { writeBackFixturePath } from "./write-back-fixture.js";
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 
 export async function createEngineFixture(directories: string[], input: { path?: string; kind?: KindId; content?: string; extraPaths?: readonly string[];
-  placement?: WritePlacement; registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
+  placement?: WritePlacement; workItemOwner?: string; registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
   const workItem = input.kind?.startsWith("work-item/") === true;
   const fixture = createReferenceFixture(undefined, { ...(workItem
     ? { "work-item/meta": { parser: META_REGISTRATION.parser } } : {}), ...input.registryOverrides });
@@ -36,7 +36,7 @@ export async function createEngineFixture(directories: string[], input: { path?:
   fixture.identity("andrew");
   const completed = input.placement?.kind === "completed";
   const primary = workItem ? await seed(fixture, fixture.reference("work-item/meta"),
-    makeMetaFixture("work-item-one", { owner: "andrew", state: completed ? "Shipped" : "Active", workClass: "Light", priority: "P1",
+    makeMetaFixture("work-item-one", { owner: input.workItemOwner ?? "andrew", state: completed ? "Shipped" : "Active", workClass: "Light", priority: "P1",
       currentWorkflow: completed ? null : "process-task-loop" }), input.placement) : null;
   const selected = fixture.reference(input.kind ?? "personal/document");
   const path = input.path ?? writeBackFixturePath(selected);

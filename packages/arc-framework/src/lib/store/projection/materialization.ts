@@ -37,8 +37,8 @@ import type { ProjectionConfiguration } from "./configuration.js";
 import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
-import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
-import { unopenedArchiveMark } from "./archive-inspection.js";
+import { reportArchiveRestorationHold, reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
+import { unopenedArchiveEditHold, unopenedArchiveMark } from "./archive-inspection.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** Inputs observed by the lease-owning caller. */
@@ -142,9 +142,11 @@ async function installMaterializedFiles(input: ProjectionMaterializationInput, i
   root.context.recordBatch?.(swapped);
   if (input.takeIn !== undefined) {
     for (const path of swapped.unreplaced) {
-      const mark = swapped.index.entries[path]?.refused;
-      if (mark == null) await reportArchivedProjectionFile(root, index, path);
-      else root.context.report?.({ path, copy: null, mark });
+      const entry = swapped.index.entries[path];
+      const hold = entry?.kind === "record" ? unopenedArchiveEditHold(entry) : null;
+      if (entry?.kind === "record" && hold !== null) await reportArchiveRestorationHold(root, path, entry, hold);
+      else if (entry?.refused == null) await reportArchivedProjectionFile(root, index, path);
+      else root.context.report?.({ path, copy: null, mark: entry.refused });
     }
   }
   return swapped.index;

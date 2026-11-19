@@ -16,7 +16,7 @@ import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
-import { archiveDestinationRefusal } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
 export type PathHolding =
@@ -228,7 +228,7 @@ export async function putBack(
   const { checkout, path, copy } = input;
   const blocked = blockedAsideDestination(input, sent.entry);
   if (blocked !== null) return blocked;
-  const moves = retriedMoves(input);
+  const moves = retriedMoves(input, { checkout, path });
   const at = { copy: join(checkout, copy.name), path: join(checkout, path) };
   const holding = await readPathHolding(at.path, input.format);
   const aside: CopySettlement = { kind: "held-aside", entry: sent.entry, path, copy: copy.name, held: sent.answer };
@@ -237,27 +237,27 @@ export async function putBack(
   const marked: RecordEntry = {
     ...restoreCopyRendering(sent.entry, copy, sent.result.openConflicts), pending: true, refused, copies: sent.entry.copies,
   };
-  if (holding.kind !== "file") {
-    const current = blockedAsideDestination(input, sent.entry);
-    if (current !== null) return current;
-    if (!await moves.linkOnto(at.copy, at.path)) return aside;
-    return { kind: "returned", entry: marked, held: sent.answer, how: "linked-back", replacement: null };
+  let replacement: string | null = null;
+  let retained = sent.entry;
+  try {
+    if (holding.kind === "file") {
+      replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
+      await input.checkpoint?.();
+      await mkdir(dirname(join(checkout, replacement)), { recursive: true });
+      await moves.rename(at.path, join(checkout, replacement));
+      const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
+        rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
+      retained = { ...retained, copies: [...retained.copies, record] };
+    }
+    // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
+    if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: retained };
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry: retained, mark: error.mark };
+    throw error;
   }
-  const replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
-  await input.checkpoint?.();
-  await mkdir(dirname(join(checkout, replacement)), { recursive: true });
-  const beforeMove = blockedAsideDestination(input, sent.entry);
-  if (beforeMove !== null) return beforeMove;
-  await moves.rename(at.path, join(checkout, replacement));
-  const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
-    rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
-  const afterMove = blockedAsideDestination(input, { ...sent.entry, copies: [...sent.entry.copies, record] });
-  if (afterMove !== null) return afterMove;
-  // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
-  if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: { ...sent.entry, copies: [...sent.entry.copies, record] } };
   return {
-    kind: "returned", entry: { ...marked, copies: [...marked.copies, record] }, held: sent.answer, how: "swapped-back",
-    replacement,
+    kind: "returned", entry: { ...marked, copies: retained.copies }, held: sent.answer,
+    how: replacement === null ? "linked-back" : "swapped-back", replacement,
   };
 }
 
@@ -284,7 +284,12 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
   }
   const blocked = blockedAsideDestination(input, entry);
   if (blocked !== null) return blocked;
-  return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
+  try {
+    return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark };
+    throw error;
+  }
 }
 
 /** Restore the mapping only when a copy's own bytes return to its path; current conflict evidence keeps advancing. */

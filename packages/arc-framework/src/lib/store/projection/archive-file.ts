@@ -1,10 +1,11 @@
 /** Observe and change an archived file through its checkout-local path and file identity. */
-import { constants, lstatSync, type BigIntStats } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, type BigIntStats } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionLinkRemedy, readProjectionLinkBoundary } from "./discovery-links.js";
-import type { RefusedMark } from "./index-schema.js";
+import type { FileStat, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 
 type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "ports" | "checkpoint">;
@@ -74,6 +75,40 @@ export function archiveDestinationRefusal(checkout: string, path: string, allowL
   } catch (error) { return archivePermissionMark(path, error); }
 }
 
+/** A mutation stopped by the checkout or link check at the point of use. */
+export class ArchiveDestinationBlocked extends Error {
+  constructor(readonly mark: RefusedMark) { super(mark.reason); }
+}
+
+/** Check an archive destination after the caller's last lease checkpoint and before the filesystem operation. */
+export function requireArchiveDestination(checkout: string, path: string, allowLeafLink = false): void {
+  const mark = archiveDestinationRefusal(checkout, path, allowLeafLink);
+  if (mark !== null) throw new ArchiveDestinationBlocked(mark);
+}
+
+/** Confirm both the staged inode and its bytes before clearing a sync restoration's opening hold. */
+export function hasArchiveRendering(checkout: string, path: string, staged: FileStat, written: string, format: ObjectFormat): boolean {
+  let descriptor: number | undefined;
+  try {
+    if (archiveDestinationRefusal(checkout, path) !== null) return false;
+    const absolute = join(checkout, path);
+    descriptor = openSync(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const before = fstatSync(descriptor, { bigint: true });
+    if (!before.isFile() || before.ino !== staged.ino || before.size !== staged.size) return false;
+    if (gitBlobId(readFileSync(descriptor), format) !== written || archiveDestinationRefusal(checkout, path) !== null) return false;
+    const current = lstatSync(absolute, { bigint: true, throwIfNoEntry: false });
+    return current !== undefined && current.isFile() && sameArchiveFile(before, current)
+      && before.size === current.size && before.mtimeNs === current.mtimeNs && before.ctimeNs === current.ctimeNs;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return false;
+    archivePermissionMark(path, error);
+    return false;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 /** Observe the current regular file without treating a linked destination as archive content. */
 export async function readArchiveFile(root: ArchiveRoot, path: string): Promise<ArchiveFile> {
   const mark = await archiveLinkRefusal(root, path);
@@ -112,12 +147,27 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
       return { kind: "blocked", mark: archiveFileChangeMark(path) };
     }
     await root.checkpoint?.();
-    const mode = Number(stat.mode);
-    try { await handle.chmod(writable ? mode | 0o200 : mode & ~0o222); }
-    catch (error) { return archiveModeRefusal(path, error); }
-    return current;
+    return await changeCheckedMode(handle, root.checkout, path, stat, writable);
   } finally {
     await handle.close();
+  }
+}
+
+/** Check again after the final lease await, then change the mode on the already verified handle. */
+async function changeCheckedMode(handle: NonNullable<Awaited<ReturnType<typeof open>>>, checkout: string, path: string,
+  authorized: BigIntStats, writable: boolean): Promise<ArchiveModeChange> {
+  const foreign = archiveDestinationRefusal(checkout, path);
+  if (foreign !== null) return { kind: "blocked", mark: foreign };
+  try {
+    const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
+    if (current === undefined) return { kind: "missing" };
+    if (!current.isFile() || !sameArchiveFile(authorized, current)) return { kind: "blocked", mark: archiveFileChangeMark(path) };
+    const mode = Number(current.mode);
+    await handle.chmod(writable ? mode | 0o200 : mode & ~0o222);
+    return { kind: "file", stat: current };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return { kind: "missing" };
+    return archiveModeRefusal(path, error);
   }
 }
 

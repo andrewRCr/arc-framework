@@ -70,7 +70,8 @@ async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entr
   return gateRead({ path: join(root.checkout, path), markdown: entry !== undefined && path.endsWith(".md") });
 }
 
-async function archiveProtection(root: AdoptionObservationRoot,
+/** Observe current rights for a known archived record before telling the caller how to correct it. */
+export async function archiveProtection(root: AdoptionObservationRoot,
   reference: Parameters<typeof observeProjectionProtection>[1]): Promise<ArchiveInspection> {
   const rights = await observeProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, reference);

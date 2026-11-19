@@ -19,7 +19,7 @@ import type { ReadGateDependencies } from "./read-gate.js";
 import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { archiveDestinationRefusal } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveDestinationRefusal, hasArchiveRendering } from "./archive-file.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
@@ -51,6 +51,8 @@ export interface SwapHooks {
   readonly afterFirstCheck?: (path: string) => Promise<void>;
   /** Before an absent file's rebuild links its staged file. */
   readonly beforeRebuildLink?: (path: string) => Promise<void>;
+  /** After an absent file was linked, before final settlement checks its rendering. */
+  readonly afterRebuildLink?: (path: string) => Promise<void>;
 }
 
 /** What a batch swaps, and how; its moves are the system's unless a test injects its own. */
@@ -158,13 +160,20 @@ async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEn
   // A removal links nothing, so its file stays pending until it and its copies are gone.
   if (swap.staged === null) return { entry, installed: false };
   const blocked = archiveDestinationRefusal(input.checkout, swap.path);
-  if (blocked !== null) return { entry: { ...entry, pending: true, refused: blocked }, installed: false };
-  const stat = await readStat(join(input.checkout, swap.path));
-  const holdsStaged = stat?.type === "file" && stat.ino === swap.staged.stat.ino;
-  if (!holdsStaged) return { entry, installed: false };
+  if (blocked !== null) return { entry: keepRebuildHold(swap, { ...entry, pending: true, refused: blocked }), installed: false };
+  if (!await holdsStagedFile(input, swap.path, swap.staged, swap.rebuildHold != null)) {
+    return { entry: keepRebuildHold(swap, entry), installed: false };
+  }
   // A read-back lays what write-back took in, so a file already pending before it waits for the next refresh.
   const placed = { ...entry, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
   return { entry: swap.copy === null ? { ...placed, inProgress: null } : placed, installed: true };
+}
+
+async function holdsStagedFile(input: SwapBatchInput, path: string, staged: NonNullable<PlannedSwap["staged"]>,
+  verifyRendering: boolean): Promise<boolean> {
+  if (verifyRendering) return hasArchiveRendering(input.checkout, path, staged.stat, staged.file.written, input.format);
+  const stat = await readStat(join(input.checkout, path));
+  return stat?.type === "file" && stat.ino === staged.stat.ino;
 }
 
 function entryAt(index: ProjectionIndex, path: string): RecordEntry {
@@ -250,9 +259,9 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
 async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string, aside: string): Promise<SwapDone | null> {
   await input.checkpoint?.();
   await mkdir(dirname(aside), { recursive: true });
-  try { await archiveSwapMoves(input, swap.path, true).rename(path, aside); }
+  try { await retriedMoves(input, { checkout: input.checkout, path: swap.path, allowLeafLink: true }).rename(path, aside); }
   catch (error) {
-    if (error instanceof ArchiveSwapRefusal) return holdSwap(input, swap, swap.original, error.mark);
+    if (error instanceof ArchiveDestinationBlocked) return holdSwap(input, swap, swap.original, error.mark);
     await input.checkpoint?.();
     if (swap.staged !== null) await removeProjectionAsideFile(input.checkout, swap.staged.file.location, input.checkpoint);
     return { entry: { ...swap.original, pending: true } };
@@ -264,28 +273,15 @@ async function moveAside(input: SwapBatchInput, swap: PlannedSwap, path: string,
 async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly path: string }): Promise<SwapDone> {
   await input.hooks?.beforeRebuildLink?.(swap.path);
   let linked: boolean;
-  try { linked = await archiveSwapMoves(input, swap.path).linkOnto(at.staged, at.path); }
+  try { linked = await retriedMoves(input, { checkout: input.checkout, path: swap.path }).linkOnto(at.staged, at.path); }
   catch (error) {
-    if (error instanceof ArchiveSwapRefusal) return holdSwap(input, swap, swap.original, error.mark);
+    if (error instanceof ArchiveDestinationBlocked) return holdSwap(input, swap, swap.original, error.mark);
     throw error;
   }
+  if (linked) await input.hooks?.afterRebuildLink?.(swap.path);
   await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint);
   return { entry: linked ? swap.entry : keepRebuildHold(swap, yielded(swap)) };
-}
-
-class ArchiveSwapRefusal extends Error {
-  constructor(readonly mark: RefusedMark) { super(mark.reason); }
-}
-
-/** Recheck the path after the lease checkpoint on each native move attempt, including a Windows retry. */
-function archiveSwapMoves(input: SwapBatchInput, path: string, allowLeafLink = false): RetriedMoves {
-  if (!path.startsWith(".arc/completed/")) return retriedMoves(input);
-  return retriedMoves({ ...input, checkpoint: async () => {
-    await input.checkpoint?.();
-    const mark = archiveDestinationRefusal(input.checkout, path, allowLeafLink);
-    if (mark !== null) throw new ArchiveSwapRefusal(mark);
-  } });
 }
 
 async function holdSwap(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry, mark: RefusedMark): Promise<SwapDone> {
@@ -304,7 +300,7 @@ function keepRebuildHold(swap: PlannedSwap, entry: RecordEntry): RecordEntry {
 async function linkStagedIn(
   input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly aside: string; readonly path: string },
 ): Promise<SwapDone & { readonly done?: true }> {
-  const moves = archiveSwapMoves(input, swap.path);
+  const moves = retriedMoves(input, { checkout: input.checkout, path: swap.path });
   let linked: boolean;
   try {
     linked = await moves.linkOnto(at.staged, at.path);
@@ -320,10 +316,10 @@ async function linkStagedIn(
 
 async function recoverFailedLink(moves: RetriedMoves, swap: PlannedSwap, at: { readonly aside: string; readonly path: string },
   error: unknown): Promise<SwapDone> {
-  if (error instanceof ArchiveSwapRefusal) return { entry: { ...yielded(swap), refused: error.mark } };
+  if (error instanceof ArchiveDestinationBlocked) return { entry: { ...yielded(swap), refused: error.mark } };
   try { return await linkBack(moves, swap, at); }
   catch (failure) {
-    if (failure instanceof ArchiveSwapRefusal) return { entry: { ...yielded(swap), refused: failure.mark } };
+    if (failure instanceof ArchiveDestinationBlocked) return { entry: { ...yielded(swap), refused: failure.mark } };
     throw failure;
   }
 }
