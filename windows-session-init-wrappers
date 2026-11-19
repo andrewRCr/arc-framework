@@ -3,7 +3,7 @@
   "slug": "windows-session-init-wrappers",
   "claimId": "ca872fdc463bb59eb3baf1fcb798dd04",
   "createdAt": "2026-11-19T17:46:34.093Z",
-  "updatedAt": "2026-11-19T17:46:34.093Z",
+  "updatedAt": "2026-11-19T18:29:36.181Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make session-init E2E fake Git and GitHub CLI wrappers execute on Windows without changing their assertions",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make session-init E2E's fake `git` and `gh` wrappers run on Windows",
   "originEntrySourceDigest": "sha256:6af33d5f62d19a791b1c48382f516e7be01d591b7b84ea4fb1a1d68617bfc088",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/windows-session-init-wrappers",
+    "headSha": "feedc071520c4343183fc8455907c2430b3fbd1e"
+  }
 }
