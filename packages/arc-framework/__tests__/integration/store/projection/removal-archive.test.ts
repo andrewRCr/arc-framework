@@ -103,7 +103,7 @@ it.each(["forced", "malformed", "new"])("holds an unopened %s archive file from 
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-it.each(["notice", "markers"])("holds an unedited archive conflict shown by %s until its named repair", async shown => {
+async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
   const h = await archiveRetirementFixture("andrew", shown === "notice" ? "separate" : "default");
   const base = shown === "notice" ? h.primary : await seed(h.f,
     recordReferences["work-item/companion"](h.primary.reference.owner, "conflicted.md"), "opening\nbase\nclosing\n");
@@ -135,4 +135,10 @@ it.each(["notice", "markers"])("holds an unedited archive conflict shown by %s u
   } else await h.openAndSave(path, current.content);
   expect(success(await h.store.read({ reference: base.reference })).conflicts).toEqual([]);
   expect(await h.check()).toEqual({ kind: "removable" });
-}, 30_000);
+}
+
+// The notice case uses real repositories and three synchronization operations before verifying the repair.
+it("holds an unedited archive conflict shown by notice until its named repair",
+  () => checkUneditedArchiveConflictRepair("notice"), process.platform === "win32" ? 60_000 : 30_000);
+it("holds an unedited archive conflict shown by markers until its named repair",
+  () => checkUneditedArchiveConflictRepair("markers"), 30_000);
