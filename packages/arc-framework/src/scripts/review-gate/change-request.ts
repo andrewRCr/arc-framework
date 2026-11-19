@@ -21,6 +21,8 @@ export interface ChangeRequestResolutionPort {
   readHeadRef(headRef: string): Promise<{ local: string | null; remote: string | null }>;
   listByHead(repository: string, headRef: string): Promise<readonly ChangeRequestCandidate[]>;
   searchByHeadSha(repository: string, headSha: string): Promise<readonly ChangeRequestCandidate[]>;
+  /** Whether local history shows `ancestor` behind `descendant`; false when either commit is absent locally. */
+  isAncestor(ancestor: string, descendant: string): Promise<boolean>;
 }
 
 export const ChangeRequestMergeCoordinatesSchema = z.strictObject({
@@ -178,6 +180,8 @@ export const ChangeRequestResolveResultSchema = z.union([
     state: z.literal("ambiguous"),
     nextAction: z.literal("stop"),
     candidates: z.array(ChangeRequestCandidateSchema),
+    /** The requested head descends from the one open request's head: that request waits only on unpushed commits. */
+    headAhead: z.literal(true).optional(),
     remedy: SpineRemedySchema.optional(),
   }),
   z.strictObject({
@@ -193,12 +197,13 @@ export const ChangeRequestResolveResultSchema = z.union([
 ]);
 export type ChangeRequestResolveResult = z.infer<typeof ChangeRequestResolveResultSchema>;
 
-function classifyCandidates(
+async function classifyCandidates(
   targetRef: ChangeRequestTargetRef,
   candidates: readonly ChangeRequestCandidate[],
   baseRef: string,
   acceptableBaseRefs: readonly string[],
-): ChangeRequestResolveResult {
+  port: ChangeRequestResolutionPort,
+): Promise<ChangeRequestResolveResult> {
   const base = { schemaVersion: 1, mode: "review-change-request-resolve", targetRef } as const;
   const acceptedBases = new Set([baseRef, ...acceptableBaseRefs]);
   const matching = candidates.filter((candidate) => acceptedBases.has(candidate.baseRefName));
@@ -227,11 +232,13 @@ function classifyCandidates(
   if (candidate.state === "CLOSED") {
     return { ...base, state: "closed-unmerged", nextAction: "reopen-change-request", candidate };
   }
+  const headAhead = await port.isAncestor(candidate.headRefOid, targetRef.headSha);
   return {
     ...base,
     state: "ambiguous",
     nextAction: "stop",
     candidates: matching,
+    ...(headAhead ? { headAhead: true as const } : {}),
     remedy: spineRemedy(
       "An open change request exists at a different head.",
       "Push the target branch, then re-run exact-head resolution",
@@ -289,12 +296,13 @@ export async function resolveChangeRequest(
     }
     const byRef = await port.listByHead(repository, request.headRef);
     const acceptableBaseRefs = request.acceptableBaseRefs ?? [];
-    if (byRef.length !== 0) return classifyCandidates(targetRef, byRef, request.baseRef, acceptableBaseRefs);
-    return classifyCandidates(
+    if (byRef.length !== 0) return await classifyCandidates(targetRef, byRef, request.baseRef, acceptableBaseRefs, port);
+    return await classifyCandidates(
       targetRef,
       await port.searchByHeadSha(repository, request.headSha),
       request.baseRef,
       acceptableBaseRefs,
+      port,
     );
   } catch (error) {
     return {

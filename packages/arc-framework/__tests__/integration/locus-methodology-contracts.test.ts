@@ -109,7 +109,11 @@ describe("locus methodology contracts", () => {
         "arc review change-request resolve --head-ref <branch> --head-sha <head-sha>",
       );
       expect(handoff).toContain("`merged-at-head / complete` → **merged-clean**");
-      expect(handoff).toContain("`open / reuse-change-request` → **still-pending**");
+      expect(handoff).toMatch(softWrappedProse(
+        "`open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request waits only on "
+        + "unpushed commits) → **still-pending**",
+      ));
+      expect(handoff).toMatch(softWrappedProse("`ambiguous / stop` without `headAhead` → **failed / blocked**"));
       expect(handoff).toMatch(softWrappedProse("An unavailable local head is **failed / blocked**"));
       expect(handoff).not.toContain("gh pr view <branch> --json state,mergedAt");
     }

@@ -667,10 +667,10 @@ Dispatch only on its typed state and action:
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
 - `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
-  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
-  auto-merge lanes.
-- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
-  session.
+  `blocked / stop`, or `ambiguous / stop` without `headAhead` → **failed / blocked** — surface loudly, for both the
+  manual- and auto-merge lanes.
+- `open / reuse-change-request`, or `ambiguous / stop` with `headAhead: true` (the open request waits only on
+  unpushed commits) → **still-pending** — hand to the session-init completion sweep; no action this session.
 
 ## Notes-sync leg
 

@@ -42,6 +42,7 @@ function changeRequestPort(head: string) {
     resolveRepository: async () => "owner/repo", readHeadRef: async () => ({ local: null, remote: head }),
     listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "OPEN" as const,
       baseRefName: "main", headRefName: "main", headRefOid: head }], searchByHeadSha: async () => [],
+    isAncestor: async () => false,
   };
 }
 
