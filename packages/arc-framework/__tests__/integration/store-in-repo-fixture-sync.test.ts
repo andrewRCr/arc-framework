@@ -7,6 +7,10 @@ import { seed, success, update } from "../helpers/store/suite-tools.js";
 import { makeCommit, makeGitExec } from "../helpers/integration.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
 import { transientContent } from "../helpers/store/in-repo-substrates.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The repository fixture's synchronization is the in-repo implementation's.
+useInRepoStoreForEach();
 
 describe("repository fixture existing sync behavior", () => {
   it("publishes every personal and transient role to the actual remote", async () => {

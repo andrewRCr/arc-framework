@@ -18,6 +18,10 @@ import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.j
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { setupWorktreeSiblings } from "../helpers/multi-clone.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// A sibling checkout's tracked delivery state is the in-repo implementation's.
+useInRepoStoreForEach();
 
 const IDENTITY = "test-user", WORK_UNIT = "example", BRANCH = `feat/${WORK_UNIT}`;
 

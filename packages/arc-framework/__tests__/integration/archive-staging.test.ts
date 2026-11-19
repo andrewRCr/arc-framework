@@ -27,6 +27,10 @@ import { renderRoadmapFromIndex } from "../../src/lib/status/roadmap-regeneratio
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { executeTransition } from "../../src/lib/work-unit/lifecycle-executor.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// ROADMAP regeneration over a staged archive transition is the in-repo implementation's.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 

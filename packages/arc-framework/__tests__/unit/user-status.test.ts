@@ -37,6 +37,10 @@ import {
   NO_COMPARABLE_SOURCE_COMMIT,
   projectManifest,
 } from "../../src/lib/user-sync/index.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };

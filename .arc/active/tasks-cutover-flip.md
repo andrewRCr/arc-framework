@@ -575,11 +575,37 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           override where their path opens the default itself. `review-status-base-movement` and
           `review-status-errand-base-movement` stay listed for Task 3.4.f, and `exact-target-read-isolation` for 3.R.d.
 
-    - `[ ]` **3.R.d Session, status, lifecycle, user, and release**
+    - `[x]` **3.R.d Session, status, lifecycle, user, and release**
         - The rest: the session and status readers, the lifecycle verbs, `init`, `join`, `user`, `sync`, release commit
           and push, and the projection's hook dispatch (`integration/store/projection/cli-hooks.test.ts`). Among them
           are the unit tests whose scripted `exec` meets the tracked-state predicate's tree read at first use, and the
           end-to-end tests that start the CLI or `git` outside the spawn helpers and that no Task 3.4 family reaches.
+        - _Amended (Owner, 2026-11-18):_ its 53 files failed 683 cases under the ref default, about
+          three times Task 3.R.c's, so the group runs as four review increments by subject. This task takes the user,
+          Git notes, park, and ROADMAP files; Tasks 3.R.e to 3.R.g take the rest.
+        - 15 files left the ledger, classified in `notes-cutover-flip.md` § Test callers. Each subject runs only on the
+          pre-flip build, so its cases set the override, `integration/user`'s and `store-imported-seal`'s once-built
+          fixtures included (`withInRepoStore`, `helpers/in-repo-store-override.ts`); `user add`, which survives, reads
+          its seeded records back from the store.
+
+    - `[ ]` **3.R.e Release commit and push**
+        - `unit/handlers/release/commit`, `commit-close`, and `push`, and `unit/release/wu-resolution`.
+
+    - `[ ]` **3.R.f Lifecycle verbs, start, `init`, `join`, and the executor**
+        - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, `integration/start-dispatch`, `unit/init`,
+          `integration/init`, `unit/join`, `unit/work-unit/executor-context`, `integration/executor-store-rebind`,
+          `integration/errand-promote`, `unit/decompose-preflight-handler`, and `integration/store-lifecycle-storage`.
+
+    - `[ ]` **3.R.g Session and status readers, `arc sync`, checks, and the projection's hooks**
+        - The active and status readers (`integration/active`, `status`, `status-project`, `status-conflicts-cli`, and
+          `status-store-refresh-cli`, `unit/handlers/active`, `unit/active/meta-reader` and `meta-reader-store`,
+          `unit/commands/active/roster`, `unit/git/worktree-roster`, `unit/status/run`, and
+          `unit/lib/store/current-work-unit`); `unit/sync-orchestrator`, `integration/store-sync-admission`, and
+          `store-sync-derived-status`; recovery and orientation (`unit/handlers/recover-envelope-boundary`,
+          `integration/concurrent-write-preconditions`, and `exact-target-read-isolation`); and the checks and hooks
+          (`unit/lib/checks/projected-selection`, `integration/check-projected-selection`,
+          `unit/scripts/check-foreign-writes`, `e2e/check-pre-commit-hook`, and
+          `integration/store/projection/cli-hooks`).
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

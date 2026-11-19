@@ -10,6 +10,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { resolveCurrentWuName } from "../../src/lib/user-sync/index.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 let root: string;
 let activeDir: string;

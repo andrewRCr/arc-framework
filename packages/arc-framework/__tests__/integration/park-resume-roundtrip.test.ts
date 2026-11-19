@@ -46,6 +46,10 @@ import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Parking is the pre-flip build's pause, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 

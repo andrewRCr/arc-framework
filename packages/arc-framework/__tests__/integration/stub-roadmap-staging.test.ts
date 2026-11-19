@@ -11,6 +11,10 @@ import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { runStub } from "../../src/lib/work-unit/verbs/stub.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// ROADMAP regeneration over a staged stub is the in-repo implementation's.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 

@@ -25,6 +25,10 @@ import { contentDigest } from "../../src/lib/canonical/content-digest.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The USER-INBOX.md file and its execute-bound marks are the in-repo implementation's personal inbox.
+useInRepoStoreForEach();
 
 const IDENTITY = "tester";
 

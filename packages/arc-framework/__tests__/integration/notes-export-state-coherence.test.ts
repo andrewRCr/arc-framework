@@ -31,6 +31,10 @@ import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bou
 import { inferSessionInitRecommendations } from "../../src/lib/session-init/recommended-action.js";
 import { BRANCH_BOUNDED_NOTES_JOIN_MESSAGE } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;

@@ -19,6 +19,17 @@ export function useInRepoStore(): void {
   onTestFinished(() => { restore(); });
 }
 
+/** Run an operation with the in-repo store override set, restoring the environment afterwards, for a fixture a file
+ * builds once, before any test, whose subject is the in-repo implementation.
+ * @param operation - The operation to run under the override.
+ * @returns The operation's result.
+ */
+export async function withInRepoStore<T>(operation: () => Promise<T>): Promise<T> {
+  const restore = setInRepoStoreOverride();
+  try { return await operation(); }
+  finally { restore(); }
+}
+
 /** Run an operation with the in-repo store override cleared, restoring it afterwards, so it composes the default
  * store whatever the test around it selects.
  * @param operation - The operation to run without the override.

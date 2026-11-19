@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vite
 
 import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
 import { UserFacingError } from "../../src/lib/errors.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 // --- Mocks ---
 
@@ -396,6 +397,8 @@ describe("handleUserFetch flow", () => {
 // --- handleUserPull tests ---
 
 describe("handleUserPull fetch+load flow", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -514,6 +517,8 @@ describe("handleUserPull fetch+load flow", () => {
 });
 
 describe("handleUserLoad empty result", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -761,6 +766,8 @@ describe("handleUserStatus --json retrofit", () => {
 // --- handleUserOpen tests ---
 
 describe("handleUserOpen", () => {
+  // Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+  useInRepoStoreForEach();
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();

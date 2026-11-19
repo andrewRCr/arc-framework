@@ -270,6 +270,26 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       `respond-composition-store`, are counterparts by subject only, not matched case by case.
     - _Back on the ledger:_ `integration/review-status-base-movement` and `review-status-errand-base-movement`, which
       import `movementPaths` (Task 3.4.f), and `exact-target-read-isolation`, a locus and reconcile subject (Task 3.R.d).
+- **User, Git notes, park, and ROADMAP (Task 3.R.d's first slice):** each subject runs only on the pre-flip build, so
+  its cases set the override.
+    - _By file:_ `unit/user-status`, `save-load`, `sync`, `user-sync-current-wu`, and
+      `integration/notes-export-state-coherence` (Git-notes user state); `integration/user-inbox-remove` (the
+      `USER-INBOX.md` file and its execute-bound marks); `integration/park-resume-roundtrip`; `integration/archive-staging`
+      and `stub-roadmap-staging` (ROADMAP regeneration); `integration/store-in-repo-fixture-sync` and
+      `locus-sibling-delivery-in-repo`; and `integration/store-imported-seal`, whose subject is a pre-flip build's writes
+      and whose file fixture is built under the override (`withInRepoStore`).
+    - _By `describe`:_ `unit/user-handlers`' load, pull, and open; `integration/multi-clone`'s notes and Errand-ref
+      sync; and `integration/user`'s notes and workspace commands, whose shared templates are initialized under the
+      override.
+    - _Ref backend:_ `integration/user`'s `user add` case reads the seeded working memory and inbox back from the store,
+      over a template initialized on the ref default.
+    - Under the ref default `arc init` mints the registry ref, so a notes write on the flip build refuses with the seal's
+      pre-flip condition ("This build of ARC predates the storage cutover") and a merge-and-rebuild remedy that cannot
+      clear it.
+- **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
+  `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
+  the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
+  answers every call with one identity, which the in-flight roster's topology read now reaches.
 
 ## Pre-flip steps
 

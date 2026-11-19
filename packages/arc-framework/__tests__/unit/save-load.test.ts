@@ -36,6 +36,10 @@ import {
 } from "../../src/commands/user/types.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes user state is written and read only by the pre-flip build, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const SYNC_STATE_RELATIVE = ".arc/user/andrew/.internal/.sync-state.json";
 

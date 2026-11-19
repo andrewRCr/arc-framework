@@ -17,6 +17,10 @@ import { cleanupTempDir, DEFAULT_PROMPTS, makeCommit, makeGitExec, makeGitExecIn
 import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { inRepoStore, testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
+import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
+
+// The seal refuses the writes of a build that predates the cutover, which builds the in-repo store.
+useInRepoStoreForEach();
 
 const execFileAsync = promisify(execFile);
 const REGISTRY = "refs/arc/project/registry";
@@ -36,7 +40,7 @@ async function whileImported(check: () => Promise<void>, gitDir?: string): Promi
 }
 
 beforeAll(async () => {
-  root = await initInTempRepo(DEFAULT_PROMPTS, IDENTITY);
+  root = await withInRepoStore(async () => initInTempRepo(DEFAULT_PROMPTS, IDENTITY));
   cleanup.push(root);
   await makeCommit(root, "initial commit");
   await mkdir(join(root, ".arc", "user", IDENTITY), { recursive: true });
