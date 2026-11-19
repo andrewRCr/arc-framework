@@ -1,4 +1,5 @@
 /** Removal feasibility requires explicit archive correction and keeps unreadable evidence distinct from refused edits. */
+import { mkdirSync, readdirSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -16,8 +17,59 @@ import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
+import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 
 afterEach(() => { beginProjectionCommand(); });
+
+it("holds opened archive adoption when its checkout boundary changes during observation", async () => {
+  const h = await archiveRetirementFixture();
+  const path = `${h.folder}/new-companion.txt`, file = join(h.checkout, path);
+  const boundary = join(dirname(file), ".git"), content = "A local archive companion.\n";
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "new-companion.txt");
+  await writeFile(file, content);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const store = { ...h.store, read: async (request: Parameters<typeof h.store.read>[0]) => {
+    const result = await h.store.read(request);
+    if (request.reference.kind === "work-item/companion") await mkdir(boundary, { recursive: true });
+    return result;
+  } };
+
+  expect(await checkProjectionRemoval(h.checkout, { ...h.context, store })).toMatchObject({
+    kind: "unobservable", detail: expect.stringContaining("belongs to another checkout"),
+  });
+  await rm(boundary, { recursive: true });
+  expect((await projectionCommand({ ...h.input, store }, ["save"])).diagnostics).toContain("belongs to another checkout");
+  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "ownerless", opened: true });
+  expect(await readFile(file, "utf8")).toBe(content);
+  expect(await h.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+
+  await rm(boundary, { recursive: true });
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference })).content).toBe(content);
+  expect(await h.check()).toEqual({ kind: "removable" });
+}, 30_000);
+
+it("rechecks archive authority after retirement feasibility passes", async () => {
+  const h = await archiveRetirementFixture();
+  const folder = join(h.checkout, h.folder), boundary = join(folder, ".git");
+  const file = join(h.checkout, h.path), before = await readFile(file, "utf8");
+  let finalWalks = 0, checking = false;
+  const result = await persistProjectionRemoval(h.checkout, { ...h.context,
+    hooks: { beforeLastCheck: async () => { checking = true; } },
+    ports: checkout => ({ ...createProjectionEnginePorts(checkout), walkFs: { readdir: path => {
+      if (checking && path === folder && ++finalWalks === 2) mkdirSync(boundary);
+      return readdirSync(path, { withFileTypes: true });
+    } } }),
+  });
+  expect(finalWalks).toBe(2);
+  expect(result).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("belongs to another checkout") } });
+  expect(await readFile(file, "utf8")).toBe(before);
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+
+  await rm(boundary, { recursive: true });
+  expect(await h.retire("persist")).toEqual({ kind: "persisted" });
+}, 30_000);
 
 it.each([false, true])("reports the same nested archive destination blocker before and during retirement (edited=%s)", async edited => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);

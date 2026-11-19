@@ -5,7 +5,7 @@ import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
+import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";

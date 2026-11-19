@@ -21,8 +21,8 @@ import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
-import { ArchiveDestinationBlocked, archiveLinkRefusal, nestedArchiveCheckoutRefusal } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
+import { ArchiveDestinationBlocked, archiveLinkRefusal, hasArchiveRendering, nestedArchiveCheckoutRefusal } from "./archive-file.js";
+import { clearArchiveOpeningHold, unopenedArchiveEditHold } from "./archive-opening-hold.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { hasArchiveRecording } from "./recording-state.js";
 
@@ -143,7 +143,7 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
   if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
     root.unsent.delete(path);
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
-    return { index: recordCleanFile(index, path, entry, changed), edited: false };
+    return { index: recordCleanFile(root, index, path, entry, changed), edited: false };
   }
   const unchanged = !resolving && changed.status === "changed"
     ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
@@ -186,11 +186,14 @@ async function openedArchiveCheckoutRefusal(root: ProjectionRootState, path: str
   return entry?.opened === true ? nestedArchiveCheckoutRefusal(root.checkout, path) : null;
 }
 
-function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntry,
+function recordCleanFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   changed: Exclude<ChangeVerdict, { status: "absent" }>): ProjectionIndex {
-  const refused = unopenedArchiveEditHold(entry) ?? (entry.refused?.reason === "bases-disagree" ? entry.refused : null);
-  if (changed.status === "clean" && entry.refused === refused) return index;
-  return withEntry(index, path, { ...entry, stat: changed.stat, refused });
+  const hold = unopenedArchiveEditHold(entry);
+  const settled = hold !== null && entry.copies.length === 0 && entry.stat !== null
+    && hasArchiveRendering(root.checkout, path, entry.stat, entry.written, root.context.format) ? clearArchiveOpeningHold(entry) : entry;
+  const refused = settled.refused?.reason === "bases-disagree" ? settled.refused : null;
+  if (settled === entry && changed.status === "clean" && entry.refused === refused) return index;
+  return withEntry(index, path, { ...settled, stat: changed.stat, refused });
 }
 
 async function sendFile(root: ProjectionRootState, index: ProjectionIndex, request: TakeInRequest): Promise<{

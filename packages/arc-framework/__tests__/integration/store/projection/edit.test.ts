@@ -13,14 +13,14 @@ import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/s
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
   afterCheckoutRead: null as (() => Promise<void>) | null, removeOnRead: null as string | null,
   timeOffset: 0, linkedPath: null as string | null }));
-vi.mock("node:fs/promises", async original => {
-  const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, readFile: async (...args: Parameters<typeof actual.readFile>) => {
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  return { ...actual, openSync: (...args: Parameters<typeof actual.openSync>) => {
     if (args[0] === binding.removeOnRead && binding.removeOnRead !== null) {
-      await actual.rm(binding.removeOnRead);
+      actual.rmSync(binding.removeOnRead);
       binding.removeOnRead = null;
     }
-    return actual.readFile(...args);
+    return actual.openSync(...args);
   } };
 });
 vi.mock("../../../../src/lib/store/create.js", async original => {

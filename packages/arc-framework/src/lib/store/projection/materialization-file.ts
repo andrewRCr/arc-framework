@@ -21,7 +21,7 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
+import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** A caller's complete rendering and replacement context for one target path. */

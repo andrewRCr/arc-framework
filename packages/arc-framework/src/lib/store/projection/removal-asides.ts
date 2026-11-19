@@ -3,7 +3,7 @@ import { checkAsideCopy, observeAsideCopy, recordWriteBackSent } from "./aside-c
 import { readProjectionLinkBoundary, type ProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
 import type { ProjectionRemovalGuard, ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionProtection } from "./protection.js";
-import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, type ProjectionRemovalCheck,
+import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, type ProjectionRemovalCheck,
   type ProjectionRetirement } from "./removal-verdict.js";
 import type { AsideCopyRecord, RecordEntry, ProjectionIndex } from "./index-schema.js";
 import { readFile } from "node:fs/promises";
@@ -118,6 +118,9 @@ async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: 
         entry: recordWriteBackSent(request.entry, request.copy) } : { answer: "no-edit", entry: request.entry };
     } });
   if (refusal.verdict.kind !== "passes") return { entry, verdict: refusal.verdict };
+  if (checked.kind === "blocked-destination") return { entry, verdict: {
+    kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, checked.mark),
+  } };
   if (checked.kind === "not-a-file") return { entry, verdict: { kind: "would-refuse", remedy: checked.remedy } };
   if (checked.kind === "unsettled") {
     return { entry, verdict: { kind: "would-refuse", remedy: { text: `Let ${copy.name} in ${root.checkout} finish saving, then retry ${retirementName(input.disposition)}.` } } };

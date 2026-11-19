@@ -1,7 +1,7 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
 import { projectionFileReader, readReference } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
+import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { gitBlobId } from "./blob-id.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import { restoreLegacyOpeningHolds } from "./archive-opening-hold.js";
 
 /** Entries stored in one root partition. */
 export type ProjectionEntries = ProjectionIndex["entries"];
@@ -90,6 +91,7 @@ function loadGroup(backing: ProjectionIndexBacking, group: string): ProjectionEn
       if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)
         || Object.keys(parsed).some(path => projectionIndexGroup(path) !== group)) throw new Error("Invalid root partition");
       source = { entries: parsed as ProjectionEntries };
+      restoreLegacyOpeningHolds(source.entries, group, descriptor.unsettled);
       backing.sources.set(group, source);
     } catch { throw new ProjectionPartitionMismatch(descriptor.name, backing.location); }
   }

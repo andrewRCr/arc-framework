@@ -20,8 +20,7 @@ import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
 import { ArchiveDestinationBlocked, archiveDestinationRefusal, hasArchiveRendering } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
-import { refuseProjectionEdit } from "./rights-binding.js";
+import { clearArchiveOpeningHold, unopenedArchiveEditHold } from "./archive-opening-hold.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -72,8 +71,8 @@ export interface SwapBatchInput extends SwapMoves {
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
   readonly gate?: ReadGateDependencies;
   readonly hooks?: SwapHooks;
-  /** A restoration can journal an opening requirement until its link-only rebuild is confirmed. */
-  readonly rebuildHold?: (path: string, entry: RecordEntry) => RefusedMark | null;
+  /** A restoration journals an opening requirement before it displaces or links a file. */
+  readonly restorationOpeningHold?: (path: string, entry: RecordEntry) => RefusedMark | null;
 }
 
 /** What a batch left: the index as its second write recorded it, and the aside copies the command keeps. */
@@ -124,7 +123,7 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const unreplaced: string[] = [];
   for (const each of plans) {
     const settlement = await settled(input, each, entryAt(index, each.path));
-    index = withEntry(index, each.path, settlement.installed ? settlement.entry : keepOpeningHold(each, settlement.entry));
+    index = withEntry(index, each.path, settlement.entry);
     if (each.staged !== null && !settlement.installed) unreplaced.push(each.path);
   }
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
@@ -159,14 +158,15 @@ export async function dropRemovedEntries(index: ProjectionIndex, checkout: strin
 /** The entry the second write records: what a file the batch put in place no longer needs. */
 async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry): Promise<{ entry: RecordEntry; installed: boolean }> {
   // A removal links nothing, so its file stays pending until it and its copies are gone.
-  if (swap.staged === null) return { entry, installed: false };
+  if (swap.staged === null) return { entry: keepOpeningHold(swap, entry), installed: false };
   const blocked = archiveDestinationRefusal(input.checkout, swap.path);
-  if (blocked !== null) return { entry: { ...entry, pending: true, refused: blocked }, installed: false };
+  if (blocked !== null) return { entry: keepOpeningHold(swap, { ...entry, pending: true, refused: blocked }), installed: false };
   if (!await holdsStagedFile(input, swap.path, swap.staged, swap.openingHold !== null)) {
-    return { entry, installed: false };
+    return { entry: keepOpeningHold(swap, entry), installed: false };
   }
   // A read-back lays what write-back took in, so a file already pending before it waits for the next refresh.
-  const placed = { ...entry, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
+  const confirmed = entry.copies.length === 0 ? clearArchiveOpeningHold(entry) : keepOpeningHold(swap, entry);
+  const placed = { ...confirmed, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
   return { entry: swap.copy === null ? { ...placed, inProgress: null } : placed, installed: true };
 }
 
@@ -206,7 +206,7 @@ async function plan(input: SwapBatchInput, file: SwapFile): Promise<PlannedSwap>
     ...renderedEntry(original, staged), base: staged.base, written: staged.written, stat: stagedStat, pending: true, inProgress, copies,
   };
   return { path: file.path, original, entry, copy, staged: { file: staged, stat: stagedStat },
-    openingHold: existingHold ?? (copy === null ? input.rebuildHold?.(file.path, original) ?? null : null) };
+    openingHold: existingHold ?? input.restorationOpeningHold?.(file.path, original) ?? null };
 }
 
 function renderedEntry(original: RecordEntry, staged: StagedFile): RecordEntry {
@@ -249,6 +249,7 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
     writer: input.writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate, checkpoint: input.checkpoint,
   };
   const checked = await checkAsideCopy(settling);
+  if (checked.kind === "blocked-destination") return { entry: { ...checked.entry, pending: true, refused: checked.mark } };
   // An edit refused or clashed at the first check goes back to its path, where the person can see it.
   const { answer } = checked.kind === "sent" ? checked : { answer: null };
   const held = checked.kind === "sent" && (answer === "refused" || answer === "unparseable" || answer === "clashed")
@@ -293,7 +294,8 @@ async function holdSwap(input: SwapBatchInput, swap: PlannedSwap, entry: RecordE
 }
 
 function keepOpeningHold(swap: PlannedSwap, entry: RecordEntry): RecordEntry {
-  return swap.openingHold === null ? entry : refuseProjectionEdit(entry, swap.openingHold).entry;
+  const openingHold = unopenedArchiveEditHold(entry) ?? swap.openingHold;
+  return openingHold === null ? entry : { ...entry, openingHold, refused: entry.refused ?? openingHold };
 }
 
 /**

@@ -321,6 +321,10 @@ rights change is refused there as any edit is, its edit kept in its file.
   replaces, so an ordinary command's adoption of a new archived file lays it writable, and it stays opened until
   `arc save`, whose own adoption of it re-locks it (§ 6.2). A refused adoption keeps the mark already, since `refuse`
   (`adoption.ts`) carries the ownerless entry's fields over.
+- **The opening requirement is durable (A1).** A record basis can carry a requirement to open its archived edit.
+  Its partition stays unsettled, and refresh, read-back and retry diagnostics can change independently. An index
+  that recorded the requirement as a refusal keeps it on read. Plain save holds the edit until an explicit opening
+  or settlement proves the recorded rendering at the path and finishes any displaced copies.
 - **A moved entry keeps the mark.** Where a refresh moves an opened record's file to a new path, the mark moves with its
   entry, as the changed mark does (`spec-projection-worktrees.md` § 11.7), through the changed mark's carriers (§ 12):
   the old path is held back from removal until the new path takes the mark; at a path another record still leaves, the
@@ -477,6 +481,9 @@ deletes (§ 12). Here it reads every partition:
   `arc edit` then `arc save` where the edit rights allow the edit, and otherwise the rights' remedy naming the owner. It
   takes nothing in: such an edit lands when a refresh touches its file or after `arc edit` and `arc save`, and the
   removal refuses over it (§ 8).
+- **Restoration records the opening requirement before changing the path (A1).** It does so whether the swap
+  displaces a file or links into an empty path. A refused or yielded swap keeps the requirement. Settlement can
+  clear it when the installed file matches the staged identity and bytes and its copies have settled (§ 4).
 - **`arc sync` reports new archived files.** From the walk its restoration already makes of every projected root
   (§ 12), it names each file under `completed/` that the index does not hold — editor side files and the folder files
   operating systems write aside, as adoption skips them (`spec-projection-write-back.md` § 9), and a symbolic link
@@ -500,6 +507,11 @@ the remedy below; and otherwise the answers § 12.2 there gives. One function an
 `arc sync`'s report, the removal check, and the persist step (§ 7.2), and the persist step takes every forced edit and
 every file with no entry out of what it writes back, refusing over each, so it never lands one
 (`persistFiles`, `removal-persist.ts`).
+
+Archive adoption, retirement selection and confirmation, and aside recovery use the archive's live checkout
+boundary for destination stats and reads (A1). When that authority is unavailable, the check answers
+`unobservable` for the file and persistence or recovery holds it. A retry observes the current checkout, keeping
+any opening, accepted receipt, and displaced copy until the corresponding step can finish.
 
 - **An opened file's edit persists, and an opened new file adopts,** as shipped `spec-projection-write-back.md` § 8.4
   has them persist any archived correction; the removal then takes the file.
@@ -969,6 +981,9 @@ to its origin, since no verb reopens archived work.
     `arc edit` on the archived meta, the edit to its Release Notes Entry, then `arc save`, and makes a substantial
     change a new work unit linked to its origin (§ 10.4).
 13. **The quality gates pass** at every gate the project declares.
+14. **Archive retries retain their authority (A1).** Late checkout changes leave archive adoption and retirement held
+    until authority is restored. An unsettled archive restoration or failed refresh retains the requirement to open
+    the edit, so plain save holds it until explicitly opened or settled by an authorized route.
 
 ## Open Questions
 
@@ -977,6 +992,7 @@ design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-19 — spec-depth: bind archive reads and opening holds across retries. _Supersedes:_ none.
+  _Trigger:_ archive-observation-propagation-incomplete review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

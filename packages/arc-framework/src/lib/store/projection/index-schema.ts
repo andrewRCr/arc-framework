@@ -92,6 +92,7 @@ const RecordBasisSchema = z.strictObject({
   protected: z.boolean(),
   changed: z.boolean(),
   opened: z.literal(true).optional(),
+  openingHold: RefusedMarkSchema.optional(),
   pending: z.boolean(),
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),

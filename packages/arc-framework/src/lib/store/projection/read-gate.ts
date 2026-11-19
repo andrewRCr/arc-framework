@@ -1,7 +1,7 @@
 /** Write-back's read gate: a projected file is read only once its save has settled, by its stats alone. */
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Remedy } from "../refusal.js";
-import { readStat } from "./change-detection.js";
+import { projectionFileReader, readStat } from "./change-detection.js";
 import type { FileStat } from "./index-schema.js";
 
 /**
@@ -34,6 +34,13 @@ export const SYSTEM_READ_GATE: ReadGateDependencies = {
   stat: (path) => readStat(path),
   sleep: async (milliseconds) => { await sleep(milliseconds); },
 };
+
+/** Recheck checkout authority at each stat of an archive destination. */
+export function projectionReadGate(checkout: string, path: string): ReadGateDependencies {
+  if (!path.startsWith(".arc/completed/")) return SYSTEM_READ_GATE;
+  const reader = projectionFileReader(checkout, path);
+  return { ...SYSTEM_READ_GATE, stat: async absolute => reader.stat(absolute) };
+}
 
 /** What the gate found at a path the index lists. */
 export type ReadGateVerdict =

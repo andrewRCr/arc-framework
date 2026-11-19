@@ -10,10 +10,11 @@ import { materializeProjectionRoot } from "./materialization.js";
 import { projectionProcessState } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
-import { unopenedArchiveMark } from "./archive-inspection.js";
+import { unopenedArchiveMark } from "./archive-opening-hold.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { gateRead } from "./read-gate.js";
+import { gateRead, projectionReadGate } from "./read-gate.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -25,13 +26,22 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
   if (root === undefined) return;
   const takeIn: TakeInPort = async request => {
     if (!request.path.startsWith(".arc/completed/") || request.entry.opened === true) return root.takeIn(request);
-    const gate = await gateRead({ path: join(checkout, request.copy ?? request.path), markdown: request.path.endsWith(".md") });
+    const path = request.copy ?? request.path;
+    let gate: Awaited<ReturnType<typeof gateRead>>;
+    try {
+      gate = await gateRead({ path: join(checkout, path), markdown: request.path.endsWith(".md") },
+        projectionReadGate(checkout, path));
+    } catch (error) {
+      if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+      const openingHold = unopenedArchiveMark(checkout, request.path, true);
+      return refuseProjectionEdit({ ...request.entry, openingHold }, error.mark);
+    }
     if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "emptied") return { answer: "no-edit", entry: request.entry };
     const hold = unopenedArchiveMark(checkout, request.path, true);
     const mark = await root.rights?.(request) ?? hold;
     root.unsent.add(request.path);
     root.context.report?.({ path: request.path, copy: request.copy, mark });
-    const refused = refuseProjectionEdit(request.entry, hold);
+    const refused = refuseProjectionEdit({ ...request.entry, openingHold: hold }, mark);
     return gate.kind === "pending" ? { answer: "deferred", entry: refused.entry } : refused;
   };
   const report = (reason: string, remedy = "Repair the reported projection state, then retry arc sync."): void => {

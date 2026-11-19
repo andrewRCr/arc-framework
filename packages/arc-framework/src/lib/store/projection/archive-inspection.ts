@@ -1,6 +1,5 @@
 /** Observe unopened archive corrections and their repair route without admitting any authored content. */
 import { join } from "node:path";
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import type { AdoptionObservationRoot } from "./adoption-verdict.js";
 import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { resolveProjectionAdoptionIntent } from "./adoption-intent.js";
@@ -9,8 +8,9 @@ import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { observeProjectionProtection } from "./protection.js";
-import { gateRead, SYSTEM_READ_GATE, type ReadGateVerdict } from "./read-gate.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { gateRead, projectionReadGate, type ReadGateVerdict } from "./read-gate.js";
+import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
+import { unopenedArchiveEditHold, unopenedArchiveMark } from "./archive-opening-hold.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
@@ -18,23 +18,10 @@ export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; rea
 /** Racy-rule observations a restoration already made, retained without a second discovery pass. */
 export interface ArchiveObservation { readonly reference: bigint | null; readonly stat?: FileStat | null }
 
-const forcedArchiveEdit = "An archived file was edited without opening it.";
-
-/** A retirement refusal holds the correction until its entry is explicitly opened. */
-export function unopenedArchiveEditHold(entry: ProjectionIndex["entries"][string]): RefusedMark | null {
-  return entry.opened !== true && entry.refused?.reason === forcedArchiveEdit ? entry.refused : null;
-}
-
 /** Opened entries and outstanding work may finish, while a retirement refusal cannot authorize its own retry. */
 export function canRecoverArchiveEntry(entry: ProjectionIndex["entries"][string] | undefined): boolean {
   return entry !== undefined && (entry.opened === true
     || (isProjectionEntryUnsettled(entry) && unopenedArchiveEditHold(entry) === null));
-}
-
-/** Keep the repair identical when observation or capture discovers an unopened archive correction. */
-export function unopenedArchiveMark(checkout: string, path: string, known: boolean): RefusedMark {
-  return { reason: known ? forcedArchiveEdit : "A new archived file has not been opened.",
-    remedy: { text: `Run arc edit ${renderRemedyArgument(path)} then arc save from ${checkout} to retain this correction.` } };
 }
 
 /** Share detection and remedy precedence between sync's report and retirement's read and write boundaries. */
@@ -52,6 +39,7 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
     if (gate === null || gate.kind === "absent" || gate.kind === "no-edit") return null;
     const denied = entry?.kind === "record" ? await archiveProtection(root, entry.reference)
       : await newArchiveRemedy(root, index, path, gate);
+    requireArchiveDestination(root.checkout, path);
     return denied ?? { kind: "refused", mark: unopenedArchiveMark(root.checkout, path, entry !== undefined) };
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark };
@@ -65,14 +53,14 @@ async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entr
   observation?: ArchiveObservation): Promise<ReadGateVerdict | null> {
   const absolute = join(root.checkout, path);
   const reader = projectionFileReader(root.checkout, path);
+  requireArchiveDestination(root.checkout, path);
   if (entry !== undefined) {
     const changed = await checkChange({ path: absolute, recorded: entry.stat, written: entry.written,
       reference: observation === undefined ? await readReference(root.checkout) : observation.reference,
       format: root.context.format, observed: observation?.stat }, reader.read, reader.stat);
     if (changed.status !== "changed") return null;
   }
-  return gateRead({ path: absolute, markdown: entry !== undefined && path.endsWith(".md") },
-    { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
+  return gateRead({ path: absolute, markdown: entry !== undefined && path.endsWith(".md") }, projectionReadGate(root.checkout, path));
 }
 
 /** Observe current rights for a known archived record before telling the caller how to correct it. */

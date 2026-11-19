@@ -18,7 +18,7 @@ import { unshownConflicts } from "./held-conflicts.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-inspection.js";
+import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
 
 /** How many times the guard re-checks a file, taking in an edit each finds, before leaving it to the next command. */
 export const GUARD_PASSES = 3;

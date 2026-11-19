@@ -331,10 +331,12 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
   if (blocked !== null) return blocked;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
+  const afterCopyCheck = blockedAsideDestination({ checkout, path }, entry);
+  if (afterCopyCheck !== null) return afterCopyCheck;
   // Moved back to its path, or never made after a stop.
   if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   try {
-    const holding = await readPathHolding(at.path, input.format);
+    const holding = await readPathHolding(checkout, path, input.format);
     if (stat.type === "symlink") {
       const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
       // An absent path waits for the next refresh to rebuild it.

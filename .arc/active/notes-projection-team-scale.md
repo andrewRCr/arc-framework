@@ -491,6 +491,10 @@ correction and a passing removal check. All ten suite cases pass in run `586d27e
 
 ## Archive boundary corrections
 
+A1 keeps the opening requirement independent of the latest refusal so a temporary refresh failure can report its
+own remedy while a later save still holds the correction. The swap journals the requirement before displacing a
+file or installing a replacement. Settlement needs evidence for both the installed rendering and retained copies.
+
 `5397c3c40b` checks which checkout owns the requested path, validates links before archive pickup, and changes a mode
 through a handle that identifies the observed file. Save keeps a same-byte replacement opened if it is still writable.
 Retirement refuses a late forced edit at capture and preserves the correction for explicit opening and save. Sync

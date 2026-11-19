@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
 import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
-import { checkChange, readReference } from "./change-detection.js";
+import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
 import { hasArchiveRecording, unfinishedRecordingRefusal } from "./recording-state.js";
@@ -22,6 +22,7 @@ import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
+import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -72,6 +73,19 @@ function hasArchiveSubmission(path: string, entry: ProjectionIndex["entries"][st
 
 async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: string,
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
+  const { checkout } = input.root;
+  try {
+    const verdict = await observeRemovalFile(input, path, reference, guard);
+    if (verdict.kind === "passes") requireArchiveDestination(checkout, path);
+    return verdict;
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, error.mark) };
+    throw error;
+  }
+}
+
+async function observeRemovalFile(input: ProjectionRemovalFilesInput, path: string,
+  reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { root, index } = input;
   const entry = index.entries[path];
   if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(path), input.disposition);
@@ -110,8 +124,9 @@ async function checkUnfinishedRecording(root: ReadOnlyProjectionRoot, path: stri
 
 async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: string, entry: RecordEntry,
   reference: bigint | null, guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
+  const reader = projectionFileReader(root.checkout, path);
   const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
-    written: entry.written, reference, format: root.context.format });
+    written: entry.written, reference, format: root.context.format }, reader.read, reader.stat);
   if (changed.status === "absent") return { kind: "passes" };
   const conflict = entry.markers !== null || entry.notices.length > 0 || entry.unshown.length > 0;
   if (changed.status !== "changed" && !conflict) return { kind: "passes" };

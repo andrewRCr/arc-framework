@@ -88,13 +88,19 @@ export function requireArchiveDestination(checkout: string, path: string, allowL
 }
 
 /** Read bytes through a regular file handle after freshly checking every archive ancestor. */
-export function readArchiveBytes(checkout: string, path: string): Buffer {
+export function readArchiveBytes(checkout: string, path: string, expected?: FileStat): Buffer {
   requireArchiveDestination(checkout, path);
   let descriptor: number | undefined;
   try {
     descriptor = openSync(join(checkout, path), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    if (!fstatSync(descriptor).isFile()) throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
-    return readFileSync(descriptor);
+    const observed = fstatSync(descriptor, { bigint: true });
+    if (!observed.isFile() || expected !== undefined
+      && (observed.ino !== expected.ino || observed.size !== expected.size || observed.mtimeNs !== expected.mtimeNs)) {
+      throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
+    }
+    const bytes = readFileSync(descriptor);
+    if (expected !== undefined) confirmArchiveRead(checkout, path, observed);
+    return bytes;
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) throw error;
     const code = (error as NodeJS.ErrnoException).code;
@@ -102,6 +108,15 @@ export function readArchiveBytes(checkout: string, path: string): Buffer {
     throw new ArchiveDestinationBlocked(archivePermissionMark(path, error, "read"));
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function confirmArchiveRead(checkout: string, path: string, before: BigIntStats): void {
+  requireArchiveDestination(checkout, path);
+  const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
+  if (current === undefined || !current.isFile() || !sameArchiveFile(before, current)
+    || before.size !== current.size || before.mtimeNs !== current.mtimeNs || before.ctimeNs !== current.ctimeNs) {
+    throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
   }
 }
 
