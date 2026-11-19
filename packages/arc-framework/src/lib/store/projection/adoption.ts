@@ -5,7 +5,7 @@ import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal
 import { join } from "node:path";
 import type { RecordReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
-import type { FileStat, ProjectionIndex, RefusedMark } from "./index-schema.js";
+import type { FileStat, OwnerlessEntry, ProjectionIndex, RefusedMark } from "./index-schema.js";
 import { gateRead } from "./read-gate.js";
 import { prepareAdoptedProjectionSubmission, submitProjectionBatch } from "./submission.js";
 import { markStoreRefusal } from "./refusal-mark.js";
@@ -15,10 +15,25 @@ import { mintProjectionMetadata, resumeProjectionStub } from "./stub-mint.js";
 import { attachExistingProjectionFile } from "./adoption-existing.js";
 import { inspectProjectionAdoption, missingMintedMetadataMark } from "./adoption-verdict.js";
 import { resolveProjectionAdoptionIntent, resolveOwnedAdoptionReference } from "./adoption-intent.js";
+import { findArchiveSaveAcceptance, retainArchiveSubmission } from "./archive-save-recording.js";
+import { gitBlobId } from "./blob-id.js";
+import type { TakeInRead } from "./take-in-port.js";
+import type { PreparedProjectionSubmission } from "./submission.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
 export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   root.unsent.add(path);
+  const entry = index.entries[path];
+  if (entry?.kind === "ownerless" && entry.archiveSubmission !== undefined) {
+    const recovered = await resumeSubmittedAdoption(root, index, path, entry, onFile);
+    if (recovered.kind === "done") return recovered.index;
+    index = recovered.index;
+  }
+  return adoptObservedFile(root, index, path, onFile);
+}
+
+async function adoptObservedFile(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   await root.context.checkpoint?.();
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
   if (gate.kind === "absent") {
@@ -41,10 +56,36 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   await root.context.checkpoint?.();
   const submission = await prepareAdoptedProjectionSubmission(root.context, root.checkout, path, verdict.file, index);
   if (submission.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(submission.refusal, root.context.verb));
-  const content = submission.result.plan.prepared.takenIn;
-  const sent = await submitProjectionBatch(root.context, submission.result.batch);
-  if (sent.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(sent.refusal, root.context.verb));
-  return recordAdoptionAcceptance(root, index, path, sent.result, content, verdict.read, onFile);
+  return submitAdoption(root, index, path, verdict.read, submission.result, onFile);
+}
+
+async function submitAdoption(root: ProjectionRootState, index: ProjectionIndex, path: string, read: TakeInRead,
+  submission: PreparedProjectionSubmission, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
+  const prepared = submission.plan.prepared;
+  const entry = index.entries[path];
+  const staged = path.startsWith(".arc/completed/") && entry?.kind === "ownerless" && entry.opened === true
+    ? await retainArchiveSubmission(root.context, gitBlobId(prepared.takenIn, root.context.format), prepared.takenIn, read) : undefined;
+  if (staged !== undefined && entry?.kind === "ownerless") await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    checkpoint: root.context.checkpoint, index: withProjectionEntry(index, path,
+      { ...entry, archiveSubmission: { ...staged, reference: prepared.reference } }) });
+  const sent = await submitProjectionBatch(root.context, submission.batch, staged?.id);
+  if (sent.status === "refused") return refuse(root, index, path, read.stat, markStoreRefusal(sent.refusal, root.context.verb));
+  return recordAdoptionAcceptance(root, index, path, sent.result, staged ?? prepared.takenIn, read, onFile);
+}
+
+async function resumeSubmittedAdoption(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: OwnerlessEntry,
+  onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ kind: "done" | "retry"; index: ProjectionIndex }> {
+  const { archiveSubmission, ...prior } = entry;
+  if (archiveSubmission === undefined) throw new Error("An interrupted archive adoption requires its staged input");
+  const receipt = await findArchiveSaveAcceptance(root.context, archiveSubmission.reference, archiveSubmission.id);
+  if (receipt.kind === "held") {
+    root.context.report?.({ path, copy: null, mark: receipt.mark });
+    return { kind: "done", index };
+  }
+  if (receipt.kind === "accepted") return { kind: "done", index: await recordAdoptionAcceptance(root, index, path,
+    { reference: receipt.reference, version: receipt.version, conflicts: [] }, archiveSubmission, archiveSubmission.read, onFile) };
+  return { kind: "retry", index: await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
+    index: withProjectionEntry(index, path, prior) }) };
 }
 
 async function resolveAdoptionReference(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<

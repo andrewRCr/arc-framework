@@ -17,7 +17,7 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
   const file = await captureWriteBackFile(context, request);
   if (file.kind !== "read") return null;
   if (!request.path.endsWith(".md")) {
-    if (entry.opened && entry.persisted?.inputBlob === gitBlobId(file.content, context.format)) return file.read;
+    if (matchesAcceptedText(entry, file, context.format)) return file.read;
     const observed = await readStamplessFile({ entry, text: file.content, mtimeNs: file.read.stat.mtimeNs,
       format: context.format, memo: context.memo ?? createHistoryMemo(context.store) });
     return observed.status === "ok" && observed.result.kind === "unedited" ? file.read : null;
@@ -27,4 +27,14 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
   if (selected.status !== "ok" || selected.result.kind !== "selected") return null;
   const base = await readBaseContent(context, entry, selected.result.base);
   return base.status === "ok" && base.result === file.content ? file.read : null;
+}
+
+function matchesAcceptedText(entry: TakeInRequest["entry"], file: Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>,
+  format: WriteBackContext["format"]): boolean {
+  const accepted = entry.persisted;
+  if (!entry.opened || accepted?.inputBlob === undefined) return false;
+  // Earlier records only prove the input while the original basis is still journaled.
+  const original = entry.acceptedInputStat ?? (entry.inProgress === null && entry.base.blob === accepted.stamp ? entry.stat : null);
+  return original?.ino === file.read.stat.ino && original.mtimeNs === file.read.stat.mtimeNs
+    && accepted.inputBlob === gitBlobId(file.content, format);
 }

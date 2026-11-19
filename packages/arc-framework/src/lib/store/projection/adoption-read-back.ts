@@ -3,7 +3,7 @@ import type { ProjectionFileWriteObservation } from "./file-write-observation.js
 import { withProjectionEntry } from "./index-memory.js";
 import type { WriteResult } from "../write.js";
 import type { ProjectionRootState } from "./process-state.js";
-import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { ArchiveSaveSubmission, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -12,17 +12,23 @@ import { recordPendingWriteBack } from "./taken-in.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import type { StoreRecord } from "../read.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
+import { acceptedArchiveRecording } from "./archive-save-recording.js";
+import { readStat } from "./change-detection.js";
+import { join } from "node:path";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  accepted: WriteResult, content: string, read: TakeInRead, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
+  accepted: WriteResult, input: string | ArchiveSaveSubmission, read: TakeInRead,
+  onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   if (accepted.version === undefined) throw new Error("An accepted content creation returned no version");
+  const blob = typeof input === "string" ? gitBlobId(input, root.context.format) : input.blob;
   const entry: RecordEntry = { ...(index.entries[path]?.opened === true ? { opened: true as const } : {}), kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
-    base: { blob: gitBlobId(content, root.context.format), version: accepted.version }, markers: null, notices: [],
+    base: { blob, version: accepted.version }, markers: null, notices: [],
     unshown: accepted.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
     persisted: null, inProgress: null, copies: [], adoption: { kind: "read-back", read } };
-  const pending = await recordPendingWriteBack({ ...root.context, entry, stamp: entry.base.blob,
-    takenIn: content, version: accepted.version });
+  const pending: RecordEntry = typeof input === "string"
+    ? await recordPendingWriteBack({ ...root.context, entry, stamp: blob, takenIn: input, version: accepted.version })
+    : { ...entry, ...acceptedArchiveRecording(input, accepted.version) };
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });
   return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
@@ -47,13 +53,22 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   if (!root.writable(path)) return index;
   const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused: null, pending: false },
     base: { kind: "blob" as const, blob: entry.base.blob } };
+  const baseline = await adoptionBaseline(root, path, entry, adoption.read);
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
-    result: { answer: "taken-in", entry: request.entry, read: adoption.read } });
+    result: { answer: "taken-in", entry: request.entry, read: baseline } });
   if (installed.result.answer === "taken-in") root.unsent.delete(path);
   const completed = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: completeReadBack(installed.index, path), checkpoint: root.context.checkpoint });
   onFile?.({ path, result: installed.result, installation: "attempted", rebuilt: installed.rebuilt });
   return completed;
+}
+
+async function adoptionBaseline(root: ProjectionRootState, path: string, entry: RecordEntry, original: TakeInRead): Promise<TakeInRead> {
+  if (entry.opened !== true || !path.startsWith(".arc/completed/") || entry.inProgress === null || entry.stat === null) return original;
+  const current = await readStat(join(root.checkout, path));
+  // After the original file leaves, compare edits to the rendering journaled by the swap.
+  return current?.ino === original.stat.ino && current.mtimeNs === original.stat.mtimeNs
+    ? original : { stat: entry.stat, blob: entry.written };
 }
 
 async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,

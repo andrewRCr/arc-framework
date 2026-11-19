@@ -75,9 +75,9 @@ async function prepareStable(context: WriteBackContext, checkout: string, path: 
 }
 
 /** Submit a sealed single-write batch and preserve the existing single-result continuation. */
-export async function submitProjectionBatch(context: WriteBackContext, input: BatchInput): Promise<StoreResult<WriteResult>> {
+export async function submitProjectionBatch(context: WriteBackContext, input: BatchInput, archiveSaveId?: string): Promise<StoreResult<WriteResult>> {
   context.onSend?.();
-  const result = await context.store.batch(input);
+  const result = await context.store.batch(archiveSaveId === undefined ? input : { ...input, provenance: { ...input.provenance, archiveSaveId } });
   if (result.status === "refused") return result;
   const only = result.result.writes[0];
   if (!only || result.result.writes.length !== 1) throw new Error("A prepared content batch must return its one write result");

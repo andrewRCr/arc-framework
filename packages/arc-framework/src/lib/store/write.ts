@@ -76,10 +76,9 @@ export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema)
   "A batch observes each record at most once")
   .superRefine((value, context) => {
     const admission = value.projectionAdmission;
-    if (value.provenance.archiveSaveId !== undefined && (value.provenance.verb !== "save"
-      || admission?.selection.kind !== "indexed" || admission.local.source !== "file"
+    if (value.provenance.archiveSaveId !== undefined && (admission?.local.source !== "file"
       || !admission.local.path.startsWith(".arc/completed/"))) {
-      context.addIssue({ code: "custom", message: "An archive save identity requires an indexed archive file save" });
+      context.addIssue({ code: "custom", message: "An archive save identity requires a prepared archive file write" });
     }
     if (!admission) return;
     const only = value.writes[0];

@@ -193,7 +193,7 @@ export interface WriteBackRecording {
 /** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
 export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
-  return { ...input.entry, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
+  return { ...input.entry, acceptedInputStat: undefined, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
     ...await keepTakenInCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
 
@@ -221,8 +221,8 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
     ? { kind: "landed" as const, version: outcome.version }
     : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
   const inputBlob = kept?.kind === "copy" && input.entry.persisted?.recording === true && input.entry.opened === true ? kept.blob : undefined;
-  return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record,
-    ...(inputBlob === undefined ? {} : { inputBlob }) } }, released };
+  return { entry: { ...input.entry, acceptedInputStat: inputBlob === undefined ? undefined : input.entry.acceptedInputStat,
+    persisted: { stamp: input.stamp, takenIn: record, ...(inputBlob === undefined ? {} : { inputBlob }) } }, released };
 }
 
 async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,

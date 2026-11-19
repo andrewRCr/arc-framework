@@ -41,6 +41,10 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
   observation?: ArchiveObservation): Promise<ArchiveInspection> {
   if (!path.startsWith(".arc/completed/") || isExcludedProjectionPath(path)) return null;
   const entry = index.entries[path];
+  if (entry?.archiveSubmission !== undefined) return { kind: "refused", mark: {
+    reason: "The interrupted archive submission's acceptance has not been checked.",
+    remedy: { text: `Run arc save from ${root.checkout} to recover the acceptance for ${path}.` },
+  } };
   if (entry !== undefined && (entry.kind !== "record" || canRecoverArchiveEntry(entry))) return null;
   try {
     const gate = await readArchiveEdit(root, path, entry, observation);

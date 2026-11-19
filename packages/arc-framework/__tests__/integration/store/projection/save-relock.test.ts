@@ -625,3 +625,83 @@ it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] 
   expect(await diskEntry(h, path)).not.toHaveProperty("archiveSubmission");
   expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
 });
+
+async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {
+  const path = `${h.folder}/new.txt`, file = join(h.checkout, path), content = "The new archived text.\n";
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "new.txt");
+  await writeFile(file, content);
+  await openArchivedProjectionFile(h, path);
+  return { path, file, reference, content };
+}
+
+it.each([[false, false], [true, false], [true, true]])(
+  "distinguishes accepted text from a revert after newer text is installed (installed=%s, adoption=%s)", async (installed, adoption) => {
+  const h = await fixture(), { path, file, reference, content } = await (adoption ? openedNewText(h) : openedTextCompanion(h));
+  const later = "A newer correction from another command.\n";
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, {
+    batch: async input => {
+      const result = await h.store.batch(input);
+      submissions += 1;
+      if (submissions === 1) {
+        const accepted = success(await h.store.read({ reference }));
+        expect(accepted.content).toBe(content);
+        success(await h.store.write(update(h.f, accepted, later)));
+      }
+      return result;
+    },
+  });
+  const command = { ...h, store };
+  const stop = async (observed: string) => { if (observed === path) throw new Error("Stopped during read-back installation"); };
+  binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
+  await expect(save(command)).rejects.toThrow("Stopped during read-back installation");
+  expect(await readFile(file, "utf8")).toBe(installed ? later : content);
+  if (installed) {
+    await chmod(file, 0o644);
+    await writeFile(file, content);
+  }
+  binding.hooks = undefined;
+  const result = await save(command);
+  if (installed) {
+    expect(await readFile(file, "utf8"), result.errors).toContain(content.trim());
+    expect(result.errors).toContain(adoption ? "ambiguous-base" : "possible bases give different merges");
+    expect(await diskEntry(h, path)).toHaveProperty("opened", true);
+    expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  } else {
+    expect(await readFile(file, "utf8")).toBe(later);
+    expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+    expect(submissions).toBe(1);
+  }
+});
+
+it.each([[false, false], [true, false], [true, true]])(
+  "recovers accepted archive adoption without resubmission (peer edit=%s, ordinary command=%s)", async (peerEdit, ordinary) => {
+  const h = await fixture(), { path, file, reference, content } = await openedNewText(h);
+  const later = "A newer correction to the new text.\n";
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, {
+    batch: async input => {
+      const result = await h.store.batch(input);
+      submissions += 1;
+      if (submissions === 1) {
+        const accepted = success(await h.store.read({ reference }));
+        expect(accepted.content).toBe(content);
+        if (peerEdit) success(await h.store.write(update(h.f, accepted, later)));
+        const root = [...projectionProcessState().roots.values()].find(candidate => candidate.checkout === h.checkout);
+        if (root === undefined) throw new Error("Missing projection root");
+        root.checkpoint = async () => { throw new Error("Stopped at the first checkpoint after adoption"); };
+      }
+      return result;
+    },
+  });
+  const command = { ...h, store };
+  await expect(ordinary ? startProjection(command) : save(command)).rejects.toThrow("Stopped at the first checkpoint after adoption");
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, archiveSubmission: expect.any(Object) });
+  if (ordinary) { await startProjection(command); await endProjection(command); }
+  expect(await save(command)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(success(await h.store.read({ reference })).content).toBe(peerEdit ? later : content);
+  expect(await readFile(file, "utf8")).toBe(peerEdit ? later : content);
+  expect(submissions).toBe(1);
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});

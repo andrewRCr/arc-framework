@@ -431,12 +431,8 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
     reason: `The projection index is ${journal.cause}. The archive edit could not be recorded.`,
     remedy: { text: `Run ${projectionIndexRecoveryCommand(journal.header)} from this checkout to rebuild the index, then retry arc save.` },
   });
-  const staged = journal?.kind === "index" && !isAdopting(request)
-    ? await stageArchiveSave(context, journal.index, request, entry, prepared.stamp, prepared.takenIn) : null;
-  const batch = submission.result.batch;
-  const sent = await submitProjectionBatch(context, staged === null ? batch : {
-    ...batch, provenance: { ...batch.provenance, archiveSaveId: staged.id },
-  });
+  const staged = journal?.kind === "index" ? await stageArchiveSave(context, journal.index, request, entry, prepared) : null;
+  const sent = await submitProjectionBatch(context, submission.result.batch, staged?.id);
   if (sent.status === "refused") {
     if (staged !== null && journal?.kind === "index") await commitProjectionIndex({ location: context.location, checkout: request.checkout,
       checkpoint: context.checkpoint, index: withProjectionEntry(journal.index, request.path, entry) });

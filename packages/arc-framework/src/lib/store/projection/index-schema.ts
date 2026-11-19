@@ -55,6 +55,14 @@ const PersistedSchema = z.strictObject({
   ]),
 }).refine(value => value.recording !== true || value.takenIn.kind === "copy", "Unfinished recording requires an input copy");
 
+const ArchiveSaveReadSchema = z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema });
+const ArchiveSaveSubmissionSchema = z.strictObject({ id: ArchiveSaveIdSchema, stamp: BlobIdSchema,
+  name: z.string().regex(/^[a-f0-9]{40,64}\.[a-f0-9]{16}$/u), blob: BlobIdSchema, read: ArchiveSaveReadSchema.optional(),
+  retained: RefusedMarkSchema.optional() });
+
+/** An input retained before publishing an archive save. */
+export type ArchiveSaveSubmission = z.output<typeof ArchiveSaveSubmissionSchema>;
+
 /** A replacement in progress of a file other than Markdown: the version it replaces and the copy its batch makes. */
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
 
@@ -88,8 +96,8 @@ const RecordBasisSchema = z.strictObject({
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),
   persisted: PersistedSchema.nullable(),
-  archiveSubmission: z.strictObject({ id: ArchiveSaveIdSchema, stamp: BlobIdSchema,
-    name: z.string().regex(/^[a-f0-9]{40,64}\.[a-f0-9]{16}$/u), blob: BlobIdSchema }).optional(),
+  acceptedInputStat: FileStatSchema.pick({ ino: true, mtimeNs: true }).optional(),
+  archiveSubmission: ArchiveSaveSubmissionSchema.optional(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
   adoption: z.discriminatedUnion("kind", [
@@ -122,11 +130,15 @@ const OwnerlessBasisSchema = z.strictObject({
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema.optional(),
   opened: z.literal(true).optional(),
+  archiveSubmission: ArchiveSaveSubmissionSchema.extend({ reference: RecordReferenceSchema, read: ArchiveSaveReadSchema }).optional(),
 });
 const OwnerlessEntrySchema = z.union([
   OwnerlessBasisSchema.extend({ refused: RefusedMarkSchema }),
   OwnerlessBasisSchema.extend({ opened: z.literal(true) }),
 ]);
+
+/** A discovered path still awaiting its first stored binding. */
+export type OwnerlessEntry = z.output<typeof OwnerlessEntrySchema>;
 
 /** One index entry, keyed by its repository-relative path. */
 const IndexEntrySchema = z.union([RecordEntrySchema, OwnerlessEntrySchema]);

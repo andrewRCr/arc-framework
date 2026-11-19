@@ -8,6 +8,7 @@ import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { archiveSaveTrailer, parseStoreCommitProvenance } from "../commit-provenance.js";
+import { HAND_EDIT_VERBS } from "../links.js";
 import type { RefBackendContext } from "./context.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference } from "./project-identity.js";
 import { readBatchObjects, readRefTips } from "./batch-read.js";
@@ -71,7 +72,7 @@ async function readArchiveSaveReceipt(context: RefBackendContext, reference: Rec
   if (snapshots.status === "refused") return snapshots;
   const entries = [...snapshots.result.values()].flatMap(({ state, message }) => {
     const provenance = parseStoreCommitProvenance(message, state.reference);
-    return state.version !== null && "verb" in provenance && provenance.verb === "save" && provenance.archiveSaveId === id
+    return state.version !== null && "verb" in provenance && HAND_EDIT_VERBS.some(verb => verb === provenance.verb) && provenance.archiveSaveId === id
       ? [{ ...state, provenance }] : [];
   });
   if (entries.length !== revisions.length) return { status: "refused", refusal: {
