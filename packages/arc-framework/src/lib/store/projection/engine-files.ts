@@ -1,5 +1,5 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
-import { checkUnchangedProjectionEdit } from "./read-back-recovery.js";
+import { checkUnchangedProjectionEdit, recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
@@ -85,12 +85,24 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
 
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
-  const entry = index.entries[path];
+  let entry = index.entries[path];
   if (await archivePickupBlocked(root, path, entry)) return { index, edited: false };
+  if (entry?.kind === "record" && entry.archiveSubmission !== undefined) {
+    const recovered = await recoverSubmittedArchiveEdit(root, index, path, entry);
+    if (recovered.held) return { index, edited: false };
+    ({ index, entry } = recovered);
+  }
   if (entry?.kind !== "record") {
     const adopted = await adoptProjectionFile(root, index, path, onFile), bound = adopted.entries[path];
     return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back", reobserve: true };
   }
+  return checkIndexedFile(root, index, path, entry, reference, observed, onFile);
+}
+
+async function checkIndexedFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
+  reference: bigint | null, observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
+    index: ProjectionIndex; edited: boolean; reobserve?: boolean;
+  }> {
   const aliasRefusal = resolutionAliasRefusal(root.checkout, path);
   if (aliasRefusal !== null) {
     await root.checkpoint?.();

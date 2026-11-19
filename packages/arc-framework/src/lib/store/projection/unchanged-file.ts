@@ -3,6 +3,7 @@ import { readBaseContent } from "./base-content.js";
 import { selectWriteBackBase } from "./base-selection.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readStamplessFile } from "./stampless.js";
+import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
@@ -11,10 +12,12 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
   const entry = request.entry;
   if (!entry.pending || request.copy !== null || request.resolution !== undefined || request.adopting
     || entry.adoption !== undefined || entry.handoff !== undefined || entry.markers !== null
-    || entry.unshown.length > 0 || entry.persisted?.recording === true || entry.refused?.reason === "bases-disagree") return null;
+    || entry.unshown.length > 0 || entry.archiveSubmission !== undefined
+    || entry.persisted?.recording === true || entry.refused?.reason === "bases-disagree") return null;
   const file = await captureWriteBackFile(context, request);
   if (file.kind !== "read") return null;
   if (!request.path.endsWith(".md")) {
+    if (entry.opened && entry.persisted?.inputBlob === gitBlobId(file.content, context.format)) return file.read;
     const observed = await readStamplessFile({ entry, text: file.content, mtimeNs: file.read.stat.mtimeNs,
       format: context.format, memo: context.memo ?? createHistoryMemo(context.store) });
     return observed.status === "ok" && observed.result.kind === "unedited" ? file.read : null;

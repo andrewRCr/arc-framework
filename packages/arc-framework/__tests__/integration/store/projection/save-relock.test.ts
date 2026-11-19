@@ -2,7 +2,7 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
-import { seed } from "../../../helpers/store/suite-tools.js";
+import { seed, update } from "../../../helpers/store/suite-tools.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
@@ -316,7 +316,7 @@ it.each([false, true])("retains a link-only rebuilt opening after deletion betwe
   expect(saved.result).toMatchObject({ status: "ok" });
   expect(saved.errors).toContain("remains opened");
   expect(await diskEntry(h, path)).toHaveProperty("opened", true);
-  expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
+  expect((await lstat(join(h.checkout, path))).mode & 0o222, saved.errors).toBe(0);
   binding.hooks = undefined;
   expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
@@ -518,4 +518,110 @@ it.each(["unchanged", "late edit", "rebuilt"] as const)("resumes an accepted edi
   if (race === "late edit") expect(current.content).toContain("Late resumed-read-back correction.");
   else expect(current.version).toBe(accepted.version);
   expect(await diskEntry(h)).not.toHaveProperty("opened");
+});
+
+async function openedTextCompanion(h: Awaited<ReturnType<typeof fixture>>) {
+  const path = `${h.folder}/correction.txt`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "correction.txt");
+  await seed(h.f, reference, "Text before the edit.\n");
+  await startProjection(h); await endProjection(h);
+  await openArchivedProjectionFile(h, path);
+  const content = "The accepted correction.\n";
+  await writeFile(file, content);
+  return { path, file, reference, content };
+}
+
+it.each([false, true])("recovers recorded archive text without a second submit (direct=%s)", async direct => {
+  const h = await fixture(), { path, file, reference, content } = await openedTextCompanion(h);
+  let submissions = 0, interrupt = true;
+  const store = overrideEngineStore(h.store, {
+    batch: async input => { submissions += 1; return h.store.batch(input); },
+    read: async input => {
+      if (interrupt && submissions > 0) throw new Error("Stop after acceptance, before read-back");
+      return h.store.read(input);
+    },
+  });
+  const command = { ...h, store };
+  await expect(save(command)).rejects.toThrow("Stop after acceptance, before read-back");
+  interrupt = false;
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, persisted: { recording: true } });
+  const accepted = success(await h.store.read({ reference }));
+  expect(accepted.content).toBe(content);
+  const before = submissions;
+  if (!direct) { await startProjection(command); await endProjection(command); }
+  expect(await save(command)).toMatchObject({ result: { status: "ok" } });
+  expect(submissions).toBe(before);
+  expect(success(await h.store.read({ reference })).version).toBe(accepted.version);
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+
+it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] as const)("recovers a staged archive submission at the first post-batch checkpoint (%s)", async kind => {
+  const h = await fixture();
+  const text = kind === "text" || kind === "already-stored";
+  const path = text ? `${h.folder}/correction.txt` : h.path;
+  if (!text) await openArchivedProjectionFile(h, path);
+  const { reference, content } = text ? await openedTextCompanion(h) : {
+    reference: h.primary.reference,
+    content: await edit(h, "Accepted before the post-batch checkpoint."),
+  };
+  if (kind === "already-stored") {
+    const prior = success(await h.store.read({ reference }));
+    success(await h.store.write(update(h.f, prior, content)));
+  }
+  const before = success(await h.store.read({ reference }));
+  let archiveSaveId: string | undefined;
+  let submissions = 0;
+  let holdHistory = kind === "blocked-history";
+  const store = overrideEngineStore(h.store, {
+    history: input => holdHistory && input.archiveSaveId !== undefined
+      ? Promise.resolve({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+        reference, historyRefs: [], condition: "The acceptance history is temporarily unavailable.",
+        remedy: { text: "Restore the history, then retry arc save." } } }) : h.store.history(input),
+    batch: async input => {
+      submissions += 1;
+      if (submissions === 1) {
+        archiveSaveId = input.provenance.archiveSaveId;
+        if (kind === "unaccepted") throw new Error("Stopped before the store accepted the save");
+        const result = await h.store.batch(input);
+        const root = [...projectionProcessState().roots.values()].find(candidate => candidate.checkout === h.checkout);
+        if (root === undefined) throw new Error("Missing projection root");
+        root.checkpoint = async () => { throw new Error("Stopped at the first checkpoint after acceptance"); };
+        return result;
+      }
+      return h.store.batch(input);
+    },
+  });
+  const command = { ...h, store };
+  await expect(save(command)).rejects.toThrow(kind === "unaccepted" ? "Stopped before the store accepted the save"
+    : "Stopped at the first checkpoint after acceptance");
+  if (archiveSaveId === undefined) throw new Error("Missing archive save id");
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, archiveSubmission: { id: archiveSaveId } });
+  const accepted = success(await h.store.read({ reference }));
+  const receipts = success(await h.store.history({ reference, archiveSaveId }));
+  if (kind === "unaccepted") {
+    expect(receipts).toEqual([]);
+    expect(accepted.version).toBe(before.version);
+  } else {
+    expect(receipts).toMatchObject([{ version: accepted.version }]);
+    expect(accepted.content).toBe(content);
+  }
+  if (kind === "already-stored") expect(accepted.version).toBe(before.version);
+  if (text) expect(success(await h.store.history({ reference: h.primary.reference, archiveSaveId }))).toEqual([]);
+  if (holdHistory) {
+    const held = await save(command);
+    expect(held.errors).toContain("Restore the history");
+    expect(submissions).toBe(1);
+    expect(await diskEntry(h, path)).toMatchObject({ opened: true, archiveSubmission: { id: archiveSaveId } });
+    expect((await lstat(join(h.checkout, path))).mode & 0o200).toBe(0o200);
+    holdHistory = false;
+  }
+  expect(await save(command)).toMatchObject({ result: { status: "ok" } });
+  expect(submissions).toBe(kind === "unaccepted" ? 2 : 1);
+  const landed = success(await h.store.read({ reference }));
+  expect(landed.content).toBe(content);
+  if (kind !== "unaccepted") expect(landed.version).toBe(accepted.version);
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+  expect(await diskEntry(h, path)).not.toHaveProperty("archiveSubmission");
+  expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
 });

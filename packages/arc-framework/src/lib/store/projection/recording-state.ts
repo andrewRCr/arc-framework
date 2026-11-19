@@ -4,7 +4,9 @@ import type { StoreRefusal } from "../refusal.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
 export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | null {
-  return entry.persisted?.recording !== true ? null : { code: "state-unresolvable", class: "recoverable",
-    reference: entry.reference, historyRefs: [], condition: "Accepted-input recording is unfinished.",
+  if (entry.persisted?.recording !== true && entry.archiveSubmission === undefined) return null;
+  return { code: "state-unresolvable", class: "recoverable",
+    reference: entry.reference, historyRefs: [], condition: entry.archiveSubmission === undefined
+      ? "Accepted-input recording is unfinished." : "The interrupted archive save's acceptance has not been checked.",
     remedy: { text: "Retry arc save to finish recording the accepted input before preparing another edit; keep the file and retained copy." } };
 }

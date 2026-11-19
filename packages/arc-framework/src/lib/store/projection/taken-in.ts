@@ -120,7 +120,8 @@ export async function removeTakenInCopies(location: ProjectionLocation, names: r
 }
 
 /** Keep a copy inside the state folder, which exists under the projection lock, never creating that folder. */
-async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat, checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
+export async function keepTakenInCopy(location: ProjectionLocation, content: string, format: ObjectFormat,
+  checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
   const blob = gitBlobId(content, format);
   const name = `${blob}.${randomBytes(8).toString("hex")}`;
   const folder = join(location.stateDir, TAKEN_IN_FOLDER);
@@ -193,7 +194,7 @@ export interface WriteBackRecording {
 export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
   return { ...input.entry, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
-    ...await keepCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
+    ...await keepTakenInCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
 
 /**
@@ -218,8 +219,10 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
-    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format, input.checkpoint) };
-  return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
+    : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
+  const inputBlob = kept?.kind === "copy" && input.entry.persisted?.recording === true && input.entry.opened === true ? kept.blob : undefined;
+  return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record,
+    ...(inputBlob === undefined ? {} : { inputBlob }) } }, released };
 }
 
 async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,

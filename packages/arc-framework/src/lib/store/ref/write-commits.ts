@@ -33,14 +33,17 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
     const path = first.home.metadataPath;
     await serializeRefMetadata(context, group, path);
     const clashes = selected.some((write) => write.conflicts.length > 0);
-    if (!clashes && unchangedGroup(group)) continue;
+    // A correlated save needs its receipt even when the store already holds the submitted bytes.
+    if (!clashes && provenance.archiveSaveId === undefined && unchangedGroup(group)) continue;
     const parent = tips.get(ref);
     let next = await commitRefTree(context, group.entries.values(), parent, provenance, first.reference, batchId, actor, receipt);
     if (clashes) {
       const final = completed.get(ref);
       if (!final) throw new Error("A ref with staged conflicts has no final tree");
       await serializeRefMetadata(context, final, path);
-      next = await commitRefTree(context, final.entries.values(), next, { ...provenance, verb: "merge" }, first.reference, batchId, actor, receipt);
+      const merged = { ...provenance, verb: "merge" };
+      delete merged.archiveSaveId;
+      next = await commitRefTree(context, final.entries.values(), next, merged, first.reference, batchId, actor, receipt);
     }
     changes.push({ ref, next, expected: parent ?? null });
   }

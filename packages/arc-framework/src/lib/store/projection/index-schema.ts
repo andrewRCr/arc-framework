@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { SlugSchema, isManagedPath } from "../../kernel/index.js";
 import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "../identity.js";
+import { ArchiveSaveIdSchema } from "../links.js";
 import { RemedySchema } from "../refusal.js";
 import { isProjectionIndexGroup, projectionIndexGroup } from "./index-memory.js";
 
@@ -46,6 +47,7 @@ const MarkersSchema = z.strictObject({
 /** What the last persisted write-back read: its Markdown stamp or stampless take-in base blob, and content taken in. */
 const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
+  inputBlob: BlobIdSchema.optional(),
   recording: z.literal(true).optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
@@ -86,6 +88,8 @@ const RecordBasisSchema = z.strictObject({
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),
   persisted: PersistedSchema.nullable(),
+  archiveSubmission: z.strictObject({ id: ArchiveSaveIdSchema, stamp: BlobIdSchema,
+    name: z.string().regex(/^[a-f0-9]{40,64}\.[a-f0-9]{16}$/u), blob: BlobIdSchema }).optional(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
   adoption: z.discriminatedUnion("kind", [

@@ -112,7 +112,7 @@ function pendingMark(): RefusedMark {
 }
 
 function awaitingInstallation(entry: RecordEntry, outcome: ProjectionFileWriteObservation | undefined): boolean {
-  return entry.withheld || entry.refused !== null || entry.adoption !== undefined || entry.persisted?.recording === true
+  return entry.withheld || entry.refused !== null || entry.adoption !== undefined || entry.archiveSubmission !== undefined || entry.persisted?.recording === true
     || entry.markers !== null || entry.notices.length > 0 || entry.unshown.length > 0
     || outcome === undefined && (entry.pending || entry.inProgress !== null);
 }

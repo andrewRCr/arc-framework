@@ -46,6 +46,7 @@ import { observeProjectionEdit } from "./edit-observation.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
+import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -430,11 +431,18 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
     reason: `The projection index is ${journal.cause}. The archive edit could not be recorded.`,
     remedy: { text: `Run ${projectionIndexRecoveryCommand(journal.header)} from this checkout to rebuild the index, then retry arc save.` },
   });
-  const sent = await submitProjectionBatch(context, submission.result.batch);
+  const staged = journal?.kind === "index" && !isAdopting(request)
+    ? await stageArchiveSave(context, journal.index, request, entry, prepared.stamp, prepared.takenIn) : null;
+  const batch = submission.result.batch;
+  const sent = await submitProjectionBatch(context, staged === null ? batch : {
+    ...batch, provenance: { ...batch.provenance, archiveSaveId: staged.id },
+  });
   if (sent.status === "refused") {
+    if (staged !== null && journal?.kind === "index") await commitProjectionIndex({ location: context.location, checkout: request.checkout,
+      checkpoint: context.checkpoint, index: withProjectionEntry(journal.index, request.path, entry) });
     return { kind: "store-refused", refusal: sent.refusal, entry };
   }
-  return finishAcceptedWrite(context, request, prepared, entry, sent.result, journal?.index);
+  return finishAcceptedWrite(context, request, prepared, staged?.entry ?? entry, sent.result, journal?.index);
 }
 
 async function finishAcceptedWrite(context: WriteBackContext, request: TakeInRequest,
@@ -443,7 +451,8 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
   if (accepted.version === undefined) throw new Error("A landed content put returned no version");
   if (isAdopting(request)) entry = { ...entry, adoption: { kind: "read-back", read: prepared.read } };
   if (journal !== undefined) {
-    entry = await pendingAcceptedRecording(context, request, prepared, entry, accepted.version);
+    entry = entry.archiveSubmission === undefined ? await pendingAcceptedRecording(context, request, prepared, entry, accepted.version)
+      : acceptArchiveSave(entry, accepted.version);
     await commitProjectionIndex({ location: context.location, checkout: request.checkout, checkpoint: context.checkpoint,
       index: withProjectionEntry(journal, request.path, { ...entry, pending: true }) });
   }

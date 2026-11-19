@@ -10,6 +10,21 @@ import { installWriteBack } from "./read-back.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
+import { recoverArchiveSave } from "./archive-save-recording.js";
+
+/** Settle a lost submission response before treating any live bytes as a new edit. */
+export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  entry: RecordEntry): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
+  const recovered = await recoverArchiveSave(root.context, entry);
+  if (recovered.mark !== undefined) {
+    root.unsent.add(path);
+    root.context.report?.({ path, copy: null, mark: recovered.mark });
+    return { index, entry, held: true };
+  }
+  const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index: withProjectionEntry(index, path, recovered.entry), checkpoint: root.context.checkpoint });
+  return { index: updated, entry: recovered.entry, held: false };
+}
 
 /** Recognize accepted bytes left before installation and finish their read-back when this save can authorize it. */
 export async function checkUnchangedProjectionEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,

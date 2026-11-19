@@ -75,11 +75,17 @@ export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema)
     !all.slice(0, index).some((other) => sameReference(observation.reference, other.reference))),
   "A batch observes each record at most once")
   .superRefine((value, context) => {
-    if (!value.projectionAdmission) return;
+    const admission = value.projectionAdmission;
+    if (value.provenance.archiveSaveId !== undefined && (value.provenance.verb !== "save"
+      || admission?.selection.kind !== "indexed" || admission.local.source !== "file"
+      || !admission.local.path.startsWith(".arc/completed/"))) {
+      context.addIssue({ code: "custom", message: "An archive save identity requires an indexed archive file save" });
+    }
+    if (!admission) return;
     const only = value.writes[0];
     if (value.writes.length !== 1 || only?.action !== "put"
       || !HAND_EDIT_VERBS.some(verb => verb === value.provenance.verb) || value.provenance.lifecycleAction !== "edit"
-      || !sameReference(only.reference, value.projectionAdmission.prepared.reference)) {
+      || !sameReference(only.reference, admission.prepared.reference)) {
       context.addIssue({ code: "custom", message: "Projection admission requires its one bound hand-edit content put" });
     }
   });

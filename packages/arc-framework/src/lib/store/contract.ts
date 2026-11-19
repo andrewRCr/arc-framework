@@ -1,8 +1,8 @@
 /** The backend-independent operational state contract. */
 
 import { z } from "zod";
-import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema, type RecordReference, type StateVersion } from "./identity.js";
-import { StoredProvenanceSchema } from "./links.js";
+import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema, type StateVersion } from "./identity.js";
+import { ArchiveSaveIdSchema, StoredProvenanceSchema } from "./links.js";
 import { BatchCreationReceiptSchema } from "./creation-receipt.js";
 import type { LookupInput, LookupResult } from "./lookup.js";
 import type { ListingOutcome, ListInput, ReadInput, StoreCapabilities, StoreRecord } from "./read.js";
@@ -11,7 +11,9 @@ import type { PullInput, PullResult, PushInput, PushResult, MaintainResult } fro
 import type { BatchInput, BatchResult, WriteInput, WriteResult } from "./write.js";
 
 /** Record history input. */
-export const HistoryInputSchema = z.strictObject({ reference: RecordReferenceSchema });
+export const HistoryInputSchema = z.strictObject({ reference: RecordReferenceSchema, archiveSaveId: ArchiveSaveIdSchema.optional() });
+/** History can also resolve one accepted archive save by its local submission identity. */
+export type HistoryInput = z.infer<typeof HistoryInputSchema>;
 /** Changes between saved states, optionally bound to named records. */
 export const ChangesInputSchema = z.strictObject({ from: StateVersionSchema, to: StateVersionSchema, references: z.array(RecordReferenceSchema).optional() });
 /** Exact landed record content and provenance; removals pair null version and content. */
@@ -39,8 +41,8 @@ export interface Store {
   batch(input: BatchInput): Promise<StoreResult<BatchResult>>;
   /** Return the current saved state anchor. */
   version(): Promise<StoreResult<StateVersion>>;
-  /** Return newest-first record versions with their exact content and provenance. */
-  history(input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>>;
+  /** Return newest-first record versions, or the exact archived save identified by its receipt. */
+  history(input: HistoryInput): Promise<StoreResult<HistoryEntry[]>>;
   /** Return landed content, versions and provenance for records changed between two anchors. */
   changes(input: ChangesInput): Promise<StoreResult<HistoryEntry[]>>;
   /** Resolve human handles, lineage, claims, and code links. */

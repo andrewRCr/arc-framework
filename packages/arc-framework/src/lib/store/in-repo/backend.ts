@@ -1,7 +1,7 @@
 /** Registry-directed adapter over the checkout's operational records. */
 
 import { ArcError } from "../../kernel/errors.js";
-import type { Store } from "../contract.js";
+import type { HistoryEntry, HistoryInput, Store } from "../contract.js";
 import type { StorePorts } from "../ports.js";
 import { createInRepoContext } from "./context.js";
 import { readTracked } from "./read.js";
@@ -17,8 +17,7 @@ import { storeImported, storeImportedRefusal } from "../store-imported.js";
 import type { InRepoContext } from "./context.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
-import { sameReference, type RecordReference } from "../identity.js";
-import type { HistoryEntry } from "../contract.js";
+import { sameReference } from "../identity.js";
 
 /** Assemble the substrate operations without observing their dependencies.
  * @param ports - The composition point's explicit dependencies.
@@ -95,7 +94,8 @@ async function dispatchedRead(context: InRepoContext, input: ReadInput): Promise
   }
   return readTracked(context, input);
 }
-async function dispatchedHistory(context: InRepoContext, input: { reference: RecordReference }): Promise<HistoryEntry[]> {
+async function dispatchedHistory(context: InRepoContext, input: HistoryInput): Promise<HistoryEntry[]> {
+  if (input.archiveSaveId !== undefined) return [];
   if (context.registry[input.reference.kind].inRepo.substrate === "transient-identity") {
     return (await import("./transient-history.js")).transientHistory(context, input);
   }
