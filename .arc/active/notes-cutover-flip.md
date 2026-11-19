@@ -378,7 +378,7 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       (`unit/active/status-store`) and for a native review boundary and a recovered pending fix
       (`locus-subject-native-review`); the exact Active prepublication boundary, the stale-subject fallback, an
       unavailable Candidate record, the publication reservation, applicability awaiting authority, fix authority outside
-      prepublication, and an Integrating boundary naming another subject have none.
+      prepublication, and an Integrating boundary naming another subject are Task 3.R.i's, below.
     - _By case:_ `integration/status-project`'s 14 cases over metas on branch refs and remote-tracking refs, the index,
       staged transition records, and the stored ROADMAP set the override, `handleStatus` opening the default store
       itself; its identity refusal stays on the ref default. Their surviving behaviors are the store's in
@@ -436,6 +436,39 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       refusals, which no store test covered. The seeded spawning start's refusal asserts the store's wording, as
       `start-store-alias` does. Store counterparts: `start-store`, `start-store-marker`, `start-store-alias`, and
       `start-cold-store`.
+- **Candidate session-init on the store (Task 3.R.i):** `unit/active/status-store`'s cases, one product defect.
+    - _Ref backend, by case:_ the exact Active prepublication boundary, a version-two publish-ready boundary carrying a
+      terminus key; the stale-subject fallback to initial review; the publication reservation, recovered from a stored
+      publish-ready boundary to `publication-pending` with its readiness binding, its expected boundary written out
+      rather than produced by the recovery under test; applicability awaiting authority, kept for Integrating work and
+      left unresolved for Active work; and an Integrating boundary naming another subject. Each holds its work unit,
+      Candidate, and boundary in a checked store and held as built. The retained-Candidate case's fix-authority reader
+      now throws, so execution reads neither the target nor the fix authority. `integration/active`'s Candidate cases
+      keep the in-repo store, their records being Candidate files.
+    - _Defect (A12), the unavailable record:_ on the store a Candidate's identity is its record, not the meta's
+      `Candidate` bullet: the store's attest writes the record, the boundary, and the meta's workflow fields in one
+      batch and no bullet, and `readSubject` (`lib/store/active-review-access.ts`) replaces the bullet with the record's
+      ID. The in-repo subject, a meta naming a Candidate whose file is missing, has no store form; its counterpart is a
+      Candidate read that refuses. That left an Active work unit in `prepare-work-unit` with no Candidate ID, so
+      `classifyResolution` inferred execution beside the warning, the fallback the in-repo case refuses. The derived
+      locus already returns `subject-unresolved` for it (`unit/lib/locus/subject-meta-candidate`), so session-init and
+      recovery were unaffected; `arc active status --session-init` was not. The projection now records each candidate
+      whose session needs its Candidate, Integrating or Active in `prepare-work-unit`, when that read fails, and
+      classification leaves its session type unresolved (`commands/active/status.ts`). The case runs for both states,
+      each resuming its session once the read succeeds; the Integrating one held before the fix, since an Integrating
+      session without a boundary was already unresolved.
+    - _Left as built (Owner, 2026-11-19):_ an Active work unit in `prepare-work-unit` with no Candidate record infers
+      execution, as the in-repo arm does for a meta naming no Candidate. No lifecycle verb or workflow step produces
+      that state: attest writes the workflow with the record, reopen from Integrating keeps it, rename moves it in one
+      batch, and `prepare-work-unit` sends a work unit with no Candidate back to verification. The store admits it,
+      though, as `status-store`'s fixture writes it by a plain put.
+- **The ledger at Task 3.R's close:** 18 files, each a Task 3.4 family's or Task 3.5's. The 11 end-to-end files are
+  spawned tests, moving with their families, `e2e/markdown-fix` with Task 3.5. Of the seven integration files,
+  `candidate-lineage` (`registerCandidateLineageSuite`), `review-fan-out-lifecycle`, and `review-member-full-final` (the
+  fan-out harness) reach Task 3.4.c's shared fixtures, `delivery-position` (`registerDeliveryPositionSuite`) Task
+  3.4.d's, and the two `review-status-*base-movement` files Task 3.4.f's. `history-shape-ambiguity` reaches Task 3.4.f's
+  too: its arrangers (`advanceBase`, `arrangeAmbiguousMergeBase`, `arrangeBranchSide`, `helpers/base-advance.ts`) are
+  the base-movement seeders that family's spawned tests share, beside `movementPaths`.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

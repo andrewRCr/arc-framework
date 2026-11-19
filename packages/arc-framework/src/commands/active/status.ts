@@ -190,6 +190,7 @@ export async function runActiveSessionInitStatusInternal(
     ?? (async (input) => (await import(
       "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
     )).readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
+  const candidateAuthorityUnavailable = new Set<string>();
   const projected = await Promise.all(scan.candidates.map((candidate) =>
     projectCandidateIntegrationBoundary(
       options.cwd,
@@ -197,14 +198,16 @@ export async function runActiveSessionInitStatusInternal(
       scan.warnings,
       projectCandidateTarget,
       readPendingCandidateFix,
-      { access, owner: scan.owners?.get(candidate.path) },
+      { access, owner: scan.owners?.get(candidate.path), unavailable: candidateAuthorityUnavailable },
     )));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
-  const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
+  const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch,
+    candidateAuthorityUnavailable);
   const resolved = result.resolution === "single"
     ? semantic.candidates.find((entry) => entry.candidate.path === result.path) ?? null
     : null;
-  return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [] };
+  return { result, resolved, candidates: result.resolution === "multiple" ? semantic.candidates : [],
+    candidateAuthorityUnavailable };
 }
 
 /**
@@ -230,6 +233,7 @@ export async function projectActiveSessionInitCandidate(options: {
     [candidate],
     [...options.state.result.warnings],
     candidate.branch,
+    options.state.candidateAuthorityUnavailable,
   );
 }
 
@@ -290,6 +294,7 @@ interface ResolutionFields {
 function classifyResolution(
   input: MetaFileCandidate[],
   currentBranch: string | null,
+  candidateAuthorityUnavailable: ReadonlySet<string>,
 ): ResolutionFields {
   const [only] = input;
   if (only === undefined) {
@@ -308,8 +313,9 @@ function classifyResolution(
     }).length > 0) {
       return { resolution: "single", path: only.path, candidates: [], sessionType: null };
     }
-    if (only.state === "Integrating"
-      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+    // A session that needs its Candidate stays unresolved while the Candidate cannot be read.
+    if (candidateAuthorityUnavailable.has(only.path) || (only.state === "Integrating"
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined))) {
       return { resolution: "single", path: only.path, candidates: [], sessionType: null };
     }
     if (only.state === "Active"
@@ -337,8 +343,9 @@ async function resolveSessionInit(
   candidates: MetaFileCandidate[],
   warnings: string[],
   currentBranch: string | null,
+  candidateAuthorityUnavailable: ReadonlySet<string> = new Set(),
 ): Promise<ActiveSessionInitResult> {
-  const fields = classifyResolution(candidates, currentBranch);
+  const fields = classifyResolution(candidates, currentBranch, candidateAuthorityUnavailable);
   const result: ActiveSessionInitResult = {
     mode: "session-init",
     layout,
@@ -371,12 +378,13 @@ async function projectCandidateIntegrationBoundary(
   warnings: string[],
   projectCandidateTarget: CandidateTargetProjector,
   readPendingCandidateFix: CandidateReviewFixAuthorityReader,
-  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity },
+  authority: { access: ReturnType<typeof createActiveReviewAccess>; owner?: OwnerIdentity; unavailable?: Set<string> },
 ): Promise<MetaFileCandidate> {
   let selected;
   try { selected = await authority.access.readSubject(candidate, authority.owner); }
   catch (error) {
     warnings.push(`Candidate authority for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    if (requiresCandidateAuthority(candidate)) authority.unavailable?.add(candidate.path);
     return { ...candidate, integrationBoundary: null };
   }
   candidate = selected.candidate;
@@ -463,6 +471,12 @@ async function projectCandidateIntegrationBoundary(
       candidateSubjectDigest,
     }, schemaVersion),
   };
+}
+
+/** Integrating work, and Active work in Candidate preparation, need the Candidate record to resolve their session. */
+function requiresCandidateAuthority(candidate: MetaFileCandidate): boolean {
+  return candidate.state === "Integrating"
+    || (candidate.state === "Active" && normalizeNullablePointer(candidate.currentWorkflow) === "prepare-work-unit");
 }
 
 async function selectCandidateBoundaryTarget(cwd: string, slug: string, candidate: MetaFileCandidate,

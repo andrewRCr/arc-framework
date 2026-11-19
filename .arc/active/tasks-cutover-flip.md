@@ -528,23 +528,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   store suites pass, so every test that reaches the default in process either expects the ref backend or runs from the
   ledger until Task 3.R or its Task 3.4 family moves it.
 
-### `[ ]` **3.R The switch's ledger, its suspected defects first — § 7.3**
+### `[x]` **3.R The switch's ledger, its suspected defects first — § 7.3**
 
 - _Goal:_ Each file the switch's ledger lists that no Task 3.4 family or Task 3.5 moves leaves the ledger, each of its
   cases expecting the ref backend or, where the case's subject is the in-repo arm or an operation that runs only on
   `main`'s pre-flip build, selecting the in-repo implementation itself: building it explicitly, or setting the override
   where its path takes no store. Each failure the switch exposed that may be a product defect is diagnosed against the
   ref default first (A12).
-
-- _Note:_ A listed file that a Task 3.4 family's shared seeder or spawned cases reach moves with that family, and
-  `e2e/markdown-fix.e2e.test.ts` with Task 3.5; the rest move here by group, one review increment per group.
-
-- _Note:_ A unit test that reaches the default store cannot reach the ref backend through it, whether its `exec` is
-  scripted or real: the ref backend reads through its own Git executor (`rawExec`, `lib/store/default-ports.ts`), which
-  no scripted `exec` replaces and the unit tier's process guard blocks (`UnitProcessGuard`,
-  `__tests__/helpers/unit-process-guard-core.ts`). A case whose subject survives binds a store or moves to the
-  integration tier; only a case expecting the tracked-state refusal scripts the predicate's read; the guard's allowlist
-  only shrinks (`__tests__/helpers/unit-process-allowlist.ts`).
 
     - `[x]` **3.R.a The suspected defects**
         - Three held stale expectations and left the ledger. `set-class` seeds its meta through the store; its refusal
@@ -628,13 +618,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           and `start-store-alias` gain the store cases create-new's spawn and the live-start refusals lacked. Three
           attest cases and one publish case over a schema-1 boundary run in-repo with no handler-level store case.
 
-    - `[ ]` **3.R.i Candidate session-init projection on the store arm**
+    - `[x]` **3.R.i Candidate session-init projection on the store arm**
         - _Amended (Owner, 2026-11-18):_ from Task 3.R.g, whose Candidate cases in `integration/active` and
           `integration/status` read Candidate files only the in-repo implementation holds. Each subject the store's
           session-init projection has no case for runs over Candidate records in a checked store: the exact Active
           prepublication boundary, the stale-subject fallback, an unavailable Candidate record, the publication
           reservation, applicability awaiting authority, fix authority outside prepublication, and an Integrating
           boundary naming another subject. The list is in `notes-cutover-flip.md` § Test callers.
+        - The seven subjects run over Candidate records in a checked store (`unit/active/status-store`), classified in
+          `notes-cutover-flip.md` § Test callers; six held as built. The unavailable record exposed a product defect: a
+          refused Candidate read left an Active work unit in Candidate preparation classified as execution, where the
+          in-repo arm and the derived locus withhold it, so `arc active status --session-init` now leaves its session
+          type unresolved (`commands/active/status.ts`).
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

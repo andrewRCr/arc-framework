@@ -88,6 +88,8 @@ export interface ActiveSessionInitInternalResult {
   result: ActiveSessionInitResult;
   resolved: ActiveCandidateSemantics | null;
   candidates: ActiveCandidateSemantics[];
+  /** Paths of candidates whose session needs a Candidate record that could not be read. */
+  candidateAuthorityUnavailable?: ReadonlySet<string>;
 }
 
 export type ActiveResult = ActiveStatusResult | ActiveSessionInitResult;
