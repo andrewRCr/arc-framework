@@ -6,7 +6,7 @@ import type { Store } from "../../src/lib/store/contract.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { writeRoutingReceipt } from "../../src/lib/store/kinds/routing-receipt.js";
 import { entry } from "../helpers/inbox-harness.js";
@@ -86,6 +86,44 @@ async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true
   }
   return { reference, holder, record, claimId, branch };
 }
+
+it.each([["no record holds the slug", false], ["the slug's earlier generation has completed", true]] as const)(
+  "opens a fresh Errand under full protection when %s, its description and record under the UID its open planned",
+  async (_case, completed) => {
+    const f = await fixture(), slug = SlugSchema.parse("fresh");
+    const ended = completed ? success(await f.store.write({ action: "put", expected: null,
+      reference: recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })),
+      content: serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand",
+        purpose: "errand", slug, claimId: "c".repeat(32), intent: "An earlier generation", owner: "test-user",
+        branch: `chore/${slug}`, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", origin: "description",
+        originEntry: null, state: "open", savedHead: null, changeRequest: null })),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+      provenance: { verb: "seed", lifecycleAction: "create" } })).reference : null;
+    // The fixture's remote sits untracked in the checkout; excluded, the primary is a clean launchpad on the base.
+    await writeFile(join(f.root, ".git", "info", "exclude"), ".arc-fixture/\n");
+    const opened = await invoke(f, f.root, ["errand", "open", slug, "--isolate", "--intent", "Open a fresh generation", "--json"]);
+    expect(opened, JSON.stringify(opened)).toMatchObject({ result: { outcome: "applied", subject: { kind: "errand", key: slug } } });
+    const record = success(await f.store.lookup({ kind: "slug", slug })).reference;
+    expect(record).toMatchObject({ kind: "work-item/record", owner: { name: slug, uid: expect.any(String) } });
+    if (ended !== null) expect(record.owner).not.toEqual(ended.owner);
+    const description = success(await f.store.read({ reference: recordReferences["work-item/description"](record.owner) }));
+    expect(description.content).toContain("Open a fresh generation");
+    const registry = f.ports.registry;
+    if (registry === undefined) throw new Error("Expected registry");
+    const receipts = (await f.exec("git", ["log", "--format=%B", expandStoredPath(record, { registry }).ref])).stdout.split("\n")
+      .filter(line => line.startsWith("Arc-Creation-Receipt: "))
+      .map(line => JSON.parse(line.slice("Arc-Creation-Receipt: ".length)) as { createdOwners: unknown[] });
+    expect(receipts.flatMap(receipt => receipt.createdOwners)).toContainEqual({ kind: "work-item/record", owner: record.owner });
+  }, 60_000);
+
+it("refuses a write naming a UID no owner holds when the write creates no record for that owner", async () => {
+  const f = await fixture(), before = success(await f.store.version());
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "unheld", uid: "abcdef03-2345-4678-9abc-def012345678" });
+  expect(await f.store.write({ action: "put", expected: null, reference: recordReferences["work-item/description"](owner),
+    content: "## Description\n\n", provenance: { verb: "seed", lifecycleAction: "create" } }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(success(await f.store.version())).toBe(before);
+}, 60_000);
 
 it.each(["close", "abandon"])("refuses a partial Errand UID before runtime dispatch for %s", async verb => {
   const f = await fixture("partial"), before = success(await f.store.version());

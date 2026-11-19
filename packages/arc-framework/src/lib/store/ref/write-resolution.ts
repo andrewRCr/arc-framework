@@ -59,7 +59,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     .some((reference) => context.registry[reference.kind].family === "lineage"));
   const lineage = needsLineage ? await readLineageOwners(context, tips) : { status: "ok" as const, result: [] };
   if (lineage.status === "refused") return lineage;
-  const fresh = new Map<string, OwnerIdentity>();
+  const fresh = new Map<string, OwnerIdentity>(), planned = plannedRecordOwners(writes);
   const liveOwners = owners.map(({ owner }) => owner);
   const recordFreeOwners = observed.result.recordFree.map(({ owner }) => owner);
   const resolve = (reference: RecordReference) => {
@@ -73,7 +73,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : lineageName
       ? lineageOwnerCandidates(reference, owners, lineage.result) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
     // Tier selection already authenticated a former name; its canonical current name need not match again.
-    return resolveOwner(reference, candidates, fresh, lineageName);
+    return resolveOwner(reference, candidates, fresh, lineageName, planned);
   };
 
   const renames = requestedRenames(writes);
@@ -94,12 +94,25 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], tips, archived: archived.result, retained: retained.result } };
 }
 
-function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>, preselected = false): StoreResult<OwnerIdentity> {
+/** The UIDs of work-item owners whose Errand record the batch creates, each named by the plan that minted it. */
+function plannedRecordOwners(writes: readonly Mutation[]): ReadonlySet<string> {
+  return new Set(writes.flatMap(({ action, expected, reference: { kind, owner } }) => action === "put" && expected === null
+    && kind === "work-item/record" && owner.type === "work-item" && owner.uid !== undefined ? [owner.uid] : []));
+}
+
+function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>, preselected = false,
+  planned: ReadonlySet<string> = new Set()): StoreResult<OwnerIdentity> {
   const requested = reference.owner;
   if (requested.type === "person" || requested.type === "project") return { status: "ok", result: requested };
   const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
     && (requested.uid ? owner.uid === requested.uid : preselected || owner.name === requested.name));
   if (requested.uid && candidates.length === 0 && reference.kind.startsWith("lineage/")) return { status: "ok", result: requested };
+  const born = fresh.get(`${requested.type}:${requested.name}`);
+  // A UID no owner holds names a new generation only when this batch creates its record; it is allocated as one.
+  if (requested.uid && candidates.length === 0 && planned.has(requested.uid) && (born === undefined || sameOwner(born, requested))) {
+    fresh.set(`${requested.type}:${requested.name}`, requested);
+    return { status: "ok", result: requested };
+  }
   if (requested.uid && candidates.length === 0) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference,
     condition: "The named owner has no live ref",

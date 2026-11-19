@@ -671,17 +671,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   materialization, sibling fan-out, and removal name the directory. `integration/store/projection/engine.test.ts`
   covers both creates and the retry once writable.
 
-### `[ ]` **3.R5 The store admits the UID open's plan mints for a fresh Errand — § 4.8**
+### `[x]` **3.R5 The store admits the UID open's plan mints for a fresh Errand — § 4.8**
 
 - _Goal:_ On the store under full protection `arc errand open` opens a fresh Errand, for a slug no record holds and for
   one whose earlier generation has completed, its one write naming the UID its plan minted, which the store admits for
   the owner whose record that write creates and records as that owner's birth, while a write naming a UID no owner
   holds without creating its record is still refused (A18).
 
-    - `integration/store-ref-errand-uid-cli.test.ts` opens a fresh Errand and a new generation over a completed one
-      through the registered CLI on the ref store, failing first, beside a write naming an unheld UID that creates no
-      record; then `resolveOwner` (`lib/store/ref/write-resolution.ts`) admits the planned UID and the batch's fresh
-      owners carry it.
+- _Outcome:_ `resolveOwner` (`lib/store/ref/write-resolution.ts`) admits a requested UID no owner holds when the batch
+  puts that owner's `work-item/record` with no expected version (`plannedRecordOwners`) and enters it among the batch's
+  fresh owners, so the creation receipt records its birth. `integration/store-ref-errand-uid-cli.test.ts` opens a fresh
+  Errand and a new generation over a completed one through the registered CLI on the ref store, each with its receipt,
+  beside a description-only write naming an unheld UID that still refuses.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
