@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-session-init-wrappers",
+  "claimId": "ca872fdc463bb59eb3baf1fcb798dd04",
+  "createdAt": "2026-11-19T17:46:34.093Z",
+  "updatedAt": "2026-11-19T17:46:34.093Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make session-init E2E fake Git and GitHub CLI wrappers execute on Windows without changing their assertions",
+  "branch": "chore/windows-session-init-wrappers",
+  "origin": "inbox",
+  "originEntry": "Make session-init E2E's fake `git` and `gh` wrappers run on Windows",
+  "originEntrySourceDigest": "sha256:6af33d5f62d19a791b1c48382f516e7be01d591b7b84ea4fb1a1d68617bfc088",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
