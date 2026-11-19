@@ -621,6 +621,23 @@ it return the same exact values as an unrestricted probe. From the flip a state 
 refused `EACCES`, `EPERM`, or `EROFS` is one more lock result the skip takes: the command runs with projection disabled
 and reports the skip, naming the Git directory it cannot write, with the same retry remedy (A17).
 
+#### 4.14 Store teardown and the checkouts it retires
+
+From the flip `arc teardown` runs its store arm (`runStoreTeardown`, `lib/work-unit/verbs/teardown-store.ts`), which
+departs from the in-repo teardown in two ways no spec covers.
+
+- A linked checkout that holds the retiring branch but carries no ARC ownership marker is one ARC did not create. The
+  in-repo teardown leaves it branched and unchanged, refusing it as externally managed through its selection
+  (`classifyTeardownSelection`, `lib/work-unit/teardown-selection.ts`), while the store arm returns it to a detached
+  base and reaps the branch (`returnRetiringCheckout`). From the flip the store arm refuses that checkout the same way,
+  before any detach or ref change, clearing it only where the selection does: a registration whose folder is gone and
+  which names the retiring branch.
+- A self-teardown under `arc.selfTeardownMode: remove` removes the checkout it runs in and moves the process to the
+  primary checkout, but the store the command opened keeps running its Git calls in the removed checkout
+  (`createDefaultRefStorePorts`, `lib/store/default-ports.ts`), so its next read refuses `spawn-failure` before the
+  branch is reaped. From the flip the store's Git calls follow that move, and the teardown reaps the branch from the
+  primary checkout (A20).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2317,5 +2334,7 @@ None.
   _Supersedes:_ § 4.8 ¶1. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R5. _Revalidated:_ pending → 3.7.
 - **A19** — 2026-11-19 — design: the notes-related session-init slots stay open for notes removal's share.
   _Supersedes:_ § 17.1 item 13 (the notes-related slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 3.7.
+- **A20** — 2026-11-19 — spec-depth: store teardown refuses a markerless holder and survives removing its checkout.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.1 must-stop. _Work:_ 3.R6. _Revalidated:_ pending → 3.7.
 
 ---

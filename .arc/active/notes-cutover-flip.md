@@ -670,6 +670,24 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           The store's slot offers work units from its records without reading the remote
           (`handlers/status/store-session.ts`), as for 3.4.a.3's isolation cases. The case's subject, the exact graph
           relation refused in the shallow clone beside the full-history control, is unchanged.
+- **Start, teardown, rename, reconcile, and retirement (Task 3.4.b), probed before any edit:** eight end-to-end files
+  and `integration/validate-cohort-consistency`, 128 cases. With the spawn default and the hook test's override
+  removed, 63 failed, 47 passed, and 18 never ran. `teardown-base-movement` arranges through the base-movement seeders
+  and moves with Task 3.4.f; `command-input-no-input`, which starts a work unit among other commands, falls to Task
+  3.6.
+    - _`teardown` (22 failing):_ most through `prepareSelfTeardown`, which commits a Shipped meta under
+      `.arc/completed/`; teardown then meets the tracked-state refusal or a withheld projection of that file.
+    - _`teardown-stale-projection` (18 not run):_ its shared setup archives over committed state and is refused.
+    - _`lifecycle-exit` (8):_ abandon and linked teardown over committed metas; the park cases already set the
+      override, and the shared `beforeEach` initializes with `--pm-mode arc-in-git`.
+    - _`retirement-removal-check` (3) and `staged-archive-recovery` (2):_ abandonment and activation over committed
+      metas; the staged archive is the `git mv` seam, leaning _In-repo_.
+    - _`rename` (11) and `identity-operand-input` (none):_ the rename fixtures start a work unit in place over
+      committed state.
+    - _`wu-reconcile` (11):_ its cases assert staged metas, so they wait on the store's reconcile contract.
+    - _`validate-cohort-consistency` (6):_ the script over a fixture that is not a Git repository, where the ref store
+      refuses; its subject, the pre-commit check of tracked cohort files, leans _In-repo_, keeping its explicit
+      override.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
@@ -1157,6 +1175,28 @@ leaves empty (`partialPushMarker`, `retiredSubdirs`, `compactionAdvisory`, `reco
 slot's notes variant. The flip's share is unchanged, but its landing no longer closes the row, so the row moves to
 § 17.2 with a bullet naming what lands and what stays. The Owner decided it on 2026-11-19, relayed by the project
 manager; A13 had already moved the `retiredSubdirs` part of § 17.2's reconciliation bullet the same way.
+
+## A20 — store teardown's markerless holder and removing self-teardown
+
+Task 3.4.b.1 held `e2e/teardown.e2e.test.ts`'s shipped `demo` completed in the store, its branch linked, and two cases
+found the store arm departing from the in-repo teardown. "Refuses markerless linked self-teardown as externally
+managed": the store arm returned the markerless checkout to a detached base and deleted `feat/demo`
+(`returnRetiringCheckout`), where the in-repo teardown refuses it through its selection ("The teardown target has no
+ARC ownership marker.", `classifyTeardownSelection`). `spec-husk-lifecycle-drivers.md` had kept shipped self-teardown's
+markerless fallback ("does not tighten the existing shipped fallback for externally-managed markerless worktrees");
+`session-locus-operability-hardening` then made the marker the selection's authority (`bbcf49f498`). The store arm's
+holder search skips an unbound marker, so it never reaches that selection. "Honors the personal remove preference":
+under `arc.selfTeardownMode: remove` the store arm removed the invoking checkout, then refused `git config:
+spawn-failure` before reaping the branch, since the store's raw Git calls stay in the checkout that opened it
+(`createExecaRawGitExec(input.checkoutRoot)`, `lib/store/default-ports.ts`) while the handler's hop re-points only its
+own exec (`handlers/lifecycle.ts`).
+
+The Owner chose at that stop to make the store arm refuse the markerless holder as the in-repo teardown does, and to
+fix the hop, under one revision task. At the same stop the Owner accepted two other departures as the store's behavior,
+each retraced in the test: a local ref that cannot be locked after the husk exits 1 naming the `--husk` retry, an
+explicit refusal that `spec-worktree-teardown-decoupling.md`'s "rather than an ambiguous rejection" allows; and a replay
+by name from the primary after a self-teardown leaves the husk, so the case replays the continuation the store prints.
+That replay's summary reports the already-deleted branch as "left intact", a capture for a later fix.
 
 ## Kept sites
 

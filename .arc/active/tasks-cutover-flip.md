@@ -684,6 +684,16 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   Errand and a new generation over a completed one through the registered CLI on the ref store, each with its receipt,
   beside a description-only write naming an unheld UID that still refuses.
 
+### `[ ]` **3.R6 Store teardown refuses a markerless holder and completes a removing self-teardown — § 4.14**
+
+- _Goal:_ On the store `arc teardown` refuses a linked checkout that holds the retiring branch without an ARC ownership
+  marker, before any detach or ref change, as the in-repo selection does, and a self-teardown under
+  `arc.selfTeardownMode: remove` removes its checkout and reaps the branch from the primary checkout (A20).
+
+    - The markerless refusal fails first in `unit/work-unit/verbs/teardown-store.test.ts`, and the removing
+      self-teardown fails first on the ref store through the built CLI; then the store arm takes its holder through the
+      teardown selection, and the store's Git calls follow the self-teardown's move to the primary.
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -735,6 +745,23 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
     - `[ ]` **3.4.b Start, teardown, rename, reconcile, and retirement**
         - Among them `integration/validate-cohort-consistency.test.ts`, which spawns the cohort hook's script outside
           the spawn helpers with its own override (Task 3.2.b), classified by § 7.3's rule.
+        - _Amended (Owner, 2026-11-19):_ its eight end-to-end files and the cohort hook's test failed 63 of their 128
+          cases without the override, and 18 more never ran, so the family moves in four review increments, one commit
+          each, rather than § 7.3's one commit; each increment classifies its cases before editing
+          (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.b.1 Teardown**
+            - `e2e/teardown.e2e.test.ts` and `teardown-stale-projection`.
+
+        - `[ ]` **3.4.b.2 Abandon, activation, and archive**
+            - `e2e/lifecycle-exit.e2e.test.ts`, with its shared fixture, `retirement-removal-check`, and
+              `staged-archive-recovery`.
+
+        - `[ ]` **3.4.b.3 Rename**
+            - `e2e/rename.e2e.test.ts` and `identity-operand-input`.
+
+        - `[ ]` **3.4.b.4 Reconcile and the cohort hook**
+            - `e2e/wu-reconcile.e2e.test.ts` and `integration/validate-cohort-consistency.test.ts`.
 
     - `[ ]` **3.4.c Review, attest, candidate, and publication**
         - Among them `registerCandidateLineageSuite` (`__tests__/helpers/candidate-lineage-suite.ts`) and the review
@@ -1533,6 +1560,10 @@ landing after verification).
 - `[ ]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
   generation, its description, record, and any adopted capture's receipt naming one UID, while a write naming a UID no
   owner holds without creating that owner's record is refused (A18).
+
+- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch without an ARC ownership
+  marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` removes its
+  checkout and reaps the branch (A20).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
