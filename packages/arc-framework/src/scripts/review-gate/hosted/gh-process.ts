@@ -56,6 +56,7 @@ function processFailure(error: unknown, signal?: AbortSignal): never {
   if (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)) throw error;
   if (error instanceof HostedProcessError) throw error;
   const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
+  if (record.timedOut === true) throw new DOMException("The hosted process timed out.", "TimeoutError");
   const stdout = typeof record.stdout === "string" ? record.stdout : "";
   const stderr = typeof record.stderr === "string" ? record.stderr : "";
   const message = error instanceof Error ? error.message : String(error);

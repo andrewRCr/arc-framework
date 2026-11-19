@@ -70,6 +70,19 @@ function comment(id: number) {
 }
 
 describe("hosted GitHub process boundary", () => {
+  it.each(["", "gh: Service Unavailable (HTTP 503)"])(
+    "preserves a rejected process timeout without retrying stderr %j", async (stderr) => {
+      const timeout = Object.assign(new Error("Command timed out after 60000 milliseconds"), {
+        name: "ExecaError", timedOut: true, stderr, stdout: "", exitCode: undefined,
+      });
+      mockExeca.mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ stdout: JSON.stringify({ head: { sha: HEAD } }), stderr: "" });
+      const port = new GhHostedReviewPort(hostedGhRunner);
+      await expect(port.readHead(target)).rejects.toMatchObject({ name: "TimeoutError" });
+      await expect(port.readHead(target)).resolves.toBe(HEAD);
+    },
+  );
+
   it("recovers a hosted head read after one HTTP 503", async () => {
     const run = vi.fn<HostedProcessRunner["run"]>()
       .mockRejectedValueOnce(new HostedProcessError("HTTP 503", "gh: Service Unavailable (HTTP 503)", 1, 503))
