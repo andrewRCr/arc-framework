@@ -588,8 +588,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           fixtures included (`withInRepoStore`, `helpers/in-repo-store-override.ts`); `user add`, which survives, reads
           its seeded records back from the store.
 
-    - `[ ]` **3.R.e Release commit and push**
-        - `unit/handlers/release/commit`, `commit-close`, and `push`, and `unit/release/wu-resolution`.
+    - `[x]` **3.R.e Release commit and push**
+        - 4 files left the ledger, classified in `notes-cutover-flip.md` § Test callers. The release cascade reads the
+          checkout's work unit only for its audit and its ambiguity refusal, so its cases bind a checked store through a
+          partial mock of `createStore` and a marker-bound meta; the multi-candidate refusal and the resolver's
+          active-meta cases run in-repo.
 
     - `[ ]` **3.R.f Lifecycle verbs, start, `init`, `join`, and the executor**
         - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, `integration/start-dispatch`, `unit/init`,

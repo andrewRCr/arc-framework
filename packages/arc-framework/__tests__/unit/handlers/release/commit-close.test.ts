@@ -2,10 +2,22 @@
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { runReleaseCommit, type ReleaseCommitDeps } from "../../../../src/handlers/release/commit.js";
 import { ARC_CONFIG_FIELDS, type ConfigSettings } from "../../../../src/lib/config/schema.js";
 import { AuditEntrySchema, type AuditEntry } from "../../../../src/lib/release/schema.js";
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+
+// The release cascade resolves the checkout's work unit through the default store; each case binds a checked store.
+const storeBinding = vi.hoisted(() => ({ store: undefined as unknown }));
+vi.mock("../../../../src/lib/store/create.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../src/lib/store/create.js")>();
+  type Created = ReturnType<typeof actual.createStore>;
+  return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>): Created =>
+    (storeBinding.store as Created | undefined) ?? actual.createStore(...args) };
+});
+beforeEach(() => { storeBinding.store = createLifecycleHarness().store; });
+afterEach(() => { storeBinding.store = undefined; });
 let cwd: string;
 beforeEach(async () => { cwd = await mkdtemp(join(tmpdir(), "arc-release-close-")); await mkdir(join(cwd, ".arc", "active"), { recursive: true }); });
 afterEach(async () => { await rm(cwd, { recursive: true, force: true }); });

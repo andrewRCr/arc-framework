@@ -286,6 +286,16 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
     - Under the ref default `arc init` mints the registry ref, so a notes write on the flip build refuses with the seal's
       pre-flip condition ("This build of ARC predates the storage cutover") and a merge-and-rebuild remedy that cannot
       clear it.
+- **Release commit and push (Task 3.R.e):** the release cascade survives the flip and resolves the checkout's work unit
+  only for its audit entry and its ambiguity refusal (`resolveActiveWu`, `handlers/release/commit.ts`, `push.ts`), whose
+  default store the unit tier cannot reach.
+    - _Ref backend:_ `unit/handlers/release/commit`, `push`, and `commit-close` mock `createStore` partially to return
+      a checked store per case, which moves them to the isolated `unit-mocks` tier; their `writeStatus` seeds the meta
+      and the project identity there and binds the checkout to it by marker.
+    - _In-repo:_ the two code-10 cases, whose several active meta files are the in-repo implementation's ambiguity, since
+      a marker binds one work unit, by override; and `unit/release/wu-resolution`, the resolver over active meta files,
+      passing the in-repo store. Counterparts: `wu-resolution-store`, `integration/release-task-close`, and
+      `release-commit-task-close`.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
