@@ -645,6 +645,26 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 
     - `[ ]` **3.4.a Session-init and the agenda**
         - Among them `prepareSessionEnvelopeFixture` (`__tests__/helpers/session-envelope-compat.ts`).
+        - _Amended (Owner, 2026-11-19):_ its 14 end-to-end files failed 49 of their 80 cases without the override, so
+          the family moves in four review increments, one commit each, rather than § 7.3's one commit, each dropping
+          the override through one file-level switch; the cases are classified in `notes-cutover-flip.md` § Test
+          callers.
+
+        - `[x]` **3.4.a.1 The agenda entries**
+            - The nine `agenda*` end-to-end files spawn through `e2e/store-default.ts`, taking the override from the
+              test process, and seed through `seedWorkUnit` and `seedStore`; the Plan entry's ambiguous slug and the
+              temporary-ref families stay in-repo, beside a store case for the inspections' passivity
+              (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.a.2 The session envelope's wire locks**
+            - `e2e/session-envelope-compat.e2e.test.ts`, with `prepareSessionEnvelopeFixture` and its seven goldens.
+
+        - `[ ]` **3.4.a.3 Session initialization and recovery**
+            - `e2e/session-init.e2e.test.ts`.
+
+        - `[ ]` **3.4.a.4 The compaction anchor, remote boundaries, and orphan cleanup**
+            - `e2e/precompact-locus-anchor.e2e.test.ts`, which leaves the ledger, `session-init-remote-boundary`, and
+              `session-init-orphan-actions`, with the read-only common directory's projection lock.
 
     - `[ ]` **3.4.b Start, teardown, rename, reconcile, and retirement**
         - Among them `integration/validate-cohort-consistency.test.ts`, which spawns the cohort hook's script outside

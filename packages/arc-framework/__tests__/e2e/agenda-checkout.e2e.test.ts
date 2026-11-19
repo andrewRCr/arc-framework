@@ -1,10 +1,10 @@
 /** Native checkout-only signals emit entry plans without executing work. */
 import { join } from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
 
 describe("agenda checkout-only entry", () => {
   let repository: string | undefined;
@@ -17,15 +17,14 @@ describe("agenda checkout-only entry", () => {
     repository = await createTempRepo("arc-agenda-checkout-");
     const initialized = await runArcNoTty(["--no-input", "init", "--name", "agenda", "--identity", "agenda", "--tools", ""], repository);
     expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
-    if (signal === "context") {
-      await git(repository, ["checkout", "-b", "feat/demo"]);
-      await mkdir(join(repository, ".arc/active"), { recursive: true });
-      await writeFile(join(repository, ".arc/active/meta-demo.md"), makeMetaFixture("demo", {
-        state: "Active", owner: "agenda", branch: "feat/demo", currentWorkflow: "process-task-loop",
-      }));
-    }
     await git(repository, ["add", "."]);
     await git(repository, ["commit", "-m", "chore: initialize checkout fixture"]);
+    if (signal === "context") {
+      await git(repository, ["checkout", "-b", "feat/demo"]);
+      await seedWorkUnit(repository, "demo", { identity: "agenda", branch: "feat/demo", bind: repository, meta: {
+        state: "Active", owner: "agenda", branch: "feat/demo", currentWorkflow: "process-task-loop",
+      } });
+    }
     const head = await git(repository, ["rev-parse", "HEAD"]);
     const refs = await git(repository, ["show-ref"]);
     const worktrees = await git(repository, ["worktree", "list", "--porcelain"]);
@@ -54,5 +53,13 @@ describe("agenda checkout-only entry", () => {
     expect(await git(repository, ["show-ref"])).toBe(refs);
     expect(await git(repository, ["worktree", "list", "--porcelain"])).toBe(worktrees);
     expect(await git(repository, ["status", "--porcelain"])).toBe("");
+    if (signal === "context") {
+      // The checkout holds the work unit `--context` leaves unentered: without the signal its meta is read.
+      const resumed = await runArcNoTty(["agenda", "session-init", "--json"], repository, { env: { FORCE_COLOR: undefined } });
+      expect(resumed.exitCode, resumed.stdout + resumed.stderr).toBe(0);
+      const control: unknown = JSON.parse(resumed.stdout);
+      assertSessionInitAgenda(control);
+      expect(control.steps).toContainEqual(expect.objectContaining({ type: "read", path: ".arc/active/current/meta-demo.md" }));
+    }
   }, 120_000);
 });

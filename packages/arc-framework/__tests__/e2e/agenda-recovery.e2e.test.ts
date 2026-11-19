@@ -1,11 +1,11 @@
 /** Native branch-gone compilation plans recovery without performing it. */
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
 
 describe("agenda branch-gone recovery command", () => {
   const directories: string[] = [];
@@ -26,12 +26,12 @@ describe("agenda branch-gone recovery command", () => {
     await git(repository, ["remote", "add", "origin", remote]);
     await git(repository, ["push", "-u", "origin", "main"]);
     await git(repository, ["checkout", "-b", "feat/gone"]);
-    await mkdir(join(repository, ".arc/active"), { recursive: true });
-    await writeFile(join(repository, ".arc/active/meta-gone.md"), makeMetaFixture("gone", {
+    await seedWorkUnit(repository, "gone", { identity: "agenda", branch: "feat/gone", bind: repository, meta: {
       state: "Active", owner: "agenda", branch: "feat/gone", workClass: "Light", currentWorkflow: "process-task-loop",
-    }));
-    await git(repository, ["add", ".arc/active/meta-gone.md"]);
-    await git(repository, ["commit", "-m", "chore: initialize current work unit"]);
+    } });
+    await writeFile(join(repository, "gone.txt"), "Current work unit's work\n");
+    await git(repository, ["add", "gone.txt"]);
+    await git(repository, ["commit", "-m", "feat: add current work"]);
     await git(repository, ["push", "-u", "origin", "feat/gone"]);
     await git(repository, ["checkout", "-b", "feat/recover"]);
     await writeFile(join(repository, "recover.txt"), "Unmerged destination work\n");

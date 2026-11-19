@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
 
 const COLD_START_TIMEOUT_MS = 120_000;
 
@@ -64,8 +64,9 @@ describe("agenda cold-start", () => {
     const next: unknown = JSON.parse(resumed.stdout); assertSessionInitAgenda(next);
     expect(next.signals.seed).toBeUndefined();
     expect(next.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
-    expect(next.steps).toContainEqual(expect.objectContaining({ type: "read", path: expect.stringContaining("meta-cold.md") }));
+    const read = next.steps.find(step => step.type === "read" && step.path.includes("meta-cold.md"));
+    if (read?.type !== "read") throw Error("Expected the started work unit's meta among the reads");
     expect(next.steps.some(step => step.type === "offer" && step.id === "cold-start:scaffold")).toBe(false);
-    expect(await readFile(join(checkout, ".arc/active/meta-cold.md"), "utf8")).toContain("#42");
+    expect(await readFile(join(checkout, read.path), "utf8")).toContain("#42");
   }, COLD_START_TIMEOUT_MS);
 });

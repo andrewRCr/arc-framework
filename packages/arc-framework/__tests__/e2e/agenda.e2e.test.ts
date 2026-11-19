@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { appendAgendaOption, buildAgendaArgv } from "../../src/commands/agenda/argv.js";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
 
 describe("agenda command input", () => {
   let repository: string | undefined;

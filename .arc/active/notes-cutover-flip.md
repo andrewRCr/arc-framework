@@ -469,6 +469,89 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
   3.4.d's, and the two `review-status-*base-movement` files Task 3.4.f's. `history-shape-ambiguity` reaches Task 3.4.f's
   too: its arrangers (`advanceBase`, `arrangeAmbiguousMergeBase`, `arrangeBranchSide`, `helpers/base-advance.ts`) are
   the base-movement seeders that family's spawned tests share, beside `movementPaths`.
+- **Session-init and the agenda (Task 3.4.a), classified before any edit:** 14 end-to-end files, 80 cases: the nine
+  `agenda*` files, `session-envelope-compat` with its seeder `prepareSessionEnvelopeFixture` and seven goldens
+  (`fixtures/session-envelope/`), `session-init`, `session-init-remote-boundary`, `session-init-orphan-actions`, and
+  `precompact-locus-anchor`, the only one the ledger lists. No integration file spawns these commands; the
+  `agenda-fixtures` importers are unit tests and fall to Task 3.6. With both spawn defaults and the ledger line removed,
+  49 cases failed and 31 passed. _Ref_ passes on the ref default with its subject intact; _Store_ seeds through the
+  store or the verb under test, binds the checkout's marker, and drops the override; _In-repo_ keeps the override
+  explicitly, its subject leaving with that arm; _Open_ needs diagnosis or an Owner decision first.
+    - _`agenda` (2):_ both _Ref_ (input refusal; asserted stop agenda).
+    - _`agenda-checkout` (2):_ `--housekeep` _Ref_; `--context` _Store_, its work unit held and the checkout bound,
+      since with no work unit at all its "enters none" assertion holds for the wrong reason.
+    - _`agenda-cold-start` (2):_ the offer _Ref_; the accepted scaffold _Store_, `start --here` writing the store and
+      the assertion reading the record rather than `.arc/active/meta-cold.md`.
+    - _`agenda-errand` (3):_ seed, pick, and queue _Store_: the entry held in the personal inbox record and the queue
+      set by `arc errand queue set`; the byte-identical inbox file becomes an unchanged store version.
+    - _`agenda-passivity` (1):_ _Open_, leaning _In-repo_: its notes refs, `refs/arc/user/*/errands` identity ref,
+      title-keyed queue write, and `arc-sync-temp` family are the retiring arms; the store's passivity needs its own
+      case.
+    - _`agenda-plan` (4):_ bare and missing _Ref_; found _Store_ (a held planned stub); ambiguous _Open_, as the store
+      may not hold two stubs of one name.
+    - _`agenda-recovery` (3):_ all _Store_: a held work unit linked to the deleted branch, the checkout bound, the
+      remote designated.
+    - _`agenda-resume` (1) and `agenda-start` (2):_ _Store_, held metas and task lists; `SESSION-NOTES.md` drops, its
+      context living in the meta; the read steps name the projection's paths.
+    - _`session-envelope-compat` (13):_ two pure normalization cases and the Git-name fallback _Ref_; the root-ordering
+      case follows its fixture; the orient, active-resume, branch-gone, and four recovery-audit cases _Store_, the
+      seeder holding the work unit, task list, cohort record, and a version-two boundary rather than committing them and
+      hand-editing `attest`'s file; the current-husk and identity-missing arms _Open_, their envelopes differing on the
+      store with no tracked state involved. Each golden that changes is diffed and every changed field traced to the
+      spec; none is regenerated from output.
+    - _`precompact-locus-anchor` (3):_ all _Store_: the remote designated after `arc init`, the spawned case's parent
+      work unit held and its checkout bound, the conflict case's Planning work unit held with both markers bound to its
+      record, with no `plan/` branch.
+    - _`session-init-remote-boundary` (4):_ the read-only common directory _Open_ (below); the promisor case and the
+      omitted-tree husk case _In-repo_, reading committed metas from remote branch trees and a completed meta from the
+      base tree; the shallow and full clones _Store_, each clone joining the published store.
+    - _`session-init-orphan-actions` (2):_ _Open_: the store arm reports no orphan for a branch no record names ("orphan
+      evidence missing"), while the spec keeps the sweep's store-backed outcome.
+    - _`session-init` (38):_ 21 _Ref_: the hooks path, the branch-shaped checkout, the unreadable seed, the eight option
+      conflicts, the orphan with no plan pattern, the record-less remote residue, the deferred rename move, the four
+      base-pull recommendations, and the two shared advisories. The valid v3 Errand identity _In-repo_, passing on the
+      store only because no store path reads that ref. _Store_: the seed sidecar, the lean recover envelope, the reopen
+      to an exact task, the published correction, applicability awaiting authority, the seed audit, the two
+      narration-inferred execution cases (an untracked meta file is no record), and the Candidate resume locus. _Open_:
+      the bound-delivery reopen refusal (a delivery subject), the large Candidate's batched-read counts, the all-heads
+      generation (its notes and identity-ref assertions are in-repo), the three remote-acquisition isolation cases, and
+      the unstamped-authority husk; the omitted-blob husk _In-repo_.
+    - _Possible defects, diagnosed first (A12):_ under the ref default every command's projection takes a lock in the
+      checkout's Git directory (`arc-projection/`), so a read-only common directory now fails `status --session-init`
+      with `EACCES`, where it returned code facts; whether a read-only command may skip the projection there is an Owner
+      decision. A clone that has not joined reports "Project identity record is missing" per slot, a remedy that does
+      not name joining; the fixtures join, and the wording is a candidate capture. The designation refusal is the
+      undesignated-remote case above.
+    - _The agenda entries, as moved (Task 3.4.a.1):_ each file spawns through `e2e/store-default.ts`, which re-exports
+      the end-to-end helpers with each spawn taking the override from the test process rather than the helpers' default,
+      so a case that calls `useInRepoStore` still runs in-repo; the switch is the import line. Work units seed through
+      `seedWorkUnit` (`helpers/store/seed-work-unit.ts`), which writes the meta, task list, placement, and branch link
+      (the project ID as the link's repository, as starting a work unit links it) through `seedStore` and binds the
+      checkout's marker; the Errand queue seeds in its renderer's form (`renderQueueSet`). `seedStore` now replaces a
+      record at a version the test read, since `arc init` writes the person's inbox from its template. With the helpers'
+      default removed, the nine files pass as they do with it.
+    - _Expectations rewritten, each traced:_
+        - Work-unit reads name the projection's `.arc/active/current/` paths (§ 8.3), and the resume case checks the
+          projected files hold the seeded records; `SESSION-NOTES.md` leaves, the freshness anchor moving to the meta's
+          State at Handoff (§ 8.9), so the resume notes a freshness gap and still proceeds.
+        - Start's readiness takes the selected records as `evidenceBackend: "store"` arguments and reads no checkout
+          file (`spec-session-init-agenda.md` § 8.2), so its read-step assertions become those arguments.
+        - Errand captures are selected by `personal:<id>` and the queue head comes from the person's queue (§ 8.10); the
+          inbox's unchanged bytes become its unchanged record version. The store takes a well-formed seed ID without
+          reading the inbox, so the seed row also compiles a title seed, which carries no capture (§ 8.10,
+          `--from-inbox` refusing a title).
+        - The accepted cold-start scaffold reads the meta the recompiled agenda's read step names.
+        - `--context` over a bound work unit leaves it unentered; a control compile without the signal reads its meta,
+          so the negative assertion cannot pass on an unresolved binding.
+    - _Open rows, settled:_ the Plan entry's ambiguous slug is _In-repo_: on the store a second `demo` work unit's write
+      refused (`version-conflict`), so two stubs of one slug exist only as directories; the store's ambiguous lookup, a
+      work unit and a cohort sharing a name, is covered in process (`unit/agenda/signal-plan`). Passivity splits: on the
+      ref default the four inspections left status, refs, `HEAD`, and the identity root unchanged and fetched into
+      neither temporary-ref family (only `ls-remote`), so the original case keeps the override and a new store case
+      asserts the inspections preserve state, the store's state version included, over a seeded stub, inbox entry, and
+      queue. Its first command projects the seeded personal records, as any command's root hook does in a fresh
+      checkout, so its snapshot follows one compile. The recovery plan reads only Git topology; its seeded work unit
+      keeps the fixture faithful and no assertion reads it.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

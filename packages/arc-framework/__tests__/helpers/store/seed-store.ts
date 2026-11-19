@@ -6,8 +6,11 @@ import { findTrackedStateRefusal } from "../../../src/lib/store/selection.js";
 import type { Slug } from "../../../src/lib/kernel/index.js";
 import type { BatchInput, WriteResult } from "../../../src/lib/store/write.js";
 
-/** One record to create: its reference, content, and, for a primary record, its placement and links. */
-export type SeedRecord = Omit<Extract<BatchInput["writes"][number], { action: "put" }>, "action" | "expected">;
+type Put = Extract<BatchInput["writes"][number], { action: "put" }>;
+
+/** One record to write: its reference, content, and, for a primary record, its placement and links. A record already
+ * present, such as one `arc init` wrote, is replaced at the version the test read; any other is created. */
+export type SeedRecord = Omit<Put, "action" | "expected"> & { readonly expected?: Put["expected"] };
 
 /** A seeded record's reference, its owner's minted UID included, and the version it landed at. */
 export interface SeededRecord { readonly reference: RecordReference; readonly version: NonNullable<WriteResult["version"]> }
@@ -17,12 +20,12 @@ const refused = (refusal: { code: string; condition: string }): Error =>
   new Error(`The store refused the seed: ${refusal.code}: ${refusal.condition}`);
 
 /**
- * Create records in a repository's ref store, in one batch through the ref backend's ports, where the store a command
+ * Write records in a repository's ref store, in one batch through the ref backend's ports, where the store a command
  * composes there reads them: under the repository's common Git directory, written as the given identity. A repository
  * whose `HEAD` tracks ARC state is refused before any write, as that composed store refuses every operation there.
  * @param root - The temporary repository's checkout.
  * @param identity - The ARC identity the writes run as.
- * @param records - The records to create, none of them present yet.
+ * @param records - The records to write, each absent unless it names the version it replaces.
  * @returns Each record's reference and version, in the order given.
  */
 export async function seedStore(root: string, identity: Slug, records: readonly SeedRecord[]): Promise<SeededRecord[]> {
@@ -30,7 +33,7 @@ export async function seedStore(root: string, identity: Slug, records: readonly 
   const tracked = await findTrackedStateRefusal(ports.exec);
   if (tracked !== null) throw refused(tracked);
   const store = createRefStore({ ...ports, identity: async () => identity });
-  const result = await store.batch({ provenance, writes: records.map((record) => ({ ...record, action: "put", expected: null })) });
+  const result = await store.batch({ provenance, writes: records.map((record) => ({ ...record, action: "put", expected: record.expected ?? null })) });
   if (result.status !== "ok") throw refused(result.refusal);
   return result.result.writes.map(({ reference, version }) => {
     if (version === undefined) throw new Error("A seeded record landed with no version.");
