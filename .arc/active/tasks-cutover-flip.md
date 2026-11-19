@@ -696,7 +696,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 - _Note:_ A file the switch's ledger lists that the family's shared seeders or spawned cases reach moves in the
   family's commit, its in-process cases with it, and leaves the ledger.
 
-    - `[ ]` **3.4.a Session-init and the agenda**
+    - `[x]` **3.4.a Session-init and the agenda**
         - Among them `prepareSessionEnvelopeFixture` (`__tests__/helpers/session-envelope-compat.ts`).
         - _Amended (Owner, 2026-11-19):_ its 14 end-to-end files failed 49 of their 80 cases without the override, so
           the family moves in four review increments, one commit each, rather than § 7.3's one commit, each dropping
@@ -723,9 +723,14 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               original, and the omitted-blob husk keep the override in an in-repo block, and each changed expectation
               traces to a store contract (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.a.4 The compaction anchor, remote boundaries, and orphan cleanup**
+        - `[x]` **3.4.a.4 The compaction anchor, remote boundaries, and orphan cleanup**
             - `e2e/precompact-locus-anchor.e2e.test.ts`, which leaves the ledger, `session-init-remote-boundary`, and
-              `session-init-orphan-actions`, with the read-only common directory's projection lock.
+              `session-init-orphan-actions` spawn through `e2e/store-default.ts`. The anchor designates its state
+              remote and seeds its parent and Planning work units through `seedWorkUnit`, binding the transfer case's
+              markers to the record; the shallow clone joins the published store while the promisor and omitted-tree
+              husk cases keep the override; each orphan branch links through an ended Errand record. The one changed
+              expectation, the store's materialization offer, traces to a store contract (`notes-cutover-flip.md`
+              § Test callers).
 
     - `[ ]` **3.4.b Start, teardown, rename, reconcile, and retirement**
         - Among them `integration/validate-cohort-consistency.test.ts`, which spawns the cohort hook's script outside

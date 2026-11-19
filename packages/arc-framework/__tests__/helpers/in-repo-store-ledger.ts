@@ -14,7 +14,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/e2e/delivery-position.e2e.test.ts",
   "__tests__/e2e/errand.e2e.test.ts",
   "__tests__/e2e/markdown-fix.e2e.test.ts",
-  "__tests__/e2e/precompact-locus-anchor.e2e.test.ts",
   "__tests__/e2e/review-candidate-supersession.e2e.test.ts",
   "__tests__/e2e/review-chunking.e2e.test.ts",
   "__tests__/e2e/user.e2e.test.ts",

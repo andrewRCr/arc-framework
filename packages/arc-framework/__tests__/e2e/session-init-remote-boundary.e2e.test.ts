@@ -6,6 +6,8 @@
  */
 
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,7 +17,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,6 +60,14 @@ async function initializePublishedProject(): Promise<{ publisher: string; remote
   return { publisher, remote };
 }
 
+/** Designate `origin`, added after `arc init`, as the state remote, and publish the publisher's store there. */
+async function publishStore(publisher: string): Promise<void> {
+  for (const args of [["store", "remote", "origin", "push", "--json"], ["sync", "--json"]]) {
+    const result = await runArc(args, publisher);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  }
+}
+
 async function configureClone(repository: string): Promise<void> {
   await git(repository, ["config", "user.email", "arc@example.invalid"]);
   await git(repository, ["config", "user.name", "ARC Test"]);
@@ -87,7 +97,8 @@ describe("session-init E2E — real remote-access boundaries", () => {
       let commonDir: string | undefined;
       try {
         await git(publisher, ["worktree", "add", "-b", "feat/linked-boundary", linked, "main"]);
-        await writeWorkUnitMeta(linked, "linked-boundary", "feat/linked-boundary");
+        await seedWorkUnit(linked, "linked-boundary", { identity: "test-user", branch: "feat/linked-boundary", bind: linked,
+          meta: { owner: "test-user", branch: "feat/linked-boundary", workClass: "Light", nextAction: "Continue execution" } });
         const unrestricted = await runArc(["status", "--session-init", "--json"], linked);
         expect(unrestricted.exitCode, unrestricted.stdout + unrestricted.stderr).toBe(0);
 
@@ -131,6 +142,7 @@ describe("session-init E2E — real remote-access boundaries", () => {
   it.skipIf(process.platform === "win32")(
     "keeps a missing advertised promisor object pending until an explicit retry materializes it",
     async () => {
+      useInRepoStore();
       const { publisher, remote } = await initializePublishedProject();
       const clientRoot = await mkdtemp(join(tmpdir(), "arc-promisor-session-init-"));
       const client = join(clientRoot, "client");
@@ -224,11 +236,14 @@ describe("session-init E2E — real remote-access boundaries", () => {
         await git(publisher, ["commit", "-m", "advance remote main"]);
         await git(publisher, ["push", "origin", "main"]);
         await git(publisher, ["switch", "-c", "feat/shallow-pending"]);
-        await writeWorkUnitMeta(publisher, "shallow-pending", "feat/shallow-pending");
-        await git(publisher, ["add", "-A"]);
-        await git(publisher, ["commit", "-m", "add shallow pending work unit"]);
+        await seedWorkUnit(publisher, "shallow-pending", { identity: "test-user", branch: "feat/shallow-pending", meta: {
+          owner: "test-user", branch: "feat/shallow-pending", workClass: "Light", nextAction: "Continue execution" } });
+        await writeFile(join(publisher, "pending.txt"), "pending work\n", "utf8");
+        await git(publisher, ["add", "pending.txt"]);
+        await git(publisher, ["commit", "-m", "add shallow pending work"]);
         await git(publisher, ["push", "origin", "feat/shallow-pending"]);
         await git(publisher, ["switch", "main"]);
+        await publishStore(publisher);
         const mainRefspec = "refs/heads/main:refs/remotes/origin/main";
         await git(shallow, ["fetch", "--depth=1", "--force", "origin", mainRefspec]);
         await git(full, ["fetch", "--force", "origin", mainRefspec]);
@@ -243,9 +258,14 @@ describe("session-init E2E — real remote-access boundaries", () => {
           expect(shallowEnvelope[slot]).toMatchObject({ ok: false, error: { kind: "runtime" } });
           expect(fullEnvelope[slot], JSON.stringify(fullEnvelope[slot])).toMatchObject({ ok: true });
         }
-        expect(shallowEnvelope.materializableWorkUnits).toMatchObject({
+        // The store offers the work unit from its published record, reading no remote branch.
+        expect(shallowEnvelope.materializableWorkUnits, JSON.stringify(shallowEnvelope.materializableWorkUnits)).toMatchObject({
           ok: true,
-          value: { candidates: [], pendingBranchCount: 1, remoteEvidence: "pending-fetch" },
+          value: {
+            candidates: [expect.objectContaining({ name: "shallow-pending", branch: "feat/shallow-pending" })],
+            pendingBranchCount: 0,
+            remoteEvidence: "not-applicable",
+          },
         });
       } finally {
         await Promise.all([
@@ -260,6 +280,7 @@ describe("session-init E2E — real remote-access boundaries", () => {
   it.skipIf(process.platform === "win32")(
     "returns a status-slot error without fetching an omitted promisor tree or blob",
     async () => {
+      useInRepoStore();
       const { publisher, remote } = await initializePublishedProject();
       const clientRoot = await mkdtemp(join(tmpdir(), "arc-treeless-status-reader-"));
       const client = join(clientRoot, "client");

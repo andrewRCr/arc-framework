@@ -649,6 +649,27 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - The delivery inspection drops the rename source's condition ("…/transitions is absent at refs/heads/main;
           with state off the branch, rename transitions are not read from a branch's tree") and names an evidence
           conflict, so § 4.3's refusal reaches a person without its cause.
+    - _The compaction anchor, remote boundaries, and orphan cleanup, as moved (Task 3.4.a.4):_ the three files spawn
+      through `e2e/store-default.ts`, and `precompact-locus-anchor` leaves the ledger. Each case runs as classified
+      above, the read-only common directory on the store once A17 settled it and both orphan cases once A16 did.
+        - `precompact-locus-anchor` designates `origin` after `arc init` (`arc store remote origin push`). Its parent
+          case holds `recovery-parent` bound to its checkout (`seedWorkUnit`). Its transfer case holds the Planning
+          `recovery-transfer` with no branch and binds both checkouts' markers, each detached at `main`, to its record
+          (`seededWorkUnitSubject`), so the replacement's conflict comes from its marker rather than from the `plan/`
+          branch the in-repo case checked out; the roster assertions are unchanged. The first two cases open an Errand
+          and pass once the store admits the UID open plans (A18, Task 3.R5).
+        - `session-init-remote-boundary` seeds its read-only and shallow work units through `seedWorkUnit`. The shallow
+          case commits a code file on the work unit's branch and publishes the store (`arc store remote origin push`,
+          then `arc sync`) before the clones fetch. The promisor and omitted-tree husk cases set the override per case
+          (`useInRepoStore`).
+        - `session-init-orphan-actions` links each branch through an ended Errand record, a completed
+          `work-item/record` whose branch link names it, so the sweep resolves the branch. With no claims held, both
+          cases witness A15's and A16's criteria end to end.
+        - _Expectation changed, traced:_ the shallow clone's materialization offer lists the published work unit, with
+          `remoteEvidence: "not-applicable"` and no pending branch, where the in-repo offer listed none pending a fetch.
+          The store's slot offers work units from its records without reading the remote
+          (`handlers/status/store-session.ts`), as for 3.4.a.3's isolation cases. The case's subject, the exact graph
+          relation refused in the shallow clone beside the full-history control, is unchanged.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
