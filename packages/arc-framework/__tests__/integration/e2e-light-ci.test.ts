@@ -52,6 +52,7 @@ describe("light PR content selection for E2E", () => {
     for (const input of [
       "scripts/classify-change.sh", "packages/arc-framework/src/lib/change-facts.ts",
       "packages/arc-framework/src/lib/main-module.mjs",
+      "packages/arc-framework/src/lib/git/executable.mjs",
       "packages/arc-framework/src/lib/git/repository-environment.mjs",
     ]) {
       await write(root, input, await readFile(join(repositoryRoot, input), "utf8"));

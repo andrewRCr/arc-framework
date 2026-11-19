@@ -19,3 +19,13 @@ it("admits the full native limit and refuses the next UTF-16 unit", () => {
   }));
   expect(() => assertNativeGitCommandLineCapacity("git", ["x".repeat(40_000)], "linux")).not.toThrow();
 });
+
+it("sizes the command line by the executable started, and names the command it stands for", () => {
+  const executable = "C:\\Program Files\\Git\\mingw64\\bin\\git.exe";
+  const fits = 32_766 - nativeWindowsCommandLineUnits(executable, []);
+
+  expect(() => assertNativeGitCommandLineCapacity("git", ["x".repeat(fits)], "win32", executable)).not.toThrow();
+  expect(() => assertNativeGitCommandLineCapacity("git", ["x".repeat(fits + 1)], "win32", executable))
+    .toThrow(expect.objectContaining({ kind: "command-line-capacity", command: "git",
+      commandLine: { units: 32_768, limit: 32_767 } }));
+});
