@@ -13,9 +13,9 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** [none]
+- **Last Completed:** create-spec — specification finalized (`6fa6100529`)
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** generate-tasks waits until `cutover-flip`'s Tasks 3.4, 4.2, and 4.R close (PM, 2026-11-19)
 
 - **Next Action:** [begin current workflow]
 
