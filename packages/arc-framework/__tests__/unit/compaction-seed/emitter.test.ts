@@ -368,7 +368,9 @@ describe("emitCompactionSeed", () => {
     } } } });
     expect(result).toMatchObject({ status: "written", seed: { metaPath: healthy ? metaPath : null,
       activeWorkUnit: healthy ? "parent-wu" : null, currentWorkflow: "run-errand" } });
-    if (result.status === "written" && healthy) expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining(loadSet.entries));
+    const parentOwned = new Set([metaPath, ".arc/active/current/tasks-parent-wu.md"]);
+    if (result.status === "written" && healthy) expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining(
+      loadSet.entries.map(entry => parentOwned.has(entry.path) ? { ...entry, path: `/repo-parent/${entry.path}` } : entry)));
   });
 
   it.each([StateVersionSchema.parse("captured-before-task-update"), null])("retains a paired frame anchor %j when state advances before emission", async stateVersion => {
