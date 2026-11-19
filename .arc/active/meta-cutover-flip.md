@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.2 — The parser check
-- **Next Task:** Task 2.1 — Re-check `projection-worktrees`' contract once it lands
+- **Last Completed:** Task 3.R2 — The orphan sweep reads absent claims as an empty inventory
+- **Next Task:** Task 3.R3 — The orphan sweep leaves out a branch no record links
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.1 once `projection-worktrees` lands: merge `main`, then re-check its contract
+- **Next Action:** Re-apply Task 3.R3's set-aside patch (SESSION-NOTES names it), re-verify it, and re-present its
+  commit gate; then Task 3.R4
 
 - **PR URL:** [none]
 - **Completed:** [none]
