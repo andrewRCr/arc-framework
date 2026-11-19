@@ -13,8 +13,16 @@ import { resolveReviewPolicy } from "../../../../src/scripts/review-gate/policy/
 import { composePublishedSingletonReview } from "../../../../src/scripts/review-gate/status-singleton.js";
 import { composeSingletonReviewObligation, resolveReviewStatus, type RoutedReviewObligation } from "../../../../src/scripts/review-gate/status.js";
 import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 const roots: string[] = [];
+/** A checked store holding the project and the work unit under review, which the status's grants bind to. */
+async function boundWorkItem() {
+  const h = createReviewHarness();
+  await h.seedProject("123e4567-e89b-42d3-a456-426614174099");
+  const meta = await h.seedMeta("example");
+  return { store: h.store, projectId: h.projectId, workItem: meta.reference.owner };
+}
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 const subject = createCandidateSubjectSnapshot([{ path: "source.ts", digest: canonicalDigest({ source: 1 }),
   mode: "100644", treatment: "reviewable" }]);
@@ -61,7 +69,7 @@ it.each(["coverage-required", "unconfigured", "conflicting-coverage", "incomplet
         completedPasses: 1, requestAttempts: [], nextPassContext } : {}),
     }), { confirmIncrementalApplicability: async () => "applicable" as const,
       confirmCurrentIncrementalApplicability: async () => "applicable" as const });
-    const obligation = await composePublishedSingletonReview({ cwd,
+    const obligation = await composePublishedSingletonReview({ cwd, ...await boundWorkItem(),
       exec: async () => { throw new Error("No Git read is needed for a fresh continuation with supplied context."); },
       settings: (await readConfigSettings(cwd)).settings,
       reservation: currentReservation,
@@ -107,7 +115,7 @@ it.each(([undefined, "complete", "incremental"] as const).flatMap(coverage =>
       confirmIncrementalApplicability: async () => "unavailable" as const,
       confirmCurrentIncrementalApplicability: async () => "unavailable" as const,
     });
-    const obligation = await composePublishedSingletonReview({ cwd,
+    const obligation = await composePublishedSingletonReview({ cwd, ...await boundWorkItem(),
       exec: async () => { throw new Error("A fresh local continuation needs no Git evidence."); },
       settings: (await readConfigSettings(cwd)).settings, reservation: localReservation,
       record, workUnit: "example", recordVersion: canonicalDigest({ version: 1 }), baseRevision: "a".repeat(40),

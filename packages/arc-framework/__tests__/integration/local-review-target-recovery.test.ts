@@ -12,6 +12,7 @@ import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { resumeLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-resume-command.js";
 import { readLaneProgressOwner } from "../../src/scripts/review-gate/lane-progress.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 // Only ambient session identity is supplied: Git, target derivation, policy, stores,
 // materialization, locks, receipt publication and handler serialization run for real.
@@ -123,6 +124,9 @@ async function resume(root: string, operationId: string) {
 }
 
 describe("local review recovery through command handlers and repository stores", () => {
+  // The repository's own operation and receipt stores, which the in-repo implementation keeps.
+  useInRepoStoreForEach();
+
   it.each(["base", "head"] as const)("keeps and attests a pending admission after transient %s movement", async (movement) => {
     const { root, foundation } = await repository();
     const first = await prepare(root);

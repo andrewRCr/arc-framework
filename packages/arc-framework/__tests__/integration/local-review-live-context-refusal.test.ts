@@ -9,6 +9,10 @@ import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/p
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// The refusals over committed metas and in-repo identity refs are the in-repo implementation's own reads.
+useInRepoStoreForEach();
 
 const roots: string[] = [];
 const branch = "chore/context-refusal";

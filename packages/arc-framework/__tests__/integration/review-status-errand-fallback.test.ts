@@ -21,6 +21,7 @@ import { ReviewResolveEnvelopeSchema } from "../../src/scripts/review-gate/polic
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -116,6 +117,9 @@ async function invokeHostedRequest(input: unknown) {
 }
 
 describe("hosted Errand source fallback", () => {
+  // The Errand is an in-repo identity ref and its attempts live in the repository's local operation store.
+  useInRepoStoreForEach();
+
   it.each(["rate-limited", "transient-unavailable"] as const)(
     "submits the unchanged next-source action after %s without losing history or spending another pass", async outcome => {
       const fixture = await fallbackErrand();

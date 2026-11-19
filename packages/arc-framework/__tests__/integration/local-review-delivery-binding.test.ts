@@ -20,6 +20,7 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const WORK_UNIT = SlugSchema.parse("review-surface-binding");
@@ -177,6 +178,9 @@ async function boundStack(): Promise<Stack> {
 }
 
 describe("local review delivery binding at its composition root", () => {
+  // Each case binds the member through the repository's own delivery stores, which only the in-repo implementation reads.
+  useInRepoStoreForEach();
+
   it("carries a selector through preparation to the repository's own delivery state", async () => {
     const stack = await boundStack();
     const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });

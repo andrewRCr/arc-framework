@@ -19,6 +19,8 @@ import type { ReviewResult } from
   "../../../../src/scripts/review-gate/core/review-result.js";
 import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { inRepoStoreAt } from "../../../helpers/store/in-repo-ports.js";
 
 const mocks = vi.hoisted(() => ({
   collectGitCandidateSubject: vi.fn(),
@@ -145,6 +147,9 @@ import { nativeListingRefusal } from "../../../fixtures/native-refusal.js";
 import type { BaseDriftResult } from "../../../../src/lib/git/base-drift-types.js";
 
 const oid = (character: string): string => character.repeat(40);
+const harness = createReviewHarness();
+const bound = { store: harness.store, projectId: harness.projectId,
+  workItem: (await harness.seedMeta("example")).reference.owner };
 
 function mergeBaseAndDiff(mergeBase: string, paths: string) {
   return scriptGitExec([
@@ -270,7 +275,7 @@ describe("delivery checkpoint composition", () => {
 
     const mergeBase = oid("a");
     const { exec, calls } = mergeBaseAndDiff(mergeBase, "");
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec,
       rawExec,
@@ -358,7 +363,7 @@ describe("delivery checkpoint composition", () => {
         ),
       })],
     }]).exec);
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec,
       rawExec,
@@ -452,7 +457,7 @@ describe("delivery checkpoint composition", () => {
         return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
       }],
     }]).exec);
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec,
       rawExec,
@@ -503,7 +508,7 @@ describe("delivery checkpoint composition", () => {
     mocks.readCandidateRecordVersioned.mockRejectedValue(
       new Error("Candidate record is malformed: /home/private/record.json"),
     );
-    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound, cwd: "/repository", exec: vi.fn() });
 
     await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
       mode: "authoritative",
@@ -541,7 +546,7 @@ describe("delivery checkpoint composition", () => {
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
     mocks.readCandidateRecordVersioned.mockRejectedValueOnce(refusal).mockResolvedValueOnce({ record: null, version: null });
     // Each checkpoint run composes its own dependencies, so the rerun after repair reads the record afresh.
-    const checkpoint = () => createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const checkpoint = () => createIntegrationCheckpointDependencies({ ...bound, cwd: "/repository", exec: vi.fn() });
     const drift: BaseDriftResult = {
       mode: "authoritative", verdict: "reconcile", state: "diverged", ahead: 2, behind: 1, base: "main",
       baseOid: baseRevision, headOid: oid("c"), movement: "overlapping",
@@ -565,7 +570,7 @@ describe("delivery checkpoint composition", () => {
     const state = deliveryStateFixture(plan);
     const baseRevision = oid("d");
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec: vi.fn(async () => { throw new Error("no read is reached"); }),
     });
@@ -614,7 +619,7 @@ describe("delivery checkpoint composition", () => {
       { match: { prefix: ["merge-base"] },
         responses: [{ stdout: `${oid("a")}\n${oid("b")}\n`, stderr: "" }] },
     ]);
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec,
     });
@@ -656,7 +661,7 @@ describe("delivery checkpoint composition", () => {
     const state = deliveryStateFixture(plan);
     const baseRevision = oid("d");
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec: vi.fn(async () => { throw new Error("no read is reached"); }),
     });
@@ -736,7 +741,7 @@ describe("delivery checkpoint composition", () => {
       ["resolves against", { status: "available" as const, substantivePaths: [], regenerablePaths: [] }],
     ])("declines a base that %s the branch, whatever the pair reads", async (_label, overlap) => {
       mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
-      const dependencies = createIntegrationCheckpointDependencies({
+      const dependencies = createIntegrationCheckpointDependencies({ ...bound,
         cwd: "/repository",
         exec: vi.fn(async () => { throw new Error("no read is reached"); }),
       });
@@ -756,7 +761,7 @@ describe("delivery checkpoint composition", () => {
       // classifies against can be read. Reported ahead of them, it sends an operator to merge on evidence
       // that never established this classification applies to the work unit at all.
       mocks.resolveTerminalRecords.mockResolvedValue({ status: "unavailable" });
-      const dependencies = createIntegrationCheckpointDependencies({
+      const dependencies = createIntegrationCheckpointDependencies({ ...bound,
         cwd: "/repository",
         exec: vi.fn(async () => { throw new Error("no read is reached"); }),
       });
@@ -784,7 +789,7 @@ describe("delivery checkpoint composition", () => {
     const { exec, calls } = scriptGitExec([
       { match: { prefix: ["merge-base"] }, responses: [{ failure: { exitCode: 1 } }] },
     ]);
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec,
     });
@@ -831,7 +836,7 @@ describe("delivery checkpoint composition", () => {
       record: candidateRecord(plan.workUnitId, baselineRevision),
       version: `sha256:${"e".repeat(64)}`,
     });
-    const dependencies = createIntegrationCheckpointDependencies({
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound,
       cwd: "/repository",
       exec: vi.fn(async (command, args) => {
         throw makeGitProcessError({ command, args, exitCode: 128, stderr: "missing object" });
@@ -894,7 +899,7 @@ describe("delivery checkpoint composition", () => {
             : { stdout: new Uint8Array() };
         }],
       }]).exec);
-      const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec, rawExec });
+      const dependencies = createIntegrationCheckpointDependencies({ ...bound, cwd: "/repository", exec, rawExec });
 
       await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
         mode: "authoritative",
@@ -956,7 +961,7 @@ describe("delivery checkpoint composition", () => {
       convergenceVerification: "satisfied",
       convergenceScope: null,
     });
-    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound, cwd: "/repository", exec: vi.fn() });
     await dependencies.readCandidate(plan.workUnitId, oid("d"));
 
     const result = await dependencies.createHandle({
@@ -1018,7 +1023,7 @@ describe("delivery checkpoint composition", () => {
    * Reaching the terminal's predecessor-base read means getting past member discharge, so the
    * arrangement is the whole of it; two cases turn on what that read answers.
    */
-  async function dischargedMultiMemberDelivery() {
+  async function dischargedMultiMemberDelivery(inRepo = false) {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const [index, member] of state.members.entries()) {
@@ -1259,12 +1264,14 @@ describe("delivery checkpoint composition", () => {
         responses: [{ stdout: `${oid("f")}\n`, stderr: "" }] },
     ]).exec);
 
-    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec });
+    const dependencies = createIntegrationCheckpointDependencies({
+      ...(inRepo ? { store: inRepoStoreAt("/repository", exec) } : bound), cwd: "/repository", exec });
     return { plan, state, currentness, baseHead, dependencies };
   }
 
   it("reads each exact member discharge for a multi-member delivery", async () => {
-    const { plan, state, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery();
+    // Each member's discharge comes from the repository operation snapshots stubbed above, the in-repo arm's records.
+    const { plan, state, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery(true);
     const result = await dependencies.composeDelivery({
       workUnit: plan.workUnitId,
       candidate: currentness,
@@ -1341,7 +1348,7 @@ describe("delivery checkpoint composition", () => {
       },
     });
 
-    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    const dependencies = createIntegrationCheckpointDependencies({ ...bound, cwd: "/repository", exec: vi.fn() });
     await expect(dependencies.readDeliveryTerminalRemedy({
       workUnit: plan.workUnitId,
       candidate: currentness,

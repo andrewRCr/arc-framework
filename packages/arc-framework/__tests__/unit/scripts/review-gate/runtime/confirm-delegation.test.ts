@@ -9,6 +9,7 @@ import {
 import type {
   LocalPrepareDependencies,
 } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
 
 const confirmTarget = vi.fn();
 const operationStore = { readOperation: vi.fn() };
@@ -36,7 +37,9 @@ const { createReduceDependencies } = await import(
   "../../../../../src/scripts/review-gate/runtime/reduce-composition.js"
 );
 
-const boundary = { exec: vi.fn(), cwd: "/repo" } as never;
+const harness = createReviewHarness();
+const boundary = { exec: vi.fn(), cwd: "/repo", store: harness.store, projectId: harness.projectId,
+  workItem: (await harness.seedMeta("example")).reference.owner } as never;
 
 function target(kind: "change-set" | "delivery-member"): ReviewTarget {
   return createReviewTarget({

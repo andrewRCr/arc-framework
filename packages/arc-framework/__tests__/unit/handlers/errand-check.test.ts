@@ -8,6 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { useInRepoStore } from "../../helpers/in-repo-store-override.js";
 
 const mockRunActiveInFlight = vi.fn();
 const mockGitExec = vi.fn();
@@ -111,6 +112,8 @@ describe("handleErrandCheck", () => {
   });
 
   it("uses the remote base when local and remote base refs diverge", async () => {
+    // Overlap through the tracked meta in a branch diff is the in-repo implementation's; the store's has its own test.
+    useInRepoStore();
     await handleErrandCheck({ target: [".arc/active/meta-other.md"], json: true });
 
     const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
@@ -121,6 +124,8 @@ describe("handleErrandCheck", () => {
   });
 
   it("resolves the first execute-bound capture without opening it", async () => {
+    // Execute-bound marks in USER-INBOX are the in-repo implementation's queue; the store keeps its own.
+    useInRepoStore();
     await handleErrandNext({ json: true });
 
     const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
@@ -132,6 +137,7 @@ describe("handleErrandCheck", () => {
   });
 
   it("refuses startup until every malformed queue entry is corrected", async () => {
+    useInRepoStore();
     mockWithLockedUserInbox.mockResolvedValueOnce({
       postImage: {
         state: "present",

@@ -177,7 +177,7 @@ function dependencies() {
 
 const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHandle };
 
-async function storedLifecycleMerge(native = false) {
+async function storedLifecycleMerge() {
   const root = await mkdtemp(join(tmpdir(), "arc-merge-lifecycle-"));
   onTestFinished(async () => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, ".arc/system"), { recursive: true });
@@ -201,8 +201,8 @@ async function storedLifecycleMerge(native = false) {
     checkpointHandle: await persistIntegrationCheckpointComposition({ kind: "workspace", root, workUnit },
       { workUnit, approvedHead, target, settlementPlan, mergeMethod, lifecycleVersion }) });
   value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition({ kind: "workspace", root, workUnit }, handle);
-  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: native ? undefined : storage,
-    ...(native ? { store: h.store, workItem: meta.reference.owner } : {}),
+  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example",
+    store: h.store, workItem: meta.reference.owner,
     changeRequestPort: { resolveRepository: async () => target.repository,
       readHeadRef: async () => ({ local: null, remote: target.headSha }), searchByHeadSha: async () => [],
       listByHead: async () => [{ number: target.pullRequest, url: "https://example.test/owner/repo/pull/42", state: "OPEN",
@@ -1220,7 +1220,7 @@ it.each(["missing", "project", "generation"] as const)("refuses unmerged %s owne
 
 it.each(["version", "list", "unreadable", "diagnostics"] as const)(
   "retains native default snapshot %s commands in the public merge refusal", async fault => {
-    const t = await storedLifecycleMerge(true), store = t.h.store;
+    const t = await storedLifecycleMerge(), store = t.h.store;
     const version = store.version.bind(store), list = store.list.bind(store), before = await version();
     const repair = storeRepairCases[0]!, remedy = repair.remedy;
     const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",

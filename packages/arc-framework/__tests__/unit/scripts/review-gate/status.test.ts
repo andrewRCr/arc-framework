@@ -30,6 +30,7 @@ import {
   type ReviewStatusObservation,
   type ReviewStatusPort,
 } from "../../../../src/scripts/review-gate/status.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 const oid = (character: string): string => character.repeat(40);
 const target = { repository: "owner/repo", headRef: "feat/example", headSha: oid("a") };
@@ -232,6 +233,15 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
       ...overrides,
     }),
   };
+}
+
+
+/** A checked store holding the project and the work unit under review, which the status's grants bind to. */
+async function boundWorkItem() {
+  const h = createReviewHarness();
+  await h.seedProject("123e4567-e89b-42d3-a456-426614174099");
+  const meta = await h.seedMeta("example");
+  return { store: h.store, projectId: h.projectId, workItem: meta.reference.owner };
 }
 
 describe("review status", () => {
@@ -537,7 +547,7 @@ describe("review status", () => {
     }, { confirmIncrementalApplicability: async () => "applicable" as const,
       confirmCurrentIncrementalApplicability: async () => "applicable" as const });
     const obligation = await composePublishedSingletonReview({
-      statusRoute: { kind: "target", target },
+      statusRoute: { kind: "target", target }, ...await boundWorkItem(),
       cwd: "/repo",
       exec: (() => Promise.reject(new Error("unexpected Git read"))) as never,
       settings: {} as never,

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,12 +9,9 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   prepareFrontlineTargetMaterialization,
 } from "../../src/scripts/review-gate/hosts/local/frontline-materialization.js";
-import {
-  RepositoryGitCommonStatePublisher,
-} from "../../src/lib/git-common-state.js";
-import {
-  resolveRepositoryIdentity,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+import { canonicalize, SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { seedStore } from "../helpers/store/seed-store.js";
 import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
@@ -41,9 +39,9 @@ async function fixture() {
   await git(root, "switch", "-c", "feature");
   await writeFile(join(root, "tracked.txt"), "feature\n", "utf8");
   await git(root, "commit", "-am", "feature");
-  const repositoryId = await resolveRepositoryIdentity(
-    new RepositoryGitCommonStatePublisher(exec, root),
-  );
+  const repositoryId = randomUUID();
+  await seedStore(root, SlugSchema.parse("test-user"), [{ reference: recordReferences["project-registry/identity"](
+    OwnerIdentitySchema.parse({ type: "project", name: "project" })), content: canonicalize({ projectId: repositoryId }) }]);
   return {
     root,
     target: await deriveLocalReviewTarget({ exec, cwd: root, baseRef: "main", repositoryId }),

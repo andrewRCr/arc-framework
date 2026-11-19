@@ -15,6 +15,7 @@ import {
   finalBaseMovementUnavailableDetail,
 } from "../../../../src/scripts/integration/merge-composition.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { inRepoStoreAt } from "../../../helpers/store/in-repo-ports.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -415,9 +416,10 @@ describe("integration merge composition", () => {
       merge_commit_sha: oid("d"), base: { ref: "main" }, head: { ref: "feat/example", sha: head } }) });
     const unavailable = async () => { throw new Error("confirmation unavailable"); };
     const dependencies = async (run: () => Promise<{ stdout: string; stderr: string }>, native: boolean) => {
-      const harness = createReviewHarness();
-      const owner = native ? { store: harness.store, workItem: (await harness.seedMeta("example")).reference.owner } : {};
-      return createIntegrationMergeDependencies({ cwd: "/candidate", exec: vi.fn() as unknown as GitExec,
+      const harness = createReviewHarness(), exec = vi.fn() as unknown as GitExec;
+      const owner = native ? { store: harness.store, workItem: (await harness.seedMeta("example")).reference.owner }
+        : { store: inRepoStoreAt("/candidate", exec) };
+      return createIntegrationMergeDependencies({ cwd: "/candidate", exec,
         workUnit: "example", changeRequestPort: merged, hostedRunner: { run }, ...owner });
     };
 

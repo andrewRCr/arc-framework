@@ -18,6 +18,7 @@ import { createReviewRequirement } from "../../src/scripts/review-gate/core/gate
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
@@ -25,6 +26,8 @@ const routingFacts = { contentKind: "code-bearing", reviewRisk: "sensitive", cha
   ownership: "self", surfaceAuthority: "ordinary" } as const;
 
 it("refuses conflicting routing, then records the reserved singleton requirement after repair", async () => {
+  // Tracked records and the in-repo arm's own result reader, which its live-context read reaches only by default.
+  useInRepoStore();
   const cwd = await createTempRepoCore({ prefix: "arc-singleton-reserved-local-", identity: "andrew" });
   roots.push(cwd);
   const exec = makeGitExec(cwd);

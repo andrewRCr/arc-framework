@@ -567,12 +567,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           (`helpers/cutover-window/run.ts`) runs `compare`, `confirm`, and `close` with it cleared
           (`withoutInRepoStore`) and the end-to-end spawns drop it for them; all three open no store, so none failed.
 
-    - `[ ]` **3.R.c Review, Candidate, publication, and delivery**
-        - The review-gate and integration scripts' unit tests (`unit/scripts/review-gate/`,
-          `unit/scripts/integration/`), the review and Errand handlers' (`unit/handlers/review`, `errand-check`), and
-          the local review, pre-publication, review status, and delivery eligibility integration tests. Most bind stored
-          review ports without the invocation's exact work item, which the ref backend requires
-          (`requireReviewWorkItem`, `lib/store/kinds/review/access-shared.ts`).
+    - `[x]` **3.R.c Review, Candidate, publication, and delivery**
+        - 31 files left the ledger, classified by case in `notes-cutover-flip.md` § Test callers; none exposed a product
+          defect, since the production handlers bind the work item from the store. Cases whose subject survives bind a
+          checked store holding their work unit, or seed the project identity through the store; those over the in-repo
+          arm's own records pass the in-repo store (`inRepoStoreAt`, `helpers/store/in-repo-ports.ts`) or set the
+          override where their path opens the default itself. `review-status-base-movement` and
+          `review-status-errand-base-movement` stay listed for Task 3.4.f, and `exact-target-read-isolation` for 3.R.d.
 
     - `[ ]` **3.R.d Session, status, lifecycle, user, and release**
         - The rest: the session and status readers, the lifecycle verbs, `init`, `join`, `user`, `sync`, release commit

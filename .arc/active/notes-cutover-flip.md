@@ -232,6 +232,45 @@ each test of a file or `describe` block, so the CLI the test spawns and the Git 
   (`e2e/user`, whose committed default `arc init` tracks none of the state roots, `sync-inbound`, `sync-purity`,
   `sync-state-producer`, and `materializing-fetch`) go with Task 3.4.h's `user` assertions.
 
+The switch's ledger, moved by group at Task 3.R. A case expects the ref backend where its subject survives, and selects
+the in-repo implementation where its subject is that implementation's own: committed metas and records, the
+repository's operation, disposition, and delivery stores, in-repo identity refs, or schema-1 boundaries. An in-repo case
+passes the store it builds where its path takes one, and otherwise sets the override; the in-repo branch of the review
+live-context read, for one, opens the default itself (`readActiveMetaCandidates`).
+
+- **Review, Candidate, publication, and delivery (Task 3.R.c):** no product defect. The production handlers bind the
+  work item from the store (the `*-native-defaults` tests); each refusal came from a fixture that never put its owner or
+  project identity in the store, or from a test composing past that binding.
+    - _Ref backend:_ `integration/frontline-target-materialization` and `review-chunking-command`, whose fixtures seed
+      the project identity through the store; `integration/respond-candidate-lineage`, `unit/scripts/review-gate/status`,
+      `status-singleton-coverage`, `policy/hosted-reservation-discharge`, `runtime/confirm-delegation`, and
+      `runtime/local-assurance-dispatch`, and 21 cases of `unit/scripts/integration/checkpoint-delivery-composition`,
+      each binding a checked store that holds its work unit; and `unit/scripts/integration/merge`'s stored-lifecycle
+      cases, which paired a stored lifecycle snapshot with the default store's in-repo arm, a pairing no caller makes,
+      since the merge derives its snapshot from the store it binds; they now bind that store, as its native case did.
+    - _In-repo, by override for a file or `describe`:_ `integration/review-singleton-local-prepare`,
+      `pre-publication-delta`, `pre-publication-frontline-policy-skip`, `pre-publication-correction-proof`,
+      `local-review-delivery-binding`, `local-review-target-recovery`, `local-review-live-context-refusal`,
+      `review-lane-read`, `review-status-errand`, `review-status-errand-fallback`, `review-status-errand-correction`, and
+      `review-contribution-applicability`'s singleton selection.
+    - _In-repo, by override for a case:_ `integration/prepublication-delivery-targets`, `review-extra-pass-continuation`'s
+      `native=false` cases, `delivery-disjoint-eligibility`'s checkpoint, `store-review-access`'s opened stores,
+      `scripts/integration/checkpoint-lifecycle-artifacts`' injected snapshot, three cases of `unit/handlers/errand-check`
+      (branch-diff overlap and the USER-INBOX queue), and two of `unit/scripts/review-gate/runtime/respond-composition`.
+    - _In-repo, passing the store:_ `unit/handlers/review`'s `handleReviewPrePublication` cases (schema-1 boundaries),
+      `unit/scripts/integration/merge-composition`'s in-repo merged state, and `checkpoint-delivery-composition`'s
+      multi-member discharge.
+    - The unit cases were tried on a bound store first. There `handleReviewPrePublication`'s default dependencies spawn
+      Git and write schema-2 boundaries, and `respond-composition`'s two cases find none of the evidence their stubbed
+      result reader and disposition store hold.
+    - _Store-arm counterparts:_ checked against the cases for `unit/handlers/review` (`review-pre-publication-store`
+      mirrors them over native boundaries), `checkpoint-lifecycle-artifacts` (`checkpoint-lifecycle-store`), and
+      `errand-check` (`errand/store-overlap`, `lib/inbox/queue` and `offer`). For the rest, the `*-store` and
+      `*-native*` review and delivery tests, among them `status-errand-store`, `live-context-errand-store`, and
+      `respond-composition-store`, are counterparts by subject only, not matched case by case.
+    - _Back on the ledger:_ `integration/review-status-base-movement` and `review-status-errand-base-movement`, which
+      import `movementPaths` (Task 3.4.f), and `exact-target-read-isolation`, a locus and reconcile subject (Task 3.R.d).
+
 ## Pre-flip steps
 
 The inventory Task 1.6 took at `b8aa33d239`, which Task 5.12 re-runs over the verbs the rewrite actually names. The

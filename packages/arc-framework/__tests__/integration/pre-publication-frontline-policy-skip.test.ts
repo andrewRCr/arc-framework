@@ -16,6 +16,7 @@ import { runHandlerAt } from "../helpers/handler.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { cleanupTempDir, DEFAULT_PROMPTS, execFileAsync, makeGitExec } from "../helpers/integration.js";
 import { initInTempRepo } from "../helpers/init-temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 const workUnit = "example";
@@ -70,6 +71,9 @@ async function candidate() {
 }
 
 describe("pre-publication frontline policy skip", () => {
+  // The Candidate is attested over a committed meta and task list, which only the in-repo implementation reads.
+  useInRepoStoreForEach();
+
   it.each(["design-authority", "constitutional"] as const)(
     "reaches required standard review after resolving and resuming a %s skip", async (surfaceAuthority) => {
       const fixture = await candidate();

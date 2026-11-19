@@ -59,6 +59,7 @@ import { assertEvidenceBoundReviewExecutionAdmission } from
   "../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 async function recordHostedPendingRequest(
   store: LocalReviewOperationStateStore,
@@ -124,6 +125,9 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
 }
 
 describe("Errand review status", () => {
+  // Each case's Errand is an in-repo identity ref, its review in the repository's own operation stores.
+  useInRepoStoreForEach();
+
   it("binds an awaiting-merge identity to the live PR base and both host coordinates", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-awaiting-", identity: "andrew" });
     roots.push(root);

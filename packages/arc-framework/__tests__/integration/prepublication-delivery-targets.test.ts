@@ -19,6 +19,7 @@ import { composePreBindingDeliveryReviewTargets } from
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -29,6 +30,8 @@ afterEach(async () => {
 
 describe("pre-publication delivery target composition", () => {
   it("closes real candidate refs across machine-owned publication-state advances", async () => {
+    // The delivery's work unit is a committed meta, which only the in-repo implementation reads.
+    useInRepoStore();
     const root = await createTempRepoCore({ prefix: "arc-prepublication-delivery-targets-" });
     roots.push(root);
     const plan = deliveryThreeMemberStackPlanFixture();

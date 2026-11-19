@@ -47,6 +47,7 @@ import { checkpointIntegration } from "../../src/scripts/integration/checkpoint.
 import { createIntegrationCheckpointDependencies } from
   "../../src/scripts/integration/checkpoint-composition.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -201,6 +202,8 @@ describe("disjoint delivery eligibility", () => {
   });
 
   it("advances an unlinked three-member checkpoint past disjoint predecessor landing", async () => {
+    // A committed ROADMAP, a tracked Candidate record, and the repository delivery stores: the in-repo implementation.
+    useInRepoStore();
     const repository = await createTempRepoCore({ prefix: "arc-delivery-checkpoint-disjoint-" });
     roots.push(repository);
     const git = async (args: readonly string[]): Promise<string> => (
