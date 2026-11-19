@@ -6,7 +6,9 @@ import { makeFocusedVitestFixture, runFocusedTestFixture } from "../helpers/focu
 import { nestedRunLimit } from "../helpers/call-limit.js";
 
 const roots: string[] = [];
-afterEach(async () => { await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true }))); });
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+}, process.platform === "win32" ? nestedRunLimit(10_000) : undefined);
 const operand = "packages/arc-framework/__tests__/unit/named.test.mjs";
 
 it("runs only the literal named case through the real root npm separator in package cwd", async () => {
