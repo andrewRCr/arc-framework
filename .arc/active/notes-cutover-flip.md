@@ -1148,6 +1148,16 @@ rollback, and resume no longer return it (six model-backed tests, among them `un
 stop to let the store admit the planned UID for an owner the write creates, rather than name the receipt by slug and
 resolve it later, or split open into two writes and lose its atomicity.
 
+## A19 — the notes-related session-init slots
+
+§ 17.1's item 13 read: "Notes-related session-init probes and user-reference reconciliation slots." The register
+corrections that recorded `cutover-notes-removal`'s approved departures (PR #1384, merged as `cf6769b688`) gave the row
+a later share in `cohort-storage-cutover.md`'s register: notes removal deletes the envelope's notes slots the store
+leaves empty (`partialPushMarker`, `retiredSubdirs`, `compactionAdvisory`, `recommendedCombinedPrompt`) and the `user`
+slot's notes variant. The flip's share is unchanged, but its landing no longer closes the row, so the row moves to
+§ 17.2 with a bullet naming what lands and what stays. The Owner decided it on 2026-11-19, relayed by the project
+manager; A13 had already moved the `retiredSubdirs` part of § 17.2's reconciliation bullet the same way.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

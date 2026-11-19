@@ -2024,21 +2024,20 @@ None closes by being listed here.
 10. Notes classification of every personal subdirectory as a workspace.
 11. In-flight derivation and the work-unit and Errand oracle slots.
 12. The lifecycle executor, start placement, and provisional-placement callers.
-13. Notes-related session-init probes and user-reference reconciliation slots.
-14. Locus derivation from the marker and branch topology.
-15. Singleton record writes staling publication.
-16. The public code remote publishing user notes, and its manual interim.
-17. Only-meta current-work-unit resolution and the one-active guard.
-18. HEAD-tree integration and readiness, and the meta-on-PR requirement.
-19. Commit-anchored handoff and recovery continuity.
-20. Template overwrite by `arc user add`, `arc init`, and `arc join`.
-21. Foreign-artifact detection through branch diffs.
-22. The rename stub-branch leg.
-23. Workflow steps committing state with Git.
-24. Machine-local review, delivery, and transient state, and the checkpoint location (§ 4.6).
-25. Literal session-init paths, the load set, and the compaction seed.
-26. Inbound work without count or age back-pressure.
-27. Slug-holder selection and slug-matched checkout claims.
+13. Locus derivation from the marker and branch topology.
+14. Singleton record writes staling publication.
+15. The public code remote publishing user notes, and its manual interim.
+16. Only-meta current-work-unit resolution and the one-active guard.
+17. HEAD-tree integration and readiness, and the meta-on-PR requirement.
+18. Commit-anchored handoff and recovery continuity.
+19. Template overwrite by `arc user add`, `arc init`, and `arc join`.
+20. Foreign-artifact detection through branch diffs.
+21. The rename stub-branch leg.
+22. Workflow steps committing state with Git.
+23. Machine-local review, delivery, and transient state, and the checkpoint location (§ 4.6).
+24. Literal session-init paths, the load set, and the compaction seed.
+25. Inbound work without count or age back-pressure.
+26. Slug-holder selection and slug-matched checkout claims.
 
 #### 17.2 Rows whose flip share lands but which stay open
 
@@ -2067,6 +2066,14 @@ None closes by being listed here.
   (`cutover-notes-removal`), with `inferRetiredSubdirs` (`lib/session-init/recommended-action.ts`) and
   `lib/session-init/retired-subdir-detection.ts`, since its recommendation reads `session.init_load.notes`
   (`commands/status/run.ts`) and names `arc user load`, which that removal also removes (Owner, 2026-11-17; A13).
+- **Notes-related session-init probes and user-reference reconciliation slots.** On the store session-init reads user
+  state from the store (`StoreSessionInitUserValue`, `lib/session-init/store-user-pull.ts`), reports the
+  `partialPushMarker` and `retiredSubdirs` slots empty (`handlers/status.ts`), runs no compaction advisory
+  (`commands/status/run.ts`), and skips the user recommendation, so `recommendedCombinedPrompt` stays null
+  (`lib/session-init/recommended-action.ts`). Those slots and the `user` slot's notes variant
+  (`UserSessionInitStatusResult`) report on Git-notes user state and stay in the envelope's schema while the in-repo arm
+  fills them; notes removal (`cutover-notes-removal`) deletes them with that state, which closes the row (Owner, 2026-11-19;
+  A19).
 - **Lifecycle hook checks.** No state record reaches the hooks once state leaves the branch (§ 1.1). The meta check's
   rules run as the meta kind's write checks (`meta.field-block`, `meta.stage`, `meta.design-entry`, `meta.cohort`, and
   `meta.prepare-tasks`, `lib/store/kinds/meta/`), the cohort check's Purpose as `cohort.purpose`, and its member
@@ -2308,5 +2315,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R4. _Revalidated:_ pending → 3.7.
 - **A18** — 2026-11-19 — design: the write creating a fresh Errand may name the UID its open plan minted.
   _Supersedes:_ § 4.8 ¶1. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R5. _Revalidated:_ pending → 3.7.
+- **A19** — 2026-11-19 — design: the notes-related session-init slots stay open for notes removal's share.
+  _Supersedes:_ § 17.1 item 13 (the notes-related slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 3.7.
 
 ---
