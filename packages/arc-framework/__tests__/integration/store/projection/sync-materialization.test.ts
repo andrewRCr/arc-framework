@@ -1,6 +1,6 @@
 /** Sync restores deleted projected files before its existing network orchestration. */
 import { chmod, lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
@@ -41,6 +41,9 @@ import { beginProjectionCommand, projectionProcessState } from "../../../../src/
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { ASIDE_FILES_ROOT } from "../../../../src/lib/store/projection/aside.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
+import { commitProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { unopenedArchiveMark } from "../../../../src/lib/store/projection/archive-inspection.js";
 
 const directories: string[] = [];
 afterEach(async () => { binding.store = null; binding.ports = null; binding.deferRead = null; beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
@@ -349,6 +352,43 @@ it("requires an explicit opening after sync encounters an unsettled late archive
   const saved = await projectionCommand(h, ["save"]);
   expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
   expect(await readFile(file, "utf8")).toBe(bytes);
+  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
+  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
+  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
+  expect((await h.stored()).content).toBe(content);
+});
+
+it("preserves an existing opening requirement when restoration of an empty file is refused", async () => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
+  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
+  await endProjection(h);
+  const index = await h.disk();
+  const entry = index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing archive entry");
+  const hold = unopenedArchiveMark(h.checkout, h.path, true);
+  await commitProjectionIndex({ location: h.location, checkout: h.checkout,
+    index: withProjectionEntry(index, h.path, { ...entry, refused: hold, pending: true }) });
+
+  const file = join(h.checkout, h.path);
+  const boundary = join(dirname(file), ".git");
+  await chmod(file, 0o644);
+  await writeFile(file, "");
+  await utimes(file, new Date(0), new Date(0));
+  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
+    if (path === h.path) await mkdir(boundary, { recursive: true });
+  } } });
+  const blocked = await sync(h);
+  expect(blocked.errors).toContain("another checkout");
+  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: hold });
+
+  binding.ports = null;
+  await rm(boundary, { recursive: true });
+  const content = "# Notes\n\nAn unopened correction.\n";
+  await writeFile(file, renderStampedFile({ content, stamp: entry.base.blob }));
+  expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
   expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
   expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
   expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });

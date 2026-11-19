@@ -79,7 +79,7 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
     if (observed?.type === "other") {
       const remedy = notAFileRemedy(absolute);
       return { kind: "unreplaced", cause: "not-a-file", remedy,
-        entry: { ...input.entry, pending: true, refused: { reason: "not-a-file", remedy } } };
+        entry: { ...input.entry, pending: true, refused: unopenedArchiveEditHold(input.entry) ?? { reason: "not-a-file", remedy } } };
     }
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement(input, error.mark);

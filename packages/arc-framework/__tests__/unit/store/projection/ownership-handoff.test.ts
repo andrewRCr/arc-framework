@@ -168,3 +168,25 @@ it("keeps a proven arrival journal untouched until its root's ignore check autho
     reference: h.entry.reference, withheld: true, handoff: { reference: h.arrival.reference },
   } } } });
 });
+
+it("keeps an archive handoff pending while its folder belongs to another checkout", async () => {
+  const h = await createHandoffFixture("txt");
+  fixtures.push(h);
+  const folder = ".arc/completed/2026-q4";
+  const path = `${folder}/arrival.txt`;
+  const entry = h.journal.entries[h.path]!;
+  const journal = { ...h.journal, entries: { [path]: entry } };
+  const boundary = join(h.checkout, folder, ".git");
+  await mkdir(boundary, { recursive: true });
+  await link(join(h.checkout, h.staged.location), join(h.checkout, path));
+  await writeProjectionIndex(h.location, journal);
+
+  const held = await reconcileProjectionHandoffs(h.root, journal);
+  expect(held.entries[path]).toEqual(entry);
+  expect(h.reports).toContainEqual({ path, copy: null,
+    mark: expect.objectContaining({ reason: expect.stringContaining("another checkout") }) });
+
+  await rm(boundary, { recursive: true });
+  const confirmed = await reconcileProjectionHandoffs(h.root, held);
+  expect(confirmed.entries[path]).toMatchObject({ reference: h.arrival.reference, pending: false, withheld: false });
+});

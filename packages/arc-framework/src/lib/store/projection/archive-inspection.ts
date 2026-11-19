@@ -4,12 +4,13 @@ import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal
 import type { AdoptionObservationRoot } from "./adoption-verdict.js";
 import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { resolveProjectionAdoptionIntent } from "./adoption-intent.js";
-import { checkChange, readReference } from "./change-detection.js";
+import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { observeProjectionProtection } from "./protection.js";
-import { gateRead, type ReadGateVerdict } from "./read-gate.js";
+import { gateRead, SYSTEM_READ_GATE, type ReadGateVerdict } from "./read-gate.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
@@ -53,6 +54,7 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
       : await newArchiveRemedy(root, index, path, gate);
     return denied ?? { kind: "refused", mark: unopenedArchiveMark(root.checkout, path, entry !== undefined) };
   } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark };
     return { kind: "unobservable", mark: { reason: `Cannot observe archived file ${path}: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Repair the reported archive or ownership evidence, then retry from this checkout." } } };
   }
@@ -61,13 +63,16 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
 
 async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entry: RecordEntry | undefined,
   observation?: ArchiveObservation): Promise<ReadGateVerdict | null> {
+  const absolute = join(root.checkout, path);
+  const reader = projectionFileReader(root.checkout, path);
   if (entry !== undefined) {
-    const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
+    const changed = await checkChange({ path: absolute, recorded: entry.stat, written: entry.written,
       reference: observation === undefined ? await readReference(root.checkout) : observation.reference,
-      format: root.context.format, ...(observation?.stat === undefined ? {} : { observed: observation.stat }) });
+      format: root.context.format, observed: observation?.stat }, reader.read, reader.stat);
     if (changed.status !== "changed") return null;
   }
-  return gateRead({ path: join(root.checkout, path), markdown: entry !== undefined && path.endsWith(".md") });
+  return gateRead({ path: absolute, markdown: entry !== undefined && path.endsWith(".md") },
+    { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
 }
 
 /** Observe current rights for a known archived record before telling the caller how to correct it. */

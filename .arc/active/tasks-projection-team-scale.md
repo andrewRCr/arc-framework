@@ -296,7 +296,14 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
   `44582071212` measured 74.742 and 77.623 ms for startup, 833.143 ms for one-file fan-out,
   and 4,106.013 ms for full materialization against the macOS limits of 45, 600, and 4,000 ms.
   The macOS paired differences of +0.507 ms for no-change save and +5.485 ms for opened start passed.
-  The three absolute conditions still need qualifying evidence.
+  On Candidate `35842147a3`, timing-only run `44592076801` met all Windows and macOS limits. macOS job
+  `135800959097` measured 32.364 and 30.756 ms for startup, 408.579 ms for one-file fan-out, and 1,760.744 ms
+  for materialization. The Linux reference snapshot, which differs from that Candidate only in its Candidate
+  record, also met all limits. All three references used zero Git credit.
+
+- _Review follow-up:_ Round 5 found two remaining archive boundary gaps. The corrections recheck checkout authority
+  during archive observation and retain the requirement to open an edit when sync restoration is refused. Focused
+  run `8438e4a34e7143599c07bede45ac7cc1` passed 347 cases across 15 test files, including both new regressions.
 
 ---
 

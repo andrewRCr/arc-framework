@@ -1,7 +1,6 @@
 /** Refresh indexed files from a captured source state while retaining the caller's observed index. */
 import { prepareConflictedRefresh, type ConflictedRefreshContext } from "./conflicted-refresh.js";
-import { gateRead } from "./read-gate.js";
-import { readFile } from "node:fs/promises";
+import { gateRead, SYSTEM_READ_GATE } from "./read-gate.js";
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import { unshownConflicts } from "./held-conflicts.js";
@@ -18,7 +17,7 @@ import { createProjectionProtection } from "./protection.js";
 import type { ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { isEvidenceHeldEntry, prepareMaterializationFile, projectionEntryForRecord, settleHeldMarks } from "./materialization-file.js";
-import { readReference } from "./change-detection.js";
+import { projectionFileReader, readReference } from "./change-detection.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { markStoreRefusal } from "./refusal-mark.js";
@@ -28,6 +27,7 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { planProjectionRebuild } from "./refresh-rebuild.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { markArrivingRecord } from "./changed-mark.js";
+import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -221,18 +221,35 @@ async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, r
   const { root, path } = input;
   let rendered: RenderedRecord | undefined;
   if (entry.markers !== null && !entry.withheld && root.blockedByLink(path) === null) {
-    const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
-    if (gate.kind === "read") {
-      const prepared = await prepareConflictedRefresh(input.renderContext, { path, entry, current: record,
-        text: await readFile(join(root.checkout, path), "utf8") });
-      if (prepared.kind === "pending") {
-        root.context.report?.({ path, copy: null, mark: prepared.mark });
-        return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: prepared.mark,
-          unshown: unshownConflicts(entry, record.conflicts) }), unresolved: false };
-      }
-      rendered = prepared.rendered;
+    const prepared = await observeConflictedFile(input, entry, record);
+    if (prepared instanceof ArchiveDestinationBlocked) {
+      root.context.report?.({ path, copy: null, mark: prepared.mark });
+      return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
     }
+    if (prepared?.kind === "pending") {
+      root.context.report?.({ path, copy: null, mark: prepared.mark });
+      return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: prepared.mark,
+        unshown: unshownConflicts(entry, record.conflicts) }), unresolved: false };
+    }
+    rendered = prepared?.rendered;
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: input.index, path, record, renderer: input.renderer,
     rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
+}
+
+async function observeConflictedFile(input: IndexedFileInput, entry: RecordEntry, current: StoreRecord) {
+  const { root, path } = input;
+  const absolute = join(root.checkout, path);
+  const reader = projectionFileReader(root.checkout, path);
+  try {
+    const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
+    if (gate.kind !== "read") return null;
+    const text = (await reader.read(absolute)).toString("utf8");
+    const prepared = await prepareConflictedRefresh(input.renderContext, { path, entry, current, text });
+    requireArchiveDestination(root.checkout, path);
+    return prepared;
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return error;
+    throw error;
+  }
 }
