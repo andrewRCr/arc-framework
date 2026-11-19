@@ -12,6 +12,7 @@ import { finished } from "node:stream/promises";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
 import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
+import { gitExecutable } from "./executable.mjs";
 import { runCancelableGitProcess } from "./process-cancellation.js";
 import { assertNativeGitCommandLineCapacity } from "./command-line-capacity.js";
 import { normalizeGitRejection } from "./process-error.js";
@@ -131,10 +132,11 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES, environment
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
+    const executable = command === "git" ? gitExecutable(env) : command;
     try {
       const result = await runCancelableGitProcess((cancelSignal) => {
-        if (options?.checkNativeWindowsArgv) assertNativeGitCommandLineCapacity(command, effectiveArgs);
-        return execa(command, effectiveArgs, {
+        if (options?.checkNativeWindowsArgv) assertNativeGitCommandLineCapacity(command, effectiveArgs, undefined, executable);
+        return execa(executable, effectiveArgs, {
           cwd: options?.cwd,
           env,
           extendEnv: env === undefined,
@@ -208,7 +210,7 @@ export function createExecaRawGitExec(
       streams.push(...[inputStream, outputStream].filter(stream => stream !== undefined));
       const result = await runCancelableGitProcess((cancelSignal) => {
         onStart?.();
-        return execa("git", effectiveArgs, {
+        return execa(gitExecutable(env), effectiveArgs, {
           cwd: effectiveCwd,
           env,
           cancelSignal,
@@ -260,7 +262,7 @@ export function createExecaGitExecInput(
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await runCancelableGitProcess((cancelSignal) => execa("git", effectiveArgs, {
+      const result = await runCancelableGitProcess((cancelSignal) => execa(gitExecutable(env), effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
