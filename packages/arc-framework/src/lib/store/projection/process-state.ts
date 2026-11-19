@@ -25,7 +25,7 @@ export type FanOutScope = "all" | "own";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
 export interface ProjectionSkip {
-  readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch" | "tracked-state";
+  readonly reason: "no-identity" | "held" | "lost" | "gone" | "unwritable" | "switch" | "mismatch" | "tracked-state";
   readonly mark: RefusedMark;
 }
 

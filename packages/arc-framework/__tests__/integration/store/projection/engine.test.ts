@@ -2,7 +2,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { accessSync, lstatSync, readdirSync } from "node:fs";
 import { readStat, type ChangeCheck } from "../../../../src/lib/store/projection/change-detection.js";
-import { join, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -22,8 +22,28 @@ import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { inRepoStore } from "../../../helpers/store/in-repo-ports.js";
 
+// A state folder or lockfile create refused with `code`, as over Git metadata the command cannot write.
+const refusal = vi.hoisted(() => ({ create: null as { stateDir: string; seam: "folder" | "lock"; code: string } | null }));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  const refuse = (path: string): never => {
+    throw Object.assign(new Error(`${refusal.create?.code}: refused, ${path}`), { code: refusal.create?.code, path });
+  };
+  const mkdir = (async (...args: Parameters<typeof actual.mkdir>) => {
+    if (refusal.create?.seam === "folder" && args[0] === refusal.create.stateDir) refuse(String(args[0]));
+    return actual.mkdir(...args);
+  }) as typeof actual.mkdir;
+  const writeFile = (async (...args: Parameters<typeof actual.writeFile>) => {
+    const path = String(args[0]);
+    if (refusal.create?.seam === "lock" && dirname(path) === refusal.create.stateDir
+      && basename(path).startsWith(`.${PROJECTION_LOCK_FILE}.`)) refuse(path);
+    return actual.writeFile(...args);
+  }) as typeof actual.writeFile;
+  return { ...actual, mkdir, writeFile, default: { ...actual, mkdir, writeFile } };
+});
+
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => { refusal.create = null; await removeGitBackedDirs(directories.splice(0)); });
 
 describe("projection command entry", () => {
   it("rereads and seeds the checkout claim under the projection lease after a prior path observation", async () => {
@@ -141,6 +161,29 @@ describe("projection command entry", () => {
     } finally { await rename(backup, h.location.gitDir); }
     await startProjection({ store: h.store, checkout: h.checkout });
     expect((await h.stored()).content).toBe("saved by hand\n");
+  });
+
+  it.each([
+    ["state folder", "folder", "EACCES"], ["lock file", "lock", "EPERM"], ["lock file", "lock", "EROFS"],
+  ] as const)("runs with projection off when its %s cannot be created (%s, %s) and retries once writable", async (_name, seam, code) => {
+    const h = await createEngineFixture(directories);
+    await h.edit("saved by hand\n");
+    refusal.create = { stateDir: h.location.stateDir, seam, code };
+    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "skipped", skip: {
+      reason: "unwritable", mark: { reason: expect.stringContaining(h.location.gitDir),
+        remedy: { text: expect.stringContaining("will run with projection disabled") } } } });
+    expect(projectionProcessState().diagnostics.map(d => d.mark.reason)).toEqual([expect.stringContaining(code)]);
+    expect((await h.stored()).content).toBe("opening\nbase\nclosing\n");
+    expect(await h.file()).toContain("saved by hand");
+    refusal.create = null;
+    await startProjection({ store: h.store, checkout: h.checkout });
+    expect((await h.stored()).content).toBe("saved by hand\n");
+  });
+
+  it("still ends the command when the state folder's creation fails for another reason", async () => {
+    const h = await createEngineFixture(directories);
+    refusal.create = { stateDir: h.location.stateDir, seam: "folder", code: "ENOSPC" };
+    await expect(startProjection({ store: h.store, checkout: h.checkout })).rejects.toMatchObject({ code: "ENOSPC" });
   });
 
   it("does no I/O over the in-repo backend, recording its capability before dependency resolution", async () => {

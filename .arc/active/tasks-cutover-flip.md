@@ -656,16 +656,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   Shipped work unit's teardown beside an unlinked branch, and a lookup refused for another reason still declines the
   whole sweep. No session-envelope golden changes.
 
-### `[ ]` **3.R4 A command runs unprojected when its Git directory is not writable — § 4.13**
+### `[x]` **3.R4 A command runs unprojected when its Git directory is not writable — § 4.13**
 
 - _Goal:_ On the store a command whose projection state folder or lock file cannot be created, refused `EACCES`,
   `EPERM`, or `EROFS`, runs with projection disabled and reports the skip naming the Git directory it cannot write, as
   it does for a held or lost lock, so session-init stays passive over read-only Git metadata (A17).
 
-    - `integration/store/projection/engine.test.ts` expects, beside the held lock's skip, the skip for a state folder
-      and for a lock file whose creation is refused, failing first; then `withProjectionLock`
-      (`lib/store/projection/lock.ts`) returns that result and `recordProjectionLockSkip`
-      (`lib/store/projection/engine.ts`) names the Git directory.
+- _Outcome:_ `withProjectionLock` (`lib/store/projection/lock.ts`) returns `unwritable`, its report naming the Git
+  directory and the code, when the state folder's or lockfile's create is refused with one of the three codes; any other
+  failure still ends the command. `recordProjectionLockSkip` carries that report with the unchanged retry remedy. The
+  lease's other consumers report it too: sync restoration no longer reads it as a missing Git directory, and spawn
+  materialization, sibling fan-out, and removal name the directory. `integration/store/projection/engine.test.ts`
+  covers both creates and the retry once writable.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

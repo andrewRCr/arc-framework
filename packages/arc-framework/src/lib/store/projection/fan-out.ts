@@ -146,7 +146,7 @@ async function visitTarget(round: FanOutRound, observed: ObservedTarget): Promis
       { maxWaitMs: SIBLING_LOCK_WAIT_MS }, round.ports.lock);
     if (result.status === "done") return result.value;
     reportProjectionFanOutFailure(checkout,
-      `Projection lease ${result.status}${result.status === "lost" || result.status === "mismatch" ? `: ${result.report}` : ""}`);
+      `Projection lease ${result.status}${"report" in result ? `: ${result.report}` : ""}`);
   } catch (cause) { reportProjectionFanOutFailure(checkout, cause); }
   return unmarked;
 }

@@ -51,6 +51,9 @@ function restorationStopped(checkout: string, result: Exclude<ProjectionLockResu
   if (result.status === "mismatch") {
     return { reason: `Projection restoration found a mismatched index partition: ${result.report}`, remedy: "Retry arc sync." };
   }
+  if (result.status === "unwritable") {
+    return { reason: `Projection restoration cannot take its lease: ${result.report}`, remedy: "Make that Git directory writable, then retry arc sync." };
+  }
   return { reason: "Projection restoration found the worktree's Git directory missing.",
     remedy: `Repair the worktree at ${checkout} with git worktree repair, or remove it, then retry arc sync.` };
 }

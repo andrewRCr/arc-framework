@@ -75,6 +75,7 @@ async function materializeSpawn(input: ProjectionCommandInput, checkout: string)
 function leaseFailure(result: Exclude<ProjectionLockResult<unknown>, { status: "done" }>): string {
   if (result.status === "lost") return `Projection materialization lost its lease: ${result.report}`;
   if (result.status === "mismatch") return `Projection materialization found a mismatched index partition: ${result.report}`;
+  if (result.status === "unwritable") return `Projection materialization cannot take its lease: ${result.report}`;
   return `Projection materialization could not acquire its lease (${result.status}).`;
 }
 

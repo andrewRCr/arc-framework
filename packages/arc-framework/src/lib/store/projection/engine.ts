@@ -149,7 +149,7 @@ export async function endProjection(command: ProjectionCommandInput): Promise<vo
 export function recordProjectionLockSkip(checkout: string, result: Exclude<ProjectionLockResult<never>, { status: "done" }>, pending: ReadonlySet<string>): Extract<ProjectionStart, { kind: "skipped" }> {
   const reason = result.status === "held" ? `Projection lock held by ${JSON.stringify(result.holder)}.`
     : result.status === "lost" ? `Projection lease lost: ${result.report}`
-    : result.status === "mismatch" ? result.report : "The worktree's Git directory is missing.";
+    : result.status === "mismatch" || result.status === "unwritable" ? result.report : "The worktree's Git directory is missing.";
   const skip: ProjectionSkip = { reason: result.status, mark: { reason, remedy: {
     text: "The command will run with projection disabled. Retry after the lock or Git directory is available; unsent edits remain in their files.",
   } } };

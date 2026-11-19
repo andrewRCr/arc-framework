@@ -92,6 +92,7 @@ export async function withPersistedProjection(checkout: string, context: Project
         history, actor: await resolveProjectionActor(ports, location, targetIdentity), mint: context.mint }, context, disposition, complete);
     }, { ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
     if (result.status === "done") return result.value;
+    if (result.status === "unwritable") return refuse(`${result.report} Make it writable, then retry ${retirementName(disposition)}.`);
     return refuse(`Projection lease ${result.status} at ${checkout}${result.status === "held" ? `; holder ${JSON.stringify(result.holder)}` : ""}. Retry ${retirementName(disposition)} after the lease is available.`);
   } catch (error) {
     return refuse(`Cannot persist the projection at ${checkout}: ${error instanceof Error ? error.message : String(error)}. Repair it and retry ${retirementName(disposition)}.`);
