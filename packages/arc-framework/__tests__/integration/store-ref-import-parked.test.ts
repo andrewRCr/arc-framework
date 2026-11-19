@@ -22,6 +22,8 @@ import type { StoreRecord } from "../../src/lib/store/read.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
+// On Windows, the Git launcher can push the import-and-repair cases past 30 seconds.
+const parkedImportTimeout = process.platform === "win32" ? 60_000 : 30_000;
 const firstPark = "2026-01-02T03:04:05.000Z";
 const reason = "Wait for the upstream dependency.";
 const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
@@ -75,7 +77,7 @@ describe("parked work in the default layout", () => {
     expect(parseMetaRecord(record.content)).toMatchObject({ state: "Active", pause });
     expect(record.content).toBe(writeMetaPause(facts.get(h.target.root)!.meta, pause));
     expect(await h.compare()).toEqual([]);
-  }, 30_000);
+  }, parkedImportTimeout);
 });
 
 it.each((["remote-only", "remote-ahead"] as const).flatMap(state => [{ state, absent: false }, { state, absent: true }]))(
@@ -126,7 +128,7 @@ it.each((["remote-only", "remote-ahead"] as const).flatMap(state => [{ state, ab
   const history = success(await store.history({ reference: candidate }));
   const ids = history.flatMap(record => record.content === null ? [] : [CandidateManagedRecordV1Schema.parse(JSON.parse(record.content)).attestation.candidateId]);
   expect([...new Set(ids)].sort()).toEqual([prior.attestation.candidateId, current.attestation.candidateId].sort());
-}, 30_000);
+}, parkedImportTimeout);
 
 it.each(["missing", "diverged"] as const)("refuses a %s parked branch and imports after repair", async problem => {
   const h = await importFixture(), facts = await park(h);
@@ -163,7 +165,7 @@ it.each(["missing", "diverged"] as const)("refuses a %s parked branch and import
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(parseMetaRecord(success(await createRefStore(h.ports).read({ reference })).content).pause)
     .toEqual(MetaPauseSchema.parse({ pausedBy: "andrew", since: firstPark, reason }));
-}, 30_000);
+}, parkedImportTimeout);
 
 it.each(["empty-reason", "bad-owner", "heading", "separator"] as const)("reports %s as an invalid pause and imports after repair", async problem => {
   const h = await importFixture(), facts = await park(h);
@@ -195,7 +197,7 @@ it.each(["empty-reason", "bad-owner", "heading", "separator"] as const)("reports
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(parseMetaRecord(success(await createRefStore(h.ports).read({ reference })).content).pause)
     .toEqual(MetaPauseSchema.parse({ pausedBy: "andrew", since: firstPark, reason }));
-}, 30_000);
+}, parkedImportTimeout);
 
 it("imports Planning work parked in the backlog as a stub without a pause", async () => {
   const h = await importFixture();
@@ -213,7 +215,7 @@ it("imports Planning work parked in the backlog as a stub without a pause", asyn
   expect(record.placement).toEqual({ kind: "backlog", commitment: "planned" });
   expect(record.content).toBe(planned);
   expect(parseMetaRecord(record.content)).toMatchObject({ state: "Planning", pause: null });
-}, 30_000);
+}, parkedImportTimeout);
 
 it("reports a malformed record of a work unit whose slug ends in a parked slug and imports after repair", async () => {
   const h = await importFixture();
@@ -230,7 +232,7 @@ it("reports a malformed record of a work unit whose slug ends in a parked slug a
   await h.git("git", ["rm", ".arc/active/meta-beta-alpha.md"]);
   await h.git("git", ["commit", "-m", "Remove the malformed meta"]);
   expect(await h.migrate()).toMatchObject({ status: "ok" });
-}, 30_000);
+}, parkedImportTimeout);
 
 it("dates a pause from the standing pointer after a park, resume, and park again", async () => {
   const h = await importFixture();
@@ -243,4 +245,4 @@ it("dates a pause from the standing pointer after a park, resume, and park again
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(parseMetaRecord(success(await createRefStore(h.ports).read({ reference })).content).pause)
     .toEqual(MetaPauseSchema.parse({ pausedBy: "andrew", since: repark, reason }));
-}, 30_000);
+}, parkedImportTimeout);
