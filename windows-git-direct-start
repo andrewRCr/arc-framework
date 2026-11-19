@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-git-direct-start",
+  "claimId": "89cc609277a0fae281da801ace10f194",
+  "createdAt": "2026-11-19T15:25:18.438Z",
+  "updatedAt": "2026-11-19T15:25:18.438Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Start Git's real binary on Windows instead of the cmd launcher, if measurement shows it pays",
+  "branch": "chore/windows-git-direct-start",
+  "origin": "inbox",
+  "originEntry": "Start Git without the Windows launcher",
+  "originEntrySourceDigest": "sha256:8b1d8517f9b5b42794827eed644f5ebc1f0fe9ecd70bb1258ed791bbc14869ef",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
