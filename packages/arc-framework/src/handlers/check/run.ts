@@ -104,6 +104,8 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   readRunnerConfiguration?: typeof readMachineCheckRunner;
   prepareExecution?: typeof prepareSelectedCheckExecution;
   interrupted?(): boolean;
+  /** Observe a terminal check result while the rest of the request is still running. */
+  onCheckResult?(result: DeclaredCheckResult): void;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
@@ -241,6 +243,7 @@ async function executeResolvedRequest(
       if (last) result.lastCostMs = last.costMs;
     }
     outcomes.push({ position, result });
+    io.onCheckResult?.(result);
   };
   for (const entry of jobs.filter(job => job.check.fixes)) await run(entry);
   const ordinary = jobs.filter(job => !job.check.fixes);
