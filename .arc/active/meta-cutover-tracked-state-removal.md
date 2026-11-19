@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
 - **Design:** `spec-cutover-tracked-state-removal.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cutover-tracked-state-removal.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

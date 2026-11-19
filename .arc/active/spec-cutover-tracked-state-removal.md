@@ -51,7 +51,7 @@ separately (§ Non-Goals).
 
 1. **No refusal-only or inert command surface.** On a store-backed checkout, no registered verb or option refuses on
    every input or acts on nothing, whether or not `arc --help` or the shipped verb index lists it, outside the
-   surfaces another change removes (§ Non-Goals).
+   surfaces another change removes or rebuilds (§ Non-Goals).
 2. **No check over tracked ARC state.** The pre-commit hook, in both copies, carries no check whose input is a tracked
    ARC state path and no ROADMAP remedy block, and the configuration schema carries no key that only such a check
    read.
@@ -59,9 +59,9 @@ separately (§ Non-Goals).
    planning-only routing is gone, and this repository's CODEOWNERS carries no auto-merge block.
 4. **No merge-gate recipe.** No project installs the merge-gate recipe, and nothing installed names it.
 5. **No one-time cutover machinery.** The import transform and `arc store migrate --import` are gone (§ 2.7), the
-   window's tooling is gone apart from the seal on `arc user load` (§ 2.8), and the window's leftovers on disk and in
-   refs, other than the review gate's local records (§ Non-Goals), are removed from each of the repository owner's
-   clones that holds them (D5).
+   window's tooling is gone apart from the seal on `arc user load` and the provenance field it added to the in-repo
+   composition's result (§ 2.8), and the window's leftovers on disk and in refs, other than the review gate's local
+   records (§ Non-Goals), are removed from each of the repository owner's clones that holds them (D5).
 6. **No dangling reference.** Nothing that remains names a removed command, option, check, key, or file, except the
    records this change exempts (§ 1) and the documentation site (§ Non-Goals).
 7. **No machine-local rule the new layout makes wrong.** A `.internal/` folder in the person's scratch space is not
@@ -79,10 +79,13 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 - **The old decomposition machine** and every module it reaches, directly or through what it calls, stay; a separate
   change, `cutover-decompose-removal`, deletes each with its last caller. That includes the repository arm's handling
   of the `arc decompose` options this change removes: the renderer's `--advance-base` argv
-  (`lib/work-unit/decompose-command-renderer.ts`), the mode keys (`lib/work-unit/decompose-command-routing.ts`), and
-  the shared input schema's fields and their option mapping (`handlers/decompose.ts`).
+  (`lib/work-unit/decompose-command-renderer.ts`) and the mode keys (`lib/work-unit/decompose-command-routing.ts`).
+  The options' input-schema fields and option mapping (`handlers/decompose.ts`) are the command's input, so they go
+  with the options under § 1's rule for an option, with the handler branches only those fields reach.
 - **Notes-specific sync**, the sync-state ref, the notes configuration keys, the suites that target notes, and the
-  notes-era `arc user` verbs, `arc user inbox-list` among them, stay; `cutover-notes-removal` removes them.
+  notes-era `arc user` verbs, `arc user inbox-list` among them, stay; `cutover-notes-removal` removes them. Notes code
+  that only the import, or only the import's and the window tooling's test suites, still reach when this change lands
+  is not among them, and goes with them (§ 2.7).
 - **Strategy and ADR rewrites** stay with `cutover-documentation`, among them retiring
   `strategy-work-organization.md` § Auto-Merge Lane and moving the draft-lock model it holds. This change removes only
   that section's mentions of the merge-gate recipe and its link definition (§ 2.4).
@@ -101,6 +104,12 @@ _Editable in place until activation, then frozen; changes after that append: `Am
   rewrite, the ROADMAP template's install entries, `verify-integrity.sh`'s ROADMAP presence test, the base-drift
   resolver, and the delivery rename source's refusal. Moving delivery's rename source onto store reads is not this
   change's either.
+- **Delivery's commands** stay, with what only they reach: the `arc delivery` group, `arc review status
+  --work-unit`, and `arc review terminus accept`. From the flip no path can write a delivery plan, since delivery's
+  plan resolution refuses when the transitions folder is missing at the base branch
+  (`GitDeliveryRenameTransitionSource`, `lib/delivery/plan-resolution.ts`), so the commands that author a plan refuse
+  and the rest act only on a plan written before the flip. Delivery is paused, and its rebuild
+  (`delivery-rebuild-continuity`) decides what becomes of them.
 - **`archive.cadence`** stays, with both supported arms (D3).
 - **`arc merge lock`**, the draft-pull-request hold, stays.
 - **`lint:md:descriptors`** stays: it still lints the task-list template, and only its task-list path selector goes
@@ -115,7 +124,13 @@ registration, a hook block, a configuration key, a CI step, a check in a shipped
 repository's CODEOWNERS or `.gitattributes`, or a shipped file. It also removes the one-time cutover machinery once
 the window has run (§ 2.7, § 2.8), and corrects the one machine-local rule the new layout makes wrong (§ 2.9). With
 a surface goes the code reachable only through it. Code that a dormant capability arm also reaches stays for the
-dormant machinery's removal (§ Non-Goals), even when this change removes its last live caller.
+dormant machinery's removal (§ Non-Goals), even when this change removes its last live caller. A removed option takes
+its input-schema field and option mapping with it, since the command-input inventory requires every field of a
+command's input schema to map to a registered option (`repository-inventory.test.ts`), and with them the code only
+that field reached, a handler branch or a file or standard-input read among it. Library code a dormant arm still
+reaches through its other inputs stays and no longer receives the option; where it requires a value, the handler
+passes the one the option's absence meant. A dormant arm whose only input was a removed field refuses every input
+until the dormant machinery's removal.
 
 Removing a surface also removes every reference to it that remains when this change lands: links, remedy and help
 strings, examples, test assertions, and prose mentions, in the repository's tracked files outside the documentation
@@ -153,17 +168,21 @@ writes or reads nothing it governs. Known members:
   the worktree scaffold's in-repo arm reaches it at the flip's landing, and otherwise goes with `arc user open`.
 - **`arc user inbox-mark-execute-bound`** (`handlers/user.ts`), which `arc errand queue set` replaces, and the
   title-keyed inbox operands, which refuse from the flip: `arc user inbox-remove`'s title forms
-  (`handlers/user-inbox-remove-store.ts`), and `--inbox-title-file`, `--inbox-entry-file`, and a title given to
-  `--from-inbox` on `arc errand open` and `arc errand link` (`lib/inbox-entry-operand.ts`). `matchInboxEntryTitle`
-  stays; the notes-sync removal keeps it among its survivors.
+  (`handlers/user-inbox-remove-store.ts`), and `--inbox-title-file` and `--inbox-entry-file` on `arc errand open` and
+  `arc errand link`, with the file and standard-input reads only they reached (`resolveInboxEntryOperand`,
+  `lib/inbox-entry-operand.ts`). `--from-inbox` stays, described by its ID form. The check that refuses a title given
+  to it stays too, since `arc agenda --errand` relies on it to tell an entry ID from free text
+  (`resolveErrandCapture`, `commands/agenda/errand-captures.ts`); only its message stops naming title operands.
+  `matchInboxEntryTitle` stays; the notes-sync removal keeps it among its survivors.
 - **The write-context classifiers:** `arc plan check` (`handlers/plan.ts`) and `arc housekeep check`
   (`handlers/housekeep.ts`), with their command groups and options, which answer `proceed` on every input from the
   flip, since store writes do not depend on the checkout. Their shipped callers go with them where the flip's
   workflow rewrite leaves them: `draft-design.md`'s preflight and the quick-reference line for `arc plan check`, and
   `drain-inbox.md`'s precondition for `arc housekeep check`. The guard they classify against stays (§ Non-Goals).
 - **`arc decompose --advance-base`, and `--finish` given a map,** which the store arm refuses on every input
-  (`handlers/decompose-store.ts`): their `cli.ts` registrations, the store arm's refusals, and the mention of
-  `--advance-base` in the shared input schema's error message (`handlers/decompose.ts`).
+  (`handlers/decompose-store.ts`): their `cli.ts` registrations, their input-schema fields and option mapping, the
+  store arm's refusals, and the mention of `--advance-base` in the shared input schema's error message
+  (`handlers/decompose.ts`).
 - **Options the store arm ignores:**
     - `arc activate --task`, which its help calls required though the store arm ignores it and writes only
       `Next Action` (`runStoreActivate`, `lib/work-unit/verbs/activate-deactivate-store.ts`), with the shipped lines
@@ -179,7 +198,8 @@ writes or reads nothing it governs. Known members:
       nothing (`lib/git/in-flight-store.ts`), so there is no network read to skip.
 
   `arc archive --pr-url` and `--completed` stay: from the flip the store archive writes both fields, `--completed`
-  defaulting to the ship day.
+  defaulting to the ship day. Delivery's commands stay too, though from the flip none can write a plan
+  (§ Non-Goals).
 
 #### 2.2 The lifecycle hook checks
 
@@ -219,12 +239,15 @@ goes.
 
 #### 2.3 The CI planning classifier and the review gate's planning routing
 
-Everything that exists only to classify a change as planning-only by its tracked paths goes. From the flip every diff
-holds a non-planning path, so the classifier answers `reviewed`, which grants nothing, and `main`'s ruleset requires
-only `ci-ok`, not the lane attestation's `arc-lane` status. Known members:
+Everything that exists only to classify a change as planning-only by its tracked paths goes. From the flip no planning
+artifact is tracked, so the classifier (`classifyPlanningPaths`) answers `planning` only for a diff that is empty or
+changes nothing but planning paths. That answer grants nothing: such a diff changes no code, the flip's
+workflow rewrite drops every step that armed the auto-merge lane, and `main`'s ruleset requires only `ci-ok`, not the
+lane attestation's `arc-lane` status. Known members:
 
 - `isPlanningArtifactPath` and `classifyPlanningLane` (`lib/change-facts.ts`, whose rest survives); removing the first
-  edits the surviving `isIntegrationTargetPath`;
+  drops the surviving `isIntegrationTargetPath`'s exclusion of the paths it named, which from the flip no diff
+  carries;
 - `scripts/classify-change.sh`'s `lane` and `planning-lane` commands, and `ci.yml`'s lane wiring; the script's other
   commands (`classify`, `tree-hash`, `decide`, `portability`, `integration`, `duplicate-push`) stay;
 - `.github/workflows/arc-lane-attestation.yml` with what only it runs, among it the live-pair check
@@ -274,18 +297,21 @@ The ROADMAP conflict remedy and every surface that installs or invokes it go in 
 - `arc hook-remedy-roadmap-conflict` (`scripts/remedy-roadmap-conflict.ts`,
   `lib/status/roadmap-conflict-auto-remedy.ts`);
 - `arc base merge --regenerate-roadmap`, with base merge's remedy application (`conflictRemedy` in `handlers/base.ts`,
-  `scripts/base/merge.ts`, and `scripts/base/merge-composition.ts`), the remedy library's other importer;
+  `scripts/base/merge.ts`, and `scripts/base/merge-composition.ts`), which imports the remedy library, as the window's
+  tooling does (§ 2.8, § 3);
 - the pre-commit hook's remedy block in `CHECK[merge-conflict-markers]`, both copies;
 - the merge driver that `arc init`, `arc join`, and `arc update` install (`ROADMAP_MERGE_DRIVER_COMMAND`,
   `lib/setup.ts`) with its attribute writer, and this repository's `.gitattributes` line
   `.arc/backlog/ROADMAP.md merge=arc-roadmap`;
 - `arc status --project --staged` and its `--write`, which refuse on every input from the flip
-  (`handlers/status/views.ts`);
+  (`handlers/status/views.ts`), with the staged render only they reached (`handleStagedProjectStatus`, and
+  `resolveStagedTransitionOverlays` once the assert check is gone);
 - the hooks `README.md`'s remedy text, both copies.
 
-The references that remain go with them, among them the regenerable-arm note in `integrate-work-unit.md`, the rerender
-command in `strategy-concurrent-work.md`, and the markdown contract's ROADMAP remedy (`lib/markdown/contracts.ts`). The
-dormant `reconcile-regenerable` next action and the `--regenerate-roadmap` argument its dormant arms still emit
+The references that remain go with them, among them the `regenerable-refused` stop in `integrate-work-unit.md` and
+`run-errand.md`, the rerender command in `strategy-concurrent-work.md`, and the markdown contract's ROADMAP remedy
+(`lib/markdown/contracts.ts`), which leaves its derived-readiness diagnostic with no remedy. The dormant
+`reconcile-regenerable` next action and the `--regenerate-roadmap` argument its dormant arms still emit
 (`scripts/integration/checkpoint.ts`, `scripts/integration/errand-merge.ts`) stay for the dormant machinery's removal.
 
 #### 2.6 Shipped scripts
@@ -296,27 +322,47 @@ test, and the script's § 7 Meta-file shape stays (§ Non-Goals).
 
 #### 2.7 The import
 
-`arc store migrate --import` and the import transform (`lib/store/ref/import/`) go once the window has run, with the
-two constants `lib/store/ref/migrate-layout-build.ts` imports from it, whose exclusion of the import's transient refs
-goes with the transform, and the import transform's test files. The import serves this repository alone: other
-projects install fresh, and the one other project on ARC, CineXplorer, is migrated by hand. A project still to migrate
-would run the import from a pre-flip build, as the window does, since the import reads tracked records through the
-in-repo store (`lib/store/ref/import/source.ts`), so removing it from later builds takes nothing from such a project.
-The import keeps two capability-false arms live, `readRepositoryIdentity` (through `lib/store/ref/import/entry.ts`)
-and `readRepositoryCandidateSupersessionChain` (through `import/review.ts`); they stay for the dormant machinery's
-removal.
+`arc store migrate --import` and the import transform (`lib/store/ref/import/`) go once the window has run, with the two
+constants `lib/store/ref/migrate-layout-build.ts` imports from it, whose exclusion of the import's transient refs goes
+with the transform, and the import transform's test files. Code that only the transform reaches when this change lands
+goes with it. If notes sync is gone by then, that code includes notes helpers, such as `mergeCrossWuFromNotes`
+(`commands/user/save-load.ts`) and `projectManifest` (`lib/user-sync/projection.ts`), and the notes writers the import's
+and the window tooling's test suites use to seed notes (`runUserSave` and `runUserLoad`, with the notes code they reach)
+go too, when those suites are their last callers. The import serves this repository alone: other projects install fresh,
+and the one other project on ARC, CineXplorer, is migrated by hand. A project still to migrate would run the import from
+a pre-flip build, as the window does, since the import reads tracked records through the in-repo store
+(`lib/store/ref/import/source.ts`), so removing it from later builds takes nothing from such a project. The import keeps
+two capability-false arms live, `readRepositoryIdentity` (through `lib/store/ref/import/entry.ts`) and
+`readRepositoryCandidateSupersessionChain` (through `import/review.ts`); they stay for the dormant machinery's removal.
+The refusal that meets a checkout still tracking its state (`trackedStateRefusal`, `lib/store/selection.ts`) keeps its
+remedy, running the import with the build of ARC that wrote that state, and stops naming the option.
+
+The review mapping goes with the import, as far as only the import reaches it. `mapReviewRecords`
+(`lib/store/kinds/review/mapping.ts`) has one production importer, `arc store migrate --import`
+(`commands/store-migrate.ts`), so it goes with the mapping modules only it reaches, and their tests. The modules that
+live review code also reaches stay, among them `mapping-outcomes.ts`, whose `mapReviewAttempt`
+`scripts/review-gate/lane-progress-outcomes.ts` calls, and `mapping-sources.ts`, which `mapping-outcomes.ts` imports.
+The surviving tests that seed stored review records through the mapping (`__tests__/fixtures/review-family-access.ts`
+and the tests that use it or a removed mapping module) write those records into the store directly instead, each through
+its kind's writer under `lib/store/kinds/review/`. The mapping writes five review kinds: evidence, outcome, and decision
+records (`createReviewEvidencePort`, `createReviewOutcomePort`, and `createReviewDecisionPort`), and Candidate and
+integration-boundary records (`writeCandidateRecord` and `writeSubmissionBoundary`). A test that calls one of the
+mapping's converters takes a literal record instead.
 
 #### 2.8 The window's tooling
 
 What the window's tooling change (`cutover-window-tooling`) lands on `main` ahead of the window goes after the window,
-since nothing runs it again. That change is an expected contract, available once it has landed; its specification
-sets the exact set, and the census (§ 2.11) takes it from the merged source. Its known members are the quiesce check
-with its record and hold under `refs/arc-window/`, its recompute after the import, and its last read of `origin/main`'s
-tip; the abort's restore; the worktree lock step; and Stage 1, the rehearsal of the window's mechanics on full copies
-of the repository, with its copy driver, accounting case, and chain comparison. The chain comparison reads Candidate
-chains through `readRepositoryCandidateSupersessionChain`'s in-repo arm, so it goes here, before the dormant
-machinery's removal. The sealing guard's reach to `arc user load` (`runUserLoad`), which the window's tooling adds,
-is not one-time: it refuses every load until the notes commands are deleted (§ Non-Goals), so it stays.
+since nothing runs it again. That change is an expected contract, available once it has landed; its specification sets
+the exact set, and the census (§ 2.11) takes it from the merged source. Its known members are the quiesce check with its
+record and hold under `refs/arc-window/`, its recompute after the import, and its last read of `origin/main`'s tip; the
+abort's restore; the worktree lock step; and Stage 1, the rehearsal of the window's mechanics on full copies of the
+repository, with its copy driver, accounting case, and chain comparison. The chain comparison reads Candidate chains
+through `readRepositoryCandidateSupersessionChain`'s in-repo arm, so it goes here, before the dormant machinery's
+removal. The sealing guard's reach to `arc user load` (`runUserLoad`), which the window's tooling adds, is not one-time:
+it refuses every load until the notes commands are deleted (§ Non-Goals), so it stays while they are registered; once
+they are deleted, it goes with `runUserLoad` under § 2.7. The provenance field the tooling added to the in-repo
+composition's result (`ComposedLifecycleIndexResult`, `lib/work-unit/composed-lifecycle-index.ts`) stays: it belongs to
+that composition, which the dormant machinery's removal deletes.
 
 #### 2.9 The machine-local pattern for `.internal/` (D4)
 
@@ -330,8 +376,14 @@ stored key is read or decoded (`checkRefKey`, `storedKeyProblem`), so a personal
 `.internal/` folder between the flip and this change would become unreadable, at its tip and in every comparison
 over its history: the census at the flip's landing and this change's verification confirm that no personal ref holds
 such a key, at its tip or in its history, and one found is a design question routed back to this specification. A
-checkout still on a build from before this change can store such a key until it merges base; no ARC writer places a
-`.internal` folder below the identity root's own, so that gap is accepted.
+checkout still on a build from before this change can store such a key until it merges base; no store-arm writer
+places a `.internal` folder below the identity root's own, so that gap is accepted. Before the flip, though, the
+integration checkpoint's workspace arm kept its records in `<identity>/<work-unit>/.internal/`
+(`integrationCheckpointLocation`, `scripts/integration/checkpoint-store.ts`). Once the pattern narrows, such a folder
+left on disk is projected like any personal file and holds up its checkout's retirement
+(`observeUnprojectedPersonalFiles`, `lib/store/projection/removal-residual.ts`), so the census at the flip's landing
+confirms that no checkout of the owner's holds a `.internal` folder below the identity root's own, and one found is a
+design question routed back to this specification.
 
 #### 2.10 The window's leftovers on disk and in refs (D5)
 
@@ -359,21 +411,24 @@ from that work's planning branch:
 #### 2.11 The census
 
 The inventory is measured three times. Before the task list is generated, the census runs against the flip's
-implementation while it is under way, at its branch head, and the task list is built from it. Once the flip has
-landed, implementation begins by re-running the census against the flip as merged and amending the task list in
-place: a new member a rule here covers joins that rule's tasks, and a member that has gone leaves them. On this
-change's merged head it runs a last time, as a success criterion. The census walks every registered command path and
-option, every hook check, every configuration key, every CI workflow step, every check in the shipped scripts, this
+implementation while it is under way, at its branch head, and the task list is built from it. Once the flip has landed,
+implementation begins by re-running the census against the flip as merged and amending the task list in place: a new
+member a rule here covers joins that rule's tasks, and a member that has gone leaves them. At this change's verified
+head, with `main` merged in, it runs a last time, as a success criterion. The census walks every registered command path
+and option, every hook check, every configuration key, every CI workflow step, every check in the shipped scripts, this
 repository's CODEOWNERS and `.gitattributes` entries, every `init-recipe.json` entry, and what the window's tooling
 landed (§ 2.8) against the flip's end state, and places each refusal-only, inert, or vacuous surface it finds under
 § 2's rules or in another change's share (§ Non-Goals). A member it finds that no rule here covers is a design
 question, routed back to this specification. Its run at the flip's landing also confirms that no personal ref holds a
-key with a `.internal` segment, at its tip or in its history (§ 2.9), and that `cohort.member-sections` refuses a hand
-edit naming an orphan member section (§ 2.2); a finding otherwise is a design question routed back to this
-specification.
+key with a `.internal` segment, at its tip or in its history, and that no checkout of the owner's holds a `.internal`
+folder below the identity root's own (§ 2.9), and that `cohort.member-sections` refuses a hand edit naming an orphan
+member section (§ 2.2); a finding otherwise is a design question routed back to this specification.
 
 ### 3. Ordering within the change
 
+- **The window's tooling goes first,** before or with the import and the ROADMAP remedy library, since it imports
+  both: the import transform's readers (`readImportParkedSources` and `resolveImportBranchTip` among them) and
+  `applyRoadmapConflictAutoRemedy` (`scripts/cutover-window/rehearse-merge.ts`).
 - **The ROADMAP remedy lands as one change** (D6), since the hook's block falls back to
   `arc hook-remedy-roadmap-conflict` through `run_arc_cli` when the tree has no remedy script. The other hook checks
   removed here carry no such hazard: each runs inline, skips with a notice when its script is missing, or swallows
@@ -400,15 +455,19 @@ that change; D8, the stop rule for this specification's planning review, governs
   as live (§ 1), and the internal collapse is a separate change (Owner, 2026-11-10; split by hand at this
   specification's entry rather than at the flip's landing, since a hand split runs none of the unrehearsed
   decomposition procedure). This change stays one above the project's mark of about 10,000 changed lines by the
-  Owner's explicit decision. Estimated on 2026-11-10 against `9c63a803ae`, it holds about 6,500–8,000 source lines,
-  12,000–15,000 test lines from read-only census sweeps, and the merge-gate recipe's 384 shipped lines; the window's
-  tooling, measured once landed (`2217aef746`), adds about 13,400 lines, about 5,700 of them source and 7,600 tests:
-  about 32,000–37,000 changed lines in all, re-measured with the census (§ 2.11). Most of the excess is pure deletion
-  of self-contained subsystems: the import transform with its tests, about 9,000 lines, and the window's tooling,
-  about 13,400. It stays whole for the reason the Owner accepted for keeping the notes-sync and old-decomposition
-  deletions whole: another branch and review would not shrink the subsystem a reviewer must check. Moving the import to
-  the collapse would also leave `arc store migrate --import` visible until then. _ADR:_ `none`, temporary: the split
-  holds until both changes land.
+  Owner's explicit decision. The census before task generation (2026-11-17, against the flip's branch head
+  `9d7f885774`) measures about 39,000–41,000 changed lines: the window's tooling about 13,550, the import about 9,100
+  and the review mapping only it reaches about 2,800, the command surface about 7,400, the hook checks and the ROADMAP
+  remedy about 5,000, and the CI lane, the recipe, and the repository entries about 1,700. `assess-boundary-fit`, run
+  again on the task list's skeleton, found the one-time machinery, about 25,000 of those lines, separable, and the
+  Owner kept the change whole (2026-11-17). Apart from the review records' test seeding (§ 2.7), that machinery's
+  removal is pure deletion of self-contained subsystems, which the build, both type checks, the test tiers, and the
+  reference search check mechanically; the rest, about 15,000 lines, is reviewed a phase at a time. A change of its
+  own would cost another planning pass, a second review, and a landing order, and would not shrink the subsystem a
+  reviewer must check, the reason the Owner accepted for keeping the notes-sync and old-decomposition deletions whole.
+  A delivery plan is not available: delivery is paused, and from the flip no path writes a plan (§ Non-Goals). Moving
+  the import to the collapse would also leave `arc store migrate --import` visible until then. The census re-measures
+  at the flip's landing (§ 2.11). _ADR:_ `none`, temporary: the split holds until both changes land.
 - **D3. `archive.cadence` stays.** `spec-seam-locus.md` A26 reads both arms, and the flip keeps integrate's dispatch.
   Retiring the key at the flip is rejected; only its in-repo-only readers go, with the dormant machinery. The store
   path's `wrong-cadence` refusal (`scripts/review-gate/readiness-store.ts`) stays. _ADR:_ `none`, tactical; its record
@@ -470,10 +529,16 @@ in the strategy and ADR rewrite.
 - **The boundary** (D2):
     - _Split by what reads as live_ — chosen. The release gate for public visibility requires removing what a user,
       CI, the shipped recipe, or `--help` exposes; internal machinery can wait without misleading anyone.
-    - _One change for the whole collapse, planned in segments_ — rejected. About 37,000–75,000 changed lines would land
+    - _One change for the whole collapse, planned in segments_ — rejected. Well over 40,000 changed lines would land
       between the flip and the product-renames sweep, and no recorded reason holds it whole above the mark.
+    - _The one-time machinery as its own change, landing first_ — rejected (Owner, 2026-11-17). Its removal is
+      self-contained deletion checked mechanically, so a separate branch and review would add a planning pass and a
+      landing order without shrinking what a reviewer must check.
     - _Delete only what the compiler forces_ — rejected. It leaves dormant arms with no owner and the deletion shares
       of the storage-coupling register open.
+- **Keeping a removed option's input-schema field for the dormant arm** — rejected (Owner, 2026-11-17). The
+  command-input inventory requires every field of a command's input schema to map to a registered option, so a field
+  nothing can set would need an exemption in that guard until the dormant machinery's removal (§ 1).
 - **Moving the import to the collapse** — rejected (D2): `arc store migrate --import` would stay visible and
   callable until the collapse lands.
 - **A slim merge-gate recipe** keeping the `ci-ok` roll-up and review on every path — rejected (D10): that is general
@@ -503,25 +568,27 @@ in the strategy and ADR rewrite.
   segment of a personal key. Removing the CODEOWNERS unowned block changes no merge requirement: `main`'s ruleset
   requires the `ci-ok` check and no code-owner review.
 - **Testing.** Tests that exercise a removed surface go with it, among them `classify-change.test.ts`'s lane cases,
-  `confirm-live-change-pair.test.ts`, the import transform's tests, and `review-gate-workflows.test.ts`'s lane and
-  recipe assertions. Tests of surviving behavior that assert a removed surface's text or option change with it. The
-  widened key check gains a case for a `.internal` folder below a personal key's second segment. The
-  integration content tier runs before the push, since this change edits shipped ARC Markdown the integration tests
-  read, and the link audit (`lint:arc:links`) must pass.
+  `confirm-live-change-pair.test.ts`, the import transform's and the review mapping's tests, and
+  `review-gate-workflows.test.ts`'s lane and recipe assertions. Tests of surviving behavior that assert a removed
+  surface's text or option change with it, and those that seed review records through the mapping write them into the
+  store directly (§ 2.7). The widened key check gains a case for a `.internal` folder below a personal key's
+  second segment. The integration content tier runs before the push, since this change edits shipped ARC Markdown the
+  integration tests read, and the link audit (`lint:arc:links`) must pass.
 - **Rollout.** The change builds after the flip lands, and lands before the in-repo implementation's removal and the
   product-renames sweep (§ 3). The hand-run step of § 2.10 runs at verification.
 
 ## Success Criteria
 
-On this change's merged head:
+At this change's verified head, with `main` merged in:
 
-1. The census (§ 2.11), redone on the merged head, finds no surface of the classes it walks that refuses on every
-   input, acts on nothing, or passes vacuously on a store-backed checkout, outside the shares § Non-Goals names.
+1. The census (§ 2.11), redone at that head, finds no surface of the classes it walks that the flip made
+   refusal-only, inert, or vacuous on a store-backed checkout, outside the shares § Non-Goals names.
 2. The pre-commit hook, in both copies, carries no check whose input is a tracked ARC state path and no ROADMAP remedy
    block; the CLI registers no `arc review planning-lane`, `arc review planning-grooming`,
    `arc hook-remedy-roadmap-conflict`, `arc plan`, `arc housekeep`, or `arc park`, listed or hidden, and no
    `arc store migrate --import`; nothing of the window's tooling remains in source or the shipped scripts but the
-   sealing guard's reach to `arc user load`; and these rules the removed checks carried survive in their homes: the
+   sealing guard's reach to `arc user load` and the provenance field on the in-repo composition's result
+   (`ComposedLifecycleIndexResult`); and these rules the removed checks carried survive in their homes: the
    task-list record kind's segmentation check (`task-list.segmentation`) still refuses a numeric third task segment,
    `cohort.member-sections` still refuses a hand edit whose `## Members` names a slug that is not the current name of
    a member of its cohort, and `lint:md:descriptors` still lints the task-list template.
@@ -537,7 +604,7 @@ On this change's merged head:
 6. `MACHINE_LOCAL_PATHS` holds the identity root's `.internal/` and no `<identity>/*/.internal/**`, and a personal
    key with a `.internal` segment at any depth, `scratch/.internal/x` and `scratch/a/.internal/x` among them, is
    refused with the remedy named, and no personal ref holds such a key, at its tip or in its history.
-7. The build, both type checks, the unit and integration tiers, and the link audit pass, and a search of the
+7. The build, both type checks, the unit, integration, and E2E tiers, and the link audit pass, and a search of the
    repository's tracked files outside `docs/` finds a removed command, option, key, exported symbol, or file path only
    in D7's changelog entry, in the point-in-time records § 1 exempts, in tests that assert a removed surface is
    absent, in the dormant code § Non-Goals keeps, and in the old decomposition machine.
@@ -550,8 +617,9 @@ On this change's merged head:
 None in the design. The census (§ 2.11) sets the members of each rule in § 2, including the conditional ones: the
 classifiers' shipped callers and the recipe's onboarding offer where the flip's rewrite leaves them (§ 2.1, § 2.4),
 `runUserOpen` (§ 2.1), and the window's tooling (§ 2.8). Its run at the flip's landing confirms or amends them, and
-confirms that no personal ref holds a key with a `.internal` segment (§ 2.9) and that `cohort.member-sections` refuses
-a hand edit naming an orphan member section (§ 2.2).
+confirms that no personal ref holds a key with a `.internal` segment and no checkout holds a `.internal` folder below
+the identity root's own (§ 2.9), and that `cohort.member-sections` refuses a hand edit naming an orphan member section
+(§ 2.2).
 
 ## Amendments
 
