@@ -5,14 +5,14 @@
 | `Planning` | `andrew`  | `plan/cutover-notes-removal` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-cutover`
-- **Depends On:** `cutover-flip`
+- **Depends On:** `cutover-flip`, `cutover-tracked-state-removal`
 
 - **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
-- **Design:** `draft-cutover-notes-removal.md`
+- **Design:** `spec-cutover-notes-removal.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

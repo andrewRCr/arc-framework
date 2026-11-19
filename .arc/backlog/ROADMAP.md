@@ -13,19 +13,20 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on      | Cohort             |
-| ---------- | ------------------------------- | -------- | ------ | --------------- | ------------------ |
-| `Active`   | cutover-flip                    | P1       | andrew | —               | storage-cutover    |
-| `Planning` | cutover-notes-removal           | P1       | andrew | cutover-flip    | storage-cutover    |
-| `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip    | storage-cutover    |
-| `Active`   | projection-team-scale           | P1       | andrew | —               | storage-projection |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover | —                  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —               | —                  |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —               | —                  |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —               | —                  |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —               | —                  |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —               | —                  |
-| `Planning` | cli-output-contract             | P2       | andrew | —               | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on                                  | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------- | ------------------ |
+| `Planning` | cutover-decompose-removal       | P1       | andrew | cutover-flip                                | storage-cutover    |
+| `Active`   | cutover-flip                    | P1       | andrew | —                                           | storage-cutover    |
+| `Planning` | cutover-notes-removal           | P1       | andrew | cutover-flip, cutover-tracked-state-removal | storage-cutover    |
+| `Planning` | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                                | storage-cutover    |
+| `Active`   | projection-team-scale           | P1       | andrew | —                                           | storage-projection |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                             | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                           | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                                           | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                           | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                           | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                           | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —                                           | —                  |
 
 ## Ready
 
@@ -114,7 +115,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                       | Priority | Owner  | Depends on                                  | Cohort                     |
 | ------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
 | review-activity-contracts       | P1       | andrew | review-source-authority                     | review-protocol-alignment  |
-| cutover-decompose-removal       | P1       | andrew | cutover-flip                                | storage-cutover            |
 | cutover-documentation           | P1       | andrew | cutover-flip                                | storage-cutover            |
 | cutover-in-repo-removal         | P1       | andrew | cutover-flip, cutover-tracked-state-removal | storage-cutover            |
 | delivery-correction-convergence | P1       | andrew | cutover-flip                                | —                          |
