@@ -512,11 +512,14 @@ review gate's repository ID (`importTrackedState`).
 
 From the flip, `arc errand open` names the Errand's branch `<type>/<slug>-<suffix>`, its type one of
 `ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) and the suffix eight lowercase hex characters it mints, and records
-its branch link with that ref. The store mints the Errand's UID only when it resolves the write (`resolveOwner`,
-`lib/store/ref/write-resolution.ts`), after the branch must be named, so open mints the suffix itself and keeps one
-write. The record's schema cannot see the store's capability, so it admits both forms; the store arm writes only the
-suffixed one. Today `lib/errand/open.ts` and `lib/session-init/errand-branch-cut.ts` build
-`<type>/<slug>`.
+its branch link with that ref, keeping one write. That write names the new Errand's UID, which open's plan mints
+(`newDescriptionReference`, `lib/inbox/errand-adoption.ts`) so a routing receipt the write records for an adopted
+capture can name the generation (`listCoordinate`, `lib/inbox/receipts.ts`). The store admits a requested UID that no
+live, record-free, or ended owner holds only for an owner whose `work-item/record` the same write creates with no
+expected version, recording that owner's birth as one it allocated, and refuses any other write naming a UID no owner
+holds (`resolveOwner`, `lib/store/ref/write-resolution.ts`) (A18). The record's schema cannot see the store's
+capability, so it admits both forms; the store arm writes only the suffixed one. Today `lib/errand/open.ts` and
+`lib/session-init/errand-branch-cut.ts` build `<type>/<slug>`.
 
 Every reader that derives an Errand's slug from its branch name, or matches an Errand's branch exactly, changes with the
 builders: a slug is derived from the suffixed form, and under the store an exact match compares the branch with the
@@ -2303,5 +2306,7 @@ None.
   _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R3. _Revalidated:_ pending → 3.7.
 - **A17** — 2026-11-19 — spec-depth: a command whose Git directory refuses the projection lock runs unprojected.
   _Supersedes:_ none. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R4. _Revalidated:_ pending → 3.7.
+- **A18** — 2026-11-19 — design: the write creating a fresh Errand may name the UID its open plan minted.
+  _Supersedes:_ § 4.8 ¶1. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R5. _Revalidated:_ pending → 3.7.
 
 ---

@@ -293,6 +293,8 @@ the fence harness pass over the ref backend; and the full suite passes with no b
   lowercase hex characters it mints before its one write, records that branch link, and every reader that derives an
   Errand's slug from its branch or matches an Errand's branch exactly takes that form.
 
+    - _Amended in:_ 3.R5 (A18).
+
     - `[x]` **2.10.a The builders**
         - Open names a new branch through `errandBranch` (`lib/errand/branch-type.ts`), with the suffix
           `mintErrandBranchSuffix` mints, which the runtime supplies only when its store keeps state off the branch;
@@ -668,6 +670,18 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   lease's other consumers report it too: sync restoration no longer reads it as a missing Git directory, and spawn
   materialization, sibling fan-out, and removal name the directory. `integration/store/projection/engine.test.ts`
   covers both creates and the retry once writable.
+
+### `[ ]` **3.R5 The store admits the UID open's plan mints for a fresh Errand — § 4.8**
+
+- _Goal:_ On the store under full protection `arc errand open` opens a fresh Errand, for a slug no record holds and for
+  one whose earlier generation has completed, its one write naming the UID its plan minted, which the store admits for
+  the owner whose record that write creates and records as that owner's birth, while a write naming a UID no owner
+  holds without creating its record is still refused (A18).
+
+    - `integration/store-ref-errand-uid-cli.test.ts` opens a fresh Errand and a new generation over a completed one
+      through the registered CLI on the ref store, failing first, beside a write naming an unheld UID that creates no
+      record; then `resolveOwner` (`lib/store/ref/write-resolution.ts`) admits the planned UID and the batch's fresh
+      owners carry it.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
@@ -1509,6 +1523,10 @@ landing after verification).
 
 - `[ ]` On the store, `arc status --session-init` in a linked worktree whose shared Git directory is read-only runs with
   projection disabled, reporting the skip, and returns the same code-repository values as an unrestricted run (A17).
+
+- `[ ]` On the store under full protection, `arc errand open` opens a fresh Errand, for a new slug and over a completed
+  generation, its description, record, and any adopted capture's receipt naming one UID, while a write naming a UID no
+  owner holds without creating that owner's record is refused (A18).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

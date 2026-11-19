@@ -1105,6 +1105,28 @@ blocks session-init there. `recordProjectionLockSkip` already runs a command wit
 or mismatched lock or a missing Git directory, and no spec covers an unwritable one. The Owner chose at that stop to run
 unprojected and report the skip, keeping the contract's passivity, rather than refuse with a remedy.
 
+## A18 — a fresh Errand's UID under full protection
+
+Task 3.4.a.4 found both `e2e/precompact-locus-anchor.e2e.test.ts` cases that open an Errand refused on the store with
+`identity-conflict`, "not-found: The named owner has no live ref", and the built CLI refuses the same way in any fresh
+repository under `branch.protection: full`; under partial it opens. For a slug no record holds, or one whose generation
+has completed, `newDescriptionReference` (`lib/inbox/errand-adoption.ts`) names the new description's owner with a UID
+it mints, and `prepareMutation` (`lib/errand/store-runtime.ts`) writes the Errand record under that owner. `resolveOwner`
+(`lib/store/ref/write-resolution.ts`) refuses a write naming a UID no live ref holds, so every full-protection open of a
+new Errand refuses. Full-protection opens over a store were tested only through `LifecycleReferenceBackend`, whose write
+admits a caller's UID on create (`__tests__/helpers/store/write.ts`), and the end-to-end Errand family still runs in-repo
+until Task 3.4.e.
+
+§ 4.8 ¶1 read: "The store mints the Errand's UID only when it resolves the write (`resolveOwner`,
+`lib/store/ref/write-resolution.ts`), after the branch must be named, so open mints the suffix itself and keeps one
+write." Naming the new description's owner by slug alone, so the store would mint the UID, opens the Errand on the ref
+store but loses its captures: a routing receipt written in the same batch records the generation's UID as its list
+(`listCoordinate`, `lib/inbox/receipts.ts`), so a slug there cannot tie the entry to its generation, and abandon,
+rollback, and resume no longer return it (six model-backed tests, among them `unit/lib/inbox/errand-batch` and
+`integration/errand-reserved-slugs-cli`). Open's plan must know the UID before its one write. The Owner chose at that
+stop to let the store admit the planned UID for an owner the write creates, rather than name the receipt by slug and
+resolve it later, or split open into two writes and lose its atomicity.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
