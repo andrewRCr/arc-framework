@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-import-parked-tests",
+  "claimId": "07adbc3c74652a6e23236f619bb4cd28",
+  "createdAt": "2026-11-19T18:33:30.026Z",
+  "updatedAt": "2026-11-19T18:33:30.026Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Diagnose Windows import-and-repair test time and cleanup after timeout before changing any limit",
+  "branch": "chore/windows-import-parked-tests",
+  "origin": "inbox",
+  "originEntry": "Give `store-ref-import-parked`'s tests room on Windows",
+  "originEntrySourceDigest": "sha256:28b4ba40ef161800e965730ba982d700fcb01da2014fca96667a798d005199d6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
