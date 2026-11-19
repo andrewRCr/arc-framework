@@ -485,7 +485,7 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
 
 function needsOpenedSaveJournal(context: WriteBackContext, request: TakeInRequest): boolean {
   return request.copy === null && request.entry.opened === true && request.path.startsWith(".arc/completed/")
-    && isOwnSaveLanding(context.verb, request.checkout);
+    && (isOwnSaveLanding(context.verb, request.checkout) || context.verb === "write-back" && isAdopting(request));
 }
 
 function isAdopting(request: TakeInRequest): boolean {

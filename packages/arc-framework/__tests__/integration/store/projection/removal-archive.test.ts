@@ -142,3 +142,23 @@ it("holds an unedited archive conflict shown by notice until its named repair",
   () => checkUneditedArchiveConflictRepair("notice"), process.platform === "win32" ? 60_000 : 30_000);
 it("holds an unedited archive conflict shown by markers until its named repair",
   () => checkUneditedArchiveConflictRepair("markers"), 30_000);
+
+it.each(["persist", "release"] as const)("lets %s finish after recovering an interrupted archive adoption", async operation => {
+  const h = await archiveRetirementFixture(), path = `${h.folder}/after-missed-response.txt`;
+  const file = join(h.checkout, path), content = "Adopted before the response was lost.\n";
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "after-missed-response.txt");
+  await writeFile(file, content);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const store = { ...h.store, batch: async (input: Parameters<typeof h.store.batch>[0]) => {
+    const result = await h.store.batch(input);
+    if (result.status === "ok") throw new Error("Stopped after the adopted record was stored");
+    return result;
+  } };
+  await expect(projectionCommand({ ...h.input, store }, ["save"])).rejects.toThrow("Stopped after the adopted record was stored");
+  const accepted = success(await h.store.read({ reference }));
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
+    text: expect.stringContaining("arc save"),
+  } });
+  expect(await h.retire(operation)).toMatchObject({ kind: operation === "persist" ? "persisted" : "released" });
+  expect(success(await h.store.read({ reference }))).toMatchObject({ content, version: accepted.version });
+}, 30_000);

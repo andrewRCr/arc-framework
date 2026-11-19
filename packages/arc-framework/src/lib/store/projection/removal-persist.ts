@@ -183,6 +183,11 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   const files: string[] = [];
   let refusal: Remedy | undefined;
   for (const path of paths) {
+    // The write-back walk can recover a staged receipt under the checkout's lease.
+    if (index.entries[path]?.archiveSubmission !== undefined) {
+      files.push(path);
+      continue;
+    }
     const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
     if (archive !== null) refusal ??= retirementRefusal(root.checkout, path, archive.mark, disposition);
     else if (!path.startsWith(".arc/completed/") || index.entries[path] !== undefined) files.push(path);

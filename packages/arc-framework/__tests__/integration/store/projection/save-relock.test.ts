@@ -705,3 +705,68 @@ it.each([[false, false], [true, false], [true, true]])(
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
+
+it("recovers an interrupted ordinary attachment to an existing archive record once", async () => {
+  const h = await fixture(), { path, file, reference, content } = await openedNewText(h);
+  const later = "Peer's newer correction.\n";
+  await seed(h.f, reference, "Store's baseline before the attaching edit.\n");
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, {
+    batch: async input => {
+      const result = await h.store.batch(input);
+      submissions += 1;
+      if (submissions === 1) {
+        const accepted = success(await h.store.read({ reference }));
+        expect(accepted.content).toBe(content);
+        success(await h.store.write(update(h.f, accepted, later)));
+        const root = projectionProcessState().roots.get(h.checkout);
+        if (root === undefined) throw new Error("Missing projection root");
+        root.checkpoint = async () => { throw new Error("Stopped immediately after attachment acceptance"); };
+      }
+      return result;
+    },
+  });
+  const command = { ...h, store };
+  await expect(startProjection(command)).rejects.toThrow("Stopped immediately after attachment acceptance");
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, adoption: { kind: "write-back" }, archiveSubmission: expect.any(Object) });
+  const peer = success(await h.store.read({ reference }));
+  await startProjection(command); await endProjection(command);
+  expect(submissions).toBe(1);
+  expect(success(await h.store.read({ reference }))).toMatchObject({ content: later, version: peer.version, conflicts: [] });
+  expect(await save(command)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(await readFile(file, "utf8")).toBe(later);
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+
+it("reuses the accepted observation for a late edit during adoption read-back", async () => {
+  const h = await fixture(), { path, file, reference, content } = await openedNewText(h);
+  const late = "A late text edit while the new file is being adopted.\n";
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, {
+    batch: async input => {
+      const result = await h.store.batch(input);
+      submissions += 1;
+      const landed = success(await h.store.read({ reference }));
+      if (submissions === 1) {
+        expect(landed.content).toBe(content);
+        await writeFile(file, late);
+      }
+      if (submissions === 2) {
+        expect(landed.content).toBe(late);
+        const root = projectionProcessState().roots.get(h.checkout);
+        if (root === undefined) throw new Error("Missing projection root");
+        root.checkpoint = async () => { throw new Error("Stopped after the late edit landed"); };
+      }
+      return result;
+    },
+  });
+  const command = { ...h, store };
+  await expect(save(command)).rejects.toThrow("Stopped after the late edit landed");
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, adoption: { kind: "read-back" }, archiveSubmission: expect.any(Object) });
+  const accepted = success(await h.store.read({ reference }));
+  expect(await save(command)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(submissions).toBe(2);
+  expect(success(await h.store.read({ reference }))).toMatchObject({ content: late, version: accepted.version });
+  expect(await readFile(file, "utf8")).toBe(late);
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});

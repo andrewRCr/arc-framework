@@ -51,7 +51,7 @@ export async function recoverArchiveSave(context: WriteBackContext, entry: Recor
   if (receipt.kind === "held") return { entry, mark: receipt.mark };
   if (receipt.kind === "unaccepted") return { entry: prior };
   const accepted = { ...acceptArchiveSave(entry, receipt.version), pending: true };
-  return { entry: entry.adoption?.kind === "write-back" && archiveSubmission.read !== undefined
+  return { entry: entry.adoption !== undefined && archiveSubmission.read !== undefined
     ? { ...accepted, adoption: { kind: "read-back", read: archiveSubmission.read,
       ...(archiveSubmission.retained === undefined ? {} : { retained: archiveSubmission.retained }) } } : accepted };
 }
