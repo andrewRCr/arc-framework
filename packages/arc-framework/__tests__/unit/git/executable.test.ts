@@ -54,6 +54,31 @@ describe("the executable a Git child starts", () => {
   });
 
   it.each([
+    ["a git.com sits beside the launcher, though PATHEXT lists .EXE first", [`${GIT}\\cmd\\git.com`],
+      `${GIT}\\cmd`, ".EXE;.COM"],
+    ["a git.com sits earlier on PATH, though PATHEXT leaves .COM out", ["C:\\tools\\git.com"],
+      `C:\\tools;${GIT}\\cmd`, ".EXE"],
+    ["PATHEXT does not list .EXE", [], `${GIT}\\cmd`, ".COM;.BAT"],
+  ])("keeps the bare name when %s, since Node tries git.com and then git.exe in each directory", (
+    _case, files, path, pathExt,
+  ) => {
+    const host = windowsHost([LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`, ...files], { PATHEXT: pathExt });
+
+    expect(gitExecutable({ PATH: path }, host)).toBe("git");
+  });
+
+  it("keeps the launcher when the child's environment sets MSYSTEM, even to nothing", () => {
+    const files = [LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`];
+    const host = windowsHost(files);
+
+    expect(gitExecutable({ PATH: `${GIT}\\cmd`, MSYSTEM: "UCRT64" }, host)).toBe("git");
+    expect(gitExecutable({ PATH: `${GIT}\\cmd`, msystem: "" }, host)).toBe("git");
+    expect(gitExecutable(undefined, windowsHost(files, { Path: `${GIT}\\cmd`, MSYSTEM: "MINGW64" }))).toBe("git");
+    expect(gitExecutable({ PATH: `${GIT}\\cmd` }, windowsHost(files, { MSYSTEM: "MINGW64" })))
+      .toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+  });
+
+  it.each([
     ["no binary beside the launcher", [LAUNCHER]],
     ["two binaries beside the launcher", [LAUNCHER, `${GIT}\\mingw64\\bin\\git.exe`, `${GIT}\\ucrt64\\bin\\git.exe`]],
     ["no git on PATH at all", []],
@@ -86,12 +111,40 @@ describe("the executable a Git child starts", () => {
       .toBe("git");
   });
 
-  it("follows the host's PATHEXT order and falls back to Windows' default list", () => {
+  it("follows the host's PATHEXT order, and execa's default list when PATHEXT is unset or empty", () => {
     const files = [LAUNCHER, `${GIT}\\ucrt64\\bin\\git.exe`, `${GIT}\\cmd\\git.bat`];
+    const wrapped = [...files, "C:\\tools\\git.js"];
+    const path = `C:\\tools;${GIT}\\cmd`;
 
     expect(gitExecutable({ PATH: `${GIT}\\cmd` }, windowsHost(files, { PATHEXT: ".BAT;.EXE" }))).toBe("git");
-    const defaults = { ...windowsHost(files), environment: {} };
-    expect(gitExecutable({ PATH: `${GIT}\\cmd` }, defaults)).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+    expect(gitExecutable({ PATH: `${GIT}\\cmd` }, { ...windowsHost(files), environment: {} }))
+      .toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+    expect(gitExecutable({ PATH: path }, windowsHost(wrapped))).toBe(`${GIT}\\ucrt64\\bin\\git.exe`);
+    expect(gitExecutable({ PATH: path }, { ...windowsHost(wrapped), environment: {} })).toBe("git");
+    expect(gitExecutable({ PATH: path }, windowsHost(wrapped, { PATHEXT: "" }))).toBe("git");
+  });
+
+  it("counts a git that stat refuses with EACCES as found, as execa's lookup does", async () => {
+    const alias = "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\git.exe";
+    const binary = `${GIT}\\ucrt64\\bin\\git.exe`;
+    vi.resetModules();
+    vi.doMock("node:fs", async (importOriginal) => ({
+      ...await importOriginal<typeof import("node:fs")>(),
+      statSync: (path: string) => {
+        if (path === alias) throw Object.assign(new Error("access denied"), { code: "EACCES" });
+        return path === LAUNCHER || path === binary ? { isFile: () => true } : undefined;
+      },
+    }));
+    try {
+      const { gitExecutable: resolve } = await import("../../../src/lib/git/executable.mjs");
+      vi.stubGlobal("process", { ...process, platform: "win32", env: { PATHEXT: ".COM;.EXE" } });
+
+      expect(resolve({ PATH: `${GIT}\\cmd` })).toBe(binary);
+      expect(resolve({ PATH: `${win32.dirname(alias)};${GIT}\\cmd` })).toBe("git");
+    } finally {
+      vi.doUnmock("node:fs");
+      vi.resetModules();
+    }
   });
 
   it("treats a PATH entry it cannot inspect as holding no git", () => {

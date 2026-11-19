@@ -21,25 +21,42 @@ describe("the Git executable a child process starts", () => {
   });
 
   it.runIf(windows)("is Git for Windows' own binary from a stock PATH, whose hooks still run", async () => {
-    const execPath = (await execa("git", ["--exec-path"])).stdout.trim();
-    const systemDirectory = win32.resolve(execPath, "..", "..");
-    const root = win32.dirname(systemDirectory);
-    expect(existsSync(win32.join(root, "cmd", "git.exe"))).toBe(true);
-    const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
-    const env: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env)
-      .filter(([name]) => !/^(?:path|home|msystem|plink_protocol)$/iu.test(name)));
-    env.Path = [win32.join(root, "cmd"), win32.join(systemRoot, "system32"), systemRoot].join(";");
+    const { systemDirectory, env } = await stockEnvironment();
 
     expect(gitExecutable(env)).toBe(win32.join(systemDirectory, "bin", "git.exe"));
+    expect(await hookedCommitMsystem(env)).toBe(win32.basename(systemDirectory).toUpperCase());
+  });
 
-    const repo = await mkdtemp(join(tmpdir(), "arc-git-launcher-"));
-    tempDirs.push(repo);
-    const git = createExecaGitExec(undefined, env);
-    await git("git", ["init", "-q"], { cwd: repo });
-    await writeFile(join(repo, ".git", "hooks", "pre-commit"), "#!/bin/sh\nprintf '%s' \"$MSYSTEM\" > hook-ran\n");
-    await git("git", ["-c", "core.hooksPath=.git/hooks", "-c", "user.name=ARC", "-c", "user.email=arc@example.invalid",
-      "commit", "--allow-empty", "-q", "-m", "hooked"], { cwd: repo });
+  it.runIf(windows)("stays the launcher when MSYSTEM is set, whose hooks still get Git's own system", async () => {
+    const { systemDirectory, env } = await stockEnvironment();
+    env.MSYSTEM = "MSYS";
 
-    expect(await readFile(join(repo, "hook-ran"), "utf8")).toBe(win32.basename(systemDirectory).toUpperCase());
+    expect(gitExecutable(env)).toBe("git");
+    expect(await hookedCommitMsystem(env)).toBe(win32.basename(systemDirectory).toUpperCase());
   });
 });
+
+/** The environment of a stock Windows PATH holding only Git's launcher directory, without Git's own variables. */
+async function stockEnvironment(): Promise<{ systemDirectory: string; env: NodeJS.ProcessEnv }> {
+  const execPath = (await execa("git", ["--exec-path"])).stdout.trim();
+  const systemDirectory = win32.resolve(execPath, "..", "..");
+  const root = win32.dirname(systemDirectory);
+  expect(existsSync(win32.join(root, "cmd", "git.exe"))).toBe(true);
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const env: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !/^(?:path|home|msystem|plink_protocol)$/iu.test(name)));
+  env.Path = [win32.join(root, "cmd"), win32.join(systemRoot, "system32"), systemRoot].join(";");
+  return { systemDirectory, env };
+}
+
+/** Commit through the executor in a new repository, returning the MSYSTEM its pre-commit hook saw. */
+async function hookedCommitMsystem(env: NodeJS.ProcessEnv): Promise<string> {
+  const repo = await mkdtemp(join(tmpdir(), "arc-git-launcher-"));
+  tempDirs.push(repo);
+  const git = createExecaGitExec(undefined, env);
+  await git("git", ["init", "-q"], { cwd: repo });
+  await writeFile(join(repo, ".git", "hooks", "pre-commit"), "#!/bin/sh\nprintf '%s' \"$MSYSTEM\" > hook-ran\n");
+  await git("git", ["-c", "core.hooksPath=.git/hooks", "-c", "user.name=ARC", "-c", "user.email=arc@example.invalid",
+    "commit", "--allow-empty", "-q", "-m", "hooked"], { cwd: repo });
+  return readFile(join(repo, "hook-ran"), "utf8");
+}

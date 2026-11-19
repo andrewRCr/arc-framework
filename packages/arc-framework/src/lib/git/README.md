@@ -11,4 +11,5 @@ points. Selector removal matches names case-insensitively for every Git child, a
 
 `executable.mjs` names the executable each Git child starts, and is dependency-free for the same reason. On Windows,
 when the first `git` on `PATH` is Git for Windows' `cmd\git.exe` launcher, it starts the binary that launcher would
-start, saving a second process start on every call; any other `git` found first keeps the bare name.
+start, saving a second process start on every call. Any other `git` found first keeps the bare name, and so does a
+child given `MSYSTEM`, for which the binary skips the setup the launcher always does.
