@@ -421,6 +421,27 @@ it("refuses an alternate spelling before it can open an existing archive file as
   expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok" });
 });
 
+it("holds a case-only rename when the indexed name still denotes the same file", async () => {
+  const h = await archived(), path = `${h.folder}/notes-alpha.md`, alias = `${h.folder}/Notes-alpha.md`;
+  const file = join(h.f.root, path), renamed = join(h.f.root, alias), intermediate = `${file}.rename`;
+  await seed(h.f, recordReferences["work-item/notes"](h.primary.reference.owner), "# Notes\n\nArchive notes.\n");
+  expect((await projectionCommand({ checkout: h.f.root, store: h.f.store }, ["status"])).result).toMatchObject({ kind: "ready" });
+  const insensitive = await lstat(renamed).then(() => true, () => false);
+  await rename(file, intermediate);
+  await rename(intermediate, renamed);
+  if (!insensitive) await writeFile(file, "# Notes\n\nAn independently addressable file.\n");
+  const result = await edit(h.f.store, h.f.root, alias);
+  if (insensitive) expect(result).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining(path), remedy: { text: expect.stringContaining("recorded spelling") },
+  } });
+  else expect(result).toMatchObject({ status: "ok", result: { path: alias } });
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[path]).not.toHaveProperty("opened");
+  if (insensitive) expect(disk.index.entries[alias]).toBeUndefined();
+  else expect(disk.index.entries[alias]).toMatchObject({ kind: "ownerless", opened: true });
+});
+
 it("returns an edit refusal when the new archive file disappears during adoption inspection", async () => {
   const h = await archived(), path = `${h.folder}/interrupted.txt`, file = join(h.f.root, path);
   await writeFile(file, "An archive correction.\n");

@@ -39,6 +39,7 @@ import { persistProjectionAsides, changedProjectionAsides } from "./removal-pers
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead } from "./read-gate.js";
 import { canRecoverArchiveEntry, inspectArchivedProjectionFile, unopenedArchiveMark } from "./archive-inspection.js";
+import { hasArchiveRecording } from "./recording-state.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
 export interface ProjectionPersistHooks {
@@ -182,9 +183,10 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   reference: bigint | null, disposition: ProjectionRetirement): Promise<{ files: string[]; refusal?: Remedy }> {
   const files: string[] = [];
   let refusal: Remedy | undefined;
-  for (const path of paths) {
+  const recordings = Object.keys(index.entries).filter(path => path.startsWith(".arc/completed/") && hasArchiveRecording(index.entries[path]));
+  for (const path of new Set([...paths, ...recordings])) {
     // The write-back walk can recover a staged receipt under the checkout's lease.
-    if (index.entries[path]?.archiveSubmission !== undefined) {
+    if (hasArchiveRecording(index.entries[path])) {
       files.push(path);
       continue;
     }

@@ -27,11 +27,12 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
     if (!request.path.startsWith(".arc/completed/") || request.entry.opened === true) return root.takeIn(request);
     const gate = await gateRead({ path: join(checkout, request.copy ?? request.path), markdown: request.path.endsWith(".md") });
     if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "emptied") return { answer: "no-edit", entry: request.entry };
-    if (gate.kind === "pending") return { answer: "deferred", entry: { ...request.entry, pending: true } };
-    const mark = await root.rights?.(request) ?? unopenedArchiveMark(checkout, request.path, true);
+    const hold = unopenedArchiveMark(checkout, request.path, true);
+    const mark = await root.rights?.(request) ?? hold;
     root.unsent.add(request.path);
     root.context.report?.({ path: request.path, copy: request.copy, mark });
-    return refuseProjectionEdit(request.entry, mark);
+    const refused = refuseProjectionEdit(request.entry, hold);
+    return gate.kind === "pending" ? { answer: "deferred", entry: refused.entry } : refused;
   };
   const report = (reason: string, remedy = "Repair the reported projection state, then retry arc sync."): void => {
     state.diagnostics.push({ path: checkout, copy: null, mark: { reason, remedy: { text: remedy } } });

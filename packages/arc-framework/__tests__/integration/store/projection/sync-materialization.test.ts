@@ -7,7 +7,8 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 
-const binding = vi.hoisted(() => ({ store: null as Store | null, ports: null as ((ports: ProjectionEnginePorts) => ProjectionEnginePorts) | null }));
+const binding = vi.hoisted(() => ({ store: null as Store | null, ports: null as ((ports: ProjectionEnginePorts) => ProjectionEnginePorts) | null,
+  deferRead: null as ((path: string) => boolean) | null }));
 vi.mock("../../../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../../../src/lib/store/create.js")>();
   return { ...original, createStore: (...args: Parameters<typeof original.createStore>) => binding.store ?? original.createStore(...args) };
@@ -21,6 +22,12 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async importOrig
   } };
 });
 
+vi.mock("../../../../src/lib/store/projection/read-gate.js", async importOriginal => {
+  const original = await importOriginal<typeof import("../../../../src/lib/store/projection/read-gate.js")>();
+  return { ...original, gateRead: (...args: Parameters<typeof original.gateRead>) => binding.deferRead?.(args[0].path)
+    ? Promise.resolve({ kind: "pending", reason: "unsettled" }) : original.gateRead(...args) };
+});
+
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { createFanOutFixture } from "../../../helpers/store/projection/fan-out-fixture.js";
 import { createEngineFixture, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
@@ -32,9 +39,11 @@ import { createProjectionFanOutDependencies } from "../../../../src/lib/store/pr
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { ASIDE_FILES_ROOT } from "../../../../src/lib/store/projection/aside.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 
 const directories: string[] = [];
-afterEach(async () => { binding.store = null; binding.ports = null; beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => { binding.store = null; binding.ports = null; binding.deferRead = null; beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
 
 async function sync(h: { store: Store; checkout: string }, args: readonly string[] = []) {
   const cwd = process.cwd(), previousExit = process.exitCode;
@@ -269,4 +278,39 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({
     version: h.record.version, content: h.record.content,
   });
+});
+
+it("requires an explicit opening after sync encounters an unsettled late archive edit", async () => {
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });
+  expect(await startProjection(h)).toMatchObject({ kind: "ready" });
+  await endProjection(h);
+  const entry = (await h.disk()).entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing archive entry");
+  const file = join(h.checkout, h.path), content = "# Notes\n\nAn editor was still saving this correction.\n";
+  const bytes = renderStampedFile({ content, stamp: entry.base.blob });
+  await chmod(file, 0o644);
+  await writeFile(file, "");
+  await utimes(file, new Date(0), new Date(0));
+  let reads = 0;
+  binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
+    if (path !== h.path) return;
+    await writeFile(file, bytes);
+    // The copy observation succeeds, then take-in sees the editor resume saving.
+    binding.deferRead = candidate => candidate.startsWith(join(h.checkout, ASIDE_FILES_ROOT)) && ++reads % 2 === 0;
+  } } });
+  expect((await sync(h)).errors).toContain(`arc edit ${h.path}`);
+  expect(reads).toBeGreaterThanOrEqual(2);
+  expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
+  binding.deferRead = null;
+  binding.ports = ports => ({ ...ports, writer: async () => ({ ...await ports.writer(), processInstance: "editor-later-command" }) });
+  const saved = await projectionCommand(h, ["save"]);
+  expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
+  expect(await readFile(file, "utf8")).toBe(bytes);
+  expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
+  expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
+  expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
+  expect((await h.stored()).content).toBe(content);
 });

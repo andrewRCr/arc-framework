@@ -71,8 +71,9 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
 }
 
 function withoutPhysicalEdit(entry: IndexEntry): IndexEntry | null {
+  if (entry.archiveSubmission !== undefined) return entry;
   if (entry.kind === "ownerless") return entry.minted === undefined ? null : entry;
-  const recovery = entry.adoption?.kind === "read-back" || entry.copies.length > 0 || entry.inProgress !== null;
+  const recovery = entry.adoption?.kind === "read-back" || entry.persisted?.recording === true || entry.copies.length > 0 || entry.inProgress !== null;
   if (entry.stat === null && (recovery || !entry.pending && entry.refused === null)) return entry;
   return { ...entry, stat: null, ...(recovery ? {} : { pending: false, refused: null }) };
 }

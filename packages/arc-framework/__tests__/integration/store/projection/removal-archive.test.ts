@@ -1,5 +1,5 @@
 /** Removal feasibility requires explicit archive correction and keeps unreadable evidence distinct from refused edits. */
-import { readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
@@ -167,4 +167,47 @@ it.each([["persist", "present"], ["release", "present"], ["persist", "absent"]] 
   } });
   expect(await h.retire(operation)).toMatchObject({ kind: operation === "persist" ? "persisted" : "released" });
   expect(success(await h.store.read({ reference }))).toMatchObject({ content, version: accepted.version });
+}, 30_000);
+
+it.each([["save", "ownerless"], ["save", "indexed"], ["persist", "ownerless"], ["persist", "indexed"], ["persist", "unaccepted"]] as const)(
+  "checks a linked %s archive receipt before permitting installation (%s)", async (operation, kind) => {
+  const h = await archiveRetirementFixture();
+  const path = kind === "indexed" ? h.path : `${h.folder}/linked-receipt.txt`;
+  const reference = kind === "indexed" ? h.primary.reference : recordReferences["work-item/companion"](h.primary.reference.owner, "linked-receipt.txt");
+  const content = kind === "indexed" ? `${h.primary.content}\nAn accepted archive correction.\n` : "An interrupted archive creation.\n";
+  const file = join(h.checkout, path);
+  if (kind !== "indexed") await writeFile(file, content);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  await h.write(path, content);
+  const store = { ...h.store, batch: async (input: Parameters<typeof h.store.batch>[0]) => {
+    if (kind !== "unaccepted") await h.store.batch(input);
+    throw new Error("Stopped while receiving the archive response");
+  } };
+  await expect(projectionCommand({ ...h.input, store }, ["save"])).rejects.toThrow("Stopped while receiving the archive response");
+  const staged = (await h.disk()).index.entries[path];
+  expect(staged).toHaveProperty("archiveSubmission");
+  const accepted = await h.store.read({ reference });
+  const folder = join(h.checkout, h.folder), held = join(h.checkout, "..", "linked-archive");
+  const bytes = await readFile(file);
+  await rename(folder, held);
+  await symlink(held, folder, "junction");
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse" });
+  if (operation === "save") {
+    expect((await projectionCommand(h.input, ["save"])).diagnostics).toContain("symbolic link");
+  } else expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("symbolic link") } });
+  expect(await readFile(file)).toEqual(bytes);
+  expect(await h.store.read({ reference })).toEqual(accepted);
+  const recovery = (await h.disk()).index.entries[path];
+  if (accepted.status === "ok") {
+    expect(recovery).not.toHaveProperty("archiveSubmission");
+    expect(recovery).toMatchObject({ kind: "record", opened: true,
+      persisted: { recording: true, takenIn: { version: accepted.result.version } } });
+  } else expect(recovery).toMatchObject({ archiveSubmission: staged?.archiveSubmission });
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse" });
+
+  await rm(folder, { recursive: true });
+  await rename(held, folder);
+  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+  expect(success(await h.store.read({ reference }))).toMatchObject({ content,
+    ...(accepted.status === "ok" ? { version: accepted.result.version } : {}) });
 }, 30_000);

@@ -20,6 +20,13 @@ import { join } from "node:path";
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
   accepted: WriteResult, input: string | ArchiveSaveSubmission, read: TakeInRead,
   onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
+  const { recorded, pending } = await publishAdoptionAcceptance(root, index, path, accepted, input, read);
+  return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
+}
+
+/** Record acceptance even where the destination cannot yet be observed or installed. */
+export async function publishAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  accepted: WriteResult, input: string | ArchiveSaveSubmission, read: TakeInRead): Promise<{ recorded: ProjectionIndex; pending: RecordEntry }> {
   if (accepted.version === undefined) throw new Error("An accepted content creation returned no version");
   const blob = typeof input === "string" ? gitBlobId(input, root.context.format) : input.blob;
   const entry: RecordEntry = { ...(index.entries[path]?.opened === true ? { opened: true as const } : {}), kind: "record", reference: accepted.reference, stat: read.stat, written: read.blob,
@@ -31,7 +38,7 @@ export async function recordAdoptionAcceptance(root: ProjectionRootState, index:
     : { ...entry, ...acceptedArchiveRecording(input, accepted.version) };
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });
-  return resumeAdoptionReadBack(root, recorded, path, pending, onFile);
+  return { recorded, pending };
 }
 
 /** Finish an accepted creation without sending another expected-absent write or rebinding its owner by name. */

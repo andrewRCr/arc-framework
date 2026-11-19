@@ -6,6 +6,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import { readStat } from "./change-detection.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
+import { archiveCopyDestinationRefusal } from "./archive-file.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
@@ -33,6 +34,7 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   for (const { path, copy } of input.returned) {
     const entry = index.entries[path];
     if (entry?.kind !== "record" || !entry.copies.some(record => record.name === copy)) continue;
+    if (await archiveCopyDestinationRefusal(input.checkout, path) !== null) continue;
     const at = join(input.checkout, copy);
     const exists = await readStat(at) !== null;
     if (exists && !await sameProjectionFile(at, join(input.checkout, path))) continue;

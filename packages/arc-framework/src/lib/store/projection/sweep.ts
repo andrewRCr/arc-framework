@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
-import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { blockedAsideDestination, hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
@@ -27,6 +27,7 @@ import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { archiveCopyDestinationRefusal } from "./archive-file.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
 export interface SweepInput extends SwapMoves {
@@ -64,7 +65,7 @@ export interface LeftCopy {
   readonly path: string;
   readonly copy: string;
   /** Why the copy remains untouched, including a destination outside the command's authorized roots. */
-  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized";
+  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized" | "destination-blocked";
   readonly remedy?: Remedy;
 }
 
@@ -218,8 +219,9 @@ async function takeOverUnrecorded(
     if (refusal !== null) { left.push(refusal); continue; }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
-    if (writer === "exited" && !await deleteIfUnedited(input, location, named)) {
-      left.push(await retainedCopy(input.checkout, named.path, location, "unrecorded"));
+    if (writer === "exited") {
+      const retained = await deleteIfUnedited(input, location, named);
+      if (retained !== null) left.push(retained);
     }
   }
   return left;
@@ -234,56 +236,68 @@ async function sweepWithoutIndex(
 ): Promise<Omit<SweepResult, "ignores">> {
   const { writerOf } = judges;
   const left: LeftCopy[] = [];
-  const withheld: string[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
     if (named?.role !== "aside") continue;
     if (input.withheldCopies?.includes(location)) {
-      withheld.push(location);
       left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
       continue;
     }
     const refusal = destinationRefusal(named.path, location, judges);
     if (refusal !== null) {
       left.push(refusal);
-      if (refusal.reason === "not-a-file") withheld.push(location);
       continue;
     }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
-    if (writer !== "exited" || await returnWithoutIndex(input, location, named)) continue;
-    withheld.push(location);
-    left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
+    if (writer !== "exited") continue;
+    const retained = await returnWithoutIndex(input, location, named);
+    if (retained !== null) left.push(retained);
   }
   await deleteStagedFiles(input, found, writerOf);
+  const withheld = left.filter(copy => copy.reason === "withheld" || copy.reason === "not-a-file").map(copy => copy.copy);
   return { index: null, swept: [], left, withheld, copies: [] };
 }
 
-/** Link a copy back to its absent path, or delete one that holds no edit; false where it holds one and stays. */
-async function returnWithoutIndex(input: SweepInput, location: string, named: AsideFile): Promise<boolean> {
+/** Link a copy back to its absent path, or retain it when its destination or contents prevent recovery. */
+async function returnWithoutIndex(input: SweepInput, location: string, named: AsideFile): Promise<LeftCopy | null> {
+  const refusal = await archiveDestinationHold(input.checkout, named.path, location);
+  if (refusal !== null) return refusal;
   const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
   const isFile = (await readStat(at.copy))?.type === "file";
-  if (isFile && await readStat(at.path) === null && await retriedMoves(input).linkOnto(at.copy, at.path)) {
-    await input.checkpoint?.();
-    await removeProjectionAsideFile(input.checkout, at.copy, input.checkpoint);
-    return true;
+  if (isFile && await readStat(at.path) === null) {
+    const current = await archiveDestinationHold(input.checkout, named.path, location);
+    if (current !== null) return current;
+    if (await retriedMoves(input).linkOnto(at.copy, at.path)) {
+      await input.checkpoint?.();
+      await removeProjectionAsideFile(input.checkout, at.copy, input.checkpoint);
+      return null;
+    }
   }
-  return deleteIfUnedited(input, location, named);
+  return deleteIfUnedited(input, location, named, "withheld");
 }
 
 /** Delete a symbolic link or a file equal to its base; retain directories and edits with their contents. */
-async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile): Promise<boolean> {
+async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile,
+  reason: "unrecorded" | "withheld" = "unrecorded"): Promise<LeftCopy | null> {
+  const refusal = await archiveDestinationHold(input.checkout, named.path, location);
+  if (refusal !== null) return refusal;
   const copy = join(input.checkout, location);
   const stat = await readStat(copy);
-  if (stat === null) return true;
-  if (stat.type === "other") return false;
+  if (stat === null) return null;
+  if (stat.type === "other") return retainedCopy(input.checkout, named.path, location, reason);
   const unedited = stat.type !== "file"
     || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
-  if (unedited) {
-    await input.checkpoint?.();
-    await removeProjectionAsideFile(input.checkout, copy, input.checkpoint);
-  }
-  return unedited;
+  if (!unedited) return retainedCopy(input.checkout, named.path, location, reason);
+  const current = await archiveDestinationHold(input.checkout, named.path, location);
+  if (current !== null) return current;
+  await removeProjectionAsideFile(input.checkout, copy, input.checkpoint);
+  return null;
+}
+
+async function archiveDestinationHold(checkout: string, path: string, copy: string): Promise<LeftCopy | null> {
+  const mark = await archiveCopyDestinationRefusal(checkout, path);
+  return mark === null ? null : { path, copy, reason: "destination-blocked", remedy: mark.remedy };
 }
 
 /** Delete the staged files a writer that has exited left. */
@@ -304,11 +318,15 @@ async function deleteStagedFiles(
  */
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
+  const blocked = await blockedAsideDestination({ checkout, path }, entry);
+  if (blocked !== null) return blocked;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
   if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   const holding = await readPathHolding(at.path, input.format);
+  const current = await blockedAsideDestination({ checkout, path }, entry);
+  if (current !== null) return current;
   if (stat.type === "symlink") {
     const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
     // An absent path waits for the next refresh to rebuild it.

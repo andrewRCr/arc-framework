@@ -30,6 +30,10 @@ export function createProjectionReporter(store: Pick<Store, "capabilities">,
 /** Retain the path and copy when settlement leaves a save for the person or a later command. */
 export function reportProjectionCopy(path: string, copy: string, settlement: CopySettlement): void {
   const kind = settlement.kind;
+  if (kind === "blocked-destination") {
+    projectionProcessState().diagnostics.push({ path, copy, mark: settlement.mark });
+    return;
+  }
   if (kind !== "moved-on" && kind !== "held-aside" && kind !== "kept" && kind !== "not-a-file") return;
   const mark = kind === "not-a-file" ? { reason: kind, remedy: settlement.remedy }
     : { reason: kind === "kept" ? `${kind}: ${settlement.answer}` : kind,

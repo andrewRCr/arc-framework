@@ -1,5 +1,5 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
-import type { RecordEntry } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
@@ -9,4 +9,9 @@ export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | n
     reference: entry.reference, historyRefs: [], condition: entry.archiveSubmission === undefined
       ? "Accepted-input recording is unfinished." : "The interrupted archive save's acceptance has not been checked.",
     remedy: { text: "Retry arc save to finish recording the accepted input before preparing another edit; keep the file and retained copy." } };
+}
+/** A staged or accepted archive input still needs its exact installation continuation. */
+export function hasArchiveRecording(entry: ProjectionIndex["entries"][string] | undefined): boolean {
+  return entry?.archiveSubmission !== undefined
+    || entry?.kind === "record" && entry.opened === true && entry.persisted?.recording === true;
 }

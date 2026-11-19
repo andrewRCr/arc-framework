@@ -30,7 +30,9 @@ export async function archiveCheckoutRefusal(root: ArchiveRoot, path: string): P
 export async function nestedArchiveCheckoutRefusal(checkout: string, path: string): Promise<RefusedMark | null> {
   if (!path.startsWith(".arc/completed/")) return null;
   for (let folder = dirname(path); folder !== "."; folder = dirname(folder)) {
-    if (await unavailableFile(lstat(join(checkout, folder, ".git"))) !== null) return foreignArchivePath(path);
+    try {
+      if (await unavailableFile(lstat(join(checkout, folder, ".git"))) !== null) return foreignArchivePath(path);
+    } catch (error) { return archivePermissionMark(path, error); }
   }
   return null;
 }
@@ -40,18 +42,33 @@ function foreignArchivePath(path: string): RefusedMark {
 }
 
 /** Resolve the link boundary of an individually selected archive path. */
-export async function archiveLinkRefusal(root: ArchiveRoot, path: string): Promise<RefusedMark | null> {
-  const link = (await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs))(path);
-  return link === null ? null : { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
+export async function archiveLinkRefusal(root: { checkout: string; ports: Pick<ArchiveRoot["ports"], "linkFs"> }, path: string): Promise<RefusedMark | null> {
+  try {
+    const link = (await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs))(path);
+    return link === null ? null : { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
+  } catch (error) { return archivePermissionMark(path, error); }
+}
+
+/** An aside copy must stay in the outer checkout while its archive destination is foreign or linked. */
+export async function archiveCopyDestinationRefusal(checkout: string, path: string): Promise<RefusedMark | null> {
+  if (!path.startsWith(".arc/completed/")) return null;
+  const link = await archiveLinkRefusal({ checkout, ports: {} }, path);
+  if (link !== null) return link;
+  const mark = await nestedArchiveCheckoutRefusal(checkout, path);
+  return mark === null ? null : { ...mark, remedy: {
+    text: "Restore access and ownership of the archive destination in the outer checkout, then retry to recover the aside copy.",
+  } };
 }
 
 /** Observe the current regular file without treating a linked destination as archive content. */
 export async function readArchiveFile(root: ArchiveRoot, path: string): Promise<ArchiveFile> {
   const mark = await archiveLinkRefusal(root, path);
   if (mark !== null) return { kind: "blocked", mark };
-  const stat = await unavailableFile(lstat(join(root.checkout, path), { bigint: true }));
-  if (stat === null) return { kind: "missing" };
-  return stat.isFile() ? { kind: "file", stat } : { kind: "blocked", mark: archiveFileChangeMark(path) };
+  try {
+    const stat = await unavailableFile(lstat(join(root.checkout, path), { bigint: true }));
+    if (stat === null) return { kind: "missing" };
+    return stat.isFile() ? { kind: "file", stat } : { kind: "blocked", mark: archiveFileChangeMark(path) };
+  } catch (error) { return { kind: "blocked", mark: archivePermissionMark(path, error) }; }
 }
 
 /** Change the mode only on a handle that still identifies the validated archive file. */
@@ -69,13 +86,15 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
     return current.kind === "file" ? { kind: "blocked", mark: archiveFileChangeMark(path) } : current;
   }
   try {
-    const stat = await handle.stat({ bigint: true });
+    let stat: BigIntStats;
+    try { stat = await handle.stat({ bigint: true }); }
+    catch (error) { return archiveModeRefusal(path, error); }
     await root.checkpoint?.();
     const foreign = opening === undefined ? await nestedArchiveCheckoutRefusal(root.checkout, path) : await archiveCheckoutRefusal(root, path);
     if (foreign !== null) return { kind: "blocked", mark: foreign };
     const current = await readArchiveFile(root, path);
     if (current.kind !== "file") return current;
-    if (!stat.isFile() || !sameFile(stat, opening ?? observed.stat) || !sameFile(stat, current.stat)) {
+    if (!stat.isFile() || !sameArchiveFile(stat, opening ?? observed.stat) || !sameArchiveFile(stat, current.stat)) {
       return { kind: "blocked", mark: archiveFileChangeMark(path) };
     }
     await root.checkpoint?.();
@@ -89,13 +108,19 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
 }
 
 function archiveModeRefusal(path: string, error: unknown): Extract<ArchiveModeChange, { kind: "mode-refused" }> {
-  const code = (error as NodeJS.ErrnoException).code;
-  if (code !== "EACCES" && code !== "EPERM" && code !== "EROFS") throw error;
-  return { kind: "mode-refused", mark: { reason: `Cannot change permissions for ${path}: ${code}.`,
-    remedy: { text: "Repair the file's permissions and retry the command; its opened intent is retained." } } };
+  return { kind: "mode-refused", mark: archivePermissionMark(path, error, "change permissions for") };
 }
 
-function sameFile(first: ArchiveFileIdentity, second: ArchiveFileIdentity): boolean {
+/** Classify filesystem permission errors without absorbing lease or index failures. */
+export function archivePermissionMark(path: string, error: unknown, action = "validate"): RefusedMark {
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== "EACCES" && code !== "EPERM" && code !== "EROFS") throw error;
+  return { reason: `Cannot ${action} ${path}: ${code}.`,
+    remedy: { text: "Repair access to the file, then retry the command." } };
+}
+
+/** Compare the device and inode of two observations. */
+export function sameArchiveFile(first: ArchiveFileIdentity, second: ArchiveFileIdentity): boolean {
   return first.dev === second.dev && first.ino === second.ino;
 }
 

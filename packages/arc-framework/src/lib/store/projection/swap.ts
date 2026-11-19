@@ -19,7 +19,7 @@ import type { ReadGateDependencies } from "./read-gate.js";
 import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
+import { archiveCopyDestinationRefusal, nestedArchiveCheckoutRefusal } from "./archive-file.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -280,6 +280,8 @@ async function linkStagedIn(
   } catch {
     await input.checkpoint?.();
     await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint, false);
+    const blocked = await archiveCopyDestinationRefusal(input.checkout, swap.path);
+    if (blocked !== null) return { entry: { ...swap.original, pending: true, refused: blocked, copies: swap.entry.copies }, done: true };
     return { ...await linkBack(moves, swap, at), done: true };
   }
   await input.checkpoint?.();

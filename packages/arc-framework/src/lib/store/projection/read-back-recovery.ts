@@ -14,13 +14,14 @@ import { recoverArchiveSave } from "./archive-save-recording.js";
 
 /** Settle a lost submission response before treating any live bytes as a new edit. */
 export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: RecordEntry): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
-  const recovered = await recoverArchiveSave(root.context, entry);
+  entry: RecordEntry, retainUnaccepted = false): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
+  const recovered = await recoverArchiveSave(root.context, entry, retainUnaccepted);
   if (recovered.mark !== undefined) {
     root.unsent.add(path);
     root.context.report?.({ path, copy: null, mark: recovered.mark });
     return { index, entry, held: true };
   }
+  if (recovered.entry === entry) return { index, entry, held: false };
   const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, recovered.entry), checkpoint: root.context.checkpoint });
   return { index: updated, entry: recovered.entry, held: false };

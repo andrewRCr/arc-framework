@@ -1,6 +1,6 @@
 /** The sweep over a seeded projection: the copies and staged files a stopped or exited writer left, taken over. */
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
-import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
@@ -20,6 +20,7 @@ import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/pro
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { createProjectionLinkBoundary } from "../../../../src/lib/store/projection/discovery-links.js";
+import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -48,10 +49,8 @@ async function leftBy(
   const prepared = await prepareSwap(options);
   directories.push(prepared.seeded.checkout);
   const hooks = hooksFor(prepared);
-  await writeFile(join(prepared.seeded.checkout, ".git/info/exclude"), EXCLUDE_LINES.map((line) => `${line}\n`).join(""));
-  await writeFile(join(prepared.seeded.checkout, ".gitignore"), ".arc/user/*/\n");
-  await mkdir(join(prepared.seeded.checkout, ".arc/user"), { recursive: true });
-  await writeFile(join(prepared.seeded.checkout, ".arc/user/.npmignore"), "*\n");
+  const { checkout, location } = prepared.seeded;
+  const sweep = await prepareSweep(checkout, location);
   const stopping: SwapHooks = stop === null ? hooks : { ...hooks, [stop]: async (path: string) => {
     await hooks[stop]?.(path);
     throw new Stop(`stopped ${stop}`);
@@ -61,15 +60,21 @@ async function leftBy(
   } catch (error) {
     if (!(error instanceof Stop)) throw error;
   }
-  const { checkout, location } = prepared.seeded;
+  return { ...prepared, checkout, location, sweep };
+}
+
+async function prepareSweep(checkout: string, location: SweepInput["location"]) {
+  await writeFile(join(checkout, ".git/info/exclude"), EXCLUDE_LINES.map(line => `${line}\n`).join(""));
+  await writeFile(join(checkout, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(checkout, ".arc/user"), { recursive: true });
+  await writeFile(join(checkout, ".arc/user/.npmignore"), "*\n");
   /** Sweep with the index on disk, as the next command's start reads it. */
-  const sweep = async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
+  return async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
     ignoreRules: (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     readIgnoreRules: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn, writer: SWEEPER,
     guard: { root: checkout, identity, exec: execInput, fs: gitFs }, ...overrides,
   });
-  return { ...prepared, checkout, location, sweep };
 }
 
 async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]): Promise<ProjectionIndex> {
@@ -77,6 +82,41 @@ async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]):
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   return read.index;
 }
+
+it.each([false, true])("preserves a displaced opened archive file across nested-checkout settlement (edited=%s)", async edited => {
+  const path = ".arc/completed/one/cohort-one.md";
+  const basis = await prepareSwap({ path });
+  directories.push(basis.seeded.checkout);
+  const { checkout, location } = basis.seeded;
+  const folder = dirname(basis.file), bytes = await readFile(basis.file, "utf8");
+  await chmod(basis.file, 0o644);
+  const expected = edited ? `${bytes}\nAn edit after the move.\n` : bytes;
+  const swapped = await basis.swap({ files: [{ path, replace: { ...basis.replace, entry: { ...basis.laid, opened: true } } }], hooks: {
+    afterMove: async () => {
+      if (edited) {
+        const entry = await entryOnDisk(location, path);
+        const [copy] = entry.copies;
+        if (copy === undefined) throw new Error("Expected displaced copy");
+        await writeFile(join(checkout, copy.name), expected);
+      }
+      await createExecaGitExec()("git", ["init", "--quiet", folder], { cwd: checkout });
+    },
+  } });
+  const [copy] = swapped.copies;
+  if (copy === undefined) throw new Error("Expected displaced copy");
+  const checked = await runSecondCheck({ checkout, location, index: swapped.index, copies: swapped.copies,
+    format: "sha1", takeIn: unreached, writer: SWAP_WRITER });
+  expect(checked.settled).toMatchObject([{ settlement: { kind: "blocked-destination", mark: { reason: expect.stringContaining("another checkout") } } }]);
+  const sweep = await prepareSweep(checkout, location);
+  expect((await sweep(unreached, { index: checked.index })).swept).toMatchObject([{ outcome: { kind: "blocked-destination" } }]);
+  expect((await sweep(unreached, { index: null })).left).toMatchObject([{ reason: "destination-blocked" }]);
+  expect(await readFile(join(checkout, copy.copy), "utf8")).toBe(expected);
+  expect(await readStat(basis.file)).toBeNull();
+  await rm(join(folder, ".git"), { recursive: true });
+  expect((await sweep(unreached, { index: checked.index })).swept).toMatchObject([{ outcome: { kind: "linked-back" } }]);
+  expect(await readFile(basis.file, "utf8")).toBe(expected);
+  expect(await readStat(join(checkout, copy.copy))).toBeNull();
+});
 
 async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<RecordEntry> {
   const entry = (await indexOnDisk(location)).entries[path];

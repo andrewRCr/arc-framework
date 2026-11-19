@@ -90,6 +90,7 @@ export function removalCopyRefusal(settled: CopySettlement, checkout: string, co
   disposition: ProjectionRetirement): Remedy | undefined {
   if (settled.kind === "deleted" || settled.kind === "dropped" || settled.kind === "linked-back") return undefined;
   if (settled.kind === "not-a-file") return settled.remedy;
+  if (settled.kind === "blocked-destination") return retirementRefusal(checkout, copy, settled.mark, disposition);
   if (settled.kind === "moved-on") return recoverCopy(checkout, copy, disposition);
   const mark = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.copy === copy)?.mark
     ?? settled.entry.refused;

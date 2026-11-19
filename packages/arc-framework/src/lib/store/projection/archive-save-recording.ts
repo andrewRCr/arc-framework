@@ -42,14 +42,14 @@ export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, vers
 }
 
 /** Resolve the interrupted submission before the checkout can attempt another write for this file. */
-export async function recoverArchiveSave(context: WriteBackContext, entry: RecordEntry): Promise<{
+export async function recoverArchiveSave(context: WriteBackContext, entry: RecordEntry, retainUnaccepted = false): Promise<{
   entry: RecordEntry; mark?: RefusedMark;
 }> {
   const { archiveSubmission, ...prior } = entry;
   if (archiveSubmission === undefined) return { entry };
   const receipt = await findArchiveSaveAcceptance(context, entry.reference, archiveSubmission.id);
   if (receipt.kind === "held") return { entry, mark: receipt.mark };
-  if (receipt.kind === "unaccepted") return { entry: prior };
+  if (receipt.kind === "unaccepted") return { entry: retainUnaccepted ? entry : prior };
   const accepted = { ...acceptArchiveSave(entry, receipt.version), pending: true };
   return { entry: entry.adoption !== undefined && archiveSubmission.read !== undefined
     ? { ...accepted, adoption: { kind: "read-back", read: archiveSubmission.read,

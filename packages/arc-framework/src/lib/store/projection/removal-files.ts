@@ -5,13 +5,13 @@ import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
 import { checkChange, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
-import { unfinishedRecordingRefusal } from "./recording-state.js";
+import { hasArchiveRecording, unfinishedRecordingRefusal } from "./recording-state.js";
 import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, type ProjectionRemovalCheck,
   type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
 import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { projectionLinkRemedy, readProjectionLinkBoundary } from "./discovery-links.js";
 import { readProjectionProtection } from "./protection.js";
 import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
@@ -47,12 +47,19 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
     return entry?.kind === "record" && entry.adoption !== undefined
-      || entry?.kind === "ownerless" && entry.minted !== undefined || hasArchiveSubmission(path, entry);
+      || entry?.kind === "ownerless" && entry.minted !== undefined
+      || path.startsWith(".arc/completed/") && !isExcludedProjectionPath(path) && hasArchiveRecording(entry);
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);
   const { guard } = input;
   for (const path of new Set([...walked.files, ...retries])) {
-    if (boundary(path) !== null && !hasArchiveSubmission(path, preparedIndex.entries[path])) continue;
+    const link = boundary(path);
+    const entry = preparedIndex.entries[path];
+    if (link !== null && !hasArchiveSubmission(path, entry)) {
+      if (path.startsWith(".arc/completed/") && hasArchiveRecording(entry)) return { index: preparedIndex,
+        verdict: markedRemovalRefusal(root.checkout, path, { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) }, input.disposition) };
+      continue;
+    }
     const checked = await checkRemovalFileAtPath({ ...input, root: observingRoot, index: preparedIndex }, path, reference, guard);
     if (checked.kind !== "passes") return { verdict: checked, index: preparedIndex };
   }

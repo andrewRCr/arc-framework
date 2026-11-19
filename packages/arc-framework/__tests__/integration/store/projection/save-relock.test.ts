@@ -17,14 +17,23 @@ const binding = vi.hoisted(() => ({
   store: null as Store | null,
   hooks: undefined as import("../../../../src/lib/store/projection/swap.js").SwapHooks | undefined,
   beforeModeOpen: null as ((path: unknown) => Promise<void>) | null,
+  afterModeOpen: null as ((path: unknown) => void) | null,
+  deniedValidation: null as string | null,
   linkedPath: null as string | null,
 }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
     await binding.beforeModeOpen?.(args[0]);
-    return actual.open(...args);
-  } };
+    const handle = await actual.open(...args);
+    binding.afterModeOpen?.(args[0]);
+    return handle;
+  }, lstat: (async (...args: Parameters<typeof actual.lstat>) => {
+    if (args[0] === binding.deniedValidation && binding.deniedValidation !== null) {
+      throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
+    }
+    return actual.lstat(...args);
+  }) as typeof actual.lstat };
 });
 vi.mock("../../../../src/lib/store/create.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/create.js")>();
@@ -55,6 +64,8 @@ afterEach(async () => {
   binding.store = null;
   binding.hooks = undefined;
   binding.beforeModeOpen = null;
+  binding.afterModeOpen = null;
+  binding.deniedValidation = null;
   binding.linkedPath = null;
   await removeGitBackedDirs(directories.splice(0));
 });
@@ -167,6 +178,28 @@ it("retains an opened path when the file becomes part of a nested Git checkout",
   await rm(join(folder, ".git"), { recursive: true });
   expect((await save(h)).result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+});
+
+it("reports a path validation error after opening the handle and re-locks the next file", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path), second = `${h.folder}/second.txt`;
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "second.txt"), "A second correction.\n");
+  await startProjection(h); await endProjection(h);
+  await openArchivedProjectionFile(h, h.path);
+  await openArchivedProjectionFile(h, second);
+  binding.afterModeOpen = path => {
+    if (path === file) binding.deniedValidation = join(h.checkout, h.folder, ".git");
+  };
+  // Allow the second file to validate the same directory once the first one reports its refusal.
+  binding.beforeModeOpen = async path => {
+    if (path === join(h.checkout, second)) binding.deniedValidation = null;
+  };
+  const held = await save(h);
+  expect(held.errors).toContain(`Cannot validate ${h.path}: EACCES`);
+  expect(held.result).toMatchObject({ status: "ok", result: { relocked: [{ path: second }] } });
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(file)).mode & 0o200).toBe(0o200);
+  binding.afterModeOpen = null;
+  expect((await save(h)).result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
 });
 it.each([false, true])("re-locks a new archived file adopted by save after ordinary pickup=%s", async ordinary => {
   const h = await fixture(), path = `${h.folder}/new-note.txt`, content = "New archive correction.\n";

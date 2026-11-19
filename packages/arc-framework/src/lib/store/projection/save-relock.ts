@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { checkChange, readReference } from "./change-detection.js";
-import { changeArchiveFileMode, nestedArchiveCheckoutRefusal, readArchiveFile } from "./archive-file.js";
+import { archivePermissionMark, changeArchiveFileMode, nestedArchiveCheckoutRefusal, readArchiveFile } from "./archive-file.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -68,8 +68,12 @@ async function readRelockedChange(root: ProjectionRootState, path: string, entry
   if (foreign !== null) return { mark: foreign, restoreWritable: false };
   const observed = await readArchiveFile(root, path);
   if (observed.kind !== "file") return { mark: observed.kind === "missing" ? missingMark() : observed.mark, restoreWritable: false };
-  const changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
-    reference: await readReference(root.checkout), format: root.context.format }));
+  const reference = await readReference(root.checkout);
+  let changed: Awaited<ReturnType<typeof checkChange>> | null;
+  try {
+    changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
+      reference, format: root.context.format }));
+  } catch (error) { return { mark: archivePermissionMark(path, error), restoreWritable: false }; }
   if (changed === null || changed.status === "absent") return { mark: missingMark(), restoreWritable: false };
   if (changed.stat.size === 0n && path.endsWith(".md")) return { mark: missingMark(), restoreWritable: true };
   const current = await readArchiveFile(root, path);

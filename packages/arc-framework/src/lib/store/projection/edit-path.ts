@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readdir } from "node:fs/promises";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { archiveCheckoutRefusal, archiveFileChangeMark, archiveLinkRefusal, readArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
+import { archiveCheckoutRefusal, archiveFileChangeMark, archiveLinkRefusal, readArchiveFile, sameArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
 import { readProjectionProtection } from "./protection.js";
@@ -31,7 +31,21 @@ export async function inspectProjectionEditPath(root: ProjectionRootState, index
   if (!root.writable(path)) return refuse({ reason: `The projection ignore guard does not permit changing ${path}.`,
     remedy: { text: "Repair the reported projection ignore rules and retry arc edit." } });
   if (entry?.kind === "record") return { kind: "ready", entry, identity: gate.identity };
+  const alias = await indexedCaseAlias(root, index, path, gate.identity);
+  if (alias !== null) return refuse({ reason: `${path} already addresses the indexed archive file ${alias}.`,
+    remedy: { text: `Restore the recorded spelling ${alias}, then retry arc edit.` } });
   return inspectNewArchiveEdit(root, index, path, gate, entry);
+}
+
+/** A case-only rename can leave the old index key addressing the new name on disk. */
+async function indexedCaseAlias(root: ProjectionRootState, index: ProjectionIndex, path: string, identity: ArchiveFileIdentity): Promise<string | null> {
+  const folded = path.toLowerCase();
+  for (const alias of Object.keys(index.entries)) {
+    if (alias === path || alias.toLowerCase() !== folded) continue;
+    const file = await readArchiveFile(root, alias);
+    if (file.kind === "file" && sameArchiveFile(file.stat, identity) && !await exactPathSpelling(root.checkout, alias)) return alias;
+  }
+  return null;
 }
 
 async function inspectNewArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
