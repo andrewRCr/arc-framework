@@ -19,15 +19,10 @@ import {
 } from "../e2e/store-default.js";
 import { makeMetaFixture } from "./meta-fixture.js";
 import { seedStore } from "./store/seed-store.js";
+import { integrateAttestedWorkUnit } from "./store/integrating-work-unit.js";
 import { seedWorkUnit, seededWorkUnitSubject } from "./store/seed-work-unit.js";
-import { setMetaCurrentWorkflow, setMetaState } from "../../src/lib/active/meta-reader.js";
-import { ArchiveQuarterSchema, SlugSchema, canonicalize } from "../../src/lib/kernel/index.js";
-import { selectStore } from "../../src/lib/store/create.js";
-import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
-import { OwnerIdentitySchema, recordReferences, type RecordReference } from "../../src/lib/store/identity.js";
-import type { StoreRecord } from "../../src/lib/store/read.js";
-import type { Store } from "../../src/lib/store/contract.js";
-import { IntegrationBoundaryLocusV2Schema } from "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 
 // Placeholders are path-shaped rather than angle-bracket tokens because normalized
 // envelopes are replayed through schema validation, and several normalized values land
@@ -212,39 +207,10 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
     throw new Error(`arc attest failed: ${attested.stderr || attested.stdout}`);
   }
   // Integrating, with the attested Candidate's publication pending at its idempotent push.
-  const store = selectStore(createDefaultStorePorts({ checkoutRoot: state.repo }), {});
-  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "heavy-widget" });
-  const meta = await readSeeded(store, recordReferences["work-item/meta"](owner));
-  const boundary = await readSeeded(store, recordReferences["review/integration-boundary"](owner));
-  const { candidateId, candidateSubjectDigest } = IntegrationBoundaryLocusV2Schema.parse(JSON.parse(boundary.content));
-  await seedStore(state.repo, SlugSchema.parse("test-user"), [
-    { reference: meta.reference, expected: meta.version, placement: { kind: "active" },
-      content: setMetaCurrentWorkflow(setMetaState(meta.content, "Integrating"), "integrate-work-unit") },
-    { reference: boundary.reference, expected: boundary.version, content: canonicalize(IntegrationBoundaryLocusV2Schema.parse({
-      schemaVersion: 2,
-      mode: "integration-boundary",
-      workUnit: "heavy-widget",
-      candidateId,
-      candidateSubjectDigest,
-      terminus: null,
-      deliveryReviewTermini: [],
-      locus: "publication-pending",
-      nextAction: {
-        kind: "continue-publication",
-        command: "git push -u origin feat/heavy-widget",
-        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
-      },
-      reservation: null,
-      readinessBinding: null,
-    })) },
-  ]);
-}
-
-/** Read one record the store holds, refusing when it is absent. */
-async function readSeeded(store: Store, reference: RecordReference): Promise<StoreRecord> {
-  const read = await store.read({ reference });
-  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-  return read.result;
+  await integrateAttestedWorkUnit(state.repo, "heavy-widget", {
+    identity: "test-user",
+    publicationPush: "git push -u origin feat/heavy-widget",
+  });
 }
 
 async function setupActiveResumeFixture(state: MutableFixture): Promise<string> {

@@ -662,8 +662,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               the seven goldens changes only where a traced store contract does, and the benchmark reusing the seeder
               clears a checkout's own override (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.a.3 Session initialization and recovery**
-            - `e2e/session-init.e2e.test.ts`.
+        - `[x]` **3.4.a.3 Session initialization and recovery**
+            - `e2e/session-init.e2e.test.ts` spawns through `e2e/store-default.ts` and seeds bound work units through
+              `seedWorkUnit`, its Candidate cases attesting through the verb and integrating through
+              `integrateAttestedWorkUnit`, which the envelope seeder now shares; the v3 Errand identity, the all-heads
+              original, and the omitted-blob husk keep the override in an in-repo block, and each changed expectation
+              traces to a store contract (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.a.4 The compaction anchor, remote boundaries, and orphan cleanup**
             - `e2e/precompact-locus-anchor.e2e.test.ts`, which leaves the ledger, `session-init-remote-boundary`, and

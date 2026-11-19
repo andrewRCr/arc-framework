@@ -590,6 +590,60 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       it. `spec-seam-locus.md` A20 makes absence an empty inventory for Errand terminal and merge admission alone, so
       the sweep keeps its "not complete declines" text; its remedy names no step a person can take, and it offers no
       cleanup until a claim exists. The goldens lock today's behavior; the routing is the Owner's.
+    - _Session initialization and recovery, as moved (Task 3.4.a.3):_ the file spawns through `e2e/store-default.ts`
+      over two templates, one initialized on the store and one under the override for an in-repo block
+      (`useInRepoStoreForEach`) holding the valid v3 Errand identity, the all-heads original, and the omitted-blob husk.
+      Store cases commit the initialized checkout, switch to the work unit's branch, and hold its meta and task list
+      bound there (`seedWorkUnit`). A case that edited the task list replaces its record at the version it read, and one
+      that read a verb's meta write reads the record (`readStoreRecord`, `helpers/store/seed-store.ts`). Candidate cases
+      attest through the verb, then `integrateAttestedWorkUnit` (`helpers/store/integrating-work-unit.ts`) moves the
+      stored meta to Integrating and, given the publication push, stores the version-two publication-pending boundary;
+      the envelope seeder now does the same through it. With the helpers' default removed the file passes as with it.
+    - _Expectations changed, each traced:_
+        - Work-unit paths name `.arc/active/current/` (§ 8.3).
+        - Reopen writes no Next Task on the store (`spec-seam-lifecycle.md`: "only its `Next Task` write retires"), so
+          the recovery assertion names the stored cursor's task instead. The fixture attests a real Candidate, since the
+          store takes Candidate authority from its record alone. Reopen keeps it and withdraws its boundary to review
+          (`storedReviewWithdrawal`, the arm § 2.2 names), so re-attesting the unchanged subject returns `unchanged` at
+          `candidate-review-pending` (`verbs/attest.ts`), where the in-repo fixture's unbacked ID had attestation mint
+          one; this traces to the implementation, as no spec states the result. The case now covers only that unchanged
+          resume: a subject changed after the reopen blocks attestation until full verification establishes a new
+          root. The title's stale authority is the retained Candidate, which routes neither the reopened session nor its
+          closeout past execution and verification.
+        - The three isolation cases read the materialization offer as `not-applicable`: the store's slot offers work
+          units from its records without reading the remote (`handlers/status/store-session.ts`), so the two titles
+          that named snapshot-only absence name the offer.
+        - The large Candidate's batched-read counts and the all-heads twin's mutation check count only commands in the
+          code repository. The store's own Git directory took 110 commands, the same at 40 and 400 Candidate files, and
+          reading the state version retains its manifest under `refs/arc/tmp/version` there (`saveCapturedManifest`);
+          the code-repository counts are unchanged. The twin drops the notes and Errand identity-ref reads, which the
+          in-repo original keeps.
+        - The unstamped husk's marker carries the seeded Shipped work unit's UID, as the envelope's husk does, so it
+          still reads `unknown-evidence` rather than `pre-store-husk`.
+        - Fixture-driven: the narration-inferred execution cases hold the task list their meta declares, and the
+          Candidate resume locus stages a code file where it staged the task-list file.
+    - _Open rows, settled:_ the large Candidate, the three isolation cases, and the unstamped husk are _Store_; the
+      all-heads generation splits, its original _In-repo_ beside a _Store_ twin.
+    - _Still open, the Owner's:_ the bound-delivery reopen, a delivery subject. On the store it refuses before any host
+      call or meta write, but with delivery's generic evidence remedy rather than its coherently-bound route: off the
+      branch the rename source refuses a base ref without its transition records (§ 4.3), so plan resolution is
+      indeterminate. The case now runs on the store asserting that remedy, whose wording traces to the inspection's
+      default (`lib/delivery/entry-inspection.ts`), not to a spec; the alternative keeps it _In-repo_ with the bound
+      route's assertion. Either way the bound route keeps its coverage in `unit/delivery/entry-inspection` and
+      `unit/handlers/lifecycle-verbs`, and nothing yet owns an end-to-end assertion of it on the store.
+    - _Possible defects, diagnosed (A12):_
+        - A store task cursor's `lineHint` counts lines of the stored content, while the projected file the load set
+          names carries its base stamp on line 1, so each hint points one line above its heading (projected line 20
+          against hint 19 in the seed case); the read method's stale-hint fallback finds the heading. The seed case's
+          unchanged hint locks that offset.
+        - One `status --session-init --write-compaction-seed` spawned 110 Git commands in the store's own Git directory,
+          54 of them a `for-each-ref` over all of `refs/arc/` and 52 a `cat-file --batch`, the same at 40 and 400
+          Candidate files; how they grow with the number of records was not measured. The large-Candidate case counts
+          only code-repository commands, so its count assertions no longer see them; its 29-second deadline still
+          bounds them in wall time.
+        - The delivery inspection drops the rename source's condition ("…/transitions is absent at refs/heads/main;
+          with state off the branch, rename transitions are not read from a branch's tree") and names an evidence
+          conflict, so § 4.3's refusal reaches a person without its cause.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
