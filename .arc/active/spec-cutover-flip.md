@@ -590,6 +590,34 @@ sweep's store-backed outcome § 9.8 runs is unreachable. From the flip the sweep
 branches, as A20's gates read it (A15). An acquisition that failed, one that missed entries, one carrying diagnostics,
 and a missing identity still decline the sweep, and the rest of § 12.4 holds.
 
+#### 4.12 The orphan sweep leaves out a branch no record links
+
+From the flip the orphan-branch sweep admits a gone-upstream branch the store links, whatever its name, by looking up
+its ref (`resolveStoreBranch`, `lib/session-init/store-branch-classification.ts`), and `spec-seam-locus.md` § 12.4
+declines the sweep on "A lookup that fails". The store refuses a lookup no record matches as `not-found`
+(`missingLookup`, `lib/store/ref/lookup.ts`), and `readOrphanStoreCandidates`
+(`lib/session-init/orphan-store-candidates.ts`) returns that refusal as the whole sweep's warning on both of its paths
+(`runOrphanBranchSweep`, `analyzeOrphanBranchesSnapshot`, `lib/session-init/orphan-branch-sweep.ts`). One gone-upstream
+branch no record links, such as one made outside ARC, so withholds every offer beside it, a Shipped work unit's teardown
+among them. From the flip the branch resolution reports a `not-found` lookup apart from a failure, and the sweep leaves
+that branch out and offers nothing for it, as it leaves out a branch a claim names; a record not yet pulled costs only
+a later offer. Any other refused lookup or read, and a branch whose link is conflicting or ambiguous, still declines the
+sweep, `storeLocusOwnsBranch` (`lib/session-init/locus-classification.ts`) still reads every result but a resolved one
+as no owner, and the rest of § 12.4 holds (A16).
+
+#### 4.13 A command runs unprojected when its Git directory is not writable
+
+From the flip a command's projection start (`startProjection`, `lib/store/projection/engine.ts`) takes its checkout's
+projection lock in a folder of that checkout's Git directory (`withProjectionLock`, `lib/store/projection/lock.ts`;
+`PROJECTION_STATE_FOLDER`, `lib/store/projection/location.ts`), which for a linked worktree lies under the shared
+common directory. A lock held, lost, or mismatched, or a Git directory gone, lets the command run with projection
+disabled, reporting the skip with its retry remedy (`recordProjectionLockSkip`, same file). A state folder or lock file
+the command cannot create is none of these, and the refusal ends the command: `arc status --session-init` in a linked
+worktree whose shared `.git` is read-only fails with `EACCES`, where `spec-remote-access-contract.md`'s criterion 2 has
+it return the same exact values as an unrestricted probe. From the flip a state folder or lock file whose creation is
+refused `EACCES`, `EPERM`, or `EROFS` is one more lock result the skip takes: the command runs with projection disabled
+and reports the skip, naming the Git directory it cannot write, with the same retry remedy (A17).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2228,6 +2256,12 @@ retirement (§ 12) for criterion 10, and the canaries' landings (§ 9.11) for cr
 14. **The orphan sweep runs for a person holding no claims.** On the store, session-init for an identity with no claim
     records offers the sweep's cleanup for a branch whose upstream is gone, while a failed claims read, a listing that
     missed entries, or one carrying diagnostics still declines the sweep (A15).
+15. **A branch no record links leaves the orphan sweep running.** On the store, a gone-upstream branch no record links
+    draws no offer and leaves the sweep's other offers in place, while any other refused lookup or read, or a
+    conflicting or ambiguous link, still declines the sweep (A16).
+16. **Session-init stays passive over read-only Git metadata.** On the store, `arc status --session-init` in a linked
+    worktree whose shared Git directory is read-only runs with projection disabled, reporting the skip, and returns the
+    same code-repository values as an unrestricted run (A17).
 
 ## Open Questions
 
@@ -2265,5 +2299,9 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
 - **A15** — 2026-11-19 — design: the orphan sweep, like the Errand gates, reads absent claims as an empty inventory.
   _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.7.
+- **A16** — 2026-11-19 — design: the orphan sweep leaves out a branch the store links to no record.
+  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R3. _Revalidated:_ pending → 3.7.
+- **A17** — 2026-11-19 — spec-depth: a command whose Git directory refuses the projection lock runs unprojected.
+  _Supersedes:_ none. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R4. _Revalidated:_ pending → 3.7.
 
 ---

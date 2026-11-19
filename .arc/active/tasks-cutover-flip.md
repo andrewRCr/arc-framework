@@ -644,6 +644,29 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   goldens that carried the decline (orient, active-resume, branch-gone, current-husk) each lose only its warning, their
   sweeps finding no orphan; the residue reason is unchanged.
 
+### `[ ]` **3.R3 The orphan sweep leaves out a branch no record links — § 4.12**
+
+- _Goal:_ On the store the orphan-branch sweep leaves out a gone-upstream branch no record links, offering nothing for
+  it, so that branch no longer withholds the offers beside it, while any other refused lookup or read and a conflicting
+  or ambiguous link still decline the sweep (A16).
+
+    - `integration/orphan-store-branches.test.ts`'s failed-lookup case expects the unlinked branch left out with a
+      linked Shipped branch beside it keeping its teardown, failing first, beside a case where a lookup refused other
+      than `not-found` still declines; then `resolveStoreBranch` (`lib/session-init/store-branch-classification.ts`)
+      reports a `not-found` lookup apart from a failure, and `readOrphanStoreCandidates` leaves that branch out on both
+      sweep paths.
+
+### `[ ]` **3.R4 A command runs unprojected when its Git directory is not writable — § 4.13**
+
+- _Goal:_ On the store a command whose projection state folder or lock file cannot be created, refused `EACCES`,
+  `EPERM`, or `EROFS`, runs with projection disabled and reports the skip naming the Git directory it cannot write, as
+  it does for a held or lost lock, so session-init stays passive over read-only Git metadata (A17).
+
+    - `integration/store/projection/engine.test.ts` expects, beside the held lock's skip, the skip for a state folder
+      and for a lock file whose creation is refused, failing first; then `withProjectionLock`
+      (`lib/store/projection/lock.ts`) returns that result and `recordProjectionLockSkip`
+      (`lib/store/projection/engine.ts`) names the Git directory.
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -1477,6 +1500,13 @@ landing after verification).
 - `[ ]` On the store, session-init for an identity with no claim records offers the orphan sweep's cleanup for a branch
   whose upstream is gone, while a failed claims read, a listing that missed entries, or one carrying diagnostics still
   declines the sweep (A15).
+
+- `[ ]` On the store, a gone-upstream branch no record links draws no orphan-sweep offer and leaves the sweep's other
+  offers in place, while any other refused lookup or read, or a conflicting or ambiguous link, still declines the sweep
+  (A16).
+
+- `[ ]` On the store, `arc status --session-init` in a linked worktree whose shared Git directory is read-only runs with
+  projection disabled, reporting the skip, and returns the same code-repository values as an unrestricted run (A17).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

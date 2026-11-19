@@ -506,7 +506,7 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       omitted-tree husk case _In-repo_, reading committed metas from remote branch trees and a completed meta from the
       base tree; the shallow and full clones _Store_, each clone joining the published store.
     - _`session-init-orphan-actions` (2):_ _Open_: the store arm reports no orphan for a branch no record names ("orphan
-      evidence missing"), while the spec keeps the sweep's store-backed outcome.
+      evidence missing"), while the spec keeps the sweep's store-backed outcome. Settled by A16.
     - _`session-init` (38):_ 21 _Ref_: the hooks path, the branch-shaped checkout, the unreadable seed, the eight option
       conflicts, the orphan with no plan pattern, the record-less remote residue, the deferred rename move, the four
       base-pull recommendations, and the two shared advisories. The valid v3 Errand identity _In-repo_, passing on the
@@ -519,9 +519,9 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
     - _Possible defects, diagnosed first (A12):_ under the ref default every command's projection takes a lock in the
       checkout's Git directory (`arc-projection/`), so a read-only common directory now fails `status --session-init`
       with `EACCES`, where it returned code facts; whether a read-only command may skip the projection there is an Owner
-      decision. A clone that has not joined reports "Project identity record is missing" per slot, a remedy that does
-      not name joining; the fixtures join, and the wording is a candidate capture. The designation refusal is the
-      undesignated-remote case above.
+      decision, settled by A17. A clone that has not joined reports "Project identity record is missing" per slot, a
+      remedy that does not name joining; the fixtures join, and the wording is a candidate capture. The designation
+      refusal is the undesignated-remote case above.
     - _The agenda entries, as moved (Task 3.4.a.1):_ each file spawns through `e2e/store-default.ts`, which re-exports
       the end-to-end helpers with each spawn taking the override from the test process rather than the helpers' default,
       so a case that calls `useInRepoStore` still runs in-repo; the switch is the import line. Work units seed through
@@ -1076,6 +1076,34 @@ pinned version is an inventory, not a failure, so § 4.11 extends it there while
 manager's triage set the fix's bounds, and the Owner approved it at Task 3.4.a.3's stop: only an authoritatively absent
 acquisition becomes empty, an incomplete one still declines, the failing test comes first, and the sweep's residue
 reason for a branch a completed work unit links changes only if the fix exposes it.
+
+## A16 — the orphan sweep's unlinked branches
+
+`spec-seam-locus.md` § 12.4 has the sweep from the flip admit "a gone-upstream branch the store links, whatever its
+name, through the store's lookup of its ref", and its next bullet ends: "A lookup that fails, or a claims acquisition
+that is not complete, declines the sweep, as an incomplete transient read does today." `readOrphanStoreCandidates`
+reads a `not-found` lookup as one that fails, and `integration/orphan-store-branches.test.ts`'s "declines the whole
+sweep on a failed branch lookup" locks that for a branch no record links. Task 3.4.a.4 found both
+`e2e/session-init-orphan-actions.e2e.test.ts` cases' sweeps declining with "No readable primary, claim, or lineage origin
+matches this lookup.", A15 having settled the claims half, and a probe in that integration harness, a Shipped work
+unit's linked branch beside an unlinked one, returned no offers and the warning on both paths. So a person with any
+gone-upstream branch ARC did not link, one made outside ARC or one a host deleted before the flip linked it, gets no
+cleanup offers at all. The refusal's `code`, `not-found` (`missingLookup`), separates it from a failed read. The Owner
+chose at that stop to leave such a branch out, rather than keep the decline and capture it: leaving it out offers
+nothing, the conservative direction, and a record not yet pulled costs only a later offer. `storeLocusOwnsBranch` acts
+only on a resolved branch, so a separate result leaves it as it is.
+
+## A17 — projection over read-only Git metadata
+
+`e2e/session-init-remote-boundary.e2e.test.ts`'s read-only case is `spec-remote-access-contract.md`'s criterion 2: "In a
+real linked worktree with readable network access and read-only shared `.git`, worktree sync, base distance,
+base-branch sync, and user-reference reconciliation return the same exact values as an unrestricted probe when their
+advertised objects are already local." On the ref default the command ends with `EACCES` creating the projection lock
+under the linked worktree's `arc-projection/`, inside the read-only common directory. With only that folder made
+writable, the restricted envelope matched the unrestricted one in every slot (Task 3.4.a.4's probe), so the lock alone
+blocks session-init there. `recordProjectionLockSkip` already runs a command with projection disabled for a held, lost,
+or mismatched lock or a missing Git directory, and no spec covers an unwritable one. The Owner chose at that stop to run
+unprojected and report the skip, keeping the contract's passivity, rather than refuse with a remedy.
 
 ## Kept sites
 
