@@ -2,7 +2,7 @@
  * The sweep: every command, under the projection lock and before write-back reads a file, takes over the aside copies and
  * staged files a writer that has exited left, so a stop mid-swap loses no save.
  */
-import { removeProjectionAsideFile, removeRecoveredAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
+import { removeProjectionAsideFile, removeRecoveredAsideFile, removeReturnedAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { readFile } from "node:fs/promises";
@@ -268,8 +268,8 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   if (isFile && await readStat(at.path) === null) {
     try {
       if (await retriedMoves(input, { checkout: input.checkout, path: named.path }).linkOnto(at.copy, at.path)) {
-        await removeRecoveredAsideFile(input.checkout, location, named.path, input.checkpoint);
-        return null;
+        const outcome = await removeReturnedAsideFile(input.checkout, location, named.path, input.checkpoint);
+        return outcome === "retained" ? await retainedCopy(input.checkout, named.path, location, "withheld") : null;
       }
     } catch (error) {
       if (error instanceof ArchiveDestinationBlocked) return destinationBlockedCopy(named.path, location, error.mark);

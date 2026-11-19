@@ -1,9 +1,9 @@
 /** Remove spent aside files and their empty scaffolding without following links or deleting recovery directories. */
-import { lstatSync, rmdirSync } from "node:fs";
+import { lstatSync, rmSync, rmdirSync, type BigIntStats } from "node:fs";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { ASIDE_FILES_ROOT, parseAsideFile } from "./aside.js";
-import { requireArchiveDestination } from "./archive-file.js";
+import { requireArchiveDestination, sameArchiveFile } from "./archive-file.js";
 
 /** The filesystem calls pruning makes, replaceable so a refusal can be exercised. */
 export interface AsideScaffoldFs {
@@ -15,18 +15,52 @@ const nativeScaffoldFs: AsideScaffoldFs = { rmdir: path => { rmdirSync(path); },
 
 /** Delete one spent file; only a recognized staged or aside name permits pruning its parent scaffolding. */
 export async function removeProjectionAsideFile(checkout: string, location: string, checkpoint?: () => Promise<void>, pruneParents = true,
-  fs: AsideScaffoldFs = nativeScaffoldFs, recoveredPath?: string): Promise<void> {
-  const absolute = isAbsolute(location) ? location : join(checkout, location);
+  fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
   await checkpoint?.();
-  if (recoveredPath !== undefined) requireArchiveDestination(checkout, recoveredPath);
+  await removeAsideFile(checkout, location, checkpoint, pruneParents, fs);
+}
+
+async function removeAsideFile(checkout: string, location: string, checkpoint?: () => Promise<void>, pruneParents = true,
+  fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
+  const absolute = isAbsolute(location) ? location : join(checkout, location);
   await rm(absolute, { force: true });
+  if (pruneParents) await pruneRemovedAsideFile(checkout, absolute, checkpoint, fs);
+}
+
+async function pruneRemovedAsideFile(checkout: string, absolute: string, checkpoint?: () => Promise<void>,
+  fs: AsideScaffoldFs = nativeScaffoldFs): Promise<void> {
   const local = relative(checkout, absolute).split(sep).join("/");
-  if (pruneParents && parseAsideFile(local) !== undefined) await pruneAsideScaffold(checkout, local.slice(0, local.lastIndexOf("/")), checkpoint, fs);
+  if (parseAsideFile(local) !== undefined) await pruneAsideScaffold(checkout, local.slice(0, local.lastIndexOf("/")), checkpoint, fs);
 }
 
 /** Discard a recovered copy only while its archive destination still belongs to the checkout. */
 export async function removeRecoveredAsideFile(checkout: string, location: string, path: string, checkpoint?: () => Promise<void>): Promise<void> {
-  await removeProjectionAsideFile(checkout, location, checkpoint, true, nativeScaffoldFs, path);
+  await checkpoint?.();
+  requireArchiveDestination(checkout, path);
+  await removeAsideFile(checkout, location, checkpoint);
+}
+
+/** Discard a returned alias only while both names still identify the same regular file at unlink. */
+export async function removeReturnedAsideFile(checkout: string, location: string, path: string, checkpoint?: () => Promise<void>):
+Promise<"removed" | "retained" | "missing"> {
+  await checkpoint?.();
+  requireArchiveDestination(checkout, path);
+  const absolute = join(checkout, location);
+  const aside = aliasStat(absolute);
+  if (aside === undefined) return "missing";
+  const target = aliasStat(join(checkout, path));
+  if (!aside.isFile() || !target?.isFile() || !sameArchiveFile(aside, target)) return "retained";
+  rmSync(absolute, { force: true });
+  await pruneRemovedAsideFile(checkout, absolute, checkpoint);
+  return "removed";
+}
+
+function aliasStat(path: string): BigIntStats | undefined {
+  try { return lstatSync(path, { bigint: true, throwIfNoEntry: false }); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return undefined;
+    throw error;
+  }
 }
 
 /**

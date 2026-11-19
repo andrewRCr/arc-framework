@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, readArchiveBytes, requireArchiveDestination } from "./archive-file.js";
 
 /** The racy reference: a stamp file at the aside folder's top, rewritten after each index write. */
 export const PROJECTION_REFERENCE = `${PROJECTION_ASIDE_ROOT}/reference`;
@@ -86,21 +87,44 @@ export type ChangeVerdict =
   | { readonly status: "hashed-clean"; readonly stat: FileStat }
   | { readonly status: "changed"; readonly stat: FileStat; readonly blob: string };
 
+/** Observe an ordinary path directly, or revalidate an archive at each stat and byte read. */
+export interface ProjectionFileReader {
+  readonly stat: (absolute: string) => FileStat | null | Promise<FileStat | null>;
+  readonly read: (absolute: string) => Buffer | Promise<Buffer>;
+}
+
+const ordinaryFileReader: ProjectionFileReader = { stat: readStat, read: fsReadFile };
+
+/** Bind absolute-path I/O to the known checkout and repository-relative path. */
+export function projectionFileReader(checkout: string, path: string): ProjectionFileReader {
+  if (!path.startsWith(".arc/completed/")) return ordinaryFileReader;
+  return {
+    stat: absolute => {
+      requireArchiveDestination(checkout, path, true);
+      try { return readStatSync(absolute); }
+      catch (error) { throw new ArchiveDestinationBlocked(archivePermissionMark(path, error)); }
+    },
+    read: () => readArchiveBytes(checkout, path),
+  };
+}
+
 /**
  * Check one file against its entry.
  * @param check - The file's absolute path and what it is compared against.
  * @param readFile - Reads the bytes a hash takes.
+ * @param statFile - Observes the path, including any caller's authority check.
  * @returns What the check found.
  */
 export async function checkChange(
-  check: ChangeCheck, readFile: (path: string) => Promise<Uint8Array> = fsReadFile,
+  check: ChangeCheck, readFile: (path: string) => Uint8Array | Promise<Uint8Array> = fsReadFile,
+  statFile: (path: string) => FileStat | null | Promise<FileStat | null> = readStat,
 ): Promise<ChangeVerdict> {
-  let stat = check.observed === undefined ? await readStat(check.path) : check.observed;
+  let stat = check.observed === undefined ? await statFile(check.path) : check.observed;
   // A symbolic link, or anything else not a file, is never followed or read: it reads as a deleted file.
   if (stat?.type !== "file") return { status: "absent" };
   if (isStatClean(stat, check)) return { status: "clean", stat };
   if (check.observed !== undefined) {
-    stat = await readStat(check.path);
+    stat = await statFile(check.path);
     if (stat?.type !== "file") return { status: "absent" };
   }
   const blob = gitBlobId(await readFile(check.path), check.format);

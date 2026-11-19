@@ -15,8 +15,9 @@ import { ownershipHandoffMark } from "./ownership-hold.js";
 import { stageRecordFile } from "./staging.js";
 import { retriedMoves } from "./aside-moves.js";
 import { markStoreRefusal } from "./refusal-mark.js";
-import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
+import { ensureLayFolder } from "./lay-folder.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { unopenedArchiveEditHold } from "./archive-inspection.js";
 
 /** A desired record and its new basis, kept separate from the leaving entry's rendering and copies. */
 export interface OwnershipInstallation {
@@ -38,16 +39,11 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   if (previous.handoff !== undefined || previous.copies.length > 0 || await readStat(join(root.checkout, path)) !== null) {
     return withProjectionEntry(input.index, path, { ...previous, pending: true });
   }
-  await root.context.checkpoint?.();
-  const foreign = archiveDestinationRefusal(root.checkout, path);
-  if (foreign !== null) {
-    root.context.report?.({ path, copy: null, mark: foreign });
-    return withProjectionEntry(input.index, path, { ...previous, pending: true, refused: foreign });
-  }
-  const occupying = await ensureLayFolder(root.checkout, path);
-  if (occupying !== null) {
-    root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
-    return withProjectionEntry(input.index, path, { ...previous, pending: true });
+  const folder = await ensureLayFolder(root.checkout, path, root.context.checkpoint);
+  if (folder !== null) {
+    root.context.report?.({ path, copy: null, mark: folder.mark });
+    return withProjectionEntry(input.index, path, { ...previous, pending: true,
+      ...(folder.kind === "archive" ? { refused: unopenedArchiveEditHold(previous) ?? folder.mark } : {}) });
   }
   const opened = input.arriving.opened === true || (previous.arrivingOpened !== undefined && sameReference(previous.arrivingOpened, record.reference));
   const changed = input.arriving.changed || (previous.arrivingChanged !== undefined && sameReference(previous.arrivingChanged, record.reference));
@@ -85,7 +81,7 @@ async function linkOwnershipArrival(root: OwnershipRoot, index: ProjectionIndex,
   } catch (error) {
     if (!(error instanceof ArchiveDestinationBlocked)) throw error;
     root.context.report?.({ path, copy: null, mark: error.mark });
-    leaving = { ...leaving, refused: error.mark };
+    leaving = { ...leaving, refused: unopenedArchiveEditHold(previous) ?? error.mark };
   }
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, leaving), checkpoint: root.context.checkpoint });

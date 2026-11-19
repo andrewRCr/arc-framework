@@ -292,7 +292,11 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
   against the same start budget and 728.941 ms against the macOS one-file fan-out budget of 600 ms.
   Both macOS paired differences passed at −0.565 ms for no-change save and +1.434 ms for opened start.
   Matched startup diagnostic job `135670676836` found no consistent startup difference between
-  `53a349d7cb` and `b4fd993f92`. Neither absolute condition has qualifying evidence yet.
+  `53a349d7cb` and `b4fd993f92`. On Candidate `3fe50a7495`, job `135765656506` of hosted run
+  `44582071212` measured 74.742 and 77.623 ms for startup, 833.143 ms for one-file fan-out,
+  and 4,106.013 ms for full materialization against the macOS limits of 45, 600, and 4,000 ms.
+  The macOS paired differences of +0.507 ms for no-change save and +5.485 ms for opened start passed.
+  The three absolute conditions still need qualifying evidence.
 
 ---
 

@@ -1,12 +1,13 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
-import { readReference } from "./change-detection.js";
+import { projectionFileReader, readReference } from "./change-detection.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { unopenedArchiveEditHold } from "./archive-inspection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./submission.js";
 import type { ProjectionLocalCaptureResult } from "./local-capture.js";
 import { markStoreRefusal } from "./refusal-mark.js";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
 import { HAND_EDIT_VERBS } from "../links.js";
@@ -14,7 +15,7 @@ import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { ProjectionLocation } from "./location.js";
-import { gateRead, type ReadGateVerdict } from "./read-gate.js";
+import { gateRead, SYSTEM_READ_GATE, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult, TakeInResolution } from "./take-in-port.js";
 import type { WriteInput, WriteResult } from "../write.js";
@@ -253,14 +254,25 @@ export async function captureWriteBackFile(context: WriteBackContext, request: T
   const linked = boundary(logical);
   if (linked !== null) return { kind: "held", result: { answer: "no-edit", entry: request.entry },
     diagnostic: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
+  try { return await readWriteBackFile(context, request, logical); }
+  catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "held", result: { answer: "refused", mark: error.mark,
+      entry: { ...request.entry, pending: true, refused: unopenedArchiveEditHold(request.entry) ?? error.mark } } };
+    throw error;
+  }
+}
+
+async function readWriteBackFile(context: WriteBackContext, request: TakeInRequest, logical: string): Promise<ReadEdit> {
   const path = join(request.checkout, logical);
-  const gate = await gateRead({ path, markdown: request.path.endsWith(".md") && request.adopting !== true });
+  const reader = projectionFileReader(request.checkout, logical);
+  const gate = await gateRead({ path, markdown: request.path.endsWith(".md") && request.adopting !== true },
+    { ...SYSTEM_READ_GATE, stat: absolute => Promise.resolve(reader.stat(absolute)) });
   if (gate.kind !== "read") {
     return { kind: "held", result: { answer: gate.kind === "pending" ? "pending" : "no-edit",
       entry: gate.kind === "pending" ? { ...request.entry, pending: true } : request.entry },
     ...readGateDiagnostic(gate) };
   }
-  const bytes = await readFile(path);
+  const bytes = await reader.read(path);
   const blob = gitBlobId(bytes, context.format);
   const text = bytes.toString("utf8");
   const parsed = request.path.endsWith(".md") ? parseStampedFile(text) : null;

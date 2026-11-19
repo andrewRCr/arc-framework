@@ -61,11 +61,12 @@ export function archiveDestinationRefusal(checkout: string, path: string, allowL
   let folder = checkout;
   try {
     for (const [index, component] of parts.entries()) {
+      const leaf = index === parts.length - 1;
+      if (leaf && allowLeafLink) return null;
       folder = join(folder, component);
       const stat = lstatSync(folder, { throwIfNoEntry: false });
       if (stat === undefined) return null;
-      const leaf = index === parts.length - 1;
-      if (stat.isSymbolicLink()) return leaf && allowLeafLink ? null : linkedArchivePath(path, parts.slice(0, index + 1).join("/"));
+      if (stat.isSymbolicLink()) return linkedArchivePath(path, parts.slice(0, index + 1).join("/"));
       if (leaf || !stat.isDirectory()) return null;
       if (lstatSync(join(folder, ".git"), { throwIfNoEntry: false }) !== undefined) return { ...foreignArchivePath(path), remedy: {
         text: "Restore access and ownership of the archive destination in the outer checkout, then retry.",
@@ -84,6 +85,24 @@ export class ArchiveDestinationBlocked extends Error {
 export function requireArchiveDestination(checkout: string, path: string, allowLeafLink = false): void {
   const mark = archiveDestinationRefusal(checkout, path, allowLeafLink);
   if (mark !== null) throw new ArchiveDestinationBlocked(mark);
+}
+
+/** Read bytes through a regular file handle after freshly checking every archive ancestor. */
+export function readArchiveBytes(checkout: string, path: string): Buffer {
+  requireArchiveDestination(checkout, path);
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(join(checkout, path), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    if (!fstatSync(descriptor).isFile()) throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
+    return readFileSync(descriptor);
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) throw error;
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") throw new ArchiveDestinationBlocked(archiveFileChangeMark(path));
+    throw new ArchiveDestinationBlocked(archivePermissionMark(path, error, "read"));
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
 }
 
 /** Confirm both the staged inode and its bytes before clearing a sync restoration's opening hold. */

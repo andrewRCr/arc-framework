@@ -44,6 +44,7 @@ import { saveProjectionChanges } from "../../../../src/lib/store/projection/save
 import { endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { evidenceHeldProjectionMark, withheldProjectionMark } from "../../../../src/lib/store/projection/materialization-file.js";
+import { ensureLayFolder } from "../../../../src/lib/store/projection/lay-folder.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 
@@ -78,6 +79,19 @@ async function materialize(target: Awaited<ReturnType<typeof fixture>>, options:
     finally { root.checkpoint = null; }
   });
 }
+
+it("defers archive folder creation when the lease checkpoint reports a different checkout boundary", async () => {
+  const checkout = await mkdtemp(join(tmpdir(), "arc-lay-folder-"));
+  directories.push(checkout);
+  const archive = ".arc/completed/2026-q4";
+  const path = `${archive}/work-unit/notes.md`;
+  await mkdir(join(checkout, archive), { recursive: true });
+  const result = await ensureLayFolder(checkout, path, async () => {
+    await mkdir(join(checkout, archive, ".git"));
+  });
+  expect(result).toMatchObject({ kind: "archive", mark: { reason: expect.stringContaining("another checkout") } });
+  await expect(access(join(checkout, archive, "work-unit"))).rejects.toMatchObject({ code: "ENOENT" });
+});
 
 it("keeps an incomplete rebuild retryable while installing unrelated records", async () => {
   const target = await fixture();

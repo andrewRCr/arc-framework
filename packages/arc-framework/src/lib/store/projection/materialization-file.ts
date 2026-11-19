@@ -1,6 +1,5 @@
 /** Prepare one materialized file, trusting existing index evidence or a checked rebuild baseline. */
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { StoreRecord } from "../read.js";
@@ -9,8 +8,8 @@ import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { RecordRenderer, RenderedRecord } from "./record-render.js";
 import { stageRenderedRecordFile } from "./staging.js";
-import { gateRead } from "./read-gate.js";
-import { readStat } from "./change-detection.js";
+import { gateRead, SYSTEM_READ_GATE } from "./read-gate.js";
+import { projectionFileReader } from "./change-detection.js";
 import { parseStampedFile, renderStampedFile } from "./stamp.js";
 import { gitBlobId, storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { projectionLayMode, isOwnSaveLanding } from "./lay-mode.js";
@@ -20,7 +19,9 @@ import type { SwapFile } from "./swap.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
-import { ensureLayFolder, occupiedFolderMark } from "./lay-folder.js";
+import { ensureLayFolder } from "./lay-folder.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { unopenedArchiveEditHold } from "./archive-inspection.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
@@ -40,10 +41,8 @@ export interface MaterializationFileInput {
   readonly takeIn?: TakeInPort;
 }
 /**
- * A withheld or pending entry, or one guarded replacement ready for the batch. `unresolved` is set only where a regular
- * file occupies the path's folder, the unlaid case the arrivals check cannot see at a bound path. A caller keeps its
- * state version while this flag is set or `projectionArrivalsInstalled` finds an arrival uninstalled; a pending entry
- * is retried by the next pass either way.
+ * A withheld or pending entry, or one guarded replacement ready for the batch. `unresolved` records a blocked lay
+ * that the arrivals check cannot see at a bound path. The caller keeps its state version until retry.
  */
 export interface MaterializationFileResult { readonly index: ProjectionIndex; readonly file?: SwapFile; readonly unresolved?: true }
 
@@ -58,7 +57,7 @@ export function projectionEntryForRecord(record: StoreRecord, path: string, form
 
 /** Stage only proved bytes, and hand a concurrent edit to the live writable store before replacement. */
 export async function prepareMaterializationFile(input: MaterializationFileInput): Promise<MaterializationFileResult> {
-  const { root, path, record, renderer } = input;
+  const { root, path, record } = input;
   const prior = input.index.entries[path];
   if (prior?.withheld) return withhold(input, prior);
   let entry = prior?.kind === "record" ? prior : projectionEntryForRecord(record, path, root.context.format);
@@ -70,6 +69,16 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   if (input.opened === true) entry = { ...entry, opened: true };
   // A path at or below a walked link waits for the link's own report and remedy; its file lives elsewhere.
   if (input.blocked) return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }) };
+  try { return await prepareFileContents(input, entry); }
+  catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return blockedMaterialization(input, entry, error.mark);
+    throw error;
+  }
+}
+
+async function prepareFileContents(input: MaterializationFileInput, entry: RecordEntry): Promise<MaterializationFileResult> {
+  const { root, path, record, renderer } = input;
+  const prior = input.index.entries[path];
   if (input.rebuilding) entry = await rebuildBasis(input, entry);
   const rendered = input.rendered === undefined ? await renderer({ path, record, content: record.content, stamped: path.endsWith(".md") })
     : { status: "ok" as const, result: input.rendered };
@@ -89,10 +98,10 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
 /** Stage the rendering and guard its replacement, leaving the path pending where a regular file occupies its folder. */
 async function layFile(input: MaterializationFileInput, entry: RecordEntry, rendered: RenderedRecord): Promise<MaterializationFileResult> {
   const { root, path, record, renderer } = input;
-  await root.context.checkpoint?.();
-  const occupying = await ensureLayFolder(root.checkout, path);
-  if (occupying !== null) {
-    root.context.report?.({ path, copy: null, mark: occupiedFolderMark(root.checkout, path, occupying) });
+  const folder = await ensureLayFolder(root.checkout, path, root.context.checkpoint);
+  if (folder?.kind === "archive") return blockedMaterialization(input, entry, folder.mark);
+  if (folder !== null) {
+    root.context.report?.({ path, copy: null, mark: folder.mark });
     return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
   }
   const staged = await stageRenderedRecordFile({ checkout: root.checkout, path, record, replacing: entry.base.blob,
@@ -104,17 +113,26 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint,
     takeIn: input.takeIn ?? root.takeIn, renderer });
   reportGuardHold(root.context.report, path, null, guarded);
-  return { index: withProjectionEntry(input.index, path, guarded.entry), ...(guarded.kind === "replace" ? { file: { path, replace: guarded } } : {}) };
+  const index = withProjectionEntry(input.index, path, guarded.entry);
+  if (guarded.kind === "replace") return { index, file: { path, replace: guarded } };
+  return guarded.cause === "foreign-checkout" ? { index, unresolved: true } : { index };
+}
+
+function blockedMaterialization(input: MaterializationFileInput, entry: RecordEntry, mark: RefusedMark): MaterializationFileResult {
+  input.root.context.report?.({ path: input.path, copy: null, mark });
+  const held = { ...entry, pending: true, refused: unopenedArchiveEditHold(entry) ?? mark };
+  return { index: withProjectionEntry(input.index, input.path, held), unresolved: true };
 }
 
 async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry): Promise<RecordEntry> {
   const absolute = join(input.root.checkout, input.path);
-  const gate = await gateRead({ path: absolute, markdown: false });
+  const reader = projectionFileReader(input.root.checkout, input.path);
+  const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: path => Promise.resolve(reader.stat(path)) });
   // Nothing to keep, or a non-file, which the guard holds pending with its own remedy as it does under an index.
   if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "not-a-file") return entry;
-  if (gate.kind !== "read") return { ...entry, stat: await readStat(absolute), changed: true, withheld: true };
-  const bytes = await readFile(absolute);
-  const after = await readStat(absolute);
+  if (gate.kind !== "read") return { ...entry, stat: await reader.stat(absolute), changed: true, withheld: true };
+  const bytes = await reader.read(absolute);
+  const after = await reader.stat(absolute);
   const text = bytes.toString("utf8"), markdown = input.path.endsWith(".md");
   const stamp = markdown ? parseStampedFile(text).stamp : null;
   const canMatchEmpty = !markdown && input.path.startsWith(".arc/completed/");

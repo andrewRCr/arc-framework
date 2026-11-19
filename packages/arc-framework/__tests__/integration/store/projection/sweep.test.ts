@@ -1,6 +1,6 @@
 /** The sweep over a seeded projection: the copies and staged files a stopped or exited writer left, taken over. */
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
-import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, copyFile, link, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
@@ -21,6 +21,7 @@ import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-po
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { createProjectionLinkBoundary } from "../../../../src/lib/store/projection/discovery-links.js";
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
+import { commitReturnedCopies } from "../../../../src/lib/store/projection/returned-copies.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -82,6 +83,38 @@ async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]):
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   return read.index;
 }
+
+it.each([true, false])("retains returned archive bytes when a replacement wins before cleanup (indexed=%s)", async indexed => {
+  const left = await leftBy("afterMove", { path: ".arc/completed/one/cohort-one.md" });
+  const index = await indexOnDisk(left.location);
+  const [copy] = (await entryOnDisk(left.location, left.path)).copies;
+  if (copy === undefined) throw new Error("Expected a displaced archive copy");
+  const aside = join(left.checkout, copy.name);
+  await chmod(aside, 0o644);
+  await writeFile(aside, "Displaced archive edit.\n");
+  let returned = false, replaced = false;
+  const checkpoint = async () => {
+    if (!returned || replaced) return;
+    replaced = true;
+    await rm(left.file);
+    await writeFile(left.file, "A newer edit.\n");
+  };
+  if (indexed) {
+    await link(aside, left.file);
+    const committed = await commitReturnedCopies({ checkout: left.checkout, location: left.location, index,
+      returned: [{ path: left.path, copy: copy.name }], onPublished: () => { returned = true; }, checkpoint });
+    expect(committed.entries[left.path]).toMatchObject({ copies: [copy] });
+  } else {
+    const swept = await left.sweep(unreached, { index: null, fs: { link: async (from, to) => {
+      await link(from, to);
+      returned = true;
+    } }, checkpoint });
+    expect(swept.withheld).toEqual([copy.name]);
+  }
+  expect(replaced).toBe(true);
+  expect(await readFile(aside, "utf8")).toBe("Displaced archive edit.\n");
+  expect(await readFile(left.file, "utf8")).toBe("A newer edit.\n");
+});
 
 it.each([false, true])("preserves a displaced opened archive file across nested-checkout settlement (edited=%s)", async edited => {
   const path = ".arc/completed/one/cohort-one.md";

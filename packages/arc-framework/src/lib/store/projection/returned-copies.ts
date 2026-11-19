@@ -1,12 +1,11 @@
 /** Publish a returned file's rendering provenance before unlinking its aside alias. */
 import { withProjectionEntry } from "./index-memory.js";
 import { lstat } from "node:fs/promises";
-import { join } from "node:path";
 import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
-import { readStat } from "./change-detection.js";
-import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
+import { finalizeAsideCopy, type AsideCopyDeletion } from "./stampless.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { removeReturnedAsideFile } from "./aside-cleanup.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
@@ -40,14 +39,12 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   return index === published ? published : commitProjectionIndex({ ...input, index });
 }
 
-async function cleanReturnedAlias(input: Parameters<typeof deleteAsideCopy>[0]): Promise<RecordEntry> {
-  const { checkout, path, copy, entry } = input;
-  if (archiveDestinationRefusal(checkout, path) !== null) return entry;
-  const at = join(checkout, copy);
-  if (await readStat(at) === null) return finalizeAsideCopy(input);
-  if (!await sameProjectionFile(at, join(checkout, path))) return entry;
-  try { return await deleteAsideCopy(input); }
-  catch (error) {
+async function cleanReturnedAlias(input: AsideCopyDeletion): Promise<RecordEntry> {
+  const { checkout, path, copy, entry, checkpoint } = input;
+  try {
+    const outcome = await removeReturnedAsideFile(checkout, copy, path, checkpoint);
+    return outcome === "retained" ? entry : await finalizeAsideCopy(input);
+  } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return entry;
     throw error;
   }

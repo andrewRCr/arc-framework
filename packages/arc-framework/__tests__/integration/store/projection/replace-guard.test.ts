@@ -2,8 +2,8 @@
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
 
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
-import { mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
@@ -74,6 +74,21 @@ function landing(store: ReturnType<typeof createReferenceFixture>["store"], expe
 const deferring: TakeInPort = async (request) => ({ answer: "deferred", entry: request.entry });
 
 describe("the replace guard", () => {
+  it("leaves a replacement pending when archive authority changes before its next check", async () => {
+    const h = await projected(undefined, ".arc/completed/2026-q4/one/cohort-one.md");
+    await chmod(h.file, 0o644);
+    await h.save("# Cohort: one\n\nA correction taken in before the next check.\n");
+    const takeIn = landing(h.fixture.store, () => h.entry.base.version);
+    const result = await h.guard(async request => {
+      const landed = await takeIn(request);
+      await mkdir(join(dirname(h.file), ".git"));
+      return landed;
+    });
+    expect(result).toMatchObject({ kind: "unreplaced", cause: "foreign-checkout",
+      entry: { pending: true, refused: { reason: expect.stringContaining("another checkout") } } });
+    expect(await readFile(h.file, "utf8")).toContain("A correction taken in before the next check.");
+  });
+
   it("leaves a directory and its contents in place with a repair route, then permits replacement", async () => {
     const h = await projected();
     await rm(h.file);
