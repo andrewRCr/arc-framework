@@ -38,6 +38,7 @@ import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from 
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
 import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
+import { unopenedArchiveMark } from "./archive-inspection.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** Inputs observed by the lease-owning caller. */
@@ -135,11 +136,15 @@ async function installMaterializedFiles(input: ProjectionMaterializationInput, i
   if (files.length === 0) return index;
   const { root } = input;
   const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
-    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks });
+    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks,
+    ...(input.takeIn === undefined ? {} : { rebuildHold: (path, entry) => path.startsWith(".arc/completed/") && entry.opened !== true
+      ? unopenedArchiveMark(root.checkout, path, true) : null }) });
   root.context.recordBatch?.(swapped);
   if (input.takeIn !== undefined) {
     for (const path of swapped.unreplaced) {
-      if (swapped.index.entries[path]?.refused == null) await reportArchivedProjectionFile(root, index, path);
+      const mark = swapped.index.entries[path]?.refused;
+      if (mark == null) await reportArchivedProjectionFile(root, index, path);
+      else root.context.report?.({ path, copy: null, mark });
     }
   }
   return swapped.index;

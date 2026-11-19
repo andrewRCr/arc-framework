@@ -27,7 +27,7 @@ import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
-import { archiveCopyDestinationRefusal } from "./archive-file.js";
+import { archiveDestinationRefusal } from "./archive-file.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
 export interface SweepInput extends SwapMoves {
@@ -261,12 +261,12 @@ async function sweepWithoutIndex(
 
 /** Link a copy back to its absent path, or retain it when its destination or contents prevent recovery. */
 async function returnWithoutIndex(input: SweepInput, location: string, named: AsideFile): Promise<LeftCopy | null> {
-  const refusal = await archiveDestinationHold(input.checkout, named.path, location);
+  const refusal = archiveDestinationHold(input.checkout, named.path, location);
   if (refusal !== null) return refusal;
   const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
   const isFile = (await readStat(at.copy))?.type === "file";
   if (isFile && await readStat(at.path) === null) {
-    const current = await archiveDestinationHold(input.checkout, named.path, location);
+    const current = archiveDestinationHold(input.checkout, named.path, location);
     if (current !== null) return current;
     if (await retriedMoves(input).linkOnto(at.copy, at.path)) {
       await input.checkpoint?.();
@@ -280,7 +280,7 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
 /** Delete a symbolic link or a file equal to its base; retain directories and edits with their contents. */
 async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile,
   reason: "unrecorded" | "withheld" = "unrecorded"): Promise<LeftCopy | null> {
-  const refusal = await archiveDestinationHold(input.checkout, named.path, location);
+  const refusal = archiveDestinationHold(input.checkout, named.path, location);
   if (refusal !== null) return refusal;
   const copy = join(input.checkout, location);
   const stat = await readStat(copy);
@@ -289,14 +289,14 @@ async function deleteIfUnedited(input: SweepInput, location: string, named: Asid
   const unedited = stat.type !== "file"
     || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
   if (!unedited) return retainedCopy(input.checkout, named.path, location, reason);
-  const current = await archiveDestinationHold(input.checkout, named.path, location);
+  const current = archiveDestinationHold(input.checkout, named.path, location);
   if (current !== null) return current;
   await removeProjectionAsideFile(input.checkout, copy, input.checkpoint);
   return null;
 }
 
-async function archiveDestinationHold(checkout: string, path: string, copy: string): Promise<LeftCopy | null> {
-  const mark = await archiveCopyDestinationRefusal(checkout, path);
+function archiveDestinationHold(checkout: string, path: string, copy: string): LeftCopy | null {
+  const mark = archiveDestinationRefusal(checkout, path);
   return mark === null ? null : { path, copy, reason: "destination-blocked", remedy: mark.remedy };
 }
 
@@ -318,14 +318,14 @@ async function deleteStagedFiles(
  */
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
-  const blocked = await blockedAsideDestination({ checkout, path }, entry);
+  const blocked = blockedAsideDestination({ checkout, path }, entry);
   if (blocked !== null) return blocked;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
   if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   const holding = await readPathHolding(at.path, input.format);
-  const current = await blockedAsideDestination({ checkout, path }, entry);
+  const current = blockedAsideDestination({ checkout, path }, entry);
   if (current !== null) return current;
   if (stat.type === "symlink") {
     const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });

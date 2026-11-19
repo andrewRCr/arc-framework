@@ -1,6 +1,6 @@
 /** The swap over a seeded projection: the old file moved aside, the staged file linked in, between two index writes. */
-import { link, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { link, mkdir, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   deferring, landingCopies, prepareSwap, SWAP_PATH, type PrepareSwapOptions,
@@ -204,6 +204,41 @@ describe("the swap", () => {
     if (copy === undefined) throw new Error("expected the aside copy's record");
     expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring }))
       .toEqual({ kind: "no-edit", entry: written });
+  });
+
+  it.each(["afterMove", "beforeRebuildLink"] as const)("checks archive ancestors before installation at %s", async point => {
+    const h = await prepared(".arc/completed/one/cohort-one.md");
+    const { checkout } = h.seeded, folder = dirname(h.file), alternate = join(checkout, "alternate");
+    const original = await readFile(h.file, "utf8");
+    await mkdir(alternate);
+    if (point === "beforeRebuildLink") await rm(h.file);
+    let installs = 0;
+    const swapped = await h.swap({ hooks: { [point]: async () => {
+      await rename(folder, `${folder}-held`);
+      await symlink(alternate, folder, "junction");
+    } }, fs: { link: async () => { installs += 1; throw new Error("Blocked archive destinations must not reach the link"); } } });
+    expect(installs).toBe(0);
+    expect(swapped.unreplaced).toEqual([h.path]);
+    expect(swapped.index.entries[h.path]).toMatchObject({ pending: true,
+      refused: { reason: expect.stringContaining("symbolic link") } });
+    if (point === "afterMove") {
+      const [copy] = swapped.copies;
+      if (copy === undefined) throw new Error("Expected the retained archive copy");
+      expect(await readFile(join(checkout, copy.copy), "utf8")).toBe(original);
+    } else expect(swapped.copies).toEqual([]);
+  });
+
+  it("can replace an archive leaf link without reading its target", async () => {
+    const h = await prepared(".arc/completed/one/cohort-one.md");
+    const sentinel = join(h.seeded.checkout, "leaf-target.md");
+    await writeFile(sentinel, "Leave this file alone.\n");
+    const swapped = await h.swap({ hooks: { afterRecheck: async () => {
+      await rm(h.file);
+      await symlink(sentinel, h.file, "file");
+    } } });
+    expect(swapped.unreplaced).toEqual([]);
+    expect(parseStampedFile(await readFile(h.file, "utf8")).content).toBe(h.record.content);
+    expect(await readFile(sentinel, "utf8")).toBe("Leave this file alone.\n");
   });
 });
 

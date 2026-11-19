@@ -13,6 +13,7 @@ import { walkProjectionAsideFolder } from "./aside-discovery.js";
 import type { ProjectionWalkFs } from "./engine-walk.js";
 import { readStat } from "./change-detection.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
+import { archiveDestinationRefusal } from "./archive-file.js";
 
 interface UnrecordedProjectionCopyInput {
   readonly checkout: string;
@@ -105,6 +106,8 @@ async function checkUnauthorizedCopy(input: ProjectionRemovalAsidesInput, path: 
 async function checkRemovalCopy(input: ProjectionRemovalObservationInput, path: string, entry: RecordEntry,
   copy: AsideCopyRecord, destinationLink: string | null): Promise<{ entry: RecordEntry; verdict: ProjectionRemovalCheck }> {
   const { root } = input;
+  const blocked = destinationLink === null ? archiveDestinationRefusal(root.checkout, path) : null;
+  if (blocked !== null) return { entry, verdict: markedRemovalRefusal(root.checkout, copy.name, blocked, input.disposition) };
   const refusal: { verdict: ProjectionRemovalCheck } = { verdict: { kind: "passes" } };
   const checked = await checkAsideCopy({ checkout: root.checkout, path, entry, copy,
     ...(destinationLink === null ? {} : { holding: { kind: "not-a-file" as const } }),

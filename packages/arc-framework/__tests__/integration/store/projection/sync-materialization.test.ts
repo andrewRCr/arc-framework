@@ -268,6 +268,10 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   const expected = renderStampedFile({ content, stamp: entry.base.blob });
   binding.ports = ports => ({ ...ports, hooks: { afterRecheck: async path => {
     if (edited || path !== h.path) return;
+    if (existence === "absent") {
+      // The first index publication already carries the requirement if sync stops before settling its link.
+      expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
+    }
     edited = true;
     await writeFile(file, expected);
   } } });
@@ -278,6 +282,16 @@ it.each(["empty", "absent"] as const)("reports an unopened archive edit arriving
   expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({
     version: h.record.version, content: h.record.content,
   });
+  if (existence === "absent") {
+    binding.ports = null;
+    expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("without opening") } });
+    expect((await projectionCommand(h, ["save"])).diagnostics).toContain(`arc edit ${h.path}`);
+    expect(await readFile(file, "utf8")).toBe(expected);
+    expect(await h.stored()).toMatchObject({ version: h.record.version, content: h.record.content });
+    expect((await projectionCommand(h, ["edit", file])).result).toMatchObject({ status: "ok" });
+    expect((await projectionCommand(h, ["save"])).result).toMatchObject({ status: "ok" });
+    expect((await h.stored()).content).toBe(content);
+  }
 });
 
 it("requires an explicit opening after sync encounters an unsettled late archive edit", async () => {

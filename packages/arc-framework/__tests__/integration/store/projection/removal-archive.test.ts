@@ -1,6 +1,6 @@
 /** Removal feasibility requires explicit archive correction and keeps unreadable evidence distinct from refused edits. */
-import { readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
@@ -11,8 +11,39 @@ import { formatConflictToken } from "../../../../src/lib/status/conflict-token.j
 import { HistoryRefSchema } from "../../../../src/lib/store/index.js";
 import { expandStoredPath } from "../../../../src/lib/store/stored-path.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
+import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
+import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
+import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 
 afterEach(() => { beginProjectionCommand(); });
+
+it.each([false, true])("reports the same nested archive destination blocker before and during retirement (edited=%s)", async edited => {
+  const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
+  const { location, index } = await h.disk();
+  const entry = index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Expected an archived file entry");
+  const original = await readFile(file, "utf8");
+  const name = nameAsideFile({ path: h.path, base: entry.base.blob, writer: await createProjectionEnginePorts(h.checkout).writer(), role: "aside" });
+  const copy = join(h.checkout, name), bytes = edited ? `${original}\nAn edit in the displaced copy.\n` : original;
+  await mkdir(dirname(copy), { recursive: true });
+  await rename(file, copy);
+  if (edited) { await chmod(copy, 0o644); await writeFile(copy, bytes); }
+  await mkdir(join(dirname(file), ".git"));
+  await writeProjectionIndex(location, withProjectionEntry(index, h.path, { ...entry, pending: true,
+    copies: [{ name, moving: gitBlobId(original, "sha1"), linked: null, landed: null, writeBackSent: false,
+      rendering: { markers: entry.markers, notices: entry.notices } }] }));
+
+  const checked = await h.check();
+  expect(checked).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
+    text: expect.stringContaining("belongs to another checkout"),
+  } });
+  if (checked.kind !== "refused" || checked.reason !== "persist-would-refuse") throw new Error("Expected the feasibility refusal");
+  expect(await h.retire("persist")).toEqual({ kind: "refused", remedy: checked.remedy });
+  expect(await readFile(copy, "utf8")).toBe(bytes);
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+}, 30_000);
 
 it("holds a withheld archive edit after index loss until deletion, reopening and reapplication", async () => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);

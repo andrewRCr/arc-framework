@@ -285,8 +285,10 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 
 - _Success criteria:_ Each reference met both paired timing limits. The current base uses the pre-flip
   Git-history errata convention. The independent verification fix check found no actionable defects.
-  Candidate review reopened readiness over the inherited macOS absolute start budget. The standard and expanded
-  fixtures took 98.486 and 71.340 ms against 45 ms.
+  Candidate review reopened readiness over the inherited macOS absolute start budget. On Candidate `afc1e91acc`,
+  hosted run `44534924205` passed 40 jobs and met both macOS paired limits. In timing job `135598338902`,
+  standard and expanded starts took 71.054 and 65.214 ms against 45 ms. The absolute budget still needs
+  qualifying evidence on the corrected head.
 
 ---
 

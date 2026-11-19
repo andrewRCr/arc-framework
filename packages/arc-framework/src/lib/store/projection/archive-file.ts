@@ -1,5 +1,5 @@
 /** Observe and change an archived file through its checkout-local path and file identity. */
-import { constants, type BigIntStats } from "node:fs";
+import { constants, lstatSync, type BigIntStats } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { canonicalCheckout } from "./checkout-identity.js";
@@ -45,19 +45,33 @@ function foreignArchivePath(path: string): RefusedMark {
 export async function archiveLinkRefusal(root: { checkout: string; ports: Pick<ArchiveRoot["ports"], "linkFs"> }, path: string): Promise<RefusedMark | null> {
   try {
     const link = (await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs))(path);
-    return link === null ? null : { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
+    return link === null ? null : linkedArchivePath(path, link);
   } catch (error) { return archivePermissionMark(path, error); }
 }
 
-/** An aside copy must stay in the outer checkout while its archive destination is foreign or linked. */
-export async function archiveCopyDestinationRefusal(checkout: string, path: string): Promise<RefusedMark | null> {
+function linkedArchivePath(path: string, link: string): RefusedMark {
+  return { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
+}
+
+/** Walk archive ancestors once, without yielding between link and checkout-marker observations. */
+export function archiveDestinationRefusal(checkout: string, path: string, allowLeafLink = false): RefusedMark | null {
   if (!path.startsWith(".arc/completed/")) return null;
-  const link = await archiveLinkRefusal({ checkout, ports: {} }, path);
-  if (link !== null) return link;
-  const mark = await nestedArchiveCheckoutRefusal(checkout, path);
-  return mark === null ? null : { ...mark, remedy: {
-    text: "Restore access and ownership of the archive destination in the outer checkout, then retry to recover the aside copy.",
-  } };
+  const parts = path.split("/");
+  let folder = checkout;
+  try {
+    for (const [index, component] of parts.entries()) {
+      folder = join(folder, component);
+      const stat = lstatSync(folder, { throwIfNoEntry: false });
+      if (stat === undefined) return null;
+      const leaf = index === parts.length - 1;
+      if (stat.isSymbolicLink()) return leaf && allowLeafLink ? null : linkedArchivePath(path, parts.slice(0, index + 1).join("/"));
+      if (leaf || !stat.isDirectory()) return null;
+      if (lstatSync(join(folder, ".git"), { throwIfNoEntry: false }) !== undefined) return { ...foreignArchivePath(path), remedy: {
+        text: "Restore access and ownership of the archive destination in the outer checkout, then retry.",
+      } };
+    }
+    return null;
+  } catch (error) { return archivePermissionMark(path, error); }
 }
 
 /** Observe the current regular file without treating a linked destination as archive content. */
