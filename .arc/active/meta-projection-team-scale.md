@@ -11,13 +11,14 @@
 - **Design:** `spec-projection-team-scale.md`
 - **Task List:** `tasks-projection-team-scale.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:ee58bfbe450544275cb7a548c8691bb1bde66db9363e3058f594a0886d4ca21d`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 3.5 — No archived edit lost silently (Phase 3 complete)
-- **Next Task:** Task 4.1 — Complete verification (line ~281 in `tasks-projection-team-scale.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 4.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 in a fresh session — load and follow `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

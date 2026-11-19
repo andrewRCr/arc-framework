@@ -278,61 +278,67 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ All 21 selected merge checks passed, including 460 affected store suites. Full hosted CI
+  run `44450640142` passed 40 jobs on `4b723680ae`, including Windows and macOS.
+
+- _Success criteria:_ 14 met. Each reference met both paired timing limits. The current base uses the pre-flip
+  Git-history errata convention. The final independent fix check found no actionable defects.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` On each named reference of `spec-projection-worktrees.md` § 15.3, interleaved no-change `arc save` runs with
+- `[x]` On each named reference of `spec-projection-worktrees.md` § 15.3, interleaved no-change `arc save` runs with
   nothing opened over its 800- and 60,320-file fixtures show a median paired difference within 5 ms on Linux and 10 ms
   on Windows and macOS, and over the 800-file fixture a no-change start with one archived file opened shows a median
   paired increment within that reference's start margin, every raw sample and paired difference kept
 
-- `[ ]` An archived work unit's owner opens one of its files, its meta among them, with `arc edit`, edits it across two
+- `[x]` An archived work unit's owner opens one of its files, its meta among them, with `arc edit`, edits it across two
   ordinary commands that each take the edit in with the file still writable, and `arc save` lands it, lays it
   read-only, and names it in its report; a new file in an archived work unit's folder and an archived Errand's new
   description, each opened, adopt at the next command and are re-locked at `arc save`; anyone corrects an archived
   cohort document; and an archived Errand's owner corrects its description
 
-- `[ ]` Each staging of spec § 2.3 lays an archived file whose rights allow the edit read-only where its target
+- `[x]` Each staging of spec § 2.3 lays an archived file whose rights allow the edit read-only where its target
   worktree's entry is not opened, and each but the spawn and the rebuild lays it writable where that entry is opened,
   its copy in every other worktree read-only; inside `arc save`, its own worktree's landing lays the file read-only and
   its fan-out lays it writable where another worktree has it opened
 
-- `[ ]` `arc edit` refuses another person's archived work naming its owner, that file laid read-only with its notice
+- `[x]` `arc edit` refuses another person's archived work naming its owner, that file laid read-only with its notice
   naming the owner; it refuses a path outside `completed/`, a path in another checkout, a path with no file, and any
   other new path under `completed/`, each naming its remedy, and refuses over an archive partition that does not hash to
   its name, naming a retry that then succeeds
 
-- `[ ]` A forced edit is taken in, and its file laid read-only, when a refresh touches it; is named by `arc sync`'s
+- `[x]` A forced edit is taken in, and its file laid read-only, when a refresh touches it; is named by `arc sync`'s
   report; and makes the removal check answer `persist-would-refuse` and the persist and release steps refuse, naming
   `arc edit` then `arc save` run in that checkout, the removal run from another checkout among them, which then
   succeed; a new archived file made without `arc edit` is named and refuses the same way; and an opened file's edit
   persists at removal
 
-- `[ ]` Each of spec § 9.2's perturbation tests asserts its state, then succeeds after its repair
+- `[x]` Each of spec § 9.2's perturbation tests asserts its state, then succeeds after its repair
 
-- `[ ]` With an unmarked archive partition whose bytes do not hash to its name, the removal check answers
+- `[x]` With an unmarked archive partition whose bytes do not hash to its name, the removal check answers
   `unobservable` and the persist and release steps refuse, each naming `arc sync` run from that checkout, and after it
   the check answers `removable` and the steps succeed
 
-- `[ ]` `arc save --resolve` resolves a whole-record conflict shown by its notice line in an archived file not opened,
+- `[x]` `arc save --resolve` resolves a whole-record conflict shown by its notice line in an archived file not opened,
   and conflict markers in such a file resolve once `arc edit` opens it and they are edited out; after either, the
   removal check that held the file answers `removable`
 
-- `[ ]` An index from the previous format version is rebuilt at the next start, and the fan-out and the end skip that
+- `[x]` An index from the previous format version is rebuilt at the next start, and the fan-out and the end skip that
   worktree until then
 
-- `[ ]` ADR-035 carries item 6's dated amendment
+- `[x]` ADR-035 carries item 6's dated amendment
 
-- `[ ]` Over the in-repo implementation archived files lay as today, and `arc edit` refuses `unsupported`
+- `[x]` Over the in-repo implementation archived files lay as today, and `arc edit` refuses `unsupported`
 
-- `[ ]` Where the base this change lands on carries the flip's errata convention naming no `arc edit`,
+- `[x]` Where the base this change lands on carries the flip's errata convention naming no `arc edit`,
   `archive-work-unit.md`'s post-`Shipped` errata convention, in the package source and its `.arc/` copy, runs `arc edit`
   on the archived meta, the edit to its Release Notes Entry, then `arc save`, and makes a substantial change a new work
   unit linked to its origin
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

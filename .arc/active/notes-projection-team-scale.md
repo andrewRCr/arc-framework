@@ -7,6 +7,18 @@
 - [Test migrations](#test-migrations)
 - [The scale benchmark's fixtures](#the-scale-benchmarks-fixtures)
 - [The scale benchmark's results](#the-scale-benchmarks-results)
+- [The ownership-handoff corrective](#the-ownership-handoff-corrective)
+- [The archive correction scenario](#the-archive-correction-scenario)
+- [Sync's archive report](#syncs-archive-report)
+- [Archived removal checks](#archived-removal-checks)
+- [Archived persistence](#archived-persistence)
+- [The archive retirement scenario](#the-archive-retirement-scenario)
+- [Recovery when an opened path is empty or disappears](#recovery-when-an-opened-path-is-empty-or-disappears)
+- [Archived cohort inventory recovery](#archived-cohort-inventory-recovery)
+- [Archive boundary corrections](#archive-boundary-corrections)
+- [Save after a retirement refusal](#save-after-a-retirement-refusal)
+- [Independent verification repairs](#independent-verification-repairs)
+- [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
 - [Workflows that write under `completed/`](#workflows-that-write-under-completed)
 - [The flip's errata convention](#the-flips-errata-convention)
 - [Model evidence](#model-evidence)
@@ -345,8 +357,8 @@ this functional scenario sets no timing acceptance bound. Its corrected form pas
 unopened, settled record's forced edit by the racy rule, excluding deleted files, and resolves an unindexed file through
 the existing adoption readers without submitting it. `observeProjectionProtection` retains unavailable ownership
 evidence separately from denied rights; `readProjectionProtection` keeps its existing mark-returning interface.
-`reportArchivedProjectionFile` uses sync's existing stats, and `reportUnknownArchivedFiles` uses its existing root walk.
-Rebuilds keep their withholding rules; usable-index restoration retains the link report and excludes side files.
+`reportArchivedProjectionFile` uses sync's stats, and `reportRemainingArchivedFiles` uses its root walk. Rebuilds
+keep their withholding rules. Usable-index restoration retains the link report and excludes side files.
 
 The native `sync-archive-report.test.ts` cases drive Commander inputs through projection hooks and the sync restoration
 seam, checking report text, preserved file bytes, and unchanged backend records. The initial forced-edit and new-file
@@ -456,6 +468,203 @@ Disabling only archive report emission and skipping opened archive persistence f
 `ccda3f68791c4f02b4156aa6dba91fbe`. Both reconstructions are restored without a production change. The actual scenario
 and the real CLI retirement E2E file pass all seven cases in `18e2c642770b42a491b793ba3b18585b`. The complete native
 projection integration directory then passes 96 files and 973 cases in `d5531db7ef4a479fb0ef5a44155290f5`.
+
+## Recovery when an opened path is empty or disappears
+
+`arc save` re-locks an empty text companion once the final check proves that its bytes match the store. A settled
+empty Markdown file still needs `arc sync` to restore its stamp. If the path disappears while `arc edit` opens it or
+`arc save` re-locks it, the command retains the opening and reports how to retry.
+
+Run `6ece99626ba540c19ad072efac5a6b96` reproduced four failures through the registered edit and save commands.
+Run `16d6506bb9754307bb3a07edb6af4068` passed 97 cases across five suites. The empty-file cases cover a settled
+stored companion and a late edit to empty after the read-only lay. The disappearance cases check the held opening
+and a successful retry once the file returns.
+
+## Archived cohort inventory recovery
+
+The forced merge gate on `bb97c31187` failed three archive-adoption cases. Run `3a850efbe6aa495fb5bce5dbc4bc410a`
+reproduced all three in isolation. The test expected removal to pass as soon as the archive inventory became readable.
+A readable inventory identifies the unindexed correction, which must still be opened and saved before removal.
+
+The corrected test checks both holds, proves the store retains its original bytes until repair, and verifies the saved
+correction and a passing removal check. All ten suite cases pass in run `586d27e69cd74b7fa54ad8433adee275`.
+
+## Archive boundary corrections
+
+`5397c3c40b` checks which checkout owns the requested path, validates links before archive pickup, and changes a mode
+through a handle that identifies the observed file. Save keeps a same-byte replacement opened if it is still writable.
+Retirement refuses a late forced edit at capture and preserves the correction for explicit opening and save. Sync
+names a walked, indexed edit even when its record is missing from the restoration inventory.
+
+The save tests now check stored bytes, the retained recording and file mode at the three interruption points. The
+conflict scenario drives the competing correction from a second linked checkout. Linux run
+`a73c114469c14d2f852f63bd2afb4b5c` passes 1,143 cases over 100 files. Windows run `0a09b98c01d3418dbc78234e3138ae9b`
+fails on a write-mode assertion that expected POSIX bits. The corrected five-case rerun
+`9b57424123de40e4892b510f70fa3924` passes on native Windows.
+
+Linux reference timing run `c53d15a89f94479b92e6cae64e7a1e78` measures +0.085 ms for archive save growth against
+5 ms and +2.492 ms for an opened start against 5.36 ms. The run retains all eleven raw sample pairs for both cases.
+
+## Save after a retirement refusal
+
+`df1406656e` preserves a retirement hold across plain `arc save`. The local correction stays available, and the store
+keeps its original bytes and version until the user runs `arc edit` and `arc save`. Both the persist and release cases
+reproduced the premature write in `44feb84fe73d4c0da0921690a9ffddf5`. The corrected Linux run
+`55e95af7922440e4968a2c9fdc0df6ad` passes 75 cases across five suites.
+
+Native Windows run `4de738f04e0749f8b7b91460947ea3c5` passes both regression cases and the randomized save-loss case
+that timed out in hosted run `44311348841` at `e3737c13db`. The focused case accounted for all 100 writes.
+
+## Independent verification repairs
+
+The criteria review found that a nested checkout could replace a file after `arc edit` recorded the opening. The
+permission change now rechecks the Git checkout and matches the file's device and inode against the file inspected
+before recording intent. A refusal for a changed boundary clears the intent this invocation created. Absent files
+retain their restore-and-retry remedy. The refusal tests exercise real sync restoration and relocation into an
+established archive folder. The archive notice names the writable step and the user's editor.
+
+An opened archive save now records the accepted version and retains the submitted bytes before reading it back.
+After interruption, both an ordinary command and a directly retried `arc save` recover the accepted recording.
+The tests count real store submissions across each retry and check the file's mode and index before and after
+recovery. A rebuilt index compares settled empty archive text with its store base and closes matching files.
+
+The retirement repro also found a changed entry in a partition already open for settlement. Spec § 8 permits
+finishing those entries, and the terms exclude them from forced edits. Both persist and release follow that rule.
+
+Linux run `f4607f08c0144e5297b83d3593adc300` passed 993 tests across 96 projection suites. Linux run
+`61d9c2a71e0e4fe0beac6f60468ed198` passed all 34 opening cases, including clearing the new intent after a refused
+replacement. Native Windows runs `4f470fcb70b24bc68b273ba21b195b69` and `2435c2ccd13a4c02ae64489adb3c58a2` passed
+11 focused correction cases and eight save-recovery cases, respectively.
+
+### Verification evidence on `db32bc500f`
+
+The local merge gate passed all 21 selected checks, including six shards covering 460 affected store suites. Hosted
+run `44426111760` passed with 40 successful jobs, including the Windows and macOS portability pair. Its exact head
+was `db32bc500f7b62d9dc6cc04db673662530c975d6`. Run `44429659065` repeats the timing jobs on that same head.
+
+| Reference and run                        | Save paired difference (ms) | Opened-start paired difference (ms) |
+| ---------------------------------------- | --------------------------- | ----------------------------------- |
+| Linux `6967a303e1db487d9f5740a5f5e4f2e6` | −0.256                      | +2.486                              |
+| Windows job `135231637805`               | +1.457                      | +7.832                              |
+| macOS job `135231637719`                 | −26.992                     | +4.194                              |
+| macOS job `135243866909` (repeat)        | −36.635                     | −18.061                             |
+| Windows job `135243866755` (repeat)      | +0.594                      | +8.954                              |
+
+The Linux run's immutable snapshot `af7e74865f9fd21201dcf4ffeea13257c9c8a9e8` has the same tree as the verified head.
+The hosted runs retain `projection-timing.json` in their platform timing artifacts. Each measurement retains 11
+alternating pairs and both sets of raw samples. Linux and Windows meet their paired bounds. Both macOS save results
+fall outside the 10 ms band. The macOS absolute standard and expanded start medians also exceeded their separate
+45 ms bound on both runs, at 120.402/86.627 ms and 99.664/89.296 ms. The hosts logged one-minute load averages of
+22.28 and 17.25 on three CPUs before the tests. The cause remains unresolved.
+
+Probes after the independent fix check reproduced a second store submission after two interruptions. Run
+`4300dd79da96479cb669a2c9089bc9e0` stops at the first checkpoint after native store acceptance. Run
+`61ff7a1fb4d74032844d041410a3f734` stops after the accepted recording is on disk for an existing text companion.
+Both the direct save retry and the ordinary command followed by save resubmit the text companion. These results
+leave Success Criterion 6 open.
+
+### Store-backed save recovery on `5173717612`
+
+The checkout retains the indexed archive save's input and identity before submission. The reference store commits
+that identity along with the exact record. A retry that lost the response reads that receipt and recovers the
+accepted version without a second submission. The text retry checks the accepted input's content. Linux runs
+`d75af2cc610b44ccbbfe5d1d66d1cb9d` and `99b714b1aefc4d5f8636a6cfa8c6d8d1` cover the restart, unaccepted, already
+stored, and unavailable history cases. Native Windows run `719988a71033471285b542ded91f7deb` passed seven recovery
+and re-lock cases. The local merge gate passed 21 checks, including 460 affected store suites.
+
+Hosted run `44435229834` reached 39 successful jobs. Windows shard 7 timed out in the archive-conflict notice
+repair test in both jobs `135262649757` and `135275282619`, leaving the full run failed. Native Windows run
+`42048998607d4287a5ef46fdb6b9a814` passed the isolated test in 24.06 seconds against its 30-second limit. The two
+hosted attempts retain the timeout evidence.
+
+Linux timing run `7eb0563582e549cba1e1b30e0c9c49df` used immutable snapshot `4e3fecb91a21e0218b4519a15abe6db1a1ae4b4c`,
+whose tree matches `517371761211fe76f6efeae168a0badb733fca6f`. Hosted run `44435229834` used the same head. All three
+references meet both paired bounds. The Linux run and hosted platform timing artifacts retain all 11 pairs and
+both sets of raw samples for each comparison.
+
+| Reference and job      | Save paired difference (ms) | Opened-start paired difference (ms) |
+| ---------------------- | --------------------------- | ----------------------------------- |
+| Linux                  | −0.030                      | +2.698                              |
+| Windows `135262649297` | +2.214                      | +2.697                              |
+| macOS `135262649511`   | −0.312                      | +1.457                              |
+
+Probes after the next independent check reproduced two remaining issues. In run `e3e7382e6bcb4255bace5e77091d680e`,
+a retry overwrites a text edit made after read-back installed a newer version. In run `9e4208c0304d4d268f6fd767df8b770c`,
+a retry after interrupted adoption sends the newly accepted file a second time and can overwrite a newer intervening
+store write. These findings held verification on `5173717612`.
+
+### Late edits, archive adoption, and the Windows notice test
+
+`d794ddd6fa` binds the accepted text to the local file observation made before read-back. Recovery uses that input
+while the original file still holds it. A text edit after the newer rendering is installed remains writable with an
+ambiguity report if the known bases disagree. Opened archive adoptions retain their input before submission and
+recover the exact store receipt before attaching to the newly created record. The tests cover direct save and
+ordinary command recovery with an intervening store write. Linux run `82f2579257414fef84ee165ec1efafa5` passed 112
+save, re-lock, and archive retirement tests. The full projection run `9e28cba381fa4d1092d3b5ecaffa2acc` passed all
+1,006 tests across 96 suites.
+
+The Windows archive-conflict notice case now gets 60 seconds. It still creates and synchronizes a whole-record
+conflict with real repositories and verifies the notice, explicit resolution, and retirement. A native Windows
+profile in run `b33ef3d8f50a4072909bd6968e30f4e3` took 24.95 seconds. Setup and the initial check took 5.4 seconds,
+creating the conflict took 13.1, and status, resolution and retirement checks took 6.4. The notice case took
+29.34 seconds alongside the other focused native Windows cases in `6f2a6642d6104e72936b191fd22b5672`.
+
+### Verification evidence on `e8b422a177`
+
+The local merge gate passed all 21 selected checks, including six shards covering 460 affected store suites. Hosted
+run `44444958603` passed with 40 successful jobs on `e8b422a1771800153806520d896ffae991db0288`. Its Windows shard 7, job
+`135295165509`, passed all 85 files, including both archive-conflict cases. The Linux runner tested the same tree in
+`af8adbfb3d884061ba9ed4e3d415b7b6` (`a54f35d6247c48990e6ac01b26308c78d5c7e3d4`). The Linux output and the hosted
+platform timing artifacts retain all 11 raw pairs for both comparisons.
+
+| Reference and job      | Save paired difference (ms) | Opened-start paired difference (ms) |
+| ---------------------- | --------------------------- | ----------------------------------- |
+| Linux                  | −0.897                      | +1.992                              |
+| Windows `135295165457` | +3.052                      | +5.670                              |
+| macOS `135295165589`   | −0.311                      | +1.272                              |
+
+All three references meet both paired limits. The macOS one- and ten-file fan-out medians were 802.816 and
+2971.207 ms, respectively, above the separate inherited bounds of 600 and 2800 ms.
+
+The focused independent check verified the text recovery repair and the narrower Windows test budget. Probes
+reproduced three remaining cases on this head. Run `f74c955e80454bb2b2212d82777eb78b` resubmits an accepted
+attachment on an ordinary command retry. Run `f43ca4e0adee41bca31e76a12b805f70` resubmits a late edit taken in by
+an adoption's read-back guard. Run `a9e0efdd68534925b806ec51e24ed501` shows retirement reporting a refusal it
+observed before it recovered an accepted adoption. These findings held verification on `e8b422a177`.
+
+## Interrupted adoption and retirement recovery
+
+An ordinary command that attaches an opened archive path to an existing record now records the input before
+sending it. On retry, the accepted receipt restores the observation for adoption, including a late edit taken in
+by the read-back guard. The recovery can install a newer peer version without resending the accepted edit.
+The read-only retirement check holds while the submission is pending. Persist and release recover it under
+the checkout lease and use the result of that recovery.
+
+Commit `4b723680ae` adds the three corrections. Linux run `78edf7fe5596482f8ba50e36284d2b33` passed all 1,010
+projection tests in 96 files. Windows run `bed810f382f3498eba7cb5f1a09c06d9` passed the two adoption retry cases
+and the recovery regression through both retirement entry points. The independent check of
+`e8b422a177..4b723680ae` found no actionable defects in the three repairs.
+
+The merge gate on `4b723680ae` passed all 21 selected checks. Its six store shards covered the 460 suites
+reached by the changes (`dc476cd1a8dd48db8944680a38aaadbb`). Full hosted run `44450640142` passed with 40 successful
+jobs, including the Windows and macOS portability pair. Windows job `135313765214` passed all 85 files, including
+the archive-conflict notice case in 23.116 seconds.
+
+### Paired timings on `4b723680ae`
+
+Linux run `ca461f04a7154e839bcf13604dce34a8` used `m5-air-ac`. Its snapshot
+`35af5c0dbfeb0e1b9724b92824bb023dbab413ea` has the same tree as `4b723680ae`. The Windows and macOS jobs in hosted
+run `44450640142` used that commit. All three raw records retain 11 alternating pairs and their individual samples
+for each comparison.
+
+| Reference and job      | Save paired difference (ms) | Opened-start paired increment (ms) |
+| ---------------------- | --------------------------- | ---------------------------------- |
+| Linux                  | +0.575                      | +2.182                             |
+| Windows `135313765057` | −1.660                      | +3.633                             |
+| macOS `135313765033`   | +2.626                      | +8.194                             |
+
+All three references meet the criterion's paired limits. The macOS absolute start medians were 98.486 and 71.340 ms
+for the standard and expanded fixtures, respectively, above the separate inherited budget of 45 ms.
 
 ## Workflows that write under `completed/`
 
