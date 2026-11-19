@@ -23,7 +23,9 @@ it.each([false, true])("reads a script's literal selection command with changed=
 });
 
 it("returns the in-repo script capability's empty selection without a subprocess", async () => {
-  expect(await readProjectedSelection("/unused", { changed: true }, { run: forbiddenRun })).toEqual({ status: "ok", paths: [] });
+  const createStore = () => inRepoStore(createDefaultStorePorts({ checkoutRoot: "/unused" }));
+  expect(await readProjectedSelection("/unused", { changed: true }, { createStore, run: forbiddenRun }))
+    .toEqual({ status: "ok", paths: [] });
 });
 
 it("returns empty after a disabled start without recomposing or launching a subprocess", async () => {

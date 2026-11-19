@@ -6,6 +6,10 @@ import { success } from "../helpers/store/suite-tools.js";
 import { MAX_FILE_SIZE } from "../../src/lib/git/user-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { mkdir, writeFile } from "node:fs/promises";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes save and publication run only on the pre-flip build, which opens the in-repo store.
+useInRepoStoreForEach();
 
 async function fixture() {
   const h = await syncFixture();

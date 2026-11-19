@@ -24,6 +24,7 @@ import {
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 import { resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
+import { inRepoStoreAt } from "../../helpers/store/in-repo-ports.js";
 
 type ResponseFn = (args: string[]) => ExecResult | Promise<ExecResult>;
 
@@ -234,16 +235,17 @@ describe("formatForeignWriteAdvisories", () => {
 });
 
 describe("resolveOriginatingMetaPath", () => {
+  // These fixtures hold flat active metas, the in-repo implementation's; the store's resolver is `wu-resolution-store`'s.
   it("returns the active WU meta path when exactly one active meta resolves", async () => {
     const root = await createActiveFixture("self");
 
-    await expect(resolveOriginatingMetaPath(root)).resolves.toBe(".arc/active/meta-self.md");
+    await expect(resolveOriginatingMetaPath(root, inRepoStoreAt(root))).resolves.toBe(".arc/active/meta-self.md");
   });
 
   it("returns undefined when no active WU resolves", async () => {
     const root = await createActiveFixture();
 
-    await expect(resolveOriginatingMetaPath(root)).resolves.toBeUndefined();
+    await expect(resolveOriginatingMetaPath(root, inRepoStoreAt(root))).resolves.toBeUndefined();
   });
 });
 

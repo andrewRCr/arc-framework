@@ -25,10 +25,14 @@ import type {
 import type { AuditEntry } from "../../src/lib/release/schema.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
-import { createStore } from "../../src/lib/store/create.js";
-import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
+import { inRepoStoreAt } from "../helpers/store/in-repo-ports.js";
+import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
-const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
+// The notes and worktree matrix is the in-repo implementation's; over the store `arc sync` takes the store leg
+// (`sync-store-leg`). The cases that end before the two arms part, or read the worktree before they do, pass a
+// checked store.
+const inRepoStore = inRepoStoreAt("/project");
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
@@ -362,7 +366,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("uses the explicit materializing reader without an automatic-sync policy", async () => {
     setWorktree("clean");
 
-    await handleSync({ dryRun: true }, undefined, makeTestContext(), inRepoStore);
+    await handleSync({ dryRun: true }, undefined, makeTestContext(), createLifecycleHarness().store);
 
     expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
@@ -371,7 +375,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("stops before sync mutation when worktree materialization fails", async () => {
     mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
 
-    await expect(handleSync({}, undefined, makeTestContext(), inRepoStore)).rejects.toThrow("cannot lock tracking ref");
+    await expect(handleSync({}, undefined, makeTestContext(), createLifecycleHarness().store)).rejects.toThrow("cannot lock tracking ref");
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -1459,7 +1463,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), createLifecycleHarness().store);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1483,7 +1487,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync({}, undefined, makeTestContext(), inRepoStore);
+      await handleSync({}, undefined, makeTestContext(), createLifecycleHarness().store);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1505,7 +1509,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), inRepoStore);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }), createLifecycleHarness().store);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1523,6 +1527,8 @@ describe("error-path envelope coverage", () => {
   });
 
   it("store-imported + --json → refuses before any leg, carrying the refusal in the envelope", async () => {
+    // The seal refuses only on a pre-flip build, whose default store is the in-repo implementation.
+    useInRepoStore();
     mockStoreImported.mockResolvedValueOnce(true);
 
     const cap = makeCapturingSyncOutput();
@@ -1550,7 +1556,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync({}, undefined, makeTestContext(), inRepoStore);
+      await handleSync({}, undefined, makeTestContext(), createLifecycleHarness().store);
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1717,7 +1723,7 @@ describe("audit-log integration", () => {
       }),
     );
 
-    await handleSync({}, undefined, makeTestContext(), inRepoStore);
+    await handleSync({}, undefined, makeTestContext(), createLifecycleHarness().store);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1727,7 +1733,7 @@ describe("audit-log integration", () => {
   it("no-arc-project path skips the audit write", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
-    await handleSync({}, undefined, makeTestContext(), inRepoStore);
+    await handleSync({}, undefined, makeTestContext(), createLifecycleHarness().store);
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();

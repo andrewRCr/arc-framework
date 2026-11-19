@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { projectIdentityRecord } from "../../../src/lib/store/project-identity.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const mocks = vi.hoisted(() => ({
   runExpansion: vi.fn(),
@@ -10,8 +13,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../src/commands/active.js", () => ({
   runActiveInFlightExpansion: (...args: unknown[]) => mocks.runExpansion(...args),
 }));
+const storeBinding = vi.hoisted(() => ({ store: undefined as unknown }));
+vi.mock("../../../src/lib/store/create.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/store/create.js")>();
+  type Created = ReturnType<typeof actual.createStore>;
+  return { ...actual, createStore: (...args: Parameters<typeof actual.createStore>): Created =>
+    (storeBinding.store as Created | undefined) ?? actual.createStore(...args) };
+});
 vi.mock("../../../src/lib/io-context.js", () => ({
   createGitExec: () => mocks.exec,
+  createRawGitExec: () => mocks.exec,
   createGitExecInput: () => mocks.execInput,
 }));
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -77,9 +88,16 @@ describe("formatActiveInFlightLine", () => {
 });
 
 describe("handleActiveInFlight", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
-    mocks.exec.mockResolvedValue({ stdout: "andrew\0" });
+    // The in-flight read derives the checkout's frame from a checked store and Git's worktree topology.
+    const harness = createLifecycleHarness();
+    const identity = projectIdentityRecord("5f0c2a1e-8d4b-4e6f-9a3c-1b2d3e4f5a6b");
+    await harness.seed(identity.reference, identity.content);
+    storeBinding.store = harness.store;
+    mocks.exec.mockImplementation(async (_command: string, args: string[]) => args[0] === "worktree" && args[1] === "list"
+      ? { stdout: worktreePorcelainZ(`worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n`) }
+      : { stdout: "andrew\0" });
   });
   it("selects explicit expansion for a live command request", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);

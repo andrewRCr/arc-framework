@@ -13,6 +13,7 @@ import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 import { seedStatusConflict } from "../helpers/store/status-conflicts.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { formatConflictToken } from "../../src/lib/status/conflict-token.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, sync: null as StoreSyncPort | null }));
 vi.mock("../../src/handlers/status/session-context.js", async importOriginal => {
@@ -27,12 +28,20 @@ async function fixture() {
   onTestFinished(async () => { binding.store = null; binding.sync = null; await cleanupTempDir(cwd); });
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\n");
-  await makeGitExec(cwd)("git", ["config", "arc.identity", "alice"]);
+  // The identity root's ignore policy `arc init` commits, which the projection's ignore guard requires.
+  const exec = makeGitExec(cwd);
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
+  await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
+  await exec("git", ["add", ".gitignore", ".arc/user/.npmignore"]); await exec("git", ["commit", "-m", "Install the ignore policy"]);
+  await exec("git", ["config", "arc.identity", "alice"]);
   const f = createReferenceFixture(); f.identity("alice"); binding.store = f.store;
   return { ...f, cwd, run: (argv: string[]) => runHandlerAt(cwd, () => dispatchRegisteredCli(["--no-input", "status", ...argv])) };
 }
 
 it.each([false, true])("refuses the registered conflict mode before the capability flips (json=%s)", async json => {
+  // Before the capability flips is the pre-flip build, which opens the in-repo store.
+  useInRepoStore();
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\n");
@@ -51,6 +60,9 @@ it("emits listed conflict records with tokens and string warnings as the registe
     const scoped = kind === "personal/conflict-record" ? { ...reference, owner: { ...reference.owner, name: "alice" } } : reference;
     records.push(await seedStatusConflict(f, RecordReferenceSchema.parse(scoped), shape));
   }
+  // The projection materializes the checkout at its first command; start it first, so the listing compares status's
+  // own writes.
+  await runHandlerAt(f.cwd, () => dispatchRegisteredCli(["--no-input", "config", "status", "--json"]));
   const before = await readdir(f.cwd, { recursive: true });
   const output = await f.run(["--conflicts", "--json"]);
   expect(output.exitCode).toBe(0); expect(output.stderr).toBe("");

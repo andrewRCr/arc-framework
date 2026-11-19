@@ -59,6 +59,7 @@ import {
   cleanCurrentWuReconcile,
   sessionInitProbes,
 } from "../../helpers/session-init-fixtures.js";
+import { useInRepoStore } from "../../helpers/in-repo-store-override.js";
 
 // --- Fixtures ---
 
@@ -3409,6 +3410,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it("carries stale local-note freshness through the handoff user slot", async () => {
+    // Git-notes freshness runs only on the pre-flip build, which opens the in-repo store.
+    useInRepoStore();
     const io = staleLocalNoteIO();
     const probes = sessionHandoffProbes({
       user: vi.fn((identity) =>

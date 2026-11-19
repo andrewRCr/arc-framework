@@ -23,7 +23,7 @@ describe("current work-unit resolver", () => {
   it("resolves a real flat meta by identity outside Git with today's reader fields", async () => {
     const h = await fixture();
     await h.write("example", makeMetaFixture("example", { branch: "feat/example" }));
-    const legacy = await readActiveMetaCandidates(h.cwd);
+    const legacy = await readActiveMetaCandidates(h.cwd, { store: h.store });
     const result = await resolveCurrentWorkUnit({ cwd: h.cwd, store: h.store });
     expect(result).toMatchObject({ status: "resolved", warnings: [], candidate: {
       reference: { kind: "work-item/meta", owner: { type: "work-item", name: "example" } },
@@ -36,7 +36,7 @@ describe("current work-unit resolver", () => {
     const h = await fixture();
     const content = makeMetaFixture("example").replace(`- **${field}:** [none]`, `- **${field}:** [TBD]`);
     await h.write("example", content);
-    expect(await readActiveMetaCandidates(h.cwd)).toMatchObject({ candidates: [{ filename: "meta-example.md" }], warnings: [] });
+    expect(await readActiveMetaCandidates(h.cwd, { store: h.store })).toMatchObject({ candidates: [{ filename: "meta-example.md" }], warnings: [] });
     const result = await resolveCurrentWorkUnit({ cwd: h.cwd, store: h.store });
     expect(result).toMatchObject({ status: "resolved", candidate: { reference: { owner: { name: "example" } },
       diagnostic: { kind: "malformed" } }, warnings: [] });
@@ -61,7 +61,7 @@ describe("current work-unit resolver", () => {
     const h = await fixture();
     const valid = makeMetaFixture("example");
     await h.write("example", valid.replace(/^\| `Active`[^\n]*\n/mu, ""));
-    const legacy = await readActiveMetaCandidates(h.cwd);
+    const legacy = await readActiveMetaCandidates(h.cwd, { store: h.store });
     expect(legacy.candidates).toEqual([]);
     const result = await resolveCurrentWorkUnit({ cwd: h.cwd, store: h.store });
     expect(result).toMatchObject({ status: "none", warnings: legacy.warnings });

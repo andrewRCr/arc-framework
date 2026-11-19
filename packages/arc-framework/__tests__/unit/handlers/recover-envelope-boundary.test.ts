@@ -1,6 +1,7 @@
 /** Persisted-seed disposition coverage at the recovery handler boundary. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useInRepoStore } from "../../helpers/in-repo-store-override.js";
 
 const mocks = vi.hoisted(() => ({
     createRecoverStatusProbes: vi.fn(),
@@ -138,6 +139,8 @@ describe("recovery persisted-seed boundary", () => {
     );
 
     it("binds committed and task-list progression evidence to the recovered checkout", async () => {
+        // Progression read from a task list tracked at both heads is the in-repo implementation's.
+        useInRepoStore();
         const seedHead = "a".repeat(40);
         const freshHead = "b".repeat(40);
         const seed = {

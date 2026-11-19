@@ -324,6 +324,76 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       tracked scaffold, and meta-file occupancy guard are the in-repo arm. Store-arm handler counterparts exist for
       abandon (`abandon-store`), reopen (`reopen-store-branch`), publish (`store-publication-selection`), and attest
       (the `attest-*-native` suites), and none for resume, materialize, deactivate, or promote's dispatch.
+- **Session and status readers, `arc sync`, recovery, and checks and hooks (Task 3.R.g):** 23 files, 206 of 680 cases
+  failing under the ref default before any change.
+    - _In-repo, passing the store:_ `unit/active/meta-reader`'s default-root layout cases (a flat scan of meta files,
+      while its custom-root cases scan without a store); `unit/lib/store/current-work-unit`'s nested legacy reads, given
+      the file's own in-repo store; and `unit/scripts/check-foreign-writes`' originating-meta cases over flat active
+      metas (the store's resolver is `wu-resolution-store`'s).
+    - _By case:_ `unit/active/meta-reader-store` reads its `[none]` sentinels through a held meta's store record bound
+      by marker, while its `[none associated]`, `—`, and `[TBD]` sentinels, which the store's write checks refuse, its
+      `status.md` beside the metas, and its symbolic link under the default root pass the in-repo store.
+      `unit/status/run`'s Git-notes freshness case sets the override, its user probe taking no store.
+    - _In-repo, passing the store:_ `unit/git/worktree-roster`'s 17 cases resolving each worktree's meta files, one of
+      which passed on the store roster without reading its file, and `unit/commands/active/roster`'s two over a meta
+      tree (the store's roster and its team-mode filter are `worktree-roster-store`'s and
+      `worktree-roster-store-placement`'s); `unit/lib/checks/projected-selection`'s in-repo capability case, through
+      the selection's injected store factory.
+    - _Ref backend:_ `unit/handlers/active`'s in-flight cases bind a checked store holding the project identity
+      through a partial mock of `createStore`, and its Git mock answers the worktree topology read the store arm's
+      frame derivation makes, and the raw executor it opens; the mock that answered every call with one identity was
+      the stale fixture A12 diagnosed.
+    - _By case:_ `unit/handlers/recover-envelope-boundary`'s progression case reads a task list tracked at both heads
+      and sets the override.
+    - _By case:_ `unit/sync-orchestrator` tests the notes and worktree matrix, which `handleSync` takes only over the
+      in-repo implementation (`finishStoreSync` is the store's leg, `sync-store-leg`'s subject). Its module store, built
+      through the default factory and so in-repo only under the ledger, is now built in-repo explicitly. Its eight cases
+      ending before the arms part at `sync.ts`'s capability branch (identity and project root absent, a failed worktree
+      materialization) or asserting the worktree read made before it pass a checked store; its dry-run audit case, over
+      the matrix's dry run, stays in-repo, `sync-store-leg` asserting the store leg's; and its seal case sets the
+      override, since the seal opens the default store and seals only a pre-flip build (`pre-cutover-seal.ts`).
+    - _In-repo, by file:_ `integration/store-sync-admission` and `store-sync-derived-status` (Git-notes save and
+      publication); `integration/concurrent-write-preconditions` (a merge landing a tracked active record on the base,
+      the scenario its header defines); and `integration/exact-target-read-isolation`, whose siblings hold a Candidate
+      file this build cannot parse, a foreign owner's tracked meta, and a tracked meta a reconcile in the primary must
+      leave byte-identical. The store has no per-checkout copy of either; the locus reader's containment of a malformed
+      or unreadable sibling is `unit/locus/derived-reader`'s subject, over injected ports, and a store reconcile leaving
+      other records unchanged is `store-reconcile-reuse`'s.
+    - _By case:_ `e2e/check-pre-commit-hook`'s nine task-numbering cases commit tracked task lists, whose lifecycle hook
+      checks only the pre-flip build runs, and set the override for the hook the commit starts; its gate cases stay on
+      the ref default. `integration/check-projected-selection`'s forecast case sets it only before its production
+      fallback, the in-repo implementation's dark projection selecting nothing (`projected-selection.ts`). Called
+      outside a command whose projection has started, the ref arm spawns `npx arc selection`, which in this fixture, a
+      repository outside any npm project, resolves no executable and exits 1, silently under `npm run -s`; inside the
+      CLI the started projection answers in process, and `unit/lib/checks/projected-selection` covers both arms.
+      `integration/store/projection/cli-hooks`' one case, hooks around a dark backend, sets it by file.
+    - _Ref backend, stale fixtures (A12):_ `integration/status-conflicts-cli` and `status-store-refresh-cli` built
+      repositories without the identity root's ignore policy `arc init` commits (`.gitignore`'s `.arc/user/*/` and the
+      installer's `.arc/user/.npmignore`), so the projection's ignore guard warned on stderr, and the fixtures now
+      commit it. Their cases asserting that status writes nothing compared the checkout's listing across the first
+      command, which on the ref default also materializes the projection, so each starts the projection with
+      `config status` before its snapshot. The conflict mode's refusal before the capability flips sets the override.
+    - _Ref backend, by case:_ `integration/active`'s and `integration/status`' cases whose subject is the meta's own
+      fields hold that meta in a checked store, the checkout's marker bound to it (`helpers/store/held-meta.ts`, which
+      leaves Current Workflow unset, as the narrative session-type cases need): single resolution and placement, field
+      parsing, companions over every Task List form (the store admits each), the maintainer default, session-type
+      inference from narrative fields, the planning sub-stage, and the composite's carry-through, 26 cases. Those over
+      what only tracked files hold pass the in-repo store, 26 cases: several metas at once, Candidate files under
+      `.arc/system/.internal/candidates/`, a free-form or empty State, a `[none associated]` Task List, a meta with no
+      Current Workflow bullet or a Planning one with no planning stage (the store refuses each), a non-slug filename, or
+      a missing root. The other 41 cases read no record and stay as they were. Of the 13 Candidate cases' subjects, the
+      store's session-init projection has cases for a stored Integrating Candidate and a retained one
+      (`unit/active/status-store`) and for a native review boundary and a recovered pending fix
+      (`locus-subject-native-review`); the exact Active prepublication boundary, the stale-subject fallback, an
+      unavailable Candidate record, the publication reservation, applicability awaiting authority, fix authority outside
+      prepublication, and an Integrating boundary naming another subject have none.
+    - _By case:_ `integration/status-project`'s 14 cases over metas on branch refs and remote-tracking refs, the index,
+      staged transition records, and the stored ROADMAP set the override, `handleStatus` opening the default store
+      itself; its identity refusal stays on the ref default. Their surviving behaviors are the store's in
+      `unit/handlers/status/store-locus` (fetching before a slug query, staying local without one, an anchored holder's
+      worktree path, fetch reachability) and `store-project` (the project view's fetch and local split, and its refusal
+      of `--staged`); the readiness warnings' channel had no store case, so `store-project` gains one, its dangling edge
+      an Errand's slug since the store refuses a write adding one.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

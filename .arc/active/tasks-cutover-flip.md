@@ -606,16 +606,15 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           gives its compositions the fixture's in-repo store instead of an override, and Errand promotion and the old
           decomposition machine set the override by file.
 
-    - `[ ]` **3.R.g Session and status readers, `arc sync`, checks, and the projection's hooks**
-        - The active and status readers (`integration/active`, `status`, `status-project`, `status-conflicts-cli`, and
-          `status-store-refresh-cli`, `unit/handlers/active`, `unit/active/meta-reader` and `meta-reader-store`,
-          `unit/commands/active/roster`, `unit/git/worktree-roster`, `unit/status/run`, and
-          `unit/lib/store/current-work-unit`); `unit/sync-orchestrator`, `integration/store-sync-admission`, and
-          `store-sync-derived-status`; recovery and orientation (`unit/handlers/recover-envelope-boundary`,
-          `integration/concurrent-write-preconditions`, and `exact-target-read-isolation`); and the checks and hooks
-          (`unit/lib/checks/projected-selection`, `integration/check-projected-selection`,
-          `unit/scripts/check-foreign-writes`, `e2e/check-pre-commit-hook`, and
-          `integration/store/projection/cli-hooks`).
+    - `[x]` **3.R.g Session and status readers, `arc sync`, checks, and the projection's hooks**
+        - _Amended (Owner, 2026-11-18):_ the Candidate session-init subjects the store has no case for move to Task
+          3.R.i.
+        - 23 files left the ledger, classified in `notes-cutover-flip.md` § Test callers; none exposed a product defect.
+          The status readers' cases over a work unit's own fields hold its meta in a checked store bound by marker
+          (`helpers/store/held-meta.ts`), and those over what only tracked files hold pass the in-repo store. `sync`'s
+          notes matrix, Git-notes publication, the commit hook's tracked task lists, and the project view over branch
+          refs and the index run in-repo. Two status fixtures gained the ignore policy `arc init` commits, and
+          `store-project` gained the store case for the readiness warnings' channel.
 
     - `[ ]` **3.R.h Lifecycle handlers and start on the store arm**
         - `unit/handlers/lifecycle-verbs`, `unit/commands/start`, and `integration/start-dispatch`, from Task 3.R.f.
@@ -623,6 +622,14 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           seeded work unit and project identity, and the Git reads its arm makes. The old decomposition machine, park,
           and start's `plan/` cut, tracked scaffold, and meta-file occupancy guard select the in-repo implementation.
           The diagnosis is in `notes-cutover-flip.md` § Test callers.
+
+    - `[ ]` **3.R.i Candidate session-init projection on the store arm**
+        - _Amended (Owner, 2026-11-18):_ from Task 3.R.g, whose Candidate cases in `integration/active` and
+          `integration/status` read Candidate files only the in-repo implementation holds. Each subject the store's
+          session-init projection has no case for runs over Candidate records in a checked store: the exact Active
+          prepublication boundary, the stale-subject fallback, an unavailable Candidate record, the publication
+          reservation, applicability awaiting authority, fix authority outside prepublication, and an Integrating
+          boundary naming another subject. The list is in `notes-cutover-flip.md` § Test callers.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

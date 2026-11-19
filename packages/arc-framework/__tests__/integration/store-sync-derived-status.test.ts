@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 import { syncFixture, syncNotesRef } from "../helpers/store/sync-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+
+// Git-notes save and publication run only on the pre-flip build, which opens the in-repo store.
+useInRepoStoreForEach();
 
 describe("Store derived status publication", () => {
   it("saves a nested status document while excluding the exact derived root view", async () => {
