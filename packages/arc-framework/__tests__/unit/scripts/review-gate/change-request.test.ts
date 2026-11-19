@@ -166,6 +166,47 @@ describe("exact-head change-request resolution", () => {
     expect(result).not.toHaveProperty("headAhead");
   });
 
+  it("marks the request when the remote tip lies between its head and the requested head", async () => {
+    const movedHead = "b".repeat(40);
+    const remoteHead = "c".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: remoteHead }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", headAhead: true });
+    expect(isAncestor.mock.calls).toEqual([[headSha, movedHead], [remoteHead, movedHead]]);
+  });
+
+  it("leaves the mark off when the remote tip has diverged from the requested head", async () => {
+    const movedHead = "b".repeat(40);
+    const remoteHead = "c".repeat(40);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: remoteHead }),
+      listByHead: async () => [candidate()],
+      isAncestor: async (ancestor) => ancestor === headSha,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+  });
+
+  it("leaves the mark off when the remote branch is absent", async () => {
+    const movedHead = "b".repeat(40);
+    const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
+    const result = await resolveChangeRequest({ ...request, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: null }),
+      listByHead: async () => [candidate()],
+      isAncestor,
+    }));
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+    expect(result).not.toHaveProperty("headAhead");
+    expect(isAncestor).not.toHaveBeenCalled();
+  });
+
   it("reads no ancestry when several requests make the host state ambiguous", async () => {
     const isAncestor = vi.fn<ChangeRequestResolutionPort["isAncestor"]>(async () => true);
     const result = await resolveChangeRequest(request, port({

@@ -180,7 +180,7 @@ export const ChangeRequestResolveResultSchema = z.union([
     state: z.literal("ambiguous"),
     nextAction: z.literal("stop"),
     candidates: z.array(ChangeRequestCandidateSchema),
-    /** The requested head descends from the one open request's head: that request waits only on unpushed commits. */
+    /** The requested head descends from the open request's head and the remote tip: it waits only on a push. */
     headAhead: z.literal(true).optional(),
     remedy: SpineRemedySchema.optional(),
   }),
@@ -197,12 +197,22 @@ export const ChangeRequestResolveResultSchema = z.union([
 ]);
 export type ChangeRequestResolveResult = z.infer<typeof ChangeRequestResolveResultSchema>;
 
+async function waitsOnlyOnPush(
+  port: ChangeRequestResolutionPort,
+  requestHead: string,
+  remoteHead: string | null,
+  headSha: string,
+): Promise<boolean> {
+  if (remoteHead === null || !(await port.isAncestor(requestHead, headSha))) return false;
+  return remoteHead === requestHead || await port.isAncestor(remoteHead, headSha);
+}
+
 async function classifyCandidates(
   targetRef: ChangeRequestTargetRef,
   candidates: readonly ChangeRequestCandidate[],
   baseRef: string,
   acceptableBaseRefs: readonly string[],
-  port: ChangeRequestResolutionPort,
+  observed: { port: ChangeRequestResolutionPort; remoteHead: string | null },
 ): Promise<ChangeRequestResolveResult> {
   const base = { schemaVersion: 1, mode: "review-change-request-resolve", targetRef } as const;
   const acceptedBases = new Set([baseRef, ...acceptableBaseRefs]);
@@ -232,7 +242,12 @@ async function classifyCandidates(
   if (candidate.state === "CLOSED") {
     return { ...base, state: "closed-unmerged", nextAction: "reopen-change-request", candidate };
   }
-  const headAhead = await port.isAncestor(candidate.headRefOid, targetRef.headSha);
+  const headAhead = await waitsOnlyOnPush(
+    observed.port,
+    candidate.headRefOid,
+    observed.remoteHead,
+    targetRef.headSha,
+  );
   return {
     ...base,
     state: "ambiguous",
@@ -296,13 +311,16 @@ export async function resolveChangeRequest(
     }
     const byRef = await port.listByHead(repository, request.headRef);
     const acceptableBaseRefs = request.acceptableBaseRefs ?? [];
-    if (byRef.length !== 0) return await classifyCandidates(targetRef, byRef, request.baseRef, acceptableBaseRefs, port);
+    const observed = { port, remoteHead: refs.remote };
+    if (byRef.length !== 0) {
+      return await classifyCandidates(targetRef, byRef, request.baseRef, acceptableBaseRefs, observed);
+    }
     return await classifyCandidates(
       targetRef,
       await port.searchByHeadSha(repository, request.headSha),
       request.baseRef,
       acceptableBaseRefs,
-      port,
+      observed,
     );
   } catch (error) {
     return {
