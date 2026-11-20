@@ -174,3 +174,41 @@ it("keeps a retiring branch and reports no direct rename for holders without its
   for (const record of [first, second]) expect(result.notices.join(" ")).toContain(
     `No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
 });
+
+describe("store teardown and the checkouts it retires", () => {
+  it("refuses a linked holder without an ARC ownership marker before changing any checkout or ref", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: false } });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("no ARC ownership marker") });
+    expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
+    expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
+    expect(h.refs.has("remote/feat/demo")).toBe(true);
+  });
+
+  it("keeps an adopted branch's linked holder without an ownership marker, as it keeps any adopted holder", async () => {
+    const h = await fixture({ end: "archive", branches: [link("feat/demo", "adopted")], linked: { marked: false } });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: false });
+    expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
+  });
+
+  it("reopens its store from the primary once a removing self-teardown moves there, and reaps the branch", async () => {
+    const h = await fixture({ end: "archive", linked: { marked: true, invoking: true } });
+    const opened = h.ctx.store!, reopened: string[] = [];
+    // The store opened in the removed checkout can no longer run Git there.
+    h.ctx.store = new Proxy(opened, { get: (target, key) => {
+      const value: unknown = Reflect.get(target, key);
+      return typeof value !== "function" ? value : (...args: unknown[]) => {
+        if (h.state().hops.length > 0) throw new Error("git config: spawn-failure");
+        return (value as (...items: unknown[]) => unknown).apply(target, args);
+      };
+    } });
+    Object.assign(h.ctx, { selfTeardownMode: "remove", platform: "linux",
+      reopenStore: (checkoutPath: string) => { reopened.push(checkoutPath); return opened; } });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: true, worktreeRemoved: "/linked" });
+    expect(h.state()).toMatchObject({ hops: ["/repo"], linkedPresent: false });
+    expect(reopened).toEqual(["/repo"]);
+    expect(h.refs.has("refs/heads/feat/demo")).toBe(false);
+  });
+});

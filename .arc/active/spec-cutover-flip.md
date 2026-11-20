@@ -629,9 +629,10 @@ departs from the in-repo teardown in two ways no spec covers.
 - A linked checkout that holds the retiring branch but carries no ARC ownership marker is one ARC did not create. The
   in-repo teardown leaves it branched and unchanged, refusing it as externally managed through its selection
   (`classifyTeardownSelection`, `lib/work-unit/teardown-selection.ts`), while the store arm returns it to a detached
-  base and reaps the branch (`returnRetiringCheckout`). From the flip the store arm refuses that checkout the same way,
-  before any detach or ref change, clearing it only where the selection does: a registration whose folder is gone and
-  which names the retiring branch.
+  base and reaps the branch (`returnRetiringCheckout`). From the flip the store arm refuses that checkout the same way
+  when ARC created the retiring branch, before any detach or ref change, clearing it only where the selection does: a
+  registration whose folder is gone and which names the retiring branch. An adopted branch's holder is kept unchanged
+  as before, and a further link's holder still returns to base when its branch is reaped.
 - A self-teardown under `arc.selfTeardownMode: remove` removes the checkout it runs in and moves the process to the
   primary checkout, but the store the command opened keeps running its Git calls in the removed checkout
   (`createDefaultRefStorePorts`, `lib/store/default-ports.ts`), so its next read refuses `spawn-failure` before the

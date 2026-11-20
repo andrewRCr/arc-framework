@@ -14,7 +14,9 @@ import type { GitExecInput } from "../../../src/lib/git/exec.js";
 import { scanRegisteredWorktrees } from "../../../src/lib/git/worktree-roster.js";
 const base = "a".repeat(40), work = "b".repeat(40), errand = "c".repeat(40);
 export const retirementLink = (ref = "feat/demo", linkedAs: "created" | "adopted" = "created"): BranchLink => ({ repository: "repo", ref, linkedAs, excluded: [] });
-export async function createRetirementHarness(options: { harness?: ReturnType<typeof createLifecycleHarness>; fields?: MetaRenderOverrides; ended?: boolean; state?: "Planning" | "Active" | "Integrating"; placement?: WritePlacement; spawned?: boolean; end?: "abandon" | "decompose" | "archive"; branches?: BranchLink[]; noSnapshot?: boolean; held?: boolean; heldBranch?: string | null; dirty?: boolean; secondaryOwnWork?: boolean; unlanded?: boolean } = {}) {
+export async function createRetirementHarness(options: { harness?: ReturnType<typeof createLifecycleHarness>; fields?: MetaRenderOverrides; ended?: boolean; state?: "Planning" | "Active" | "Integrating"; placement?: WritePlacement; spawned?: boolean; end?: "abandon" | "decompose" | "archive"; branches?: BranchLink[]; noSnapshot?: boolean; held?: boolean; heldBranch?: string | null; dirty?: boolean; secondaryOwnWork?: boolean; unlanded?: boolean;
+  /** A linked checkout at `/linked` holding `feat/demo`, bound by an ARC marker or carrying none, and the invoking one. */
+  linked?: { marked: boolean; invoking?: boolean } } = {}) {
   const h = options.harness ?? createLifecycleHarness(), end = options.end ?? "abandon", branches = options.branches ?? [retirementLink()];
   const meta = await h.seedMeta("demo", { state: end === "archive" ? "Shipped" : options.state ?? "Active", currentWorkflow: end === "archive" ? null : options.state === "Planning" ? "draft-design" : options.state === "Integrating" ? "integrate-work-unit" : "process-task-loop", ...options.fields }, options.placement ?? (end === "archive" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }), { branches });
   if (end !== "archive" && options.ended !== false) {
@@ -27,29 +29,43 @@ export async function createRetirementHarness(options: { harness?: ReturnType<ty
   const refs = new Map<string, string>([["refs/heads/main", base], ["refs/remotes/origin/main", base]]);
   for (const branch of branches) { const oid = branch.ref.startsWith("chore/") ? errand : work; refs.set(`refs/heads/${branch.ref}`, oid); refs.set(`refs/remotes/origin/${branch.ref}`, oid); refs.set(`remote/${branch.ref}`, oid); }
   let current: string | null = options.held ? options.heldBranch === undefined ? "feat/demo" : options.heldBranch : "main"; const mutations: string[][] = [];
+  let linkedBranch: string | null = "feat/demo", linkedPresent = options.linked !== undefined; const hops: string[] = [];
+  const roster = (nul: boolean) => [
+    { path: "/repo", head: current === "main" || (current === null && options.heldBranch === null) ? base : work, branch: current },
+    ...linkedPresent ? [{ path: "/linked", head: linkedBranch === null ? base : work, branch: linkedBranch }] : [],
+  ].map(({ path, head, branch }) => [`worktree ${path}`, `HEAD ${head}`, branch === null ? "detached" : `branch refs/heads/${branch}`, "", ""]
+    .join(nul ? "\0" : "\n")).join("");
   const ctx: TeardownContext = {
-    cwd: "/repo", store: h.store, execInput: undefined, projectId: async () => "repo",
-    exec: async (_command, args) => {
+    cwd: options.linked?.invoking ? "/linked" : "/repo", store: h.store, execInput: undefined, projectId: async () => "repo",
+    exec: async (_command, args, execOptions) => {
       const absent = () => { throw makeGitProcessError({ command: "git", args, exitCode: 1 }); };
       if (args[0] === "remote") return { stdout: "origin" };
       if (args[0] === "fetch") return { stdout: "" };
       if (args[0] === "rev-parse") { const ref = (args.at(-1) ?? "").replace(/\^\{commit\}$/u, ""); const oid = refs.get(ref.startsWith("origin/") ? `refs/remotes/${ref}` : ref); return oid === undefined ? absent() : { stdout: oid }; }
-      if (args[0] === "worktree" && args[1] === "list") return { stdout: args.includes("-z") ? `worktree /repo\0HEAD ${current === "main" || (current === null && options.heldBranch === null) ? base : work}\0${current === null ? "detached" : `branch refs/heads/${current}`}\0\0` : `worktree /repo\nHEAD ${current === "main" || (current === null && options.heldBranch === null) ? base : work}\n${current === null ? "detached" : `branch refs/heads/${current}`}\n\n` };
+      if (args[0] === "worktree" && args[1] === "list") return { stdout: roster(args.includes("-z")) };
+      if (args[0] === "worktree" && args[1] === "remove" && args[2] === "/linked") { mutations.push(args); linkedPresent = false; return { stdout: "" }; }
       if (args[0] === "status") return { stdout: options.dirty ? "?? personal.txt\n" : "" };
       if (args[0] === "ls-remote") { const name = (args.at(-1) ?? "").replace("refs/heads/", ""); const oid = refs.get(`remote/${name}`); return { stdout: oid === undefined ? "" : `${oid}\trefs/heads/${name}\n` }; }
       if (args[0] === "cherry") return { stdout: options.unlanded ? `+ ${work}\n` : "" };
       if (args[0] === "rev-list") return { stdout: options.secondaryOwnWork && args.includes(errand) ? errand : "" };
       if (args[0] === "merge-base") return { stdout: "" };
-      if (args[0] === "switch") { mutations.push(args); current = args[1] === "--detach" ? null : args[1] ?? null; return { stdout: "" }; }
+      if (args[0] === "switch") {
+        mutations.push(args); const next = args[1] === "--detach" ? null : args[1] ?? null;
+        if (execOptions?.cwd === "/linked") linkedBranch = next; else current = next;
+        return { stdout: "" };
+      }
       if (args[0] === "merge") return { stdout: "" };
       if (args[0] === "update-ref" && args[1] === "-d") { mutations.push(args); refs.delete(args[2] ?? ""); return { stdout: "" }; }
       if (args[0] === "push") { mutations.push(args); const branch = args.find((arg) => arg.startsWith(":refs/heads/"))?.slice(12) ?? args.at(-1) ?? ""; refs.delete(`remote/${branch}`); return { stdout: "" }; }
       throw Error(`unexpected Git ${args.join(" ")}`);
     },
     indexFs: { readdir: async () => { throw Error("no checkout index"); }, readFile: async () => { throw Error("no checkout artifact"); } },
-    readBlob: async () => { throw Error("no Git lifecycle proof"); }, chdir: () => { throw Error("primary should not hop"); },
-    readMarker: () => Promise.resolve(options.held ? { kind: "present" as const, marker: { spawnedByArc: options.spawned ?? false, wuName: "demo", createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" } } : { kind: "absent" as const }),
-    worktreeFs: { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: () => Promise.resolve(true), removeFile: () => Promise.resolve() },
+    readBlob: async () => { throw Error("no Git lifecycle proof"); },
+    chdir: (dir) => { if (!options.linked?.invoking) throw Error("primary should not hop"); hops.push(dir); },
+    readMarker: (path) => Promise.resolve((path === "/linked" ? options.linked?.marked : options.held)
+      ? { kind: "present" as const, marker: { spawnedByArc: path === "/linked" || (options.spawned ?? false), wuName: "demo", createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" } }
+      : { kind: "absent" as const }),
+    worktreeFs: { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: (path) => Promise.resolve(path !== "/linked" || linkedPresent), removeFile: () => Promise.resolve() },
     scanWorktrees: (exec) => scanRegisteredWorktrees(exec, async (path) => {
       if (await ctx.worktreeFs!.directoryExists(path)) return {};
       throw Object.assign(new Error("Missing fixture folder"), { code: "ENOENT" });
@@ -68,5 +84,5 @@ export async function createRetirementHarness(options: { harness?: ReturnType<ty
   };
 
   ctx.execInput = execInput;
-  return { ...h, meta, ctx, refs, state: () => ({ current, mutations }) };
+  return { ...h, meta, ctx, refs, state: () => ({ current, mutations, linkedBranch, linkedPresent, hops }) };
 }

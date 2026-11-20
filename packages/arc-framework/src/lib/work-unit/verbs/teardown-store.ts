@@ -12,7 +12,7 @@ import { scanRegisteredWorktrees, type RegisteredWorktree } from "../../git/work
 import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal } from "../../git/worktree-removal.js";
 import { reapZeroDeltaBranch } from "../../errand/abandon-runtime.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
-import { readStoreRetirementEvidence, resolveTeardownSubject, teardownSubjectOperand, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
+import { readStoreRetirementEvidence, rebindRetirementEvidence, resolveTeardownSubject, teardownSubjectOperand, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
 import { StoreRefusalError, type Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
@@ -44,6 +44,7 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
     bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
     const { links, retiring, generation } = await selectRetiringLinks(bound);
+    await refuseUnmarkedHolder(bound, links, retiring);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
     if (selected !== undefined) await releaseSelectedHusk(bound, selected);
@@ -63,6 +64,26 @@ function teardownRejection(error: unknown, cleanupStarted: boolean, params: Tear
 async function locked<T>(ctx: Bound, operation: () => Promise<T>): Promise<T> {
   const action = async () => { await ctx.evidence.revalidate(); return operation(); };
   return ctx.withWorkItemLock === undefined ? withWorktreeOperationLock({ exec: ctx.exec, cwd: ctx.cwd, operation: action }) : ctx.withWorkItemLock(action);
+}
+/** A linked checkout holding the retiring created branch without an ARC ownership marker is one ARC did not create, so
+ * teardown refuses before any change, as the checkout selection does (`classifyTeardownSelection`), unless its folder is
+ * gone and only its registration remains. An adopted branch's holder is kept anyway, and a further link's holder still
+ * returns to base when its branch is reaped. */
+async function refuseUnmarkedHolder(ctx: Bound, links: readonly RetirementLink[], retiring: string | null): Promise<void> {
+  if (!links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring)) return;
+  for (const holder of ctx.worktrees) {
+    if (holder.primary || holder.branch !== retiring || !holder.folderPresent) continue;
+    const marker = await (ctx.readMarker ?? readWorktreeMarker)(holder.path);
+    if (marker.kind === "absent") throw new Error(`The teardown target has no ARC ownership marker: ${holder.path} holds `
+      + `${holder.branch}, and ARC did not create it. Switch that checkout off ${holder.branch} or remove it yourself, then retry teardown.`);
+  }
+}
+/** A self-teardown that removes its checkout leaves the store opened there with no directory to run Git in, so the
+ * remaining reads use one reopened from the primary checkout the process moved to. */
+function reopenFromPrimary(ctx: Bound): void {
+  if (ctx.reopenStore === undefined) return;
+  ctx.store = ctx.reopenStore(ctx.primaryPath);
+  ctx.evidence = rebindRetirementEvidence(ctx.evidence, ctx.store);
 }
 async function holdingCheckout(ctx: Bound): Promise<string | null> {
   const request = ownerHolderRequest(ctx.evidence.record);
@@ -143,7 +164,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       return null;
     }
     const self = await isSelfTeardown(path, invokingPath);
-    if (self) ctx.chdir(ctx.primaryPath);
+    if (self) { ctx.chdir(ctx.primaryPath); reopenFromPrimary(ctx); }
     const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots, folderExists: (target) => fs.directoryExists(target) });
     if (removed.kind === "refused") throw new Error(describeRemovalRefusal(removed.check));
     if (removed.kind === "failed") throw new Error(`Checkout removal failed at ${removed.step}: ${removed.detail}`);

@@ -83,6 +83,14 @@ async function readRetiredOrigin(store: Store, name: string, uid: string): Promi
     kind: "lineage", transition: lineage.kind, reference: read.result.reference, version: read.result.version, resultDigest: canonicalDigest(read.result.content),
   });
 }
+/** The same terminal evidence revalidated through another store, such as one reopened from the primary checkout.
+ * @param evidence - Evidence read through the store opened first.
+ * @param store - The store later revalidation reads.
+ * @returns Evidence bound to that store at the version it was read.
+ */
+export function rebindRetirementEvidence(evidence: StoreRetirementEvidence, store: Store): StoreRetirementEvidence {
+  return bind(store, evidence.record, evidence.rule, evidence.branches, evidence.evidence);
+}
 function bind(store: Store, record: StoreRecord, rule: "discard" | "landed", branches: BranchLink[], evidence: RetirementEvidenceRef): StoreRetirementEvidence {
   return { record, name: record.reference.owner.name, rule, branches, evidence, revalidate: async () => {
     const fresh = await store.read({ reference: record.reference });

@@ -684,15 +684,20 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   Errand and a new generation over a completed one through the registered CLI on the ref store, each with its receipt,
   beside a description-only write naming an unheld UID that still refuses.
 
-### `[ ]` **3.R6 Store teardown refuses a markerless holder and completes a removing self-teardown — § 4.14**
+### `[x]` **3.R6 Store teardown refuses a markerless holder and completes a removing self-teardown — § 4.14**
 
 - _Goal:_ On the store `arc teardown` refuses a linked checkout that holds the retiring branch without an ARC ownership
   marker, before any detach or ref change, as the in-repo selection does, and a self-teardown under
   `arc.selfTeardownMode: remove` removes its checkout and reaps the branch from the primary checkout (A20).
 
-    - The markerless refusal fails first in `unit/work-unit/verbs/teardown-store.test.ts`, and the removing
-      self-teardown fails first on the ref store through the built CLI; then the store arm takes its holder through the
-      teardown selection, and the store's Git calls follow the self-teardown's move to the primary.
+- _Outcome:_ `runStoreTeardown` (`lib/work-unit/verbs/teardown-store.ts`) refuses, before cleanup starts, when a linked
+  checkout whose folder remains holds the retiring branch ARC created with no ownership marker (`refuseUnmarkedHolder`),
+  keeping an adopted branch's holder and a further link's holder as before, and a self-teardown that moves to the
+  primary reopens its store and rebinds its evidence there (`reopenFromPrimary`, `rebindRetirementEvidence`) through
+  the `reopenStore` port the teardown command supplies. Both failed first in `unit/work-unit/verbs/teardown-store.test.ts`
+  over a retirement harness given a linked checkout, the removing case through a store that refuses once the process
+  moves, beside an adopted-branch guard; `e2e/teardown.e2e.test.ts`'s markerless and remove-preference cases, which
+  move in Task 3.4.b.1, pass through the built CLI with the fix.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
@@ -1561,9 +1566,9 @@ landing after verification).
   generation, its description, record, and any adopted capture's receipt naming one UID, while a write naming a UID no
   owner holds without creating that owner's record is refused (A18).
 
-- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch without an ARC ownership
-  marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` removes its
-  checkout and reaps the branch (A20).
+- `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
+  ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` removes
+  its checkout and reaps the branch (A20).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

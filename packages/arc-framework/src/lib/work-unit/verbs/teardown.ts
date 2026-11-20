@@ -126,6 +126,8 @@ export interface TeardownContext {
   platform?: NodeJS.Platform;
   /** Optional operational store injected by the lifecycle caller. */
   store?: Store;
+  /** Open the operational store again from another checkout, once a self-teardown removes the one it opened in. */
+  reopenStore?: (checkoutPath: string) => Store;
   execInput?: GitExecInput;
   projectId?: () => Promise<string>;
   locusPorts?: LocusPorts;
