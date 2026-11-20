@@ -3,7 +3,7 @@
   "slug": "link-checkout-skills",
   "claimId": "aac7aeb3a1017204434662e679fec91e",
   "createdAt": "2026-11-20T16:09:09.492Z",
-  "updatedAt": "2026-11-20T16:09:09.492Z",
+  "updatedAt": "2026-11-20T19:56:28.862Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "link-checkout-skills",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Link newly added skills into existing checkouts, and replace stale copied skill folders",
   "originEntrySourceDigest": "sha256:5c9db42449a7b77fe2cb9e6ea2310ed11a293ff995ceffddcc64e1f159fa38f2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/link-checkout-skills",
+    "headSha": "59c83edd02478b04cd159fa3ff46aa7993d89a87"
+  }
 }
