@@ -1041,6 +1041,38 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           name drops "local and remote".
         - Each changed expectation traces to a store contract: the suffixed branch, the Errand record's placement, the
           capture's move into the description and back, and state publication through sync.
+    - _The Errand suite, as moved (Task 3.4.e.3):_ `e2e/errand.e2e.test.ts` leaves the ledger and spawns through
+      `e2e/store-default.ts`. 51 of its 56 cases run on the store, with one store case added, and 5 keep the override
+      by subject in describes of their own. Its describes take the template initialized on the process's store, and
+      `createBareRemote` and the merged-host fixture designate `origin`, except under the override. Switching the
+      template and designating `origin` alone took the failures from 42 to 29.
+        - Its hand-seeded Errands (`seedOpenV3Errand`, `seedAwaitingV3Errand`) are held in the store as active
+          `work-item/record`s, linked to their branch as an open links one; without that link the close found no
+          record. A retired Errand is one whose record is `completed`, and an open one's record reads `state: open`.
+        - Opened Errands' branches are the suffixed ones each open reports. The two teardown races and the
+          linked-worktree case open in a sequence of their own first, since their Git wrapper and steps need the
+          branch. The merged-host `gh` fake answers for the slug's branch or its suffixed form, and answers the
+          store's added `mergeCommit` query with the change's head: the store refuses to retire a merged Errand whose
+          host reports no landing commit.
+        - Captures are seeded in the store's inbox and opened by qualified ID. The next offer comes from the person's
+          Errand queue (`resolveQueueExecutionOffer`), keyed `personal:<id>`, where the in-repo store read
+          `execute-bound` marks. The open moves a capture into the Errand's description: a refused close leaves it
+          there, the close archives it with the Errand, renamed "archives the originating capture with the Errand",
+          and abandoning returns it. The link-evidence case names a qualified ID the inbox lacks, and a title, which
+          the store cannot read.
+        - `errand check` reports `reachable: true` with no remote, since the store reads its own records
+          (`runStoreErrandOverlap`), and its overlap entry names the `workItem`. The in-process review steps take the
+          Errand's stored work item, which the command line selects from its checkout. The spawned-checkout close
+          holds its parent work unit in the store, bound to the primary.
+        - Promotion on the store settles in one write and keeps the checkout for the new work unit: the meta takes
+          the Errand's UID and the marker is re-made for it. A store case asserts that; the receipt-commit case keeps
+          the override.
+        - The five in-repo cases: `arc status <slug>`'s residue warning, since the store resolves an Errand's slug to
+          its record and refuses it as no work unit; both tracked-ROADMAP regeneration cases; adopting a capture by its
+          Markdown title from a file, since the store adopts by qualified ID; and the promotion receipt commit.
+        - Each changed expectation traces to a store contract: the Errand record and its branch link, the suffixed
+          branch, the landing commit, the qualified ID and the queue, the capture's description, the overlap's work
+          item, and promotion's single write.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

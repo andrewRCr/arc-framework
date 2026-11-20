@@ -912,8 +912,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               store's inbox holds, abandon returning it there; the remote holds no state, which only sync publishes
               (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.e.3 The Errand suite**
-            - `e2e/errand.e2e.test.ts`, which leaves the ledger.
+        - `[x]` **3.4.e.3 The Errand suite**
+            - `e2e/errand.e2e.test.ts` leaves the ledger and spawns through `e2e/store-default.ts`, 51 of its 56 cases on
+              the store: its Errands are held as records linked to their branches, its captures opened by qualified ID
+              and offered from the queue, its `gh` fake answering suffixed branches and the landing commit, and a store
+              case added for promotion's single write. Five keep the override by subject: the status residue warning,
+              tracked ROADMAP regeneration, Markdown title adoption, and the receipt commit (`notes-cutover-flip.md`
+              § Test callers).
 
         - `[ ]` **3.4.e.4 Locus**
             - `e2e/locus-errand-roundtrip.e2e.test.ts`, `locus-folder-presence`, and
