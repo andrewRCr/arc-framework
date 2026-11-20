@@ -60,9 +60,10 @@ async function linkSkill(root, harness, name) {
     }
   }
   if (existing !== null) await rm(path, { recursive: true, force: true });
-  // Windows gets a junction, which needs no privilege and takes an absolute target; elsewhere the link stays relative.
+  // Windows gets a junction, which needs no privilege and takes an absolute target; elsewhere the link stays relative,
+  // measured from the folder that physically holds it, since a linked skills folder puts it somewhere else.
   if (process.platform === "win32") await symlink(source, path, "junction");
-  else await symlink(relative(dirname(path), source), path, "dir");
+  else await symlink(relative(await realpath(dirname(path)), await realpath(source)), path, "dir");
   return { changed: existing === null ? `linked ${shown}` : `replaced ${shown} with a link` };
 }
 

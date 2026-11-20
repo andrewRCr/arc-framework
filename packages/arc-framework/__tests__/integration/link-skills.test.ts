@@ -79,6 +79,16 @@ it("leaves the canonical skills alone when a harness skill folder links to them"
   expect(await readFile(join(root, canonical, "arc-alpha", "SKILL.md"), "utf8")).toBe("# arc-alpha\n");
 });
 
+it("writes links that resolve when a harness skill folder links to another folder", async () => {
+  const root = await checkout([".claude"]);
+  await mkdir(join(root, "shared-skills"));
+  await symlink(join(root, "shared-skills"), join(root, ".claude", "skills"), "junction");
+  await link(root);
+  expect(await linksToCanonical(root, ".claude", "arc-alpha")).toBe(true);
+  expect(await linksToCanonical(root, ".claude", "arc-beta")).toBe(true);
+  expect(await link(root)).toEqual({ stdout: "", stderr: "" });
+});
+
 it("links each named checkout to its own canonical skills", async () => {
   const [first, second] = [await checkout([".claude"]), await checkout([".claude", ".codex"])];
   await link(first, second);
