@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "change-facts-windows-fixture",
+  "claimId": "121ad3574ddefe0194b87ee5af120161",
+  "createdAt": "2026-11-20T18:14:18.348Z",
+  "updatedAt": "2026-11-20T18:14:18.348Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Use a Windows-legal fixture name with literal shell punctuation in the change-facts integration suite.",
+  "branch": "chore/change-facts-windows-fixture",
+  "origin": "inbox",
+  "originEntry": "Let `change-facts.test.ts` set up on Windows",
+  "originEntrySourceDigest": "sha256:84506d0fb06a0fbf3c49f44aea1115ddd3565a30577abe24e3457851ac7ccf59",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
