@@ -13,12 +13,14 @@ import { ownershipHandoffMark } from "./ownership-hold.js";
 import { notAFileHoldMark } from "./replace-guard.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Remedy } from "../refusal.js";
-import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { selectArchivePath } from "./archive-selection.js";
 
 /** Lease-bound path authority shared by materialization and command settlement. */
-export type OwnershipRoot = Pick<ProjectionRootState, "checkout" | "location" | "context" | "writable" | "blockedByLink">;
+export type OwnershipRoot = Pick<ProjectionRootState, "checkout" | "location" | "context" | "writable" | "blockedByLink"
+  | "archiveSelection">;
 /** Filesystem authority needed to interpret an arrival, without publishing its confirmation. */
-export type OwnershipObservationRoot = Pick<OwnershipRoot, "checkout" | "writable" | "blockedByLink"> & {
+export type OwnershipObservationRoot = Pick<OwnershipRoot, "checkout" | "writable" | "blockedByLink" | "archiveSelection"> & {
   readonly context: Pick<OwnershipRoot["context"], "format" | "report">;
 };
 
@@ -65,6 +67,7 @@ export async function observeProjectionHandoffs(root: OwnershipObservationRoot, 
     if (!root.writable(path) || root.blockedByLink(path) !== null || boundary(path) !== null) continue;
     const entry = index.entries[path];
     if (entry?.kind !== "record" || entry.handoff === undefined) continue;
+    if (selectArchivePath(root, path) !== null) continue;
     try {
       const next = await reconcilePath(root, path, entry, retainReadFailure);
       if (next !== entry) index = withProjectionEntry(index, path, next);
@@ -83,7 +86,6 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
   const reader = projectionFileReader(root.checkout, path);
   const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
   if (gate.kind === "absent") {
-    requireArchiveDestination(root.checkout, path);
     const leaving = { ...entry };
     delete leaving.handoff;
     // A marked arrival withdrawn before confirmation parks its mark for the retried installation.

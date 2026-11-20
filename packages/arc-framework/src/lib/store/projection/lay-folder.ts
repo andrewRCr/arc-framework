@@ -16,7 +16,7 @@ type LayFolderRefusal = { readonly kind: "archive" | "occupied"; readonly mark: 
  */
 export async function ensureLayFolder(checkout: string, path: string, checkpoint?: () => Promise<void>): Promise<LayFolderRefusal | null> {
   await checkpoint?.();
-  const archive = archiveDestinationRefusal(checkout, path, true);
+  const archive = archiveDestinationRefusal(checkout, path);
   if (archive !== null) return { kind: "archive", mark: archive };
   try {
     await mkdir(join(checkout, dirname(path)), { recursive: true });

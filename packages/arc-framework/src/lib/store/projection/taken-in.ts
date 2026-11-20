@@ -181,6 +181,8 @@ export interface WriteBackRecording {
   readonly stamp: string;
   /** What write-back read from the file after parse-back. */
   readonly takenIn: string;
+  /** The blob of the file bytes that input was read from. */
+  readonly read?: string;
   readonly outcome: WriteBackOutcome;
   /** The record read back after a landing. */
   readonly readBack: { readonly version: RecordVersion; readonly content: string } | null;
@@ -191,9 +193,10 @@ export interface WriteBackRecording {
 }
 
 /** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
-export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
+export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "read" | "format" | "checkpoint">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
-  return { ...input.entry, acceptedInputStat: undefined, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
+  return { ...input.entry, acceptedInputStat: undefined, persisted: { stamp: input.stamp, recording: true,
+    ...(input.read === undefined ? {} : { read: input.read }), takenIn: { kind: "copy", version: input.version,
     ...await keepTakenInCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
 

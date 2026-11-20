@@ -14,7 +14,7 @@ import { parseStampedFile } from "./stamp.js";
 import { observeProjectionProtection } from "./protection.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { markStoreRefusal } from "./refusal-mark.js";
-import { ArchiveDestinationBlocked, readArchiveBytes, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked, readArchiveBytes } from "./archive-file.js";
 
 /** Only read capabilities are required before the adopter chooses its effectful continuation. */
 export type AdoptionObservationRoot = ProjectionSelectionContext & {
@@ -41,7 +41,6 @@ export async function inspectProjectionAdoption(root: AdoptionObservationRoot, p
   try {
     const denied = await observeProjectionProtection({ store: root.store, checkout: root.checkout,
       identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
-    requireArchiveDestination(root.checkout, path);
     if (denied.kind !== "editable") return { kind: "refused", mark: denied.mark, stat,
       ...(denied.kind === "unobservable" ? { readFailure: true as const } : {}) };
     if (!path.startsWith(".arc/completed/")) {
@@ -60,7 +59,6 @@ async function inspectAdoptionContent(root: AdoptionObservationRoot, path: strin
   const bytes = path.startsWith(".arc/completed/") ? readArchiveBytes(root.checkout, path, stat) : await readFile(join(root.checkout, path));
   const read = { stat, blob: gitBlobId(bytes, root.context.format) };
   const existing = await root.store.read({ reference });
-  requireArchiveDestination(root.checkout, path);
   if (existing.status === "ok") return { kind: "existing", record: existing.result, read };
   if (existing.refusal.code !== "not-found" || reference.kind === "cohort/document") {
     return { kind: "refused", stat, mark: markStoreRefusal(existing.refusal, root.context.verb),

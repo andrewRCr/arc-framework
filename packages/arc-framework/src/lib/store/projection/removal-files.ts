@@ -5,13 +5,13 @@ import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
-import { hasArchiveRecording, unfinishedRecordingRefusal } from "./recording-state.js";
+import { unfinishedRecordingRefusal } from "./recording-state.js";
 import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, type ProjectionRemovalCheck,
   type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
 import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
-import { projectionLinkRemedy, readProjectionLinkBoundary } from "./discovery-links.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { readProjectionProtection } from "./protection.js";
 import type { ReadOnlyProjectionRoot } from "./engine-read-only.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
@@ -21,8 +21,8 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
-import { isExcludedProjectionPath } from "./discovery-exclusions.js";
-import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { retirementSelection, selectArchivePath } from "./archive-selection.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -47,37 +47,26 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
   const reference = await readReference(root.checkout);
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
-    return entry?.kind === "record" && entry.adoption !== undefined
-      || entry?.kind === "ownerless" && entry.minted !== undefined
-      || path.startsWith(".arc/completed/") && !isExcludedProjectionPath(path) && hasArchiveRecording(entry);
+    return entry?.kind === "record" && entry.adoption !== undefined || entry?.kind === "ownerless" && entry.minted !== undefined;
   });
   const boundary = await readProjectionLinkBoundary(root.checkout, retries, ports.linkFs);
   const { guard } = input;
-  for (const path of new Set([...walked.files, ...retries])) {
-    const link = boundary(path);
-    const entry = preparedIndex.entries[path];
-    if (link !== null && !hasArchiveSubmission(path, entry)) {
-      if (path.startsWith(".arc/completed/") && hasArchiveRecording(entry)) return { index: preparedIndex,
-        verdict: markedRemovalRefusal(root.checkout, path, { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) }, input.disposition) };
-      continue;
-    }
+  for (const path of retirementSelection(index, [...walked.files, ...retries])) {
+    // An archive path this checkout does not own is left untouched and leaves retirement unjudged.
+    const refused = selectArchivePath(root, path, { report: false });
+    if (refused !== null) return { index: preparedIndex, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, refused) } };
+    if (!path.startsWith(".arc/completed/") && boundary(path) !== null) continue;
     const checked = await checkRemovalFileAtPath({ ...input, root: observingRoot, index: preparedIndex }, path, reference, guard);
     if (checked.kind !== "passes") return { verdict: checked, index: preparedIndex };
   }
   return { verdict: { kind: "passes" }, index: preparedIndex };
 }
 
-function hasArchiveSubmission(path: string, entry: ProjectionIndex["entries"][string] | undefined): boolean {
-  return entry?.archiveSubmission !== undefined && path.startsWith(".arc/completed/") && !isExcludedProjectionPath(path);
-}
-
 async function checkRemovalFileAtPath(input: ProjectionRemovalFilesInput, path: string,
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { checkout } = input.root;
   try {
-    const verdict = await observeRemovalFile(input, path, reference, guard);
-    if (verdict.kind === "passes") requireArchiveDestination(checkout, path);
-    return verdict;
+    return await observeRemovalFile(input, path, reference, guard);
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, error.mark) };
     throw error;

@@ -1,5 +1,5 @@
 /** Removal feasibility requires explicit archive correction and keeps unreadable evidence distinct from refused edits. */
-import { mkdirSync, readdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -22,27 +22,28 @@ import { persistProjectionRemoval } from "../../../../src/lib/store/projection/r
 
 afterEach(() => { beginProjectionCommand(); });
 
-it("holds opened archive adoption when its checkout boundary changes during observation", async () => {
+it("leaves an opened archive adoption whose folder became a nested checkout to the repair from the next command on", async () => {
   const h = await archiveRetirementFixture();
   const path = `${h.folder}/new-companion.txt`, file = join(h.checkout, path);
   const boundary = join(dirname(file), ".git"), content = "A local archive companion.\n";
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "new-companion.txt");
   await writeFile(file, content);
   expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  // A nested checkout made after a command selected the path lets that command's reads follow it; the next one asks again.
   const store = { ...h.store, read: async (request: Parameters<typeof h.store.read>[0]) => {
     const result = await h.store.read(request);
     if (request.reference.kind === "work-item/companion") await mkdir(boundary, { recursive: true });
     return result;
   } };
-
-  expect(await checkProjectionRemoval(h.checkout, { ...h.context, store })).toMatchObject({
+  await projectionCommand({ ...h.input, store }, ["status"]);
+  const before = (await h.disk()).index.entries[path];
+  expect(before).toMatchObject({ opened: true });
+  expect(await checkProjectionRemoval(h.checkout, h.context)).toMatchObject({
     kind: "unobservable", detail: expect.stringContaining("belongs to another checkout"),
   });
-  await rm(boundary, { recursive: true });
-  expect((await projectionCommand({ ...h.input, store }, ["save"])).diagnostics).toContain("belongs to another checkout");
-  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "ownerless", opened: true });
+  expect((await projectionCommand(h.input, ["save"])).diagnostics).toContain("belongs to another checkout");
+  expect((await h.disk()).index.entries[path]).toEqual(before);
   expect(await readFile(file, "utf8")).toBe(content);
-  expect(await h.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 
   await rm(boundary, { recursive: true });
   expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
@@ -50,21 +51,18 @@ it("holds opened archive adoption when its checkout boundary changes during obse
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-it("rechecks archive authority after retirement feasibility passes", async () => {
+it("asks archive authority at persist's selection and leaves a nested checkout's path untouched", async () => {
   const h = await archiveRetirementFixture();
   const folder = join(h.checkout, h.folder), boundary = join(folder, ".git");
   const file = join(h.checkout, h.path), before = await readFile(file, "utf8");
-  let finalWalks = 0, checking = false;
-  const result = await persistProjectionRemoval(h.checkout, { ...h.context,
-    hooks: { beforeLastCheck: async () => { checking = true; } },
-    ports: checkout => ({ ...createProjectionEnginePorts(checkout), walkFs: { readdir: path => {
-      if (checking && path === folder && ++finalWalks === 2) mkdirSync(boundary);
-      return readdirSync(path, { withFileTypes: true });
-    } } }),
-  });
-  expect(finalWalks).toBe(2);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  await h.write(h.path, `${h.primary.content}\nAn opened correction.\n`);
+  const opened = await readFile(file, "utf8");
+  mkdirSync(boundary);
+  const result = await persistProjectionRemoval(h.checkout, h.context);
+  expect(opened).not.toBe(before);
   expect(result).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("belongs to another checkout") } });
-  expect(await readFile(file, "utf8")).toBe(before);
+  expect(await readFile(file, "utf8")).toBe(opened);
   expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
 
   await rm(boundary, { recursive: true });
@@ -87,12 +85,9 @@ it.each([false, true])("reports the same nested archive destination blocker befo
     copies: [{ name, moving: gitBlobId(original, "sha1"), linked: null, landed: null, writeBackSent: false,
       rendering: { markers: entry.markers, notices: entry.notices } }] }));
 
-  const checked = await h.check();
-  expect(checked).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
-    text: expect.stringContaining("belongs to another checkout"),
-  } });
-  if (checked.kind !== "refused" || checked.reason !== "persist-would-refuse") throw new Error("Expected the feasibility refusal");
-  expect(await h.retire("persist")).toEqual({ kind: "refused", remedy: checked.remedy });
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "unobservable",
+    detail: expect.stringContaining("belongs to another checkout") });
+  expect(await h.retire("persist")).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("belongs to another checkout") } });
   expect(await readFile(copy, "utf8")).toBe(bytes);
   expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
 }, 30_000);
@@ -140,6 +135,37 @@ it("holds an unfinished archived recording until save finishes the accepted inpu
   expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content, version: accepted.version });
   expect(await h.check()).toEqual({ kind: "removable" });
+}, 30_000);
+
+it.each(["still holds", "has moved past"] as const)("finishes an unopened accepted recording at plain save when the file %s its input", async state => {
+  const h = await archiveRetirementFixture();
+  expect((await projectionCommand(h.input, ["edit", join(h.checkout, h.path)])).result).toMatchObject({ status: "ok" });
+  const content = h.primary.content + "\nAccepted archived input.\n";
+  await h.write(h.path, content);
+  const fault = createRefusingStore(h.store);
+  const store = { ...fault.store, batch: async (input: Parameters<typeof h.store.batch>[0]) => {
+    const result = await h.store.batch(input);
+    if (result.status === "ok") fault.refuse("read", { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: "Read-back is temporarily unavailable.", remedy: { text: "Repair read-back and retry arc save." } });
+    return result;
+  } };
+  await projectionCommand({ ...h.input, store }, ["save"]);
+  fault.refuse("read", null);
+  const accepted = success(await h.store.read({ reference: h.primary.reference }));
+  // A refresh's guard that takes in a forced edit reaches the same accepted state with no opening.
+  const { location, index } = await h.disk();
+  const entry = index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing archive entry");
+  expect(entry).toMatchObject({ persisted: { recording: true } });
+  const unopened = { ...entry };
+  delete unopened.opened;
+  await writeProjectionIndex(location, withProjectionEntry(index, h.path, unopened));
+  if (state === "has moved past") await h.write(h.path, content + "\nA later unopened correction.\n");
+  const saved = await projectionCommand(h.input, ["save"]);
+  expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content, version: accepted.version });
+  expect((await h.disk()).index.entries[h.path]).not.toMatchObject({ persisted: { recording: true } });
+  if (state === "still holds") expect(saved.diagnostics).not.toContain(`arc edit ${h.path}`);
+  else expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
 }, 30_000);
 
 it.each(["absent", "empty"])("allows an opened archived file left %s without changing its stored version", async state => {
@@ -274,7 +300,7 @@ it.each([["save", "ownerless"], ["save", "indexed"], ["persist", "ownerless"], [
   const bytes = await readFile(file);
   await rename(folder, held);
   await symlink(held, folder, "junction");
-  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse" });
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "unobservable", detail: expect.stringContaining("symbolic link") });
   if (operation === "save") {
     expect((await projectionCommand(h.input, ["save"])).diagnostics).toContain("symbolic link");
   } else expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("symbolic link") } });
@@ -286,7 +312,7 @@ it.each([["save", "ownerless"], ["save", "indexed"], ["persist", "ownerless"], [
     expect(recovery).toMatchObject({ kind: "record", opened: true,
       persisted: { recording: true, takenIn: { version: accepted.result.version } } });
   } else expect(recovery).toMatchObject({ archiveSubmission: staged?.archiveSubmission });
-  expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse" });
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "unobservable", detail: expect.stringContaining("symbolic link") });
 
   await rm(folder, { recursive: true });
   await rename(held, folder);

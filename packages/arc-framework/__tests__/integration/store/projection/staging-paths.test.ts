@@ -1,4 +1,6 @@
 import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
+import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
+import { pendingFileRequest } from "../../../../src/lib/store/projection/pending-request.js";
 /** Every archive staging follows the target checkout's own opened entry. */
 import { mkdtemp, chmod, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -188,9 +190,20 @@ it.each([false, true])("draws an archived checkout clash using opened=%s", async
   if (!opened) {
     const root = projectionProcessState().roots.get(h.checkout);
     if (root === undefined) throw new Error("No clash root");
+    // The start's refresh took the forced edit in, and the store's clash left it waiting for an opening.
+    const waiting = (await h.disk()).entries[h.path];
+    if (waiting?.kind !== "record") throw new Error("No waiting entry");
+    expect(waiting).toMatchObject({ pending: true });
+    expect(success(await h.store.read({ reference: h.record.reference })).content).not.toContain("Local correction.");
     await withProjectionLock(h.location, async session => {
       root.checkpoint = session.step;
-      try { await writeBackProjectionFiles(root, await h.disk(), [h.path]); }
+      try { expect(await writeBackProjectionFiles(root, await h.disk(), [h.path])).toEqual(await h.disk()); }
+      finally { root.checkpoint = null; }
+    });
+    // The drawing lays by the opened state, whichever admitted route reaches it.
+    await withProjectionLock(h.location, async session => {
+      root.checkpoint = session.step;
+      try { await writeBackFile(root.context, await h.disk(), pendingFileRequest(h.checkout, h.path, waiting)); }
       finally { root.checkpoint = null; }
     });
   }

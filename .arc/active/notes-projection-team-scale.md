@@ -16,6 +16,7 @@
 - [Recovery when an opened path is empty or disappears](#recovery-when-an-opened-path-is-empty-or-disappears)
 - [Archived cohort inventory recovery](#archived-cohort-inventory-recovery)
 - [Archive boundary corrections](#archive-boundary-corrections)
+- [Amendment A2](#amendment-a2)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -508,6 +509,62 @@ fails on a write-mode assertion that expected POSIX bits. The corrected five-cas
 
 Linux reference timing run `c53d15a89f94479b92e6cae64e7a1e78` measures +0.085 ms for archive save growth against
 5 ms and +2.492 ms for an opened start against 5.36 ms. The run retains all eleven raw sample pairs for both cases.
+
+## Amendment A2
+
+Fix checks 1 to 7 of standard pass 1 kept finding the next archive route that lost the requirement to open an edit or
+checked a path's authority before a late link: eight findings of the first cause and eleven of the second across the
+eight looks. Each repair added a site: references to the opening flag went from 4 to 40, and the path check ran from
+36 call sites through three definitions of another checkout. A2 states both rules once. Admission is decided at the
+take-in from the entry and the route, so no route writes, carries, or clears a flag; a path's folders are checked once
+at selection and again just before each change, so no read needs its own check. Its planning review took two
+adversarial passes and a fix check, recorded with the reviews' looks in the personal pass record.
+
+A2 supersedes this text, quoted as it stood.
+
+§ 4 ¶5:
+
+> - **The opening requirement is durable (A1).** A record basis can carry a requirement to open its archived edit.
+>   Its partition stays unsettled, and refresh, read-back and retry diagnostics can change independently. An index
+>   that recorded the requirement as a refusal keeps it on read. Plain save holds the edit until an explicit opening
+>   or settlement proves the recorded rendering at the path and finishes any displaced copies.
+
+§ 7.2 ¶4:
+
+> - **Restoration records the opening requirement before changing the path (A1).** It does so whether the swap
+>   displaces a file or links into an empty path. A refused or yielded swap keeps the requirement. Settlement can
+>   clear it when the installed file matches the staged identity and bytes and its copies have settled (§ 4).
+
+§ 8 ¶2:
+
+> Archive adoption, retirement selection and confirmation, and aside recovery use the archive's live checkout
+> boundary for destination stats and reads (A1). When that authority is unavailable, the check answers
+> `unobservable` for the file and persistence or recovery holds it. A retry observes the current checkout, keeping
+> any opening, accepted receipt, and displaced copy until the corresponding step can finish.
+
+Success Criterion 14, which stays in the specification and is marked superseded at verification:
+
+> 14. **Archive retries retain their authority (A1).** Late checkout changes leave archive adoption and retirement held
+>     until authority is restored. An unsettled archive restoration or failed refresh retains the requirement to open
+>     the edit, so plain save holds it until explicitly opened or settled by an authorized route.
+
+An advisory review of the rework before its commit found routes the two rules had not yet reached. Each is fixed with a
+test that fails without the fix:
+
+- The removal check answers a sendable waiting edit, such as one in an aside copy, as the persist and release steps do.
+- `arc sync`'s report of walked archive files asks the path check first. A file no entry names, under a folder another
+  checkout holds, is neither read, reported, nor recorded by a start, a sync, or a full materialization.
+- A recording keeps the blob of the file bytes its input was read from, so an unopened accepted landing sends those
+  bytes and nothing an editor writes while the recording finishes.
+- The swap reports a refusal it meets at a change, in a refresh, a removal, a lay, and a read-back alike.
+- A waiting edit whose read its folder's permissions refuse is held with that refusal instead of escaping as an error.
+- Each refused path is reported once per command, through the sweep and `arc save`'s re-lock too, and a withheld file
+  keeps its own remedy rather than the waiting one.
+
+Two of its findings needed a design decision (Owner, 2026-11-20), both recorded in § 8. A receipt the store already
+accepted is recorded while its path is refused, rather than leaving the store ahead of the index until the repair. A
+rebuild over an unusable index records a refused path's entry without reading its file, and the first command whose
+check passes rebuilds it; leaving the path out of the rebuild instead lost its entry until the next rebuild.
 
 ## Save after a retirement refusal
 

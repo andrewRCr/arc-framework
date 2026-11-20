@@ -32,7 +32,7 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
         onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
         blockedByLink,
-        copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.syncRestorationTakeIn ?? root.takeIn,
+        copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
       for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       await reconcileProjectionHandoffs(root, checked.index);

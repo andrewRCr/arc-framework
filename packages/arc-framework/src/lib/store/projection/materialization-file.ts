@@ -21,8 +21,7 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
-import type { TakeInPort } from "./take-in-port.js";
+import { selectArchivePath } from "./archive-selection.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -38,7 +37,8 @@ export interface MaterializationFileInput {
   readonly rendered?: RenderedRecord;
   readonly reference: bigint | null;
   readonly blocked: boolean;
-  readonly takeIn?: TakeInPort;
+  /** Whether the guard may take in a forced edit: a refresh's or a rebuild's, never a restoration's. */
+  readonly admitsForcedEdit: boolean;
 }
 /**
  * A withheld or pending entry, or one guarded replacement ready for the batch. `unresolved` records a blocked lay
@@ -55,8 +55,40 @@ export function projectionEntryForRecord(record: StoreRecord, path: string, form
     refused: null, persisted: null, inProgress: null, copies: [] };
 }
 
+/** The code an unread rebuild's mark starts with: rewording its prose never changes which entries a later lay rebuilds. */
+const UNREAD_REBUILD_CODE = "unread-rebuild:";
+
+/**
+ * A rebuild's entry for an archive path whose folder another checkout holds: pending under the path check's refusal,
+ * its basis left unread until a command whose check passes rebuilds it from the file.
+ */
+function unreadRebuildEntry(input: MaterializationFileInput, mark: RefusedMark): RecordEntry {
+  return { ...projectionEntryForRecord(input.record, input.path, input.root.context.format), pending: true,
+    refused: { reason: `${UNREAD_REBUILD_CODE} ${mark.reason}`, remedy: mark.remedy } };
+}
+
+/** An entry a rebuild recorded without reading its file, which the next lay rebuilds once the path is this checkout's. */
+export function isUnreadRebuildEntry(entry: ProjectionIndex["entries"][string] | undefined): boolean {
+  return entry?.kind === "record" && entry.refused?.reason.startsWith(UNREAD_REBUILD_CODE) === true;
+}
+
 /** Stage only proved bytes, and hand a concurrent edit to the live writable store before replacement. */
 export async function prepareMaterializationFile(input: MaterializationFileInput): Promise<MaterializationFileResult> {
+  const { root, path } = input;
+  // The path check at this selection: a refused path keeps any entry it has, and a rebuild records an unread one.
+  const refused = selectArchivePath(root, path);
+  if (refused !== null) {
+    if (input.index.entries[path] !== undefined) return { index: input.index, unresolved: true };
+    return { index: withProjectionEntry(input.index, path, unreadRebuildEntry(input, refused)), unresolved: true };
+  }
+  if (isUnreadRebuildEntry(input.index.entries[path])) {
+    const entries = Object.fromEntries(Object.entries(input.index.entries).filter(([at]) => at !== path));
+    return prepareCheckedFile({ ...input, index: { ...input.index, entries }, rebuilding: true });
+  }
+  return prepareCheckedFile(input);
+}
+
+async function prepareCheckedFile(input: MaterializationFileInput): Promise<MaterializationFileResult> {
   const { root, path, record } = input;
   const prior = input.index.entries[path];
   if (prior?.withheld) return withhold(input, prior);
@@ -111,16 +143,16 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
   const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged,
     saveLanding: isOwnSaveLanding(root.context.verb, root.checkout), reference: input.reference,
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint,
-    takeIn: input.takeIn ?? root.takeIn, renderer });
+    takeIn: root.takeIn, renderer, admitsForcedEdit: input.admitsForcedEdit });
   reportGuardHold(root.context.report, path, null, guarded);
   const index = withProjectionEntry(input.index, path, guarded.entry);
   if (guarded.kind === "replace") return { index, file: { path, replace: guarded } };
-  return guarded.cause === "foreign-checkout" ? { index, unresolved: true } : { index };
+  return guarded.cause === "unreadable" ? { index, unresolved: true } : { index };
 }
 
 function blockedMaterialization(input: MaterializationFileInput, entry: RecordEntry, mark: RefusedMark): MaterializationFileResult {
   input.root.context.report?.({ path: input.path, copy: null, mark });
-  const held = { ...entry, pending: true, refused: unopenedArchiveEditHold(entry) ?? mark };
+  const held = { ...entry, pending: true, refused: mark };
   return { index: withProjectionEntry(input.index, input.path, held), unresolved: true };
 }
 

@@ -19,7 +19,7 @@ import { findArchiveSaveAcceptance, retainArchiveSubmission } from "./archive-sa
 import { gitBlobId } from "./blob-id.js";
 import type { TakeInRead } from "./take-in-port.js";
 import type { PreparedProjectionSubmission } from "./submission.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
 export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
@@ -42,7 +42,6 @@ async function adoptObservedFile(root: ProjectionRootState, index: ProjectionInd
   onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   await root.context.checkpoint?.();
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false }, projectionReadGate(root.checkout, path));
-  requireArchiveDestination(root.checkout, path);
   if (gate.kind === "absent") {
     root.unsent.delete(path);
     return reconcileAbsentAdoption(root, index, path);
@@ -70,14 +69,11 @@ async function submitAdoption(root: ProjectionRootState, index: ProjectionIndex,
   submission: PreparedProjectionSubmission, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<ProjectionIndex> {
   const prepared = submission.plan.prepared;
   const entry = index.entries[path];
-  requireArchiveDestination(root.checkout, path);
   const staged = path.startsWith(".arc/completed/") && entry?.kind === "ownerless" && entry.opened === true
     ? await retainArchiveSubmission(root.context, gitBlobId(prepared.takenIn, root.context.format), prepared.takenIn, read) : undefined;
   if (staged !== undefined && entry?.kind === "ownerless") {
-    const journaled = await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
+    await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
       index: withProjectionEntry(index, path, { ...entry, archiveSubmission: { ...staged, reference: prepared.reference } }) });
-    const blocked = archiveDestinationRefusal(root.checkout, path);
-    if (blocked !== null) return refuse(root, journaled, path, read.stat, blocked);
   }
   const sent = await submitProjectionBatch(root.context, submission.batch, staged?.id);
   if (sent.status === "refused") return refuse(root, index, path, read.stat, markStoreRefusal(sent.refusal, root.context.verb));

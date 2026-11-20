@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
-import { blockedAsideDestination, hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
@@ -41,6 +41,8 @@ export interface SweepInput extends SwapMoves {
   readonly takeIn: TakeInPort;
   /** The sweeping process: it judges each writer's liveness and names any copy it makes in turn. */
   readonly writer: AsideWriterInput;
+  /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
+  readonly selectArchivePath?: (path: string) => RefusedMark | null;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
   /** The ignore rules from this command's one configuration read. */
@@ -166,11 +168,19 @@ async function takeOverRecorded(
   const { taking, left } = recordsToTake(initial, judges);
   let index = initial;
   const swept: { path: string; copy: string; outcome: SweptCopy }[] = [];
+  // The sweep asks whether each archive path is this checkout's once, before it takes over any of the path's copies.
+  const selection = new Map<string, RefusedMark | null>();
+  const select = input.selectArchivePath ?? ((path: string) => {
+    if (!selection.has(path)) selection.set(path, archiveDestinationRefusal(input.checkout, path));
+    return selection.get(path) ?? null;
+  });
   for (const { path, copy } of taking) {
     const current = index.entries[path];
     const record = current?.kind === "record" ? current.copies.find((record) => record.name === copy) : undefined;
     if (current?.kind !== "record" || record === undefined) continue;
-    const outcome = await sweepCopy(input, path, current, record);
+    const refused = select(path);
+    const outcome: SweptCopy = refused === null ? await sweepCopy(input, path, current, record)
+      : { kind: "blocked-destination", entry: current, mark: refused };
     index = withProjectionEntry(index, path, outcome.entry);
     swept.push({ path, copy: record.name, outcome });
   }
@@ -276,14 +286,17 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
       throw error;
     }
   }
-  return deleteIfUnedited(input, location, named, "withheld");
+  return deleteUneditedCopy(input, location, named, "withheld");
 }
 
 /** Delete a symbolic link or a file equal to its base; retain directories and edits with their contents. */
-async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile,
-  reason: "unrecorded" | "withheld" = "unrecorded"): Promise<LeftCopy | null> {
-  const refusal = archiveDestinationHold(input.checkout, named.path, location);
-  if (refusal !== null) return refusal;
+async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile): Promise<LeftCopy | null> {
+  return archiveDestinationHold(input.checkout, named.path, location) ?? deleteUneditedCopy(input, location, named, "unrecorded");
+}
+
+/** Delete an unedited copy of a path this sweep already selected; the deletion asks again just before it unlinks. */
+async function deleteUneditedCopy(input: SweepInput, location: string, named: AsideFile,
+  reason: "unrecorded" | "withheld"): Promise<LeftCopy | null> {
   const copy = join(input.checkout, location);
   const stat = await readStat(copy);
   if (stat === null) return null;
@@ -327,12 +340,8 @@ async function deleteStagedFiles(
  */
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
-  const blocked = blockedAsideDestination({ checkout, path }, entry);
-  if (blocked !== null) return blocked;
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
-  const afterCopyCheck = blockedAsideDestination({ checkout, path }, entry);
-  if (afterCopyCheck !== null) return afterCopyCheck;
   // Moved back to its path, or never made after a stop.
   if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   try {

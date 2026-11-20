@@ -34,7 +34,7 @@ export async function publishAdoptionAcceptance(root: ProjectionRootState, index
     unshown: accepted.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
     persisted: null, inProgress: null, copies: [], adoption: { kind: "read-back", read } };
   const pending: RecordEntry = typeof input === "string"
-    ? await recordPendingWriteBack({ ...root.context, entry, stamp: blob, takenIn: input, version: accepted.version })
+    ? await recordPendingWriteBack({ ...root.context, entry, stamp: blob, takenIn: input, read: read.blob, version: accepted.version })
     : { ...entry, ...acceptedArchiveRecording(input, accepted.version) };
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });

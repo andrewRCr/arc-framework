@@ -4,8 +4,7 @@ import { readProjectionCheckoutContext } from "../checkout-layout.js";
 import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
-import { nestedArchiveCheckoutRefusal } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
+import { holdWaitingArchiveEdit } from "./archive-waiting.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -82,13 +81,6 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     sent: state.roots.get(input.checkout)?.sent ?? false, sweepEmpty: state.roots.get(input.checkout)?.sweepEmpty,
     fanOutTimes: state.roots.get(input.checkout)?.fanOutTimes,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
-      const blocked = (request.resolution === undefined ? unopenedArchiveEditHold(request.entry) : null)
-        ?? (request.entry.opened === true ? await nestedArchiveCheckoutRefusal(root.checkout, request.path) : null);
-      if (blocked !== null) {
-        root.unsent.add(request.path);
-        context.report?.({ path: request.path, copy: request.copy, mark: blocked });
-        return refuseProjectionEdit(request.entry, blocked);
-      }
       const held = refuseOwnershipHandoff(request.entry);
       if (held !== null) {
         context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
@@ -99,6 +91,8 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         root.unsent.delete(request.path);
         return { answer: "no-edit", entry: request.entry, read: unchanged };
       }
+      const waiting = await holdWaitingArchiveEdit(root, request);
+      if (waiting !== null) return waiting;
       request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);

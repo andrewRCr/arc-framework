@@ -35,6 +35,8 @@ export interface TakeInRequest {
   readonly adopting?: true;
   /** Present only for the selected subject at its own path, never a displaced copy. */
   readonly resolution?: TakeInResolution;
+  /** A refresh's replace guard met this edit at its path, where an archived file's forced edit may land. */
+  readonly forcedEdit?: true;
 }
 
 /** What the take-in answered, with the entry as it left it. */

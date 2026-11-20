@@ -17,7 +17,6 @@ import { prepareAdoptedProjectionSubmission } from "./submission.js";
 import type { AdoptionReference } from "./adoption-target.js";
 import { readProjectionStubMetadata, readMintedProjectionBasis, mintedProjectionEntry } from "./stub-mint.js";
 import { readProjectionProtection } from "./protection.js";
-import { requireArchiveDestination } from "./archive-file.js";
 
 /**
  * Apply adoption's own verdict, then only the preparation the adopter would reach; a file adoption would go on to send
@@ -26,7 +25,6 @@ import { requireArchiveDestination } from "./archive-file.js";
 export async function checkProjectionAdoption(root: ReadOnlyProjectionRoot, index: ProjectionIndex, path: string,
   guard: ProjectionRemovalGuard, disposition: ProjectionRetirement): Promise<ProjectionRemovalCheck> {
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false }, projectionReadGate(root.checkout, path));
-  requireArchiveDestination(root.checkout, path);
   if (gate.kind === "absent") {
     const entry = index.entries[path];
     return entry?.kind === "ownerless" && entry.minted !== undefined

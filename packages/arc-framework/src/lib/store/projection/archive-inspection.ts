@@ -5,12 +5,11 @@ import { inspectProjectionAdoption } from "./adoption-verdict.js";
 import { resolveProjectionAdoptionIntent } from "./adoption-intent.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
-import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { observeProjectionProtection } from "./protection.js";
 import { gateRead, projectionReadGate, type ReadGateVerdict } from "./read-gate.js";
-import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
-import { unopenedArchiveEditHold, unopenedArchiveMark } from "./archive-opening-hold.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { hasAcceptedLanding, waitingEditMark } from "./archive-admission.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
@@ -18,10 +17,9 @@ export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; rea
 /** Racy-rule observations a restoration already made, retained without a second discovery pass. */
 export interface ArchiveObservation { readonly reference: bigint | null; readonly stat?: FileStat | null }
 
-/** Opened entries and outstanding work may finish, while a retirement refusal cannot authorize its own retry. */
+/** An opened entry's edit, and a landing the store already accepted, finish; any other edit waits for an opening. */
 export function canRecoverArchiveEntry(entry: ProjectionIndex["entries"][string] | undefined): boolean {
-  return entry !== undefined && (entry.opened === true
-    || (isProjectionEntryUnsettled(entry) && unopenedArchiveEditHold(entry) === null));
+  return entry !== undefined && (entry.opened === true || hasAcceptedLanding(entry));
 }
 
 /** Share detection and remedy precedence between sync's report and retirement's read and write boundaries. */
@@ -33,14 +31,14 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
     reason: "The interrupted archive submission's acceptance has not been checked.",
     remedy: { text: `Run arc save from ${root.checkout} to recover the acceptance for ${path}.` },
   } };
-  if (entry !== undefined && (entry.kind !== "record" || canRecoverArchiveEntry(entry))) return null;
+  // A withheld file keeps its own remedy: arc save never sends one, so the waiting edit's remedy cannot clear it.
+  if (entry !== undefined && (entry.kind !== "record" || entry.withheld || canRecoverArchiveEntry(entry))) return null;
   try {
     const gate = await readArchiveEdit(root, path, entry, observation);
     if (gate === null || gate.kind === "absent" || gate.kind === "no-edit") return null;
     const denied = entry?.kind === "record" ? await archiveProtection(root, entry.reference)
       : await newArchiveRemedy(root, index, path, gate);
-    requireArchiveDestination(root.checkout, path);
-    return denied ?? { kind: "refused", mark: unopenedArchiveMark(root.checkout, path, entry !== undefined) };
+    return denied ?? { kind: "refused", mark: waitingEditMark(root.checkout, path, entry !== undefined) };
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "unobservable", mark: error.mark };
     return { kind: "unobservable", mark: { reason: `Cannot observe archived file ${path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -53,7 +51,6 @@ async function readArchiveEdit(root: AdoptionObservationRoot, path: string, entr
   observation?: ArchiveObservation): Promise<ReadGateVerdict | null> {
   const absolute = join(root.checkout, path);
   const reader = projectionFileReader(root.checkout, path);
-  requireArchiveDestination(root.checkout, path);
   if (entry !== undefined) {
     const changed = await checkChange({ path: absolute, recorded: entry.stat, written: entry.written,
       reference: observation === undefined ? await readReference(root.checkout) : observation.reference,

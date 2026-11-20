@@ -49,6 +49,8 @@ const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
   inputBlob: BlobIdSchema.optional(),
   recording: z.literal(true).optional(),
+  /** The blob of the file bytes an unfinished recording's input was read from. */
+  read: BlobIdSchema.optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
     z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),
@@ -92,7 +94,6 @@ const RecordBasisSchema = z.strictObject({
   protected: z.boolean(),
   changed: z.boolean(),
   opened: z.literal(true).optional(),
-  openingHold: RefusedMarkSchema.optional(),
   pending: z.boolean(),
   withheld: z.boolean(),
   refused: RefusedMarkSchema.nullable(),

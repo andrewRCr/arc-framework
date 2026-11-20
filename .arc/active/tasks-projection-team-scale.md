@@ -148,6 +148,8 @@ names it.
 - _Outcome:_ Cold partitions and unindexed archive files stay untouched at save. Existing archived-adoption tests open
   eligible paths first and exercise misplaced-path refusals through edit, preserving the same correction and identity.
 
+- _Amended in:_ review-fix (A2)
+
 ### `[x]` **2.4 The re-lock and `arc save`'s report — § 6.2, § 6.3, § 9.1**
 
 - _Goal:_ `arc save` lays each opened file read-only and clears its mark only once its last look, after the read-only
@@ -181,6 +183,8 @@ names it.
   archived correction. Command-start reporting uses the same withheld remedy. Rebuild tests cover complete and
   incomplete evidence, preserved corrections, closed unedited files, and repair through a successful save; refresh
   coverage retains forced edits under their owner's rights and lays accepted corrections read-only.
+
+- _Amended in:_ review-fix (A2)
 
 ### `[x]` **2.6 The scale benchmark — Success Criterion 1**
 
@@ -219,6 +223,7 @@ which the removal proceeds; and an opened file's edit persists at removal.
 _Design decisions:_ An archived file answers the removal check and the persist and release steps by the first of a read
 that fails, edit rights that refuse, a forced edit or a file with no entry, and the answers `projection-worktrees`'
 removal steps give today (spec § 8); one function answers its remedy for 3.1's report and 3.2's check and steps.
+_Amended in:_ review-fix (A2).
 
 ### `[x]` **3.1 `arc sync` reports forced edits and new archived files — § 7.2**
 
@@ -248,6 +253,8 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
           shared remedy. Native checks cover both callers, the primary, opened edits/adoptions, no-edit files and
           index-loss repair. Empty-copy release keeps its second-check hold until save; see
           `notes-projection-team-scale.md` § Archived persistence.
+
+- _Amended in:_ review-fix (A2)
 
 ### `[x]` **3.3 ADR-035's amendment — § 10.3**
 
@@ -304,6 +311,11 @@ removal steps give today (spec § 8); one function answers its remedy for 3.1's 
 - _Review follow-up:_ Round 5 found two remaining archive boundary gaps. The corrections recheck checkout authority
   during archive observation and retain the requirement to open an edit when sync restoration is refused. Focused
   run `8438e4a34e7143599c07bede45ac7cc1` passed 347 cases across 15 test files, including both new regressions.
+
+- _Review follow-up (A2):_ Fix checks 5 to 7 kept finding archive routes that lost the requirement to open an edit or
+  checked a path's authority before a late link. Amendment A2 replaces both mechanisms: one admission rule at the
+  take-in decides from the entry and the route, and each command asks the archive path check once per selection and
+  again before each change. `notes-projection-team-scale.md` § Amendment A2 records the superseded text.
 
 ---
 

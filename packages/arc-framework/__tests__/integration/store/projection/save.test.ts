@@ -292,7 +292,7 @@ it.each<BlockedHistoryPull>(["lock-held", "state-failed", "candidate-failed", "d
     expect(pulls).toBe(2);
   });
 
-it.each(["history", "primary-read"] as const)("keeps a late archived aside edit offline at ordinary command start and names save as its repair (%s)", async fault => {
+it.each(["history", "primary-read"] as const)("keeps a late archived aside edit waiting at command start and plain save, and lands it after an opening (%s)", async fault => {
   const h = await archivedView();
   await openArchivedProjectionFile(h, h.path);
   const stamp = parseStampedFile(await h.file()).stamp;
@@ -337,14 +337,18 @@ it.each(["history", "primary-read"] as const)("keeps a late archived aside edit 
   const diagnostic = output.slice(0, output.indexOf("command output")).join("");
   expect(diagnostic).toContain(h.path);
   expect(diagnostic).toContain(copy);
-  expect(diagnostic).toContain("arc save");
+  // Unobservable rights name their own repair; observable ones leave the edit waiting for an opening.
+  expect(diagnostic).toContain(fault === "history" ? `arc edit ${h.path}` : "arc save");
+  expect((await save({ store, checkout: h.checkout })).errors).toContain(`arc edit ${h.path}`);
+  expect((await h.stored()).content).toBe(first);
+  await openArchivedProjectionFile({ store, checkout: h.checkout }, h.path);
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(late);
   expect((await h.stored()).placement).toEqual(h.placement);
   expect(pulls).toBe(1);
 });
 
-it("keeps an interrupted archived stampless edit offline and names save before a repaired retry lands", async () => {
+it("keeps an edit made without opening after an interrupted archived replacement waiting until an opening lands it", async () => {
   const h = await archivedView("companion");
   const original = h.index.entries[h.path];
   if (original?.kind !== "record") throw new Error("The companion was not projected");
@@ -386,8 +390,10 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   expect(await h.file()).toBe(content);
   expect(pulls).toBe(0);
   expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
-  expect(diagnostic).toContain(h.path);
-  expect(diagnostic).toContain("arc save");
+  expect(diagnostic).toContain(`arc edit ${h.path}`);
+  expect((await save({ store, checkout: h.checkout })).errors).toContain(`arc edit ${h.path}`);
+  expect((await h.stored()).content).toBe(next);
+  await openArchivedProjectionFile({ store, checkout: h.checkout }, h.path);
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);

@@ -137,9 +137,13 @@ it.each([false, true])("preserves a displaced opened archive file across nested-
   } });
   const [copy] = swapped.copies;
   if (copy === undefined) throw new Error("Expected displaced copy");
+  // The command selected the path before the nested checkout arrived, so its own second check may still read the copy; the
+  // copy's deletion asks again and is refused, and an edit the take-in defers stays in the copy.
+  const deferred: TakeInPort = async request => ({ answer: "deferred", entry: request.entry });
   const checked = await runSecondCheck({ checkout, location, index: swapped.index, copies: swapped.copies,
-    format: "sha1", takeIn: unreached, writer: SWAP_WRITER });
-  expect(checked.settled).toMatchObject([{ settlement: { kind: "blocked-destination", mark: { reason: expect.stringContaining("another checkout") } } }]);
+    format: "sha1", takeIn: edited ? deferred : unreached, writer: SWAP_WRITER });
+  expect(checked.settled).toMatchObject([{ settlement: edited ? { kind: "kept", answer: "deferred" }
+    : { kind: "blocked-destination", mark: { reason: expect.stringContaining("another checkout") } } }]);
   const sweep = await prepareSweep(checkout, location);
   expect((await sweep(unreached, { index: checked.index })).swept).toMatchObject([{ outcome: { kind: "blocked-destination" } }]);
   expect((await sweep(unreached, { index: null })).left).toMatchObject([{ reason: "destination-blocked" }]);

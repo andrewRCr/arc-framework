@@ -8,7 +8,7 @@ import { archiveRetirementFixture } from "../../../helpers/store/projection/arch
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 /** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
-import { readFile, chmod, writeFile, lstat, rename, rm, utimes } from "node:fs/promises";
+import { readFile, chmod, writeFile, lstat, rename, rm, symlink, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -19,8 +19,16 @@ const binding = vi.hoisted(() => ({
   beforeModeOpen: null as ((path: unknown) => Promise<void>) | null,
   afterModeOpen: null as ((path: unknown) => void) | null,
   deniedValidation: null as string | null,
-  linkedPath: null as string | null,
 }));
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  return { ...actual, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === binding.deniedValidation && binding.deniedValidation !== null) {
+      throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
+    }
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync };
+});
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
@@ -43,7 +51,6 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original =
   const actual = await original<typeof import("../../../../src/lib/store/projection/engine-ports.js")>();
   return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => ({
     ...actual.createProjectionEnginePorts(...args), hooks: binding.hooks,
-    linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
   }) };
 });
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
@@ -66,7 +73,6 @@ afterEach(async () => {
   binding.beforeModeOpen = null;
   binding.afterModeOpen = null;
   binding.deniedValidation = null;
-  binding.linkedPath = null;
   await removeGitBackedDirs(directories.splice(0));
 });
 async function fixture() {
@@ -279,17 +285,20 @@ it("retains an opening when the file disappears at the read-only lay", async () 
   expect(await diskEntry(h)).not.toHaveProperty("opened");
 });
 
-it("keeps an open archive file untouched while a parent is reported as a link", async () => {
+it("keeps an open archive file untouched while a parent folder is a link", async () => {
   const h = await fixture(), file = join(h.checkout, h.path);
   await openArchivedProjectionFile(h, h.path);
-  binding.linkedPath = join(h.checkout, h.folder);
+  const folder = join(h.checkout, h.folder), held = `${folder}-held`;
+  await rename(folder, held);
+  await symlink(held, folder, "junction");
   const saved = await save(h);
   expect(saved.errors).toContain("symbolic link");
   expect(saved.result).toMatchObject({ status: "ok" });
   expect(saved.result).not.toHaveProperty("result.relocked");
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
-  binding.linkedPath = null;
+  await rm(folder, { recursive: true });
+  await rename(held, folder);
   expect(await save(h)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path: h.path }] } } });
 });
 

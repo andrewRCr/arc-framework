@@ -9,6 +9,7 @@ import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { reportArchivedProjectionFile } from "./archive-report.js";
+import { selectArchivePath } from "./archive-selection.js";
 
 interface SelectionInput {
   root: ProjectionRootState;
@@ -41,6 +42,8 @@ async function selectDeletedFiles(input: SelectionInput): Promise<{ files: Reado
     if (!input.root.writable(path) && !path.startsWith(".arc/completed/")) continue;
     const blocked = input.boundary(path);
     if (blocked !== null && blocked !== path) continue;
+    // An archive path this checkout does not own is reported once and left untouched.
+    if (selectArchivePath(input.root, path) !== null) continue;
     const stat = await readStat(join(input.root.checkout, path));
     await reportArchivedProjectionFile(input.root, input.index, path, { reference, stat });
     if (!await shouldRestoreFile(input, path, stat)) continue;

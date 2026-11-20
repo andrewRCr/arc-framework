@@ -60,7 +60,7 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
   await context.hooks?.afterSaveGuard?.(request.path);
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index: updated,
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,
-    format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
+    format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint, report: context.report });
   context.recordBatch?.(swapped);
   updated = swapped.index;
   return { ...readBackSwapResult(context, request, sent.result, swapped), index: updated };

@@ -1,7 +1,6 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
 import { projectionFileReader, readReference } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { unopenedArchiveEditHold } from "./archive-opening-hold.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
@@ -23,6 +22,7 @@ import type { WritePlacement } from "../placement.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { recordWriteBackSent } from "./aside-copies.js";
 import { commitProjectionIndex, projectionIndexRecoveryCommand, readProjectionIndex, writeProjectionIndex } from "./index-file.js";
+import { archivedEditWaits, waitingEditMark } from "./archive-admission.js";
 import { createHistoryMemo, type HistoryMemo } from "./base-recovery.js";
 import { readStamplessFile } from "./stampless.js";
 import type { StoreRecord } from "../read.js";
@@ -257,7 +257,7 @@ export async function captureWriteBackFile(context: WriteBackContext, request: T
   try { return await readWriteBackFile(context, request, logical); }
   catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "held", result: { answer: "refused", mark: error.mark,
-      entry: { ...request.entry, pending: true, refused: unopenedArchiveEditHold(request.entry) ?? error.mark } } };
+      entry: { ...request.entry, pending: true, refused: error.mark } } };
     throw error;
   }
 }
@@ -386,7 +386,8 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     return { kind: "held", result: held };
   }
   request = observeProjectionEdit(request);
-  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
+  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [],
+    refuseCapturedEdit: acceptedInputOnly(context, request) };
   const completion = await completeWriteBackRecording(bound, request.entry);
   if (completion.mark !== undefined) {
     context.report?.({ path: request.path, copy: request.copy, mark: completion.mark });
@@ -410,6 +411,24 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     return { kind: "held", result: keepStandingHold(result, current.entry) };
   }
   throw new Error("A write-back recovery exceeded its retry bound");
+}
+
+/**
+ * An unopened archived file admitted only to finish what the store accepted sends nothing else: bytes captured now
+ * that differ from the recorded input wait for an opening.
+ */
+function acceptedInputOnly(context: WriteBackContext, request: TakeInRequest): WriteBackContext["refuseCapturedEdit"] {
+  const persisted = request.entry.persisted;
+  const accepted = archivedEditWaits(request) && persisted?.recording === true ? persisted.read : undefined;
+  if (accepted === undefined) return context.refuseCapturedEdit;
+  return (captured, read) => read.blob === accepted ? context.refuseCapturedEdit?.(captured, read) ?? null
+    : waitingEditMark(captured.checkout, captured.path, true);
+}
+
+/** Finish recording what the store already accepted for an entry, taking in nothing the file holds beyond it. */
+export async function finishAcceptedRecording(context: WriteBackContext, entry: RecordEntry): Promise<{ entry: RecordEntry; mark?: RefusedMark }> {
+  return completeWriteBackRecording({ ...context, memo: context.memo ?? createHistoryMemo(context.store),
+    versionRecoveries: context.versionRecoveries ?? [] }, entry);
 }
 
 function keepStandingHold<T extends TakeInResult>(result: T, prior: RecordEntry): T {
@@ -476,7 +495,7 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true, refused: mark } } };
   }
   const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp,
-    takenIn: prepared.takenIn, outcome: { kind: "landed", version: accepted.version }, readBack: read.result,
+    takenIn: prepared.takenIn, read: prepared.read.blob, outcome: { kind: "landed", version: accepted.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
   if (recorded.mark !== undefined) return pendingRecordingResult(context, request,
@@ -507,7 +526,7 @@ function isAdopting(request: TakeInRequest): boolean {
 async function pendingAcceptedRecording(context: WriteBackContext, request: TakeInRequest,
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, version: RecordVersion): Promise<RecordEntry> {
   const recorded = await recordPendingWriteBack({ location: context.location, checkpoint: context.checkpoint, entry,
-    stamp: prepared.stamp, takenIn: prepared.takenIn, version, format: context.format });
+    stamp: prepared.stamp, takenIn: prepared.takenIn, read: prepared.read.blob, version, format: context.format });
   return adoptionReadBackEntry(request, prepared, recorded);
 }
 

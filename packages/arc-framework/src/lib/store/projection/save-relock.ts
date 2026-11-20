@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal, archivePermissionMark, changeArchiveFileMode,
-  nestedArchiveCheckoutRefusal, readArchiveFile } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, changeArchiveFileMode, readArchiveFile } from "./archive-file.js";
+import { selectArchivePath } from "./archive-selection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -36,6 +36,11 @@ export async function relockOpenedProjectionFiles(root: ProjectionRootState, ini
 async function settleFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation | undefined, send: Send): Promise<ProjectionIndex> {
   const admission = await relockAdmission(root, path, entry, outcome);
+  if (admission?.selected === true) {
+    // A path the command's selection refused keeps its opening, reported once for the command.
+    selectArchivePath(root, path);
+    return index;
+  }
   if (admission !== null) return retain(root, index, path, entry, admission.mark, admission.writable);
   await root.checkpoint?.();
   const laid = await changeArchiveFileMode(root, path, false);
@@ -65,8 +70,6 @@ async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex,
 
 async function readRelockedChange(root: ProjectionRootState, path: string, entry: RecordEntry): Promise<
   { edited: boolean; writable: boolean } | { mark: RefusedMark; restoreWritable: boolean }> {
-  const foreign = await nestedArchiveCheckoutRefusal(root.checkout, path);
-  if (foreign !== null) return { mark: foreign, restoreWritable: false };
   const observed = await readArchiveFile(root, path);
   if (observed.kind !== "file") return { mark: observed.kind === "missing" ? missingMark() : observed.mark, restoreWritable: false };
   const reference = await readReference(root.checkout);
@@ -82,8 +85,6 @@ async function readRelockedChange(root: ProjectionRootState, path: string, entry
   if (changed.stat.size === 0n && path.endsWith(".md")) return { mark: missingMark(), restoreWritable: true };
   const current = await readArchiveFile(root, path);
   if (current.kind !== "file") return { mark: current.kind === "missing" ? missingMark() : current.mark, restoreWritable: false };
-  const blocked = archiveDestinationRefusal(root.checkout, path);
-  if (blocked !== null) return { mark: blocked, restoreWritable: false };
   const { stat } = current;
   if (stat.dev !== observed.stat.dev || stat.ino !== changed.stat.ino || stat.mtimeNs !== changed.stat.mtimeNs
     || stat.size !== changed.stat.size) return { mark: pendingMark(), restoreWritable: true };
@@ -139,8 +140,10 @@ function emptyMark(outcome: ProjectionFileWriteObservation | undefined): Refused
 }
 
 async function relockAdmission(root: ProjectionRootState, path: string, entry: RecordEntry,
-  outcome: ProjectionFileWriteObservation | undefined): Promise<{ mark: RefusedMark; writable?: boolean } | null> {
+  outcome: ProjectionFileWriteObservation | undefined): Promise<{ mark: RefusedMark; writable?: boolean; selected?: true } | null> {
   if (outcome?.rebuilt) return { mark: pendingMark(), writable: false };
+  const held = selectArchivePath(root, path, { report: false });
+  if (held !== null) return { mark: held, writable: false, selected: true };
   const denied = await root.rights?.(pendingFileRequest(root.checkout, path, entry));
   if (denied != null || !root.writable(path)) {
     return { mark: denied ?? entry.refused ?? pendingMark(), writable: false };

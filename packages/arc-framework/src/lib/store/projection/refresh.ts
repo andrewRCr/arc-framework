@@ -11,6 +11,7 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionConfiguration } from "./configuration.js";
 import { movedProjectionChanges, removeObsoleteProjectionPaths } from "./refresh-removals.js";
+import { selectArchivePath } from "./archive-selection.js";
 import { planProjectionRefresh, type ProjectionRefreshPlan } from "./refresh-plan.js";
 import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "./record-render.js";
 import { createProjectionProtection } from "./protection.js";
@@ -27,7 +28,7 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { planProjectionRebuild } from "./refresh-rebuild.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { markArrivingRecord } from "./changed-mark.js";
-import { ArchiveDestinationBlocked, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -80,7 +81,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   // A moved record's old path, the only holder of its changed mark, waits until its new path takes the mark.
   const deferred = new Set([...moved.values()].flat());
   index = await removeObsoleteProjectionPaths({ root, index, plan: withRemovals(planned, [...planned.removals].filter(path => !deferred.has(path))),
-    renderer, reference });
+    renderer, reference, admitsForcedEdit: true });
   const prepared = await prepareLaidPaths({ root, source, renderer, renderContext, reference, rebuilding: planned.rebuild === true },
     index, laid, moved);
   index = prepared.index;
@@ -88,11 +89,11 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   if (prepared.files.length > 0) {
     const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files: prepared.files, readBack: false,
       settlementPublication: "caller", writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint,
-      takeIn: root.takeIn, hooks: root.context.hooks });
+      takeIn: root.takeIn, hooks: root.context.hooks, report: root.context.report });
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
-  const settled = await settleMovedPaths({ root, renderer, reference, plan: planned }, index, moved, prepared.marked);
+  const settled = await settleMovedPaths({ root, renderer, reference, plan: planned, admitsForcedEdit: true }, index, moved, prepared.marked);
   index = settled.index;
   const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
@@ -190,15 +191,20 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
   }
   if (prior?.kind === "record" && !sameReference(prior.reference, read.result.reference)) {
     return { ...await prepareMaterializationFile({ root, index, path, record: read.result, renderer: input.renderer,
-      rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }), unresolved: true };
+      rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null,
+      admitsForcedEdit: true }), unresolved: true };
   }
   if (root.unsent.has(path)) return { index: withProjectionEntry(index, path,
     { ...entry, pending: true, unshown: unshownConflicts(entry, read.result.conflicts) }), unresolved: false };
   return prepareCurrentFile(input, entry, read.result);
 }
 
-/** A link at or above the path, or an ownership handoff in flight there, leaves the path to a later pass. */
+/**
+ * A link at or above the path, an archive path this checkout does not own, or an ownership handoff in flight there,
+ * leaves the path to a later pass.
+ */
 async function leftToLaterPass(input: IndexedFileInput, prior: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
+  if (selectArchivePath(input.root, input.path) !== null) return true;
   if ((await readProjectionLinkBoundary(input.root.checkout, [input.path]))(input.path) !== null) return true;
   // An ownership handoff in flight is reconciliation's to settle, under the mark naming both identities.
   return prior?.kind === "record" && prior.handoff !== undefined;
@@ -214,7 +220,8 @@ async function settleEvidenceHeldFile(input: IndexedFileInput): Promise<IndexedF
     return { index, unresolved: true };
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: withProjectionEntry(index, path, undefined), path,
-    record: read.result, renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
+    record: read.result, renderer: input.renderer, rebuilding: true, reference: input.reference, blocked: root.blockedByLink(path) !== null,
+    admitsForcedEdit: true }) };
 }
 
 async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, record: StoreRecord): Promise<{ index: ProjectionIndex; file?: SwapFile; unresolved: boolean }> {
@@ -234,7 +241,8 @@ async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, r
     rendered = prepared?.rendered;
   }
   return { unresolved: false, ...await prepareMaterializationFile({ root, index: input.index, path, record, renderer: input.renderer,
-    rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null }) };
+    rendered, rebuilding: false, opened: input.opened, reference: input.reference, blocked: root.blockedByLink(path) !== null,
+    admitsForcedEdit: true }) };
 }
 
 async function observeConflictedFile(input: IndexedFileInput, entry: RecordEntry, current: StoreRecord) {
@@ -245,9 +253,7 @@ async function observeConflictedFile(input: IndexedFileInput, entry: RecordEntry
     const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
     if (gate.kind !== "read") return null;
     const text = (await reader.read(absolute)).toString("utf8");
-    const prepared = await prepareConflictedRefresh(input.renderContext, { path, entry, current, text });
-    requireArchiveDestination(root.checkout, path);
-    return prepared;
+    return await prepareConflictedRefresh(input.renderContext, { path, entry, current, text });
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return error;
     throw error;

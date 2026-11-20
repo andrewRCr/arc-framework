@@ -13,6 +13,7 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import { reportProjectionCopy, reportProjectionLinks } from "./report.js";
+import { selectArchivePath } from "./archive-selection.js";
 import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
 import { reconcileProjectionLinks } from "./discovery-links.js";
 import { bindProjectionRoot } from "./engine-binding.js";
@@ -66,9 +67,9 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
         : { kind: "ready", version: saved.result, discovered: root.discovered };
     }
     let index = await reconcileProjectionLinks(root, disk.index);
-    const beforeSweep = index;
+    const beforeSweep = index, selecting = root;
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
-      blockedByLink: root.blockedByLink,
+      blockedByLink: root.blockedByLink, selectArchivePath: path => selectArchivePath(selecting, path),
       takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint,
       ignoreRules: config.ignoreRules, readIgnoreRules: async () => (await readProjectionConfiguration(ports.exec, input.checkout)).ignoreRules,
       guard: { root: input.checkout, identity: root.identity, exec: ports.execInput, fs: ports.fs } });
@@ -79,7 +80,13 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       mark: { reason: `Projection ignore guard refused: ${swept.ignores.reason}`, remedy: { text: swept.ignores.remedy } } });
     for (const left of swept.left) state.diagnostics.push({ path: left.path, copy: left.copy,
       mark: { reason: left.reason, remedy: left.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
-    for (const copy of swept.swept) reportProjectionCopy(copy.path, copy.copy, copy.outcome);
+    // A copy the path check refused at selection was reported with its path; a refusal at a change keeps its copy's report.
+    for (const copy of swept.swept) {
+      const selected = root.archiveSelection?.get(copy.path)?.mark;
+      if (copy.outcome.kind !== "blocked-destination" || selected == null || copy.outcome.mark !== selected) {
+        reportProjectionCopy(copy.path, copy.copy, copy.outcome);
+      }
+    }
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));
     if (swept.index !== null) {
       index = await reconcileProjectionHandoffs(root, swept.index);

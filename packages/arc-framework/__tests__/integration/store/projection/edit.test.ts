@@ -11,8 +11,7 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
-  afterCheckoutRead: null as (() => Promise<void>) | null, removeOnRead: null as string | null,
-  timeOffset: 0, linkedPath: null as string | null }));
+  removeOnRead: null as string | null, timeOffset: 0 }));
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   return { ...actual, openSync: (...args: Parameters<typeof actual.openSync>) => {
@@ -32,13 +31,7 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original =
   return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => {
     const ports = actual.createProjectionEnginePorts(...args);
     return { ...ports, maxWaitMs: 25, lock: { now: () => Date.now() + binding.timeOffset },
-      exec: async (...invocation: Parameters<typeof ports.exec>) => {
-        const result = await ports.exec(...invocation);
-        if (invocation[1].includes("--show-toplevel")) await binding.afterCheckoutRead?.();
-        return result;
-      },
       hooks: { afterOpenIndexCommit: (path: string) => binding.afterOpen?.(path) ?? Promise.resolve() },
-      linkFs: { lstat: (path: string) => binding.linkedPath === path ? Promise.resolve({ isSymbolicLink: () => true }) : lstat(path) },
     };
   } };
 });
@@ -59,10 +52,8 @@ const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
   binding.afterOpen = null;
-  binding.afterCheckoutRead = null;
   binding.removeOnRead = null;
   binding.timeOffset = 0;
-  binding.linkedPath = null;
   await removeGitBackedDirs(directories.splice(0));
 });
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -151,15 +142,17 @@ it.each([true, false])("refuses a nested checkout's file when the checkout is in
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
-it("leaves permissions alone when the local boundary changes after recording the opening", async () => {
+it("leaves permissions alone when a folder link arrives after recording the opening", async () => {
   const h = await archived(), file = join(h.f.root, h.path);
-  binding.afterOpen = async () => { binding.linkedPath = join(h.f.root, h.folder); };
+  const folder = join(h.f.root, h.folder), held = `${folder}-held`;
+  binding.afterOpen = async () => { await rename(folder, held); await symlink(held, folder, "junction"); };
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
     condition: expect.stringContaining("symbolic link"), remedy: { text: expect.stringContaining("Replace the symbolic link") },
   } });
   expect((await stat(file)).mode & 0o200).toBe(0);
   binding.afterOpen = null;
-  binding.linkedPath = null;
+  await rm(folder, { recursive: true });
+  await rename(held, folder);
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
@@ -378,25 +371,6 @@ it("keeps opening intent after a lost lease and opens on retry", async () => {
     code: "projection-skipped", condition: expect.stringContaining("lost"),
   } });
   expect((await stat(absolute)).mode & 0o200).toBe(0);
-  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
-    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
-  binding.afterOpen = null; binding.timeOffset = 0;
-  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
-});
-
-it("keeps the file read-only if the lease is lost during checkout validation", async () => {
-  const h = await archived(), file = join(h.f.root, h.path);
-  binding.afterOpen = async () => {
-    binding.afterCheckoutRead = async () => {
-      binding.afterCheckoutRead = null;
-      await rm(join(h.projected.location.stateDir, "lock"));
-      binding.timeOffset = 120_000;
-    };
-  };
-  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
-    code: "projection-skipped", condition: expect.stringContaining("lost"),
-  } });
-  expect((await stat(file)).mode & 0o200).toBe(0);
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
     .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
   binding.afterOpen = null; binding.timeOffset = 0;

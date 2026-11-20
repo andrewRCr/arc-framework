@@ -37,7 +37,7 @@ export function acceptArchiveSave(entry: RecordEntry, version: RecordVersion): R
 /** Form the existing accepted-input recording from the copy retained before submission. */
 export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, version: RecordVersion): Pick<RecordEntry, "persisted" | "acceptedInputStat"> {
   const { stamp, name, blob, read } = submission;
-  return { persisted: { stamp, recording: true, takenIn: { kind: "copy", name, blob, version } },
+  return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }), takenIn: { kind: "copy", name, blob, version } },
     acceptedInputStat: read === undefined ? undefined : { ino: read.stat.ino, mtimeNs: read.stat.mtimeNs } };
 }
 

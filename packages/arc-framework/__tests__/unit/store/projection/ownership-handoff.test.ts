@@ -187,6 +187,7 @@ it("keeps an archive handoff pending while its folder belongs to another checkou
     mark: expect.objectContaining({ reason: expect.stringContaining("another checkout") }) });
 
   await rm(boundary, { recursive: true });
-  const confirmed = await reconcileProjectionHandoffs(h.root, held);
+  // The next command asks again.
+  const confirmed = await reconcileProjectionHandoffs({ ...h.root, archiveSelection: new Map() }, held);
   expect(confirmed.entries[path]).toMatchObject({ reference: h.arrival.reference, pending: false, withheld: false });
 });

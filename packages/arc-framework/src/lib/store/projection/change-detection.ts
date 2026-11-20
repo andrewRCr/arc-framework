@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
-import { ArchiveDestinationBlocked, archivePermissionMark, readArchiveBytes, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, readArchiveBytes } from "./archive-file.js";
 
 /** The racy reference: a stamp file at the aside folder's top, rewritten after each index write. */
 export const PROJECTION_REFERENCE = `${PROJECTION_ASIDE_ROOT}/reference`;
@@ -87,7 +87,7 @@ export type ChangeVerdict =
   | { readonly status: "hashed-clean"; readonly stat: FileStat }
   | { readonly status: "changed"; readonly stat: FileStat; readonly blob: string };
 
-/** Observe an ordinary path directly, or revalidate an archive at each stat and byte read. */
+/** Observe a path's stat and bytes, an archive file's permission failures reported as a refusal. */
 export interface ProjectionFileReader {
   readonly stat: (absolute: string) => FileStat | null | Promise<FileStat | null>;
   readonly read: (absolute: string) => Buffer | Promise<Buffer>;
@@ -100,7 +100,6 @@ export function projectionFileReader(checkout: string, path: string): Projection
   if (!path.startsWith(".arc/completed/")) return ordinaryFileReader;
   return {
     stat: absolute => {
-      requireArchiveDestination(checkout, path, true);
       try { return readStatSync(absolute); }
       catch (error) { throw new ArchiveDestinationBlocked(archivePermissionMark(path, error)); }
     },
@@ -112,7 +111,7 @@ export function projectionFileReader(checkout: string, path: string): Projection
  * Check one file against its entry.
  * @param check - The file's absolute path and what it is compared against.
  * @param readFile - Reads the bytes a hash takes.
- * @param statFile - Observes the path, including any caller's authority check.
+ * @param statFile - Observes the path.
  * @returns What the check found.
  */
 export async function checkChange(

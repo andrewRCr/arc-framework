@@ -21,8 +21,9 @@ import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 
 import { relockOpenedProjectionFiles } from "./save-relock.js";
-import { ArchiveDestinationBlocked, archiveLinkRefusal, hasArchiveRendering, nestedArchiveCheckoutRefusal } from "./archive-file.js";
-import { clearArchiveOpeningHold, unopenedArchiveEditHold } from "./archive-opening-hold.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { selectArchivePath } from "./archive-selection.js";
+import { holdWaitingArchiveEdit } from "./archive-waiting.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { hasArchiveRecording } from "./recording-state.js";
 
@@ -87,8 +88,9 @@ function resolutionAliasRefusal(checkout: string, path: string): RefusedMark | n
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   observed?: FileStat | null, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{ index: ProjectionIndex; edited: boolean; reobserve?: boolean }> {
   let entry = index.entries[path];
-  const blocked = await archivePickupRefusal(root, path, entry);
-  if (blocked !== null) return checkBlockedArchivePath(root, index, path, entry, blocked);
+  // The command's one selection-time check of an archive path; a refused path keeps its entry and any accepted work.
+  const blocked = selectArchivePath(root, path, { report: false });
+  if (blocked !== null) return checkBlockedArchivePath(root, index, path, entry);
   if (entry?.kind === "record" && entry.archiveSubmission !== undefined) {
     const recovered = await recoverSubmittedArchiveEdit(root, index, path, entry);
     if (recovered.held) return { index, edited: false };
@@ -101,9 +103,9 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   return checkIndexedFile(root, index, path, entry, reference, observed, onFile);
 }
 
-/** Recover store-only acceptance while a path cannot be inspected or installed. */
+/** Recover store-only acceptance while a path cannot be inspected or installed: refused at selection, or unreadable. */
 async function checkBlockedArchivePath(root: ProjectionRootState, index: ProjectionIndex, path: string,
-  entry: ProjectionIndex["entries"][string] | undefined, mark: RefusedMark): Promise<{ index: ProjectionIndex; edited: false; reobserve?: true }> {
+  entry: ProjectionIndex["entries"][string] | undefined, read?: RefusedMark): Promise<{ index: ProjectionIndex; edited: false; reobserve?: true }> {
   const recording = hasArchiveRecording(entry);
   if (entry?.archiveSubmission !== undefined) {
     await root.checkpoint?.();
@@ -114,8 +116,11 @@ async function checkBlockedArchivePath(root: ProjectionRootState, index: Project
   }
   if (recording || entry?.opened === true) root.unsent.add(path);
   // Save reports other held stored openings at re-lock, which observes the same path again.
-  if (recording || !(root.context.verb === "save" && entry?.kind === "record" && entry.opened === true)) {
-    root.context.report?.({ path, copy: null, mark });
+  // A file no entry names under a folder another checkout holds is that checkout's, and is not reported here.
+  if (entry !== undefined && (recording || !(root.context.verb === "save" && entry.kind === "record" && entry.opened === true))) {
+    // A refused selection is reported once per command; a read the file's permissions refused is reported here.
+    if (read === undefined) selectArchivePath(root, path);
+    else root.context.report?.({ path, copy: null, mark: read });
   }
   return { index, edited: false, ...(recording ? { reobserve: true } : {}) };
 }
@@ -143,7 +148,7 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
   if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
     root.unsent.delete(path);
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
-    return { index: recordCleanFile(root, index, path, entry, changed), edited: false };
+    return { index: recordCleanFile(index, path, entry, changed), edited: false };
   }
   const unchanged = !resolving && changed.status === "changed"
     ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
@@ -175,33 +180,22 @@ async function checkIndexedChange(root: ProjectionRootState, path: string, entry
   }
 }
 
-async function archivePickupRefusal(root: ProjectionRootState, path: string,
-  entry: ProjectionIndex["entries"][string] | undefined): Promise<RefusedMark | null> {
-  if (!path.startsWith(".arc/completed/")) return null;
-  return await archiveLinkRefusal(root, path) ?? await openedArchiveCheckoutRefusal(root, path, entry);
-}
 
-async function openedArchiveCheckoutRefusal(root: ProjectionRootState, path: string,
-  entry: ProjectionIndex["entries"][string] | undefined): Promise<RefusedMark | null> {
-  return entry?.opened === true ? nestedArchiveCheckoutRefusal(root.checkout, path) : null;
-}
-
-function recordCleanFile(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
+function recordCleanFile(index: ProjectionIndex, path: string, entry: RecordEntry,
   changed: Exclude<ChangeVerdict, { status: "absent" }>): ProjectionIndex {
-  const hold = unopenedArchiveEditHold(entry);
-  const settled = hold !== null && entry.copies.length === 0 && entry.stat !== null
-    && hasArchiveRendering(root.checkout, path, entry.stat, entry.written, root.context.format) ? clearArchiveOpeningHold(entry) : entry;
-  const refused = settled.refused?.reason === "bases-disagree" ? settled.refused : null;
-  if (settled === entry && changed.status === "clean" && entry.refused === refused) return index;
-  return withEntry(index, path, { ...settled, stat: changed.stat, refused });
+  const refused = entry.refused?.reason === "bases-disagree" ? entry.refused : null;
+  if (changed.status === "clean" && entry.refused === refused) return index;
+  return withEntry(index, path, { ...entry, stat: changed.stat, refused });
 }
 
 async function sendFile(root: ProjectionRootState, index: ProjectionIndex, request: TakeInRequest): Promise<{
   index: ProjectionIndex; result: TakeInResult; installation: ProjectionFileWriteObservation["installation"]; rebuilt?: boolean;
 }> {
   const { path, entry } = request;
-  const unopened = root.context.verb === "save" && request.resolution === undefined ? unopenedArchiveEditHold(entry) : null;
-  const denied = unopened ?? await openedArchiveCheckoutRefusal(root, path, entry) ?? await root.rights?.(request);
+  const waiting = await holdWaitingArchiveEdit(root, request);
+  if (waiting !== null) return { result: waiting, installation: "not-authorized", index: await commitProjectionIndex({ location: root.location,
+    checkout: root.checkout, index: withEntry(index, path, waiting.entry), checkpoint: root.context.checkpoint }) };
+  const denied = await root.rights?.(request);
   if (denied !== undefined && denied !== null) {
     root.unsent.add(path);
     root.context.report?.({ path, copy: request.copy, mark: denied });

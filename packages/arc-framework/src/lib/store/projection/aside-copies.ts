@@ -16,7 +16,7 @@ import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
 export type PathHolding =
@@ -35,11 +35,9 @@ export async function readPathHolding(checkout: string, path: string, format: Ob
   const absolute = join(checkout, path);
   const reader = projectionFileReader(checkout, path);
   const stat = await reader.stat(absolute);
-  requireArchiveDestination(checkout, path);
   if (stat === null) return { kind: "absent" };
   if (stat.type !== "file") return { kind: "not-a-file" };
   const blob = gitBlobId(await reader.read(absolute), format);
-  requireArchiveDestination(checkout, path);
   return { kind: "file", blob };
 }
 
@@ -107,7 +105,7 @@ export type CopyCheck =
 export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "blocked-destination" | "moved-on" | "sent" }>
   | { readonly kind: "edited"; readonly entry: RecordEntry; readonly bytes: Uint8Array; readonly blob: string };
 
-/** Read-only copy inputs, optionally carrying an opaque destination observation instead of traversing its ancestors. */
+/** Read-only copy inputs, optionally carrying what the copy's path already holds instead of reading it. */
 export type AsideCopyChecking = Pick<AsideCopySettling, "checkout" | "path" | "entry" | "copy" | "format" | "takeIn" | "gate" | "keepEmpty">
   & { readonly holding?: PathHolding };
 
@@ -125,7 +123,6 @@ export async function checkAsideCopy(input: AsideCopyChecking): Promise<CopyChec
   try {
     // An older save from the same buffer and another editor's newer one cannot be told apart.
     if (hasPathMovedOn(copy, input.holding ?? await readPathHolding(checkout, path, input.format))) return { kind: "moved-on", entry };
-    requireArchiveDestination(checkout, path);
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark };
     throw error;
@@ -200,17 +197,11 @@ export type HeldEdit = "refused" | "unparseable" | "clashed";
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
-  const blocked = blockedAsideDestination(input, input.entry);
-  if (blocked !== null) return blocked;
   const linked = await sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path));
-  const afterAliasCheck = blockedAsideDestination(input, input.entry);
-  if (afterAliasCheck !== null) return afterAliasCheck;
   if (linked) {
     return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
   }
   const checked = await checkAsideCopy(input);
-  const current = blockedAsideDestination(input, checked.entry);
-  if (current !== null) return current;
   switch (checked.kind) {
     case "blocked-destination": return checked;
     case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
@@ -242,8 +233,6 @@ export async function putBack(
   input: AsideCopySettling, sent: Extract<CopyCheck, { readonly kind: "sent" }> & { readonly answer: HeldEdit },
 ): Promise<CopySettlement> {
   const { checkout, path, copy } = input;
-  const blocked = blockedAsideDestination(input, sent.entry);
-  if (blocked !== null) return blocked;
   const moves = retriedMoves(input, { checkout, path });
   const at = { copy: join(checkout, copy.name), path: join(checkout, path) };
   const aside: CopySettlement = { kind: "held-aside", entry: sent.entry, path, copy: copy.name, held: sent.answer };
@@ -277,13 +266,6 @@ export async function putBack(
   };
 }
 
-/** Preserve the complete copy mapping while a late destination change prevents settlement. */
-export function blockedAsideDestination(input: Pick<AsideCopySettling, "checkout" | "path">, entry: RecordEntry):
-Extract<CopySettlement, { kind: "blocked-destination" }> | null {
-  const mark = archiveDestinationRefusal(input.checkout, input.path);
-  return mark === null ? null : { kind: "blocked-destination", entry, mark };
-}
-
 /** A copy is taken in against the stamp it carries, or, stampless, the base blob id its name carries. */
 function copyBase(copy: AsideCopyRecord, bytes: Uint8Array, markdown: boolean): TakeInBase {
   if (markdown) return { kind: "stamp", stamp: parseStampedFile(new TextDecoder().decode(bytes)).stamp };
@@ -298,8 +280,6 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
     const stat = await readStat(join(checkout, input.copy.name));
     if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
   }
-  const blocked = blockedAsideDestination(input, entry);
-  if (blocked !== null) return blocked;
   try {
     return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
   } catch (error) {

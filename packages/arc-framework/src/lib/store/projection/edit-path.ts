@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readdir } from "node:fs/promises";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { archiveCheckoutRefusal, archiveFileChangeMark, archiveLinkRefusal, readArchiveFile, sameArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
+import { archiveEditDestinationRefusal, archiveFileChangeMark, readArchiveFile, sameArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
 import { readProjectionProtection } from "./protection.js";
@@ -73,8 +73,8 @@ Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extrac
     reason: `${path} is an editor or system side file, not an adoptable projected file.`,
     remedy: { text: "Keep side files outside projected roots, or remove the side file and open the intended document." },
   });
-  const linked = await archiveLinkRefusal(root, path);
-  if (linked !== null) return refuse(linked);
+  const destination = archiveEditDestinationRefusal(root.checkout, path);
+  if (destination !== null) return refuse(destination);
   const absolute = join(root.checkout, path);
   const gate = await gateRead({ path: absolute, markdown: false });
   if (gate.kind === "absent") return refuse({ reason: `No file exists at ${path}.`,
@@ -84,8 +84,6 @@ Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extrac
     remedy: gate.deleted === "not-a-file" ? gate.remedy : { text: "Restore a regular file, then retry arc edit." } });
   if (gate.kind === "pending") return refuse({ reason: `${path} is still being saved (${gate.reason}).`,
     remedy: { text: "Let the editor finish saving, then retry arc edit." } });
-  const foreign = await archiveCheckoutRefusal(root, path);
-  if (foreign !== null) return refuse(foreign);
   if (!await exactPathSpelling(root.checkout, path)) return refuse({
     reason: `${path} does not match the file's on-disk spelling.`,
     remedy: { text: "Use the file's exact on-disk path, including its capitalization, and retry arc edit." },

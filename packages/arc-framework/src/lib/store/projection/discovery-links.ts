@@ -7,6 +7,7 @@ import type { Stats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
+import { selectArchivePath } from "./archive-selection.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -51,7 +52,8 @@ export function projectionLinkRemedy(link: string): Remedy {
 }
 
 /** Remove obsolete ownerless blockers and physical-file refusals, retaining exact records and recovery obligations. */
-export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "checkout" | "location" | "context" | "blockedByLink" | "unsent">,
+export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "checkout" | "location" | "context" | "blockedByLink" | "unsent"
+  | "archiveSelection">,
   index: ProjectionIndex): Promise<ProjectionIndex> {
   loadProjectionGroups(index, "walked");
   const groups = loadedProjectionGroups(index);
@@ -60,6 +62,8 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind === "record" && entry.handoff !== undefined) continue;
     if (root.blockedByLink(path) === null) continue;
+    // An archive path this checkout does not own keeps its entry, with any opening, recording, and copies.
+    if (selectArchivePath(root, path) !== null) continue;
     const next = withoutPhysicalEdit(entry);
     if (next === null) entries.delete(path);
     else entries.set(path, next);

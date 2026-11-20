@@ -37,9 +37,8 @@ import type { ProjectionConfiguration } from "./configuration.js";
 import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from "./index-schema.js";
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
-import { reportArchiveRestorationHold, reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
-import { unopenedArchiveEditHold, unopenedArchiveMark } from "./archive-opening-hold.js";
-import type { TakeInPort } from "./take-in-port.js";
+import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
+import { selectArchivePath } from "./archive-selection.js";
 
 /** Inputs observed by the lease-owning caller. */
 interface ProjectionMaterializationBasis {
@@ -51,7 +50,6 @@ interface ProjectionMaterializationBasis {
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
   /** Links this command's start already reported, which the lay leaves unreported so each is reported once. */
   readonly reportedLinks?: readonly string[];
-  readonly takeIn?: TakeInPort;
 }
 /**
  * A full lay over no usable index, or the restoration of deleted files over a usable one. A usable index never takes a
@@ -66,7 +64,8 @@ export type ProjectionMaterializationResult = { readonly kind: "materialized"; r
 /** Lay the complete visible inventory while preserving every file without a trustworthy basis. */
 export async function materializeProjectionRoot(input: ProjectionMaterializationInput): Promise<ProjectionMaterializationResult> {
   const { root } = input;
-  const takeIn = input.takeIn ?? root.takeIn;
+  // A restoration takes nothing in: an edit it meets at an archived path waits for an opening.
+  const admitsForcedEdit = input.onlyDeleted !== true;
   const startedAt = projectionTimingNow(root.ports);
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
@@ -109,17 +108,17 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   retainUncertainProjectionPaths(index, desired, { paths, removals: collisions });
   const laid = laidProjectionPaths(paths);
   const arrivals = findProjectionArrivals(index, laid);
-  index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference, takeIn });
+  index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference, admitsForcedEdit });
   let unlaid = false;
   for (const [path, record] of selected) {
     if (!laid.has(path) || !root.writable(path)) continue;
     const prepared = await prepareMaterializationFile({ root, index, path, record, renderer, rebuilding: input.index === null,
-      reference, blocked: selection.boundary(path) !== null, takeIn });
+      reference, blocked: selection.boundary(path) !== null, admitsForcedEdit });
     index = prepared.index;
     unlaid ||= prepared.unresolved === true;
     if (prepared.file !== undefined) files.push(prepared.file);
   }
-  index = await installMaterializedFiles(input, index, files, takeIn);
+  index = await installMaterializedFiles(input, index, files);
   await ensureProjectionScratch(root);
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: materializationTimings(input, { ...index, state: !input.onlyDeleted && whole && !unlaid
@@ -132,22 +131,20 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
 }
 
 async function installMaterializedFiles(input: ProjectionMaterializationInput, index: ProjectionIndex,
-  files: readonly SwapFile[], takeIn: TakeInPort): Promise<ProjectionIndex> {
+  files: readonly SwapFile[]): Promise<ProjectionIndex> {
   if (files.length === 0) return index;
   const { root } = input;
   const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
-    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks,
-    ...(input.takeIn === undefined ? {} : { restorationOpeningHold: (path, entry) => path.startsWith(".arc/completed/") && entry.opened !== true
-      ? unopenedArchiveMark(root.checkout, path, true) : null }) });
+    writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn,
+    hooks: root.context.hooks, report: root.context.report });
   root.context.recordBatch?.(swapped);
-  if (input.takeIn !== undefined) {
-    for (const path of swapped.unreplaced) {
-      const entry = swapped.index.entries[path];
-      const hold = entry?.kind === "record" ? unopenedArchiveEditHold(entry) : null;
-      if (entry?.refused != null && entry.refused.reason !== hold?.reason) root.context.report?.({ path, copy: null, mark: entry.refused });
-      else if (entry?.kind === "record" && hold !== null) await reportArchiveRestorationHold(root, path, entry, hold);
-      else await reportArchivedProjectionFile(root, index, path);
-    }
+  if (input.onlyDeleted !== true) return swapped.index;
+  // A take-in that held an edit, or the batch refusing a change, reported it; any other path left unreplaced is named here.
+  for (const path of swapped.unreplaced) {
+    if (root.unsent.has(path) || swapped.reported.includes(path)) continue;
+    const entry = swapped.index.entries[path];
+    if (entry?.refused != null) root.context.report?.({ path, copy: null, mark: entry.refused });
+    else await reportArchivedProjectionFile(root, index, path);
   }
   return swapped.index;
 }
@@ -164,7 +161,8 @@ async function recordUnknownFiles(root: ProjectionRootState, initial: Projection
   desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
   let index = initial;
   for (const path of paths) {
-    if (desired.has(path)) continue;
+    // A file under a folder another checkout holds is that checkout's, never recorded here.
+    if (desired.has(path) || selectArchivePath(root, path, { report: false }) !== null) continue;
     const refused = whole ? withheldProjectionMark(path) : evidenceHeldProjectionMark(path);
     index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat: await readStat(join(root.checkout, path)), refused });
     root.context.report?.({ path, copy: null, mark: refused });

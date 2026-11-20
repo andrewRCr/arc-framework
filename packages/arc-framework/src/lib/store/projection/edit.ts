@@ -9,7 +9,6 @@ import { ProjectionLockLostError, withProjectionLock } from "./lock.js";
 import { recordProjectionLockSkip } from "./engine.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { clearArchiveOpeningHold } from "./archive-opening-hold.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
 import { changeArchiveFileMode } from "./archive-file.js";
 
@@ -57,9 +56,8 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
     remedy: { text: "Retry arc edit; the next command start rebuilds an unusable index." } }, "projection-refused");
   const inspected = await inspectProjectionEditPath(root, disk.index, path);
   if (inspected.kind === "refused") return refuse(inspected.mark);
-  const entry = inspected.entry.kind === "record" ? clearArchiveOpeningHold(inspected.entry) : inspected.entry;
   await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-    index: withProjectionEntry(disk.index, path, { ...entry, opened: true }) });
+    index: withProjectionEntry(disk.index, path, { ...inspected.entry, opened: true }) });
   await root.ports.hooks?.afterOpenIndexCommit?.(path);
   await root.checkpoint?.();
   let changed: Awaited<ReturnType<typeof changeArchiveFileMode>>;

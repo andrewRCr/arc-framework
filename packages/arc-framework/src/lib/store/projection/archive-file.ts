@@ -1,79 +1,69 @@
 /** Observe and change an archived file through its checkout-local path and file identity. */
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, type BigIntStats } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { canonicalCheckout } from "./checkout-identity.js";
-import { projectionLinkRemedy, readProjectionLinkBoundary } from "./discovery-links.js";
+import { join } from "node:path";
+import { projectionLinkRemedy } from "./discovery-links.js";
 import type { FileStat, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 
-type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "ports" | "checkpoint">;
+type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "checkpoint">;
 type ArchiveFile = { kind: "file"; stat: BigIntStats } | { kind: "missing" } | { kind: "blocked"; mark: RefusedMark };
 type ArchiveModeChange = ArchiveFile | { kind: "mode-refused"; mark: RefusedMark };
 
 /** Identity of the regular file authorized at the opening inspection. */
 export type ArchiveFileIdentity = Pick<BigIntStats, "dev" | "ino">;
 
-/** Identify the Git checkout holding a path, including a checkout nested below the current one. */
-export async function archiveCheckoutRefusal(root: ArchiveRoot, path: string): Promise<RefusedMark | null> {
-  try {
-    const { stdout } = await root.ports.exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(join(root.checkout, path)) });
-    if (stdout.trim() !== "" && await canonicalCheckout(stdout.trim()) === root.checkout) return null;
-  } catch {
-    return { reason: `Could not identify the checkout holding ${path}.`,
-      remedy: { text: "Restore the checkout's Git metadata, then retry arc edit." } };
-  }
-  return foreignArchivePath(path);
-}
-
-/** A nested Git marker makes a path unsafe for the outer projection, even before the nested checkout is usable. */
-export async function nestedArchiveCheckoutRefusal(checkout: string, path: string): Promise<RefusedMark | null> {
-  if (!path.startsWith(".arc/completed/")) return null;
-  for (let folder = dirname(path); folder !== "."; folder = dirname(folder)) {
-    try {
-      if (await unavailableFile(lstat(join(checkout, folder, ".git"))) !== null) return foreignArchivePath(path);
-    } catch (error) { return archivePermissionMark(path, error); }
-  }
-  return null;
-}
-
 function foreignArchivePath(path: string): RefusedMark {
   return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
-}
-
-/** Resolve the link boundary of an individually selected archive path. */
-export async function archiveLinkRefusal(root: { checkout: string; ports: Pick<ArchiveRoot["ports"], "linkFs"> }, path: string): Promise<RefusedMark | null> {
-  try {
-    const link = (await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs))(path);
-    return link === null ? null : linkedArchivePath(path, link);
-  } catch (error) { return archivePermissionMark(path, error); }
 }
 
 function linkedArchivePath(path: string, link: string): RefusedMark {
   return { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
 }
 
-/** Walk archive ancestors once, without yielding between link and checkout-marker observations. */
-export function archiveDestinationRefusal(checkout: string, path: string, allowLeafLink = false): RefusedMark | null {
-  if (!path.startsWith(".arc/completed/")) return null;
+/** Why an archive path is not this checkout's: a linked folder, a nested checkout, or a folder that cannot be inspected. */
+export interface ArchiveDestination { readonly cause: "link" | "checkout" | "access"; readonly mark: RefusedMark }
+
+/**
+ * Walk an archive path's folders once: the path is this checkout's while no folder between the file and the checkout's
+ * root is a symbolic link or holds a `.git` entry. A link at the file itself reads as a deleted file and is not asked.
+ */
+export function archiveDestination(checkout: string, path: string): ArchiveDestination | null {
+  return path.startsWith(".arc/completed/") ? walkDestination(checkout, path) : null;
+}
+
+function walkDestination(checkout: string, path: string): ArchiveDestination | null {
   const parts = path.split("/");
   let folder = checkout;
   try {
-    for (const [index, component] of parts.entries()) {
-      const leaf = index === parts.length - 1;
-      if (leaf && allowLeafLink) return null;
+    for (const [index, component] of parts.slice(0, -1).entries()) {
       folder = join(folder, component);
       const stat = lstatSync(folder, { throwIfNoEntry: false });
-      if (stat === undefined) return null;
-      if (stat.isSymbolicLink()) return linkedArchivePath(path, parts.slice(0, index + 1).join("/"));
-      if (leaf || !stat.isDirectory()) return null;
-      if (lstatSync(join(folder, ".git"), { throwIfNoEntry: false }) !== undefined) return { ...foreignArchivePath(path), remedy: {
-        text: "Restore access and ownership of the archive destination in the outer checkout, then retry.",
-      } };
+      if (stat?.isSymbolicLink() === true) return { cause: "link", mark: linkedArchivePath(path, parts.slice(0, index + 1).join("/")) };
+      if (stat === undefined || !stat.isDirectory()) return null;
+      if (lstatSync(join(folder, ".git"), { throwIfNoEntry: false }) !== undefined) return { cause: "checkout", mark: { ...foreignArchivePath(path),
+        remedy: { text: "Move the nested checkout out of the archive, or run the command from the checkout that holds this file." } } };
     }
     return null;
-  } catch (error) { return archivePermissionMark(path, error); }
+  } catch (error) { return { cause: "access", mark: archiveAccessMark(path, error) }; }
+}
+
+/** The refusal `archiveDestination` answers for a path, or null where the path is this checkout's. */
+export function archiveDestinationRefusal(checkout: string, path: string): RefusedMark | null {
+  return archiveDestination(checkout, path)?.mark ?? null;
+}
+
+/** `arc edit`'s answer for any target path, naming the checkout that holds a nested checkout's file. */
+export function archiveEditDestinationRefusal(checkout: string, path: string): RefusedMark | null {
+  const destination = walkDestination(checkout, path);
+  return destination?.cause === "checkout" ? foreignArchivePath(path) : destination?.mark ?? null;
+}
+
+function archiveAccessMark(path: string, error: unknown): RefusedMark {
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code === "EACCES" || code === "EPERM" || code === "EROFS") return archivePermissionMark(path, error);
+  return { reason: `Cannot validate ${path}: ${code ?? (error instanceof Error ? error.message : String(error))}.`,
+    remedy: { text: "Repair the folders on the archive path, then retry the command." } };
 }
 
 /** A mutation stopped by the checkout or link check at the point of use. */
@@ -81,15 +71,14 @@ export class ArchiveDestinationBlocked extends Error {
   constructor(readonly mark: RefusedMark) { super(mark.reason); }
 }
 
-/** Check an archive destination after the caller's last lease checkpoint and before the filesystem operation. */
-export function requireArchiveDestination(checkout: string, path: string, allowLeafLink = false): void {
-  const mark = archiveDestinationRefusal(checkout, path, allowLeafLink);
+/** Check an archive destination after the caller's last lease checkpoint and just before the change it guards. */
+export function requireArchiveDestination(checkout: string, path: string): void {
+  const mark = archiveDestinationRefusal(checkout, path);
   if (mark !== null) throw new ArchiveDestinationBlocked(mark);
 }
 
-/** Read bytes through a regular file handle after freshly checking every archive ancestor. */
+/** Read bytes through a regular file handle that never follows a link at the file itself. */
 export function readArchiveBytes(checkout: string, path: string, expected?: FileStat): Buffer {
-  requireArchiveDestination(checkout, path);
   let descriptor: number | undefined;
   try {
     descriptor = openSync(join(checkout, path), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -112,7 +101,6 @@ export function readArchiveBytes(checkout: string, path: string, expected?: File
 }
 
 function confirmArchiveRead(checkout: string, path: string, before: BigIntStats): void {
-  requireArchiveDestination(checkout, path);
   const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
   if (current === undefined || !current.isFile() || !sameArchiveFile(before, current)
     || before.size !== current.size || before.mtimeNs !== current.mtimeNs || before.ctimeNs !== current.ctimeNs) {
@@ -120,36 +108,12 @@ function confirmArchiveRead(checkout: string, path: string, before: BigIntStats)
   }
 }
 
-/** Confirm both the staged inode and its bytes before clearing a sync restoration's opening hold. */
-export function hasArchiveRendering(checkout: string, path: string, staged: FileStat, written: string, format: ObjectFormat): boolean {
-  let descriptor: number | undefined;
-  try {
-    if (archiveDestinationRefusal(checkout, path) !== null) return false;
-    const absolute = join(checkout, path);
-    descriptor = openSync(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const before = fstatSync(descriptor, { bigint: true });
-    if (!before.isFile() || before.ino !== staged.ino || before.size !== staged.size) return false;
-    if (gitBlobId(readFileSync(descriptor), format) !== written || archiveDestinationRefusal(checkout, path) !== null) return false;
-    const current = lstatSync(absolute, { bigint: true, throwIfNoEntry: false });
-    return current !== undefined && current.isFile() && sameArchiveFile(before, current)
-      && before.size === current.size && before.mtimeNs === current.mtimeNs && before.ctimeNs === current.ctimeNs;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return false;
-    archivePermissionMark(path, error);
-    return false;
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
-}
-
-/** Observe the current regular file without treating a linked destination as archive content. */
+/** Observe the current regular file, never following a link at the file itself. */
 export async function readArchiveFile(root: ArchiveRoot, path: string): Promise<ArchiveFile> {
-  const mark = await archiveLinkRefusal(root, path);
-  if (mark !== null) return { kind: "blocked", mark };
   try {
     const stat = await unavailableFile(lstat(join(root.checkout, path), { bigint: true }));
-    if (stat === null) return { kind: "missing" };
+    // A link at the file itself reads as a deleted file, which `arc sync` rebuilds.
+    if (stat === null || stat.isSymbolicLink()) return { kind: "missing" };
     return stat.isFile() ? { kind: "file", stat } : { kind: "blocked", mark: archiveFileChangeMark(path) };
   } catch (error) { return { kind: "blocked", mark: archivePermissionMark(path, error) }; }
 }
@@ -173,29 +137,25 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
     try { stat = await handle.stat({ bigint: true }); }
     catch (error) { return archiveModeRefusal(path, error); }
     await root.checkpoint?.();
-    const foreign = opening === undefined ? await nestedArchiveCheckoutRefusal(root.checkout, path) : await archiveCheckoutRefusal(root, path);
-    if (foreign !== null) return { kind: "blocked", mark: foreign };
-    const current = await readArchiveFile(root, path);
-    if (current.kind !== "file") return current;
-    if (!stat.isFile() || !sameArchiveFile(stat, opening ?? observed.stat) || !sameArchiveFile(stat, current.stat)) {
-      return { kind: "blocked", mark: archiveFileChangeMark(path) };
-    }
-    await root.checkpoint?.();
-    return await changeCheckedMode(handle, root.checkout, path, stat, writable);
+    return await changeCheckedMode(handle, root.checkout, path, { handle: stat, authorized: opening ?? observed.stat }, writable);
   } finally {
     await handle.close();
   }
 }
 
-/** Check again after the final lease await, then change the mode on the already verified handle. */
+/**
+ * After the final lease await, ask whether the path is this checkout's, then change the mode on the handle while it, the
+ * path, and the authorized observation all name one regular file.
+ */
 async function changeCheckedMode(handle: NonNullable<Awaited<ReturnType<typeof open>>>, checkout: string, path: string,
-  authorized: BigIntStats, writable: boolean): Promise<ArchiveModeChange> {
+  identity: { readonly handle: BigIntStats; readonly authorized: ArchiveFileIdentity }, writable: boolean): Promise<ArchiveModeChange> {
   const foreign = archiveDestinationRefusal(checkout, path);
   if (foreign !== null) return { kind: "blocked", mark: foreign };
   try {
     const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
     if (current === undefined) return { kind: "missing" };
-    if (!current.isFile() || !sameArchiveFile(authorized, current)) return { kind: "blocked", mark: archiveFileChangeMark(path) };
+    if (!identity.handle.isFile() || !current.isFile() || !sameArchiveFile(identity.handle, identity.authorized)
+      || !sameArchiveFile(identity.handle, current)) return { kind: "blocked", mark: archiveFileChangeMark(path) };
     const mode = Number(current.mode);
     await handle.chmod(writable ? mode | 0o200 : mode & ~0o222);
     return { kind: "file", stat: current };

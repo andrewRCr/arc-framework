@@ -81,7 +81,7 @@ it("leaves a new archived file unadopted unless it was opened", async () => {
   expect(await readFile(join(h.checkout, path), "utf8")).toBe(content);
 });
 
-it("retries a refusal left by a refresh in a marked archive partition without opening the file", async () => {
+it("keeps a forced edit whose refresh take-in the store refused waiting in a marked archive partition until an opening", async () => {
   const h = await fixture(), file = join(h.checkout, h.path), entry = h.projected.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("Missing archive entry");
   const remote = h.primary.content.replace("- **Next Action:** —", "- **Next Action:** Stored next action.");
@@ -106,6 +106,15 @@ it("retries a refusal left by a refresh in a marked archive partition without op
     try { await writeBackProjectionFiles(root, disk.index, []); }
     finally { root.checkpoint = null; }
   });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).not.toContain("A forced local correction.");
+  expect(await readFile(file, "utf8")).toContain("A forced local correction.");
+  const waiting = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  expect(waiting).toMatchObject({ kind: "index", index: { entries: { [h.path]: {
+    pending: true, refused: { reason: expect.stringContaining("without opening") } } } } });
+  await endProjection(input);
+
+  await openArchivedProjectionFile(h, h.path);
+  expect(await save(h)).toMatchObject({ status: "ok" });
   const content = success(await h.store.read({ reference: h.primary.reference })).content;
   expect(content).toContain("Stored next action.");
   expect(content).toContain("A forced local correction.");

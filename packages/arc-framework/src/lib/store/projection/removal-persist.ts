@@ -39,9 +39,10 @@ import { persistProjectionAsides, changedProjectionAsides } from "./removal-pers
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead, projectionReadGate } from "./read-gate.js";
 import { canRecoverArchiveEntry, inspectArchivedProjectionFile } from "./archive-inspection.js";
-import { unopenedArchiveEditHold, unopenedArchiveMark } from "./archive-opening-hold.js";
+import { waitingEditMark } from "./archive-admission.js";
 import { hasArchiveRecording } from "./recording-state.js";
-import { ArchiveDestinationBlocked, archiveDestinationRefusal, requireArchiveDestination } from "./archive-file.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { retirementSelection, selectArchivePath } from "./archive-selection.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
 export interface ProjectionPersistHooks {
@@ -123,7 +124,7 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
     const prior = archiveBasis.entries[request.path];
     if (canRecoverArchiveEntry(prior)) return null;
     if (request.copy === null && !request.observedEdit && read.blob === request.entry.written) return null;
-    return unopenedArchiveMark(input.checkout, request.path, prior !== undefined);
+    return waitingEditMark(input.checkout, request.path, prior !== undefined);
   } });
   try {
     let index = disk.index;
@@ -199,15 +200,19 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   reference: bigint | null, disposition: ProjectionRetirement): Promise<{ files: string[]; refusal?: Remedy }> {
   const files: string[] = [];
   let refusal: Remedy | undefined;
-  const recordings = Object.keys(index.entries).filter(path => path.startsWith(".arc/completed/") && hasArchiveRecording(index.entries[path]));
-  for (const path of new Set([...paths, ...recordings])) {
+  for (const path of retirementSelection(index, paths)) {
+    // An archive path this checkout does not own is left untouched, and retirement refuses over it.
+    const destination = selectArchivePath(root, path, { report: false });
+    if (destination !== null) {
+      refusal ??= retirementRefusal(root.checkout, path, destination, disposition);
+      continue;
+    }
     // The write-back walk can recover a staged receipt under the checkout's lease.
     if (hasArchiveRecording(index.entries[path])) {
       files.push(path);
       continue;
     }
-    const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
-    const blocked = archive?.mark ?? archiveDestinationRefusal(root.checkout, path);
+    const blocked = (await inspectArchivedProjectionFile(root, index, path, { reference }))?.mark ?? null;
     if (blocked !== null) refusal ??= retirementRefusal(root.checkout, path, blocked, disposition);
     else if (!path.startsWith(".arc/completed/") || index.entries[path] !== undefined) files.push(path);
   }
@@ -227,11 +232,7 @@ async function changedProjectionFiles(root: ProjectionRootState, index: Projecti
   selected: readonly string[]): Promise<FinalProjectionFiles> {
   const walked = await walkPersistedRoots(root), reference = await readReference(root.checkout);
   const paths = new Set(walked.files);
-  const selections = new Set([...paths, ...selected.filter(path => path.startsWith(".arc/completed/"))]);
-  // Retain the paths that could have vanished from the fresh walk with their archive authority.
-  for (const [path, entry] of Object.entries(index.entries)) {
-    if (entry.opened === true || unopenedArchiveEditHold(entry) !== null || hasArchiveRecording(entry)) selections.add(path);
-  }
+  const selections = retirementSelection(index, [...paths, ...selected.filter(path => path.startsWith(".arc/completed/"))]);
   for (const path of selections) {
     try {
       if (await observeFinalProjectionFile(root, index, path, reference, paths.has(path))) return { kind: "changed" };
@@ -245,23 +246,19 @@ async function changedProjectionFiles(root: ProjectionRootState, index: Projecti
 
 async function observeFinalProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null,
   walked: boolean): Promise<boolean> {
-  requireArchiveDestination(root.checkout, path);
   const entry = index.entries[path];
   if (entry?.kind !== "record") return walked;
   const reader = projectionFileReader(root.checkout, path);
   const absolute = join(root.checkout, path);
   const change = await checkChange({ path: absolute, recorded: entry.stat, written: entry.written,
     reference, format: root.context.format }, reader.read, reader.stat);
-  requireArchiveDestination(root.checkout, path);
   if (change.status !== "changed") return false;
   const gated = await gateRead({ path: absolute, markdown: path.endsWith(".md") }, projectionReadGate(root.checkout, path));
-  requireArchiveDestination(root.checkout, path);
   if (gated.kind === "no-edit" || gated.kind === "absent") return false;
   const unchanged = await readUnchangedProjectionFile(root.context, {
     checkout: root.checkout, path, copy: null, entry,
     base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
   });
-  requireArchiveDestination(root.checkout, path);
   return unchanged === null;
 }
 

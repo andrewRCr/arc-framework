@@ -76,7 +76,7 @@ async function writePartition(location: ProjectionLocation, name: string, bytes:
 /** Whether an entry keeps its partition on ordinary command-start reads. */
 export function isProjectionEntryUnsettled(entry: ProjectionEntries[string]): boolean {
   return entry.kind === "ownerless" || entry.opened === true || entry.copies.length > 0 || entry.persisted?.takenIn.kind === "copy"
-    || entry.adoption !== undefined || entry.pending || entry.withheld || entry.openingHold !== undefined
+    || entry.adoption !== undefined || entry.pending || entry.withheld
     || entry.refused !== null || entry.unshown.length > 0;
 }
 

@@ -35,7 +35,7 @@ export const SYSTEM_READ_GATE: ReadGateDependencies = {
   sleep: async (milliseconds) => { await sleep(milliseconds); },
 };
 
-/** Recheck checkout authority at each stat of an archive destination. */
+/** Stat an archived file without following a link at it, naming a permission failure as the path's refusal. */
 export function projectionReadGate(checkout: string, path: string): ReadGateDependencies {
   if (!path.startsWith(".arc/completed/")) return SYSTEM_READ_GATE;
   const reader = projectionFileReader(checkout, path);

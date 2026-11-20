@@ -34,12 +34,12 @@ export interface RetriedMoves {
  * @param moves - The operations and sleep a test injects, if any.
  * @returns The retried moves.
  */
-export function retriedMoves(moves: SwapMoves, archive?: { checkout: string; path: string; allowLeafLink?: boolean }): RetriedMoves {
+export function retriedMoves(moves: SwapMoves, archive?: { checkout: string; path: string }): RetriedMoves {
   const sleep = moves.retrySleep;
   const retry = <T>(operation: () => Promise<T>): Promise<T> =>
     retryTransientFileSystemRefusal(async () => {
       await moves.checkpoint?.();
-      if (archive !== undefined) requireArchiveDestination(archive.checkout, archive.path, archive.allowLeafLink);
+      if (archive !== undefined) requireArchiveDestination(archive.checkout, archive.path);
       return operation();
     }, sleep === undefined ? {} : { sleep });
   const renameFile = moves.fs?.rename ?? rename;

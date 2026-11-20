@@ -21,6 +21,12 @@ import type { ProjectionLinkBoundary } from "./discovery-links.js";
 import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 
 /** A round visits every registered checkout; `own` visits the writer's checkout alone. */
+/** One archive path's answer from the path check, and whether this command has reported its refusal. */
+export interface ArchiveSelection {
+  readonly mark: RefusedMark | null;
+  reported: boolean;
+}
+
 export type FanOutScope = "all" | "own";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
@@ -44,8 +50,6 @@ export interface ProjectionRootState {
   readonly ports: ProjectionEnginePorts;
   readonly context: ReadBackContext;
   readonly takeIn: TakeInPort;
-  /** Continue sync's archive-reporting boundary when settling restoration copies at command end. */
-  syncRestorationTakeIn?: TakeInPort;
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
   blockedByLink: ProjectionLinkBoundary;
@@ -59,6 +63,8 @@ export interface ProjectionRootState {
   readonly copies: { path: string; copy: string }[];
   readonly removals: string[];
   readonly unsent: Set<string>;
+  /** Each archive path's answer from the path check this command asked once, at the path's first selection. */
+  archiveSelection?: Map<string, ArchiveSelection>;
   readonly discovered: string[];
   changed: boolean;
   sent?: boolean;
