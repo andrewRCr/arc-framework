@@ -69,6 +69,7 @@ export interface WriteBackContext {
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
   /** Keeps a refusal met just before a change as the command's answer for its path, reported once. */
   readonly refuseArchiveChange?: (refused: WriteBackDiagnostic) => void;
+  /** Set by write-back itself while finishing what the store accepted for an unopened archived file. */
   readonly refuseCapturedEdit?: (request: TakeInRequest, read: TakeInRead) => RefusedMark | null;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
   readonly reportExplicitResolution?: () => void;
@@ -394,7 +395,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
   }
   request = observeProjectionEdit(request);
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [],
-    refuseCapturedEdit: acceptedInputOnly(context, request) };
+    refuseCapturedEdit: acceptedInputOnly(request) };
   const completion = await completeWriteBackRecording(bound, request.entry);
   if (completion.mark !== undefined) {
     context.report?.({ path: request.path, copy: request.copy, mark: completion.mark });
@@ -424,12 +425,11 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
  * An unopened archived file admitted only to finish what the store accepted sends nothing else: bytes captured now
  * that differ from the recorded input wait for an opening.
  */
-function acceptedInputOnly(context: WriteBackContext, request: TakeInRequest): WriteBackContext["refuseCapturedEdit"] {
+function acceptedInputOnly(request: TakeInRequest): WriteBackContext["refuseCapturedEdit"] {
   const persisted = request.entry.persisted;
   const accepted = archivedEditWaits(request) && persisted?.recording === true ? persisted.read : undefined;
-  if (accepted === undefined) return context.refuseCapturedEdit;
-  return (captured, read) => read.blob === accepted ? context.refuseCapturedEdit?.(captured, read) ?? null
-    : waitingEditMark(captured.checkout, captured.path, true);
+  if (accepted === undefined) return undefined;
+  return (captured, read) => read.blob === accepted ? null : waitingEditMark(captured.checkout, captured.path, true);
 }
 
 /** Finish recording what the store already accepted for an entry, taking in nothing the file holds beyond it. */

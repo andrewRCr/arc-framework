@@ -572,8 +572,8 @@ check passes rebuilds it; leaving the path out of the rebuild instead lost its e
 Complete pass 2 found that the archive save's receipt, built during standard pass 1's fix checks so an interrupted save
 could tell an accepted write from an unsent one, had no design record: the specification said this design adds no
 prepared store write, and the shipped storage contract's D3 says no evidence needs provenance as its home. The mechanism
-stands as built and reviewed. A3 states it in § 4, § 9.1, and § 9.2, adds § 10.5's forward amendment of D3, and adds
-Success Criterion 18, which existing tests cover.
+stands as built and reviewed. A3 states it in § 1.1, § 4, § 9.1, § 9.2, and § 13, adds § 10.5's forward amendment of
+D3, and adds Success Criterion 18, which existing tests cover.
 
 A3 supersedes this text, quoted as it stood.
 
@@ -589,8 +589,8 @@ A3 supersedes this text, quoted as it stood.
 
 > - **No prepared store write, and the local steps' order** (§ 9): `none` — tactical.
 
-The shipped storage contract is not edited; its D3 sentence "No evidence needs provenance as its home" now reads with §
-10.5's one exception.
+The shipped storage contract is not edited; its D3 sentence "No evidence needs provenance as its home" now reads with
+§ 10.5's one exception.
 
 ## Amendment A4
 
