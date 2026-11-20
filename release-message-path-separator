@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "release-message-path-separator",
+  "claimId": "7b353227e66d63655450e41d04febbfe",
+  "createdAt": "2026-11-20T18:41:11.704Z",
+  "updatedAt": "2026-11-20T18:41:11.704Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Use the native path separator in the five release commit message integration assertions.",
+  "branch": "chore/release-message-path-separator",
+  "origin": "inbox",
+  "originEntry": "Compare paths with the platform separator in `release-commit-message-assembly.test.ts`",
+  "originEntrySourceDigest": "sha256:082a73b0c15cd570888355bc6c148e2bc362865b80b8a423a18e6691454aef80",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
