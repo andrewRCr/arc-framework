@@ -880,8 +880,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               entry inspection, native landing, and authoring keep the override by subject while delivery is paused
               (§ 2.3, § 4.3), as does the tracked lifecycle-path case (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.d.3 Terminal recovery**
-            - `e2e/delivery-terminal-recovery.e2e.test.ts`.
+        - `[x]` **3.4.d.3 Terminal recovery**
+            - `e2e/delivery-terminal-recovery.e2e.test.ts` spawns through `e2e/store-default.ts`. Its reservation cases
+              pass on the store unchanged, and terminal rebind runs there over the plan's work unit, Candidate, and
+              boundary held in the store, bound in place; the two record-only terminal cases keep the override by
+              subject, since the store moves no head on a record write (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.d.4 The position suites**
             - `positionFixture` and its two suites, `e2e/delivery-position.e2e.test.ts` and

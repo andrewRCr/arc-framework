@@ -947,6 +947,27 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           `no-match` before reading transitions, so first authoring is not what refuses: the cases fail over an
           untracked meta that is no store record, most with `active-work-unit-unresolved`.
         - No expectation changed.
+    - _Terminal recovery, as moved (Task 3.4.d.3):_ `delivery-terminal-recovery` spawns through
+      `e2e/store-default.ts`; 20 of its 22 cases run on the store and 2 keep the override by subject. Its fixture
+      helpers move to module scope so the two blocks share them, each block initializing its own repository
+      (`useTerminalRepository`), the in-repo block's under the override.
+        - The twelve teardown, top-remedy, and native-landing cases pass on the store unchanged: they run those verbs,
+          or reconcile their reservations, over machine-local plan and state, and read no Candidate, holding no work
+          unit in the store.
+        - Terminal rebind runs on the store. With no active operation, `delivery reconcile` binds the plan's work
+          item (`bindDeliveryWorkItem`) and reads its Candidate and boundary through the invocation's store; it
+          resolves no plan by rename. The fixture holds the work unit in the store, bound in place, with its Candidate
+          and a version-two `publication-pending` boundary (`holdTerminalCandidate`), where the in-repo store read
+          files in the checkout. A settled record commits those files on the in-repo store; on the store, settling
+          moves no head, so the terminal binds the head the Candidate names. The provider-deleted recovery case
+          rebinds to the fetched member head for the same reason, its assertion unchanged. The top-remedy clearing
+          case holds the work unit without a Candidate: its replay reads no Candidate and returns
+          `observation-unavailable`, where an unheld work unit refuses `terminal-rebind-unavailable`.
+        - The two cases over a settled record-only terminal keep the override by subject: each commits the Candidate
+          and boundary so that a record-only advance moves the head the terminal binds, and the store keeps those
+          records off the branch, where no record write moves a head (register: singleton record writes staling
+          publication).
+        - No expectation changed.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
