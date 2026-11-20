@@ -72,11 +72,14 @@ dispatch those callers' existing actions. When the driver already requires a loc
 fix's base move, dispatch that pass instead.
 
 Show the check's findings as a complete disposition set beside a renewed recommendation; obtain disposition approval
-before applying any fix. Recommend `fresh` whenever the check finds a material defect or prompts any fix. Otherwise
-apply the residual judgment above. `supplemental` recommends `covered` during review, or `targeted-check` at the
-reconcile with the check as its evidence; `fresh` recommends `review-required`, or `changed` at the reconcile. The
-caller owns the fix route and the Owner's choice over the resulting head. Do not repeat the check at the fresh stop
-raised after that fix; disclose that `covered` or `targeted-check` there rests on a fix no pass has read.
+before applying any fix. Recommend `fresh` whenever the check finds a material defect in what the change does, or
+prompts a fix that changes what it does. Otherwise apply the residual judgment above, including when every fix only
+adds verification, such as a test or other evidence for behavior the check found correct. Show such a fix's proof: the
+added verification fails against a deliberate break of the behavior it covers, and passes at the fixed head.
+`supplemental` recommends `covered` during review, or `targeted-check` at the reconcile with the check, and any such
+proof, as its evidence; `fresh` recommends `review-required`, or `changed` at the reconcile. The caller owns the fix
+route and the Owner's choice over the resulting head. Do not repeat the check at the fresh stop raised after that fix;
+disclose that `covered` or `targeted-check` there rests on a fix no pass has read.
 
 #### Land an approved fix outside a bound delivery
 
@@ -85,16 +88,18 @@ approved fix as an ordinary change, request `arc check gate commit`, and commit 
 boundary. This check supplies no review result for `arc review respond -` to bind.
 
 Re-enter the same applicability route over the fixed head. The Owner chooses once there, with the findings and fix
-in view; do not run the movement check again. Recommend `review-required`, or `changed` at the reconcile. Disclose
-that `covered` or `targeted-check` accepts a fix no pass has read; the earlier check read the movement, not this fix.
+in view; do not run the movement check again. Recommend `review-required`, or `changed` at the reconcile, unless
+every approved fix only adds verification and the residual judgment gives `supplemental`; then recommend `covered`, or
+`targeted-check` at the reconcile on the check and the fix's proof. Disclose that `covered` or `targeted-check`
+accepts a fix no pass has read; the earlier check read the movement, not this fix.
 Follow the returned typed continuation after the Owner chooses.
 
 #### Land an approved fix under a bound delivery
 
-Present the findings and recommend `review-required`, or `changed` at the reconcile. Obtain the Owner's
-applicability choice before authoring the fix; disclose that `covered` or `targeted-check` governs only until the
-fix lands. While this approved fix remains unlanded, request no pass for its member and take it to no landing
-preparation, whatever the choice returns.
+Present the findings and recommend `review-required`, or `changed` at the reconcile, with the same exception for
+fixes that only add verification. Obtain the Owner's applicability choice before authoring the fix; disclose that
+`covered` or `targeted-check` governs only until the fix lands. While this approved fix remains unlanded, request no
+pass for its member and take it to no landing preparation, whatever the choice returns.
 
 Enter the selector-free `arc delivery review-fix continue -` procedure in [deliver-stack] before authoring a
 correction. Follow any existing correction through that procedure; do not interleave a new task with an open
