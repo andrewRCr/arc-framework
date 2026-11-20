@@ -35,15 +35,15 @@ export const ADVISORY_LEASE_RENEW_INTERVAL_MS = 10_000;
  * @param action - Work bound to the lease lifetime
  * @param deps - Actual process and native lock boundaries
  * @param labels - Operator diagnostics
- * @param options - Wait budget for the first explicit ownership confirmation
+ * @param options - Maintenance contention wait budget for each explicit ownership confirmation
  * @returns The action result after release completes
  */
 export async function withRenewableLease<T>(
   handle: AdvisoryLockHandle, startedAt: number, action: (lease: RenewableLease) => Promise<T>,
-  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels, options: { initialConfirmationWaitMs?: number } = {},
+  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels, options: { maintenanceWaitMs?: number } = {},
 ): Promise<T> {
   const unregister = deps.registerExitCleanup(handle);
-  const monitor = createMonitor(handle, startedAt, deps, labels, options.initialConfirmationWaitMs ?? 0);
+  const monitor = createMonitor(handle, startedAt, deps, labels, options.maintenanceWaitMs ?? 0);
   const cancel = deps.scheduleEvery(monitor.tick, ADVISORY_LEASE_RENEW_INTERVAL_MS);
   try {
     return await action(monitor);
@@ -58,7 +58,7 @@ export async function withRenewableLease<T>(
 
 function createMonitor(
   handle: AdvisoryLockHandle, startedAt: number, deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels,
-  initialConfirmationWaitMs: number,
+  maintenanceWaitMs: number,
 ) {
   let active = true;
   let releasing = false;
@@ -112,16 +112,14 @@ function createMonitor(
     return operation;
   };
   const canConfirm = () => active && !releasing && !lost;
-  let firstConfirmationWaitMs = initialConfirmationWaitMs;
   const confirmOwnership = async (): Promise<void> => {
-    const deadline = performance.now() + firstConfirmationWaitMs;
-    firstConfirmationWaitMs = 0;
+    const deadline = performance.now() + maintenanceWaitMs;
     let backoff = 10;
     do {
       if (!canConfirm()) break;
       const result = await renew();
       if (result === "renewed" && canConfirm()) return;
-      if (result !== "retry" || performance.now() + backoff >= deadline || cannotRetry()) break;
+      if (result !== "maintenance-busy" || performance.now() + backoff >= deadline || cannotRetry()) break;
       await delay(backoff);
       backoff = Math.min(backoff * 2, 250);
     } while (!cannotRetry() && performance.now() < deadline);

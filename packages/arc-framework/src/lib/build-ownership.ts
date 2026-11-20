@@ -67,8 +67,8 @@ export async function withBuildArtifactOwnership<T>(
   return await withRenewableLease(handle, startedAt,
     async (lease) => await action({ ...lease, packageRoot, token: handle.token }), deps,
     { lock: "Checkout artifact lock", controller: "the owning build or test controller" },
-    // The previous writer can hold the maintenance lock after handing off the artifact lock.
-    { initialConfirmationWaitMs: DEFAULT_MAX_WAIT_MS });
+    // A delayed release or heartbeat from the previous writer can briefly hold the maintenance lock.
+    { maintenanceWaitMs: DEFAULT_MAX_WAIT_MS });
 }
 
 /** Native boundaries for the two independently scoped owning capabilities. */

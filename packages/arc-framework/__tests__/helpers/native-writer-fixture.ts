@@ -56,6 +56,7 @@ export async function exposeNativeWriterLeaseHandoff(packageRoot: string): Promi
   const leaseOperations = "  releaseLock: releaseAdvisoryLockConfirmed,\n  renewLock: renewAdvisoryLock,";
   if (!source.includes(leaseOperations)) throw new Error("Native lease operations changed");
   await writeFile(leaseProcessPath, 'import { access, readFile, unlink, writeFile } from "node:fs/promises";\n'
+    + 'let handoffRecorded = false;\n'
     + source.replace(leaseOperations, `
   releaseLock: async (handle) => {
     if (process.env.NATIVE_WRITER_ID !== "first" || !handle.path.endsWith(".arc-build.lock")) {
@@ -74,8 +75,10 @@ export async function exposeNativeWriterLeaseHandoff(packageRoot: string): Promi
   },
   renewLock: async (handle, duration) => {
     const result = await renewAdvisoryLock(handle, duration);
-    if (process.env.NATIVE_WRITER_ID === "second" && handle.path.endsWith(".arc-build.lock") && result === "retry") {
+    if (!handoffRecorded && process.env.NATIVE_WRITER_ID === "second"
+      && handle.path.endsWith(".arc-build.lock") && result === "maintenance-busy") {
       await writeFile(${JSON.stringify(retryMarker)}, await readFile(handle.path + ".break", "utf8"));
+      handoffRecorded = true;
     }
     return result;
   },`));
