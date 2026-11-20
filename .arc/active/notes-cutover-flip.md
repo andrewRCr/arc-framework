@@ -1397,6 +1397,23 @@ after a move by hand, on both arms; its text names the replay for that reason. S
 instead, treating a landed move as settled, was set aside: the marker would keep a stale field every other reader must
 interpret, and the replay is the contract the in-repo arm already keeps.
 
+## A23 — active status and a bound checkout's Candidate
+
+Task 3.4.c.2 moved the Candidate lineage suites onto the store. Two cases that read `arc active status` in the checkout
+bound to their work unit, the mechanically carried Candidate and the change-set fix's resume, found the Candidate's ID
+and integration boundary `null` with attest's records in the store, beside the warning "Candidate authority for
+meta-example.md is unavailable: Cannot identify meta-example.md". The active scan projects each held work unit's meta
+at the checkout's own layout (`readHeldCandidates`, `lib/active/meta-reader.ts`), which under the default `nested`
+layout is `.arc/active/current/meta-example.md`, and records the owner it read. `readSubject`
+(`lib/store/active-review-access.ts`) ignores that owner for the slug and identifies the path with no layout context
+(`identifyWorkUnitArtifactPath`), which recognizes the flat path and another checkout's `in-flight/<slug>/` copy but not
+a checkout's own `current/` folder. The primary checkout and the flat layout were unaffected; every bound checkout under
+the default layout was not. Session-init's `active` slot reads through the same access, so an Integrating work unit, or
+an Active one in `prepare-work-unit`, there leaves its session type unresolved.
+
+Passing the checkout's layout context alone would also identify the path, but re-derives a slug the scan already holds
+as an exact owner; the owner read is exact. The layout context stays for a caller that supplies no owner.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

@@ -724,6 +724,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   the settle; `e2e/rename.e2e.test.ts`'s store self-rename case, which moves in Task 3.4.b.3, passes through the built
   CLI.
 
+### `[ ]` **3.R9 Active status reads a bound checkout's Candidate — § 4.16**
+
+- _Goal:_ On the store, `arc active status` and session-init's `active` slot read the Candidate authority and
+  integration boundary of a work unit held in the checkout bound to it under the nested layout, taking the work unit
+  from the owner the active scan selected (A23).
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -1639,6 +1645,9 @@ landing after verification).
 - `[ ]` On the store, a rename run from the checkout ARC spawned for the work unit defers moving that checkout and
   names the move and the replay that settles it, and once the move has landed a replay of the rename clears the
   checkout's pending move (A22).
+
+- `[ ]` On the store, `arc active status` in the checkout bound to its work unit under the nested layout reports the
+  Candidate ID and integration boundary the store holds, and session-init resolves that work unit's session type (A23).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

@@ -666,6 +666,19 @@ the in-repo arm's replay clears it through the checkout's rename transaction (`r
 recorded destination, under the same transaction, and leaves a move that has not landed pending; the deferred rename's
 follow-up and session-init's offered move each name that replay (A22).
 
+#### 4.16 Active status reads a bound checkout's Candidate
+
+From the flip `arc active status` and session-init's `active` slot read each held work unit's Candidate authority
+through `readSubject` (`createActiveReviewAccess`, `lib/store/active-review-access.ts`), which finds the work unit from
+its meta's path with no layout context (`identifyWorkUnitArtifactPath`, `lib/layout/identification.ts`). The active scan
+projects the meta of the work unit a checkout is bound to at that checkout's own layout (`readHeldCandidates`,
+`lib/active/meta-reader.ts`), under the default `nested` layout `.arc/active/current/meta-<slug>.md`, which that
+identification does not recognize. The read refuses, and status reports the Candidate's ID and integration boundary as
+`null` though the store holds both; for an Integrating work unit, or an Active one in `prepare-work-unit`, session-init
+then leaves the session type unresolved (`classifyResolution`, `commands/active/status.ts`). The scan already records
+each meta's exact owner. From the flip the read takes the work unit from that owner, and identifies the path, through
+the checkout's layout context, only when no owner is given (A23).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2368,5 +2381,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.4.b.2 must-stop. _Work:_ 3.R7. _Revalidated:_ pending → 3.7.
 - **A22** — 2026-11-19 — spec-depth: replaying a store rename settles its checkout's deferred move once it lands.
   _Supersedes:_ none. _Trigger:_ 3.4.b.3 must-stop. _Work:_ 3.R8. _Revalidated:_ pending → 3.7.
+- **A23** — 2026-11-20 — spec-depth: active status reads a bound checkout's Candidate by the owner its scan selected.
+  _Supersedes:_ none. _Trigger:_ 3.4.c.2 must-stop. _Work:_ 3.R9. _Revalidated:_ pending → 3.7.
 
 ---
