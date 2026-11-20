@@ -3,6 +3,10 @@ import { requireResponseErrand, staleErrandResponseEnvelope } from "./respond-er
 import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
+  approvalPolicyBindingMismatches,
+  type ApprovalPolicyBinding,
+} from "../policy/approval-policy-binding.js";
+import {
   readApprovedResponseReport,
   readResponsePassAssessment,
   readProposedResponseReport,
@@ -538,48 +542,41 @@ interface ResolvedResponseSource {
   };
 }
 
-function approvedPolicyVehicleMatches(
-  request: ReviewPolicyCommandRequest,
-  source: ResolvedResponseSource,
-): boolean {
+/** The pull request a findings producer is bound to, with its repository, or none for a pre-PR producer. */
+function approvedPolicyVehicle(source: ResolvedResponseSource): Pick<ApprovalPolicyBinding, "pullRequest" | "repository"> {
   if (source.result.kind === "hosted") {
-    return request.target.pullRequest === source.result.hostedTarget.pullRequest
-      && request.target.repository.toLowerCase()
-        === source.result.hostedTarget.repository.toLowerCase();
+    return { pullRequest: source.result.hostedTarget.pullRequest, repository: source.result.hostedTarget.repository };
   }
   if (source.result.kind === "attested-local" && source.result.deliveryAdmission !== undefined) {
-    return request.target.pullRequest === source.result.deliveryAdmission.target.pullRequest
-      && request.target.repository.toLowerCase()
-        === source.result.deliveryAdmission.target.repository.toLowerCase();
+    const { target } = source.result.deliveryAdmission;
+    return { pullRequest: target.pullRequest, repository: target.repository };
   }
-  return request.target.pullRequest === null;
+  return { pullRequest: null };
 }
 
-function approvedPolicyTargetMatches(
-  request: ReviewPolicyCommandRequest,
-  source: ResolvedResponseSource,
-): boolean {
-  const expectedLane = source.result.kind === "frontline" ? "frontline" : "standard";
-  return request.lane === expectedLane
-    && request.target.headSha === source.target.headSha
-    && approvedPolicyVehicleMatches(request, source)
-    && (request.scopeSelection?.mode ?? "whole-target") === source.result.admission.scopeMode
-    && (request.scopeSelection === undefined
-      || canonicalize(request.scopeSelection.target) === canonicalize(request.target));
+/** What the approved call's policy request must carry to name this findings producer. */
+function approvalPolicyBinding(source: ResolvedResponseSource): ApprovalPolicyBinding {
+  return {
+    lane: source.result.kind === "frontline" ? "frontline" : "standard",
+    headSha: source.target.headSha,
+    ...approvedPolicyVehicle(source),
+    scopeMode: source.result.admission.scopeMode,
+    completedPasses: source.result.admission.logicalPass,
+    finalAttempt: { outcome: "findings", reviewOperationId: source.operationId },
+  };
 }
 
 function validateApprovedResponsePolicyBinding(
   request: ReviewPolicyCommandRequest,
   source: ResolvedResponseSource,
 ): void {
-  const terminal = request.attempts.at(-1);
-  if (!approvedPolicyTargetMatches(request, source)
-    || request.completedPasses !== source.result.admission.logicalPass
-    || terminal?.outcome !== "findings"
-    || terminal.reviewOperationId !== source.operationId) {
+  const mismatches = approvalPolicyBindingMismatches(request, approvalPolicyBinding(source));
+  if (mismatches.length > 0) {
     throw new RespondCommandError(
       "invalid-input",
-      "approved response policy request must name the exact findings producer, lane, pass, scope, and target; correct the request and retry the same approval",
+      `approved response policy request must name the exact findings producer, lane, pass, scope, and target: `
+        + `${mismatches.join("; ")}; set those fields as the proposal's approvalPolicyBinding gives them and retry the `
+        + "same approval",
     );
   }
 }
@@ -1935,6 +1932,7 @@ async function prepareResponseProposal(
         ...(supersession === undefined ? {} : { supersession }),
         ...report,
         provisionalPassAssessment,
+        approvalPolicyBinding: approvalPolicyBinding(source),
       },
     });
 }
