@@ -1294,6 +1294,24 @@ did; leave passed before the fix, reading nothing after its removal; and a remov
 checkout passes without `reopenStore`, which left with `rebindRetirementEvidence`. With the location bypassed,
 abandonment, Errand abandonment and close, and that teardown fail again.
 
+## A22 — a store rename's deferred move
+
+Task 3.4.b.3 gave `e2e/rename.e2e.test.ts` store cases, since its in-repo cases stay with the in-repo implementation.
+Run from the checkout ARC spawned for its work unit, the store rename renamed the record, the branch locally and on
+`origin`, and the checkout's ownership, recorded the move in the marker as `renameMovePending`, and printed the
+`git worktree move -f -f` that finishes it. After that move, a replay of the rename from the moved checkout exited 0 and
+left the field in place: the replay finds the record renamed (`resuming`, `lib/store/lifecycle-rename.ts`), and
+`persistRename` returns before any checkout step unless the local branch still needs its catch-up. The in-repo arm's
+replay resolves the moved checkout as `already-moved` and reruns the checkout's rename transaction with the pending move
+cleared, which the in-repo case asserts. `arc locus` and session-init resolved the moved checkout as the work unit's, so
+only cleanup sees the field: the store's stale-checkout selection and landed-retirement sweep both skip a marker
+carrying a pending move, so a landed work unit's self-renamed checkout would never be offered for removal.
+
+Session-init's offered move (`projectRenameMoveRemedy`) runs only `git worktree move`, so the field stays after it as
+after a move by hand, on both arms; its text names the replay for that reason. Settling the field in the cleanup readers
+instead, treating a landed move as settled, was set aside: the marker would keep a stale field every other reader must
+interpret, and the replay is the contract the in-repo arm already keeps.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

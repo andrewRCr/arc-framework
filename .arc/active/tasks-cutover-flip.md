@@ -712,6 +712,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   and leave, and a remove-mode self-teardown, each from the checkout it removes; `reopenStore` left. See
   `notes-cutover-flip.md` § A21.
 
+### `[ ]` **3.R8 A store rename settles its checkout's deferred move — § 4.15**
+
+- _Goal:_ On the store, once a self-rename's deferred checkout move has landed, a replay of `arc rename` clears the
+  pending move from the checkout's marker and leaves a move that has not landed pending; the deferred rename's
+  follow-up and session-init's offered move each name that replay (A22).
+
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
@@ -1593,6 +1599,10 @@ landing after verification).
 - `[ ]` On the store, a command that removes the checkout it runs in completes its remaining store reads and writes:
   `arc abandon` and `arc errand abandon`, run from the checkout they remove, retire their record and reap the branch
   they created (A21).
+
+- `[ ]` On the store, a rename run from the checkout ARC spawned for the work unit defers moving that checkout and
+  names the move and the replay that settles it, and once the move has landed a replay of the rename clears the
+  checkout's pending move (A22).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

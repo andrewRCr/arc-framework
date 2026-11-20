@@ -651,6 +651,21 @@ Errand's refuses on the removed checkout's `.git`. From the flip the store finds
 and keeps working from it after that checkout is removed, so each of these commands completes its remaining store
 reads and writes, whichever removed the checkout (A21).
 
+#### 4.15 A store rename settles its checkout's deferred move
+
+From the flip `arc rename` runs its store arm (`runStoreRename`, `lib/work-unit/verbs/rename-store.ts`). Run from the
+checkout ARC spawned for the work unit it renames, it renames the record, the branch, and the checkout's ownership, but
+it cannot move the checkout it runs in, so it records the move as pending in the checkout's marker (`renameMovePending`)
+and names the `git worktree move` that finishes it from outside (`renameCheckout` and `deferredMove`,
+`commands/rename-store.ts`). Session-init leaves a checkout whose marker records a pending move out of its cleanup
+(`lib/session-init/store-worktree-selection.ts`, `store-retirement-sweep.ts`) and offers the move from another checkout
+(`projectRenameMoveRemedy`, `lib/session-init/lifecycle-residue-sweep.ts`). Once the move lands nothing on the store
+clears the field: a replay of the rename finds the record already renamed and returns before any checkout step, where
+the in-repo arm's replay clears it through the checkout's rename transaction (`resolveRenameCheckoutCoordinates`,
+`commands/rename.ts`). From the flip a replay of the rename clears a pending move once its checkout is registered at the
+recorded destination, under the same transaction, and leaves a move that has not landed pending; the deferred rename's
+follow-up and session-init's offered move each name that replay (A22).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2351,5 +2366,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.4.b.1 must-stop. _Work:_ 3.R6. _Revalidated:_ pending → 3.7.
 - **A21** — 2026-11-19 — spec-depth: the store outlives the checkout it opened in, whichever command removes it.
   _Supersedes:_ none. _Trigger:_ 3.4.b.2 must-stop. _Work:_ 3.R7. _Revalidated:_ pending → 3.7.
+- **A22** — 2026-11-19 — spec-depth: replaying a store rename settles its checkout's deferred move once it lands.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.3 must-stop. _Work:_ 3.R8. _Revalidated:_ pending → 3.7.
 
 ---
