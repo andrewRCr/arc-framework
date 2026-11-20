@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-eslint-tests",
+  "claimId": "9e02cec7335cdf31317d9a460870fca0",
+  "createdAt": "2026-11-20T17:03:54.245Z",
+  "updatedAt": "2026-11-20T17:03:54.245Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Prevent false hosted ESLint findings on tests using the supported package config or the documented tool switch.",
+  "branch": "chore/coderabbit-eslint-tests",
+  "origin": "inbox",
+  "originEntry": "Make CodeRabbit's hosted ESLint use the repository's configuration for tests",
+  "originEntrySourceDigest": "sha256:a39ee0feeeca49513c4f773d7eab47652e0137ab85919962e01968757f01decb",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
