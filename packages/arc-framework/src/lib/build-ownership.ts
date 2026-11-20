@@ -1,7 +1,7 @@
 /** Checkout-specific exclusion for runtime consumers and artifact publishers. */
 import type { RenewableLease } from "./renewable-lease.js";
 import { ADVISORY_LEASE_DURATION_MS, withRenewableLease } from "./renewable-lease.js";
-import { acquireAdvisoryLock, type AdvisoryLockOptions, type AdvisoryLockHandle } from "./advisory-lock.js";
+import { acquireAdvisoryLock, DEFAULT_MAX_WAIT_MS, type AdvisoryLockOptions, type AdvisoryLockHandle } from "./advisory-lock.js";
 import { NATIVE_LEASE_PROCESS, type LeaseProcessDependencies } from "./lease-process.js";
 import { join, resolve } from "node:path";
 import {
@@ -66,7 +66,9 @@ export async function withBuildArtifactOwnership<T>(
   });
   return await withRenewableLease(handle, startedAt,
     async (lease) => await action({ ...lease, packageRoot, token: handle.token }), deps,
-    { lock: "Checkout artifact lock", controller: "the owning build or test controller" });
+    { lock: "Checkout artifact lock", controller: "the owning build or test controller" },
+    // The previous writer can hold the maintenance lock after handing off the artifact lock.
+    { initialConfirmationWaitMs: DEFAULT_MAX_WAIT_MS });
 }
 
 /** Native boundaries for the two independently scoped owning capabilities. */

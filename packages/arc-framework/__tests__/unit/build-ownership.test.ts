@@ -101,6 +101,19 @@ it("acquires CPU admission before checkout artifacts and releases both after the
   }
 });
 
+it("waits for the initial artifact confirmation and refuses a later unconfirmed renewal", async () => {
+  const packageRoot = await mkdtemp(join(tmpdir(), "arc-artifact-confirmation-"));
+  const renewals: ("retry" | "renewed")[] = ["retry", "renewed", "retry", "renewed"];
+  try {
+    await withBuildArtifactOwnership({ packageRoot, operation: "test handoff" }, async (lease) => {
+      await expect(lease.confirmOwnership()).resolves.toBeUndefined();
+      await expect(lease.confirmOwnership()).rejects.toThrow("Checkout artifact lock ownership cannot be confirmed");
+    }, { renewLock: async () => renewals.shift() ?? "renewed" });
+  } finally {
+    await rm(packageRoot, { recursive: true, force: true });
+  }
+});
+
 it("queues a same-checkout builder until the consuming action releases", async () => {
   const packageRoot = await mkdtemp(join(tmpdir(), "arc-artifact-owner-"));
   let release: (() => void) | undefined;

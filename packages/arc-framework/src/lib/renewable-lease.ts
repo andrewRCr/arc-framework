@@ -1,6 +1,6 @@
 /** Shared process lifetime for renewable advisory ownership. */
 import { setTimeout as delay } from "node:timers/promises";
-import { DEFAULT_MAX_WAIT_MS, type AdvisoryLockHandle, type AdvisoryLockRenewalResult } from "./advisory-lock.js";
+import type { AdvisoryLockHandle, AdvisoryLockRenewalResult } from "./advisory-lock.js";
 
 /** Process, time, and native lock seams used by both admission and artifact ownership. */
 export interface RenewableLeaseDependencies {
@@ -35,14 +35,15 @@ export const ADVISORY_LEASE_RENEW_INTERVAL_MS = 10_000;
  * @param action - Work bound to the lease lifetime
  * @param deps - Actual process and native lock boundaries
  * @param labels - Operator diagnostics
+ * @param options - Wait budget for the first explicit ownership confirmation
  * @returns The action result after release completes
  */
 export async function withRenewableLease<T>(
   handle: AdvisoryLockHandle, startedAt: number, action: (lease: RenewableLease) => Promise<T>,
-  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels,
+  deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels, options: { initialConfirmationWaitMs?: number } = {},
 ): Promise<T> {
   const unregister = deps.registerExitCleanup(handle);
-  const monitor = createMonitor(handle, startedAt, deps, labels);
+  const monitor = createMonitor(handle, startedAt, deps, labels, options.initialConfirmationWaitMs ?? 0);
   const cancel = deps.scheduleEvery(monitor.tick, ADVISORY_LEASE_RENEW_INTERVAL_MS);
   try {
     return await action(monitor);
@@ -57,6 +58,7 @@ export async function withRenewableLease<T>(
 
 function createMonitor(
   handle: AdvisoryLockHandle, startedAt: number, deps: RenewableLeaseDependencies, labels: RenewableLeaseLabels,
+  initialConfirmationWaitMs: number,
 ) {
   let active = true;
   let releasing = false;
@@ -110,15 +112,16 @@ function createMonitor(
     return operation;
   };
   const canConfirm = () => active && !releasing && !lost;
+  let firstConfirmationWaitMs = initialConfirmationWaitMs;
   const confirmOwnership = async (): Promise<void> => {
-    const deadline = performance.now() + DEFAULT_MAX_WAIT_MS;
+    const deadline = performance.now() + firstConfirmationWaitMs;
+    firstConfirmationWaitMs = 0;
     let backoff = 10;
-    // The predecessor can still hold the maintenance lock after the main lock becomes available.
     do {
       if (!canConfirm()) break;
       const result = await renew();
       if (result === "renewed" && canConfirm()) return;
-      if (result !== "retry" || cannotRetry() || performance.now() + backoff >= deadline) break;
+      if (result !== "retry" || performance.now() + backoff >= deadline || cannotRetry()) break;
       await delay(backoff);
       backoff = Math.min(backoff * 2, 250);
     } while (!cannotRetry() && performance.now() < deadline);
