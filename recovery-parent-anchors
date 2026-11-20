@@ -3,7 +3,7 @@
   "slug": "recovery-parent-anchors",
   "claimId": "2e3e711df056a016b559df7163832afc",
   "createdAt": "2026-11-19T23:00:36.282Z",
-  "updatedAt": "2026-11-19T23:00:36.282Z",
+  "updatedAt": "2026-11-20T00:09:26.701Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "recovery-parent-anchors",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Anchor parent-owned recovery reads when an Errand resumes",
   "originEntrySourceDigest": "sha256:8111ce8399a6f8b525ab1b6c52dca0e10a9b167583f905f77c5b077a06c0a9e6",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/recovery-parent-anchors",
+    "headSha": "d46fde947f28d1cf6617e70293c235466724c01b"
+  }
 }
