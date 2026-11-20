@@ -860,7 +860,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               boundary, the chunking resolver's delivery arms, and the planning-lane classifier keep the override by
               subject. Each changed expectation traces to a store contract (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.d Delivery**
+    - `[x]` **3.4.d Delivery**
         - Among them `positionFixture` (`__tests__/helpers/delivery-position-suite.ts`).
         - _Amended (Owner, 2026-11-20):_ its seven end-to-end files and two integration files failed 42 of their 81 cases
           without the override, so the family moves in four review increments, one commit each, rather than § 7.3's one
@@ -886,10 +886,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               boundary held in the store, bound in place; the two record-only terminal cases keep the override by
               subject, since the store moves no head on a record write (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.d.4 The position suites**
+        - `[x]` **3.4.d.4 The position suites**
             - `positionFixture` and its two suites, `e2e/delivery-position.e2e.test.ts` and
-              `integration/delivery-position.test.ts`, which leave the ledger, with
-              `integration/delivery-execution-store.test.ts`.
+              `integration/delivery-position.test.ts`, leave the ledger, with
+              `integration/delivery-execution-store.test.ts` on the store. The fixture's template is prepared per store;
+              its plan-ID cases pass on the store unchanged, and the eight that inspect the delivery entry keep the
+              override by subject while delivery is paused (§ 4.3) (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.e Errands and locus**
 

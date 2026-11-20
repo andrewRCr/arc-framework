@@ -968,6 +968,25 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           records off the branch, where no record write moves a head (register: singleton record writes staling
           publication).
         - No expectation changed.
+    - _The position suites, as moved (Task 3.4.d.4):_ `delivery-position`'s end-to-end and integration suites leave the
+      ledger, and `positionFixture`'s built-CLI spawns go through `e2e/store-default.ts`. 19 of the suites' 27 cases
+      run on the store, as does `delivery-execution-store`; 8 keep the override by subject.
+        - `positionFixture` commits no ARC state: it publishes plan and state under `.git/arc/delivery/`, so the 19
+          integration cases whose verbs address the plan by ID (`delivery position`, `reconcile`, `refresh`, and
+          `review-fix plan`) pass on the store unchanged. `delivery-execution-store` passes its own review store and
+          passes too.
+        - The template the fixture copies is now prepared once per store, as `registerCandidateLineageSuite`'s is
+          (Task 3.4.c.2). It had been initialized once for the file, which would have given the in-repo cases a
+          repository initialized on the store.
+        - The eight failing cases keep the override by subject (`useInRepoDeliveryEntry`): each runs a verb that
+          inspects the delivery entry, which resolves the stored plan through `GitDeliveryRenameTransitionSource`
+          (`lib/delivery/repository-entry.ts`), refusing on the store while delivery is paused (§ 4.3). The verbs are
+          `delivery entry inspect`, `review-fix continue`, session-init's locus probe
+          (`handlers/derived-locus-state-probe.ts`), and attest's delivery renewal
+          (`handlers/lifecycle-delivery-review.ts`). They failed first on the tracked-state refusal over the metas,
+          task lists, and Candidate records they commit; Task 3.4.d.1's seeded probe of the same entry refused
+          `evidence-unavailable`.
+        - No expectation changed.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
