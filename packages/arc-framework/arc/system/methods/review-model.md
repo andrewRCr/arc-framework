@@ -83,10 +83,15 @@ disposition and put it to the Owner as a design question, not another per-site r
 needs `amend-design`, and its findings stay open until the code enforces the contract the Owner approves; planning
 review folds the contract into the design.
 
-Run this look over every verified finding the lane has dispositioned, not only the latest look's. One or two findings
-a look rarely form a set on their own, and an earlier conclusion that nothing was shared holds only for the findings
-it saw. For each candidate cause, ask whether fixing it would have prevented the earlier findings; those it would have
-prevented are its instances, whichever look found them.
+Run this look at every look's disposition, fix checks included, over every verified finding the lane has
+dispositioned, not only the latest look's. One or two findings a look rarely form a set on their own, and an earlier
+conclusion that nothing was shared holds only for the findings it saw. For each candidate cause, ask whether fixing it
+would have prevented the earlier findings; those it would have prevented are its instances, whichever look found them.
+
+A fix check can name a cause without the author. When it reports a material finding as a sibling an earlier repair
+missed, or as a gap in a repair's propagation, that repair fixed a site rather than its rule: the rule is a cause, and
+the earlier finding and this one are its instances, whether or not the author named it. Name it in both findings'
+rationale and propose the fix at the cause, not another per-site repair of the sibling.
 
 ### Convergence and permission
 
@@ -163,8 +168,8 @@ Once a lane has two or more looks, report its material trend: the critical and m
 complete pass followed by its fix checks and named with its review kind (for example `Standard pass 1: 6 → 2`),
 or one line when no look found a critical or major finding. Give one reading, and say in a sentence or two where the
 review stands and where what remains comes from. The reading compares complete passes; fix checks show only whether
-repairs hold. Origins, tags, and change signals inform the reading and stay out of the report. Each reading points to
-a decision:
+repairs hold, except in the count for `sustained non-convergence`, which reads every look. Origins, tags, and change
+signals inform the reading and stay out of the report. Each reading points to a decision:
 
 - **`baseline`** — no trend yet: the first look, or a first complete pass that found few while its fix checks have not
   converged. Decide the fixes and their next round from the latest look's own signal. A report shows no Trend at the
@@ -174,20 +179,23 @@ a decision:
   and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
   no critical or major finding.
 - **`discovering`** — a complete pass finds new material defect classes in code or text earlier looks already read,
-  rather than in folds, or a first complete pass finds many. A new instance of a cause § Shared causes has already named
-  is not a new class. This supports another complete pass after fix checks, however they converge. It takes precedence
-  over `baseline` and `converging` wherever both readings fit.
+  rather than in folds, or a first complete pass finds many. A new instance of a cause § Shared causes has already
+  named or a fix check has reported is not a new class. This supports another complete pass after fix checks, however
+  they converge. It takes precedence over `baseline` and `converging` wherever both readings fit.
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
-  again, or one cause § Shared causes names has produced material findings in three looks. Stop for the Owner's
+  again, or one cause has produced material findings in three looks, whether the author named it or a fix check
+  reported its instances as siblings or propagation gaps of an earlier repair (§ Shared causes). Stop for the Owner's
   decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
   `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
-  that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
-  any review stop the Owner has set: whichever is reached first applies. Once the Owner decides on a cause, count its
-  looks afresh from that decision. It takes precedence over every other reading.
+  that decision. The three looks must share one cause, named or reported, not merely a count of findings. Count every
+  look that found one of its instances, fix checks included, from the first, even when the cause was recognized later.
+  The stop composes with any review stop the Owner has set: whichever is reached first applies. Once the Owner decides
+  on a cause, count its looks afresh from that decision. It takes precedence over every other reading.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
-rule: apply § Shared causes to that rule before reading the trend as `converging`.
+rule: apply § Shared causes to that rule before giving any reading, `baseline` included. A single complete pass
+otherwise keeps the reading at `baseline` while its rounds repair one sibling after another.
 
 Planning review derives the counts, origins, and tags from its pass record. In code review, keep the CLI's ordered
 material trend separate from advisory interpretation: read the per-round change signals from `arc review lane read`
