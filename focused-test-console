@@ -3,7 +3,7 @@
   "slug": "focused-test-console",
   "claimId": "a1c0f25ff0b0ed0fcff1440fbabf8075",
   "createdAt": "2026-11-19T23:26:50.212Z",
-  "updatedAt": "2026-11-19T23:26:50.212Z",
+  "updatedAt": "2026-11-20T00:24:05.941Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Restore test console output to focused runs so failures can be diagnosed from the command output.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Find why test console output never reaches a focused test run's output",
   "originEntrySourceDigest": "sha256:6a1c00a35ff092b48be4f2bfd218ac84de7dae6be2989f9d9601f91d49d5f7d2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/focused-test-console",
+    "headSha": "d9b7f4e5635078c620099247150213d672fb44e2"
+  }
 }
