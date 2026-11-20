@@ -5,7 +5,7 @@ import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-rep
 import {
   approvalPolicyBindingMismatches,
   type ApprovalPolicyBinding,
-} from "../core/approval-policy-binding.js";
+} from "../policy/approval-policy-binding.js";
 import {
   readApprovedResponseReport,
   readResponsePassAssessment,

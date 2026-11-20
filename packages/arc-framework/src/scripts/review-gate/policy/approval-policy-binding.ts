@@ -3,10 +3,10 @@
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
-import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
-import { GitObjectIdSchema, ReviewIdentifierSchema } from "./gate-contract-v2-schema.js";
-import { ReviewPassSchema } from "./review-pass.js";
-import { ReviewScopeModeSchema } from "./review-primitives.js";
+import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewPassSchema } from "../core/review-pass.js";
+import { ReviewScopeModeSchema } from "../core/review-primitives.js";
+import type { ReviewPolicyCommandRequest } from "./review-policy-driver.js";
 
 /**
  * The producer binding a proposal returns for its approval: the lane, head, pull request (with its repository when
