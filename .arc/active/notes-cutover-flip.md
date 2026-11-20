@@ -1022,6 +1022,25 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           flight from its own records and local refs without fetching (`unit/errand/store-overlap`).
         - Each changed expectation traces to a store contract: the suffixed branch, the Errand record, and the
           retired generation.
+    - _Errand close, abandon, and push recovery, as moved (Task 3.4.e.2):_ the three files spawn through
+      `e2e/store-default.ts`, and all five cases run on the store. Each designates `origin`; the two on
+      `initializedRepository` take the template initialized on the process's store, since the helpers' default leaves
+      a `USER-INBOX.md` the projection withholds. A live Errand is one whose `work-item/record` is `active`; close and
+      abandon retire it to `completed`, which the cases assert where the in-repo identity ref was gone.
+        - `errand-close-missing-worktree` matches the branch each open reports, which the store suffixes. The locked
+          holder takes that branch from the primary, where the open checks it out, since an anchored sequence cannot
+          pass a value forward; the generation token the retry confirms is unchanged.
+        - `errand-abandon` and `errand-partial-push-recovery` hold their capture in the store's `personal/inbox` and
+          open from it by qualified ID, the store's only `--from-inbox` form. Under full protection the open moves the
+          entry into the Errand's description and abandoning returns it (`prepareErrandReturn`), so the abandon case
+          asserts the entry back in the inbox where the in-repo arm dropped its `execute-bound` mark. Under partial
+          protection the entry stays in the inbox until the close removes it, so the push-recovery case compares the
+          inbox record's version and content where it read the file.
+        - The abandon case no longer compares the remote's Errand ref: the store publishes state only through
+          `arc sync`'s push leg (spec § 4.1), so it asserts that the verb left no `refs/arc/*` on `origin`, and its
+          name drops "local and remote".
+        - Each changed expectation traces to a store contract: the suffixed branch, the Errand record's placement, the
+          capture's move into the description and back, and state publication through sync.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

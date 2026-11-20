@@ -905,8 +905,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               record, and find a refused open's generation retired. The capability-off setup cleanup and the remote
               overlap probe keep the override by subject (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.e.2 Errand close, abandon, and push recovery**
-            - `e2e/errand-close-missing-worktree.e2e.test.ts`, `errand-abandon`, and `errand-partial-push-recovery`.
+        - `[x]` **3.4.e.2 Errand close, abandon, and push recovery**
+            - `e2e/errand-close-missing-worktree.e2e.test.ts`, `errand-abandon`, and `errand-partial-push-recovery`
+              spawn through `e2e/store-default.ts` and run on the store, designating `origin`. They match the suffixed
+              branch, find a closed or abandoned Errand's record retired to `completed`, and open from a capture the
+              store's inbox holds, abandon returning it there; the remote holds no state, which only sync publishes
+              (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.e.3 The Errand suite**
             - `e2e/errand.e2e.test.ts`, which leaves the ledger.
