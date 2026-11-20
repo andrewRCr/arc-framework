@@ -894,6 +894,26 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               override by subject while delivery is paused (§ 4.3) (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.e Errands and locus**
+        - _Amended (Owner, 2026-11-20):_ its ten end-to-end files and one integration file failed 68 of their 92 cases
+          without the override, so the family moves in four review increments, one commit each, rather than § 7.3's
+          one commit; each increment classifies its cases before editing (`notes-cutover-flip.md` § Test callers).
+
+        - `[x]` **3.4.e.1 Errand open and branch naming**
+            - `e2e/errand-open-base-freshness.e2e.test.ts`, `errand-open-provisioning-recovery`, `errand-branch-types`,
+              and `errand-check-live-branches` spawn through `e2e/store-default.ts`, designating `origin`, with base
+              freshness holding its work units in the store; they match the suffixed Errand branch, read the Errand
+              record, and find a refused open's generation retired. The capability-off setup cleanup and the remote
+              overlap probe keep the override by subject (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.e.2 Errand close, abandon, and push recovery**
+            - `e2e/errand-close-missing-worktree.e2e.test.ts`, `errand-abandon`, and `errand-partial-push-recovery`.
+
+        - `[ ]` **3.4.e.3 The Errand suite**
+            - `e2e/errand.e2e.test.ts`, which leaves the ledger.
+
+        - `[ ]` **3.4.e.4 Locus**
+            - `e2e/locus-errand-roundtrip.e2e.test.ts`, `locus-folder-presence`, and
+              `integration/lifecycle-default-locus-ports.test.ts`.
 
     - `[ ]` **3.4.f Base merge and integration**
         - `movementPaths` (`__tests__/helpers/base-advance.ts`): its disjoint and substantive kinds touch only code

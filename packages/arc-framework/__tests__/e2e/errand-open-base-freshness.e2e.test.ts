@@ -1,14 +1,17 @@
 /** Real CLI warm-Errand base freshness, policy, and resume contracts. */
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./helpers.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -28,12 +31,26 @@ async function commitFixture(cwd: string, message: string): Promise<string> {
   return head;
 }
 
+const IDENTITY = SlugSchema.parse("test-user");
+
+/** Hold an Active work unit in the store on its branch, bound to the checkout that has it out. */
 async function establishWorkUnit(cwd: string, name: string, owner: string): Promise<void> {
-  await mkdir(join(cwd, ".arc", "active"), { recursive: true });
-  await writeFile(join(cwd, ".arc", "active", `meta-${name}.md`), renderMetaFile(name, {
-    state: "Active", owner, branch: `feat/${name}`, workClass: "Light",
-  }));
-  await commitFixture(cwd, `establish ${name}`);
+  const branch = `feat/${name}`;
+  await seedWorkUnit(cwd, name, { identity: owner, branch, bind: cwd,
+    meta: { state: "Active", owner, branch, workClass: "Light" } });
+}
+
+/** A work unit's meta as the store holds it, its version included, so an unchanged read shows no write reached it. */
+async function readMeta(cwd: string, name: string): Promise<string> {
+  const { content, version } = await readStoreRecord(cwd, IDENTITY,
+    recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name })));
+  return `${version}\n${content}`;
+}
+
+/** The placement of the Errand generation the store holds under a slug, or null when it holds none. */
+async function errandPlacement(cwd: string, slug: string): Promise<string | null> {
+  return readStoreRecord(cwd, IDENTITY, recordReferences["work-item/record"](
+    OwnerIdentitySchema.parse({ type: "work-item", name: slug }))).then((record) => record.placement?.kind ?? null, () => null);
 }
 
 async function setPolicy(cwd: string, policy: "always" | "prompt" | "disabled"): Promise<void> {
@@ -66,14 +83,16 @@ describe("warm Errand base freshness", () => {
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
     await git(repository, ["remote", "add", "origin", remote]);
     await git(repository, ["push", "-u", "origin", "main"]);
+    const designated = await runArc(["store", "remote", "origin", "push"], repository);
+    expect(designated.exitCode, designated.stderr).toBe(0);
     await git(repository, ["worktree", "add", parent, "-b", "feat/parent", "main"]);
     await establishWorkUnit(parent, "parent", "test-user");
     await git(repository, ["switch", "-c", "feat/foreign"]);
     await establishWorkUnit(repository, "foreign", "test-user");
     parentHead = await git(parent, ["rev-parse", "HEAD"]);
     foreignHead = await git(repository, ["rev-parse", "HEAD"]);
-    parentMeta = await readFile(join(parent, ".arc", "active", "meta-parent.md"), "utf8");
-    foreignMeta = await readFile(join(repository, ".arc", "active", "meta-foreign.md"), "utf8");
+    parentMeta = await readMeta(repository, "parent");
+    foreignMeta = await readMeta(repository, "foreign");
     await writeFile(join(parent, "unfinished.txt"), "parent work in progress\n");
   });
 
@@ -96,11 +115,11 @@ describe("warm Errand base freshness", () => {
   async function assertParentsPreserved(): Promise<void> {
     expect(await git(parent, ["rev-parse", "HEAD"])).toBe(parentHead);
     expect(await git(parent, ["branch", "--show-current"])).toBe("feat/parent");
-    expect(await readFile(join(parent, ".arc", "active", "meta-parent.md"), "utf8")).toBe(parentMeta);
+    expect(await readMeta(repository, "parent")).toBe(parentMeta);
     expect(await readFile(join(parent, "unfinished.txt"), "utf8")).toBe("parent work in progress\n");
     expect(await git(repository, ["rev-parse", "HEAD"])).toBe(foreignHead);
     expect(await git(repository, ["branch", "--show-current"])).toBe("feat/foreign");
-    expect(await readFile(join(repository, ".arc", "active", "meta-foreign.md"), "utf8")).toBe(foreignMeta);
+    expect(await readMeta(repository, "foreign")).toBe(foreignMeta);
   }
 
   async function open(slug: string): Promise<OpenResult> {
@@ -126,9 +145,9 @@ describe("warm Errand base freshness", () => {
     const refused = await open("refresh-retry");
     expect(refused).toMatchObject({ outcome: "error", error: { message: expect.stringContaining("fetch-failed") } });
     expect(refused.allocation).toBeUndefined();
-    expect(await git(repository, ["branch", "--list", "chore/refresh-retry"])).toBe("");
-    const claims = await git(repository, ["ls-tree", "--name-only", "refs/arc/user/test-user/errands"]);
-    expect(claims).not.toContain("refresh-retry");
+    expect(await git(repository, ["branch", "--list", "chore/refresh-retry-*"])).toBe("");
+    // The store rolls back a fresh claim by retiring its generation, which it keeps at completed.
+    expect(await errandPlacement(repository, "refresh-retry")).toBe("completed");
     expect(await git(repository, ["rev-parse", "main"])).toBe(base);
     await assertParentsPreserved();
     await git(remote, ["config", "--unset", "uploadpack.hideRefs"]);
@@ -150,7 +169,7 @@ describe("warm Errand base freshness", () => {
     expect(refused).toMatchObject({ outcome: "error", error: { message: expect.stringContaining("dirty-base-worktree") } });
     expect(refused.error?.message).toContain("retry Errand open");
     expect(await readFile(path, "utf8")).toBe(original + "\nunfinished-base-edit\n");
-    expect(await git(repository, ["branch", "--list", "chore/dirty-base-retry"])).toBe("");
+    expect(await git(repository, ["branch", "--list", "chore/dirty-base-retry-*"])).toBe("");
     await assertParentsPreserved();
     await writeFile(path, original);
     const retried = await open("dirty-base-retry");
@@ -189,7 +208,7 @@ describe("warm Errand base freshness", () => {
     await setPolicy(parent, "prompt");
     const sequence = await runArcAnchoredSequence([
       ["errand", "open", "retained-head", "--json"],
-      { command: ["git", "push", "-u", "origin", "chore/retained-head"], cwdFromPreviousJson: "allocation.checkoutPath" },
+      { command: ["git", "push", "-u", "origin", "HEAD"], cwdFromPreviousJson: "allocation.checkoutPath" },
       { args: ["errand", "leave", "retained-head", "--state", "paused", "--json"], reuseResolvedCwd: true },
       { command: [process.execPath, "-e", "const fs=require('node:fs');const p=process.argv[1];fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace('session.init_pull.base: prompt','session.init_pull.base: always'));", join(parent, ".arc", "system", "arc-config.yml")], cwd: parent },
       { args: ["errand", "open", "retained-head", "--json"], cwd: parent },

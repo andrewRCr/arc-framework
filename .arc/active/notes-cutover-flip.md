@@ -987,6 +987,41 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           task lists, and Candidate records they commit; Task 3.4.d.1's seeded probe of the same entry refused
           `evidence-unavailable`.
         - No expectation changed.
+- **Errands and locus (Task 3.4.e), probed before any edit:** ten end-to-end files and one integration file, 92 cases:
+  the seven `errand-*` files, `errand.e2e` (off the ledger for the probe), the two `locus-*` files, and
+  `integration/lifecycle-default-locus-ports`, whose only spawn is `arc init`. With every spawn switched, 68 failed and
+  24 passed. About 30 failures write `USER-INBOX.md` by hand, which the projection withholds; 7 meet `origin`
+  undesignated; 3 open in a repository with no project record; 2 read the in-repo Errand identity ref; the rest are
+  outcome differences, nearly all in `errand.e2e`.
+    - _Errand open and branch naming (Task 3.4.e.1):_ `errand-open-base-freshness` (8 of 8),
+      `errand-open-provisioning-recovery` (2 of 2), `errand-branch-types` (3 of 3), and `errand-check-live-branches`
+      (1 of 1).
+    - _Errand close, abandon, and push recovery (Task 3.4.e.2):_ `errand-close-missing-worktree` (3 of 3),
+      `errand-abandon` (1 of 1), and `errand-partial-push-recovery` (1 of 1).
+    - _The Errand suite (Task 3.4.e.3):_ `errand.e2e` (42 of 56).
+    - _Locus (Task 3.4.e.4):_ `locus-errand-roundtrip` (7 of 7), `locus-folder-presence` (0 of 1), and
+      `lifecycle-default-locus-ports` (0 of 9).
+    - _Errand open and branch naming, as moved (Task 3.4.e.1):_ the four files spawn through `e2e/store-default.ts`;
+      12 of their 14 cases run on the store and 2 keep the override by subject. Each file that adds `origin` after
+      `arc init` designates it (§ Undesignated remotes in tests); `errand-branch-types` failed without it.
+        - `errand-branch-types` runs on the store. The store names the branch `<type>/<slug>-<suffix>` (§ 4.8), so the
+          case pushes the Errand's `HEAD` and matches the suffixed form, and it reads the Errand's `work-item/record`
+          from the store in place of the in-repo identity ref.
+        - `errand-open-base-freshness` runs on the store. Its parent and foreign work units are held in the store,
+          each bound to its checkout, in place of metas committed to their branches; a work unit counts as preserved
+          when its meta record's store version and content are unchanged. The refused open's claim is rolled back by
+          retiring the fresh generation, which the store keeps at `completed` (`transformStoreErrand`'s `retire`), so
+          the case asserts that placement where the in-repo store left no identity; the retry then mints a new
+          generation. Branch checks match the suffixed form.
+        - `errand-open-provisioning-recovery`'s interrupted-provisioning case runs on the store, reading the claim from
+          the Errand's record and finding the stranded checkout by the suffixed branch.
+        - Two cases keep the override by subject. The capability-off setup cleanup is the in-repo arm: with the
+          capability on, the store retains the personal bytes a failed setup saved, and the claim with them
+          (`integration/errand-projection-retirement`). `errand-check-live-branches` probes the remote for live branches
+          the caller does not track, the in-repo overlap arm; the store's (`runStoreErrandOverlap`) derives the work in
+          flight from its own records and local refs without fetching (`unit/errand/store-overlap`).
+        - Each changed expectation traces to a store contract: the suffixed branch, the Errand record, and the
+          retired generation.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
