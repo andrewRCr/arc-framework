@@ -846,9 +846,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               Each changed expectation traces to a store contract, and two cases surfaced A23
               (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.c.3 The review fan-out harness**
-            - `integration/review-fan-out-lifecycle.test.ts` and `review-member-full-final`, through `installCandidate`
-              and `writeBoundary`.
+        - `[x]` **3.4.c.3 The review fan-out harness**
+            - `integration/review-fan-out-lifecycle.test.ts` and `review-member-full-final` leave the ledger. Their 43
+              harness cases reserve review through a delivery plan the store cannot resolve while delivery is paused
+              (§ 4.3), so they keep the override by subject under `useInRepoStoreForEach`, `installCandidate` and
+              `writeBoundary` with them; the singleton hosted progression runs on the store (`notes-cutover-flip.md`
+              § Test callers).
 
         - `[ ]` **3.4.c.4 Review surfaces**
             - `e2e/review-protocol.e2e.test.ts`, `review-candidate-supersession`, `review-chunking`, and

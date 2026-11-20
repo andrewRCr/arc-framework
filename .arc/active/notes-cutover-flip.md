@@ -857,6 +857,18 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           pass its admission derives.
         - Two cases reading `arc active status` in the bound checkout found no Candidate under the nested layout,
           which Task 3.R9 fixed (A23).
+    - _The fan-out harness, as moved (Task 3.4.c.3):_ `review-fan-out-lifecycle` and `review-member-full-final` leave
+      the ledger. Every case but one builds `createHarness`, whose delivery stack reserves its review through the work
+      unit's delivery plan (`writeBoundary`, `RepositoryDeliveryMemberLookup.resolveReservationRecords`). Probed on the
+      store, the lookup read `unavailable` before any review ran: with state off the branch, the rename transition
+      source refuses a base holding no transition records (§ 4.3), and no seeding adds them. So the harness's 43 cases
+      keep the override by subject, delivery being paused on the store, as in Task 3.R.c, under
+      `useInRepoStoreForEach`, and `installCandidate` and `writeBoundary` stay on the in-repo stores with them.
+        - The singleton hosted progression builds no harness and carries no delivery vehicle, so it runs on the store
+          in a `describe` of its own.
+        - _Store counterparts, by subject only:_ the native delivery-member review tests, among them
+          `delivery-review-native-refusal`, `review-hosted-native-refusal`, `delivery-review-fix-native`, and
+          `delivery-native-parity`.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

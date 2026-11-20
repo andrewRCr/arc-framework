@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -946,6 +947,10 @@ async function writeSettlementGhFake(
 }
 
 describe("hosted review fan-out lifecycle", () => {
+  // Each case reserves its review through a delivery plan, which only the in-repo store resolves: with state off the
+  // branch, plan resolution refuses a base that holds no transition records.
+  useInRepoStoreForEach();
+
   it("uses default hosted settlement wiring for approved success and stale authority refusal", async () => {
     const harness = await createHarness();
     const status = await statusThroughHandler(harness, {
@@ -5092,7 +5097,10 @@ describe("hosted review fan-out lifecycle", () => {
       },
     });
   }, 120_000);
+});
 
+// A singleton request carries no delivery vehicle, so its progression runs on the store.
+describe("hosted review singleton progression", () => {
   it("keeps the existing hosted progression compatible with a singleton target", async () => {
     const root = await createTempRepo("arc-review-singleton-");
     roots.push(root);

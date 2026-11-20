@@ -7,10 +7,15 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { cleanupTempDir } from "../helpers/integration.js";
 import { inProcessReview } from "../helpers/in-process-review.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import {
   createFixedLocalMemberReview, completeLocalReviewThroughHandlers, git, roots,
   respondThroughHandler, resumeLocalThroughHandler, statusThroughHandler, type FanOutHarness,
 } from "../fixtures/review-fan-out-harness.js";
+
+// Each member review reserves through its delivery plan, which only the in-repo store resolves: with state off the
+// branch, plan resolution refuses a base that holds no transition records.
+useInRepoStoreForEach();
 
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
