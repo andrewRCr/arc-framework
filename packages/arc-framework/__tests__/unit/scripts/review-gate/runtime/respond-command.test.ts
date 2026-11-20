@@ -539,12 +539,25 @@ Approve: 2 fixes → focused verification → commit → push?`,
     expect(response.payload.dispositionReportText.endsWith(`\n\n${closer}`)).toBe(true);
   });
 
+  function deliveryMemberCase() {
+    const records = deliveryLocalFixture();
+    return {
+      records,
+      deps: dependencies(records),
+      source: { kind: "attested-local" as const, receiptRef: records.receiptRef },
+    };
+  }
+
   it.each([
-    { name: "a local producer", build: () => localErrandCase(1), lane: "standard", vehicle: { pullRequest: null } },
+    { name: "a local producer", build: () => localErrandCase(1), lane: "standard", vehicle: { pullRequest: null },
+      scopeMode: "whole-target" },
+    { name: "a delivery-member local producer", build: deliveryMemberCase, lane: "standard",
+      vehicle: { pullRequest: 42, repository: "owner/repo" }, scopeMode: "chunked" },
     { name: "a hosted producer", build: () => hostedCase(workUnitVehicle), lane: "standard",
-      vehicle: { pullRequest: 42, repository: "owner/repo" } },
-    { name: "a frontline producer", build: () => frontlineCase(), lane: "frontline", vehicle: { pullRequest: null } },
-  ])("returns the policy binding the approved call must carry for $name", async ({ build, lane, vehicle }) => {
+      vehicle: { pullRequest: 42, repository: "owner/repo" }, scopeMode: "whole-target" },
+    { name: "a frontline producer", build: () => frontlineCase(), lane: "frontline", vehicle: { pullRequest: null },
+      scopeMode: "whole-target" },
+  ])("returns the policy binding the approved call must carry for $name", async ({ build, lane, vehicle, scopeMode }) => {
     const { records, deps, source } = build();
     const response = await respondToReviewCommand(withReviewReport({
       schemaVersion: 1,
@@ -571,7 +584,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
       lane,
       headSha: records.target.headSha,
       ...vehicle,
-      scopeMode: "whole-target",
+      scopeMode,
       completedPasses: 1,
       finalAttempt: { outcome: "findings", reviewOperationId: response.payload.operationId },
     });
