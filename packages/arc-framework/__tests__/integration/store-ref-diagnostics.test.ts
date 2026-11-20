@@ -75,9 +75,10 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
         lookup: await answer(() => createRefStore(f.ports).lookup({ kind: "slug", slug: SlugSchema.parse("alpha") })),
       });
     }
+    expect(answers[1]).toMatchObject({ list: { status: "ok" },
+      read: { status: expect.any(String) }, lookup: { status: expect.any(String) } });
     expect(JSON.stringify(answers[1]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"))
       .toBe(JSON.stringify(answers[0]).replaceAll(/\b[0-9a-f]{40,64}\b/gu, "<oid>"));
-    expect(answers[1]).toMatchObject({ list: { status: "ok" } });
   });
 
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {
