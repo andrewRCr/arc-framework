@@ -1,6 +1,7 @@
 /** Native manager windows preserve unstaged edits around commit selection. */
 import { afterEach, expect, inject, it } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
+import { execa } from "execa";
 import { join } from "node:path";
 import { commitThroughManager, createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -30,7 +31,7 @@ it.each(["husky", "core.hooksPath"] as const)("refuses and repairs partially sta
   expect(await executionReceipt(root)).toBe("executed\n");
 }, 60_000);
 
-it("commits only the staged content after setting the unstaged changes aside, then restores them exactly", async () => {
+it("commits only the staged content after setting the unstaged changes aside, then reapplies them", async () => {
   const root = await createHookManagerRepository("core.hooksPath", inject("arcHookManagerTools"));
   roots.push(root);
   const path = join(root, "src/0.txt");
@@ -42,7 +43,9 @@ it("commits only the staged content after setting the unstaged changes aside, th
   await git(root, ["stash", "push", "--keep-index"]);
   const committed = await commitThroughManager(root);
   expect(committed.exitCode, committed.output).toBe(0);
-  await git(root, ["restore", "--source=refs/stash", "--worktree", "--", ":/"]);
+  const unstaged = await execa("git", ["diff", "--binary", "refs/stash^2", "refs/stash"], { cwd: root, stripFinalNewline: false });
+  await execa("git", ["apply", "--3way"], { cwd: root, input: unstaged.stdout });
+  await git(root, ["reset", "-q"]);
   await git(root, ["stash", "drop"]);
   expect(await git(root, ["show", "HEAD:src/0.txt"])).toBe("staged");
   expect(await readFile(path, "utf8")).toBe("staged\nunstaged\n");

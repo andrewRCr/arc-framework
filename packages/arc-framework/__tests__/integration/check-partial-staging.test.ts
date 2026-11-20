@@ -21,7 +21,7 @@ const DECLARED = {
   routed: { runner: true },
 } as const;
 type DeclaredId = keyof typeof DECLARED;
-type RunnerReading = "configured" | "absent" | "unreadable";
+type RunnerReading = "configured" | "absent" | "unreadable" | "removed after the first read";
 
 /** A repository whose one input file has a staged change and a further unstaged one, checked by the named checks. */
 async function partlyStaged(ids: DeclaredId[], runner: RunnerReading) {
@@ -34,6 +34,7 @@ async function partlyStaged(ids: DeclaredId[], runner: RunnerReading) {
   const definition = CheckDeclarationSchema.parse({ checks });
   const executed: string[] = [];
   const routedSources: string[] = [];
+  let runnerReads = 0;
   const io: DeclaredCheckDependencies = {
     git: gitExec, gitInput: gitExecInput, platform: process.platform, availableParallelism: () => 1,
     passes: { get: async () => null, put: async () => ({ status: "recorded" }) },
@@ -41,7 +42,9 @@ async function partlyStaged(ids: DeclaredId[], runner: RunnerReading) {
     runtime: async () => ({ exitCode: 0, stdout: "" }),
     execute: async command => { executed.push(command[0]!); return { started: true, exitCode: 0, output: "" }; },
     readRunnerConfiguration: async check => {
-      if (!check.runner || runner === "absent") return undefined;
+      if (!check.runner) return undefined;
+      runnerReads++;
+      if (runner === "absent" || (runner === "removed after the first read" && runnerReads > 1)) return undefined;
       if (runner === "unreadable") throw new Error("checks.runner contains malformed YAML");
       return { file: "machine.yml", argv: ["adapter"] };
     },
@@ -54,7 +57,8 @@ async function partlyStaged(ids: DeclaredId[], runner: RunnerReading) {
       });
     },
   };
-  return { run: () => runDeclaredRequest(root, io, { form: { kind: "pre-commit" } }), executed, routedSources };
+  return { run: () => runDeclaredRequest(root, io, { form: { kind: "pre-commit" } }), executed, routedSources,
+    runnerReads: () => runnerReads };
 }
 
 it("runs index-reading and routed checks over the staged content without refusing", async () => {
@@ -72,10 +76,18 @@ it("refuses only the check that reads the working tree, with a remedy that keeps
     message: expect.stringContaining("\"src/a.ts\" (checks: native).") } });
   const message = result.kind === "error" ? result.error.message : "";
   expect(message).toContain("git stash push --keep-index");
-  expect(message).toContain("git restore --source=refs/stash --worktree -- :/");
+  expect(message).toContain("git diff --binary refs/stash^2 refs/stash | git apply --3way");
   expect(message).not.toContain("ARC_SKIP");
   expect(executed).toEqual([]);
   expect(routedSources).toEqual([]);
+});
+
+it("reads a check's runner once, so the refusal and the dispatch cannot disagree", async () => {
+  const { run, executed, routedSources, runnerReads } = await partlyStaged(["routed"], "removed after the first read");
+  await expect(run()).resolves.toMatchObject({ kind: "result", result: { checks: [{ id: "routed", outcome: "couldn't run" }] } });
+  expect(runnerReads()).toBe(1);
+  expect(routedSources).toEqual(["index"]);
+  expect(executed).toEqual([]);
 });
 
 it("refuses a routed check when no runner is configured, since it then runs in the working tree", async () => {
