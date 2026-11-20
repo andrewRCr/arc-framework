@@ -1093,6 +1093,33 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - The two in-repo cases settle a capture matched by title when promotion replays after its meta commit, and
           refuse that settlement over a same-title replacement: the store promotes in one write and opens from a
           capture by qualified ID, holding it in the Errand's description.
+- **Base merge and integration (Task 3.4.f), probed before any edit:** seven end-to-end files and four integration
+  files, 108 cases: the five `base-*` end-to-end files, `integrate-base-movement`, `teardown-base-movement`, and the
+  integration files that arrange through `helpers/base-advance.ts`, `base-advance` and the three the ledger lists
+  (`history-shape-ambiguity` and the two `review-status-*base-movement` files), off it for the probe. With every spawn
+  switched, 63 failed and 45 passed. Most failures commit a meta or `ROADMAP.md` under `.arc/` and meet the
+  tracked-state refusal; `integrate-base-movement`'s shared setup stops at `arc attest`, and the Errand review-status
+  file's review steps need the Errand's work item and read different review states.
+    - _The base verbs (Task 3.4.f.1):_ `base-advance` (0 of 4), `base-drift` (0 of 7), `base-sync` (0 of 3),
+      `base-merge` (2 of 6), `base-merge-hooks` (1 of 2), and `integration/base-advance` (0 of 18).
+    - _The integration checkpoint and teardown over base movement (Task 3.4.f.2):_ `integrate-base-movement` (10 of
+      10), `teardown-base-movement` (2 of 2), and `history-shape-ambiguity` (3 of 11).
+    - _Work-unit review status over base movement (Task 3.4.f.3):_ `review-status-base-movement` (18 of 18).
+    - _Errand review status over base movement (Task 3.4.f.4):_ `review-status-errand-base-movement` (27 of 27).
+    - _The base verbs, as moved (Task 3.4.f.1):_ the five end-to-end files spawn through `e2e/store-default.ts`; 35 of
+      the 40 cases run on the store and 5 keep the override by subject, each set in a describe of its own or, for the
+      ROADMAP remedy, already in its case. `base-advance`, `base-drift`, and `base-sync` pass unchanged, touching no
+      ARC state, and `integration/base-advance` drives the overlap analyzer in process.
+        - `base-merge-hooks`' clean merge committed `ROADMAP.md` only because its setup is shared with the ROADMAP
+          remedy; the ROADMAP is now written for the remedy alone, which keeps the override, and the clean merge runs
+          on the store.
+        - `base-merge`'s two rename cases archive by moving tracked artifacts from `.arc/active/` to `.arc/completed/`
+          and keep the live ones tracked. That is the in-repo store's archive, which the cohort register's row for
+          archival by `git mv` retires, so they keep the override; its four exact-base cases run on the store.
+        - `integration/base-advance`'s regenerable and evidence-neutral kinds keep the override, as the task names:
+          `movementPaths` commits `ROADMAP.md` and a work unit's notes for them, and the classifier arms they reach
+          leave with the in-repo implementation. They compose no store, so the override marks their subject rather
+          than changing what they run; the disjoint and substantive kinds, which touch only code, stay unmarked.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

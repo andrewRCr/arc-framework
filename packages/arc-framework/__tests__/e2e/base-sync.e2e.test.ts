@@ -13,7 +13,7 @@ import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArcNoTty } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 

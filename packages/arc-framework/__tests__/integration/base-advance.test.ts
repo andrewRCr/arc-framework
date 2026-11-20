@@ -24,6 +24,7 @@ import {
   withUnavailableBaseRead,
   type BaseMovementKind,
 } from "../helpers/base-advance.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);
 const WORK_UNIT = "sample-unit";
@@ -125,6 +126,12 @@ describe("movement kinds, as the shipped analyzer classifies them", () => {
       regenerablePaths: [],
     });
   });
+});
+
+describe("movement kinds the in-repo store's classifier reads", () => {
+  // A tracked ROADMAP and a work unit's tracked notes are the in-repo store's, and the classifier arms that read them
+  // leave with it.
+  useInRepoStoreForEach();
 
   it("classifies an advance over the tracked readiness projection as regenerable only", async () => {
     const { cwd } = await checkoutOnWorkUnitBranch();

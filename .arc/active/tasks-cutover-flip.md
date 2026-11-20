@@ -932,6 +932,27 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           files and move; its regenerable and evidence-neutral kinds commit `ROADMAP.md` and a work unit's notes to
           exercise classifier arms that leave with the in-repo implementation, so their cases
           (`integration/base-advance.test.ts`, `e2e/integrate-base-movement.e2e.test.ts`) keep the override explicitly.
+        - _Amended (Owner, 2026-11-20):_ its seven end-to-end files and four integration files failed 63 of their 108
+          cases without the override, so the family moves in four review increments, one commit each, rather than
+          § 7.3's one commit; each increment classifies its cases before editing (`notes-cutover-flip.md` § Test
+          callers).
+
+        - `[x]` **3.4.f.1 The base verbs**
+            - `e2e/base-advance.e2e.test.ts`, `base-drift`, `base-sync`, `base-merge`, and `base-merge-hooks` spawn
+              through `e2e/store-default.ts`; with `integration/base-advance.test.ts`, 35 of their 40 cases run on the
+              store. The ROADMAP remedy, `base-merge`'s archival renames, and `movementPaths`' regenerable and
+              evidence-neutral kinds keep the override by subject; the clean merge commits no ROADMAP
+              (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.f.2 The integration checkpoint and teardown over base movement**
+            - `e2e/integrate-base-movement.e2e.test.ts`, `teardown-base-movement`, and
+              `integration/history-shape-ambiguity.test.ts`, which leaves the ledger.
+
+        - `[ ]` **3.4.f.3 Work-unit review status over base movement**
+            - `integration/review-status-base-movement.test.ts`, which leaves the ledger.
+
+        - `[ ]` **3.4.f.4 Errand review status over base movement**
+            - `integration/review-status-errand-base-movement.test.ts`, which leaves the ledger.
 
     - `[ ]` **3.4.g Status and view**
 

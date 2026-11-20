@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArcNoTty } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 const cleanup: string[] = [];

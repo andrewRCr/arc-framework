@@ -3,7 +3,7 @@ import { afterEach, expect, inject, it } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
-import { cleanupTempDir, git, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, git, runArcNoTty } from "./store-default.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
@@ -14,8 +14,11 @@ it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing 
   const root = await createHookManagerRepository("core.hooksPath", inject("arcHookManagerTools"));
   roots.push(root);
   const roadmap = join(root, ".arc/backlog/ROADMAP.md");
-  await mkdir(join(root, ".arc/backlog"), { recursive: true });
-  await writeFile(roadmap, "# Roadmap\n\ncommon\n");
+  // A tracked ROADMAP and its regeneration are the in-repo store's; the clean merge commits no ARC state.
+  if (mode === "ROADMAP remedy") {
+    await mkdir(join(root, ".arc/backlog"), { recursive: true });
+    await writeFile(roadmap, "# Roadmap\n\ncommon\n");
+  }
   await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: { content: {
     gate: "commit", cache: false, inputs: ["**"], command: [process.execPath, "-e",
       "require('node:fs').appendFileSync('receipt.json','executed\\n');process.exit(1)"],
