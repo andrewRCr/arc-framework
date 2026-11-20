@@ -639,6 +639,18 @@ departs from the in-repo teardown in two ways no spec covers.
   branch is reaped. From the flip the store's Git calls follow that move, and the teardown reaps the branch from the
   primary checkout (A20).
 
+Teardown is not the only command that removes the checkout it runs in. `arc abandon` and `arc decompose` retire their
+work unit's checkout through the same store arm, given the context their commands build (`createStoreTeardownContext`,
+`lib/work-unit/store-teardown-context.ts`), and `arc errand abandon`, `close`, and `leave` remove their Errand's
+(`settleTerminalOccupancy`, `lib/errand/terminal-occupancy.ts`). Each runs from that checkout, as
+`deactivate-work-unit.md`, `decompose-work-unit.md`, and `run-errand.md` direct, and each loses its store once the
+checkout is gone: the store runs every Git call in the checkout it opened in (`createDefaultStorePorts`,
+`lib/store/default-store-ports.ts`) and finds the repository through it at every lock it takes (`createRefLockFactory`,
+`lib/store/default-ports.ts`), so a work unit's abandonment refuses `spawn-failure` with its branch unreaped, and an
+Errand's refuses on the removed checkout's `.git`. From the flip the store finds the repository once, when it opens,
+and keeps working from it after that checkout is removed, so each of these commands completes its remaining store
+reads and writes, whichever removed the checkout (A21).
+
 ### 5. Tracked and installed files leaving the projected roots
 
 From the flip, `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots, gitignored and laid by the
@@ -2337,5 +2349,7 @@ None.
   _Supersedes:_ § 17.1 item 13 (the notes-related slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 3.7.
 - **A20** — 2026-11-19 — spec-depth: store teardown refuses a markerless holder and survives removing its checkout.
   _Supersedes:_ none. _Trigger:_ 3.4.b.1 must-stop. _Work:_ 3.R6. _Revalidated:_ pending → 3.7.
+- **A21** — 2026-11-19 — spec-depth: the store outlives the checkout it opened in, whichever command removes it.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.2 must-stop. _Work:_ 3.R7. _Revalidated:_ pending → 3.7.
 
 ---

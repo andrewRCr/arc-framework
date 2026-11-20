@@ -690,6 +690,8 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   marker, before any detach or ref change, as the in-repo selection does, and a self-teardown under
   `arc.selfTeardownMode: remove` removes its checkout and reaps the branch from the primary checkout (A20).
 
+    - _Amended in:_ 3.R7 (A21).
+
 - _Outcome:_ `runStoreTeardown` (`lib/work-unit/verbs/teardown-store.ts`) refuses, before cleanup starts, when a linked
   checkout whose folder remains holds the retiring branch ARC created with no ownership marker (`refuseUnmarkedHolder`),
   keeping an adopted branch's holder and a further link's holder as before, and a self-teardown that moves to the
@@ -698,6 +700,15 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   over a retirement harness given a linked checkout, the removing case through a store that refuses once the process
   moves, beside an adopted-branch guard; `e2e/teardown.e2e.test.ts`'s markerless and remove-preference cases, which
   move in Task 3.4.b.1, pass through the built CLI with the fix.
+
+### `[ ]` **3.R7 The store outlives the checkout it opened in — § 4.14**
+
+- _Goal:_ On the store a command that removes the checkout it runs in completes its remaining store reads and writes:
+  `arc abandon` and `arc errand abandon`, run from the checkouts they remove, retire their record and reap the branch
+  they created (A21).
+    - Work-unit and Errand abandonment from their own checkouts fail first through the built CLI, with Errand close and
+      leave run there too; then the store finds the repository once, when it opens, rather than through that
+      checkout, and `arc teardown`'s `reopenStore` port leaves once redundant.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
@@ -1573,6 +1584,10 @@ landing after verification).
 - `[ ]` On the store, `arc teardown` refuses a linked checkout holding the retiring branch ARC created without an ARC
   ownership marker, leaving it branched and unchanged, and a self-teardown under `arc.selfTeardownMode: remove` removes
   its checkout and reaps the branch (A20).
+
+- `[ ]` On the store, a command that removes the checkout it runs in completes its remaining store reads and writes:
+  `arc abandon` and `arc errand abandon`, run from the checkout they remove, retire their record and reap the branch
+  they created (A21).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

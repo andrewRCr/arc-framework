@@ -1229,6 +1229,37 @@ explicit refusal that `spec-worktree-teardown-decoupling.md`'s "rather than an a
 by name from the primary after a self-teardown leaves the husk, so the case replays the continuation the store prints.
 That replay's summary reports the already-deleted branch as "left intact", a capture for a later fix.
 
+## A21 — the store outlives the checkout it opened in
+
+Task 3.4.b.2 gave `e2e/lifecycle-exit.e2e.test.ts` store cases for `arc abandon`, since its in-repo cases stay with the
+in-repo implementation. From the primary checkout, abandonment retired the record, removed the work unit's spawned
+checkout, and reaped its created branch locally and on `origin`. From that checkout, as `deactivate-work-unit.md`
+directs, it removed the checkout and then refused `git config: spawn-failure`, exiting 1 with the branch left on both
+sides; the printed `arc teardown <uid>`, run from the primary, finished the cleanup. The command's teardown context
+(`createStoreTeardownContext`) supplies no `reopenStore` port, which Task 3.R6 gave `arc teardown` alone. A probe of
+`e2e/errand-abandon.e2e.test.ts`'s case on the store, opening with `--isolate` and no capture, failed with a different
+symptom: once the Errand's checkout was removed, abandonment refused `ENOENT: no such file or directory, lstat
+'<checkout>/.git'`, the file the store's lock factory reads at each acquisition to find the common Git directory
+(`readGitDirectories` in `createRefLockFactory`).
+
+The sweep over commands that can remove or move the checkout they run in:
+
+- `arc teardown`: closed by Task 3.R6's reopen from the primary.
+- `arc abandon` and `arc errand abandon`: fail, probed.
+- `arc decompose`: the same teardown context and store arm as abandonment (`lib/decompose/retirement.ts`); not run.
+- `arc errand close` and `leave`: the same terminal settlement as Errand abandonment (`lib/errand/close-runtime.ts`,
+  `lib/errand/leave-runtime.ts`); not run.
+- `arc locus release`: reads the store before the removal, in its pre-retire revalidation
+  (`revalidateReleaseEligibility`, `lib/locus/release.ts`), and returns after it; `integration/locus-release.test.ts`
+  covers it on the store.
+- `arc rename`: defers moving its own checkout (`deferredMove`, `commands/rename-store.ts`); Task 3.4.b.3 runs it on
+  the store.
+- `arc start` and materialization: create checkouts and never remove the invoking one.
+
+The Owner chose to fix the store rather than each caller: one change covers the five commands and any later one, where
+reopening per caller would wire each and leave the next to fail the same way. Task 3.R6's `reopenStore` port leaves once
+the store no longer needs it.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.
