@@ -873,8 +873,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               its project and work unit in the store, its tracked transition record dropped; native suffix passes
               unchanged (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.d.2 The delivery plan**
-            - `e2e/delivery-plan.e2e.test.ts`.
+        - `[x]` **3.4.d.2 The delivery plan**
+            - `e2e/delivery-plan.e2e.test.ts` spawns through `e2e/store-default.ts`. Its command surface and
+              eligibility run on the store, eligibility's work unit held there and its lifecycle paths empty off the
+              branch, with a store prepare case added and the corrupt-state case corrected to reach its state. Closeout,
+              entry inspection, native landing, and authoring keep the override by subject while delivery is paused
+              (§ 2.3, § 4.3), as does the tracked lifecycle-path case (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.d.3 Terminal recovery**
             - `e2e/delivery-terminal-recovery.e2e.test.ts`.

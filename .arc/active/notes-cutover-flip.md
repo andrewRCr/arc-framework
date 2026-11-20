@@ -923,6 +923,30 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - `delivery-native-suffix` passes on the store unchanged: its native landing verbs address the plan by ID over
           machine-local plan and state, binding no work unit.
         - No expectation changed.
+    - _The delivery plan, as moved (Task 3.4.d.2):_ `delivery-plan` spawns through `e2e/store-default.ts`, splitting into
+      a store block of 5 cases and an in-repo block of 15 under `useInRepoStoreForEach`; its 19 cases become 20.
+        - The command-surface cases, registration and invocation parsing, pass on the store unchanged.
+        - Eligibility runs on the store. Its lifecycle-path source returns no paths when state is off the branch
+          (`CurrentDeliveryLifecycleContributionPathSource`), and both verbs require the active work unit to be the
+          plan's. The read-only close case therefore holds its work unit in the store (`seedWorkUnit`, bound in place)
+          in place of an untracked meta, and its snapshot carries no lifecycle or regenerable paths. The corrupt-state
+          case shares that setup (`installEligibilityClose`). It had written no meta, so close refused at the active
+          work unit before reading delivery state; its refusal now comes from the corrupt state file, which the
+          read-only close case, eligible over the same setup, shows. A new store case prepares a snapshot with no
+          lifecycle paths and refuses a requested tracked path as moved.
+        - The in-repo lifecycle-path case keeps the override by subject: it commits the work unit's meta and accounts
+          for the tracked lifecycle paths, the arm the in-repo implementation's removal takes.
+        - Closeout, entry inspection, and native landing keep it by subject. Closeout retires its records through
+          `GitDeliveryRenameTransitionSource` and commits a transition record; entry inspection resolves the plan
+          through the delivery entry (Task 3.4.d.1); and native landing's member readiness resolves it through
+          `RepositoryDeliveryMemberLookup`'s rename source (§ 4.3), over Candidate and boundary files the case writes
+          into the checkout.
+        - The eleven authoring cases (`from-tasks`, `from-branch`, compose, and abandon) keep it by subject. Authoring
+          reads the meta and task list by path (§ 2.3), and resolves an existing plan through the rename source
+          (§ 4.3); both move onto the store with the delivery rebuild. With no plan stored, resolution returns
+          `no-match` before reading transitions, so first authoring is not what refuses: the cases fail over an
+          untracked meta that is no store record, most with `active-work-unit-unresolved`.
+        - No expectation changed.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
