@@ -52,7 +52,7 @@ export async function makeNativeWriterFixture() {
 export async function exposeNativeWriterLeaseHandoff(packageRoot: string): Promise<string> {
   const leaseProcessPath = join(packageRoot, "src/lib/lease-process.ts");
   const retryMarker = join(packageRoot, "lease-handoff-retry");
-  const source = await readFile(leaseProcessPath, "utf8");
+  const source = (await readFile(leaseProcessPath, "utf8")).replaceAll("\r\n", "\n");
   const leaseOperations = "  releaseLock: releaseAdvisoryLockConfirmed,\n  renewLock: renewAdvisoryLock,";
   if (!source.includes(leaseOperations)) throw new Error("Native lease operations changed");
   await writeFile(leaseProcessPath, 'import { access, readFile, unlink, writeFile } from "node:fs/promises";\n'
