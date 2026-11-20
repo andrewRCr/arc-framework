@@ -33,9 +33,10 @@ same checkout's canonical skill in `.arc/system/.internal/skills/`, so a harness
 
 `npm run setup` makes those links in each harness folder that exists: it links a missing skill and replaces a copied
 skill folder or a link that resolves elsewhere. A linked checkout copies the primary's harness folders when it is
-created. After a canonical skill is added, or when a skill's behavior surprises you, run
-`node scripts/link-skills.mjs` in the primary, naming any other checkout's path after it to repair that one too. Never
-hand-copy a `SKILL.md` into a harness folder: the copy stops following the canonical text.
+created. After a canonical skill is added, or when a skill's behavior surprises you, run `node scripts/link-skills.mjs`
+in the primary. To repair other checkouts in the same run, name `.` for the primary alongside their paths, as in
+`node scripts/link-skills.mjs . <checkout>...`: once any path is given, the script links only the checkouts named.
+Never hand-copy a `SKILL.md` into a harness folder: the copy stops following the canonical text.
 
 ## Edit Flow Rules
 
