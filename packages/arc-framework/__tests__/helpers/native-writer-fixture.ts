@@ -45,6 +45,43 @@ export async function makeNativeWriterFixture() {
   return { ...fixture, report: join(fixture.packageRoot, "native-report.json") };
 }
 
+/**
+ * Hold the first writer's cleanup lock until the second polls it during renewal.
+ * The hook is confined to the disposable checkout and uses the native lock operations.
+ */
+export async function exposeNativeWriterLeaseHandoff(packageRoot: string): Promise<string> {
+  const leaseProcessPath = join(packageRoot, "src/lib/lease-process.ts");
+  const retryMarker = join(packageRoot, "lease-handoff-retry");
+  const source = await readFile(leaseProcessPath, "utf8");
+  const leaseOperations = "  releaseLock: releaseAdvisoryLockConfirmed,\n  renewLock: renewAdvisoryLock,";
+  if (!source.includes(leaseOperations)) throw new Error("Native lease operations changed");
+  await writeFile(leaseProcessPath, 'import { access, readFile, unlink, writeFile } from "node:fs/promises";\n'
+    + source.replace(leaseOperations, `
+  releaseLock: async (handle) => {
+    if (process.env.NATIVE_WRITER_ID !== "first" || !handle.path.endsWith(".arc-build.lock")) {
+      return await releaseAdvisoryLockConfirmed(handle);
+    }
+    await releaseAdvisoryLockConfirmed(handle, { removeFile: async (path) => {
+      await unlink(path);
+      if (path !== handle.path) return;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        try { await access(${JSON.stringify(retryMarker)}); return; }
+        catch { await new Promise(resolve => setTimeout(resolve, 5)); }
+      }
+      throw new Error("The successor did not observe the release lock");
+    } });
+  },
+  renewLock: async (handle, duration) => {
+    const result = await renewAdvisoryLock(handle, duration);
+    if (process.env.NATIVE_WRITER_ID === "second" && handle.path.endsWith(".arc-build.lock") && result === "retry") {
+      await writeFile(${JSON.stringify(retryMarker)}, await readFile(handle.path + ".break", "utf8"));
+    }
+    return result;
+  },`));
+  return retryMarker;
+}
+
 /** Launch a tiny real integration controller, leaving only the artifact lease under contention. */
 export function startNativeWriter(packageRoot: string, writer: string, gate?: string, filter?: string, environment: NodeJS.ProcessEnv = {}) {
   const child = execa(process.execPath, ["--import", "tsx", join(packageRoot, "src/scripts/run-local-test-tier.ts"),

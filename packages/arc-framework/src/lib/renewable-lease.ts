@@ -1,5 +1,6 @@
 /** Shared process lifetime for renewable advisory ownership. */
-import type { AdvisoryLockHandle, AdvisoryLockRenewalResult } from "./advisory-lock.js";
+import { setTimeout as delay } from "node:timers/promises";
+import { DEFAULT_MAX_WAIT_MS, type AdvisoryLockHandle, type AdvisoryLockRenewalResult } from "./advisory-lock.js";
 
 /** Process, time, and native lock seams used by both admission and artifact ownership. */
 export interface RenewableLeaseDependencies {
@@ -108,11 +109,20 @@ function createMonitor(
     void operation.then(clear, clear);
     return operation;
   };
+  const canConfirm = () => active && !releasing && !lost;
   const confirmOwnership = async (): Promise<void> => {
-    const result = active && !releasing && !lost ? await renew() : "ownership-lost";
-    if (!active || releasing || lost || result !== "renewed") {
-      throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
-    }
+    const deadline = performance.now() + DEFAULT_MAX_WAIT_MS;
+    let backoff = 10;
+    // The predecessor can still hold the maintenance lock after the main lock becomes available.
+    do {
+      if (!canConfirm()) break;
+      const result = await renew();
+      if (result === "renewed" && canConfirm()) return;
+      if (result !== "retry" || cannotRetry() || performance.now() + backoff >= deadline) break;
+      await delay(backoff);
+      backoff = Math.min(backoff * 2, 250);
+    } while (!cannotRetry() && performance.now() < deadline);
+    throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
   };
   return {
     tick: () => {
