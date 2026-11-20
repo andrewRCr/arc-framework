@@ -701,14 +701,16 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   moves, beside an adopted-branch guard; `e2e/teardown.e2e.test.ts`'s markerless and remove-preference cases, which
   move in Task 3.4.b.1, pass through the built CLI with the fix.
 
-### `[ ]` **3.R7 The store outlives the checkout it opened in — § 4.14**
+### `[x]` **3.R7 The store outlives the checkout it opened in — § 4.14**
 
 - _Goal:_ On the store a command that removes the checkout it runs in completes its remaining store reads and writes:
   `arc abandon` and `arc errand abandon`, run from the checkouts they remove, retire their record and reap the branch
   they created (A21).
-    - Work-unit and Errand abandonment from their own checkouts fail first through the built CLI, with Errand close and
-      leave run there too; then the store finds the repository once, when it opens, rather than through that
-      checkout, and `arc teardown`'s `reopenStore` port leaves once redundant.
+- _Outcome:_ The store's Git calls run in the checkout it opened in while it exists and in the primary after, and its
+  locks, ref lookups, and machine ID use Git directories read once, at its first Git call
+  (`lib/store/checkout-location.ts`). `e2e/store-checkout-removal.e2e.test.ts` runs abandonment, Errand abandon, close,
+  and leave, and a remove-mode self-teardown, each from the checkout it removes; `reopenStore` left. See
+  `notes-cutover-flip.md` § A21.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

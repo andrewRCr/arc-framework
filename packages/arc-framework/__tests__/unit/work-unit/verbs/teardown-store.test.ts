@@ -192,23 +192,12 @@ describe("store teardown and the checkouts it retires", () => {
     expect(h.state()).toMatchObject({ mutations: [], linkedBranch: "feat/demo", linkedPresent: true });
   });
 
-  it("reopens its store from the primary once a removing self-teardown moves there, and reaps the branch", async () => {
+  it("moves to the primary before a removing self-teardown removes its checkout, and reaps the branch", async () => {
     const h = await fixture({ end: "archive", linked: { marked: true, invoking: true } });
-    const opened = h.ctx.store!, reopened: string[] = [];
-    // The store opened in the removed checkout can no longer run Git there.
-    h.ctx.store = new Proxy(opened, { get: (target, key) => {
-      const value: unknown = Reflect.get(target, key);
-      return typeof value !== "function" ? value : (...args: unknown[]) => {
-        if (h.state().hops.length > 0) throw new Error("git config: spawn-failure");
-        return (value as (...items: unknown[]) => unknown).apply(target, args);
-      };
-    } });
-    Object.assign(h.ctx, { selfTeardownMode: "remove", platform: "linux",
-      reopenStore: (checkoutPath: string) => { reopened.push(checkoutPath); return opened; } });
+    Object.assign(h.ctx, { selfTeardownMode: "remove", platform: "linux" });
     const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: true, worktreeRemoved: "/linked" });
     expect(h.state()).toMatchObject({ hops: ["/repo"], linkedPresent: false });
-    expect(reopened).toEqual(["/repo"]);
     expect(h.refs.has("refs/heads/feat/demo")).toBe(false);
   });
 });

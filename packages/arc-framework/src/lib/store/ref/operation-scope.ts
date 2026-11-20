@@ -1,7 +1,7 @@
 /** Own native object readers for one public ref-store operation. */
 import { GitBatchReadScope } from "../../git/batch-reader.js";
 import { basename, dirname, join, resolve } from "node:path";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 
@@ -63,7 +63,7 @@ export class RefOperationScope {
     const candidates = paths.map((path) => resolve(path)).filter((path) => basename(dirname(path)) === "arc"
       && ["store", "store-migrate-build", "store-migrate-old"].includes(basename(path)));
     if (candidates.length) {
-      const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
+      const { commonDir } = await readStoreGitDirectories(context);
       if (candidates.some((path) => dirname(path) === join(commonDir, "arc"))) await this.refresh();
     }
     return operation();

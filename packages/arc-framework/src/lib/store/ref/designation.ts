@@ -1,7 +1,7 @@
 /** Clone-wide remote roles read in the primary repository's configuration context. */
 import { rememberRefLookup } from "./operation-scope.js";
 import { join } from "node:path";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import type { RefBackendContext } from "./context.js";
 import type { Remedy } from "../refusal.js";
 import type { SyncState } from "../sync.js";
@@ -21,7 +21,7 @@ export interface RefDesignation {
 
 /** Read common-directory config, including the primary worktree and global layers. */
 export async function readRefDesignation(context: RefBackendContext, common?: string): Promise<RefDesignation> {
-  const commonDir = common ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
+  const commonDir = common ?? (await readStoreGitDirectories(context)).commonDir;
   const config = await repositoryConfig(context, commonDir);
   const code = configRemotes(config, "code");
   const codeRemote = code.length === 0 ? null : config.get("remote.pushdefault") ?? (code.length === 1 ? code[0]?.name ?? null : code.some(({ name }) => name === "origin") ? "origin" : null);

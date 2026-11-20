@@ -4,7 +4,7 @@ import type { RefBackendContext } from "./context.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import { readObjectFormat, type ObjectFormat } from "./manifest.js";
 import { hashObjectTree, writeObjectTrees, type ObjectTree, type ObjectTreeEntry } from "./object-trees.js";
 
@@ -34,7 +34,7 @@ export async function flushRefBlobStage(context: RefBackendContext): Promise<Ref
   const physical = { ...context, blobStage: undefined };
   const blobs = [...context.blobStage?.blobs ?? []];
   if (blobs.length === 0) return physical;
-  const commonDir = context.repository?.commonDir ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
+  const commonDir = context.repository?.commonDir ?? (await readStoreGitDirectories(context)).commonDir;
   const directory = join(commonDir, "arc", `object-stage-${randomUUID()}`);
   try {
     await context.fs.mkdir(directory, { recursive: true });

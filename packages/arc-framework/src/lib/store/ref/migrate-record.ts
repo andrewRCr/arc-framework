@@ -4,7 +4,7 @@ import { ForwardingRecordSchema } from "./forwarding-record.js";
 import { CommitShaSchema } from "../links.js";
 import { z } from "zod";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import type { RefChange } from "../../git/ref-transaction.js";
 import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { MigrateReportSchema, type MigrateReport, type StoreCommandResult } from "../commands.js";
@@ -64,7 +64,7 @@ export type LayoutSetting = z.infer<typeof SettingSchema>;
 
 /** Bind commands to the common code repository, where control refs always remain. */
 export async function migrationCodeContext(context: RefBackendContext): Promise<RefBackendContext> {
-  const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
+  const { commonDir } = await readStoreGitDirectories(context);
   return bindRefRepository(context, commonDir, null);
 }
 

@@ -1260,6 +1260,17 @@ The Owner chose to fix the store rather than each caller: one change covers the 
 reopening per caller would wire each and leave the next to fail the same way. Task 3.R6's `reopenStore` port leaves once
 the store no longer needs it.
 
+_As built (Task 3.R7):_ the store's location (`createStoreCheckoutLocation`, `lib/store/checkout-location.ts`) runs each
+Git call meant for the checkout the store opened in there while it exists, and in the primary checkout once it is gone.
+It reads that checkout's Git directories once, at the store's first Git call there, rather than as its ports are built,
+since building them reads nothing; each of these commands reads its record before removing its checkout, so the read
+always comes first. The lock factory, the six ref-store lookups, and the machine ID take the directories it kept. The
+machine ID needed a change of its own: asked from the primary, Git named the common directory as a relative `.git`,
+which was resolved against the removed path and recreated it. Through the built CLI, Errand close failed as abandonment
+did; leave passed before the fix, reading nothing after its removal; and a remove-mode `arc teardown` from its own
+checkout passes without `reopenStore`, which left with `rebindRetirementEvidence`. With the location bypassed,
+abandonment, Errand abandonment and close, and that teardown fail again.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

@@ -1855,8 +1855,7 @@ export async function handleTeardown(
     readFile: path => base.io.readFile(path), warn: message => { p.log.warn(message); } })).value;
   const operational = branchArg === undefined && usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
   const teardownContext: TeardownContext = {
-    store: operational?.executor.store ?? store, reopenStore: (dir) => openDefaultStore(dir, exec),
-    projectionRemovalSlots, execInput: base.io.execInput,
+    store: operational?.executor.store ?? store, projectionRemovalSlots, execInput: base.io.execInput,
     projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
     cwd: base.cwd, exec, indexFs: lifecycleFs,
     chdir: (dir) => { process.chdir(dir); locus = dir; }, readCurrentLocus: () => locus,

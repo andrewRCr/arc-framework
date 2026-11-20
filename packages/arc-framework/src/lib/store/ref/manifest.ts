@@ -4,7 +4,7 @@ import { restartOnVanishedStore } from "./repository.js";
 import { hashObjectTree, writeObjectTrees } from "./object-trees.js";
 import { join } from "node:path";
 import { updateStoreRefTransaction } from "./ref-transaction.js";
-import { readGitDirectories } from "../../git/directories.js";
+import { readStoreGitDirectories } from "../checkout-location.js";
 import { FAMILY_IDS } from "../catalog.js";
 import { StateVersionSchema, type StateVersion } from "../identity.js";
 import { isArchiveRef } from "./archive-read.js";
@@ -25,7 +25,7 @@ interface ManifestNode { tips: Map<string, string>; children: Map<string, Manife
 
 /** Read the configured object format without invoking Git or consulting identity. */
 export async function readObjectFormat(context: RefBackendContext): Promise<ObjectFormat> {
-  const gitDir = context.repository?.gitDir ?? context.repository?.commonDir ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
+  const gitDir = context.repository?.gitDir ?? context.repository?.commonDir ?? (await readStoreGitDirectories(context)).commonDir;
   const config = await context.fs.readFile(join(gitDir, "config"));
   let extensions = false;
   let format: ObjectFormat = "sha1";
