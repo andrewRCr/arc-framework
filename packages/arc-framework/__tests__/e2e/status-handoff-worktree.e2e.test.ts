@@ -5,8 +5,7 @@ import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempRepo } from "./helpers.js";
-import { runCli } from "../helpers/run-cli.js";
+import { cleanupTempDir, createTempRepo, runCli } from "./store-default.js";
 
 const execFileAsync = promisify(execFile);
 let repository = "";

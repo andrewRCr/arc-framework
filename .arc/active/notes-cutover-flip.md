@@ -1161,6 +1161,24 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           (`reviewInFlight`), keyed by the store's project identity.
         - The two `overlapping-regenerable-only` rows keep the override by subject, in a describe of their own: that
           movement commits the tracked ROADMAP, which the store refuses on the branch.
+    - _Status and view, as moved (Task 3.4.g):_ `e2e/view.e2e.test.ts`, `status-lifecycle`, `status-handoff-worktree`,
+      and `projection-status` spawn through `e2e/store-default.ts`, and 49 of their 55 cases run on the store.
+        - `view` initializes its project and holds its work unit and task list in the store, bound to the checkout
+          (`seedWorkUnit`), with the identity's and project's documents as records of their own. A case's rewrite of an
+          artifact is a store write at the held version, and a deletion is `removeStoreRecord`. The bound meta renders
+          its fields (`makeMetaFixture`) with the checkout's identity as owner, since the store refuses unset durable
+          fields, and an artifact's path is the projection's, under `active/current/`.
+        - Four expectations change, each traced to a store contract. `arc view` presents the projected file whole
+          (`presentStoreArtifact`, `lib/view-artifact.ts`), so its header counts the base stamp's line, the pager's
+          current-task anchor sits a line lower, and the editor receives the stamped file
+          (`lib/store/projection/stamp.ts`). A completed work unit's meta opens, since from the flip `arc view` opens any
+          work unit through the store (`spec-seam-status-roadmap.md` § Goals, item 5).
+        - `status-lifecycle` seeds its work units, the dependency before the work unit that waits on it, and its planned
+          work unit's design record; the lifecycle query's JSON is unchanged. `status-handoff-worktree` passes unchanged.
+        - Keep the override by subject: `view`'s started sibling, read from its live checkout and then its branch, and a
+          malformed task list, which the store's task-list write refuses; `status-lifecycle`'s slug query from a branch
+          tip with `--fetch`, its remote-only Candidate, and a meta that names no owner, which the store refuses; and
+          `projection-status`' disabled projection slot.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

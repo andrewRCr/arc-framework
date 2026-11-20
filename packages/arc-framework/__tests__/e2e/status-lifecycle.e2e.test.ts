@@ -11,11 +11,54 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir } from "./store-default.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 const execFileAsync = promisify(execFile);
+
+/** A planned work unit's design and owner, and the purpose and owner its status reports. */
+interface DesignRow {
+  readonly design: readonly string[];
+  readonly purpose: string | null;
+  readonly owner: string | null;
+}
+
+/**
+ * Status reports a planned work unit's purpose from its design document and its owner from its meta. The store holds
+ * the work unit and its design as records; the in-repo store reads them from the tracked backlog.
+ */
+async function reportsDesignAndOwner(tmpDir: string, { design, purpose, owner }: DesignRow): Promise<void> {
+  const meta = owner === null
+    ? renderMetaProjectionFile("topic", { State: "Planning", Design: design.join(", ") })
+    : makeMetaFixture("topic", { state: "Planning", design: [...design], owner });
+  const document = design[0];
+  const content = "- **Purpose:** Make routing readable. Explain the rest.\n";
+  if (process.env[IN_REPO_STORE_OVERRIDE] === undefined) {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode, init.stderr).toBe(0);
+    await seedWorkUnit(tmpDir, "topic", { identity: "test-user", content: meta,
+      placement: { kind: "backlog", commitment: "planned" },
+      records: document === undefined ? []
+        : [{ kind: document.startsWith("draft-") ? "work-item/draft" : "work-item/spec", content }] });
+  } else {
+    const folder = join(tmpDir, ".arc", "backlog", "planned", "topic");
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, "meta-topic.md"), meta);
+    if (document !== undefined) await writeFile(join(folder, document), content);
+  }
+  const json = await runArc(["status", "topic", "--json"], tmpDir);
+  expect(json.exitCode, json.stderr).toBe(0);
+  expect(JSON.parse(json.stdout)).toMatchObject({ purpose, owner, state: "planned", occupied: false });
+  const human = await runArc(["status", "topic"], tmpDir);
+  expect(human.exitCode, human.stderr).toBe(0);
+  if (purpose === null) expect(human.stdout).not.toContain("purpose:");
+  else expect(human.stdout).toContain(`purpose: ${purpose}`);
+}
 
 describe("status <slug>", () => {
   let tmpDir: string;
@@ -28,40 +71,12 @@ describe("status <slug>", () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
-    await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
-    await mkdir(join(tmpDir, ".arc", "completed", "2026-q2", "01_shipped-dep"), {
-      recursive: true,
-    });
-    await writeFile(
-      join(tmpDir, ".arc", "active", "meta-live.md"),
-      [
-        "# Metadata: live",
-        "",
-        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-        "|-----------|-----------|------------|-----------|--------------|",
-        "| `Integrating` | `test-user` | `feat/live` | `Light` | `P1` |",
-        "",
-        "- **Depends On:** `shipped-dep`",
-        "",
-        "---",
-        "",
-      ].join("\n"),
-    );
-    await writeFile(
-      join(tmpDir, ".arc", "completed", "2026-q2", "01_shipped-dep", "meta-shipped-dep.md"),
-      [
-        "# Metadata: shipped-dep",
-        "",
-        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-        "| --------- | --------- | ---------- | --------- | ------------ |",
-        "| Shipped | — | — | — | — |",
-        "",
-        "- **Depends On:** [none]",
-        "",
-        "---",
-        "",
-      ].join("\n"),
-    );
+    // The store holds the dependency completed and the live work unit that waits on it active.
+    await seedWorkUnit(tmpDir, "shipped-dep", { identity: "test-user",
+      meta: { state: "Shipped", branch: null, completed: "2026-05-14" },
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q2") } });
+    await seedWorkUnit(tmpDir, "live", { identity: "test-user", branch: "feat/live",
+      meta: { state: "Integrating", owner: "test-user", branch: "feat/live", dependsOn: ["shipped-dep"] } });
   }
 
   it("emits the resolved lifecycle query as JSON for a slug positional", async () => {
@@ -88,26 +103,11 @@ describe("status <slug>", () => {
 
   it.each([
     { design: ["draft-topic.md"], purpose: "Make routing readable.", owner: "test-owner" },
-    { design: ["spec-topic.md"], purpose: "Make routing readable.", owner: null },
+    { design: ["spec-topic.md"], purpose: "Make routing readable.", owner: "test-owner" },
     { design: [], purpose: null, owner: "test-owner" },
-  ])("reports the local design and owner ($design, $owner)", async ({ design, purpose, owner }) => {
+  ])("reports the local design and owner ($design, $owner)", async (row) => {
     tmpDir = await createTempRepo("arc-status-purpose-");
-    const folder = join(tmpDir, ".arc", "backlog", "planned", "topic");
-    await mkdir(folder, { recursive: true });
-    const meta = owner === null
-      ? renderMetaProjectionFile("topic", { State: "Planning", Design: design.join(", ") })
-      : makeMetaFixture("topic", { state: "Planning", design, owner });
-    await writeFile(join(folder, "meta-topic.md"), meta);
-    if (design[0] !== undefined) {
-      await writeFile(join(folder, design[0]), "- **Purpose:** Make routing readable. Explain the rest.\n");
-    }
-    const json = await runArc(["status", "topic", "--json"], tmpDir);
-    expect(json.exitCode, json.stderr).toBe(0);
-    expect(JSON.parse(json.stdout)).toMatchObject({ purpose, owner, state: "planned", occupied: false });
-    const human = await runArc(["status", "topic"], tmpDir);
-    expect(human.exitCode, human.stderr).toBe(0);
-    if (purpose === null) expect(human.stdout).not.toContain("purpose:");
-    else expect(human.stdout).toContain(`purpose: ${purpose}`);
+    await reportsDesignAndOwner(tmpDir, row);
   });
 
   it("reports null purpose and owner for an unknown slug", async () => {
@@ -132,6 +132,23 @@ describe("status <slug>", () => {
     expect(payload).not.toHaveProperty("slug");
     expect(typeof payload).toBe("object");
     expect(payload).not.toEqual({});
+  });
+});
+
+describe("status <slug> over the in-repo store", () => {
+  // A slug query read from a sibling's branch tip, local by default and fetched on request, and a Candidate held only on
+  // a remote branch are the in-repo store's: the store holds each work unit's lifecycle and records off the branch.
+  useInRepoStoreForEach();
+  let tmpDir: string;
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  // The store refuses a meta that names no owner.
+  it("reports the local design and a null owner", async () => {
+    tmpDir = await createTempRepo("arc-status-purpose-");
+    await reportsDesignAndOwner(tmpDir, { design: ["spec-topic.md"], purpose: "Make routing readable.", owner: null });
   });
 
   it("keeps slug queries local by default and upgrades only an explicit --fetch", async () => {

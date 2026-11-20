@@ -964,7 +964,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               recorded into the stored work item's operations. The regenerable-only movement keeps the override by
               subject (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.g Status and view**
+    - `[x]` **3.4.g Status and view**
+        - `e2e/view.e2e.test.ts`, `status-lifecycle`, `status-handoff-worktree`, and `projection-status` spawn through
+          `e2e/store-default.ts`, and 49 of their 55 cases run on the store, seeding through `seedWorkUnit` with `view`'s
+          work unit bound to its checkout. A started sibling's checkout and branch, a malformed task list, branch-tip
+          status queries, an ownerless meta, and the disabled projection slot keep the override by subject; four changed
+          expectations trace to store contracts (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.h The `init`, `reconfigure`, `user`, and import assertions**
         - `importFixture`'s spawned users that run the flip build after the import delete their tracked state first, as
