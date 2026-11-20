@@ -90,8 +90,9 @@ would have prevented the earlier findings; those it would have prevented are its
 
 A fix check can name a cause without the author. When it reports a material finding as a sibling an earlier repair
 missed, or as a gap in a repair's propagation, that repair fixed a site rather than its rule: the rule is a cause, and
-the earlier finding and this one are its instances, whether or not the author named it. Name it in both findings'
-rationale and propose the fix at the cause, not another per-site repair of the sibling.
+the earlier finding and this one are its instances, whether or not the author named it. Name it in the new finding's
+rationale, citing the earlier finding as its first instance and leaving that approved record unchanged, and propose the
+fix at the cause, not another per-site repair of the sibling.
 
 ### Convergence and permission
 
