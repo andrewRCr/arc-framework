@@ -39,7 +39,8 @@ it("commits only the staged content after setting the unstaged changes aside, th
   await writeFile(sibling, "base\n");
   await git(root, ["add", "notes/0.txt"]);
   await git(root, ["commit", "-q", "-m", "chore: add notes"]);
-  await writeFile(sibling, "base\nunstaged sibling\n");
+  await git(root, ["config", "apply.whitespace", "fix"]);
+  await writeFile(sibling, "base\nunstaged sibling with trailing spaces  \n");
   const path = join(root, "src/0.txt");
   await writeFile(path, "staged\n");
   await git(root, ["add", "src/0.txt"]);
@@ -51,12 +52,12 @@ it("commits only the staged content after setting the unstaged changes aside, th
   expect(committed.exitCode, committed.output).toBe(0);
   const top = (await execa("git", ["rev-parse", "--show-toplevel"], { cwd: join(root, "src") })).stdout;
   const unstaged = await execa("git", ["diff-tree", "-p", "--binary", "refs/stash^2", "refs/stash"], { cwd: top, stripFinalNewline: false });
-  await execa("git", ["apply", "--3way"], { cwd: top, input: unstaged.stdout });
+  await execa("git", ["apply", "--3way", "--whitespace=nowarn"], { cwd: top, input: unstaged.stdout });
   await git(top, ["reset", "-q"]);
   await git(top, ["stash", "drop"]);
   expect(await git(root, ["show", "HEAD:src/0.txt"])).toBe("staged");
   expect(await readFile(path, "utf8")).toBe("staged\nunstaged\n");
-  expect(await readFile(sibling, "utf8")).toBe("base\nunstaged sibling\n");
+  expect(await readFile(sibling, "utf8")).toBe("base\nunstaged sibling with trailing spaces  \n");
   expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
   expect(await git(root, ["stash", "list"])).toBe("");
   expect(await executionReceipt(root)).toBe("executed\n");

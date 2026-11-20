@@ -77,7 +77,7 @@ it("refuses only the check that reads the working tree, with a remedy that keeps
   const message = result.kind === "error" ? result.error.message : "";
   expect(message).toContain("git stash push --keep-index");
   expect(message).toContain("cd \"$(git rev-parse --show-toplevel)\"");
-  expect(message).toContain("git diff-tree -p --binary refs/stash^2 refs/stash | git apply --3way");
+  expect(message).toContain("git diff-tree -p --binary refs/stash^2 refs/stash | git apply --3way --whitespace=nowarn");
   expect(message).not.toContain("ARC_SKIP");
   expect(executed).toEqual([]);
   expect(routedSources).toEqual([]);

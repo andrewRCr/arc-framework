@@ -427,8 +427,8 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
     + "unstaged changes too. Stage each whole file and retry git commit, or set the unstaged changes aside: run "
     + "git stash push --keep-index, retry git commit, then, from the repository root "
     + "(cd \"$(git rev-parse --show-toplevel)\"), reapply them with "
-    + "git diff-tree -p --binary refs/stash^2 refs/stash | git apply --3way; once that applies (or its conflicts are "
-    + "resolved), run git reset -q and git stash drop.";
+    + "git diff-tree -p --binary refs/stash^2 refs/stash | git apply --3way --whitespace=nowarn; once that applies "
+    + "(or its conflicts are resolved), run git reset -q and git stash drop.";
 }
 
 /** Reads a check's machine runner once per request, so the partial-staging refusal and dispatch act on one answer. */
