@@ -2,9 +2,9 @@
 
 import {
   diagnostic,
-  finding,
   leadsWithSeverity,
   parseCodeRabbitReviewBody,
+  parseCodeRabbitThreadFindings,
   type UnorderedFinding,
 } from "./coderabbit-body.js";
 export { parseCodeRabbitReviewBody } from "./coderabbit-body.js";
@@ -39,6 +39,7 @@ const COMMANDS = {
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
+const ACTIONABLE_THREAD_VISIBILITY_GRACE_MS = 30_000;
 /**
  * Completion wording in CodeRabbit's tagged reply to a review command. The match is loose, since its layout, icons and
  * punctuation change; a full review's wording names the full review, and an incremental one's does not.
@@ -516,30 +517,33 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
               && comment.reviewId === terminalReview.id
               && !isPriorThreadReply(comment, terminalReview.id))
             .map((comment) => ({ threadId: thread.id, comment })));
-        const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-          threadId,
-          comment,
-          parsed: finding(threadId, comment),
-        }));
-        const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-        if (rejectedComment !== undefined) {
-          const { threadId, comment } = rejectedComment;
-          const context = {
-            threadId,
-            commentId: comment.id,
-            path: comment.path,
-            ...(comment.line === null ? {} : { line: comment.line }),
-          };
-          return {
-            kind: "terminal-failure",
-            reason: comment.line === null
-              ? diagnostic("provider-thread-finding-locus-unavailable", context)
-              : diagnostic("provider-thread-finding-severity-unrecognized", context),
-          };
+        const findings: UnorderedFinding[] = [];
+        for (const { threadId, comment } of candidateComments) {
+          const parsed = parseCodeRabbitThreadFindings(threadId, comment);
+          if (parsed === null) {
+            const context = {
+              threadId,
+              commentId: comment.id,
+              path: comment.path,
+              ...(comment.line === null ? {} : { line: comment.line }),
+            };
+            return {
+              kind: "terminal-failure",
+              reason: comment.line === null
+                ? diagnostic("provider-thread-finding-locus-unavailable", context)
+                : diagnostic("provider-thread-finding-severity-unrecognized", context),
+            };
+          }
+          if (parsed.kind === "malformed") return { kind: "terminal-failure", reason: parsed.reason };
+          findings.push(...parsed.findings);
         }
-        const findings = parsedComments.map((candidate) => candidate.parsed)
-          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
         if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
+          // Reviews and inline threads are fetched separately. Let the bounded poll read both again while the
+          // submitted review is fresh. An excess or a persistent shortfall is still contradictory evidence.
+          const ageMs = Date.now() - Date.parse(terminalReview.submittedAt);
+          if (findings.length < parsedBody.actionableCount && ageMs >= 0 && ageMs < ACTIONABLE_THREAD_VISIBILITY_GRACE_MS) {
+            return { kind: "pending" };
+          }
           return {
             kind: "terminal-failure",
             reason: diagnostic("provider-actionable-finding-count-mismatch", {
