@@ -42,7 +42,8 @@ async function runValidator(
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
-      // The fixtures are not a Git repository, where the ref store refuses; the in-repo store reads them.
+      // The check reads staged cohort files, which only the in-repo store keeps, so it runs on that store and leaves
+      // with it; the store's membership read is covered in process. The fixtures are not a Git repository either.
       { cwd: REPO_ROOT, env: { ...process.env, FORCE_COLOR: undefined, [IN_REPO_STORE_OVERRIDE]: "1" } },
     );
     return { code: 0, stdout, stderr };

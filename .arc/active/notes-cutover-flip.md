@@ -762,6 +762,26 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - A rename from a checkout whose marker binds another work unit does not refuse on the store, which matches
           holders by UID, and renames the branch that checkout holds; captured for a decision ("Decide whether a store
           rename refuses a branch held by another work unit's checkout", `USER-INBOX § Errand`).
+    - _Reconcile and the cohort hook, as moved (Task 3.4.b.4):_ `wu-reconcile` spawns through `e2e/store-default.ts`.
+      Its twelve fixture cases stay _In-repo_ under `useInRepoStoreForEach`: each reconciles state that store keeps in
+      tracked files (staged metas, specs, and notes, transition records reaching a branch by merge, a sibling
+      worktree's own copy, an archived meta on its branch, personal notes and their baseline, a base tree read under
+      full protection) or applies without an identity because it only stages. A store block seeds `dependent` through
+      `seedWorkUnit`, bound in place and depending on `origin`, a backlog stub then renamed `successor` through the
+      store. It plans then applies the dependency in one record write, surfaces the pending reconcile at session-init,
+      refuses a work unit the checkout does not hold, stays clean and silent with no edge, rewrites a reference in the
+      spec record, and keeps an advisory in the notes record pending; the retired-option case needs no state and runs
+      there.
+        - _Expectation changed, traced:_ apply reports no staged paths and leaves the index and tree clean, since the
+          store applies the record plan without touching the checkout (`applyStoreCurrentWuReconcile`); the other-unit
+          refusal names the checkout's work-unit identity rather than branch ownership (`requestedReconcileConflict`,
+          `handlers/reconcile.ts`); and reference edits and advisories name the projected paths under
+          `.arc/active/current/`.
+        - Without an identity the store refuses the apply, since its record write needs a Git author ("Author identity
+          unknown"), so the no-identity case stays _In-repo_ with the staging-only arm.
+        - `integration/validate-cohort-consistency` keeps its explicit override, now stated as § 7.3's: the check reads
+          staged cohort files, which only the in-repo store keeps; the store's membership read is covered in process
+          (`unit/work-unit/store-read-consumers.test.ts`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

@@ -4,8 +4,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
-import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -31,7 +34,12 @@ function meta(slug: string, branch: string, dependsOn: string): string {
   ].join("\n");
 }
 
+// Every case here reconciles state the in-repo store keeps in tracked files: metas, specs, and notes staged in the
+// checkout, transition records that reach a branch by merge, a sibling worktree's own copy, an archived meta on its
+// branch, personal notes and their baseline, or a base tree read under full protection; or it needs no identity because
+// it only stages. The store rewrites records in one attributed write, and its cases follow.
 describe("arc wu reconcile", () => {
+  useInRepoStoreForEach();
   let repo: string;
   let transitionPath: string;
   let transitionRelativePath: string;
@@ -94,13 +102,6 @@ describe("arc wu reconcile", () => {
     });
     expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
-  });
-
-  it("rejects the retired session-attachment option", async () => {
-    const result = await runArc(["wu", "reconcile", "dependent", "--attach-session", "--json"], repo);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/unknown option '--attach-session'/u);
   });
 
   it("applies without an identity because reconciliation is checkout-owned", async () => {
@@ -313,7 +314,6 @@ describe("arc wu reconcile", () => {
   });
 
   it("reconciles managed user targets without advancing notes or the materialized baseline", async () => {
-    useInRepoStore();
     const userRoot = join(repo, ".arc", "user", "test-user");
     const sessionRoot = join(userRoot, "dependent");
     const inboxPath = join(userRoot, "USER-INBOX.md");
@@ -502,4 +502,174 @@ describe("arc wu reconcile", () => {
     expect(await readFile(completedPath, "utf8")).toContain("- **Depends On:** `successor`");
     await expect(readFile(activePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
+});
+
+describe("arc wu reconcile on the store", () => {
+  let repo: string | undefined;
+  afterEach(async () => { if (repo !== undefined) await cleanupTempDir(repo); repo = undefined; });
+
+  /** `dependent`, Active in the store and bound to the primary on its branch, depends on `origin`, a backlog stub since
+   * renamed `successor` through the store. */
+  async function storeFixture(options: { dependsOn?: string[]; records?: { kind: "work-item/spec" | "work-item/notes"; content: string }[] } = {}) {
+    repo = await createTempRepo("arc-wu-reconcile-store-");
+    const initialized = await runArc(["init", "--yes", "--name", "reconcile-test"], repo);
+    expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+    await git(repo, ["config", "core.hooksPath", "/dev/null"]);
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "chore(test): initialize fixture"]);
+    const stubbed = await runArc(["stub", "origin", "--commitment", "planned", "--priority", "P2", "--class", "Light"], repo);
+    expect(stubbed.exitCode, stubbed.stdout + stubbed.stderr).toBe(0);
+    await git(repo, ["switch", "-c", "feat/dependent"]);
+    const { meta, records } = await seedWorkUnit(repo, "dependent", { identity: "test-user", branch: "feat/dependent", bind: repo,
+      meta: { state: "Active", owner: "test-user", branch: "feat/dependent", dependsOn: options.dependsOn ?? ["origin"] },
+      ...(options.records === undefined ? {} : { records: options.records }) });
+    await writeFile(join(repo, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    const renamed = await runArc(["rename", "origin", "successor"], repo);
+    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
+    const read = (reference = meta.reference) => readStoreRecord(repo as string, SlugSchema.parse("test-user"), reference);
+    return { repo, meta, records, read };
+  }
+
+  it("rejects the retired session-attachment option", async () => {
+    repo = await createTempRepo("arc-wu-reconcile-store-");
+
+    const result = await runArc(["wu", "reconcile", "dependent", "--attach-session", "--json"], repo);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/unknown option '--attach-session'/u);
+  });
+
+  it("plans without writing, then applies the renamed dependency in one store write, staging nothing", async () => {
+    const f = await storeFixture();
+    const before = await f.read();
+
+    const planned = await runArc(["wu", "reconcile", "dependent", "--json"], f.repo);
+    expect(planned.exitCode, planned.stdout + planned.stderr).toBe(0);
+    expect(JSON.parse(planned.stdout)).toMatchObject({
+      status: "pending",
+      slug: "dependent",
+      dependency: { before: ["origin"], after: ["successor"] },
+    });
+    expect(await f.read()).toEqual(before);
+
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], f.repo);
+    expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({ status: "applied", stagedPaths: [] });
+    expect(await f.read()).toMatchObject({ fields: { dependsOn: ["successor"] } });
+    expect(await git(f.repo, ["diff", "--cached", "--name-only"])).toBe("");
+    expect(await git(f.repo, ["status", "--porcelain"])).toBe("");
+  }, 30_000);
+
+  it("surfaces a pending session reconcile without writing", async () => {
+    const f = await storeFixture();
+    const before = await f.read();
+
+    const result = await runArc(["status", "--session-init", "--json"], f.repo);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      currentWuReconcile: { ok: true, value: { status: "pending", slug: "dependent", recommendedAction: "surface" } },
+    });
+    expect(await f.read()).toEqual(before);
+    expect(await git(f.repo, ["status", "--porcelain"])).toBe("");
+  }, 30_000);
+
+  it("refuses to write a work unit the checkout does not hold", async () => {
+    const f = await storeFixture();
+    const before = await f.read();
+
+    const result = await runArc(["wu", "reconcile", "successor", "--apply", "--json"], f.repo);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "conflict",
+      slug: "successor",
+      reason: "The requested work unit does not match the checkout's work-unit identity.",
+    });
+    expect(await f.read()).toEqual(before);
+    expect(await git(f.repo, ["diff", "--cached", "--name-only"])).toBe("");
+  }, 30_000);
+
+  it("keeps a clean reconcile silent without minting a locus record", async () => {
+    const f = await storeFixture({ dependsOn: [] });
+    const lociRoot = join(f.repo, ".arc", "user", "test-user", ".internal", "loci");
+    const before = await f.read();
+    const beforeHead = await git(f.repo, ["rev-parse", "HEAD"]);
+
+    const status = await runArc(["status", "--session-init", "--json"], f.repo);
+
+    expect(status.exitCode, status.stdout + status.stderr).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: { status: "clean", recommendedAction: "skip", recommendedCommand: null, recommendedPromptText: "" },
+      },
+    });
+    for (let run = 0; run < 2; run += 1) {
+      const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], f.repo);
+      expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
+      expect(JSON.parse(applied.stdout)).toMatchObject({ status: "clean", stagedPaths: [] });
+    }
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await f.read()).toEqual(before);
+    expect(await git(f.repo, ["rev-parse", "HEAD"])).toBe(beforeHead);
+  }, 30_000);
+
+  it("rewrites a reference in the work unit's spec record through the shared command", async () => {
+    const f = await storeFixture({ dependsOn: [],
+      records: [{ kind: "work-item/spec", content: "See `spec-origin.md`; origin remains narrative context.\n" }] });
+    const spec = f.records[0]?.reference;
+    if (spec === undefined) throw new Error("The fixture holds no spec record.");
+    const before = await f.read(spec);
+
+    const planned = await runArc(["wu", "reconcile", "dependent", "--json"], f.repo);
+    expect(planned.exitCode, planned.stdout + planned.stderr).toBe(0);
+    expect(JSON.parse(planned.stdout)).toMatchObject({
+      status: "pending",
+      dependency: { before: [], after: [] },
+      trackedReferences: { edits: [{
+        path: ".arc/active/current/spec-dependent.md",
+        replacements: [{ subject: "origin", targetSlug: "successor" }],
+      }] },
+      advisories: [{
+        path: ".arc/active/current/spec-dependent.md",
+        referenceKind: "narrative",
+        subject: "origin",
+        suggestedDisposition: "review-rename",
+      }],
+    });
+    expect(await f.read(spec)).toEqual(before);
+
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], f.repo);
+    expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({ status: "applied", stagedPaths: [] });
+    expect(await f.read(spec)).toMatchObject({ content: "See `spec-successor.md`; origin remains narrative context.\n" });
+    expect(await git(f.repo, ["diff", "--cached", "--name-only"])).toBe("");
+  }, 30_000);
+
+  it("keeps advisory-only apply pending and visible in human output", async () => {
+    const f = await storeFixture({ dependsOn: [],
+      records: [{ kind: "work-item/notes", content: "The origin remains narrative context.\n" }] });
+    const notes = f.records[0]?.reference;
+    if (notes === undefined) throw new Error("The fixture holds no notes record.");
+    const before = await f.read(notes);
+
+    const json = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], f.repo);
+    expect(json.exitCode, json.stdout + json.stderr).toBe(0);
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      status: "pending",
+      edits: [],
+      stagedPaths: [],
+      advisories: [expect.objectContaining({
+        path: ".arc/active/current/notes-dependent.md",
+        referenceKind: "narrative",
+        subject: "origin",
+      })],
+    });
+
+    const human = await runArc(["wu", "reconcile", "dependent", "--apply"], f.repo);
+    expect(human.exitCode).toBe(0);
+    expect(human.stdout + human.stderr).toMatch(/Pending reconcile[\s\S]*1 advisory finding/u);
+    expect(await f.read(notes)).toEqual(before);
+  }, 30_000);
 });

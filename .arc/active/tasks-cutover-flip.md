@@ -772,7 +772,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               expectation, the store's materialization offer, traces to a store contract (`notes-cutover-flip.md`
               § Test callers).
 
-    - `[ ]` **3.4.b Start, teardown, rename, reconcile, and retirement**
+    - `[x]` **3.4.b Start, teardown, rename, reconcile, and retirement**
         - Among them `integration/validate-cohort-consistency.test.ts`, which spawns the cohort hook's script outside
           the spawn helpers with its own override (Task 3.2.b), classified by § 7.3's rule.
         - _Amended (Owner, 2026-11-19):_ its eight end-to-end files and the cohort hook's test failed 63 of their 128
@@ -801,8 +801,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               stale-lease resume; the one changed expectation traces to a store contract (`notes-cutover-flip.md`
               § Test callers).
 
-        - `[ ]` **3.4.b.4 Reconcile and the cohort hook**
-            - `e2e/wu-reconcile.e2e.test.ts` and `integration/validate-cohort-consistency.test.ts`.
+        - `[x]` **3.4.b.4 Reconcile and the cohort hook**
+            - `e2e/wu-reconcile.e2e.test.ts` spawns through `e2e/store-default.ts`; its tracked-state cases stay in-repo
+              beside a store block seeding, through `seedWorkUnit`, a dependent of an origin renamed through the store,
+              and each changed expectation traces to a store contract. `integration/validate-cohort-consistency.test.ts`
+              keeps its override as an in-repo subject (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.c Review, attest, candidate, and publication**
         - Among them `registerCandidateLineageSuite` (`__tests__/helpers/candidate-lineage-suite.ts`) and the review
