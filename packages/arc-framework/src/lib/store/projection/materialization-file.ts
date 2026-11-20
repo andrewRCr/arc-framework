@@ -21,7 +21,7 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -151,7 +151,7 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
 }
 
 function blockedMaterialization(input: MaterializationFileInput, entry: RecordEntry, mark: RefusedMark): MaterializationFileResult {
-  input.root.context.report?.({ path: input.path, copy: null, mark });
+  refuseArchiveChange(input.root, input.path, mark);
   const held = { ...entry, pending: true, refused: mark };
   return { index: withProjectionEntry(input.index, input.path, held), unresolved: true };
 }

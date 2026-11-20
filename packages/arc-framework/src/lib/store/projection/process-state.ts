@@ -20,13 +20,13 @@ import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
 import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 
-/** A round visits every registered checkout; `own` visits the writer's checkout alone. */
 /** One archive path's answer from the path check, and whether this command has reported its refusal. */
 export interface ArchiveSelection {
   readonly mark: RefusedMark | null;
   reported: boolean;
 }
 
+/** A round visits every registered checkout; `own` visits the writer's checkout alone. */
 export type FanOutScope = "all" | "own";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */

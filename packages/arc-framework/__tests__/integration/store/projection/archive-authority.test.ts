@@ -5,10 +5,10 @@ import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
-import { seed, success, update } from "../../../helpers/store/suite-tools.js";
+import { fixtureRenameProvenance, seed, success, update } from "../../../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
-import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -96,6 +96,11 @@ async function observe(h: Fixture, path: string) {
 
 const STATES: readonly State[] = ["opened", "opened new", "unfinished recording", "aside copy", "exited copy"];
 
+/** The report lines naming a path with a blocker's refusal, which each command makes once. */
+function refusalLines(diagnostics: string, path: string, blocker: Blocker): string[] {
+  return diagnostics.split("\n").filter(line => line.includes(path) && line.includes(REASON[blocker]));
+}
+
 it.each(BLOCKERS.flatMap(blocker => STATES.map(state => [state, blocker] as const)))(
   "leaves an archive path in the %s state behind a %s untouched by every command until its repair", async (state, blocker) => {
   const h = await archiveRetirementFixture();
@@ -108,7 +113,7 @@ it.each(BLOCKERS.flatMap(blocker => STATES.map(state => [state, blocker] as cons
     const { diagnostics } = await projectionCommand(h.input, [verb]);
     expect(diagnostics, verb).toContain(reason);
     // Each command reports the refused path once, whichever of its steps selects it first.
-    expect(diagnostics.split("\n").filter(line => line.includes(path) && line.includes(reason)), verb).toHaveLength(1);
+    expect(refusalLines(diagnostics, path, blocker), verb).toHaveLength(1);
     // A nested checkout's own files are that checkout's: never read, named, or recorded here.
     expect(diagnostics, verb).not.toContain("/.git/");
     expect(await observe(h, path), verb).toEqual(before);
@@ -163,7 +168,8 @@ it.each(BLOCKERS)("refuses a %s made after selection at that path's change while
   } };
   await h.write(h.path, `${h.primary.content}\nA correction to alpha.\n`);
   const saved = await projectionCommand({ ...h.input, store }, ["save"]);
-  expect(saved.diagnostics).toContain(REASON[blocker]);
+  // The read-back's move aside meets the refusal and reports it; the re-lock then leaves the path as the command found it.
+  expect(refusalLines(saved.diagnostics, h.path, blocker)).toHaveLength(1);
   expect(saved.result).toMatchObject({ result: { relocked: [{ path: other }] } });
   expect((await h.disk()).index.entries[h.path]).toMatchObject({ opened: true });
   expect((await h.disk()).index.entries[other]).not.toHaveProperty("opened");
@@ -187,13 +193,44 @@ it.each(BLOCKERS)("reports a %s made after a refresh selected the path at the ch
   const ports = () => ({ ...createProjectionEnginePorts(h.checkout), hooks: { afterRecheck: async (at: string) => {
     if (at === path) repair ??= await block(h, blocker);
   } } });
-  expect((await projectionCommand({ ...h.input, ports }, ["status"])).diagnostics).toContain(REASON[blocker]);
+  expect(refusalLines((await projectionCommand({ ...h.input, ports }, ["status"])).diagnostics, path, blocker)).toHaveLength(1);
   expect(await readFile(join(h.checkout, path))).toEqual(before);
 
   if (repair === null) throw new Error("The refresh moved nothing");
   await (repair as () => Promise<void>)();
   await projectionCommand(h.input, ["status"]);
   expect(await readFile(join(h.checkout, path), "utf8")).toContain(correction);
+}, 60_000);
+
+it.each(BLOCKERS.flatMap(blocker => (["deleted", "moved"] as const).map(change => [change, blocker] as const)))(
+  "removes an archived file whose record was %s while its folder sat behind a %s at the command after the repair", async (change, blocker) => {
+  const h = await archiveRetirementFixture();
+  await seed(h.f, recordReferences["work-item/notes"](h.primary.reference.owner), "An archived note.\n");
+  await projectionCommand(h.input, ["status"]);
+  const notes = `${h.folder}/notes-alpha.md`;
+  const path = change === "deleted" ? notes : h.path;
+  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "record" });
+  const repair = await block(h, blocker);
+  if (change === "deleted") {
+    const stored = success(await h.f.store.read({ reference: recordReferences["work-item/notes"](h.primary.reference.owner) }));
+    success(await h.f.store.write({ action: "remove", reference: stored.reference, expected: stored.version,
+      provenance: { verb: "merge", lifecycleAction: "remove" } }));
+  } else {
+    const current = success(await h.f.store.read({ reference: h.primary.reference }));
+    const renamed = RecordReferenceSchema.parse({ ...current.reference, owner: { ...current.reference.owner, name: "beta" } });
+    success(await h.f.store.write({ ...update(h.f, current, current.content.replaceAll("alpha", "beta")), reference: renamed,
+      provenance: fixtureRenameProvenance }));
+  }
+  const before = await readFile(join(h.checkout, path));
+  const blocked = await projectionCommand(h.input, ["status"]);
+  expect(refusalLines(blocked.diagnostics, path, blocker)).toHaveLength(1);
+  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "record" });
+  expect(await readFile(join(h.checkout, path))).toEqual(before);
+
+  await repair();
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).not.toContain(REASON[blocker]);
+  expect((await h.disk()).index.entries[path]).toBeUndefined();
+  await expect(readFile(join(h.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
 }, 60_000);
 
 it.each(BLOCKERS)("rebuilds a lost index around an archive path behind a %s without reading it, then rebuilds the path after its repair",

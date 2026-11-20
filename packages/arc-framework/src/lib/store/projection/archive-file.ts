@@ -8,7 +8,8 @@ import type { ProjectionRootState } from "./process-state.js";
 
 type ArchiveRoot = Pick<ProjectionRootState, "checkout" | "checkpoint">;
 type ArchiveFile = { kind: "file"; stat: BigIntStats } | { kind: "missing" } | { kind: "blocked"; mark: RefusedMark };
-type ArchiveModeChange = ArchiveFile | { kind: "mode-refused"; mark: RefusedMark };
+/** A mode change's outcome; `foreign` is a path the check just before the change found is not this checkout's. */
+type ArchiveModeChange = ArchiveFile | { kind: "mode-refused"; mark: RefusedMark } | { kind: "foreign"; mark: RefusedMark };
 
 /** Identity of the regular file authorized at the opening inspection. */
 export type ArchiveFileIdentity = Pick<BigIntStats, "dev" | "ino">;
@@ -150,7 +151,7 @@ export async function changeArchiveFileMode(root: ArchiveRoot, path: string, wri
 async function changeCheckedMode(handle: NonNullable<Awaited<ReturnType<typeof open>>>, checkout: string, path: string,
   identity: { readonly handle: BigIntStats; readonly authorized: ArchiveFileIdentity }, writable: boolean): Promise<ArchiveModeChange> {
   const foreign = archiveDestinationRefusal(checkout, path);
-  if (foreign !== null) return { kind: "blocked", mark: foreign };
+  if (foreign !== null) return { kind: "foreign", mark: foreign };
   try {
     const current = lstatSync(join(checkout, path), { bigint: true, throwIfNoEntry: false });
     if (current === undefined) return { kind: "missing" };

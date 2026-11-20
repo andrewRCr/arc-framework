@@ -43,6 +43,8 @@ export interface SweepInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
   readonly selectArchivePath?: (path: string) => RefusedMark | null;
+  /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
+  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
   /** The ignore rules from this command's one configuration read. */
@@ -69,6 +71,8 @@ export interface LeftCopy {
   /** Why the copy remains untouched, including a destination outside the command's authorized roots. */
   readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized" | "destination-blocked";
   readonly remedy?: Remedy;
+  /** For a destination-blocked copy, the path check's refusal, which the command keeps as its path's answer. */
+  readonly refusal?: RefusedMark;
 }
 
 /** What the sweep did. */
@@ -118,7 +122,7 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const index = recorded.swept.length === 0 ? observedIndex : await commitReturnedCopies({
     location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
     returned: recorded.swept.filter(each => each.outcome.kind === "returned" || each.outcome.kind === "linked-back")
-      .map(({ path, copy }) => ({ path, copy })), index: observedIndex,
+      .map(({ path, copy }) => ({ path, copy })), index: observedIndex, refuseChange: input.refuseChange,
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
     outcome.kind === "returned" && outcome.replacement !== null ? [{ path, copy: outcome.replacement }] : []
@@ -319,7 +323,7 @@ function archiveDestinationHold(checkout: string, path: string, copy: string): L
 }
 
 function destinationBlockedCopy(path: string, copy: string, mark: RefusedMark): LeftCopy {
-  return { path, copy, reason: "destination-blocked", remedy: mark.remedy };
+  return { path, copy, reason: "destination-blocked", remedy: mark.remedy, refusal: mark };
 }
 
 /** Delete the staged files a writer that has exited left. */

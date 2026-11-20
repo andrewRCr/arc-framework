@@ -6,6 +6,7 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import { finalizeAsideCopy, type AsideCopyDeletion } from "./stampless.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { removeReturnedAsideFile } from "./aside-cleanup.js";
+import type { RefusedMark } from "./index-schema.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
@@ -26,6 +27,8 @@ export async function sameProjectionFile(left: string, right: string): Promise<b
 export async function commitReturnedCopies(input: Parameters<typeof commitProjectionIndex>[0] & {
   readonly returned: readonly ReturnedCopy[];
   readonly onPublished?: (index: ProjectionIndex) => void;
+  /** Takes a path whose alias the check just before the unlink found is not this checkout's; the alias is kept. */
+  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
 }): Promise<ProjectionIndex> {
   const published = await commitProjectionIndex(input);
   input.onPublished?.(published);
@@ -33,19 +36,21 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   for (const { path, copy } of input.returned) {
     const entry = index.entries[path];
     if (entry?.kind !== "record" || !entry.copies.some(record => record.name === copy)) continue;
-    const updated = await cleanReturnedAlias({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint });
+    const updated = await cleanReturnedAlias({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint }, input.refuseChange);
     if (updated !== entry) index = withProjectionEntry(index, path, updated);
   }
   return index === published ? published : commitProjectionIndex({ ...input, index });
 }
 
-async function cleanReturnedAlias(input: AsideCopyDeletion): Promise<RecordEntry> {
+async function cleanReturnedAlias(input: AsideCopyDeletion,
+  refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void): Promise<RecordEntry> {
   const { checkout, path, copy, entry, checkpoint } = input;
   try {
     const outcome = await removeReturnedAsideFile(checkout, copy, path, checkpoint);
     return outcome === "retained" ? entry : await finalizeAsideCopy(input);
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return entry;
-    throw error;
+    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+    refuseChange?.({ path, copy, mark: error.mark });
+    return entry;
   }
 }

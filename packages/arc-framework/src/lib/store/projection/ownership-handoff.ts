@@ -14,7 +14,7 @@ import { notAFileHoldMark } from "./replace-guard.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Remedy } from "../refusal.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 
 /** Lease-bound path authority shared by materialization and command settlement. */
 export type OwnershipRoot = Pick<ProjectionRootState, "checkout" | "location" | "context" | "writable" | "blockedByLink"
@@ -73,7 +73,7 @@ export async function observeProjectionHandoffs(root: OwnershipObservationRoot, 
       if (next !== entry) index = withProjectionEntry(index, path, next);
     } catch (error) {
       if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-      root.context.report?.({ path, copy: null, mark: error.mark });
+      refuseArchiveChange(root, path, error.mark);
     }
   }
   return index;

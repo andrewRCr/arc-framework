@@ -24,7 +24,7 @@ import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import { writableUnder } from "./sweep.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
-import { writeBackProjectionFiles } from "./engine-files.js";
+import { retriesIndexedEntry, writeBackProjectionFiles } from "./engine-files.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { checkProjectionRemoval, unusableProjectionIndexDetail } from "./removal-check.js";
 import { ignoreRefusalMark, retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
@@ -200,6 +200,7 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
   reference: bigint | null, disposition: ProjectionRetirement): Promise<{ files: string[]; refusal?: Remedy }> {
   const files: string[] = [];
   let refusal: Remedy | undefined;
+  const walked = new Set(paths);
   for (const path of retirementSelection(index, paths)) {
     // An archive path this checkout does not own is left untouched, and retirement refuses over it.
     const destination = selectArchivePath(root, path, { report: false });
@@ -207,14 +208,18 @@ async function selectPersistedFiles(root: ProjectionRootState, index: Projection
       refusal ??= retirementRefusal(root.checkout, path, destination, disposition);
       continue;
     }
+    const entry = index.entries[path];
     // The write-back walk can recover a staged receipt under the checkout's lease.
-    if (hasArchiveRecording(index.entries[path])) {
+    if (hasArchiveRecording(entry)) {
       files.push(path);
       continue;
     }
+    // A file gone from the walk is finished only where the command's walk retries its entry; release refuses over any
+    // other, as its removal check predicts, leaving it to arc save.
+    if (!walked.has(path) && (entry === undefined || !retriesIndexedEntry(root.context.verb, path, entry))) continue;
     const blocked = (await inspectArchivedProjectionFile(root, index, path, { reference }))?.mark ?? null;
     if (blocked !== null) refusal ??= retirementRefusal(root.checkout, path, blocked, disposition);
-    else if (!path.startsWith(".arc/completed/") || index.entries[path] !== undefined) files.push(path);
+    else if (!path.startsWith(".arc/completed/") || entry !== undefined) files.push(path);
   }
   return { files, ...(refusal === undefined ? {} : { refusal }) };
 }

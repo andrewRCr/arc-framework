@@ -67,6 +67,8 @@ export interface WriteBackContext {
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
+  /** Keeps a refusal met just before a change as the command's answer for its path, reported once. */
+  readonly refuseArchiveChange?: (refused: WriteBackDiagnostic) => void;
   readonly refuseCapturedEdit?: (request: TakeInRequest, read: TakeInRead) => RefusedMark | null;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
   readonly reportExplicitResolution?: () => void;

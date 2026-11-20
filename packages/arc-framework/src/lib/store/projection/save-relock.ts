@@ -4,7 +4,7 @@ import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import { ArchiveDestinationBlocked, archivePermissionMark, changeArchiveFileMode, readArchiveFile } from "./archive-file.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -44,6 +44,7 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
   if (admission !== null) return retain(root, index, path, entry, admission.mark, admission.writable);
   await root.checkpoint?.();
   const laid = await changeArchiveFileMode(root, path, false);
+  if (laid.kind === "foreign") return leaveForeign(root, index, path, laid.mark);
   if (laid.kind !== "file") return retain(root, index, path, entry, laid.kind === "missing" ? missingMark() : laid.mark, false);
   if (outcome === undefined) await root.ports.hooks?.afterSaveReadOnly?.(path);
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
@@ -110,9 +111,16 @@ async function retain(root: ProjectionRootState, index: ProjectionIndex, path: s
   if (writable && !entry.protected) {
     await root.checkpoint?.();
     const changed = await changeArchiveFileMode(root, path, true);
+    if (changed.kind === "foreign") return leaveForeign(root, index, path, changed.mark);
     if (changed.kind === "blocked" || changed.kind === "mode-refused") mark = changed.mark;
   }
   root.context.report?.({ path, copy: null, mark });
+  return index;
+}
+
+/** Leave a path the check just before its mode change found is not this checkout's, its opening kept, reported once. */
+function leaveForeign(root: ProjectionRootState, index: ProjectionIndex, path: string, mark: RefusedMark): ProjectionIndex {
+  refuseArchiveChange(root, path, mark);
   return index;
 }
 

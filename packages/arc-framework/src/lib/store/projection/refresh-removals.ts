@@ -8,7 +8,7 @@ import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, selectArchivePath } from "./archive-selection.js";
 
 /**
  * An obsolete path's changed mark follows the same logical record to the new path a pass lays, keyed by that path with
@@ -58,7 +58,7 @@ export async function removeObsoleteProjectionPaths(input: {
   if (files.length === 0) return index;
   const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
     writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn, hooks: root.context.hooks,
-    report: root.context.report });
+    refuseChange: archiveChangeRefusals(root) });
   root.context.recordBatch?.(swapped);
   return swapped.index;
 }

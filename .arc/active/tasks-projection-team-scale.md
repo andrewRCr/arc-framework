@@ -317,6 +317,13 @@ _Amended in:_ review-fix (A2).
   take-in decides from the entry and the route, and each command asks the archive path check once per selection and
   again before each change. `notes-projection-team-scale.md` § Amendment A2 records the superseded text.
 
+- _Timing follow-up:_ On `f0baeb2b56`, hosted run `44636797674` measured macOS startup at 62.591 and 45.132 ms in job
+  `135957797653` and at 60.996 and 53.979 ms in its same-head rerun `135984973134`, against 45 ms. One-file fan-out
+  measured 459.387 and 516.412 ms against 600 ms, and full materialization 4,106.008 and 2,149.907 ms against 4,000 ms.
+  Approved after review on 2026-11-19: the inherited macOS start budget's settlement is deferred to an inbox capture
+  for its owner, and the single materialization miss was rejected as runner variance. Hosted CI at the converged head
+  records that head's readings.
+
 ---
 
 ## Success Criteria

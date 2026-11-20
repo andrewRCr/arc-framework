@@ -5,6 +5,7 @@ import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { holdWaitingArchiveEdit } from "./archive-waiting.js";
+import { refuseArchiveChange } from "./archive-selection.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -72,6 +73,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       if (intent?.target?.resolution.kind === "stored" && sameReference(intent.target.resolution.reference, resolution.reference)) intent.accepted = true;
     },
     reportExplicitResolution: () => { if (state.command?.checkout === input.checkout && state.resolution !== null) state.resolution.accepted = true; },
+    refuseArchiveChange: refused => { refuseArchiveChange(root, refused.path, refused.mark, refused.copy); },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,

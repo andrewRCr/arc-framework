@@ -16,7 +16,7 @@ import { createRecordRenderer } from "./record-render.js";
 import { evidenceHeldProjectionMark, prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
 import { walkProjectionRoots } from "./engine-walk.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
-import { reportProjectionLinks } from "./report.js";
+import { reportLeftCopies, reportProjectionLinks } from "./report.js";
 import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
 import { readStat, readReference } from "./change-detection.js";
 import { swapBatch, type SwapFile } from "./swap.js";
@@ -38,7 +38,7 @@ import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from 
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
 import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, selectArchivePath } from "./archive-selection.js";
 
 /** Inputs observed by the lease-owning caller. */
 interface ProjectionMaterializationBasis {
@@ -136,7 +136,7 @@ async function installMaterializedFiles(input: ProjectionMaterializationInput, i
   const { root } = input;
   const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
     writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn,
-    hooks: root.context.hooks, report: root.context.report });
+    hooks: root.context.hooks, refuseChange: archiveChangeRefusals(root) });
   root.context.recordBatch?.(swapped);
   if (input.onlyDeleted !== true) return swapped.index;
   // A take-in that held an edit, or the batch refusing a change, reported it; any other path left unreplaced is named here.
@@ -174,6 +174,5 @@ async function recordUnknownFiles(root: ProjectionRootState, initial: Projection
 function recordSweep(root: ProjectionRootState, swept: SweepResult, observed: boolean): void {
   if (observed) recordProjectionSweep(root, swept);
   root.copies.push(...swept.copies);
-  for (const copy of swept.left) root.context.report?.({ path: copy.path, copy: copy.copy,
-    mark: { reason: copy.reason, remedy: copy.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
+  reportLeftCopies(root, swept.left);
 }

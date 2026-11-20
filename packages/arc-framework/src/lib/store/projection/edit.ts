@@ -69,7 +69,7 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
       remedy: { text: "Repair the file's permissions or restore it, then retry arc edit; its opened intent is retained." } });
   }
   if (changed.kind === "mode-refused") return refuse(changed.mark);
-  if (changed.kind === "blocked") {
+  if (changed.kind === "blocked" || changed.kind === "foreign") {
     if (disk.index.entries[path]?.opened !== true) await commitProjectionIndex({ location: root.location, checkout: root.checkout,
       checkpoint: root.context.checkpoint, index: disk.index });
     return refuse(changed.mark);

@@ -11,7 +11,7 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionConfiguration } from "./configuration.js";
 import { movedProjectionChanges, removeObsoleteProjectionPaths } from "./refresh-removals.js";
-import { selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, refusesArchivePath, selectArchivePath } from "./archive-selection.js";
 import { planProjectionRefresh, type ProjectionRefreshPlan } from "./refresh-plan.js";
 import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "./record-render.js";
 import { createProjectionProtection } from "./protection.js";
@@ -89,13 +89,17 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   if (prepared.files.length > 0) {
     const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files: prepared.files, readBack: false,
       settlementPublication: "caller", writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint,
-      takeIn: root.takeIn, hooks: root.context.hooks, report: root.context.report });
+      takeIn: root.takeIn, hooks: root.context.hooks, refuseChange: archiveChangeRefusals(root) });
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
   const settled = await settleMovedPaths({ root, renderer, reference, plan: planned, admitsForcedEdit: true }, index, moved, prepared.marked);
   index = settled.index;
-  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && projectionArrivalsInstalled(index, arrivals);
+  // A planned path this command refused, at its selection or its change, waits for the repair: the refresh stays
+  // incomplete, so the command after the repair plans that path's work again.
+  const refused = refusesArchivePath(root, [...planned.removals, ...planned.paths.keys()]);
+  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused
+    && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index, checkpoint: root.context.checkpoint });

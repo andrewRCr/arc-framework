@@ -1,4 +1,4 @@
-/** Ask whether a selected archive path is this checkout's once per command, reusing the answer at later selections. */
+/** Ask whether a selected archive path is this checkout's once per command, keeping the answer, or a refusal met at a change. */
 import { archiveDestinationRefusal } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
@@ -28,6 +28,33 @@ export function selectArchivePath(root: SelectingRoot, path: string, options: { 
     root.context.report?.({ path, copy: null, mark: answer.mark });
   }
   return answer.mark;
+}
+
+/**
+ * Keep a refusal met just before a change as the command's answer for that path: later selections leave the path
+ * untouched, and the refusal is reported once, here or wherever the command first reported it.
+ */
+export function refuseArchiveChange(root: SelectingRoot, path: string, mark: RefusedMark, copy: string | null = null): void {
+  if (!path.startsWith(".arc/completed/")) {
+    root.context.report?.({ path, copy, mark });
+    return;
+  }
+  const answers = root.archiveSelection ??= new Map<string, ArchiveSelection>();
+  const answer = answers.get(path);
+  if (answer !== undefined && answer.mark !== null && answer.reported) return;
+  answers.set(path, { mark, reported: true });
+  root.context.report?.({ path, copy, mark });
+}
+
+/** A batch's report of a refusal met just before a change, kept as the command's answer for its path. */
+export function archiveChangeRefusals(root: SelectingRoot): (refused: { path: string; copy: string | null; mark: RefusedMark }) => void {
+  return ({ path, copy, mark }) => { refuseArchiveChange(root, path, mark, copy); };
+}
+
+/** Whether this command refused any of the paths, at its selection or just before a change. */
+export function refusesArchivePath(root: Pick<SelectingRoot, "archiveSelection">, paths: Iterable<string>): boolean {
+  for (const path of paths) if ((root.archiveSelection?.get(path)?.mark ?? null) !== null) return true;
+  return false;
 }
 
 /**

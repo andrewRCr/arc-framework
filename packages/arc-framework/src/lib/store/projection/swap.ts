@@ -70,8 +70,11 @@ export interface SwapBatchInput extends SwapMoves {
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
   readonly gate?: ReadGateDependencies;
   readonly hooks?: SwapHooks;
-  /** Names a path whose change was refused because its folder is not this checkout's, with the refusal's remedy. */
-  readonly report?: (diagnostic: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
+  /**
+   * Takes a path whose change was refused because its folder is not this checkout's, with the refusal's remedy; the
+   * command keeps it as the path's answer and reports it once.
+   */
+  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
 }
 
 /** What a batch left: the index as its second write recorded it, and the aside copies the command keeps. */
@@ -117,8 +120,8 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const reported: string[] = [];
   for (const each of plans) {
     const swapped = await swapOne(input, each);
-    if (swapped.blocked !== undefined && input.report !== undefined) {
-      input.report({ path: each.path, copy: null, mark: swapped.blocked });
+    if (swapped.blocked !== undefined && input.refuseChange !== undefined) {
+      input.refuseChange({ path: each.path, copy: null, mark: swapped.blocked });
       reported.push(each.path);
     }
     index = withEntry(index, each.path, swapped.entry);
@@ -134,7 +137,8 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
   index = await dropRemovedEntries(index, input.checkout, removals);
   if (input.settlementPublication !== "caller" || returned.length > 0) {
-    index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
+    index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned,
+      refuseChange: input.refuseChange });
   }
   return { index, copies: remainingCopies(index, copies), removals, unreplaced, reported,
     rebuilt: plans.filter(plan => plan.copy === null && plan.staged !== null && !unreplaced.includes(plan.path)).map(plan => plan.path) };

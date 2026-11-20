@@ -17,6 +17,7 @@ import { retriedMoves } from "./aside-moves.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { refuseArchiveChange } from "./archive-selection.js";
 
 /** A desired record and its new basis, kept separate from the leaving entry's rendering and copies. */
 export interface OwnershipInstallation {
@@ -40,7 +41,8 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   }
   const folder = await ensureLayFolder(root.checkout, path, root.context.checkpoint);
   if (folder !== null) {
-    root.context.report?.({ path, copy: null, mark: folder.mark });
+    if (folder.kind === "archive") refuseArchiveChange(root, path, folder.mark);
+    else root.context.report?.({ path, copy: null, mark: folder.mark });
     return withProjectionEntry(input.index, path, { ...previous, pending: true,
       ...(folder.kind === "archive" ? { refused: folder.mark } : {}) });
   }
@@ -79,7 +81,7 @@ async function linkOwnershipArrival(root: OwnershipRoot, index: ProjectionIndex,
     if (await moves.linkOnto(join(root.checkout, staged), join(root.checkout, path))) return index;
   } catch (error) {
     if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    root.context.report?.({ path, copy: null, mark: error.mark });
+    refuseArchiveChange(root, path, error.mark);
     leaving = { ...leaving, refused: error.mark };
   }
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
