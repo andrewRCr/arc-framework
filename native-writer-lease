@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "native-writer-lease",
+  "claimId": "611410a88fc87cca665cb67445cf06fd",
+  "createdAt": "2026-11-20T00:27:38.044Z",
+  "updatedAt": "2026-11-20T00:27:38.044Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reproduce the native writer lease refusal and identify its cause while preserving checkout exclusion.",
+  "branch": "chore/native-writer-lease",
+  "origin": "inbox",
+  "originEntry": "Diagnose the native writer's intermittent artifact-lease confirmation refusal",
+  "originEntrySourceDigest": "sha256:75d001a5693b091f2a513685631a7694b320437a79e94b7d3c5d3825dfd3ab24",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
