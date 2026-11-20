@@ -99,9 +99,10 @@ import its changed source. Do not wait for it: carry on with the next phase and 
   names a project and a package-relative path: drop the project label and prefix `packages/arc-framework/` to name
   the file from the repository root. When nothing is selected, report that the phase has no platform evidence.
 - Push the phase and dispatch them on the hosted pair with `gh workflow run ci.yml --ref <branch> -f
-  portability_files="<files>"`, naming repository-relative paths; each job takes a few minutes. No local runner gives
-  macOS evidence, since the Mac runners run checks in Linux VMs. A local Windows runner may stand in for Windows on
-  files that pass there on `main`, with the dispatch still covering macOS.
+  portability_files="<files>"`, naming repository-relative paths. Each job takes a few minutes. A local Windows runner
+  may stand in for Windows on files that pass there on `main`, with the dispatch still covering macOS.
+- For quick native macOS feedback during the phase, run `arc-offload --runner m4-mini-macos npm run -s test:file --
+  <file>` from the repository root for one test file. The hosted macOS dispatch supplies phase-close evidence.
 - When the phase changes test configuration or the lockfile, which no import graph bounds, say so in the report and
   leave the whole pair to verification's run.
 
