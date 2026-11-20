@@ -3,7 +3,7 @@
   "slug": "partial-staging-refusal",
   "claimId": "24c91be8f452b72a112fe925379306ea",
   "createdAt": "2026-11-20T01:26:01.688Z",
-  "updatedAt": "2026-11-20T01:26:01.688Z",
+  "updatedAt": "2026-11-20T03:14:20.090Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "partial-staging-refusal",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let the pre-commit gate check a partly staged file's staged content",
   "originEntrySourceDigest": "sha256:a14cbef1dc384fe0928e804dd4a9ba38e33f32d1bf77f1498227d2fc6a776bb5",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/partial-staging-refusal",
+    "headSha": "6d66d12bbd10100116fde81d047b3f2145ed8859"
+  }
 }
