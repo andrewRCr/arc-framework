@@ -12,7 +12,7 @@ import {
   seedSubmittedBottomLanding,
   type NativeSuffixStackFixture,
 } from "../helpers/delivery-native-suffix-e2e.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
 
 describe("native delivery suffix settlement", () => {
   let repository: string;

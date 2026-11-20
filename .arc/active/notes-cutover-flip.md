@@ -892,6 +892,37 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           (`frontline-command.ts`); a frontline skip is one durable `lane-skip` review decision, not a `frontline-phase`
           operation (`recordNativeFrontlineSkip`); and the re-root refusal names the predecessor Candidate by its
           record's store version (`readStoredCandidateSupersessionChain`).
+- **Delivery (Task 3.4.d), probed before any edit:** seven end-to-end files and two integration files, 81 cases. With
+  every spawn switched and the two `delivery-position` ledger entries set aside, 42 failed and 39 passed. The failures
+  meet the tracked-state refusal over committed metas, Candidate records, and transition records; a delivery entry or
+  transfer whose plan resolution refuses without transition records (§ 4.3); or a reconcile whose plan's work unit the
+  store does not hold (`terminal-rebind-unavailable`). Most passes run over plan and state kept machine-local under
+  `.git/arc/delivery/`, on either store.
+    - _Authoring, transfer, rewrite, and native suffix (Task 3.4.d.1):_ `delivery-authoring` (4 of 4),
+      `delivery-transfer` (3 of 3), `delivery-rewrite` (1), and `delivery-native-suffix` (0 of 4).
+    - _The delivery plan (Task 3.4.d.2):_ `delivery-plan` (16 of 19).
+    - _Terminal recovery (Task 3.4.d.3):_ `delivery-terminal-recovery` (10 of 22).
+    - _The position suites (Task 3.4.d.4):_ `delivery-position`'s end-to-end suite (3 of 3) and integration suite (5 of
+      24), and `delivery-execution-store` (0 of 1).
+    - _Authoring, transfer, rewrite, and native suffix, as moved (Task 3.4.d.1):_ the four files spawn through
+      `e2e/store-default.ts`; none was on the ledger.
+        - `delivery-authoring` keeps the override by subject, under `useInRepoStoreForEach`. The authoring verbs
+          revalidate their authority through the work unit's delivery entry, which resolves its plan through
+          `GitDeliveryRenameTransitionSource` (`lib/delivery/repository-entry.ts`). Probed with the work unit and task
+          list seeded and the checkout bound, the entry refused `evidence-unavailable`: delivery is paused on the store
+          (§ 4.3), as in Task 3.4.c.3. _Store counterparts, by subject only:_
+          `integration/delivery-execution-native-refusal` and `delivery-resolution-native-refusal`.
+        - `delivery-transfer` keeps the override by subject the same way: transfer resolves the active work unit's
+          plan through its rename source (`createCheckoutDeliveryRenameTransitionSource`). It has no store
+          counterpart; its plan resolution moves onto store reads with the delivery rebuild.
+        - `delivery-rewrite` runs on the store. Rewrite binds its plan's work unit but resolves no plan by rename. Its
+          native fixture holds the work unit in an in-process store, and it committed the meta and wrote a marker so
+          the in-repo backend the subprocess opened could read them; it now drops the fixture's tracked transition
+          record, which the store refuses on `HEAD`, and holds the project and `example` in the repository's store
+          (`seedStore`, `seedWorkUnit`), bound in place.
+        - `delivery-native-suffix` passes on the store unchanged: its native landing verbs address the plan by ID over
+          machine-local plan and state, binding no work unit.
+        - No expectation changed.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

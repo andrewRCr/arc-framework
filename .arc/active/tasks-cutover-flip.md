@@ -862,6 +862,27 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
 
     - `[ ]` **3.4.d Delivery**
         - Among them `positionFixture` (`__tests__/helpers/delivery-position-suite.ts`).
+        - _Amended (Owner, 2026-11-20):_ its seven end-to-end files and two integration files failed 42 of their 81 cases
+          without the override, so the family moves in four review increments, one commit each, rather than § 7.3's one
+          commit; each increment classifies its cases before editing (`notes-cutover-flip.md` § Test callers).
+
+        - `[x]` **3.4.d.1 Authoring, transfer, rewrite, and native suffix**
+            - `e2e/delivery-authoring.e2e.test.ts`, `delivery-transfer`, `delivery-rewrite`, and
+              `delivery-native-suffix` spawn through `e2e/store-default.ts`. Authoring and transfer keep the override by
+              subject, since their plan resolution refuses on the store while delivery is paused (§ 4.3); rewrite holds
+              its project and work unit in the store, its tracked transition record dropped; native suffix passes
+              unchanged (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.d.2 The delivery plan**
+            - `e2e/delivery-plan.e2e.test.ts`.
+
+        - `[ ]` **3.4.d.3 Terminal recovery**
+            - `e2e/delivery-terminal-recovery.e2e.test.ts`.
+
+        - `[ ]` **3.4.d.4 The position suites**
+            - `positionFixture` and its two suites, `e2e/delivery-position.e2e.test.ts` and
+              `integration/delivery-position.test.ts`, which leave the ledger, with
+              `integration/delivery-execution-store.test.ts`.
 
     - `[ ]` **3.4.e Errands and locus**
 
