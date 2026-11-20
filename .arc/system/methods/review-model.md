@@ -91,8 +91,8 @@ would have prevented the earlier findings; those it would have prevented are its
 A fix check can name a cause without the author. When it reports a material finding as a sibling an earlier repair
 missed, or as a gap in a repair's propagation, that repair fixed a site rather than its rule: the rule is a cause, and
 the earlier finding and this one are its instances, whether or not the author named it. Name it in the new finding's
-rationale, citing the earlier finding as its first instance and leaving that approved record unchanged, and propose the
-fix at the cause, not another per-site repair of the sibling.
+rationale, citing the cause's earliest instance and, where it differs, the repair this finding escaped, leaving those
+approved records unchanged, and propose the fix at the cause, not another per-site repair of the sibling.
 
 ### Convergence and permission
 
@@ -189,9 +189,10 @@ signals inform the reading and stay out of the report. Each reading points to a 
   decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
   `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
   that decision. The three looks must share one cause, named or reported, not merely a count of findings. Count every
-  look that found one of its instances, fix checks included, from the first, even when the cause was recognized later.
-  The stop composes with any review stop the Owner has set: whichever is reached first applies. Once the Owner decides
-  on a cause, count its looks afresh from that decision. It takes precedence over every other reading.
+  look that found one of its material instances, fix checks included, from the first, even when the cause was
+  recognized later. The stop composes with any review stop the Owner has set: whichever is reached first applies.
+  Once the Owner decides on a cause, count its looks afresh from that decision. It takes precedence over every other
+  reading.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
