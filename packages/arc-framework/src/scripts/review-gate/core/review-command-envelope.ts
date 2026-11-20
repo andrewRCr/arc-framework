@@ -45,6 +45,7 @@ import { ErrandReviewBindingSchema, ReviewReductionProjectionSchema } from "./ad
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { ProvisionalPassAssessmentSchema } from "./provisional-pass-assessment.js";
+import { ApprovalPolicyBindingSchema } from "./approval-policy-binding.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
@@ -673,6 +674,7 @@ export const RespondEnvelopeSchema = z.union([
       dispositionReportText: z.string().trim().min(1),
       dispositionEvidenceText: z.string().trim().min(1),
       provisionalPassAssessment: ProvisionalPassAssessmentSchema,
+      approvalPolicyBinding: ApprovalPolicyBindingSchema,
     }),
   ),
   envelopeVariant(
