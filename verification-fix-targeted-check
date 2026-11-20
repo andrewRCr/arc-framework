@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "verification-fix-targeted-check",
+  "claimId": "163fb7f4cafa75c1801bdf4254198842",
+  "createdAt": "2026-11-20T20:01:17.421Z",
+  "updatedAt": "2026-11-20T20:01:17.421Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let a fix that only adds verification at an applicability stop recommend targeted-check on its own proof",
+  "branch": "fix/verification-fix-targeted-check",
+  "origin": "inbox",
+  "originEntry": "Let a verification-only fix at an applicability stop recommend `targeted-check`",
+  "originEntrySourceDigest": "sha256:2967b5356713a5262dde5786281662acabf3c7c339cf0a48dd657b0feed74257",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
