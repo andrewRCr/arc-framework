@@ -742,6 +742,26 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           there, and the flip build refuses a checkout whose head tracks the meta.
         - _Expectation changed, traced:_ the dirty abandonment cases compare the record the store holds before and
           after (`readStoreRecord`), where the in-repo cases read the committed meta file.
+    - _Rename, as moved (Task 3.4.b.3):_ `rename` and `identity-operand-input` spawn through `e2e/store-default.ts`, and
+      `identity-operand-input` passes whole on the store. `rename`'s eleven cases stay _In-repo_ under
+      `useInRepoStoreForEach`: each works over state that store keeps in tracked files, renaming tracked artifacts,
+      transition records, a notes workspace, or a `chore/rename` branch, reading a tracked Candidate record, or meeting
+      a refusal only it makes: the same-name check before any state is read, slug-matched checkout roles, and remote
+      candidate expansion. A store block designates `origin` and holds an Active work unit in the store on its created
+      branch, published there, in the primary or in a linked checkout ARC spawned and projected (`startedWorkUnit`). A
+      backlog stub renames in one store write; an in-place rename renames the record, the checkout's ownership, and the
+      branch locally and on `origin`; a rename to the unit's own name and a rename of a unit whose Candidate the store
+      holds, attested through the verb, refuse with nothing changed; a self-rename defers its checkout's move, and once
+      the move lands its replay clears the pending move (A22, Task 3.R8); and a stale remote lease resumes.
+        - _Expectation changed, traced:_ the resumed rename keeps the old remote branch a peer moved and reports it
+          kept, where the in-repo resume deleted it; the store's retry keeps a peer's advanced old remote head
+          (`integration/rename-store-command.test.ts`, "completes a retry while retaining a peer's advanced old remote
+          head").
+        - The store refuses a same-name rename at its subject read ("Rename needs distinct source and target names."),
+          not before reading state, so its case asserts the refusal over an unchanged record, branch, and remote.
+        - A rename from a checkout whose marker binds another work unit does not refuse on the store, which matches
+          holders by UID, and renames the branch that checkout holds; captured for a decision ("Decide whether a store
+          rename refuses a branch held by another work unit's checkout", `USER-INBOX § Errand`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

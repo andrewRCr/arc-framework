@@ -794,8 +794,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               abandonment cases seed through `seedWorkUnit` with the checkout ARC spawned (`notes-cutover-flip.md`
               § Test callers).
 
-        - `[ ]` **3.4.b.3 Rename**
-            - `e2e/rename.e2e.test.ts` and `identity-operand-input`.
+        - `[x]` **3.4.b.3 Rename**
+            - `e2e/rename.e2e.test.ts` and `identity-operand-input` spawn through `e2e/store-default.ts`. Rename's cases
+              stay in-repo whole beside a store block seeded through `seedWorkUnit`: a stub, an in-place rename, and a
+              self-rename whose replay settles its deferred move (A22), the same-name and Candidate refusals, and a
+              stale-lease resume; the one changed expectation traces to a store contract (`notes-cutover-flip.md`
+              § Test callers).
 
         - `[ ]` **3.4.b.4 Reconcile and the cohort hook**
             - `e2e/wu-reconcile.e2e.test.ts` and `integration/validate-cohort-consistency.test.ts`.
