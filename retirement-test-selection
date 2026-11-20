@@ -3,7 +3,7 @@
   "slug": "retirement-test-selection",
   "claimId": "2bdacaa111b36e3808dac114b243cfe7",
   "createdAt": "2026-11-20T20:25:22.658Z",
-  "updatedAt": "2026-11-20T20:25:22.658Z",
+  "updatedAt": "2026-11-20T21:47:53.135Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reproduce the missing retirement integration selection and repair it within selection code or reach data if possible.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Find why test selection missed an integration test that a `removal-persist.ts` change broke",
   "originEntrySourceDigest": "sha256:86751759c8e34122cb547d546e27baa5d2478c725007c7a51e858ce504540ca2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/retirement-test-selection",
+    "headSha": "476c503bf86f17504252055e6775625ec469503e"
+  }
 }
