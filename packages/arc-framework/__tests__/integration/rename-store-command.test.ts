@@ -136,13 +136,21 @@ it.each([false, true])("defers the holder's own folder move while completing the
   };
   const result = await runRenameCommand(command, { sourceSlug: "source", targetSlug: "target" });
   expect(result).toMatchObject({ status: "renamed", checkout: { checkoutPath: f.checkout },
-    worktree: { followUpNotice: expect.stringContaining("git worktree move -f -f") } });
+    worktree: { followUpNotice: expect.stringContaining(`git worktree move -f -f ${f.checkout} ${f.target}, then run arc rename source target`) } });
   expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("target");
-  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", renameMovePending: {
-    from: f.checkout, to: f.target, branch: detached ? null : "feat/target",
-  } } });
+  const pending = { from: f.checkout, to: f.target, branch: detached ? null : "feat/target" };
+  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", renameMovePending: pending } });
+
+  // A replay before the move lands leaves the move pending for the follow-up to finish.
+  expect(await runRenameCommand(command, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { renameMovePending: pending } });
+
   await f.exec("git", ["worktree", "move", "-f", "-f", f.checkout, f.target]);
-  expect(await readWorktreeMarker(f.target)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
+  const moved = { ...f.command, cwd: f.target, io: { ...f.command.io, exec: makeGitExec(f.target) } };
+  expect(await runRenameCommand(moved, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  const settled = await readWorktreeMarker(f.target);
+  expect(settled).toMatchObject({ kind: "present", marker: { wuName: "target", createdFor: { name: "target" } } });
+  expect(settled.kind === "present" ? settled.marker.renameMovePending : "absent").toBeUndefined();
 });
 
 it.each([false, true])("rolls back only its tracking changes after record conflict, concurrent tracking=%s", async (concurrent) => {

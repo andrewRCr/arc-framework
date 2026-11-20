@@ -140,7 +140,8 @@ export function projectRenameMoveRemedy(
   }
   const remedy: RenameMoveRemedy = {
     argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
-    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout.`,
+    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout, `
+      + `then arc rename ${quoteShellArgument(pending.oldSlug)} ${quoteShellArgument(pending.newSlug)} to settle the move.`,
   };
   return { ...pending, remedy, actions: [{ ...remedy, argv: [...remedy.argv] }] };
 }

@@ -7,7 +7,7 @@ import type { ProjectionRemovalSlots } from "../lib/git/worktree-removal.js";
 import type { ReconcileWorkUnitWorktreeContext } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { basename, resolve } from "node:path";
 import { createNodeRenameWorktreeTransactionDriver, type RenameWorktreeMove } from "../lib/work-unit/rename-worktree-transaction.js";
-import { readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration } from "../lib/git/worktree-marker.js";
+import { readWorktreeMarker, readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration } from "../lib/git/worktree-marker.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { reconcileWorkUnitWorktree, nodeReconcileWorkUnitWorktreeFs, resolveRenameWorktreeMove, type ReconcileWorkUnitWorktreeResult } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import type { WorktreeRenameMovePending } from "../lib/git/worktree-marker.js";
@@ -22,12 +22,20 @@ type RenameCheckoutCommand = Pick<RenameCommandContext, "cwd" | "io" | "store" |
  * @param command - Resolved repository, identity, and production I/O.
  * @returns Before-batch checkout adapter.
  */
-export function storeRenameAdapters(command: RenameCheckoutCommand): Pick<StoreRenameContext, "renameCheckout"> {
+export function storeRenameAdapters(command: RenameCheckoutCommand): Pick<StoreRenameContext, "renameCheckout" | "settleCheckoutMove"> {
   const store = command.store ?? createStore(createDefaultStorePorts({ checkoutRoot: command.cwd, exec: command.io.exec }));
   const projectionRemovalSlots = createProjectionRemovalSlots({ store, identity: command.identity });
   return {
     renameCheckout: (request, onPrepared) => renameCheckout({ ...command, store }, projectionRemovalSlots, request, onPrepared),
+    settleCheckoutMove: async (request) => await landedMove(request)
+      ? renameCheckout({ ...command, store }, projectionRemovalSlots, request) : null,
   };
+}
+/** A deferred move of this rename has landed once its checkout is registered at the recorded destination. */
+async function landedMove(request: StoreRenameCheckoutRequest): Promise<boolean> {
+  const marker = await readWorktreeMarker(request.checkoutPath);
+  const pending = marker.kind === "present" ? marker.marker.renameMovePending : undefined;
+  return pending !== undefined && pending.newSlug === request.targetSlug && resolve(pending.to) === resolve(request.checkoutPath);
 }
 async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalSlots: ProjectionRemovalSlots, request: StoreRenameCheckoutRequest,
   onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void): Promise<StoreRenameCheckoutReceipt> {
@@ -46,7 +54,8 @@ async function renameCheckout(command: RenameCheckoutCommand, projectionRemovalS
   const pending = plan.status === "deferred-self-move" ? await deferredMove(git, request, head, plan.to) : null;
   let worktree: ReconcileWorkUnitWorktreeResult | undefined = pending === null ? undefined : {
     mutation: "move", from: pending.from, to: pending.to, locusHopped: false,
-    followUpNotice: `Move the worktree from outside the worktree: git worktree move -f -f ${pending.from} ${pending.to}`,
+    followUpNotice: `Move the worktree from outside the worktree: git worktree move -f -f ${pending.from} ${pending.to}, `
+      + `then run arc rename ${pending.oldSlug} ${pending.newSlug} to settle the move`,
   };
   const move = targetPath === request.checkoutPath ? undefined : checkoutMove({ exec: git, store: command.store, projectionRemovalSlots }, cwd, request.checkoutPath, targetPath, (result) => {
     worktree = result;

@@ -31,6 +31,8 @@ export interface StoreRenameCheckoutRequest { checkoutPath: string; sourceSlug: 
 export interface StoreRenameContext {
   store: Store; cwd: string; exec: GitExec; baseBranch: string; projectId?: () => Promise<string>; locusPorts?: LocusPorts;
   renameCheckout?: (request: StoreRenameCheckoutRequest, onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void) => Promise<StoreRenameCheckoutReceipt>;
+  /** Clear the checkout's pending move once that move has landed, or report that none applies. */
+  settleCheckoutMove?: (request: StoreRenameCheckoutRequest) => Promise<StoreRenameCheckoutReceipt | null>;
   onPreparedAdvisories?: (advisories: readonly string[]) => Promise<void>;
   /** Where a history pull's notices are written; standard error by default. */
   writeNotice?: (line: string) => void;
@@ -124,7 +126,11 @@ function retainedBranchReport(primary: StoreRecord, branch: BranchRename | undef
 interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt; report?: RenameReport; recordBatch?: "applied" }
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {
-  if (subject.resuming) return branch?.catchUp ? persistCatchUp(ctx, subject, branch, state) : undefined;
+  if (subject.resuming) {
+    const caughtUp = branch?.catchUp ? await persistCatchUp(ctx, subject, branch, state) : undefined;
+    if (caughtUp === undefined && holder !== null) await settleCheckoutMove(ctx, subject, target, holder, state);
+    return caughtUp;
+  }
   const prepared = await prepareStoreRename(ctx.store, subject, target,
     branch === undefined ? undefined : { prior: branch.prior, next: branch.next, checkoutHere: branch.checkoutHere });
   if (prepared.status === "refused") return { status: "rejected", reason: prepared.refusal.condition, refusal: prepared.refusal };
@@ -139,6 +145,12 @@ async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubjec
   state.recordBatch = "applied";
   state.report = prepared.result.report;
   return undefined;
+}
+/** A replay finishes a self-rename whose deferred checkout move has since landed; the record is already renamed. */
+async function settleCheckoutMove(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string,
+  state: RenameRuntime): Promise<void> {
+  const receipt = await ctx.settleCheckoutMove?.({ checkoutPath: holder, sourceSlug: subject.originName, targetSlug: target });
+  if (receipt !== null && receipt !== undefined) state.checkout = receipt;
 }
 async function persistCatchUp(ctx: StoreRenameContext, subject: StoreRenameSubject, branch: BranchRename,
   state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {

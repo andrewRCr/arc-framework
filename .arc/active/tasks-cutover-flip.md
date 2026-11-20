@@ -712,11 +712,17 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   and leave, and a remove-mode self-teardown, each from the checkout it removes; `reopenStore` left. See
   `notes-cutover-flip.md` § A21.
 
-### `[ ]` **3.R8 A store rename settles its checkout's deferred move — § 4.15**
+### `[x]` **3.R8 A store rename settles its checkout's deferred move — § 4.15**
 
 - _Goal:_ On the store, once a self-rename's deferred checkout move has landed, a replay of `arc rename` clears the
   pending move from the checkout's marker and leaves a move that has not landed pending; the deferred rename's
   follow-up and session-init's offered move each name that replay (A22).
+- _Outcome:_ A replay asks the command's checkout adapter to settle the holder's move (`settleCheckoutMove`,
+  `commands/rename-store.ts`), which reruns the checkout's rename transaction with the move cleared only when the
+  marker's pending move names this rename's target and records the holder's path as its destination.
+  `integration/rename-store-command.test.ts`'s deferred-move case replays before and after the move and fails without
+  the settle; `e2e/rename.e2e.test.ts`'s store self-rename case, which moves in Task 3.4.b.3, passes through the built
+  CLI.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

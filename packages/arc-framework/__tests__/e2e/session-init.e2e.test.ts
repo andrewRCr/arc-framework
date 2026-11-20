@@ -1572,11 +1572,11 @@ describe("session-init E2E — deferred rename move advisory", () => {
       to,
       remedy: {
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
-        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout.`,
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.`,
       },
       actions: [{
         argv: ["git", "worktree", "move", "-f", "-f", canonicalFrom, to],
-        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout.`,
+        text: `Run git worktree move -f -f '${canonicalFrom}' '${to}' from outside the checkout, then arc rename 'old-name' 'new-name' to settle the move.`,
       }],
     }]);
   });
