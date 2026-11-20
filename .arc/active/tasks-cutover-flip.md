@@ -755,8 +755,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           each, rather than § 7.3's one commit; each increment classifies its cases before editing
           (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.b.1 Teardown**
-            - `e2e/teardown.e2e.test.ts` and `teardown-stale-projection`.
+        - `[x]` **3.4.b.1 Teardown**
+            - `e2e/teardown.e2e.test.ts` spawns through `e2e/store-default.ts`, initializing on the process's store, and
+              `prepareSelfTeardown` holds its Shipped work unit completed in the store (`seedWorkUnit`), binding the
+              marked checkout to that record; `teardown-stale-projection` and the receipt-backed target stay in-repo
+              beside a store not-found case, and each changed expectation traces to a store contract or an Owner
+              decision (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.b.2 Abandon, activation, and archive**
             - `e2e/lifecycle-exit.e2e.test.ts`, with its shared fixture, `retirement-removal-check`, and

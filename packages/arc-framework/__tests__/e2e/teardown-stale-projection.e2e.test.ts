@@ -10,7 +10,8 @@ import {
 import { createGitExec, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { hasCompetingLifecycleProjection } from "../../src/lib/work-unit/teardown-lifecycle-projection.js";
 import type { TeardownAuthorizationDecision } from "../../src/lib/work-unit/retirement-authority.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
 
 import {
   copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
@@ -63,14 +64,17 @@ async function prepareArchivedFeature(
   return worktree;
 }
 
+// A branch tracking its work unit's meta after the base archived it exists only under the in-repo store: the flip build
+// refuses a checkout whose head tracks ARC state, and its store teardown never reads a checkout's lifecycle files.
 describe("arc teardown with stale active lifecycle", () => {
+  useInRepoStoreForEach();
   let repo: string | undefined;
   let parent: string | undefined;
   const archivedShape = { kind: "sibling-worktree-bearing", key: "archived-feature", worktreeName: "demo" } as const;
   let archivedTemplate: PreparedRepositoryTemplate | undefined;
   let archivedParent: string | undefined;
   beforeAll(async () => {
-    archivedTemplate = await prepareRepositoryTemplate(archivedShape, async () => {
+    archivedTemplate = await withInRepoStore(() => prepareRepositoryTemplate(archivedShape, async () => {
       const root = await createTempRepo();
       archivedParent = await mkdtemp(join(tmpdir(), "arc-archived-template-"));
       try {
@@ -81,7 +85,7 @@ describe("arc teardown with stale active lifecycle", () => {
         await cleanupTempDir(archivedParent);
         throw error;
       }
-    });
+    }));
   });
   afterAll(async () => {
     if (archivedTemplate !== undefined) await cleanupTempDir(archivedTemplate.root);

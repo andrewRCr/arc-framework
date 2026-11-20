@@ -4,9 +4,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { chmod, mkdir, mkdtemp as createTempDirectory, realpath, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, posix } from "node:path";
-import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
+import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./store-default.js";
 import { initializedRepository as initializedRepositoryCore } from "../helpers/initialized-repository.js";
+import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 
 const { join } = posix;
 async function fixturePath(path: string): Promise<string> {
@@ -18,7 +22,7 @@ async function mkdtemp(prefix: string): Promise<string> {
   return fixturePath(await createTempDirectory(prefix));
 }
 async function initializedRepository(start: Parameters<typeof initializedRepositoryCore>[0]): Promise<string> {
-  return fixturePath(await initializedRepositoryCore(start));
+  return fixturePath(await initializedRepositoryCore(start, "process"));
 }
 
 async function gitFailureEnvironment(dir: string,
@@ -41,6 +45,14 @@ async function gitFailureEnvironment(dir: string,
   return { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` };
 }
 
+/** Read the outside removal a self-teardown prints for its remaining folder: the primary checkout to run it from, and
+ * the work unit's UID and husk path it names. */
+function printedHuskContinuation(output: string): { from: string; uid: string; husk: string } {
+  const match = /From the primary checkout (.+?), run: arc teardown (\S+) --husk '([^']+)'/u.exec(unwrapPresentationOutput(output));
+  if (match === null) throw new Error(`No outside removal was printed:\n${output}`);
+  return { from: match[1]!, uid: match[2]!, husk: match[3]! };
+}
+
 /** Build the linked teardown fixture from an initialized repository. */
 async function prepareSelfTeardown(
   repo: string,
@@ -55,53 +67,21 @@ async function prepareSelfTeardown(
   await git(repo, ["commit", "-m", "feat: demo"]);
   await git(repo, ["checkout", "main"]);
   await git(repo, ["merge", "--no-ff", "feat/demo", "-m", "merge: demo"]);
-  const completedRelative = ".arc/completed/2026-q3/01_demo/meta-demo.md";
-  const completed = join(repo, ".arc", "completed", "2026-q3", "01_demo");
-  await mkdir(completed, { recursive: true });
-  await writeFile(join(completed, "meta-demo.md"), [
-    "# Metadata: demo",
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    "| Shipped | — | — | — | — |",
-    "",
-    "",
-    "---",
-    "",
-  ].join("\n"));
-  await git(repo, ["add", "-f", "--", completedRelative]);
-  await git(repo, ["commit", "-m", "chore: archive demo"]);
-  await writeFile(
-    join(repo, ".git", "info", "exclude"),
-    ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
-    { flag: "a" },
-  );
+  // The shipped work unit is held completed in the store, linked to its branch, as archival leaves it.
+  const { meta } = await seedWorkUnit(repo, "demo", {
+    identity: "test-user",
+    meta: { state: "Shipped", owner: "test-user", branch: "feat/demo", currentWorkflow: null,
+      completed: "2026-07-14", prUrl: "https://example.test/pull/1" },
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") },
+    branch: "feat/demo",
+  });
+  await writeFile(join(repo, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
 
   const worktree = join(worktreeParent, "wt");
   await git(repo, ["worktree", "add", worktree, "feat/demo"]);
-  const worktreeCompleted = join(worktree, ".arc", "completed", "2026-q3", "01_demo");
-  await mkdir(worktreeCompleted, { recursive: true });
-  await writeFile(join(worktreeCompleted, "meta-demo.md"), [
-    "# Metadata: demo",
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    "| Shipped | — | — | — | — |",
-    "",
-    "",
-    "---",
-    "",
-  ].join("\n"));
   if (options.marked) {
-    const markerDir = join(worktree, ".arc", "system", ".internal");
-    await mkdir(markerDir, { recursive: true });
-    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
-      spawnedByArc: true,
-      wuName: "demo",
-      createdFor: { kind: "work-unit", name: "demo" },
-      spawningIdentity: "test-user",
-      createdAt: "2026-07-14T00:00:00.000Z",
-    }));
+    await writeWorktreeMarker(worktree, { spawnedByArc: true, wuName: "demo", createdFor: seededWorkUnitSubject(meta),
+      spawningIdentity: "test-user", createdAt: "2026-07-14T00:00:00.000Z" });
   }
   expect(await git(worktree, ["status", "--porcelain"])).toBe("");
   return worktree;
@@ -300,7 +280,9 @@ describe("arc teardown (CLI surface)", () => {
     expect(await stat(worktree)).toMatchObject({});
   });
 
+  // A retirement receipt is tracked state; on the store a target no record names refuses as not found.
   it("refuses a nonexistent receipt-backed target without a branch or detached husk", async () => {
+    useInRepoStore();
     tmpDir = await initializedRepository("initialized");
     await git(tmpDir, ["add", "."]);
     await git(tmpDir, ["commit", "-m", "chore: initialize ARC"]);
@@ -309,6 +291,17 @@ describe("arc teardown (CLI surface)", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout + result.stderr).toMatch(/no branch or detached husk remains/i);
+  });
+
+  it("refuses a target no record names as not found", async () => {
+    tmpDir = await initializedRepository("initialized");
+    await git(tmpDir, ["add", "."]);
+    await git(tmpDir, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
+
+    const result = await runArc(["teardown", "ghost"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/not-found/u);
   });
 
   it("refuses branch-scoped teardown for non-chore branches", async () => {
@@ -401,8 +394,7 @@ describe("arc teardown (CLI surface)", () => {
     const output = unwrapPresentationOutput(result.stdout + result.stderr);
     expect(result.exitCode, output).toBe(0);
     expect(output).toMatch(/folder remains/iu);
-    expect(output).toContain("arc teardown demo");
-    expect(output).toContain(tmpDir);
+    expect(printedHuskContinuation(output)).toEqual({ from: tmpDir, uid: expect.stringMatching(/^[0-9a-f-]{36}$/u), husk: worktree });
     expect(await stat(worktree)).toMatchObject({});
   });
 
@@ -447,7 +439,7 @@ describe("arc teardown (CLI surface)", () => {
     const result = await runArc(["teardown", "demo"], worktree);
     const output = result.stdout + result.stderr;
 
-    expect(result.exitCode).toBe(1);
+    expect(result.exitCode, output).toBe(1);
     expect(output).toMatch(/no ARC ownership marker/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
   });
@@ -459,8 +451,10 @@ describe("arc teardown (CLI surface)", () => {
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode).toBe(0);
+    const { from, uid, husk } = printedHuskContinuation(created.stdout + created.stderr);
+    expect({ from, husk }).toEqual({ from: tmpDir, husk: worktree });
 
-    const replay = await runArc(["teardown", "demo"], tmpDir, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
+    const replay = await runArc(["teardown", uid, "--husk", husk], from, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
     const output = replay.stdout + replay.stderr;
     expect(output).toMatch(process.platform !== "win32" && term === "linux" ? /\|\r?\n\|/u : /│\r?\n│/u);
     expect(output).not.toContain(worktree);
@@ -482,10 +476,11 @@ describe("arc teardown (CLI surface)", () => {
 
     const replay = await runArc(["teardown", "demo", "--husk", worktree], tmpDir);
 
-    expect(replay.exitCode).toBe(0);
-    expect(replay.stdout + replay.stderr).toMatch(/competing registered projection/iu);
-    expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
-    expect(await git(tmpDir, ["worktree", "list"])).toContain(worktree);
+    const output = unwrapPresentationOutput(replay.stdout + replay.stderr);
+    expect(replay.exitCode, output).toBe(0);
+    expect(output).toContain(`Kept feat/demo: another checkout holds it at ${tmpDir}`);
+    expect(await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
+    expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });
 
   it("reports a surviving local ref and retry guidance after detach", async () => {
@@ -497,13 +492,18 @@ describe("arc teardown (CLI surface)", () => {
     await writeFile(lock, "locked\n");
 
     const result = await runArc(["teardown", "demo"], worktree);
-    const output = result.stdout + result.stderr;
+    const output = unwrapPresentationOutput(result.stdout + result.stderr);
 
-    expect(result.exitCode).toBe(0);
-    expect(output).toMatch(/Could not compare-and-delete local branch `feat\/demo`/iu);
-    expect(output).not.toMatch(/not contained on its upstream/iu);
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toContain("cannot lock ref 'refs/heads/feat/demo'");
+    expect(output).toContain(`arc teardown demo --husk ${worktree}`);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
+
+    await rm(lock);
+    const retried = await runArc(["teardown", "demo", "--husk", worktree], tmpDir);
+    expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+    expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toBe("");
   });
 
   it("reports a dirty preflight refusal as still branched and unchanged", async () => {
@@ -515,9 +515,9 @@ describe("arc teardown (CLI surface)", () => {
     const result = await runArc(["teardown", "demo"], worktree);
     const output = result.stdout + result.stderr;
 
-    expect(result.exitCode).toBe(1);
-    expect(output).toMatch(/Cannot husk:.*dirty worktree/isu);
-    expect(output).toMatch(/remains branched and unchanged/iu);
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toMatch(/dirty worktree; commit or discard changes: dirty\.txt/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
+    expect(await git(worktree, ["status", "--porcelain"])).toContain("dirty.txt");
   });
 });

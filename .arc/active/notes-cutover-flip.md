@@ -688,6 +688,37 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
     - _`validate-cohort-consistency` (6):_ the script over a fixture that is not a Git repository, where the ref store
       refuses; its subject, the pre-commit check of tracked cohort files, leans _In-repo_, keeping its explicit
       override.
+    - _Teardown, as moved (Task 3.4.b.1):_ `e2e/teardown.e2e.test.ts` spawns through `e2e/store-default.ts` and copies
+      a start initialized on the test process's store (`initializedRepository(start, "process")`,
+      `helpers/initialized-repository.ts`, which keys each template by the store `arc init` ran on).
+      `prepareSelfTeardown` holds the Shipped `demo` completed in the store, its branch link naming `feat/demo`
+      (`seedWorkUnit`), and binds the marked checkout's marker to that record (`seededWorkUnitSubject`), in place of
+      the meta it committed under `.arc/completed/`. `teardown-stale-projection` stays _In-repo_ whole
+      (`useInRepoStoreForEach`, its template built under `withInRepoStore`): its subject, a branch still tracking its
+      work unit's meta after the base archived it, exists only there, since the flip build refuses a checkout whose head
+      tracks ARC state and store teardown reads no checkout's lifecycle files.
+        - The markerless and remove-preference cases pass once store teardown refuses a markerless holder and reopens
+          its store from the primary (A20, Task 3.R6).
+        - The nonexistent receipt-backed target is _In-repo_ (`useInRepoStore`), a retirement receipt being tracked
+          state, beside a store case: a target no record names refuses as `not-found`.
+        - _Expectations changed, each traced:_
+            - A self-teardown's outside removal names the work unit's UID and its quoted husk path
+              (`outsideHuskRemovalCommand`, `handlers/lifecycle.ts`, taking the husk subject's UID before its name),
+              where the in-repo one named the slug. The two replay cases run the continuation the first teardown
+              printed, from the primary checkout it names, rather than replaying by name (Owner, 2026-11-19). Replayed
+              by name, the store leaves the husk and reports the branch the first run deleted as `(left intact)`
+              (`describeBranchDeletion` renders any undeleted branch so), captured to the personal inbox.
+            - Replaying the old husk while the primary checkout holds a restarted `feat/demo` keeps the branch with
+              "another checkout holds it" and removes only the husk (`prepareCreatedBranch`,
+              `lib/work-unit/verbs/teardown-store.ts`), where the in-repo arm refused a competing registered projection
+              and kept the husk registered. The title's subject, that the old husk never deletes the restarted
+              projection, holds.
+            - A locked local branch ref fails the teardown after the detach, exiting 1 with the `--husk` retry
+              (`teardownRetryRemedy`), where the in-repo arm completed with a compare-and-delete notice; accepted
+              (Owner, 2026-11-19). The case now removes the lock and completes through the retry it names.
+            - A dirty self-teardown refuses in the shared removal check's words, naming the dirty path
+              (`checkWorktreeRemoval`, `lib/git/worktree-removal.ts`), where the in-repo arm added that the checkout
+              remains branched and unchanged; the case reads both from the checkout.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

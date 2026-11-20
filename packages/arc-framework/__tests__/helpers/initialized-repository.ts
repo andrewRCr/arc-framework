@@ -5,7 +5,9 @@ import { promisify } from "node:util";
 
 import { afterAll, expect } from "vitest";
 
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { cleanupTempDir, createTempRepo, runArc } from "../e2e/helpers.js";
+import { runArc as runArcOnProcessStore } from "../e2e/store-default.js";
 import {
   copyPreparedRepository,
   prepareRepositoryTemplate,
@@ -24,19 +26,23 @@ async function git(cwd: string, args: string[]): Promise<string> {
 /** Init-only default or Claude starts, plus committed default or arc-in-git starts. */
 type InitializedStart = "initialized" | "claude-initialized" | "initialized-and-committed" | "arc-in-git-and-committed";
 
-const initializedTemplates = new Map<InitializedStart, Promise<PreparedRepositoryTemplate>>();
+/** Whose store `arc init` runs on: the end-to-end helpers' in-repo default, or the test process's selection, which a file
+ * spawning through `e2e/store-default.ts` takes, so the template matches the store its commands open. */
+export type InitializedStore = "helpers" | "process";
 
-function initializedShape(start: InitializedStart): PreparedRepositoryShape {
-  return { kind: "plain", key: `errand-e2e-${start}-v1` };
+const initializedTemplates = new Map<string, Promise<PreparedRepositoryTemplate>>();
+
+function initializedShape(start: InitializedStart, selection: string): PreparedRepositoryShape {
+  return { kind: "plain", key: `errand-e2e-${start}${selection === "helpers" ? "" : `-${selection}`}-v1` };
 }
 
 /** Run `arc init` once for one start, so each test copies the result instead of initializing its own. */
-async function buildInitializedStart(start: InitializedStart): Promise<string> {
+async function buildInitializedStart(start: InitializedStart, run: typeof runArc): Promise<string> {
   const root = await createTempRepo();
   try {
     const pmMode = start === "arc-in-git-and-committed" ? ["--pm-mode", "arc-in-git"] : [];
     const tools = start === "claude-initialized" ? ["--tools", "claude"] : [];
-    const init = await runArc(["init", "--yes", "--name", "test-project", ...pmMode, ...tools], root);
+    const init = await run(["init", "--yes", "--name", "test-project", ...pmMode, ...tools], root);
     expect(init.exitCode, init.stderr || init.stdout).toBe(0);
     if (start === "initialized-and-committed" || start === "arc-in-git-and-committed") {
       await git(root, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
@@ -48,14 +54,20 @@ async function buildInitializedStart(start: InitializedStart): Promise<string> {
   }
 }
 
-/** An independent copy of one initialized start, built on first use. */
-export async function initializedRepository(start: InitializedStart): Promise<string> {
-  let template = initializedTemplates.get(start);
+/** An independent copy of one initialized start, built on first use for each store it was initialized on.
+ * @param start - The start to initialize.
+ * @param store - Whose store `arc init` runs on, the helpers' default unless the file spawns on the process's.
+ * @returns The copy's root.
+ */
+export async function initializedRepository(start: InitializedStart, store: InitializedStore = "helpers"): Promise<string> {
+  const selection = store === "helpers" ? "helpers" : process.env[IN_REPO_STORE_OVERRIDE] === undefined ? "ref" : "in-repo";
+  const shape = initializedShape(start, selection), key = `${start}:${selection}`;
+  let template = initializedTemplates.get(key);
   if (template === undefined) {
-    template = prepareRepositoryTemplate(initializedShape(start), () => buildInitializedStart(start));
-    initializedTemplates.set(start, template);
+    template = prepareRepositoryTemplate(shape, () => buildInitializedStart(start, store === "helpers" ? runArc : runArcOnProcessStore));
+    initializedTemplates.set(key, template);
   }
-  return copyPreparedRepository(await template, initializedShape(start));
+  return copyPreparedRepository(await template, shape);
 }
 
 afterAll(async () => {
