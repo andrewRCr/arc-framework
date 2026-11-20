@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "partial-staging-refusal",
+  "claimId": "24c91be8f452b72a112fe925379306ea",
+  "createdAt": "2026-11-20T01:26:01.688Z",
+  "updatedAt": "2026-11-20T01:26:01.688Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "partial-staging-refusal",
+  "branch": "fix/partial-staging-refusal",
+  "origin": "inbox",
+  "originEntry": "Let the pre-commit gate check a partly staged file's staged content",
+  "originEntrySourceDigest": "sha256:a14cbef1dc384fe0928e804dd4a9ba38e33f32d1bf77f1498227d2fc6a776bb5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
