@@ -406,7 +406,7 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   if (request.form.kind !== "pre-commit") return undefined;
   const candidates: Array<{ id: string; inputs: string[] }> = [];
   for (const [id, check] of entries) {
-    if (request.skip?.includes(id)) continue;
+    if (request.skip?.includes(id) || await checksStagedContent(io, check)) continue;
     const selected = selectCheckInputs({ id, check, request, resolved, selection });
     if (selected.status === "not selected") continue;
     if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
@@ -420,7 +420,25 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   if (affected.length === 0) return undefined;
   const paths = [...new Set(affected.flatMap(check => check.paths))].map(path => JSON.stringify(path)).join(", ");
   const ids = [...new Set(affected.map(check => check.id))].join(",");
-  return `Partially staged inputs: ${paths} (checks: ${ids}). Stage each whole file and retry git commit, or skip these checks for this commit with ARC_SKIP=${ids} git commit ... .`;
+  return `Partially staged inputs: ${paths} (checks: ${ids}). These checks read the working tree, so they would check `
+    + "unstaged changes too. Stage each whole file and retry git commit, or set the unstaged changes aside: run "
+    + "git stash push --keep-index, retry git commit, then restore them with "
+    + "git restore --source=refs/stash --worktree -- :/ and git stash drop.";
+}
+
+/**
+ * Whether a check runs on the commit's staged content, which partial staging cannot mislead: it reads the index, or a
+ * configured runner executes it on the staged tree. A runner configuration that cannot be read stops the check from
+ * running at all, so it never reads the working tree either.
+ */
+async function checksStagedContent(io: DeclaredCheckDependencies, check: CheckDeclaration["checks"][string]): Promise<boolean> {
+  if (check.reads_index) return true;
+  if (!check.runner) return false;
+  try {
+    return await (io.readRunnerConfiguration ?? readMachineCheckRunner)(check) !== undefined;
+  } catch {
+    return true;
+  }
 }
 
 /**

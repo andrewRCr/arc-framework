@@ -19,7 +19,7 @@ it.each(["husky", "core.hooksPath"] as const)("refuses and repairs partially sta
   const refused = await commitThroughManager(root);
   expect(refused.exitCode, refused.output).toBe(1);
   expect(refused.output).toContain("src/0.txt");
-  expect(refused.output).toContain("ARC_SKIP=content");
+  expect(refused.output).toContain("git stash push --keep-index");
   expect(await git(root, ["rev-parse", "HEAD"])).toBe(head);
   expect(await readFile(path, "utf8")).toBe("staged\nunstaged\n");
   expect(await executionReceipt(root)).toBe("");
@@ -27,6 +27,27 @@ it.each(["husky", "core.hooksPath"] as const)("refuses and repairs partially sta
   const repaired = await commitThroughManager(root);
   expect(repaired.exitCode, repaired.output).toBe(0);
   expect(await git(root, ["show", "HEAD:src/0.txt"])).toBe("staged\nunstaged");
+  expect(await executionReceipt(root)).toBe("executed\n");
+}, 60_000);
+
+it("commits only the staged content after setting the unstaged changes aside, then restores them exactly", async () => {
+  const root = await createHookManagerRepository("core.hooksPath", inject("arcHookManagerTools"));
+  roots.push(root);
+  const path = join(root, "src/0.txt");
+  await writeFile(path, "staged\n");
+  await git(root, ["add", "src/0.txt"]);
+  await writeFile(path, "staged\nunstaged\n");
+  const refused = await commitThroughManager(root);
+  expect(refused.exitCode, refused.output).toBe(1);
+  await git(root, ["stash", "push", "--keep-index"]);
+  const committed = await commitThroughManager(root);
+  expect(committed.exitCode, committed.output).toBe(0);
+  await git(root, ["restore", "--source=refs/stash", "--worktree", "--", ":/"]);
+  await git(root, ["stash", "drop"]);
+  expect(await git(root, ["show", "HEAD:src/0.txt"])).toBe("staged");
+  expect(await readFile(path, "utf8")).toBe("staged\nunstaged\n");
+  expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
+  expect(await git(root, ["stash", "list"])).toBe("");
   expect(await executionReceipt(root)).toBe("executed\n");
 }, 60_000);
 
