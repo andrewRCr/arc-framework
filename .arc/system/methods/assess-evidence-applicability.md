@@ -89,17 +89,17 @@ boundary. This check supplies no review result for `arc review respond -` to bin
 
 Re-enter the same applicability route over the fixed head. The Owner chooses once there, with the findings and fix
 in view; do not run the movement check again. Recommend `review-required`, or `changed` at the reconcile, unless
-every approved fix only adds verification and the residual judgment gives `supplemental`; then recommend `covered`, or
-`targeted-check` at the reconcile on the check and the fix's proof. Disclose that `covered` or `targeted-check`
-accepts a fix no pass has read; the earlier check read the movement, not this fix.
-Follow the returned typed continuation after the Owner chooses.
+the check found no material defect in what the change does, every approved fix only adds verification, and the
+residual judgment gives `supplemental`; then recommend `covered`, or `targeted-check` at the reconcile on the check
+and the fix's proof. Disclose that `covered` or `targeted-check` accepts a fix no pass has read; the earlier check read
+the movement, not this fix. Follow the returned typed continuation after the Owner chooses.
 
 #### Land an approved fix under a bound delivery
 
-Present the findings and recommend `review-required`, or `changed` at the reconcile, with the same exception for
-fixes that only add verification. Obtain the Owner's applicability choice before authoring the fix; disclose that
-`covered` or `targeted-check` governs only until the fix lands. While this approved fix remains unlanded, request no
-pass for its member and take it to no landing preparation, whatever the choice returns.
+Present the findings and recommend `review-required`, or `changed` at the reconcile, with the same exception and
+conditions as outside a bound delivery. Obtain the Owner's applicability choice before authoring the fix; disclose
+that `covered` or `targeted-check` governs only until the fix lands. While this approved fix remains unlanded,
+request no pass for its member and take it to no landing preparation, whatever the choice returns.
 
 Enter the selector-free `arc delivery review-fix continue -` procedure in [deliver-stack] before authoring a
 correction. Follow any existing correction through that procedure; do not interleave a new task with an open
