@@ -5,6 +5,7 @@
  */
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import * as helpers from "./helpers.js";
+import * as cli from "../helpers/run-cli.js";
 
 export * from "./helpers.js";
 
@@ -36,3 +37,6 @@ export const runArcWithStdoutPipe: typeof helpers.runArcWithStdoutPipe = (args, 
 /** {@link helpers.runArcWithStdin} on the test process's store selection. */
 export const runArcWithStdin: typeof helpers.runArcWithStdin = (args, cwd, stdin, options) =>
   helpers.runArcWithStdin(args, cwd, stdin, { ...options, env: inherited(options?.env) });
+
+/** {@link cli.runCli} on the test process's store selection. */
+export const runCli: typeof cli.runCli = (args, options) => cli.runCli(args, { ...options, env: inherited(options?.env) });

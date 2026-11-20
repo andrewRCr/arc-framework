@@ -1,7 +1,10 @@
 /** Seed a temporary repository's ref store in process, as the starting state a test that spawns the CLI reads. */
+import { randomUUID } from "node:crypto";
+
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
 import type { RecordReference } from "../../../src/lib/store/identity.js";
+import { projectIdentityRecord } from "../../../src/lib/store/project-identity.js";
 import type { StoreRecord } from "../../../src/lib/store/read.js";
 import { findTrackedStateRefusal } from "../../../src/lib/store/selection.js";
 import type { Slug } from "../../../src/lib/kernel/index.js";
@@ -70,4 +73,17 @@ export async function removeStoreRecord(root: string, identity: Slug, reference:
   const result = await createRefStore({ ...ports, identity: async () => identity }).batch({ provenance,
     writes: [{ action: "remove", reference: held.reference, expected: held.version }] });
   if (result.status !== "ok") throw refused(result.refusal, "removal");
+}
+
+/**
+ * Hold a project identity in a repository's ref store, as `arc init` records one, for a test whose repository never
+ * initialized ARC but runs a verb that keys its records by the project.
+ * @param root - The temporary repository's checkout.
+ * @param identity - The ARC identity the write runs as.
+ * @returns The project's ID.
+ */
+export async function seedProjectIdentity(root: string, identity: Slug): Promise<string> {
+  const id = randomUUID();
+  await seedStore(root, identity, [projectIdentityRecord(id)]);
+  return id;
 }

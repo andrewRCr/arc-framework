@@ -869,6 +869,29 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - _Store counterparts, by subject only:_ the native delivery-member review tests, among them
           `delivery-review-native-refusal`, `review-hosted-native-refusal`, `delivery-review-fix-native`, and
           `delivery-native-parity`.
+    - _Review surfaces, as moved (Task 3.4.c.4):_ the four files spawn through `e2e/store-default.ts`, which gains
+      `runCli` on the test process's store selection; `review-candidate-supersession` and `review-chunking` leave the
+      ledger. The 19 cases failing without the override become 20, one chunking case splitting in two: 17 run on the
+      store and 3 keep the override by subject.
+        - `review-protocol`: the fixture seeds `review-protocol` through `seedWorkUnit`, bound in place, and attests
+          through the verb; 12 cases run on the store. The unreadable-boundary case stays _In-repo_, since it corrupts
+          the boundary file the in-repo store keeps and the store refuses a malformed record, beside a store case
+          taking the wrong route and then the missing boundary record (`removeStoreRecord`).
+        - `review-candidate-supersession`: all three cases run on the store, reading the Candidate, the review
+          decisions, and the next-pass context through the store's composition, the result reader taking its store and
+          project identity as review's resolve passes them.
+        - `review-chunking` and `review-cli-surfaces` run verbs in repositories that never ran `arc init`; the store
+          keys review targets by the project identity, so their store cases hold one (`seedProjectIdentity`, through
+          `projectIdentityRecord`). The chunking resolver's bound and degraded arms read a delivery plan and state, so
+          they split into an _In-repo_ case by subject, delivery being paused on the store (§ 4.3). The planning-lane
+          classifier reads planning state tracked on the branch, which the store refuses, and leaves with tracked-state
+          removal, so its case keeps the override. The package-default no-op case gains an author and a first commit:
+          the store records its project as a commit and reads the checkout's branch to bind a review.
+        - _Expectations changed, traced:_ local review and frontline continuations resubmit the `operationRef` their
+          preparation emits; the store names a closed opening window `frontline-window-closed`
+          (`frontline-command.ts`); a frontline skip is one durable `lane-skip` review decision, not a `frontline-phase`
+          operation (`recordNativeFrontlineSkip`); and the re-root refusal names the predecessor Candidate by its
+          record's store version (`readStoredCandidateSupersessionChain`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

@@ -14,6 +14,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 import { fakeCodeRabbitCompletionLines } from "../helpers/fake-coderabbit.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { removeStoreRecord } from "../helpers/store/seed-store.js";
 
 import {
   cleanupTempDir,
@@ -22,7 +28,7 @@ import {
   runArc,
   runArcWithStdin,
   type RunResult,
-} from "./helpers.js";
+} from "./store-default.js";
 
 interface ReviewTarget {
   schemaVersion: 2;
@@ -39,6 +45,7 @@ interface ReviewTarget {
 
 interface LocalPreparePayload {
   operationId: string;
+  operationRef?: string;
   target: ReviewTarget;
   request: { evaluatorIdentity: string };
   reviewerPayload: {
@@ -89,6 +96,7 @@ interface ReductionFindingsPayload {
 
 interface FrontlineTerminalPayload {
   operationId: string;
+  operationRef?: string;
 }
 
 const roots: string[] = [];
@@ -106,6 +114,34 @@ async function invoke(root: string, command: string[], request: unknown): Promis
   return envelope(await runArcWithStdin(command, root, `${JSON.stringify(request)}\n`));
 }
 
+/** Whether the running case composes the ref store, which every case does unless it sets the in-repo override.
+ * @returns True on the ref store.
+ */
+function onStore(): boolean {
+  return process.env[IN_REPO_STORE_OVERRIDE] !== "1";
+}
+
+const META_FIELDS = {
+  owner: "test-user",
+  branch: "feat/review-protocol",
+  workClass: "Light",
+  priority: "P2",
+  taskList: "tasks-review-protocol.md",
+  lastCompleted: "verification",
+  nextAction: "verification complete",
+} as const;
+const CLOSED_TASKS = "# Task List: Review Protocol\n\n## **Phase 1:** Verification\n\n"
+  + "### `[x]` **1.1 Verification complete**\n";
+
+/** Commit the state a verb left, which only the in-repo store keeps as tracked files; the store writes its records off
+ * the branch, so on it the checkout must hold nothing staged and no commit lands. */
+async function commitState(root: string, message: string): Promise<void> {
+  if (onStore()) expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
+  else await git(root, ["commit", "-m", message]);
+}
+
+/** A verified work unit on its branch, its reviewed change committed and its Candidate attested. The store holds the
+ * work unit bound in place; the in-repo store tracks its meta and task list on the branch. */
 async function fixture(): Promise<string> {
   const root = await createTempRepo("arc-review-protocol-");
   roots.push(root);
@@ -114,35 +150,31 @@ async function fixture(): Promise<string> {
   await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/review-protocol"]);
-  await mkdir(join(root, ".arc", "active"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"),
-    makeMetaFixture("review-protocol", {
-      owner: "test-user",
-      branch: "feat/review-protocol",
-      workClass: "Light",
-      priority: "P2",
-      taskList: "tasks-review-protocol.md",
-      lastCompleted: "verification",
-      nextAction: "verification complete",
-    }), "utf8");
-  await writeFile(
-    join(root, ".arc", "active", "tasks-review-protocol.md"),
-    "# Task List: Review Protocol\n\n- [x] Verification complete\n",
-    "utf8",
-  );
+  if (onStore()) {
+    await seedWorkUnit(root, "review-protocol", { identity: "test-user", branch: "feat/review-protocol", bind: root,
+      meta: { state: "Active", ...META_FIELDS }, taskList: CLOSED_TASKS });
+    await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+  } else {
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"),
+      makeMetaFixture("review-protocol", META_FIELDS), "utf8");
+    await writeFile(join(root, ".arc", "active", "tasks-review-protocol.md"), CLOSED_TASKS, "utf8");
+    await git(root, ["add", ".arc/active/meta-review-protocol.md", ".arc/active/tasks-review-protocol.md"]);
+  }
   await writeFile(join(root, "reviewed.txt"), "reviewed change\n", "utf8");
-  await git(root, [
-    "add",
-    ".arc/active/meta-review-protocol.md",
-    ".arc/active/tasks-review-protocol.md",
-    "reviewed.txt",
-  ]);
+  await git(root, ["add", "reviewed.txt"]);
   await git(root, ["commit", "-m", "add reviewed change"]);
   const attested = await runArc(["attest", "review-protocol", "--json"], root);
   expect(attested.exitCode, attested.stderr || attested.stdout).toBe(0);
-  await git(root, ["commit", "-m", "record verified Candidate"]);
+  await commitState(root, "record verified Candidate");
   expect(await git(root, ["status", "--porcelain"])).toBe("");
   return root;
+}
+
+/** The operation a continuation names: the store also takes the owner-bearing reference its preparation emitted. */
+function continuation(prepared: { operationId: string; operationRef?: string }): { operationId: string; operationRef?: string } {
+  return { operationId: prepared.operationId,
+    ...(prepared.operationRef === undefined ? {} : { operationRef: prepared.operationRef }) };
 }
 
 function localPrepareRequest(freshnessMs?: number) {
@@ -240,6 +272,8 @@ async function approvedRejection(
 
 describe("built review protocol", () => {
   it("distinguishes the singleton status route from an unreadable boundary", async () => {
+    // The in-repo store keeps the boundary as a file, which the case corrupts; the store refuses a malformed record.
+    useInRepoStore();
     const root = await fixture();
     const boundaryDir = join(root, ".arc", "system", ".internal", "candidates");
     const boundaryPath = join(boundaryDir, "review-protocol.boundary.json");
@@ -289,6 +323,35 @@ describe("built review protocol", () => {
     });
   });
 
+  it("distinguishes the singleton status route from a missing boundary record", async () => {
+    const root = await fixture();
+    const command = ["review", "status", "--work-unit", "review-protocol"];
+
+    const result = await runArc(command, root);
+
+    expect(result.exitCode).toBe(64);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      mode: "review-status",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "wrong-route",
+      remedy: { argv: ["arc", "review", "status", "--help"] },
+    });
+
+    await removeStoreRecord(root, SlugSchema.parse("test-user"), recordReferences["review/integration-boundary"](
+      OwnerIdentitySchema.parse({ type: "work-item", name: "review-protocol" })));
+    const missing = await runArc(command, root);
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+  });
+
   it("returns a typed refusal when exact-target status runs outside an ARC project", async () => {
     const root = await createTempRepo("arc-review-status-outside-");
     roots.push(root);
@@ -323,12 +386,12 @@ describe("built review protocol", () => {
     await expect(access(prepared.reviewerPayload.reviewRoot)).resolves.toBeUndefined();
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     })).resolves.toMatchObject({ state: "suspended", nextAction: "wait" });
 
     const attested = await invoke(root, ["review", "local", "attest", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
       result: localResult(prepared, "clean"),
     });
     expect(attested).toMatchObject({ state: "attested-current", nextAction: "reduce" });
@@ -345,18 +408,18 @@ describe("built review protocol", () => {
     });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     })).resolves.toMatchObject({ state: "review-complete", nextAction: "reduce" });
     await expect(invoke(root, ["review", "reduce", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
   });
 
   it("cancels a pending dispatch and accepts a fresh evaluator without settling the old review", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);
-    const request = { schemaVersion: 1, operationId: prepared.operationId };
+    const request = { schemaVersion: 1, ...continuation(prepared) };
     const cancelled = await invoke(root, ["review", "local", "cancel", "-"], request);
     expect(cancelled).toMatchObject({ state: "cancelled", nextAction: "rerun-review" });
     expect(cancelled.payload).not.toHaveProperty("result");
@@ -381,13 +444,13 @@ describe("built review protocol", () => {
     expect(replacement.target).toEqual(prepared.target);
     expect(replacement.request.evaluatorIdentity).toBe("reviewer-2");
     await expect(invoke(root, ["review", "local", "attest", "-"], {
-      schemaVersion: 1, operationId: replacement.operationId, result: localResult(replacement, "clean"),
+      schemaVersion: 1, ...continuation(replacement), result: localResult(replacement, "clean"),
     })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
     await expect(invoke(root, ["review", "local", "cancel", "-"], {
-      schemaVersion: 1, operationId: replacement.operationId,
+      schemaVersion: 1, ...continuation(replacement),
     })).resolves.toMatchObject({ state: "terminal-operation", nextAction: "resume-review" });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
-      schemaVersion: 1, operationId: replacement.operationId,
+      schemaVersion: 1, ...continuation(replacement),
     })).resolves.toMatchObject({ state: "review-complete", nextAction: "reduce" });
     expect(await git(root, ["status", "--porcelain"])).toBe("");
   });
@@ -397,7 +460,7 @@ describe("built review protocol", () => {
     const prepared = await prepareLocal(root);
     await expect(invoke(root, ["review", "local", "attest", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
       result: localResult(prepared, "findings"),
     })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
 
@@ -412,7 +475,7 @@ describe("built review protocol", () => {
     });
     const reduced = await invoke(root, ["review", "reduce", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     });
     expect(reduced).toMatchObject({ state: "findings", nextAction: "respond" });
     const responseSource = (reduced.payload as ReductionFindingsPayload).responseSource;
@@ -428,11 +491,11 @@ describe("built review protocol", () => {
       .resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     })).resolves.toMatchObject({ state: "review-complete", nextAction: "reduce" });
     await expect(invoke(root, ["review", "reduce", "-"], {
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
     })).resolves.toMatchObject({ state: "settled", nextAction: "none" });
   });
 
@@ -440,7 +503,7 @@ describe("built review protocol", () => {
     const root = await fixture();
     const prepared = await prepareLocal(root, 1);
     await new Promise((resolve) => setTimeout(resolve, 10));
-    const request = { schemaVersion: 1, operationId: prepared.operationId };
+    const request = { schemaVersion: 1, ...continuation(prepared) };
 
     const resumed = await Promise.all([
       invoke(root, ["review", "local", "resume", "-"], request),
@@ -466,18 +529,18 @@ describe("built review protocol", () => {
 
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
-      operationId: expired.operationId,
+      ...continuation(expired),
     })).resolves.toMatchObject({ state: "expired", nextAction: "rerun-review" });
 
     const renewed = await prepareLocal(root, 60_000);
     expect(renewed.operationId).toBe(expired.operationId);
     await expect(invoke(root, ["review", "local", "resume", "-"], {
       schemaVersion: 1,
-      operationId: renewed.operationId,
+      ...continuation(renewed),
     })).resolves.toMatchObject({ state: "suspended", nextAction: "wait" });
     await expect(invoke(root, ["review", "local", "attest", "-"], {
       schemaVersion: 1,
-      operationId: renewed.operationId,
+      ...continuation(renewed),
       result: localResult(renewed, "clean"),
     })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
   });
@@ -488,7 +551,7 @@ describe("built review protocol", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     const request = {
       schemaVersion: 1,
-      operationId: expired.operationId,
+      ...continuation(expired),
     };
 
     const [renewed, resumed] = await Promise.all([
@@ -515,7 +578,7 @@ describe("built review protocol", () => {
     const prepared = await prepareLocal(root);
     const request = (result: "clean" | "findings") => ({
       schemaVersion: 1,
-      operationId: prepared.operationId,
+      ...continuation(prepared),
       result: localResult(prepared, result),
     });
 
@@ -594,7 +657,7 @@ describe("built review protocol", () => {
     expect(refresh).toMatchObject({ status: "blocked", nextAction: "establish-new-root" });
     const refreshed = await runArc(refresh.continuation.argv.slice(1), root);
     expect(refreshed.exitCode, refreshed.stderr || refreshed.stdout).toBe(0);
-    await git(root, ["commit", "-m", "record changed Candidate"]);
+    await commitState(root, "record changed Candidate");
     const current = { ...target, headSha: await git(root, ["rev-parse", "HEAD"]) };
     const refused = await runArcWithStdin(["review", "frontline", "run", "-"], root,
       JSON.stringify({ schemaVersion: 1, target: current, resolution: ready }));
@@ -617,7 +680,7 @@ describe("built review protocol", () => {
     });
     expect(resolved).toMatchObject({
       state: "skipped", nextAction: "none",
-      diagnostics: [{ code: "frontline-phase-closed" }],
+      diagnostics: [{ code: "frontline-window-closed" }],
       payload: { routing: { facts: { reviewRisk: "sensitive" } } },
     });
   });
@@ -739,10 +802,9 @@ describe("built review protocol", () => {
     await expect(invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest))
       .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
 
-    const operationId = (first.payload as FrontlineTerminalPayload).operationId;
     await expect(invoke(root, ["review", "reduce", "-"], {
       schemaVersion: 1,
-      operationId,
+      ...continuation(first.payload as FrontlineTerminalPayload),
     })).resolves.toMatchObject({
       state: "advisory-complete",
       nextAction: "none",

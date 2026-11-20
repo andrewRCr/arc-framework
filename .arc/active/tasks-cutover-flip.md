@@ -818,7 +818,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               and each changed expectation traces to a store contract. `integration/validate-cohort-consistency.test.ts`
               keeps its override as an in-repo subject (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.c Review, attest, candidate, and publication**
+    - `[x]` **3.4.c Review, attest, candidate, and publication**
         - Among them `registerCandidateLineageSuite` (`__tests__/helpers/candidate-lineage-suite.ts`) and the review
           fan-out harness's `installCandidate` and `writeBoundary` (`__tests__/fixtures/review-fan-out-harness.ts`).
         - _Amended (Owner, 2026-11-18):_ from Task 3.R.h, the store cases at the handler that
@@ -853,9 +853,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               `writeBoundary` with them; the singleton hosted progression runs on the store (`notes-cutover-flip.md`
               § Test callers).
 
-        - `[ ]` **3.4.c.4 Review surfaces**
+        - `[x]` **3.4.c.4 Review surfaces**
             - `e2e/review-protocol.e2e.test.ts`, `review-candidate-supersession`, `review-chunking`, and
-              `review-cli-surfaces`, the last two spawning through `runCli`.
+              `review-cli-surfaces` spawn through `e2e/store-default.ts`, which gains `runCli`; the middle two leave the
+              ledger. They seed through `seedWorkUnit` or, where no `arc init` ran, `seedProjectIdentity`; the corrupted
+              boundary, the chunking resolver's delivery arms, and the planning-lane classifier keep the override by
+              subject. Each changed expectation traces to a store contract (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.d Delivery**
         - Among them `positionFixture` (`__tests__/helpers/delivery-position-suite.ts`).

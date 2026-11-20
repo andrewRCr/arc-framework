@@ -13,8 +13,10 @@ import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate
 import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
-import { runCli } from "../helpers/run-cli.js";
+import { runCli } from "./store-default.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { adversarialRecordStep } from "../../src/lib/store/pre-flip-steps.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -356,6 +358,8 @@ exec "${realGit}" "$@"
   });
 
   it("classifies an exact planning change through the packaged CLI", async () => {
+    // The classifier reads planning state tracked on the branch, which the store refuses.
+    useInRepoStore();
     await run("git", ["config", "user.email", "arc@example.invalid"], { cwd: fixtureRoot });
     await run("git", ["config", "user.name", "ARC Test"], { cwd: fixtureRoot });
     await run("git", ["add", "."], { cwd: fixtureRoot });
@@ -421,6 +425,12 @@ exec "${realGit}" "$@"
       completedPasses: 0,
       attempts: [],
     })}\n`);
+    // The store records its project as a commit, and binds a review to the work unit on the checkout's branch, so the
+    // repository needs an author and a first commit.
+    await run("git", ["config", "user.email", "arc@example.invalid"], { cwd: fixtureRoot });
+    await run("git", ["config", "user.name", "ARC Test"], { cwd: fixtureRoot });
+    await run("git", ["commit", "--allow-empty", "-qm", "base"], { cwd: fixtureRoot });
+    await seedProjectIdentity(fixtureRoot, SlugSchema.parse("test-user"));
 
     const result = await runCli(["review", "resolve", inputPath], {
       cwd: fixtureRoot,
