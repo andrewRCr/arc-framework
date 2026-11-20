@@ -25,6 +25,8 @@ import { promisify } from "node:util";
 
 import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../src/lib/store/identity.js";
 import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
 import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { LifecycleCommandRefusalSchema } from "../../src/handlers/lifecycle-shared.js";
@@ -53,6 +55,8 @@ import {
 import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -147,7 +151,8 @@ function taskDocument(): string {
  *
  * The readers above are reached directly, over a bare repository. The ceremony is reached through its
  * handler, so it needs everything attestation checks before it ever collects a subject — a resolvable
- * identity, an Active meta, a task list with nothing open, and no reviewable path the index is missing.
+ * identity, an Active meta and a task list with nothing open, both held in the store and bound to the checkout,
+ * and no reviewable path the index is missing.
  */
 async function attestableWorkUnit(state: "Active" | "Integrating" = "Active"): Promise<string> {
   const root = await initInTempRepo(DEFAULT_PROMPTS);
@@ -156,9 +161,11 @@ async function attestableWorkUnit(state: "Active" | "Integrating" = "Active"): P
   await arcGit(root, ["commit", "-m", "init"]);
 
   await arcGit(root, ["switch", "-c", `feat/${WORK_UNIT}`]);
-  await mkdir(join(root, ".arc", "active"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(state), "utf-8");
-  await writeFile(join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`), taskDocument(), "utf-8");
+  await seedWorkUnit(root, WORK_UNIT, {
+    identity: "test-user", content: metaDocument(state), taskList: taskDocument(), branch: `feat/${WORK_UNIT}`,
+    bind: root,
+  });
+  await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
   await mkdir(join(root, "src"), { recursive: true });
   await writeFile(join(root, BRANCH_PATH), "branch contribution\n", "utf-8");
   await arcGit(root, ["add", "-A"]);
@@ -378,10 +385,6 @@ describe("the integration checkpoint over an ambiguous history", () => {
     const root = await attestableWorkUnit();
     const attested = await attest(root);
     expect(attested.exitCode).toBe(0);
-    // Attestation stages its managed record and meta projection rather than committing them; they ride the
-    // verification commit, which is what has to exist before the branch can move.
-    await arcGit(root, ["add", "-A"]);
-    await arcGit(root, ["commit", "-m", "verification"]);
     await crossTheBase(root);
     // Base drift reads the branch against its published base, so the pair only exists once main is published.
     // It is pushed after the crossing, which is the state an operator is actually in when they checkpoint.
@@ -395,20 +398,27 @@ describe("the integration checkpoint over an ambiguous history", () => {
   }
 
 
+  /** The stored work item the checkpoint's handler binds its review ports to. */
+  async function storedWorkItem(root: string): Promise<OwnerIdentity> {
+    const owner = OwnerIdentitySchema.parse({ type: "work-item", name: WORK_UNIT });
+    return (await readStoreRecord(root, SlugSchema.parse("test-user"), recordReferences["work-item/meta"](owner)))
+      .reference.owner;
+  }
+
   /**
    * Supply the exact-coordinate observation a hosted change request carries, and nothing else.
    *
    * Everything the pairing is about — the drift reading, the movement plan it feeds, the projection the
-   * reconcile route consults next — stays the production composition's own. Only the host admission is
-   * arranged, because it is read from a change request no local repository has, and it is upstream of the
-   * two readings that have to disagree here.
+   * reconcile route consults next — stays the production composition's own, bound to the stored work item as the
+   * handler binds it. Only the host admission is arranged, because it is read from a change request no local
+   * repository has, and it is upstream of the two readings that have to disagree here.
    */
   function withHostedObservation(root: string) {
     const exec = createGitExec();
     return async (_cwd: string, workUnit: string) => checkpointIntegration(
       { schemaVersion: 1, workUnit },
       {
-        ...createIntegrationCheckpointDependencies({ cwd: root, exec }),
+        ...createIntegrationCheckpointDependencies({ cwd: root, exec, workItem: await storedWorkItem(root) }),
         readMovementObservation: async (_name, drift) => {
           const coordinates = { base: drift.baseOid ?? "", head: drift.headOid ?? "" };
           return {

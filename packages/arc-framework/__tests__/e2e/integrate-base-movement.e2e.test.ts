@@ -15,8 +15,10 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
 import {
   advanceBase,
   arrangeBranchSide,
@@ -24,7 +26,10 @@ import {
   writeUnavailableBaseReadShim,
   type BaseMovementKind,
 } from "../helpers/base-advance.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { seedProjectIdentity } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,6 +54,13 @@ const META = `${makeMetaFixture(WORK_UNIT, {
   taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "verification",
   nextAction: "verification complete",
 })}\n## Completion Notes\n\nAdded one surface and its verification.\n`;
+const TASKS = "# Task List: Example\n\n- [x] Verification complete\n";
+
+/** Whether the running case is on the store, which holds the work unit's records off the branch, rather than on the
+ * in-repo store, which keeps them as tracked files a case commits. */
+function onStore(): boolean {
+  return process.env[IN_REPO_STORE_OVERRIDE] === undefined;
+}
 
 /**
  * A host answering only what landing asks of it, for one open change request on the work unit's branch.
@@ -203,9 +215,21 @@ async function publishedAtLanding(
   }
 
   await git(repository, ["checkout", "-b", HEAD_REF]);
-  await mkdir(join(repository, ".arc", "active"), { recursive: true });
+  const store = onStore();
+  if (store) {
+    // The store holds the work unit, its task list beside it, bound to this checkout, where `arc init` never ran.
+    await seedProjectIdentity(repository, SlugSchema.parse("test-user"));
+    await seedWorkUnit(repository, WORK_UNIT, {
+      identity: "test-user", content: META, taskList: TASKS, branch: HEAD_REF, bind: repository,
+    });
+    await writeFile(join(repository, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", {
+      flag: "a",
+    });
+  } else {
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, ".arc", "active", `meta-${WORK_UNIT}.md`), META);
+  }
   await mkdir(join(repository, "src"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", `meta-${WORK_UNIT}.md`), META);
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "implementation"]);
@@ -213,11 +237,10 @@ async function publishedAtLanding(
   if (options.branchPaths !== undefined) {
     await arrangeBranchSide({ cwd: repository, paths: options.branchPaths });
   }
-  await writeFile(
-    join(repository, ".arc", "active", `tasks-${WORK_UNIT}.md`),
-    "# Task List: Example\n\n- [x] Verification complete\n",
-  );
-  await git(repository, ["add", `.arc/active/tasks-${WORK_UNIT}.md`]);
+  if (!store) {
+    await writeFile(join(repository, ".arc", "active", `tasks-${WORK_UNIT}.md`), TASKS);
+    await git(repository, ["add", `.arc/active/tasks-${WORK_UNIT}.md`]);
+  }
 
   const host = await installHost(
     repository,
@@ -249,10 +272,13 @@ async function publishedAtLanding(
   );
   expect(published.exitCode, published.stdout + published.stderr).toBe(0);
 
-  // Publication leaves its lifecycle edit staged and the push to the caller; readiness reads the committed
-  // tree, so the boundary is only reachable once both have happened.
-  await git(repository, ["add", "-A"]);
-  await git(repository, ["commit", "-m", "publish"]);
+  // Publication leaves the push to the caller, and on the in-repo store its lifecycle edit staged too; readiness
+  // reads the committed tree, so the boundary is only reachable once both have happened. The store's records need no
+  // commit.
+  if (!store) {
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "publish"]);
+  }
   await publishHead();
   await git(repository, ["push", "-u", "origin", HEAD_REF]);
 
@@ -376,29 +402,6 @@ async function advanceFor(
 }
 
 describe("the window between a minted handle and the merge that consumes it", () => {
-  it("preserves the continuation for local overlapping-regenerable-only movement before terminal host merge", async () => {
-    const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
-    const fixture = await publishedAtLanding({ branchPaths: paths.branch });
-    const handle = await mintHandle(fixture);
-    await advanceFor(fixture, "overlapping-regenerable-only");
-    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "false");
-    const remote = join(fixture.repository, ".arc-fixture", "origin.git");
-    const baseBefore = await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]);
-    const result = await runMerge(fixture, handle);
-    expect(result, JSON.stringify(result)).toMatchObject({
-      state: "invalidated", nextAction: "checkpoint",
-      payload: { final: { plan: {
-        state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict",
-      } } },
-    });
-    expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
-      .toBe(baseBefore);
-    expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
-    expect(await takeContinuation(fixture, result)).toMatchObject({
-      state: "reconcile", nextAction: "reconcile-regenerable",
-    });
-  });
-
   it.each(["current", "lagging"] as const)(
     "merges the approved head after a path-disjoint advance under a %s host test merge", async (testMerge) => {
       const fixture = await publishedAtLanding();
@@ -445,45 +448,6 @@ describe("the checkpoint's own base read", () => {
     expect(result["remedy"], JSON.stringify(result)).toMatchObject({
       argv: ["arc", "base", "drift", "--json"],
     });
-  });
-
-  it("offers a reconcile for an advance over the regenerable projection alone", async () => {
-    const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
-    const fixture = await publishedAtLanding({ branchPaths: paths.branch });
-    await advanceFor(fixture, "overlapping-regenerable-only");
-    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "false");
-    const oldHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
-
-    const result = await runCheckpoint(fixture);
-
-    expect(result, JSON.stringify(result)).toMatchObject({
-      state: "reconcile",
-      nextAction: "reconcile-regenerable",
-      reason: "regenerable-reconcile-required",
-      payload: {
-        observation: {
-          movement: "disjoint",
-          feasibility: { state: "regenerable-conflict", paths: [...paths.base] },
-        },
-      },
-    });
-    const coordinates = result["coordinates"] as { observedBaseOid: string };
-    expect(await takeContinuation(fixture, result)).toMatchObject({ state: "merged", nextAction: "run-quality-gates" });
-    const repairedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
-    expect(await git(fixture.repository, ["rev-list", "--parents", "-n", "1", "HEAD"]))
-      .toBe(`${repairedHead} ${oldHead} ${coordinates.observedBaseOid}`);
-    expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
-    expect(await git(fixture.repository, ["ls-files", "--unmerged"])).toBe("");
-    expect(await readFile(join(fixture.repository, ".arc", "backlog", "ROADMAP.md"), "utf8"))
-      .not.toContain("<<<<<<<");
-    await git(fixture.repository, ["push", "origin", HEAD_REF]);
-    await writeFile(join(fixture.repository, ".arc-fixture", "head-sha"), repairedHead);
-    const stillRefused = await runCheckpoint(fixture);
-    expect(stillRefused).toMatchObject({ state: "blocked", reason: "host-refused" });
-    expect(stillRefused["payload"]).not.toHaveProperty("checkpointHandle");
-    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "true");
-    const refreshed = await runCheckpoint(fixture);
-    expect(refreshed, JSON.stringify(refreshed)).toMatchObject({ state: "ready", nextAction: "request-approval" });
   });
 
   it("reaches approval across a disjoint advance while the host test merge lags, without changing the head", async () => {
@@ -567,8 +531,76 @@ describe("the checkpoint's base read under a bound delivery plan", () => {
       },
     });
   });
+});
+
+describe("regenerable base movement over the in-repo store", () => {
+  // A tracked ROADMAP and its regeneration are the in-repo store's: these cases commit `ROADMAP.md` on both sides,
+  // and the classifier arm that reads it as regenerable leaves with the in-repo implementation.
+  useInRepoStoreForEach();
+
+  it("preserves the continuation for local overlapping-regenerable-only movement before terminal host merge", async () => {
+    const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
+    const fixture = await publishedAtLanding({ branchPaths: paths.branch });
+    const handle = await mintHandle(fixture);
+    await advanceFor(fixture, "overlapping-regenerable-only");
+    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "false");
+    const remote = join(fixture.repository, ".arc-fixture", "origin.git");
+    const baseBefore = await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]);
+    const result = await runMerge(fixture, handle);
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "invalidated", nextAction: "checkpoint",
+      payload: { final: { plan: {
+        state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict",
+      } } },
+    });
+    expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+      .toBe(baseBefore);
+    expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
+    expect(await takeContinuation(fixture, result)).toMatchObject({
+      state: "reconcile", nextAction: "reconcile-regenerable",
+    });
+  });
 
   it("offers a reconcile for an advance over the regenerable projection alone", async () => {
+    const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
+    const fixture = await publishedAtLanding({ branchPaths: paths.branch });
+    await advanceFor(fixture, "overlapping-regenerable-only");
+    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "false");
+    const oldHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+
+    const result = await runCheckpoint(fixture);
+
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "reconcile",
+      nextAction: "reconcile-regenerable",
+      reason: "regenerable-reconcile-required",
+      payload: {
+        observation: {
+          movement: "disjoint",
+          feasibility: { state: "regenerable-conflict", paths: [...paths.base] },
+        },
+      },
+    });
+    const coordinates = result["coordinates"] as { observedBaseOid: string };
+    expect(await takeContinuation(fixture, result)).toMatchObject({ state: "merged", nextAction: "run-quality-gates" });
+    const repairedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    expect(await git(fixture.repository, ["rev-list", "--parents", "-n", "1", "HEAD"]))
+      .toBe(`${repairedHead} ${oldHead} ${coordinates.observedBaseOid}`);
+    expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repository, ["ls-files", "--unmerged"])).toBe("");
+    expect(await readFile(join(fixture.repository, ".arc", "backlog", "ROADMAP.md"), "utf8"))
+      .not.toContain("<<<<<<<");
+    await git(fixture.repository, ["push", "origin", HEAD_REF]);
+    await writeFile(join(fixture.repository, ".arc-fixture", "head-sha"), repairedHead);
+    const stillRefused = await runCheckpoint(fixture);
+    expect(stillRefused).toMatchObject({ state: "blocked", reason: "host-refused" });
+    expect(stillRefused["payload"]).not.toHaveProperty("checkpointHandle");
+    await writeFile(join(fixture.repository, ".arc-fixture", "mergeable"), "true");
+    const refreshed = await runCheckpoint(fixture);
+    expect(refreshed, JSON.stringify(refreshed)).toMatchObject({ state: "ready", nextAction: "request-approval" });
+  });
+
+  it("offers a reconcile for an advance over the regenerable projection alone under a bound delivery plan", async () => {
     const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
     const fixture = await publishedAtLanding({ predecessor: true, branchPaths: paths.branch });
     await bindDeliveryPlan(fixture);

@@ -944,9 +944,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               evidence-neutral kinds keep the override by subject; the clean merge commits no ROADMAP
               (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.f.2 The integration checkpoint and teardown over base movement**
-            - `e2e/integrate-base-movement.e2e.test.ts`, `teardown-base-movement`, and
-              `integration/history-shape-ambiguity.test.ts`, which leaves the ledger.
+        - `[x]` **3.4.f.2 The integration checkpoint and teardown over base movement**
+            - `e2e/integrate-base-movement.e2e.test.ts` and `teardown-base-movement` spawn through
+              `e2e/store-default.ts`, and `integration/history-shape-ambiguity.test.ts` leaves the ledger; 19 of their 23
+              cases run on the store, seeding their work units there, with no expectation changed. The regenerable
+              movement kinds and teardown's refusal over an unavailable base read keep the override by subject
+              (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.f.3 Work-unit review status over base movement**
             - `integration/review-status-base-movement.test.ts`, which leaves the ledger.

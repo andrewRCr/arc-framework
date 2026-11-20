@@ -1120,6 +1120,23 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           `movementPaths` commits `ROADMAP.md` and a work unit's notes for them, and the classifier arms they reach
           leave with the in-repo implementation. They compose no store, so the override marks their subject rather
           than changing what they run; the disjoint and substantive kinds, which touch only code, stay unmarked.
+    - _The integration checkpoint and teardown over base movement, as moved (Task 3.4.f.2):_ the two end-to-end files
+      spawn through `e2e/store-default.ts` and `history-shape-ambiguity` leaves the ledger; 19 of the 23 cases run on
+      the store and 4 keep the override by subject, each in a describe of its own. No expectation changed.
+        - `integrate-base-movement`'s fixture holds the published work unit in the store, where `arc init` never ran
+          (`seedProjectIdentity`, then `seedWorkUnit` bound to the checkout with its task list), and publication leaves
+          nothing to commit. Seven cases run there, both bound-delivery-plan cases among them; the three regenerable
+          cases keep the override, as the task names, since both sides of that movement commit `ROADMAP.md`.
+        - `teardown-base-movement`'s shipped work unit is held completed in the store, linked to its branch, and the
+          disjoint advance reaps there. Its refusal when the base read fails keeps the override: the in-repo teardown
+          reads lifecycle authority from the fetched base under full protection, while the store's reads retirement
+          from the record and proves landing against the refreshed base or, when the refresh fails, the base the clone
+          holds (`resolveLifecycleBase`, `lib/git/lifecycle-ref-refresh.ts`), so that case reaps on the store.
+        - `history-shape-ambiguity`'s attestation and checkpoint cases hold the work unit in the store, and attestation
+          needs no verification commit. The checkpoint case composes the checkpoint's dependencies by hand, so it binds
+          them to the stored work item as the handler does (`resolveIntegrationReviewInvocation`,
+          `handlers/integration.ts`); unbound, the store's review ports refuse. Its readers over bare repositories
+          compose no store.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that
