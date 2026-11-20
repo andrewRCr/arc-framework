@@ -697,8 +697,8 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
       (`useInRepoStoreForEach`, its template built under `withInRepoStore`): its subject, a branch still tracking its
       work unit's meta after the base archived it, exists only there, since the flip build refuses a checkout whose head
       tracks ARC state and store teardown reads no checkout's lifecycle files.
-        - The markerless and remove-preference cases pass once store teardown refuses a markerless holder and reopens
-          its store from the primary (A20, Task 3.R6).
+        - The markerless and remove-preference cases pass once store teardown refuses a markerless holder (A20, Task
+          3.R6) and the store keeps working after a self-teardown removes its checkout (A21, Task 3.R7).
         - The nonexistent receipt-backed target is _In-repo_ (`useInRepoStore`), a retirement receipt being tracked
           state, beside a store case: a target no record names refuses as `not-found`.
         - _Expectations changed, each traced:_
@@ -719,6 +719,29 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
             - A dirty self-teardown refuses in the shared removal check's words, naming the dirty path
               (`checkWorktreeRemoval`, `lib/git/worktree-removal.ts`), where the in-repo arm added that the checkout
               remains branched and unchanged; the case reads both from the checkout.
+    - _Abandon, activation, and archive, as moved (Task 3.4.b.2):_ the three files spawn through `e2e/store-default.ts`.
+      `lifecycle-exit`'s choreography stays _In-repo_ whole (`useInRepoStoreForEach`, its shared `beforeEach` with it):
+      its decomposition, parking, and abandonment stage their artifacts' removal and a transition record on the work
+      unit's own branch, and its teardown cases read the retirement from that history, neither of which the store has.
+      Its eight failing cases are that arm's: abandonment refusing outside its source branch, abandonment deferring
+      teardown to a commit, and teardown reading a historical deletion. A store block holds an Active work unit in the
+      store, the linked checkout ARC spawned for it on its created branch and published to a designated `origin`
+      (`startedInLinkedCheckout`); abandoned from the primary, it retires the record, removes the checkout, and reaps the
+      branch locally and on `origin` in one command, and `e2e/store-checkout-removal.e2e.test.ts` runs the same from the
+      checkout itself (A21, Task 3.R7).
+        - The fixture projects that checkout through `arc save`, as spawning leaves one, and pushes without hooks. A
+          marked work-unit checkout holds a projection, so removal refuses it as unobservable while its index is
+          missing (`checkProjectionRemoval`); the case first passed only where the push's pre-push hook ran the CLI
+          there, and failed in the captured local end-to-end run, where it did not.
+        - `retirement-removal-check`'s dirty abandonment cases seed through `seedWorkUnit`, with the dirty file in a
+          linked checkout ARC spawned and marked: an Active work unit's on its created branch, a Planning one's detached
+          at base. A checkout ARC did not spawn is released with its files, so only a spawned one reaches the removal
+          check. Activation from a meta whose Branch names `main` stays _In-repo_, since the store creates the branch at
+          activation from base without reading that field; the dirty park case already kept the override.
+        - `staged-archive-recovery` stays _In-repo_ whole: archival stages the meta's move to `.arc/completed/` only
+          there, and the flip build refuses a checkout whose head tracks the meta.
+        - _Expectation changed, traced:_ the dirty abandonment cases compare the record the store holds before and
+          after (`readStoreRecord`), where the in-repo cases read the committed meta file.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

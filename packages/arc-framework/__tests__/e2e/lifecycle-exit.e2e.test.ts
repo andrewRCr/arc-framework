@@ -46,8 +46,12 @@ import {
   cleanupTempDir,
   removeGitBackedDir,
   unwrapPresentationOutput,
-} from "./helpers.js";
-import { useInRepoStore } from "../helpers/in-repo-store-override.js";
+} from "./store-default.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -379,7 +383,12 @@ async function repositorySnapshot(cwd: string): Promise<{
   };
 }
 
+// Decomposition, parking, and abandonment here stage their artifacts' removal and a transition record on the work unit's
+// own branch, and teardown reads the retirement from that history, only in the in-repo store; the store retires with one
+// record write from any checkout and cleans up in the same command (below), and the flip build refuses a checkout whose
+// head tracks the meta.
 describe("lifecycle exit choreography (CLI seam)", () => {
+  useInRepoStoreForEach();
   let repo: string;
   const worktrees: string[] = [];
   const externalDirs: string[] = [];
@@ -437,7 +446,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("builds one exact started-planning decomposition fixture through the installed surface", async () => {
-    useInRepoStore();
     const remote = await mkdtemp(join(tmpdir(), "arc-decompose-remote-"));
     externalDirs.push(remote);
     await execFileAsync("git", ["init", "--bare", remote]);
@@ -779,7 +787,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("arc park@Planning relocates to backlog/planned/ and defers branch + worktree teardown", async () => {
-    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);
@@ -805,7 +812,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land stages the exact planning result on a partial-protection base", async () => {
-    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
 
@@ -824,7 +830,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land preserves nested cohort placement", async () => {
-    useInRepoStore();
     const cohort = "portfolio/subgroup";
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo", cohort);
     worktrees.push(worktree);
@@ -838,7 +843,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("full-protection park commit round-trips to a stamped planning husk", async () => {
-    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree!, {
@@ -871,7 +875,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("partial-protection park landing preserves receipt-free teardown authority", async () => {
-    useInRepoStore();
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await git(repo, ["remote", "set-url", "origin", origin]);
@@ -898,7 +901,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a non-tip transition without writing the base", async () => {
-    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
@@ -912,7 +914,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a planning branch without a registered owner", async () => {
-    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await git(repo, ["worktree", "remove", worktree]);
@@ -925,7 +926,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a broken direct-transition relation", async () => {
-    useInRepoStore();
     const { worktree } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
@@ -939,7 +939,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses an outside transition path without writing the base", async () => {
-    useInRepoStore();
     const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
     expect(worktree).toBeDefined();
     worktrees.push(worktree!);
@@ -965,7 +964,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ["a surviving source artifact", "source-survivor"],
     ["an invalid ROADMAP transition", "invalid-roadmap"],
   ] as const)("arc park --land refuses %s without writing the base", async (_label, fault) => {
-    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(
       repo,
       "solo",
@@ -982,7 +980,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it("arc park --land refuses a conflicting base slug without a partial write", async () => {
-    useInRepoStore();
     const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     const conflictDir = join(repo, ".arc/backlog/provisional/solo");
@@ -1001,7 +998,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("fails closed when historical abandon evidence does not bind the retiring branch", async () => {
-    useInRepoStore();
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree, {
@@ -1040,7 +1036,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     ["abandon", "commit"], ["abandon", "discard"],
     ["park", "commit"], ["park", "discard"],
   ] as const)("%s names staged paths and retries after %s repair", async (verb, repair) => {
-    useInRepoStore();
     await scaffoldStartedWu(repo, "mono", "in-place");
     const paths = ["staged one.txt", "staged-two.txt"];
     for (const path of paths) await writeFile(join(repo, path), "unrelated change\n");
@@ -1256,5 +1251,62 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     // Nothing reaped — the refusal is before any mutation.
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
+  });
+});
+
+describe("lifecycle exit on the store (CLI seam)", () => {
+  let repo: string;
+  let origin: string;
+  let checkouts: string;
+
+  beforeEach(async () => {
+    repo = await createTempRepo("arc-exit-store-");
+    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+    expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+    await commitFixtureBypassingHooks(repo, "arc init");
+    origin = await mkdtemp(join(tmpdir(), "arc-exit-store-origin-"));
+    checkouts = await mkdtemp(join(tmpdir(), "arc-exit-store-wt-"));
+    await git(origin, ["init", "--bare", "--initial-branch=main"]);
+    await git(repo, ["remote", "add", "origin", origin]);
+    await git(repo, ["push", "-u", "origin", "main"]);
+    const designated = await runArc(["store", "remote", "origin", "push"], repo);
+    expect(designated.exitCode, designated.stdout + designated.stderr).toBe(0);
+  });
+
+  afterEach(async () => {
+    await git(repo, ["worktree", "prune"]).catch(() => undefined);
+    for (const path of [checkouts, origin]) await removeGitBackedDir(path);
+    await cleanupTempDir(repo);
+  });
+
+  /** An Active work unit held in the store, its created branch carrying unlanded work in the linked checkout ARC
+   * spawned for it, projected there as spawning leaves it, and published to origin. */
+  async function startedInLinkedCheckout(slug: string) {
+    const { meta } = await seedWorkUnit(repo, slug, { identity: "test-user", branch: `feat/${slug}`,
+      meta: { state: "Active", owner: "test-user", branch: `feat/${slug}` } });
+    await writeFile(join(repo, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    const worktree = join(checkouts, slug);
+    await git(repo, ["worktree", "add", "-b", `feat/${slug}`, worktree, "main"]);
+    await writeWorktreeMarker(worktree, { spawnedByArc: true, wuName: slug, createdFor: seededWorkUnitSubject(meta),
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00.000Z" });
+    const saved = await runArc(["save"], worktree);
+    expect(saved.exitCode, saved.stdout + saved.stderr).toBe(0);
+    await writeFile(join(worktree, "work.txt"), "unlanded\n");
+    await commitFixtureBypassingHooks(worktree, `work on ${slug}`);
+    await git(worktree, ["-c", "core.hooksPath=/dev/null", "push", "-u", "origin", `feat/${slug}`]);
+    return { worktree, record: () => readStoreRecord(repo, SlugSchema.parse("test-user"), meta.reference) };
+  }
+
+  it("abandons a started work unit from the primary, retiring its record and reaping the checkout and branch ARC created", async () => {
+    const h = await startedInLinkedCheckout("mono");
+
+    const abandon = await runArc(["abandon", "mono", "--yes"], repo);
+
+    expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
+    await expect(h.record()).rejects.toThrow(/not-found/u);
+    expect(await pathExists(h.worktree)).toBe(false);
+    expect(await git(repo, ["branch", "--list", "feat/mono"])).toBe("");
+    expect(await git(repo, ["ls-remote", "--heads", "origin", "feat/mono"])).toBe("");
+    expect(await git(repo, ["branch", "--show-current"])).toBe("main");
   });
 });

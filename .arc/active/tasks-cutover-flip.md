@@ -775,9 +775,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               beside a store not-found case, and each changed expectation traces to a store contract or an Owner
               decision (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.b.2 Abandon, activation, and archive**
-            - `e2e/lifecycle-exit.e2e.test.ts`, with its shared fixture, `retirement-removal-check`, and
-              `staged-archive-recovery`.
+        - `[x]` **3.4.b.2 Abandon, activation, and archive**
+            - `e2e/lifecycle-exit.e2e.test.ts`, `retirement-removal-check`, and `staged-archive-recovery` spawn through
+              `e2e/store-default.ts`. Lifecycle-exit's choreography, its shared fixture with it, and the staged archive
+              stay in-repo whole, beside a store block that abandons a seeded work unit from the primary; the dirty
+              abandonment cases seed through `seedWorkUnit` with the checkout ARC spawned (`notes-cutover-flip.md`
+              § Test callers).
 
         - `[ ]` **3.4.b.3 Rename**
             - `e2e/rename.e2e.test.ts` and `identity-operand-input`.
