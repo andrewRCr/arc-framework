@@ -232,12 +232,13 @@ async function executeResolvedRequest(
   const projected: PathListSelection = entries.some(([, check]) => check.mode === "selection")
     ? await requestProjectedSelection(io.readProjectedSelection ?? readProjectedSelection, root, request)
     : { status: "ok", paths: [] };
-  const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection, globalInputs: declaration.value.global_inputs });
+  const readRunner = onceEachCheckRunner(io);
+  const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection, globalInputs: declaration.value.global_inputs, readRunner });
   if (refusal !== undefined) return { kind: "error", exitCode: 2, error: { kind: "refused", message: refusal } };
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
-    const result = await runRequestedCheck({ id, check, root, projected, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request);
+    const result = await runRequestedCheck({ id, check, root, projected, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check), readRunner }, io, request);
     if (request.dryRun) {
       const last = await io.reports?.latest(id);
       if (last) result.lastCostMs = last.costMs;
@@ -263,6 +264,7 @@ async function executeResolvedRequest(
 
 
 interface RequestedCheck {
+  readRunner: CheckRunnerReader;
   selectionTree: string;
   indexViews: CheckIndexViews;
   definition: CheckDeclaration;
@@ -285,7 +287,7 @@ async function runRequestedCheck(context: RequestedCheck,
 
 async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencies,
   request: CheckRequest): Promise<DeclaredCheckResult> {
-  const { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree } = context;
+  const { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree, readRunner } = context;
   let { tree } = resolved;
   let executed = check;
   let forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
@@ -304,7 +306,7 @@ async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencie
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs, definition.global_inputs);
-  const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request, forecast);
+  const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, readRunner, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request, forecast);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     const retry = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
     result.remedy = result.remedy === undefined ? retry : `${result.remedy} Then run ${retry}`;
@@ -400,7 +402,7 @@ function usesWidenedFileRetry(check: CheckDeclaration["checks"][string], selecti
 
 async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   root: string; request: CheckRequest; entries: Array<[string, CheckDeclaration["checks"][string]]>;
-  coordinates: ResolvedCheckRequest; selection: CheckSelection; globalInputs: string[];
+  coordinates: ResolvedCheckRequest; selection: CheckSelection; globalInputs: string[]; readRunner: CheckRunnerReader;
 }): Promise<string | undefined> {
   const { root, request, entries, coordinates: resolved, selection } = context;
   if (request.form.kind !== "pre-commit") return undefined;
@@ -411,6 +413,7 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
     if (selected.status === "not selected") continue;
     if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
       inputs: check.inputs, selectedPaths: selected.paths, withDeletions: !check.pass_paths || check.select_deletions })).length === 0) continue;
+    if (await checksStagedContent(context.readRunner, id, check)) continue;
     candidates.push({ id, inputs: check.inputs });
     if (context.globalInputs.length > 0) candidates.push({ id, inputs: context.globalInputs });
   }
@@ -420,7 +423,42 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   if (affected.length === 0) return undefined;
   const paths = [...new Set(affected.flatMap(check => check.paths))].map(path => JSON.stringify(path)).join(", ");
   const ids = [...new Set(affected.map(check => check.id))].join(",");
-  return `Partially staged inputs: ${paths} (checks: ${ids}). Stage each whole file and retry git commit, or skip these checks for this commit with ARC_SKIP=${ids} git commit ... .`;
+  return `Partially staged inputs: ${paths} (checks: ${ids}). These checks read the working tree, so they would check `
+    + "unstaged changes too. Stage each whole file and retry git commit, or set the unstaged changes aside: run "
+    + "git stash push --keep-index, retry git commit, then, from the repository root "
+    + "(cd \"$(git rev-parse --show-toplevel)\"), reapply them with "
+    + "git diff-tree -p --binary refs/stash^2 refs/stash | git apply --3way --whitespace=nowarn; once that applies "
+    + "(or its conflicts are resolved), run git reset -q and git stash drop.";
+}
+
+/** Reads a check's machine runner once per request, so the partial-staging refusal and dispatch act on one answer. */
+type CheckRunnerReader = (id: string, check: CheckDeclaration["checks"][string]) => Promise<MachineCheckRunnerConfiguration | undefined>;
+
+function onceEachCheckRunner(io: DeclaredCheckDependencies): CheckRunnerReader {
+  const readings = new Map<string, Promise<MachineCheckRunnerConfiguration | undefined>>();
+  return (id, check) => {
+    let reading = readings.get(id);
+    if (reading === undefined) {
+      reading = (io.readRunnerConfiguration ?? readMachineCheckRunner)(check);
+      readings.set(id, reading);
+    }
+    return reading;
+  };
+}
+
+/**
+ * Whether a check runs on the commit's staged content, which partial staging cannot mislead: it reads the index, or a
+ * configured runner executes it on the staged tree. A runner configuration that cannot be read stops the check from
+ * running at all, so it never reads the working tree either.
+ */
+async function checksStagedContent(readRunner: CheckRunnerReader, id: string, check: CheckDeclaration["checks"][string]): Promise<boolean> {
+  if (check.reads_index) return true;
+  if (!check.runner) return false;
+  try {
+    return await readRunner(id, check) !== undefined;
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -460,6 +498,7 @@ interface SelectedCheck {
   coordinates: ResolvedCheckRequest;
   kind: CheckResultKind;
   definition: CheckDeclaration;
+  readRunner: CheckRunnerReader;
 }
 
 async function selectedCheckKey(selected: SelectedCheck, io: DeclaredCheckDependencies, tree = selected.tree) {
@@ -474,7 +513,7 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   if (io.interrupted?.()) return { id, kind, ...forecast, outcome: "couldn't run", reason: "Check request was interrupted before dispatch; retry explicitly with a fresh request." };
   let runner: MachineCheckRunnerConfiguration | undefined;
   try {
-    runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
+    runner = await selected.readRunner(selected.id, selected.check);
   } catch (error) {
     return { id, kind, ...forecast, outcome: "couldn't run", reason: error instanceof Error ? error.message : String(error) };
   }
