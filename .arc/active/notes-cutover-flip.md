@@ -1073,6 +1073,26 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - Each changed expectation traces to a store contract: the Errand record and its branch link, the suffixed
           branch, the landing commit, the qualified ID and the queue, the capture's description, the overlap's work
           item, and promotion's single write.
+    - _Locus, as moved (Task 3.4.e.4):_ the three files spawn through `e2e/store-default.ts`, none of them on the
+      ledger. `locus-folder-presence` and `lifecycle-default-locus-ports` pass unchanged: the first's subject is the
+      checkout roster, and the second injects its own model store and uses `arc init` only to install files.
+      `locus-errand-roundtrip`'s five Errand cases run on the store and its two capture cases keep the override by
+      subject.
+        - Its `createBareRemote` designates `origin`, except under the override. Its host fakes answer for the branch
+          the query names rather than a fixed one, since each open suffixes the Errand's branch, and its steps push
+          `HEAD` from the opened checkout.
+        - The materialization case deletes only the Errand's local branch before materializing, where the in-repo
+          store also deleted its identity ref: the store keeps the Errand's record, and the verbs publish no state to
+          `origin`. The fork-only refusal reads the open Errand from its stored record. The resume case finds the
+          Errand's primary record still an Errand's and no task list held for it, the meta carrying the session
+          context the in-repo store kept in `SESSION-NOTES.md`.
+        - Promotion settles in one write at either floor, `metaPath` naming `.arc/active/current/`, and cuts
+          `feat/growth-unit` at the derivation floor too, since from the flip a work unit plans with no `plan/` branch
+          (spec § 8.11). The meta is read from the store, which links the work branch rather than naming it in the
+          meta's content.
+        - The two in-repo cases settle a capture matched by title when promotion replays after its meta commit, and
+          refuse that settlement over a same-title replacement: the store promotes in one write and opens from a
+          capture by qualified ID, holding it in the Errand's description.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

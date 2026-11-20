@@ -893,7 +893,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               its plan-ID cases pass on the store unchanged, and the eight that inspect the delivery entry keep the
               override by subject while delivery is paused (§ 4.3) (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.e Errands and locus**
+    - `[x]` **3.4.e Errands and locus**
         - _Amended (Owner, 2026-11-20):_ its ten end-to-end files and one integration file failed 68 of their 92 cases
           without the override, so the family moves in four review increments, one commit each, rather than § 7.3's
           one commit; each increment classifies its cases before editing (`notes-cutover-flip.md` § Test callers).
@@ -920,9 +920,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               tracked ROADMAP regeneration, Markdown title adoption, and the receipt commit (`notes-cutover-flip.md`
               § Test callers).
 
-        - `[ ]` **3.4.e.4 Locus**
+        - `[x]` **3.4.e.4 Locus**
             - `e2e/locus-errand-roundtrip.e2e.test.ts`, `locus-folder-presence`, and
-              `integration/lifecycle-default-locus-ports.test.ts`.
+              `integration/lifecycle-default-locus-ports.test.ts` spawn through `e2e/store-default.ts`, the latter two
+              unchanged. The roundtrip's Errand cases run on the store, designating `origin` and matching the suffixed
+              branch, with promotion settling in one write onto `feat/` at either floor; its two capture-settlement cases
+              keep the override by subject (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.f Base merge and integration**
         - `movementPaths` (`__tests__/helpers/base-advance.ts`): its disjoint and substantive kinds touch only code
