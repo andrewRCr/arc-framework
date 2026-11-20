@@ -142,6 +142,70 @@ export function finding(
 
 type ReviewBodyFinding = Omit<Extract<HostedFinding, { origin: "review-body" }>, "sourceOrdinal">;
 export type UnorderedFinding = UnorderedThreadFinding | ReviewBodyFinding;
+
+/** Read findings folded into a single CodeRabbit inline comment, with one settlement for its GitHub thread. */
+export function parseCodeRabbitThreadFindings(
+  threadId: string,
+  comment: HostedGitHubThreadComment,
+): { kind: "parsed"; findings: UnorderedFinding[] } | Malformed | null {
+  const first = finding(threadId, comment);
+  if (first === null) return null;
+
+  const { body } = comment;
+  const blocks = detailsBlocks(body);
+  if (blocks === null) return { kind: "parsed", findings: [first] };
+  const topLevel = maskDetailsRanges(body, 0, body.length, blocks);
+  const fences = fencedMarkdownRanges(topLevel);
+  const outsideFence = (match: RegExpMatchArray & { index: number }): boolean =>
+    !fences.some((fence) => fence.start <= match.index && match.index < fence.end);
+  const markers = [...topLevel.matchAll(new RegExp(`^[\\t ]*${FINDING_MARKER.source}[\\t ]*\\r?$`, "gimu"))]
+    .filter(outsideFence);
+  const [firstMarker, ...additionalMarkers] = markers;
+  if (firstMarker === undefined || additionalMarkers.length === 0) return { kind: "parsed", findings: [first] };
+
+  const invalid = (): Malformed => malformedWithContext("provider-folded-thread-findings-malformed", {
+    threadId, commentId: comment.id,
+  });
+  const firstBody = body.slice(0, firstMarker.index);
+  const primary = finding(threadId, { ...comment, body: firstBody });
+  if (primary?.sourceLabel === undefined || !leadsWithSeverity(firstBody)) return invalid();
+
+  const dividers = [...topLevel.matchAll(/^---[\t ]*\r?\n/gmu)].filter(outsideFence);
+  const seen = new Set([firstMarker[1]?.toLowerCase()]);
+  const findings: UnorderedFinding[] = [primary];
+  let previousEnd = firstMarker.index + firstMarker[0].length;
+  for (const marker of additionalMarkers) {
+    const divider = dividers.find(({ index }) => index >= previousEnd && index < marker.index);
+    const fingerprint = marker[1]?.toLowerCase();
+    if (divider === undefined || fingerprint === undefined || seen.has(fingerprint)) return invalid();
+
+    const contentStart = divider.index + divider[0].length;
+    const content = body.slice(contentStart, marker.index).trim();
+    const grade = severityOnMetadataLine(content, 0);
+    const label = captureReviewFindingSourceLabel({ body: threadLabelSource(content) });
+    if (grade === null || !leadsWithSeverity(content) || label.sourceLabel === undefined) return invalid();
+
+    // The first finding owns the shared thread's reply and resolution. Each additional finding keeps its own
+    // review disposition and evidence from the same comment.
+    findings.push({
+      findingId: `${comment.reviewId}:${fingerprint}`,
+      origin: "review-body",
+      reviewId: comment.reviewId,
+      fingerprint,
+      settlement: "not-applicable",
+      severity: grade,
+      ...(grade === "minor" && hasExplicitPurePolishMarker(content) ? { nit: true as const } : {}),
+      locus: primary.locus,
+      url: primary.url,
+      body: content,
+      ...label,
+    });
+    seen.add(fingerprint);
+    previousEnd = marker.index + marker[0].length;
+  }
+  return { kind: "parsed", findings };
+}
+
 /** `other` is a counted section under a label this reader does not know, read as findings because it holds them. */
 type SupplementalCategory = "nitpick" | "outside-diff" | "other";
 
