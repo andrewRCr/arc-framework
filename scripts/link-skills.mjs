@@ -50,7 +50,9 @@ async function linkSkill(root, harness, name) {
   const source = join(root, CANONICAL, name);
   const shown = relative(root, path);
   const existing = await stat(path);
-  if (existing?.isSymbolicLink() && (await resolvesTo(path, source))) return null;
+  // A link at the skill, or a linked skills folder above it, already shows the canonical skill here; replacing what
+  // a linked folder shows would delete the canonical skill itself.
+  if (existing !== null && (await resolvesTo(path, source))) return null;
   if (existing !== null && !existing.isSymbolicLink()) {
     const files = existing.isDirectory() ? await readdir(path, { recursive: true }) : [];
     if (!existing.isDirectory() || !files.every((file) => GENERATED.has(file))) {

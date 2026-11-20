@@ -69,6 +69,16 @@ it("leaves a skill folder holding anything else and names it", async () => {
   expect(stderr).toMatch(/left .*arc-alpha/u);
 });
 
+it("leaves the canonical skills alone when a harness skill folder links to them", async () => {
+  const root = await checkout([".claude"]);
+  await mkdir(join(root, canonical, "arc-alpha", "agents"));
+  await writeFile(join(root, canonical, "arc-alpha", "agents", "openai.yaml"), "interface: {}\n");
+  await symlink(join(root, canonical), join(root, ".claude", "skills"), "junction");
+  expect(await link(root)).toEqual({ stdout: "", stderr: "" });
+  expect((await readdir(join(root, canonical, "arc-alpha"))).sort()).toEqual(["SKILL.md", "agents"]);
+  expect(await readFile(join(root, canonical, "arc-alpha", "SKILL.md"), "utf8")).toBe("# arc-alpha\n");
+});
+
 it("links each named checkout to its own canonical skills", async () => {
   const [first, second] = [await checkout([".claude"]), await checkout([".claude", ".codex"])];
   await link(first, second);
