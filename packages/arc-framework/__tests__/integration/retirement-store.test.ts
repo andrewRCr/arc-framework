@@ -1,5 +1,5 @@
-import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { retirementRecording, retirementRetainedBase, interruptedRetirementCopy, interruptedRetirementReplacement } from "../helpers/store/projection-retirement.js";
 import { createRefusingStore } from "../helpers/store/projection/refusing-store.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";

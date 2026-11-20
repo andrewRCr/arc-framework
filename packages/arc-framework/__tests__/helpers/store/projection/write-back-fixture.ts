@@ -1,6 +1,5 @@
 /** A file-backed projection over the memory store, without a Git process. */
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
-
 import { PROJECTION_INDEX_FORMAT } from "../../../../src/lib/store/projection/index-schema.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

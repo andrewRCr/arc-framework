@@ -1,5 +1,5 @@
 /** Keep explicit save authorization behind the file's actual marker controls. */
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { archiveEditCommand } from "./archive-admission.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import type { RefusedMark } from "./index-schema.js";
 import type { MarkerParseResult } from "./marker-parse.js";
@@ -18,7 +18,7 @@ export function explicitResolutionMarkerRefusal(request: TakeInRequest, content:
   const standing = resolution.kind === "hold" ? scan.controls.length > 0
     : scan.sets.some(set => set.opening.endsWith(`[arc-conflict: ${JSON.stringify(formatConflictToken(resolution.reference))}]`));
   const opening = request.path.startsWith(".arc/completed/") && request.entry.opened !== true
-    ? `Run arc edit ${renderRemedyArgument(request.path)} first. ` : "";
+    ? `Run ${archiveEditCommand(request.checkout, request.path)} first. ` : "";
   return !standing ? null : { reason: "The requested conflict still has markers in its projected file.",
     remedy: { text: `${opening}Resolve the shown markers by hand and remove their controls and resolve-by-hand line, then save again.` } };
 }

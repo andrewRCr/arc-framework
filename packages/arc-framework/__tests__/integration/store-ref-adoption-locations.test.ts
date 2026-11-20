@@ -1,5 +1,5 @@
-import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 /** Adoption uses the file-holding checkout's exact claim and lifecycle location. */
+import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { afterEach, expect, it } from "vitest";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";

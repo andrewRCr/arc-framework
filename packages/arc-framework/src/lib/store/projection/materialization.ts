@@ -163,7 +163,7 @@ async function recordUnknownFiles(root: ProjectionRootState, initial: Projection
   for (const path of paths) {
     // A file under a folder another checkout holds is that checkout's, never recorded here.
     if (desired.has(path) || selectArchivePath(root, path, { report: false }) !== null) continue;
-    const refused = whole ? withheldProjectionMark(path) : evidenceHeldProjectionMark(path);
+    const refused = whole ? withheldProjectionMark(path, { checkout: root.checkout, known: false }) : evidenceHeldProjectionMark(path, root.checkout);
     index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat: await readStat(join(root.checkout, path)), refused });
     root.context.report?.({ path, copy: null, mark: refused });
   }

@@ -14,6 +14,7 @@ import { readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { commitReturnedCopies, type ReturnedCopy } from "./returned-copies.js";
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { ArchiveChangeRefusal } from "./archive-selection.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ReadGateDependencies } from "./read-gate.js";
 import type { GuardResult } from "./replace-guard.js";
@@ -30,7 +31,10 @@ export interface SwapFile {
   readonly relaid?: boolean;
 }
 
-/** Points in each file's swap where a test or the harness can place a save. */
+/**
+ * The engine's hook points where a test or the harness can place a save: in each file's swap, and in `arc edit`'s
+ * opening and `arc save`'s recovery and re-lock, which share this one set through the engine's ports.
+ */
 export interface SwapHooks {
   /** After opening intent is committed, before the file becomes writable. */
   readonly afterOpenIndexCommit?: (path: string) => Promise<void>;
@@ -74,7 +78,7 @@ export interface SwapBatchInput extends SwapMoves {
    * Takes a path whose change was refused because its folder is not this checkout's, with the refusal's remedy; the
    * command keeps it as the path's answer and reports it once.
    */
-  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
+  readonly refuseChange?: ArchiveChangeRefusal;
 }
 
 /** What a batch left: the index as its second write recorded it, and the aside copies the command keeps. */

@@ -1,6 +1,6 @@
+/** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { projectionEditResult } from "../../src/lib/store/projection/edit.js";
-/** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";

@@ -112,8 +112,9 @@ it.each(BLOCKERS.flatMap(blocker => STATES.map(state => [state, blocker] as cons
   for (const verb of ["status", "save", "sync"] as const) {
     const { diagnostics } = await projectionCommand(h.input, [verb]);
     expect(diagnostics, verb).toContain(reason);
-    // Each command reports the refused path once, whichever of its steps selects it first.
+    // Each command reports the refused path once, whichever of its steps selects it first, and no other report at the path.
     expect(refusalLines(diagnostics, path, blocker), verb).toHaveLength(1);
+    expect(diagnostics.split("\n").filter(line => line.startsWith(`projection: ${path}: `)), verb).toHaveLength(1);
     // A nested checkout's own files are that checkout's: never read, named, or recorded here.
     expect(diagnostics, verb).not.toContain("/.git/");
     expect(await observe(h, path), verb).toEqual(before);

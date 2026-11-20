@@ -10,6 +10,7 @@ import { observeProjectionProtection } from "./protection.js";
 import { gateRead, projectionReadGate, type ReadGateVerdict } from "./read-gate.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { hasAcceptedLanding, waitingEditMark } from "./archive-admission.js";
+import { isUnreadRebuildEntry, unreadRebuildHold } from "./materialization-file.js";
 
 /** Unavailable evidence precedes any semantic refusal over the file. */
 export type ArchiveInspection = { readonly kind: "refused" | "unobservable"; readonly mark: RefusedMark } | null;
@@ -31,6 +32,8 @@ export async function inspectArchivedProjectionFile(root: AdoptionObservationRoo
     reason: "The interrupted archive submission's acceptance has not been checked.",
     remedy: { text: `Run arc save from ${root.checkout} to recover the acceptance for ${path}.` },
   } };
+  // An entry a rebuild has not read has no basis to judge an edit against until a lay rebuilds it from the file.
+  if (entry?.refused != null && isUnreadRebuildEntry(entry)) return { kind: "refused", mark: unreadRebuildHold(root.checkout, path, entry.refused) };
   // A withheld file keeps its own remedy: arc save never sends one, so the waiting edit's remedy cannot clear it.
   if (entry !== undefined && (entry.kind !== "record" || entry.withheld || canRecoverArchiveEntry(entry))) return null;
   try {

@@ -202,11 +202,16 @@ async function checkContent(context: WriteBackContext, request: TakeInRequest, b
 async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
   const entry = request.rendering === undefined ? request.entry : { ...request.entry, ...request.rendering };
   const grammar = (context.registry ?? kinds)[entry.reference.kind].entry;
-  if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo, undefined, request.copy === null ? request.path : undefined);
+  if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo, undefined, markerSite(request));
   const selected = await readBaseContent(context, request.entry, base);
   if (selected.status === "refused") return selected;
   return prepareMarkerContent(context.store, entry, content, context.memo,
-    { grammar, base: selected.result, aside: request.copy !== null }, request.copy === null ? request.path : undefined);
+    { grammar, base: selected.result, aside: request.copy !== null }, markerSite(request));
+}
+
+/** The file's own path and checkout, which a marker refusal's `arc edit` remedy names; an aside copy names neither. */
+function markerSite(request: TakeInRequest): { readonly checkout: string; readonly path: string } | undefined {
+  return request.copy === null ? { checkout: request.checkout, path: request.path } : undefined;
 }
 
 async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, read: TakeInRead, random?: () => number): Promise<StoreResult<CheckoutMerge>> {

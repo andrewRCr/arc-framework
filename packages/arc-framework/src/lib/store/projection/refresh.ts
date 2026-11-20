@@ -85,7 +85,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   const prepared = await prepareLaidPaths({ root, source, renderer, renderContext, reference, rebuilding: planned.rebuild === true },
     index, laid, moved);
   index = prepared.index;
-  if (planned.rebuild === true && !planned.unresolved) index = settleHeldMarks(index, planned.paths);
+  if (planned.rebuild === true && !planned.unresolved) index = settleHeldMarks(index, planned.paths, root.checkout);
   if (prepared.files.length > 0) {
     const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files: prepared.files, readBack: false,
       settlementPublication: "caller", writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint,

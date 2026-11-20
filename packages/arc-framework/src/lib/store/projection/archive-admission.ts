@@ -21,6 +21,11 @@ export function hasAcceptedLanding(entry: ProjectionIndex["entries"][string] | u
     || entry?.kind === "record" && (entry.adoption?.kind === "read-back" || entry.persisted?.recording === true);
 }
 
+/** `arc edit` on a repository-relative archive path, naming the checkout it runs from so the path resolves there. */
+export function archiveEditCommand(checkout: string, path: string): string {
+  return `arc edit ${renderRemedyArgument(path)} from ${checkout}`;
+}
+
 /** The remedy every route names for an archived edit that waits, where the edit rights allow the edit. */
 export function waitingEditMark(checkout: string, path: string, known: boolean): RefusedMark {
   return { reason: known ? forcedArchiveEdit : "A new archived file has not been opened.",

@@ -1,3 +1,4 @@
+/** Save finds indexed archive work without discovering new archive files or reading cold partitions. */
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -6,7 +7,6 @@ import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/e
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
-/** Save finds indexed archive work without discovering new archive files or reading cold partitions. */
 import { readFile, chmod, writeFile } from "node:fs/promises";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";

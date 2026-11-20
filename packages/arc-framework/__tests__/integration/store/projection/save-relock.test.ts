@@ -1,3 +1,4 @@
+/** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
@@ -6,9 +7,9 @@ import { seed, update } from "../../../helpers/store/suite-tools.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
-/** Save closes an archive opening only after its final on-disk check sees accepted bytes. */
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
-import { readFile, chmod, writeFile, lstat, rename, rm, symlink, utimes } from "node:fs/promises";
+import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
+import { readFile, chmod, writeFile, lstat, realpath, rename, rm, symlink, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -81,13 +82,13 @@ async function fixture() {
   const path = Object.keys(h.projected.index.entries)[0]!;
   return { ...h, path, store: h.f.store, checkout: h.f.root };
 }
-async function save(h: { store: Store; checkout: string }, args: readonly string[] = [], json = true) {
+async function save(h: { store: Store; checkout: string; cwd?: string }, args: readonly string[] = [], json = true) {
   const cwd = process.cwd(), exit = process.exitCode;
   let output = "", errors = "";
   const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
   const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { errors += String(chunk); return true; });
   try {
-    binding.store = h.store; process.chdir(h.checkout); process.exitCode = undefined;
+    binding.store = h.store; process.chdir(h.cwd ?? h.checkout); process.exitCode = undefined;
     await dispatchRegisteredCli(["save", ...args, ...json ? ["--json"] : []]);
     return { result: json ? JSON.parse(output) as ProjectionSaveResult : null, output, errors };
   } finally { stdout.mockRestore(); stderr.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
@@ -111,6 +112,11 @@ it("lands an opened archive edit, re-locks it, clears its opening and reports th
   expect(disk.index.entries[h.path]).not.toHaveProperty("opened");
 });
 
+/** The reports at a path, each one line followed by its indented remedy, which a refused path makes once per command. */
+function pathLines(errors: string, path: string): string[] {
+  return errors.split("\n").filter(line => line.startsWith(`projection: ${path}: `));
+}
+
 async function diskEntry(h: Awaited<ReturnType<typeof fixture>>, path = h.path) {
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archive index");
@@ -123,6 +129,59 @@ async function edit(h: Awaited<ReturnType<typeof fixture>>, note = "A correction
   await writeFile(join(h.checkout, h.path), renderStampedFile({ content, stamp: entry.base.blob }));
   return content;
 }
+it("names the checkout in the re-lock's arc edit remedy for a save run from a subfolder, which reopens from there", async () => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  const checkout = await realpath(h.checkout);
+  const saved = await save({ ...h, cwd: join(h.checkout, ".arc") });
+  expect(saved.result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path,
+    remedy: { text: `Run arc edit ${h.path} from ${checkout} to keep editing.` } }] } });
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  const cwd = process.cwd();
+  try {
+    process.chdir(checkout);
+    await startProjection(h);
+    expect(await projectionEditResult(h.store, checkout, h.path)).toMatchObject({ status: "ok" });
+    await endProjection(h);
+  } finally { process.chdir(cwd); }
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+});
+
+it("re-locks an opened text companion whose save answers no-edit for a line-ending change", async () => {
+  const h = await fixture(), path = `${h.folder}/endings.txt`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "endings.txt");
+  await seed(h.f, reference, "First line.\nSecond line.\n");
+  await startProjection(h); await endProjection(h);
+  await openArchivedProjectionFile(h, path);
+  await writeFile(file, "First line.\r\nSecond line.\r\n");
+  await utimes(file, new Date(0), new Date(0));
+  const saved = await save(h);
+  expect(saved.errors).toBe("");
+  expect(saved.result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+  expect(success(await h.store.read({ reference })).content).toBe("First line.\nSecond line.\n");
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+
+it.each([true, false])("names the files a refused save re-locked (json=%s)", async json => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  let refusing = false;
+  const store = overrideEngineStore(h.store, { version: async () => refusing ? { status: "refused", refusal: { code: "lock-held",
+    class: "recoverable", lock: "archive", condition: "Archive writer held.", remedy: { text: "Release the writer and retry arc save." } } }
+    : h.store.version() });
+  // The version read the save ends on refuses once the re-lock has begun closing the opening.
+  binding.hooks = { beforeSaveMarkClear: async () => { refusing = true; } };
+  const saved = await save({ ...h, store }, [], json);
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  if (json) expect(saved.result).toMatchObject({ status: "refused", relocked: [{ path: h.path,
+    remedy: { text: expect.stringContaining(`arc edit ${h.path} from `) } }] });
+  else {
+    expect(saved.output).toContain("Release the writer");
+    expect(saved.output).toContain(`Re-locked ${h.path}.`);
+  }
+});
+
 it("re-locks an unchanged opened file and prints its edit remedy in human output without diagnostics", async () => {
   const h = await fixture();
   await openArchivedProjectionFile(h, h.path);
@@ -247,6 +306,8 @@ it("keeps a refused edit writable and opened with its remedy, then re-locks afte
     remedy: { text: "Release the writer and retry arc save." } });
   const saved = await save({ ...h, store: fault.store });
   expect(saved.errors).toContain("Release the writer");
+  // Write-back reports the refusal; the re-lock that keeps the opening does not name the path again.
+  expect(pathLines(saved.errors, h.path)).toHaveLength(1);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
   fault.refuse("batch", null);
@@ -422,7 +483,9 @@ it("keeps an unparseable archive edit opened and writable until a repaired save 
   const entry = await diskEntry(h);
   if (entry?.kind !== "record") throw new Error("Missing metadata entry");
   await writeFile(file, renderStampedFile({ content: "This is not metadata.\n", stamp: entry.base.blob }));
-  expect((await save(h)).errors).toContain("Repair");
+  const unparsed = await save(h);
+  expect(unparsed.errors).toContain("Repair");
+  expect(pathLines(unparsed.errors, h.path)).toHaveLength(1);
   expect(await diskEntry(h)).toHaveProperty("opened", true);
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   const content = await edit(h, "Repaired metadata.");

@@ -11,7 +11,8 @@ import { createHistoryMemo, type HistoryMemo } from "./base-recovery.js";
 import { unshownConflicts } from "./held-conflicts.js";
 
 /** Read indexed text conflicts before interpreting the file's marker sets. */
-export async function prepareMarkerContent(store: Store, entry: RecordEntry, content: string, memo = createHistoryMemo(store), entries?: MarkerEntryPolicy, path?: string): Promise<StoreResult<MarkerParseResult>> {
+export async function prepareMarkerContent(store: Store, entry: RecordEntry, content: string, memo = createHistoryMemo(store), entries?: MarkerEntryPolicy,
+  at?: { readonly checkout: string; readonly path: string }): Promise<StoreResult<MarkerParseResult>> {
   if (entry.markers === null) return { status: "ok", result: { kind: "ready", content, resolves: [] } };
   const current = await store.read({ reference: entry.reference });
   if (current.status === "refused") return current;
@@ -32,7 +33,7 @@ export async function prepareMarkerContent(store: Store, entry: RecordEntry, con
       remedy: { text: "Repair the indexed conflict record or restore a readable stored conflict before saving again." } } };
     conflicts.push({ reference: set.conflict, data: parsed.data });
   }
-  return { status: "ok", result: { ...parseMarkerContent({ content, markers: entry.markers, conflicts, open: current.result.conflicts, entries, path, opened: entry.opened }),
+  return { status: "ok", result: { ...parseMarkerContent({ content, markers: entry.markers, conflicts, open: current.result.conflicts, entries, path: at?.path, checkout: at?.checkout, opened: entry.opened }),
     unshown: unshownConflicts(entry, current.result.conflicts), open: current.result.conflicts } };
 }
 

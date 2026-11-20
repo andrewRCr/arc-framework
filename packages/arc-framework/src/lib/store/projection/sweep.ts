@@ -20,6 +20,7 @@ import type { ConfiguredIgnoreRules } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { ArchiveChangeRefusal } from "./archive-selection.js";
 import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
 import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
@@ -44,7 +45,7 @@ export interface SweepInput extends SwapMoves {
   /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
   readonly selectArchivePath?: (path: string) => RefusedMark | null;
   /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
-  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
+  readonly refuseChange?: ArchiveChangeRefusal;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
   /** The ignore rules from this command's one configuration read. */

@@ -4,6 +4,10 @@ import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ArchiveSelection, ProjectionRootState } from "./process-state.js";
+import type { WriteBackDiagnostic } from "./write-back.js";
+
+/** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
+export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic) => void;
 
 type SelectingRoot = { readonly checkout: string; archiveSelection?: Map<string, ArchiveSelection> } & {
   readonly context: Pick<ProjectionRootState["context"], "report">;
@@ -47,7 +51,7 @@ export function refuseArchiveChange(root: SelectingRoot, path: string, mark: Ref
 }
 
 /** A batch's report of a refusal met just before a change, kept as the command's answer for its path. */
-export function archiveChangeRefusals(root: SelectingRoot): (refused: { path: string; copy: string | null; mark: RefusedMark }) => void {
+export function archiveChangeRefusals(root: SelectingRoot): ArchiveChangeRefusal {
   return ({ path, copy, mark }) => { refuseArchiveChange(root, path, mark, copy); };
 }
 

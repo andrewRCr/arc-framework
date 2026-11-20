@@ -5,6 +5,7 @@ import { formatConflictToken } from "../../status/conflict-token.js";
 import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
 import { ArchiveDestinationBlocked, archivePermissionMark, changeArchiveFileMode, readArchiveFile } from "./archive-file.js";
 import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
+import { archiveEditCommand } from "./archive-admission.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -25,7 +26,8 @@ export async function relockOpenedProjectionFiles(root: ProjectionRootState, ini
   for (const [path, original] of Object.entries(initial.entries)) {
     if (original.opened !== true) continue;
     if (original.kind !== "record") {
-      root.context.report?.({ path, copy: null, mark: original.refused ?? pendingMark() });
+      // A path the command's selection refused keeps its opening, reported once there; any other is named once.
+      if (selectArchivePath(root, path) === null) reportRetained(root, path, original.refused ?? pendingMark());
       continue;
     }
     index = await settleFile(root, index, path, original, outcomes.get(path), send);
@@ -60,7 +62,8 @@ async function settleFile(root: ProjectionRootState, index: ProjectionIndex, pat
 async function finishLateEdit(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   outcome: ProjectionFileWriteObservation): Promise<ProjectionIndex> {
   if (outcome.rebuilt) return retain(root, index, path, entry, pendingMark(), false);
-  if (outcome.result.answer !== "taken-in" || outcome.installation !== "attempted") {
+  const unchanged = outcome.result.answer === "no-edit";
+  if (!unchanged && (outcome.result.answer !== "taken-in" || outcome.installation !== "attempted")) {
     return retain(root, index, path, entry, "mark" in outcome.result ? outcome.result.mark : entry.refused ?? pendingMark());
   }
   await root.ports.hooks?.beforeSaveMarkClear?.(path);
@@ -102,7 +105,7 @@ async function closeOpening(root: ProjectionRootState, index: ProjectionIndex, p
   delete closed.opened;
   const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, closed), checkpoint: root.context.checkpoint });
-  projectionProcessState().relocked.push({ path, remedy: { text: `Run arc edit ${renderRemedyArgument(path)} to keep editing.` } });
+  projectionProcessState().relocked.push({ path, remedy: { text: `Run ${archiveEditCommand(root.checkout, path)} to keep editing.` } });
   return updated;
 }
 
@@ -114,8 +117,14 @@ async function retain(root: ProjectionRootState, index: ProjectionIndex, path: s
     if (changed.kind === "foreign") return leaveForeign(root, index, path, changed.mark);
     if (changed.kind === "blocked" || changed.kind === "mode-refused") mark = changed.mark;
   }
-  root.context.report?.({ path, copy: null, mark });
+  reportRetained(root, path, mark);
   return index;
+}
+
+/** Name a file the re-lock leaves opened, unless this command already reported a refusal at that path, which names it. */
+function reportRetained(root: ProjectionRootState, path: string, mark: RefusedMark): void {
+  const named = projectionProcessState().diagnostics.some(each => each.path === path && each.copy === null);
+  if (!named) root.context.report?.({ path, copy: null, mark });
 }
 
 /** Leave a path the check just before its mode change found is not this checkout's, its opening kept, reported once. */
@@ -139,8 +148,10 @@ function awaitingInstallation(entry: RecordEntry, outcome: ProjectionFileWriteOb
     || outcome === undefined && (entry.pending || entry.inProgress !== null);
 }
 
+/** A landing that did not take the file in; a no-edit answer holds nothing the store lacks, so it is no failure. */
 function failedInstallation(outcome: ProjectionFileWriteObservation | undefined): boolean {
-  return outcome !== undefined && (outcome.result.answer !== "taken-in" || outcome.installation !== "attempted");
+  if (outcome === undefined || outcome.result.answer === "no-edit") return false;
+  return outcome.result.answer !== "taken-in" || outcome.installation !== "attempted";
 }
 function emptyMark(outcome: ProjectionFileWriteObservation | undefined): RefusedMark {
   const answer = outcome?.result.answer;

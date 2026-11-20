@@ -33,7 +33,8 @@ export interface StagedFile {
 /**
  * Stage a record's file for its path: a Markdown file stamped with its stored content's blob id, any other as stored.
  * @param input - The checkout, the file's repository-relative path, the record, the base blob id of the version the
- *   file now holds, the writer, the object format, and whether the file is staged read-only, as a protected one is.
+ *   file now holds, the writer, the object format, its lay mode, and whether it is protected: a file is staged
+ *   read-only where either its lay mode or its protection calls for it.
  * @returns The staged file.
  */
 export async function stageRecordFile(input: {

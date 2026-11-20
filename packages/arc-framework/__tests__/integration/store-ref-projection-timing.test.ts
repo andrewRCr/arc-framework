@@ -1,6 +1,6 @@
+/** Isolated native projection medians with cold archive partitions and twenty real linked destinations. */
 import { openArchivedProjectionFile } from "../helpers/store/projection/open-file.js";
 import { projectionSaveResult } from "../../src/lib/store/projection/save.js";
-/** Isolated native projection medians with cold archive partitions and twenty real linked destinations. */
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";

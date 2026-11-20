@@ -3,10 +3,10 @@ import { withProjectionEntry } from "./index-memory.js";
 import { lstat } from "node:fs/promises";
 import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ArchiveChangeRefusal } from "./archive-selection.js";
 import { finalizeAsideCopy, type AsideCopyDeletion } from "./stampless.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { removeReturnedAsideFile } from "./aside-cleanup.js";
-import type { RefusedMark } from "./index-schema.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
 export interface ReturnedCopy { readonly path: string; readonly copy: string }
@@ -28,7 +28,7 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   readonly returned: readonly ReturnedCopy[];
   readonly onPublished?: (index: ProjectionIndex) => void;
   /** Takes a path whose alias the check just before the unlink found is not this checkout's; the alias is kept. */
-  readonly refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void;
+  readonly refuseChange?: ArchiveChangeRefusal;
 }): Promise<ProjectionIndex> {
   const published = await commitProjectionIndex(input);
   input.onPublished?.(published);
@@ -43,7 +43,7 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
 }
 
 async function cleanReturnedAlias(input: AsideCopyDeletion,
-  refuseChange?: (refused: { readonly path: string; readonly copy: string | null; readonly mark: RefusedMark }) => void): Promise<RecordEntry> {
+  refuseChange?: ArchiveChangeRefusal): Promise<RecordEntry> {
   const { checkout, path, copy, entry, checkpoint } = input;
   try {
     const outcome = await removeReturnedAsideFile(checkout, copy, path, checkpoint);

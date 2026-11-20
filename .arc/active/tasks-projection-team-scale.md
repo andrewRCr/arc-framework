@@ -324,6 +324,12 @@ _Amended in:_ review-fix (A2).
   for its owner, and the single materialization miss was rejected as runner variance. Hosted CI at the converged head
   records that head's readings.
 
+- _Review follow-up (pass 2):_ Complete pass 2 found the archive save's receipt and a refresh held at a refused path
+  missing from the design record, and spec Success Criteria 14 to 16 missing from this list. Amendment A3 records the
+  receipt and adds Success Criterion 18; A4 records the held refresh and adds Success Criterion 17. The five criteria
+  appended to § Success Criteria below, the first marked superseded by A2, are dispositioned at convergence verification
+  against that head's evidence.
+
 ---
 
 ## Success Criteria
@@ -378,5 +384,35 @@ _Amended in:_ review-fix (A2).
   unit linked to its origin
 
 - `[x]` All quality gates pass (tests, linting, type checking)
+
+- `[~]` Late checkout changes leave archive adoption and retirement held until authority is restored. An unsettled
+  archive restoration or failed refresh retains the requirement to open the edit, so plain save holds it until
+  explicitly opened or settled by an authorized route (A1); superseded by A2, whose admission rule records no
+  requirement to open
+
+- `[ ]` With a symbolic link or a nested checkout placed at a folder above an archive path between two commands, for an
+  opened path, an opened new path awaiting adoption, an unfinished recording, and an entry naming an aside copy, each
+  command that selects it (a start, a refresh, a fan-out, `arc save`, `arc sync`, the removal check, and the persist and
+  release steps) leaves it untouched, keeping its entry, opening, recording, and copies, and reports it with its remedy,
+  the removal check answering `unobservable`; a folder link made between the selection and a change is refused at that
+  path's change while the command finishes its other paths; and after the repair the next command finishes each (A2)
+
+- `[ ]` A waiting edit, at its path or in an aside copy, waits, is put back at its path where its copy's path has not
+  moved on, named with spec § 4's remedy, and never reaches the store, by plain `arc save`, `arc sync`'s restoration, a
+  refresh, a later command's settlement of the copy, and the persist and release steps; a refresh's replace guard that
+  meets a forced edit takes it in (spec § 7.1); an unfinished recording or a landing not yet laid finishes at plain
+  `arc save` without an opening; and once `arc edit` opens the file, `arc save` lands a waiting edit at its path, one
+  put back there included (A2)
+
+- `[ ]` With a symbolic link or a nested checkout placed at a folder above an archived file whose record the store then
+  removes or moves, each command's refresh leaves the path and its entry untouched and reports the path once, and the
+  first command after the repair removes the file, or moves it to the record's new path (A4)
+
+- `[ ]` An opened archived file's save, Markdown or text, stopped after its journal's commit, resolves at the next
+  command that reaches it: where the store accepted the write, its acceptance is recorded from the retained input
+  without a second submission; where it did not, the edit is sent again; and where the store's history cannot answer,
+  the file is held with its remedy and resolves after the repair. An opened new file's adoption stopped after the store
+  accepted it is recorded the same way, by the persist and release steps too, while the removal check over it names
+  `arc save` (A3)
 
 - `[ ]` Ready for integration

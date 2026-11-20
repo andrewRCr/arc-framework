@@ -1,7 +1,7 @@
 /** Adopt a discovered file through established ownership and the ordinary hand-edit checks. */
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 import { withProjectionEntry } from "./index-memory.js";
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { archiveEditCommand } from "./archive-admission.js";
 import { join } from "node:path";
 import type { RecordReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -135,7 +135,7 @@ async function reconcileAbsentAdoption(root: ProjectionRootState, index: Project
     index: withProjectionEntry(index, path, undefined) });
   if (entry.opened === true) root.context.report?.({ path, copy: null, mark: {
     reason: "The opened new file is absent; its opening was removed.",
-    remedy: { text: `If the file returns, run arc edit ${renderRemedyArgument(path)} to open it again.` },
+    remedy: { text: `If the file returns, run ${archiveEditCommand(root.checkout, path)} to open it again.` },
   } });
   return dropped;
 }

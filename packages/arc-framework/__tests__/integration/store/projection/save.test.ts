@@ -1,8 +1,7 @@
-import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
 /** Save runs through the registered CLI, its start hook, and a real reference backend. */
+import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { projectionLayMode } from "../../../../src/lib/store/projection/lay-mode.js";
-
 import { afterEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";

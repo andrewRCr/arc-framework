@@ -1,7 +1,7 @@
+/** Every archive staging follows the target checkout's own opened entry. */
 import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
 import { pendingFileRequest } from "../../../../src/lib/store/projection/pending-request.js";
-/** Every archive staging follows the target checkout's own opened entry. */
 import { mkdtemp, chmod, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -38,8 +38,7 @@ import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { persistProjectionAsides, changedProjectionAsides } from "./removal-persist-asides.js";
 import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead, projectionReadGate } from "./read-gate.js";
-import { canRecoverArchiveEntry, inspectArchivedProjectionFile } from "./archive-inspection.js";
-import { waitingEditMark } from "./archive-admission.js";
+import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { hasArchiveRecording } from "./recording-state.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { retirementSelection, selectArchivePath } from "./archive-selection.js";
@@ -118,18 +117,10 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
   await input.session.step();
   const disk = await readProjectionIndex(input.location, true, { groups: "all" });
   if (disk.kind !== "index") return refuse(unusableProjectionIndexDetail(input.checkout, disk.cause, disk.header));
-  let archiveBasis = disk.index;
-  const root = await bindProjectionRoot({ ...input, refuseCapturedEdit: (request, read) => {
-    if (!request.path.startsWith(".arc/completed/")) return null;
-    const prior = archiveBasis.entries[request.path];
-    if (canRecoverArchiveEntry(prior)) return null;
-    if (request.copy === null && !request.observedEdit && read.blob === request.entry.written) return null;
-    return waitingEditMark(input.checkout, request.path, prior !== undefined);
-  } });
+  const root = await bindProjectionRoot(input);
   try {
     let index = disk.index;
     for (let pass = 1; pass <= 3; pass += 1) {
-      archiveBasis = index;
       const observedFrom = projectionProcessState().diagnostics.length;
       const written = await persistFiles(input, root, index, disposition, context.hooks);
       index = written.index;
@@ -142,7 +133,6 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       const confirmed = await confirmPersistedProjection(root, index, written.files, context, disposition, pass);
       if (confirmed.kind === "refused") return confirmed;
       if (confirmed.kind === "changed") continue;
-      archiveBasis = index;
       return await complete(root, index, written.ignoreMark);
     }
     return refuse(`Files kept changing at ${root.checkout}. Let the saves finish, then retry ${retirementName(disposition)}.`);

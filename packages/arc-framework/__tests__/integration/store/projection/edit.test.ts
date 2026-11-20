@@ -343,6 +343,7 @@ it("names a mistyped editor argument as a missing path", async () => {
   const h = await archived();
   expect(await edit(h.f.store, h.f.root, "vscode")).toMatchObject({ status: "refused", refusal: {
     code: "edit-refused", condition: expect.stringContaining("No file exists at vscode"),
+    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." },
   } });
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
@@ -386,6 +387,7 @@ it("refuses an alternate spelling before it can open an existing archive file as
   const result = await edit(h.f.store, h.f.root, alias);
   expect(result).toMatchObject({ status: "refused", refusal: {
     condition: expect.stringContaining(insensitive ? "on-disk spelling" : "No file exists"),
+    remedy: { text: expect.stringContaining(insensitive ? "exact on-disk path" : "Create the file in its archived owner's folder") },
   } });
   expect((await stat(file)).mode & 0o200).toBe(0);
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
@@ -409,6 +411,10 @@ it("holds a case-only rename when the indexed name still denotes the same file",
     condition: expect.stringContaining(path), remedy: { text: expect.stringContaining("recorded spelling") },
   } });
   else expect(result).toMatchObject({ status: "ok", result: { path: alias } });
+  // The recorded spelling, too, names the rename's repair rather than the on-disk spelling the alias refusal holds.
+  if (insensitive) expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    condition: expect.stringContaining("case-only rename"), remedy: { text: `Restore the recorded spelling ${path}, then retry arc edit.` },
+  } });
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archive index");
   expect(disk.index.entries[path]).not.toHaveProperty("opened");
@@ -486,6 +492,26 @@ it("lets anyone open an archived cohort document", async () => {
   expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok", result: { path } });
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
     .toMatchObject({ kind: "index", index: { entries: { [path]: { opened: true } } } });
+});
+
+it("answers a missing in-flight path with an in-place edit, never the archive's create-then-open remedy", async () => {
+  const h = await archived(), path = ".arc/active/current/notes-missing.md";
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    code: "edit-refused", condition: `No file exists at ${path}.`,
+    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." },
+  } });
+});
+
+it.each(["absolute", "relative"] as const)("opens a %s operand spelled through a link to the checkout", async form => {
+  const h = await archived(), alias = `${h.f.root}-alias`;
+  await symlink(h.f.root, alias, "junction");
+  try {
+    const operand = form === "absolute" ? join(alias, h.path) : h.path;
+    expect(await edit(h.f.store, alias, operand)).toMatchObject({ status: "ok", result: { path: h.path } });
+  } finally { await rm(alias); }
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[h.path]).toMatchObject({ opened: true });
 });
 
 it.each([true, false])("refuses in-flight metadata with its own editing remedy, own=%s", async own => {

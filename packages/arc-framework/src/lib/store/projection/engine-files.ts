@@ -15,7 +15,7 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 import { adoptProjectionFile, recoverSubmittedArchiveAdoption } from "./adoption.js";
 import { resumeAdoptionReadBack } from "./adoption-read-back.js";
-import { withheldProjectionMark } from "./materialization-file.js";
+import { isUnreadRebuildEntry, withheldProjectionMark } from "./materialization-file.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { pendingFileRequest } from "./pending-request.js";
 import type { ProjectionResolution } from "./save-resolution.js";
@@ -75,6 +75,8 @@ function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): str
 
 /** Retry opened files and unfinished adoptions beyond the walked roots, retaining save's archive recovery. */
 export function retriesIndexedEntry(verb: string | undefined, path: string, entry: ProjectionIndex["entries"][string]): boolean {
+  // An entry a rebuild has not read waits for the lay that rebuilds it: no basis exists to judge its file against.
+  if (isUnreadRebuildEntry(entry)) return false;
   const selected = verb === "save" || !path.startsWith(".arc/completed/");
   return verb === "save" && isProjectionEntryUnsettled(entry) || entry.opened === true || entry.kind === "record" && entry.adoption?.kind === "read-back"
     || selected && (entry.kind === "ownerless" || entry.adoption !== undefined);
@@ -137,7 +139,7 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
   if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: entry.refused ?? withheldProjectionMark(path) });
+    root.context.report?.({ path, copy: null, mark: entry.refused ?? withheldProjectionMark(path, { checkout: root.checkout, known: true }) });
     return { index, edited: false };
   }
   const changed = await checkIndexedChange(root, path, entry, reference, observed);

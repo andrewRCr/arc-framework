@@ -492,9 +492,10 @@ correction and a passing removal check. All ten suite cases pass in run `586d27e
 
 ## Archive boundary corrections
 
-A1 keeps the opening requirement independent of the latest refusal so a temporary refresh failure can report its
-own remedy while a later save still holds the correction. The swap journals the requirement before displacing a
-file or installing a replacement. Settlement needs evidence for both the installed rendering and retained copies.
+A1 kept the opening requirement independent of the latest refusal so a temporary refresh failure could report its own
+remedy while a later save still held the correction. The swap journaled the requirement before displacing a file or
+installing a replacement, and settlement needed evidence for both the installed rendering and retained copies. A2
+replaced that requirement with one admission rule decided at the take-in, so no route records it (§ Amendment A2).
 
 `5397c3c40b` checks which checkout owns the requested path, validates links before archive pickup, and changes a mode
 through a handle that identifies the observed file. Save keeps a same-byte replacement opened if it is still writable.
@@ -565,6 +566,38 @@ Two of its findings needed a design decision (Owner, 2026-11-20), both recorded 
 accepted is recorded while its path is refused, rather than leaving the store ahead of the index until the repair. A
 rebuild over an unusable index records a refused path's entry without reading its file, and the first command whose
 check passes rebuilds it; leaving the path out of the rebuild instead lost its entry until the next rebuild.
+
+## Amendment A3
+
+Complete pass 2 found that the archive save's receipt, built during standard pass 1's fix checks so an interrupted save
+could tell an accepted write from an unsent one, had no design record: the specification said this design adds no
+prepared store write, and the shipped storage contract's D3 says no evidence needs provenance as its home. The mechanism
+stands as built and reviewed. A3 states it in § 4, § 9.1, and § 9.2, adds § 10.5's forward amendment of D3, and adds
+Success Criterion 18, which existing tests cover.
+
+A3 supersedes this text, quoted as it stood.
+
+§ 9.1 ¶1:
+
+> This design adds no prepared store write. `arc edit` writes only the worktree's index and the file's write bit; an
+> opened file lands through write-back's own prepared admission (`spec-projection-write-back.md` § 7.2), which fences
+> its own reads; a new file adopts through `spec-projection-write-back.md` § 9's existing route; and the re-lock at `arc
+> save` is local. Its own step pairs each run under the worktree's projection lock, ordered so a stop between them
+> leaves a state the next command repairs:
+
+§ 13 ¶9:
+
+> - **No prepared store write, and the local steps' order** (§ 9): `none` — tactical.
+
+The shipped storage contract is not edited; its D3 sentence "No evidence needs provenance as its home" now reads with §
+10.5's one exception.
+
+## Amendment A4
+
+The same pass found that a refresh's planned removal or move at a refused path, which an earlier fix keeps incomplete
+until the repair, was stated nowhere, and that § 8 had the next command both settle a refused path and leave it
+untouched. A4 conditions § 8's next-command clauses on the repair, states the held refresh in § 8 and its cost in § 11
+item 11, and appends Success Criterion 17 rather than editing Success Criterion 15, since a criterion is never edited.
 
 ## Save after a retirement refusal
 

@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
 import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
-import { checkChange, projectionFileReader, readReference } from "./change-detection.js";
+import { checkChange, projectionFileReader, readReference, readStat } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
 import { unfinishedRecordingRefusal } from "./recording-state.js";
@@ -23,6 +23,7 @@ import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { retirementSelection, selectArchivePath } from "./archive-selection.js";
+import { releasesAbsentWithheld } from "./withheld.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -77,7 +78,13 @@ async function observeRemovalFile(input: ProjectionRemovalFilesInput, path: stri
   reference: bigint | null, guard: ProjectionRemovalGuard): Promise<ProjectionRemovalCheck> {
   const { root, index } = input;
   const entry = index.entries[path];
-  if (entry?.withheld) return markedRemovalRefusal(root.checkout, path, entry.refused ?? withheldProjectionMark(path), input.disposition);
+  if (entry?.withheld) {
+    // Persist and release discard a withheld entry whose file is gone, so nothing of it is left to lose; the ignore check
+    // they run answers for the paths they may write.
+    if (releasesAbsentWithheld(() => true, path, entry) && await readStat(join(root.checkout, path)) === null) return { kind: "passes" };
+    return markedRemovalRefusal(root.checkout, path, entry.refused
+      ?? withheldProjectionMark(path, { checkout: root.checkout, known: entry.kind === "record" }), input.disposition);
+  }
   const archive = await inspectArchivedProjectionFile(root, index, path, { reference });
   if (archive !== null) return archive.kind === "unobservable"
     ? { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, archive.mark) }

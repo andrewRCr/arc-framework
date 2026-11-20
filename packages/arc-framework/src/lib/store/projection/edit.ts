@@ -1,5 +1,6 @@
 /** Open one archived projected file for an in-place correction. */
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { Store } from "../contract.js";
 import type { RefusedMark } from "./index-schema.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
@@ -34,8 +35,8 @@ export async function projectionEditResult(store: Store, requested: string, oper
     reason: "This checkout holds no projection: it is neither the primary nor a checkout with an eligible ARC claim.",
     remedy: { text: "Run arc edit in the checkout holding the file's projection, or materialize the work unit first." },
   }, "projection-refused");
-  const absolute = resolve(process.cwd(), operand), path = relative(checkout, absolute).split(sep).join("/");
-  if (isAbsolute(path) || path === ".." || path.startsWith("../")) return refuse({
+  const path = await checkoutRelativeOperand(checkout, resolve(process.cwd(), operand));
+  if (path === null) return refuse({
     reason: `${operand} is outside this checkout.`,
     remedy: { text: "Run arc edit from the checkout that holds this file." },
   });
@@ -47,6 +48,28 @@ export async function projectionEditResult(store: Store, requested: string, oper
   if (opened.status === "done") return opened.value;
   const skipped = recordProjectionLockSkip(checkout, opened, root.unsent);
   return refuse(skipped.skip.mark, "projection-skipped");
+}
+
+/**
+ * The operand's path within the checkout, whichever spelling of the checkout root it was written through: the canonical
+ * one, or an alias such as a linked folder, macOS's `/tmp`, or a Windows short or substituted name. Only the root is
+ * matched by its real path; the folders below it stay as written, so the archive path check still sees a link there.
+ */
+async function checkoutRelativeOperand(checkout: string, absolute: string): Promise<string | null> {
+  const lexical = insideCheckout(relative(checkout, absolute));
+  if (lexical !== null) return lexical;
+  let found: string | null = null;
+  const below: string[] = [];
+  for (let ancestor = absolute; ; ancestor = dirname(ancestor)) {
+    // The highest ancestor that is the checkout itself names the root; a deeper match is a link below it.
+    if (await realpath(ancestor).catch(() => null) === checkout) found = below.slice().reverse().join("/");
+    if (dirname(ancestor) === ancestor) return found;
+    below.push(basename(ancestor));
+  }
+}
+
+function insideCheckout(path: string): string | null {
+  return isAbsolute(path) || path === ".." || path.startsWith(`..${sep}`) || path.startsWith("../") ? null : path.split(sep).join("/");
 }
 
 async function openPath(root: ProjectionRootState, path: string): Promise<ProjectionEditResult> {

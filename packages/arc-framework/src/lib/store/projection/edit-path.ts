@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { readdir } from "node:fs/promises";
 import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
+import type { Remedy } from "../refusal.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { archiveEditDestinationRefusal, archiveFileChangeMark, readArchiveFile, sameArchiveFile, type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
@@ -18,7 +19,8 @@ export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry:
 /** Compose the existing path, protection, and adoption readers, stopping before store admission. */
 export async function inspectProjectionEditPath(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionEditInspection> {
   const entry = index.entries[path];
-  if (entry?.withheld) return refuse(isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark(path) : entry.refused ?? withheldProjectionMark(path));
+  if (entry?.withheld) return refuse(isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark(path, root.checkout)
+    : entry.refused ?? withheldProjectionMark(path, { checkout: root.checkout, known: entry.kind === "record" }));
   const gate = await readEditFile(root, path, entry?.kind === "record");
   if (gate.kind === "refused") return gate;
   if (entry?.kind === "record") {
@@ -26,8 +28,7 @@ export async function inspectProjectionEditPath(root: ProjectionRootState, index
       exec: root.ports.exec, verb: root.context.verb }, entry.reference);
     if (denied !== null) return refuse(denied);
   }
-  if (!path.startsWith(".arc/completed/")) return refuse({ reason: `${path} is outside this checkout's completed archive.`,
-    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." } });
+  if (!archived(path)) return refuse({ reason: `${path} is outside this checkout's completed archive.`, remedy: { text: IN_PLACE } });
   if (!root.writable(path)) return refuse({ reason: `The projection ignore guard does not permit changing ${path}.`,
     remedy: { text: "Repair the reported projection ignore rules and retry arc edit." } });
   if (entry?.kind === "record") return { kind: "ready", entry, identity: gate.identity };
@@ -67,6 +68,20 @@ Promise<ProjectionEditInspection> {
 
 function refuse(mark: RefusedMark): Extract<ProjectionEditInspection, { kind: "refused" }> { return { kind: "refused", mark }; }
 
+const ARCHIVE_ONLY = "arc edit opens only files under .arc/completed/.";
+const IN_PLACE = `Edit an in-flight file in place; ${ARCHIVE_ONLY}`;
+
+function archived(path: string): boolean { return path.startsWith(".arc/completed/"); }
+
+/** A missing path outside the archive is never opened, so its remedy edits in place rather than retrying arc edit. */
+function absentRemedy(path: string, stored: boolean): Remedy {
+  const sync = ["arc", "sync"];
+  if (!archived(path)) return stored ? { text: `Run arc sync to restore the deleted projected file, then edit it in place; ${ARCHIVE_ONLY}`, argv: sync }
+    : { text: IN_PLACE };
+  return stored ? { text: "Run arc sync to restore the deleted projected file, then retry arc edit.", argv: sync }
+    : { text: "Create the file in its archived owner's folder first, then run arc edit on that file." };
+}
+
 async function readEditFile(root: ProjectionRootState, path: string, stored: boolean):
 Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extract<ProjectionEditInspection, { kind: "refused" }>> {
   if (isExcludedProjectionPath(path)) return refuse({
@@ -77,14 +92,16 @@ Promise<{ kind: "read"; stat: FileStat; identity: ArchiveFileIdentity } | Extrac
   if (destination !== null) return refuse(destination);
   const absolute = join(root.checkout, path);
   const gate = await gateRead({ path: absolute, markdown: false });
-  if (gate.kind === "absent") return refuse({ reason: `No file exists at ${path}.`,
-    remedy: stored ? { text: "Run arc sync to restore the deleted projected file, then retry arc edit.", argv: ["arc", "sync"] }
-      : { text: "Create the file in its archived owner's folder first, then run arc edit on that file." } });
+  if (gate.kind === "absent") return refuse({ reason: `No file exists at ${path}.`, remedy: absentRemedy(path, stored) });
   if (gate.kind === "no-edit") return refuse({ reason: `${path} is not a regular file.`,
     remedy: gate.deleted === "not-a-file" ? gate.remedy : { text: "Restore a regular file, then retry arc edit." } });
   if (gate.kind === "pending") return refuse({ reason: `${path} is still being saved (${gate.reason}).`,
     remedy: { text: "Let the editor finish saving, then retry arc edit." } });
-  if (!await exactPathSpelling(root.checkout, path)) return refuse({
+  // A recorded path whose file a case-only rename changed is restored to its recorded spelling, not reopened by the new one.
+  if (!await exactPathSpelling(root.checkout, path)) return refuse(stored ? {
+    reason: `${path} no longer matches its file's on-disk spelling, which a case-only rename changed.`,
+    remedy: { text: `Restore the recorded spelling ${path}, then retry arc edit.` },
+  } : {
     reason: `${path} does not match the file's on-disk spelling.`,
     remedy: { text: "Use the file's exact on-disk path, including its capitalization, and retry arc edit." },
   });

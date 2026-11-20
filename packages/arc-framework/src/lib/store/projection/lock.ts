@@ -104,8 +104,7 @@ async function acquire(
   }
 }
 
-/** Raised by a step taken after the lease was lost, ending the operation there. */
-/** A mutation checkpoint lost the lease. Let the lock owner classify this failure. */
+/** Raised by a step taken after the lease was lost, ending the operation there; the lock owner classifies it. */
 export class ProjectionLockLostError extends Error {}
 
 /**
