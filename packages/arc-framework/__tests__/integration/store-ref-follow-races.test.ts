@@ -11,6 +11,7 @@ import { createKindRegistry, createRefStore, RecordReferenceSchema, type WriteCh
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { writeBackingRepository } from "../../src/lib/config/status-reader.js";
 
 it("drops stale forwarding tracking and runs the answer as an ordinary setting when the listing finds no record", async () => {
   const h = await followFixture(), follower = h.follower;
@@ -25,30 +26,28 @@ it("drops stale forwarding tracking and runs the answer as an ordinary setting w
   expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
 }, 60_000);
 
-it("refuses a new source record and a destination another move left before the follow copy", async () => {
-  for (const changed of ["source", "destination"] as const) {
-    const h = await followFixture(), follower = h.follower;
-    const mover = await createRemoteMover(h, h.destinationDirectory, `later-${changed}`);
-    const onward = join(mover.root, "onward.git");
-    await mover.exec("git", ["init", "--bare", onward]);
-    let beforeSource = "", beforeDestination = "";
-    const result = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
-      migrateStep: async step => {
-        if (step !== (changed === "source" ? "follow.fetch-source" : "follow.fetch-destination")) return;
-        if (changed === "source") expect((await invokeStoreMigrate(["--to", h.origin], mover.ports)).status).toBe("ok");
-        expect((await invokeStoreMigrate(["--to", onward], mover.ports)).status).toBe("ok");
-        beforeSource = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
-        beforeDestination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
-      },
-    } })).result;
-    expect(result).toMatchObject({ status: "refused", refusal: { code: "moved", condition: expect.stringContaining(changed === "source" ? "origin" : "backing") } });
-    expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
-    expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(beforeSource);
-    expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(beforeDestination);
-    expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
-    await writeFile(follower.config, `storage.backing_repository: ${JSON.stringify(onward)}\n`);
-    expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
-  }
+it.each(["source", "destination"] as const)("refuses a new %s record left before the follow copy", async changed => {
+  const h = await followFixture(), follower = h.follower;
+  const mover = await createRemoteMover(h, h.destinationDirectory, `later-${changed}`);
+  const onward = join(mover.root, "onward.git");
+  await mover.exec("git", ["init", "--bare", onward]);
+  let beforeSource = "", beforeDestination = "";
+  const result = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
+    migrateStep: async step => {
+      if (step !== (changed === "source" ? "follow.fetch-source" : "follow.fetch-destination")) return;
+      if (changed === "source") expect((await invokeStoreMigrate(["--to", h.origin], mover.ports)).status).toBe("ok");
+      expect((await invokeStoreMigrate(["--to", onward], mover.ports)).status).toBe("ok");
+      beforeSource = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+      beforeDestination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+    },
+  } })).result;
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "moved", condition: expect.stringContaining(changed === "source" ? "origin" : "backing") } });
+  expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(beforeSource);
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(beforeDestination);
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  await writeBackingRepository(follower.root, onward);
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
 }, 60_000);
 
 it.each(["source", "destination"] as const)("ends a recorded follow whose %s a later move changed, leaving the new move to follow", async changed => {
@@ -125,6 +124,7 @@ it("merges a late source ref with a follower's independent publication on the ne
 
 it("finishes a backing-to-backing follow using the recorded old URL after its switch", async () => {
   const h = await lateFollowFixture(true, "backing"), follower = h.follower;
+  await writeBackingRepository(follower.root, h.destinationDirectory);
   await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
     migrateStep: async step => { if (step === "follow.switched") throw new Error("Paused repointed backing"); },
   } })).rejects.toThrow("Paused repointed backing");
@@ -138,11 +138,12 @@ it("finishes a backing-to-backing follow using the recorded old URL after its sw
 
 it("always turns the departed backing off even when its old remote cannot be read", async () => {
   const h = await followFixture(undefined, "backing"), follower = h.follower;
+  const oldUrl = (await follower.git(["remote", "get-url", "backing"])).stdout.trim();
   await rename(h.origin, h.origin + ".offline");
   try {
     const off = (await invokeStoreRemote(["backing", "off", "--json"], { cwd: follower.root, ports: follower.ports })).result;
     expect(off, JSON.stringify(off)).toMatchObject({ status: "ok", result: { remotes: expect.arrayContaining([
-      expect.objectContaining({ name: "backing", url: h.origin, role: "off" }),
+      expect.objectContaining({ name: "backing", url: oldUrl, role: "off" }),
     ]) } });
     expect((await invokeStoreMigrate([], follower.ports)).status).toBe("ok");
   } finally { await rename(h.origin + ".offline", h.origin); }
