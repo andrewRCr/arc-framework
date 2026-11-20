@@ -927,7 +927,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               branch, with promotion settling in one write onto `feat/` at either floor; its two capture-settlement cases
               keep the override by subject (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.f Base merge and integration**
+    - `[x]` **3.4.f Base merge and integration**
         - `movementPaths` (`__tests__/helpers/base-advance.ts`): its disjoint and substantive kinds touch only code
           files and move; its regenerable and evidence-neutral kinds commit `ROADMAP.md` and a work unit's notes to
           exercise classifier arms that leave with the in-repo implementation, so their cases
@@ -958,8 +958,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               review a committed record write reopens; three store expectations change, each traced to a store
               contract (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.f.4 Errand review status over base movement**
-            - `integration/review-status-errand-base-movement.test.ts`, which leaves the ledger.
+        - `[x]` **3.4.f.4 Errand review status over base movement**
+            - `integration/review-status-errand-base-movement.test.ts` leaves the ledger, and 25 of its 27 cases run on
+              the store unchanged, the Errand held as its record with the checkout marker its open leaves, and review
+              recorded into the stored work item's operations. The regenerable-only movement keeps the override by
+              subject (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.4.g Status and view**
 

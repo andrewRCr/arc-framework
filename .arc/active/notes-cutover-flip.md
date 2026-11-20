@@ -1152,6 +1152,15 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           publication response leaves nothing in the index.
         - The tracked ROADMAP's generated base movement, a correction's ROADMAP contribution, and the applicability a
           committed record write reopens run only under the override.
+    - _Errand review status over base movement, as moved (Task 3.4.f.4):_ `review-status-errand-base-movement` leaves
+      the ledger, and 25 of its 27 cases run on the store with no expectation changed.
+        - The fixture holds the Errand as its `work-item/record`, linked to its branch, in a project `seedProjectIdentity`
+          mints, and writes the Errand's checkout marker, as its open leaves both: on the store, local review selects
+          the Errand through the marker's claim (`readReviewCheckoutErrandSelection`) and corroborates the bound work
+          item against it. Hosted and local passes record into the review operations bound to the stored work item
+          (`reviewInFlight`), keyed by the store's project identity.
+        - The two `overlapping-regenerable-only` rows keep the override by subject, in a describe of their own: that
+          movement commits the tracked ROADMAP, which the store refuses on the branch.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

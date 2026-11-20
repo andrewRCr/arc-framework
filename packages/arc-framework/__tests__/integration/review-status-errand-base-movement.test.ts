@@ -8,7 +8,6 @@ import { TransientIdentityRecordV3Schema, serializeTransientIdentityRecord } fro
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createReviewRequirement, createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
-import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { recordHostedRequestAdmission, acknowledgeHostedRequest, recordHostedAwaitAttempt, readLaneProgress } from
   "../../src/scripts/review-gate/lane-progress.js";
@@ -27,7 +26,15 @@ import {
   advanceBase, arrangeBranchSide, movementPaths, arrangeAmbiguousMergeBase, arrangeUnrelatedBase,
   withUnreadableMergeBases, type GitExecLike, type BaseMovementKind,
 } from "../helpers/base-advance.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../src/lib/store/identity.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
+import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
+import { reviewInFlight } from "../fixtures/review-response-policy.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { makeGitExec, execFileAsync } from "../helpers/integration.js";
+import { readStoreRecord, seedProjectIdentity, seedStore } from "../helpers/store/seed-store.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const roots: string[] = [];
@@ -40,6 +47,31 @@ const claimId = "0123456789abcdef0123456789abcdef";
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => removeGitBackedDir(root)));
 });
+
+const IDENTITY = SlugSchema.parse("andrew");
+const ERRAND = OwnerIdentitySchema.parse({ type: "work-item", name: slug });
+
+/** Whether the running case is on the store, which holds the Errand as a record and its review in the Errand's records,
+ * rather than on the in-repo store, which keeps both in repository-wide Git state. */
+function onStore(): boolean {
+  return process.env[IN_REPO_STORE_OVERRIDE] === undefined;
+}
+
+/** The Errand's stored work item, which the store's review records belong to; the in-repo store names none. */
+async function errandWorkItem(root: string): Promise<OwnerIdentity | undefined> {
+  return onStore() ? (await readStoreRecord(root, IDENTITY, recordReferences["work-item/record"](ERRAND))).reference.owner
+    : undefined;
+}
+
+/** The review operations the running store keeps for the Errand, and the repository identity it keys them by. */
+async function reviewAccess(root: string) {
+  const exec = makeGitExec(root);
+  const workItem = await errandWorkItem(root);
+  const repositoryId = workItem === undefined
+    ? await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root))
+    : await createReviewCompositionContext({ cwd: root, exec, workItem }).projectId();
+  return { operations: reviewInFlight(root, workItem), repositoryId };
+}
 
 async function git(root: string, args: readonly string[]): Promise<string> {
   return (await execFileAsync("git", [...args], { cwd: root })).stdout.trim();
@@ -91,10 +123,7 @@ async function installHost(root: string, headSha: string, remote: string): Promi
 }
 
 async function recordHostedReview(root: string, base: string, head: string, outcome: ReviewOutcome) {
-  const exec = makeGitExec(root);
-  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-  const repositoryId = await resolveRepositoryIdentity(publisher);
-  const store = new LocalReviewOperationStateStore(publisher);
+  const { operations: store, repositoryId } = await reviewAccess(root);
   const standardReview = {
     obligation: "required" as const, reasons: ["sensitive-change-set" as const],
     rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version, rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
@@ -145,12 +174,14 @@ async function recordHostedReview(root: string, base: string, head: string, outc
 async function recordLocalReview(root: string) {
   const output: string[] = [];
   const exits: number[] = [];
+  const workItem = await errandWorkItem(root);
+  const invocation = { cwd: root, exec: makeGitExec(root), ...(workItem === undefined ? {} : { workItem }) };
   const boundary = {
     resolveRoot: () => root, write: (text: string) => output.push(text), setExitCode: (code: number) => exits.push(code),
   };
   await handleReviewLocalPrepare("-", {
     ...boundary,
-    prepare: (input) => prepareLocalReview(input, createLocalPrepareDependencies({ cwd: root, exec: makeGitExec(root) })),
+    prepare: (input) => prepareLocalReview(input, createLocalPrepareDependencies(invocation)),
     readText: async () => JSON.stringify({
       schemaVersion: 1, evaluatorIdentity: "fresh-subagent/independent-reviewer",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "atomic",
@@ -164,7 +195,7 @@ async function recordLocalReview(root: string) {
   output.length = 0;
   await handleReviewLocalAttest("-", {
     ...boundary,
-    attest: (input) => attestLocalReviewCommand(input, createLocalAttestDependencies({ cwd: root, exec: makeGitExec(root) })),
+    attest: (input) => attestLocalReviewCommand(input, createLocalAttestDependencies(invocation)),
     readText: async () => JSON.stringify({
       schemaVersion: 1, operationId: prepared.payload.operationId,
       result: { status: "complete", result: "clean", evaluatorIdentity: "fresh-subagent/independent-reviewer",
@@ -199,10 +230,26 @@ async function reviewedErrand(
     intent: "Review one exact Errand", branch, state: "open", savedHead: null, changeRequest: null,
     createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z",
   });
-  await writeFile(join(root, slug), serializeTransientIdentityRecord(record));
-  await git(root, ["add", "."]);
-  await git(root, ["commit", "-m", "base and identity"]);
-  await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+  if (onStore()) {
+    await writeFile(join(root, "README.md"), "# Fixture\n");
+    await git(root, ["add", "."]);
+    await git(root, ["commit", "-m", "base"]);
+    // The store holds the Errand as its record, linked to its branch, in a project no `arc init` minted, and the
+    // checkout carries the Errand's claim, as its open leaves them.
+    const project = await seedProjectIdentity(root, IDENTITY);
+    await seedStore(root, IDENTITY, [{ reference: recordReferences["work-item/record"](ERRAND),
+      content: serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ ...record, owner: "andrew" })),
+      placement: { kind: "active" },
+      links: { branches: [{ repository: project, ref: branch, linkedAs: "created", excluded: [] }] } }]);
+    await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    await writeWorktreeMarker(root, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-01T00:00:00.000Z",
+      createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
+  } else {
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record));
+    await git(root, ["add", "."]);
+    await git(root, ["commit", "-m", "base and identity"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+  }
   await mkdir(join(root, ".arc", "system"), { recursive: true });
   for (const [path, content] of Object.entries(options.seed ?? {})) {
     await mkdir(join(root, dirname(path)), { recursive: true });
@@ -299,19 +346,21 @@ async function reviewedBaselineEdit() {
   });
 }
 
+/** A reviewed Errand's review stays settled once the base moves by the given kind. */
+async function keepsReviewSettled(carrier: "hosted" | "local", kind: BaseMovementKind): Promise<void> {
+  const fixture = await reviewedErrand(carrier, kind);
+  const before = await fixture.status();
+  expect(before, JSON.stringify(before)).toMatchObject({ routedObligation: { state: "settled" } });
+  const advanced = await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+  await expect(git(fixture.root, ["merge-base", "--is-ancestor", advanced.head, fixture.target.headSha])).rejects.toThrow();
+  expect(await fixture.status()).toMatchObject({
+    routedObligation: { state: "settled" }, currentBaseOid: advanced.head, movement: "disjoint",
+  });
+}
+
 describe("Errand review currency across base movement", () => {
-  it.each([
-    ["hosted", "disjoint"], ["local", "disjoint"],
-    ["hosted", "overlapping-regenerable-only"], ["local", "overlapping-regenerable-only"],
-  ] as const)("keeps %s review settled after %s movement", async (carrier, kind) => {
-    const fixture = await reviewedErrand(carrier, kind);
-    const before = await fixture.status();
-    expect(before, JSON.stringify(before)).toMatchObject({ routedObligation: { state: "settled" } });
-    const advanced = await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
-    await expect(git(fixture.root, ["merge-base", "--is-ancestor", advanced.head, fixture.target.headSha])).rejects.toThrow();
-    expect(await fixture.status()).toMatchObject({
-      routedObligation: { state: "settled" }, currentBaseOid: advanced.head, movement: "disjoint",
-    });
+  it.each(["hosted", "local"] as const)("keeps %s review settled after disjoint movement", async (carrier) => {
+    await keepsReviewSettled(carrier, "disjoint");
   });
 
   it.each(["hosted", "local"] as const)("keeps overlapping %s review on the review path", async (carrier) => {
@@ -390,12 +439,22 @@ describe("Errand review currency across base movement", () => {
   );
 });
 
+describe("Errand review currency across regenerable base movement over the in-repo store", () => {
+  // Regenerable-only movement commits the tracked ROADMAP, which the store refuses on the branch; the classifier arm
+  // it exercises is the in-repo store's.
+  useInRepoStoreForEach();
+
+  it.each(["hosted", "local"] as const)("keeps %s review settled after overlapping-regenerable-only movement",
+    async (carrier) => {
+      await keepsReviewSettled(carrier, "overlapping-regenerable-only");
+    });
+});
+
 /** Read the claim's standard-review progress as projected onto one head. */
 async function standardProgress(root: string, headSha: string) {
-  const exec = makeGitExec(root);
-  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-  return readLaneProgress(new LocalReviewOperationStateStore(publisher), {
-    lane: "standard", repositoryId: await resolveRepositoryIdentity(publisher), headSha,
+  const { operations, repositoryId } = await reviewAccess(root);
+  return readLaneProgress(operations, {
+    lane: "standard", repositoryId, headSha,
     lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
   });
 }

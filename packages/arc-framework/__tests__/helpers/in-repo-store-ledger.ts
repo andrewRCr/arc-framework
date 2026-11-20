@@ -10,7 +10,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/e2e/commit-message-consumers.e2e.test.ts",
   "__tests__/e2e/markdown-fix.e2e.test.ts",
   "__tests__/e2e/user.e2e.test.ts",
-  "__tests__/integration/review-status-errand-base-movement.test.ts",
 ];
 
 const packageRoot = resolve(import.meta.dirname, "../..");
