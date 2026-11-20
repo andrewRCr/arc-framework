@@ -724,11 +724,16 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   the settle; `e2e/rename.e2e.test.ts`'s store self-rename case, which moves in Task 3.4.b.3, passes through the built
   CLI.
 
-### `[ ]` **3.R9 Active status reads a bound checkout's Candidate — § 4.16**
+### `[x]` **3.R9 Active status reads a bound checkout's Candidate — § 4.16**
 
 - _Goal:_ On the store, `arc active status` and session-init's `active` slot read the Candidate authority and
   integration boundary of a work unit held in the checkout bound to it under the nested layout, taking the work unit
   from the owner the active scan selected (A23).
+- _Outcome:_ `readSubject` (`lib/store/active-review-access.ts`) reads the work unit by the owner the scan supplies and,
+  given none, identifies the meta's path through the checkout's layout context. `unit/active/status-store.test.ts`'s
+  Integrating case runs in full and session-init status under the nested layout, and
+  `unit/lib/store/active-review-access.test.ts` reads by owner and by layout; each failed first. The lineage suite's
+  mechanically carried and change-set fix cases, which move in Task 3.4.c.2, pass on the store with the fix.
 
 ### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
 

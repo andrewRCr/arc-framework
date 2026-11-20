@@ -1,4 +1,4 @@
-/** Active status projects native review authority without materialized metadata fields. */
+/** Active status projects native review authority without materialized metadata fields, in any checkout layout. */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,10 +18,22 @@ import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { recordReferences, type Store, type StoreRecord } from "../../../src/lib/store/index.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { writeMetaCurrentWorkflow } from "../../../src/lib/store/kinds/meta/writers.js";
+import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability }
+  from "../../../src/lib/store/projection/process-state.js";
+import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 
-it.each(["full", "session-init"] as const)("projects the stored Integrating Candidate and linked branch in %s status", async mode => {
+it.each([
+  ["full", "unprojected"], ["session-init", "unprojected"], ["full", "nested"], ["session-init", "nested"],
+] as const)("projects the stored Integrating Candidate and linked branch in %s status (%s layout)", async (mode, layout) => {
   const h = createReviewHarness(), cwd = await mkdtemp(join(tmpdir(), "arc-active-review-store-"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const path = layout === "nested" ? ".arc/active/current/meta-example.md" : ".arc/active/meta-example.md";
+  if (layout === "nested") {
+    onTestFinished(() => { beginProjectionCommand(); });
+    recordEngineStoreCapability(cwd, true);
+    projectionProcessState().layoutContexts.set(cwd, Promise.resolve({ claim: SlugSchema.parse("example"),
+      layoutActive: "nested" }));
+  }
   const record = candidateFixture();
   const primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" }, { kind: "active" },
     { branches: [{ repository: "project", ref: "refs/heads/feat/example", linkedAs: "created", excluded: [] },
@@ -36,11 +48,11 @@ it.each(["full", "session-init"] as const)("projects the stored Integrating Cand
   const options = { cwd, store: h.store, projectId: async () => "project", exec: git.exec,
     projectCandidateTarget: projectDurableCandidateTarget };
   if (mode === "full") {
-    expect(await runActiveStatus(options)).toMatchObject({ candidates: [{ candidateId: record.attestation.candidateId,
-      branch: "feat/example", integrationBoundary: boundary }], warnings: [] });
+    expect(await runActiveStatus(options)).toMatchObject({ candidates: [{ path,
+      candidateId: record.attestation.candidateId, branch: "feat/example", integrationBoundary: boundary }], warnings: [] });
   } else {
-    expect(await runActiveSessionInitStatus(options)).toMatchObject({ resolution: "single", sessionType: "integration",
-      integrationBoundary: boundary, warnings: [] });
+    expect(await runActiveSessionInitStatus(options)).toMatchObject({ resolution: "single", path,
+      sessionType: "integration", integrationBoundary: boundary, warnings: [] });
   }
 });
 
