@@ -827,6 +827,36 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           names the bare branch, so a branch-keyed reader such as review's live context missed the seeded work unit;
           its 21 users pass with the bare name. `responsePolicyRequest` decodes the store's references and reads a
           store producer from its attempt's outcome record (`reviewInFlight`, `fixtures/review-response-policy.ts`).
+    - _Candidate lineage, as moved (Task 3.4.c.2):_ the four files leave the ledger, and `registerCandidateLineageSuite`
+      spawns through `e2e/store-default.ts`. Each case runs on one store: 25 of the 39 on the store, and 14 _In-repo_
+      by subject through `withInRepoStore` (`IN_REPO_SUBJECTS`), its initialized template built once per store.
+        - _In-repo by subject:_ ROADMAP regeneration, the three archive relocations, and two live artifacts collapsing
+          onto one key each move or collide tracked files; the operational-only commit commits state; the four
+          planted, deleted, or corrupted disposition records, and a hosted disposition binding planted without the
+          approved response it binds, are residue the store's create-only review facts cannot hold; and the three
+          delivery-member cases need delivery, paused on the store (§ 4.3), as in Task 3.R.c.
+        - _The settled-findings case:_ recorded through the store's admission, acknowledgment, and await, and deferred
+          through an approved response, its pass reads `settled` on both stores, since the reservation discharges a
+          settled pass its response policy completes ("converged with no verified material findings",
+          `hosted-reservation-discharge.ts`). Only the planted binding, which has no approved response for the policy
+          to read, stays outstanding, so the case keeps that binding in-repo.
+        - _Helpers:_ on the store a state-only commit asserts nothing is staged, and the Candidate, boundary, task
+          list, review operations, and approved dispositions are read and written through the store, the review
+          composition and its in-flight records taking `example`'s exact work item (`exampleOwner`, `invocation`).
+          `holdExample` binds `example` in place, `shipExample` seeds it Shipped and completed, and `recordHostedPass`
+          records a hosted pass through admission, acknowledgment, and await, returning the owner-bearing source
+          reference the store's await emits. `seed-store.ts` gains `removeStoreRecord`, and `responsePolicyRequest`
+          reads a store producer of either kind through the responses port, a hosted one's pull request with it.
+        - _Expectations changed, traced:_ the store writes a version-two boundary, naming `terminus` and
+          `readinessBinding` and carrying no `policy` (`integration-boundary-locus-v2.ts`); a native local review and
+          frontline pass reduce and attest through the `operationRef` their preparation emits; applicability resolves
+          to `continue`, with no selection to commit; an unmarked carrier reads `unmanaged-checkout`, since the store
+          selects a checkout's work unit by marker; re-rooting an archived Shipped work unit's Candidate leaves only
+          `reviewed.txt` staged, the record written off the branch; a refused Candidate advance in a checkout another
+          work unit owns leaves the record's version unchanged and nothing staged; and a hosted pass takes the logical
+          pass its admission derives.
+        - Two cases reading `arc active status` in the bound checkout found no Candidate under the nested layout,
+          which Task 3.R9 fixed (A23).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

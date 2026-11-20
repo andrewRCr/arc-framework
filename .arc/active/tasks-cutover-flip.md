@@ -838,9 +838,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               four store cases for `handleAttest` and `handlePublish`. Each changed expectation traces to a store
               contract, and two fixtures were corrected (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.c.2 Candidate lineage**
+        - `[x]` **3.4.c.2 Candidate lineage**
             - `registerCandidateLineageSuite` and its four suites, `e2e/candidate-lineage*.e2e.test.ts` and
-              `integration/candidate-lineage.test.ts`.
+              `integration/candidate-lineage.test.ts`, leave the ledger and spawn through `e2e/store-default.ts`: 25 of
+              the 39 cases run on the store through store-aware Candidate, boundary, task-list, and review helpers, a
+              hosted pass recorded through admission, acknowledgment, and await, and 14 keep the override by subject.
+              Each changed expectation traces to a store contract, and two cases surfaced A23
+              (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.c.3 The review fan-out harness**
             - `integration/review-fan-out-lifecycle.test.ts` and `review-member-full-final`, through `installCandidate`

@@ -135,20 +135,21 @@ export async function responsePolicyRequest(
   });
 }
 
-/** The store keeps a reduced local producer as its attempt's outcome record, keyed by the attempt, with the facts the
- * in-repo store keeps on its operation. */
+/** The store keeps an ended producer as its attempt's outcome record, with the facts the in-repo store keeps on its
+ * operation; a hosted producer's carries its pull request. */
 async function storedResponsePolicyRequest(root: string, workItem: OwnerIdentity, attemptId: string, repository: string) {
   const family = createReviewCompositionContext({ cwd: root, exec: gitExec, workItem }).family;
   if (family.mode !== "stored") throw new Error("a store's response source needs the store");
-  const outcome = (await family.ports.outcomes.read(attemptId))?.value;
-  if (outcome === undefined) throw new Error("response policy source outcome is unavailable");
-  if (outcome.source.kind !== "local" || outcome.requirement === undefined) {
+  const response = await family.ports.responses.read(attemptId, "producer-result");
+  if (response.status === "missing-producer") throw new Error("response policy source outcome is unavailable");
+  const outcome = response.outcome.value;
+  const requirement = outcome.hosted?.requirement ?? outcome.requirement;
+  if (outcome.source.kind === "frontline" || requirement === undefined) {
     throw new Error(`the store's ${outcome.source.kind} response producer is not composed here`);
   }
-  const { requirement } = outcome;
   return responsePolicyRequestFixture({
     repository,
-    pullRequest: null,
+    pullRequest: outcome.hosted?.target.pullRequest ?? null,
     headSha: outcome.target.headSha,
     sourceId: outcome.source.sourceId,
     reviewOperationId: outcome.attemptId,

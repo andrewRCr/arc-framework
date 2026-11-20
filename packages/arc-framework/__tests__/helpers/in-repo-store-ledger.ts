@@ -7,9 +7,6 @@ import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 /** Package-relative paths of the listed test files, sorted. */
 export const IN_REPO_STORE_LEDGER: readonly string[] = [
-  "__tests__/e2e/candidate-lineage-currentness.e2e.test.ts",
-  "__tests__/e2e/candidate-lineage-settlement.e2e.test.ts",
-  "__tests__/e2e/candidate-lineage.e2e.test.ts",
   "__tests__/e2e/commit-message-consumers.e2e.test.ts",
   "__tests__/e2e/delivery-position.e2e.test.ts",
   "__tests__/e2e/errand.e2e.test.ts",
@@ -17,7 +14,6 @@ export const IN_REPO_STORE_LEDGER: readonly string[] = [
   "__tests__/e2e/review-candidate-supersession.e2e.test.ts",
   "__tests__/e2e/review-chunking.e2e.test.ts",
   "__tests__/e2e/user.e2e.test.ts",
-  "__tests__/integration/candidate-lineage.test.ts",
   "__tests__/integration/delivery-position.test.ts",
   "__tests__/integration/history-shape-ambiguity.test.ts",
   "__tests__/integration/review-fan-out-lifecycle.test.ts",

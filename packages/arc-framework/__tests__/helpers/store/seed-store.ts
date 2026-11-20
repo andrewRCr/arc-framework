@@ -56,3 +56,18 @@ export async function readStoreRecord(root: string, identity: Slug, reference: R
   if (read.status === "refused") throw refused(read.refusal, "read");
   return read.result;
 }
+
+/**
+ * Remove one record from a repository's ref store at the version it holds, as a store verb retires one, so a test can
+ * reach a state that record's absence decides.
+ * @param root - The temporary repository's checkout.
+ * @param identity - The ARC identity the write runs as.
+ * @param reference - The record to remove.
+ */
+export async function removeStoreRecord(root: string, identity: Slug, reference: RecordReference): Promise<void> {
+  const held = await readStoreRecord(root, identity, reference);
+  const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
+  const result = await createRefStore({ ...ports, identity: async () => identity }).batch({ provenance,
+    writes: [{ action: "remove", reference: held.reference, expected: held.version }] });
+  if (result.status !== "ok") throw refused(result.refusal, "removal");
+}
