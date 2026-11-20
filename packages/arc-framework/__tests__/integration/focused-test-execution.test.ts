@@ -13,19 +13,26 @@ const operand = "packages/arc-framework/__tests__/unit/named.test.mjs";
 
 it("runs only the literal named case through the real root npm separator in package cwd", async () => {
   const fixture = await makeFocusedVitestFixture(); roots.push(fixture.root);
+  const configuration = join(fixture.packageRoot, "vitest.config.ts");
+  const config = await readFile(configuration, "utf8");
+  // Exercise Vitest's automatic reporter selection as in the repository config.
+  await writeFile(configuration, config.replace('reporters: ["default", "./tests/reporter.mjs"],', ""));
   await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs"), `
 import { it, expect } from "vitest";
 it("accepts literal -- hyphen value", () => {
   expect(process.cwd()).toBe(${JSON.stringify(fixture.packageRoot)});
   console.log("ROOT-FOCUSED-CASE-RAN");
+  console.error("ROOT-FOCUSED-CASE-STDERR");
 });
 it("other case", () => { throw new Error("unselected case executed"); });
 `);
   await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs-adjacent.test.mjs"),
     'import { it } from "vitest"; it("accepts literal -- hyphen value", () => { throw new Error("adjacent file executed"); });');
-  const result = await runFocusedTestFixture(fixture.root, [operand, "-t", "accepts literal -- hyphen value"]);
+  const result = await runFocusedTestFixture(fixture.root, [operand, "-t", "accepts literal -- hyphen value"],
+    { AI_AGENT: "codex", FORCE_COLOR: undefined });
   expect(result, result.stderr).toMatchObject({ code: 0 });
   expect(result.stdout).toContain("ROOT-FOCUSED-CASE-RAN");
+  expect(result.stderr).toContain("ROOT-FOCUSED-CASE-STDERR");
   expect(result.stdout).toContain("1 passed");
   expect(await readFile(fixture.events, "utf8")).toContain("config:true:true:test");
 }, nestedRunLimit(30_000));
