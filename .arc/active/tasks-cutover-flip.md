@@ -815,6 +815,29 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           through its batch for the Owner-accepted recovery and for delivery authority while Integrating and while
           Shipped, and `handlePublish` persisting a moved resume point on an unchanged outcome, each over Candidate and
           boundary records the store holds. The list is in `notes-cutover-flip.md` § Test callers.
+        - _Amended (Owner, 2026-11-19):_ its twelve end-to-end files and three integration files failed 113 of their 178
+          cases without the override, and 16 more never ran, so the family moves in four review increments, one commit
+          each, rather than § 7.3's one commit; each increment classifies its cases before editing
+          (`notes-cutover-flip.md` § Test callers).
+
+        - `[x]` **3.4.c.1 Attest and publication**
+            - `e2e/attest.e2e.test.ts`, `candidate-applicability`, and the three `publication-*` files spawn through
+              `e2e/store-default.ts` and seed through `seedWorkUnit`, their tracked-file cases in-repo beside store
+              cases, `publication-spine`'s surviving cases on both stores; `unit/handlers/lifecycle-verbs` takes the
+              four store cases for `handleAttest` and `handlePublish`. Each changed expectation traces to a store
+              contract, and two fixtures were corrected (`notes-cutover-flip.md` § Test callers).
+
+        - `[ ]` **3.4.c.2 Candidate lineage**
+            - `registerCandidateLineageSuite` and its four suites, `e2e/candidate-lineage*.e2e.test.ts` and
+              `integration/candidate-lineage.test.ts`.
+
+        - `[ ]` **3.4.c.3 The review fan-out harness**
+            - `integration/review-fan-out-lifecycle.test.ts` and `review-member-full-final`, through `installCandidate`
+              and `writeBoundary`.
+
+        - `[ ]` **3.4.c.4 Review surfaces**
+            - `e2e/review-protocol.e2e.test.ts`, `review-candidate-supersession`, `review-chunking`, and
+              `review-cli-surfaces`, the last two spawning through `runCli`.
 
     - `[ ]` **3.4.d Delivery**
         - Among them `positionFixture` (`__tests__/helpers/delivery-position-suite.ts`).

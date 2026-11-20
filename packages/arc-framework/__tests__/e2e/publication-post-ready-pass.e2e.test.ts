@@ -5,16 +5,19 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 
 const OFFLINE_ORIGIN = "https://arc-fixture.example/arc-framework/example.git";
 const OFFLINE_ENV = { GIT_TERMINAL_PROMPT: "0" };
 
-const META = makeMetaFixture("example", {
+const META_FIELDS = {
   owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
   taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
-});
+} as const;
+const TASKS = "# Task List: Example\n\n- [x] Verification complete\n";
 
 interface Envelope {
   state: string;
@@ -24,6 +27,8 @@ interface Envelope {
 
 interface PreparedLocalReview {
   operationId: string;
+  /** The store's reference to the prepared operation, which its continuations resubmit; the in-repo store emits none. */
+  operationRef?: string;
   target: { targetId: string; headSha: string; headTree: string };
   request: { evaluatorIdentity: string };
   reviewerPayload: {
@@ -44,7 +49,8 @@ async function invoke(
   return JSON.parse(result.stdout) as Envelope;
 }
 
-async function createReviewRepo(): Promise<string> {
+/** An attested work unit, its meta and task list tracked files for the in-repo store or records the store holds. */
+async function createReviewRepo(store: boolean): Promise<string> {
   const root = await createTempRepo("arc-post-ready-pass-");
   const initialized = await runArc(["init", "--yes", "--name", "example"], root);
   expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
@@ -57,17 +63,22 @@ async function createReviewRepo(): Promise<string> {
   await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/example"]);
-  await mkdir(join(root, ".arc", "active"), { recursive: true });
+  if (store) {
+    await seedWorkUnit(root, "example", { identity: "test-user", branch: "feat/example", bind: root, meta: META_FIELDS,
+      taskList: TASKS });
+    await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+  } else {
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-example.md"), makeMetaFixture("example", META_FIELDS));
+    await writeFile(join(root, ".arc", "active", "tasks-example.md"), TASKS);
+  }
   await mkdir(join(root, "src"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", "meta-example.md"), META);
-  await writeFile(join(root, ".arc", "active", "tasks-example.md"),
-    "# Task List: Example\n\n- [x] Verification complete\n");
   await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
   const attested = await runArc(["attest", "example", "--json"], root);
   expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
-  await git(root, ["commit", "-m", "verification"]);
+  if (!store) await git(root, ["commit", "-m", "verification"]);
   return root;
 }
 
@@ -122,9 +133,11 @@ async function prepareLocal(
 }
 
 async function finishClean(root: string, prepared: PreparedLocalReview, runId: string): Promise<void> {
+  const operation = { operationId: prepared.operationId,
+    ...(prepared.operationRef === undefined ? {} : { operationRef: prepared.operationRef }) };
   await invoke(root, ["review", "local", "attest", "-"], {
     schemaVersion: 1,
-    operationId: prepared.operationId,
+    ...operation,
     result: {
       status: "complete",
       result: "clean",
@@ -141,10 +154,7 @@ async function finishClean(root: string, prepared: PreparedLocalReview, runId: s
       findings: [],
     },
   });
-  const reduced = await invoke(root, ["review", "reduce", "-"], {
-    schemaVersion: 1,
-    operationId: prepared.operationId,
-  });
+  const reduced = await invoke(root, ["review", "reduce", "-"], { schemaVersion: 1, ...operation });
   expect(reduced).toMatchObject({ state: "advisory-complete", nextAction: "none" });
 }
 
@@ -163,7 +173,13 @@ function publish(root: string, env: Record<string, string>) {
   ], root, { env });
 }
 
-describe("publication after an authorized same-head standard pass", () => {
+// The in-repo store keeps the meta, task list, and the readiness pre-publication records as tracked files the case
+// commits; the store holds them as records and writes readiness with no commit to make.
+describe.each([
+  { arm: "the in-repo store", store: false },
+  { arm: "the store", store: true },
+])("publication after an authorized same-head standard pass on $arm", ({ store }) => {
+  if (!store) useInRepoStoreForEach();
   let root: string | null = null;
 
   afterEach(async () => {
@@ -172,7 +188,7 @@ describe("publication after an authorized same-head standard pass", () => {
   });
 
   it("refuses ready replay and publish while the new pass is pending, then reopens after it settles", async () => {
-    root = await createReviewRepo();
+    root = await createReviewRepo(store);
     const env = await attachOriginWithoutPr(root);
     await writeFile(join(root, ".git", "prepublication-change-set.json"), JSON.stringify({
       changeSetState: "known",
@@ -190,7 +206,7 @@ describe("publication after an authorized same-head standard pass", () => {
     const ready = await prePublication(root, env);
     expect(ready.exitCode, JSON.stringify(ready)).toBe(0);
     expect(JSON.parse(ready.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
-    await git(root, ["commit", "-m", "record publication readiness"]);
+    if (!store) await git(root, ["commit", "-m", "record publication readiness"]);
     const currentHead = await git(root, ["rev-parse", "HEAD"]);
     const operationalReplay = await runArc(["review", "pre-publication", "example"], root, { env });
     expect(operationalReplay.exitCode, JSON.stringify(operationalReplay)).toBe(0);

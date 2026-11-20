@@ -782,6 +782,51 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - `integration/validate-cohort-consistency` keeps its explicit override, now stated as § 7.3's: the check reads
           staged cohort files, which only the in-repo store keeps; the store's membership read is covered in process
           (`unit/work-unit/store-read-consumers.test.ts`).
+- **Review, attest, Candidate, and publication (Task 3.4.c), probed before any edit:** twelve end-to-end files and
+  three integration files, 178 cases. With every spawn switched, `runCli` inheriting the test process's selection, and
+  the family's eight ledger entries set aside, 113 failed, 49 passed, and 16 never ran, `publication-spine`'s shared
+  convergence template failing before its cases. Most failures meet the tracked-state refusal over committed metas;
+  39 are the fan-out harness's review plan reading `unavailable`, since its work unit is not in the store.
+    - _Attest and publication (Task 3.4.c.1):_ `attest` (9 of 9), `candidate-applicability` (1), the two single-case
+      `publication-*` files (1 each), and `publication-spine` (1 failing, 16 not run).
+    - _Candidate lineage (Task 3.4.c.2):_ `registerCandidateLineageSuite`'s four suites, 38 of 39, the three
+      end-to-end partitions and the integration suite.
+    - _The fan-out harness (Task 3.4.c.3):_ `review-fan-out-lifecycle` (40 of 41) and `review-member-full-final` (3).
+    - _Review surfaces (Task 3.4.c.4):_ `review-protocol` (12 of 13), `review-candidate-supersession` (3),
+      `review-chunking` (2), and `review-cli-surfaces` (2 of 48), the last two spawning through `runCli`, which sets
+      the override itself.
+    - _Attest and publication, as moved (Task 3.4.c.1):_ the five files spawn through `e2e/store-default.ts`; none was
+      on the ledger. Each keeps its tracked-file cases _In-repo_ under `useInRepoStoreForEach` and runs its surviving
+      subjects on the store, seeding `example` through `seedWorkUnit` bound in place on its branch.
+        - `attest`: a store block of eight beside the nine in-repo cases: the Candidate record written with nothing
+          staged, the subject unchanged across a disjoint base advance, the open-task, binding, and missing-list
+          refusals writing nothing, and the three omitted-content refusals. The store refuses to hold a malformed task
+          list, so attestation never reads one there.
+        - `candidate-applicability`: one store case: an unmarked carrier on the branch refuses
+          `active-work-unit-unavailable`, the selection resolves and replays with nothing to commit, and a marker
+          rebound to another work unit refuses `active-work-unit-mismatch`.
+        - `publication-frontline-pending` and `publication-post-ready-pass` share each scenario between the two stores;
+          on the store `other` holds its own bound worktree, since the store selects a checkout's work unit by marker
+          rather than branch.
+        - `publication-spine`: ten case sites run on both stores (`describe.each`), each store building its convergence
+          template once on first use. Four stay _In-repo_: the premature projection commit, the operational-only
+          commit, the interrupted Candidate-then-boundary write, and the publication-finalization marker, each a
+          tracked-record mechanic the store's one batch removes.
+        - `unit/handlers/lifecycle-verbs` takes the amendment's four store cases over a Candidate and a version-two
+          boundary the bound store holds: `handleAttest` threading the Owner-accepted boundary across repair-current
+          movement and public delivery authority while Integrating and while Shipped, and `handlePublish` persisting a
+          moved resume point under the Candidate's version. Its Candidate and boundary access mocks now spread the
+          real modules, so the store's batch prepares its writes through them.
+        - _Expectations changed, traced:_ attestation leaves the meta's Candidate, Next Task, and Last Completed
+          unwritten, since the store takes Candidate authority from its record and those fields retire at the flip
+          (`spec-seam-lifecycle.md` § 2.2); the version-two post-attest continuation carries no projection disposition
+          (`PostAttestContinuationV2Schema`); a local review's continuations resubmit the `operationRef` its
+          preparation emits (`resolveReviewOperationInvocation`); and the store keeps a reduced local review as its
+          lane attempt, so the spine counts evaluator invocations there.
+        - _Fixtures corrected:_ `seedWorkUnit` linked `refs/heads/<branch>` where every production writer and lookup
+          names the bare branch, so a branch-keyed reader such as review's live context missed the seeded work unit;
+          its 21 users pass with the bare name. `responsePolicyRequest` decodes the store's references and reads a
+          store producer from its attempt's outcome record (`reviewInFlight`, `fixtures/review-response-policy.ts`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

@@ -10,9 +10,14 @@ import {
   createTempRepo,
   git,
   runArc,
-} from "./helpers.js";
+} from "./store-default.js";
 import { advanceBase, movementPaths } from "../helpers/base-advance.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { readStoreRecord } from "../helpers/store/seed-store.js";
+import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { recordReferences, type RecordReference } from "../../src/lib/store/identity.js";
 
 /**
  * Give the fixture a base it can actually move: a bare repository reached through a host-shaped URL, so the
@@ -60,7 +65,10 @@ async function createAttestFixture(options: { readonly origin?: boolean } = {}):
   return repository;
 }
 
+// Every case here holds its meta and task list as tracked files and reads the Candidate evidence attestation stages
+// beside them, which only the in-repo store keeps; the store holds them as records, and its cases follow.
 describe("arc attest", () => {
+  useInRepoStoreForEach();
   let repository: string | null = null;
 
   afterEach(async () => {
@@ -194,5 +202,138 @@ describe("arc attest", () => {
       reason: expect.stringContaining(expectedPath),
       remedy: { argv: ["arc", "attest", "example"] },
     });
+  });
+});
+
+const CLOSED_TASKS = "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n";
+
+describe("arc attest on the store", () => {
+  let repository: string | null = null;
+
+  afterEach(async () => {
+    if (repository !== null) await cleanupTempDir(repository);
+    repository = null;
+  });
+
+  /** An Active work unit held in the store and bound in place on its branch, its implementation committed and its
+   * task list closed, ready to propose. */
+  async function storeFixture(options: { origin?: boolean; taskList?: string | null; bindTaskList?: boolean } = {}) {
+    const root = await createTempRepo("arc-attest-store-");
+    repository = root;
+    const initialized = await runArc(["init", "--yes", "--name", "example"], root);
+    expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "chore(test): initialize fixture"]);
+    if (options.origin === true) await attachOrigin(root);
+    await git(root, ["switch", "-c", "feat/example"]);
+    const taskList = options.taskList === undefined ? CLOSED_TASKS : options.taskList;
+    const { meta } = await seedWorkUnit(root, "example", { identity: "test-user", branch: "feat/example", bind: root,
+      meta: { state: "Active", owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+        ...(options.bindTaskList === false ? {} : { taskList: "tasks-example.md" }), lastCompleted: "verification",
+        nextTask: "Task 1.1 — Verification complete", nextAction: "verification complete" },
+      ...(taskList === null ? {} : { taskList }) });
+    await writeFile(join(root, ".git", "info", "exclude"), ".arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
+    await git(root, ["add", "src/example.ts"]);
+    await git(root, ["commit", "-m", "implementation"]);
+    const read = (reference: RecordReference = meta.reference) => readStoreRecord(root, SlugSchema.parse("test-user"), reference);
+    return { root, meta, read, candidate: recordReferences["review/candidate"](meta.reference.owner) };
+  }
+
+  // The store takes Candidate authority from the Candidate record alone, and from the flip no verb writes the meta's
+  // Next Task or Last Completed, so attestation moves only the meta's workflow and next action.
+  it("writes the Candidate record and moves the meta to Candidate preparation, staging nothing", async () => {
+    const f = await storeFixture();
+
+    const result = await runArc(["attest", "example", "--json"], f.root);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "attested",
+      operation: "root",
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
+    });
+    expect(await f.read()).toMatchObject({ fields: { state: "Active", candidateId: null, currentWorkflow: "prepare-work-unit",
+      lastCompleted: "verification", nextTask: "Task 1.1 — Verification complete" } });
+    const record = JSON.parse((await f.read(f.candidate) as { content: string }).content) as {
+      subject: { entries: Array<{ path: string }> } };
+    expect(record.subject.entries.map((entry) => entry.path)).toEqual(["src/example.ts"]);
+    expect(await git(f.root, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
+  it("proposes the same Candidate subject after a base advance sharing none of its paths", async () => {
+    const f = await storeFixture({ origin: true });
+    const advance = await advanceBase({ cwd: f.root, paths: movementPaths("disjoint", "example").base });
+    expect(await git(f.root, ["rev-parse", "refs/remotes/origin/main"])).toBe(advance.head);
+
+    const result = await runArc(["attest", "example", "--json"], f.root);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "attested", operation: "root" });
+    const record = JSON.parse((await f.read(f.candidate) as { content: string }).content) as {
+      subject: { entries: Array<{ path: string }> } };
+    expect(record.subject.entries.map((entry) => entry.path)).toEqual(["src/example.ts"]);
+    expect(await git(f.root, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
+  // The store refuses to hold a malformed task list, so attestation never reads one there.
+  it.each([
+    ["an executable task remains open", { taskList: CLOSED_TASKS.replace("`[x]`", "`[ ]`") }],
+    ["the metadata carries no task-list binding", { bindTaskList: false }],
+  ] as const)("refuses Candidate attestation when %s, writing nothing", async (_label, options) => {
+    const f = await storeFixture(options);
+    const before = await f.read();
+
+    const result = await runArc(["attest", "example", "--json"], f.root);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/task[ -]list|task remains open|malformed/iu),
+      remedy: { argv: ["arc", "attest", "example"] },
+    });
+    expect(await f.read()).toEqual(before);
+    await expect(f.read(f.candidate)).rejects.toThrow(/not-found/u);
+  });
+
+  it("refuses Candidate attestation when the task list is missing, writing nothing", async () => {
+    const f = await storeFixture({ taskList: null });
+    const before = await f.read();
+
+    const result = await runArc(["attest", "example", "--json"], f.root);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected" });
+    expect(await f.read()).toEqual(before);
+    await expect(f.read(f.candidate)).rejects.toThrow(/not-found/u);
+  });
+
+  it.each([
+    ["unstaged tracked content", async (root: string) => {
+      await writeFile(join(root, "src", "example.ts"), "export const example = false;\n");
+    }, "src/example.ts"],
+    ["partially staged content", async (root: string) => {
+      await writeFile(join(root, "src", "example.ts"), "export const example = 'staged';\n");
+      await git(root, ["add", "src/example.ts"]);
+      await writeFile(join(root, "src", "example.ts"), "export const example = 'unstaged';\n");
+    }, "src/example.ts"],
+    ["untracked reviewable content", async (root: string) => {
+      await writeFile(join(root, "src", "untracked.ts"), "export const untracked = true;\n");
+    }, "src/untracked.ts"],
+  ] as const)("refuses %s the Candidate would omit, writing nothing", async (_label, arrange, expectedPath) => {
+    const f = await storeFixture();
+    await arrange(f.root);
+    const before = await f.read();
+
+    const result = await runArc(["attest", "example", "--json"], f.root);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining(expectedPath),
+      remedy: { argv: ["arc", "attest", "example"] },
+    });
+    expect(await f.read()).toEqual(before);
   });
 });

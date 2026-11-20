@@ -64,7 +64,7 @@ export async function seedWorkUnit(root: string, slug: string, options: SeedWork
   const owner = { type: "work-item", name: slug } as const;
   const links = options.branch === undefined ? undefined : { branches: [{
     repository: (await readProjectIdentityBinding(selectStore(createDefaultStorePorts({ checkoutRoot: root }), {}))).id,
-    ref: `refs/heads/${options.branch}`, linkedAs: "created" as const, excluded: [],
+    ref: options.branch, linkedAs: "created" as const, excluded: [],
   }] };
   const [meta, ...owned] = await seedStore(root, SlugSchema.parse(options.identity), [
     { reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner }),
