@@ -1137,6 +1137,21 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           them to the stored work item as the handler does (`resolveIntegrationReviewInvocation`,
           `handlers/integration.ts`); unbound, the store's review ports refuse. Its readers over bare repositories
           compose no store.
+    - _Work-unit review status over base movement, as moved (Task 3.4.f.3):_ `review-status-base-movement` leaves the
+      ledger and all 18 of its cases run on the store. Its two `codex-pr` hosted-review arms also run under the
+      override, in a describe of their own, for the segments only the in-repo store has, so the file holds 20 cases.
+        - The fixture holds the work unit in the store, bound to the checkout with its task list (`seedWorkUnit`), over
+          the project an in-process `arc init` mints. Records are read and written through the review-record accessors
+          bound to the stored work item, and a state-only commit lands only on the in-repo store.
+        - The pre-publication points build version-two boundaries, the only format the store writes; a retained
+          version-one boundary is read-only there.
+        - Three expectations change on the store, each because its records are held off the branch: recording
+          completion notes moves no head, so it reopens no review applicability; resolving applicability to
+          `review-required` returns `request-review` rather than `commit-selection` (`handleCandidateApplicabilityResolve`,
+          `handlers/candidate.ts`), since from the flip delivery makes no record-only commit (spec § 8.7); and staging a
+          publication response leaves nothing in the index.
+        - The tracked ROADMAP's generated base movement, a correction's ROADMAP contribution, and the applicability a
+          committed record write reopens run only under the override.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

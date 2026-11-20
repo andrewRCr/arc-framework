@@ -951,8 +951,12 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
               movement kinds and teardown's refusal over an unavailable base read keep the override by subject
               (`notes-cutover-flip.md` § Test callers).
 
-        - `[ ]` **3.4.f.3 Work-unit review status over base movement**
-            - `integration/review-status-base-movement.test.ts`, which leaves the ledger.
+        - `[x]` **3.4.f.3 Work-unit review status over base movement**
+            - `integration/review-status-base-movement.test.ts` leaves the ledger and its 18 cases run on the store,
+              seeding the work unit there and reaching its records through accessors bound to the stored work item.
+              The two `codex-pr` hosted-review arms also keep the override by subject for the ROADMAP movement and the
+              review a committed record write reopens; three store expectations change, each traced to a store
+              contract (`notes-cutover-flip.md` § Test callers).
 
         - `[ ]` **3.4.f.4 Errand review status over base movement**
             - `integration/review-status-errand-base-movement.test.ts`, which leaves the ledger.
