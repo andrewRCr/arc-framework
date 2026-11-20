@@ -24,8 +24,8 @@ npx arc check gate merge
 
 Dependency lifecycle scripts are disabled by the repository's `.npmrc`, including during `npm audit fix`.
 Run `npm run setup` after installing or updating dependencies: it refuses an unexpected `lefthook.yml`, rebuilds
-only esbuild, and installs the Husky hooks. Keep `ignore-scripts` enabled for installs; setup explicitly enables
-scripts only for the named esbuild rebuild.
+only esbuild, installs the Husky hooks, and links the ARC skills into any `.claude` or `.codex` folder the checkout
+has. Keep `ignore-scripts` enabled for installs; setup explicitly enables scripts only for the named esbuild rebuild.
 
 ## Development Workflow
 
