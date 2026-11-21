@@ -8,7 +8,7 @@ import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
-import { archiveChangeRefusals, selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, hasPendingArchiveRecovery, selectArchivePath } from "./archive-selection.js";
 
 /**
  * An obsolete path's changed or opened mark follows the same logical record to the new path a pass lays, keyed by that
@@ -43,7 +43,7 @@ export async function removeObsoleteProjectionPaths(input: {
     if (entry?.kind !== "record") continue;
     if (entry.handoff !== undefined) continue;
     // An archive path this checkout does not own is left untouched, its entry and file as they are.
-    if (selectArchivePath(root, path) !== null) continue;
+    if (selectArchivePath(root, path) !== null || hasPendingArchiveRecovery(index, path)) continue;
     if (!root.writable(path) || root.blockedByLink(path) !== null || boundary(path) !== null || root.unsent.has(path)) {
       index = withProjectionEntry(index, path, { ...entry, pending: true });
       continue;

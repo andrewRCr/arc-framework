@@ -20,7 +20,7 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
+import { hasPendingArchiveRecovery, refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 import { archiveEditCommand } from "./archive-admission.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
@@ -91,6 +91,7 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
     if (input.index.entries[path] !== undefined) return { index: input.index, unresolved: true };
     return { index: withProjectionEntry(input.index, path, unreadRebuildEntry(input, refused)), unresolved: true };
   }
+  if (hasPendingArchiveRecovery(input.index, path)) return { index: input.index, unresolved: true };
   if (isUnreadRebuildEntry(input.index.entries[path])) {
     // Dropped through the partitioned entries, so partitions this command never loaded stay as they are.
     return prepareCheckedFile({ ...input, index: withProjectionEntry(input.index, path, undefined), rebuilding: true });

@@ -10,7 +10,7 @@ import { nameAsideFile, type AsideWriterInput } from "./aside.js";
 import { checkAsideCopy, putBack } from "./aside-copies.js";
 import { retriedMoves, type RetriedMoves, type SwapMoves } from "./aside-moves.js";
 import type { ObjectFormat } from "./blob-id.js";
-import { readStat } from "./change-detection.js";
+import { projectionFileReader, readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { commitReturnedCopies, type ReturnedCopy } from "./returned-copies.js";
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -107,6 +107,7 @@ interface PlannedSwap {
   readonly copy: AsideCopyRecord | null;
   /** The staged file and its identity, which the path holds once it is linked; null for a removal. */
   readonly staged: { readonly file: StagedFile; readonly stat: FileStat } | null;
+  readonly blocked?: RefusedMark;
 }
 
 /**
@@ -123,6 +124,13 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const copies: { path: string; copy: string }[] = [];
   const returned: ReturnedCopy[] = [];
   const reported: string[] = [];
+  const blocked = new Set<string>();
+  const reportHold: ArchiveChangeRefusal = refusal => {
+    blocked.add(refusal.path);
+    if (input.refuseChange === undefined || reported.includes(refusal.path)) return;
+    input.refuseChange(refusal);
+    reported.push(refusal.path);
+  };
   for (const each of plans) {
     const swapped = await swapOne(input, each, async (swap) => {
       const installing = beginAcceptedLay(swap);
@@ -131,25 +139,24 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
         index: withEntry(index, swap.path, installing.entry) });
       return installing;
     });
-    if (swapped.blocked !== undefined && input.refuseChange !== undefined) {
-      input.refuseChange({ path: each.path, copy: null, mark: swapped.blocked });
-      reported.push(each.path);
-    }
+    if (swapped.blocked !== undefined) reportHold({ path: each.path, copy: null, mark: swapped.blocked });
     index = withEntry(index, each.path, swapped.entry);
     returned.push(...(swapped.returned ?? []).map(copy => ({ path: each.path, copy })));
     copies.push(...madeCopies(each.original, swapped.entry).map((copy) => ({ path: each.path, copy })));
   }
-  const unreplaced: string[] = [];
+  const installed = new Set<string>();
   for (const each of plans) {
-    const settlement = await settled(input, each, entryAt(index, each.path));
+    if (blocked.has(each.path)) continue;
+    const settlement = await settled(input, each, entryAt(index, each.path), reportHold);
     index = withEntry(index, each.path, settlement.entry);
-    if (each.staged !== null && !settlement.installed) unreplaced.push(each.path);
+    if (settlement.installed) installed.add(each.path);
   }
+  const unreplaced = input.files.filter(file => file.replace.staged !== null && !installed.has(file.path)).map(file => file.path);
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
-  index = await dropRemovedEntries(index, input.checkout, removals);
+  index = await dropRemovedEntries(index, input.checkout, removals.filter(path => !blocked.has(path)), reportHold);
   if (input.settlementPublication !== "caller" || returned.length > 0) {
-    index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned,
-      refuseChange: input.refuseChange });
+    index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint,
+      returned: returned.filter(copy => !blocked.has(copy.path)), refuseChange: reportHold });
   }
   return { index, copies: remainingCopies(index, copies), removals, unreplaced, reported,
     rebuilt: plans.filter(plan => plan.copy === null && plan.staged !== null && !unreplaced.includes(plan.path)).map(plan => plan.path) };
@@ -170,13 +177,21 @@ function beginAcceptedLay(swap: PlannedSwap): PlannedSwap {
  * @param removals - The paths removed whose record has left them.
  * @returns The index without those entries.
  */
-export async function dropRemovedEntries(index: ProjectionIndex, checkout: string, removals: readonly string[]): Promise<ProjectionIndex> {
+export async function dropRemovedEntries(index: ProjectionIndex, checkout: string, removals: readonly string[],
+  refuseChange: ArchiveChangeRefusal): Promise<ProjectionIndex> {
   const gone = new Set<string>();
   for (const path of removals) {
     const entry = index.entries[path];
     // An entry is dropped only while its archive path is this checkout's, so a path refused mid-command keeps its entry.
-    if (entry?.kind === "record" && entry.copies.length === 0 && archiveDestinationRefusal(checkout, path) === null
-      && await readStat(join(checkout, path)) === null) gone.add(path);
+    if (entry?.kind !== "record" || entry.copies.length > 0) continue;
+    const refused = archiveDestinationRefusal(checkout, path);
+    if (refused !== null) {
+      refuseChange({ path, copy: null, mark: refused });
+      continue;
+    }
+    const stat = await readSwapDestination(checkout, path);
+    if (stat instanceof ArchiveDestinationBlocked) refuseChange({ path, copy: null, mark: stat.mark });
+    else if (stat === null) gone.add(path);
   }
   if (gone.size === 0) return index;
   for (const path of gone) index = withProjectionEntry(index, path, undefined);
@@ -184,18 +199,27 @@ export async function dropRemovedEntries(index: ProjectionIndex, checkout: strin
 }
 
 /** The entry the second write records: what a file the batch put in place no longer needs. */
-async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry): Promise<{ entry: RecordEntry; installed: boolean }> {
+async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry,
+  refuseChange: ArchiveChangeRefusal): Promise<{ entry: RecordEntry; installed: boolean }> {
   // A removal links nothing, so its file stays pending until it and its copies are gone.
   if (swap.staged === null) return { entry, installed: false };
-  if (!await holdsStagedFile(input, swap.path, swap.staged)) return { entry, installed: false };
+  const stat = await readSwapDestination(input.checkout, swap.path);
+  if (stat instanceof ArchiveDestinationBlocked) {
+    refuseChange({ path: swap.path, copy: null, mark: stat.mark });
+    return { entry: { ...entry, pending: true, refused: stat.mark }, installed: false };
+  }
+  if (stat?.type !== "file" || stat.ino !== swap.staged.stat.ino) return { entry, installed: false };
   // A read-back lays what write-back took in, so a file already pending before it waits for the next refresh.
   const placed = { ...entry, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
   return { entry: swap.copy === null ? { ...placed, inProgress: null } : placed, installed: true };
 }
 
-async function holdsStagedFile(input: SwapBatchInput, path: string, staged: NonNullable<PlannedSwap["staged"]>): Promise<boolean> {
-  const stat = await readStat(join(input.checkout, path));
-  return stat?.type === "file" && stat.ino === staged.stat.ino;
+async function readSwapDestination(checkout: string, path: string): Promise<FileStat | ArchiveDestinationBlocked | null> {
+  try { return await projectionFileReader(checkout, path).stat(join(checkout, path)); }
+  catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return error;
+    throw error;
+  }
 }
 
 function entryAt(index: ProjectionIndex, path: string): RecordEntry {
@@ -207,7 +231,13 @@ function entryAt(index: ProjectionIndex, path: string): RecordEntry {
 async function plan(input: SwapBatchInput, file: SwapFile): Promise<PlannedSwap> {
   const { entry: original, staged, moving } = file.replace;
   // An absent file is rebuilt by the link alone, which makes no copy; a removal moves the file aside and links nothing.
-  const present = await readStat(join(input.checkout, file.path)) !== null;
+  const observed = await readSwapDestination(input.checkout, file.path);
+  if (observed instanceof ArchiveDestinationBlocked) {
+    if (staged !== null) await removeProjectionAsideFile(input.checkout, staged.location, input.checkpoint);
+    return { path: file.path, original, entry: { ...original, pending: true, refused: observed.mark },
+      copy: null, staged: null, blocked: observed.mark };
+  }
+  const present = observed !== null;
   const copy: AsideCopyRecord | null = present ? {
     name: nameAsideFile({ path: file.path, base: original.base.blob, writer: input.writer, role: "aside" }),
     moving, linked: staged?.written ?? null, writeBackSent: false, landed: null,
@@ -252,6 +282,7 @@ function madeCopies(original: RecordEntry, entry: RecordEntry): string[] {
 /** Move the file aside, link its staged file in — none for a removal — and check the aside copy. */
 async function swapOne(input: SwapBatchInput, swap: PlannedSwap,
   beginLay: (swap: PlannedSwap) => Promise<PlannedSwap>): Promise<SwapDone> {
+  if (swap.blocked !== undefined) return { entry: swap.entry, blocked: swap.blocked };
   const { checkout, hooks } = input;
   const path = join(checkout, swap.path);
   const staged = swap.staged === null ? null : join(checkout, swap.staged.file.location);

@@ -54,6 +54,7 @@ async function publish(location: ProjectionLocation, index: ProjectionIndex, ref
   }
   const header: ProjectionIndexHeader = { format: index.format, state: index.state, projectedUnder: index.projectedUnder,
     ...(index.reprojectionPending === undefined ? {} : { reprojectionPending: index.reprojectionPending }),
+    ...(index.archiveRecoveryCopies === undefined ? {} : { archiveRecoveryCopies: index.archiveRecoveryCopies }),
     withheldCopies: index.withheldCopies, tripwires: index.tripwires, ignoreFiles: index.ignoreFiles, ignoreGuard: index.ignoreGuard, groups };
   header.ignoreFiles = smudgeRacyEntries({ ...index, entries: {} }, reference).ignoreFiles;
   await atomicWriteFile(join(location.stateDir, PROJECTION_INDEX_FILE), stringifyProjectionJson(header), { createParents: false, checkpoint });
@@ -173,6 +174,8 @@ function decodeHeader(text: string): { kind: "header"; header: ProjectionIndexHe
 
 function headerFields(header: Record<string, unknown>): boolean {
   return header.format === PROJECTION_INDEX_FORMAT && object(header.projectedUnder) && Array.isArray(header.withheldCopies)
+    && (header.archiveRecoveryCopies === undefined || Array.isArray(header.archiveRecoveryCopies)
+      && header.archiveRecoveryCopies.every(copy => typeof copy === "string" && copy.length > 0))
     && object(header.tripwires) && (header.ignoreFiles === null || Array.isArray(header.ignoreFiles))
     && (header.ignoreGuard === null || object(header.ignoreGuard));
 }

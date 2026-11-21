@@ -5,6 +5,12 @@ import { isProjectionEntryUnsettled } from "./index-file.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ArchiveSelection, ProjectionRootState } from "./process-state.js";
 import type { WriteBackDiagnostic } from "./write-back.js";
+import { parseAsideFile } from "./aside.js";
+
+/** A rebuild left this destination to the next local sweep before another projection pass can lay it. */
+export function hasPendingArchiveRecovery(index: ProjectionIndex, path: string): boolean {
+  return path.startsWith(".arc/completed/") && (index.archiveRecoveryCopies?.some(copy => parseAsideFile(copy)?.path === path) ?? false);
+}
 
 /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
 export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic) => void;

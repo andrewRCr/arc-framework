@@ -9,8 +9,8 @@ import { archiveRetirementFixture } from "../../../helpers/store/projection/arch
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { projectionEditResult } from "../../../../src/lib/store/projection/edit.js";
-import { readFile, chmod, writeFile, lstat, realpath, rename, rm, symlink, utimes } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, chmod, writeFile, lstat, mkdir, realpath, rename, rm, symlink, utimes } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ProjectionSaveResult } from "../../../../src/lib/store/projection/save.js";
@@ -23,6 +23,7 @@ const binding = vi.hoisted(() => ({
   /** A path whose next stat alone is refused, as when its folder's permission changes after the command observed it. */
   deniedOnce: null as string | null,
   deniedLinkProbe: null as string | null,
+  deniedRecoverySource: null as string | null,
   writerInstance: undefined as string | undefined,
   stopAfterIndexCommit: false,
   /** Runs once a write is prepared, before its archive save journal is read. */
@@ -57,7 +58,10 @@ vi.mock("node:fs", async original => {
 });
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+  return { ...actual, link: async (...args: Parameters<typeof actual.link>) => {
+    if (args[0] === binding.deniedRecoverySource) throw Object.assign(new Error("Archive recovery link refused"), { code: "EACCES" });
+    return actual.link(...args);
+  }, open: async (...args: Parameters<typeof actual.open>) => {
     await binding.beforeModeOpen?.(args[0]);
     const handle = await actual.open(...args);
     binding.afterModeOpen?.(args[0]);
@@ -92,7 +96,9 @@ import { success } from "../../../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, sameReference } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
-import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
@@ -108,6 +114,7 @@ afterEach(async () => {
   binding.deniedValidation = null;
   binding.deniedOnce = null;
   binding.deniedLinkProbe = null;
+  binding.deniedRecoverySource = null;
   binding.writerInstance = undefined;
   binding.stopAfterIndexCommit = false;
   binding.afterPrepared = undefined;
@@ -1028,8 +1035,8 @@ async function recoverFirstLay(h: { checkout: string; store: Store }, path: stri
   await expect(lstat(join(h.checkout, original))).rejects.toMatchObject({ code: "ENOENT" });
 }
 
-it.each([[false, false], [false, true], [true, false], [true, true]])(
-  "distinguishes accepted text from a revert after newer text is installed (installed=%s, adoption=%s)", async (installed, adoption) => {
+it.each([[false, false, false], [false, true, false], [true, false, false], [true, true, false], [false, true, true], [true, true, true]])(
+  "distinguishes accepted text from a revert after newer text is installed (installed=%s, adoption=%s, legacy=%s)", async (installed, adoption, legacy) => {
   const h = await fixture(), { path, file, reference, content } = await (adoption ? openedNewText(h) : openedTextCompanion(h));
   const later = "A newer correction from another command.\n";
   let submissions = 0;
@@ -1050,6 +1057,7 @@ it.each([[false, false], [false, true], [true, false], [true, true]])(
   binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
   await expect(save(command)).rejects.toThrow("Stopped during read-back installation");
   expect(await readFile(file, "utf8")).toBe(installed ? later : content);
+  if (legacy) await usePredecessorAdoptionJournal(h, path);
   if (installed) {
     await chmod(file, 0o644);
     await writeFile(file, content);
@@ -1067,6 +1075,62 @@ it.each([[false, false], [false, true], [true, false], [true, true]])(
     expect(submissions).toBe(1);
   }
 });
+
+async function usePredecessorAdoptionJournal(h: Awaited<ReturnType<typeof fixture>>, path: string): Promise<void> {
+  const { location } = h.projected;
+  const read = await readProjectionIndex(location, true, { groups: "all" });
+  if (read.kind !== "index") throw new Error("No adoption index");
+  const entry = read.index.entries[path];
+  if (entry?.kind !== "record" || entry.acceptedInputStat === undefined || entry.inProgress === null) throw new Error("No staged adoption");
+  const { ino, mtimeNs } = entry.acceptedInputStat;
+  await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
+}
+
+it("restores an access-held copy on the next command after rebuilding a lost index", async () => {
+  const h = await archiveRetirementFixture(), { checkout } = h;
+  const sibling = `${h.folder}/sibling.txt`;
+  const siblingRef = recordReferences["work-item/companion"](h.primary.reference.owner, "sibling.txt");
+  await seed(h.f, siblingRef, "An accessible sibling.\n");
+  await projectionCommand(h.input, ["status"]);
+  const { location, index } = await h.disk(), writer = { ...await createProjectionEnginePorts(checkout).writer(), processInstance: "exited-rebuild" };
+  const copies = await Promise.all([h.path, sibling].map(async path => {
+    const entry = index.entries[path];
+    if (entry?.kind !== "record") throw new Error("Missing file for rebuild recovery");
+    const name = nameAsideFile({ path, base: entry.base.blob, writer, role: "aside" });
+    const absolute = join(checkout, name);
+    await mkdir(dirname(absolute), { recursive: true });
+    await rename(join(checkout, path), absolute);
+    return { name, absolute, base: entry.base.blob };
+  }));
+  const [held, accessible] = copies;
+  if (held === undefined || accessible === undefined) throw new Error("Missing recovery copies");
+  const edit = `${h.primary.content}\nAn edit in the access-held copy.\n`;
+  await chmod(held.absolute, 0o644);
+  await writeFile(held.absolute, renderStampedFile({ content: edit, stamp: held.base }));
+  await rm(join(location.stateDir, PROJECTION_INDEX_FILE));
+
+  binding.deniedRecoverySource = held.absolute;
+  const first = await projectionCommand(h.input, ["status"]);
+  expect(first.diagnostics).toContain("EACCES");
+  expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
+  await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(lstat(accessible.absolute)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(join(checkout, sibling), "utf8")).toBe("An accessible sibling.\n");
+
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
+  expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
+  binding.deniedRecoverySource = null;
+  // A deleted-file restoration working from the rebuilt index must leave the held destination to recovery.
+  await rm(join(checkout, sibling));
+  await restoreSyncProjection(h.store, checkout, {});
+  expect(await readFile(join(checkout, sibling), "utf8")).toBe("An accessible sibling.\n");
+  await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await projectionCommand(h.input, ["status"])).result).toMatchObject({ kind: "ready" });
+  expect(await readFile(join(checkout, h.path), "utf8")).toContain(edit);
+  await expect(lstat(held.absolute)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.disk()).index.archiveRecoveryCopies).toBeUndefined();
+  expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+}, 30_000);
 
 it.each([[false, false], [true, false], [true, true]])(
   "recovers accepted archive adoption without resubmission (peer edit=%s, ordinary command=%s)", async (peerEdit, ordinary) => {

@@ -28,12 +28,14 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       loadProjectionGroups(fresh.index, "walked");
       const timings = [...root.fanOutTimes ?? []];
       const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
+      const accessible = (path: string): boolean => (root.archiveSelection?.get(path)?.mark ?? null) === null;
+      const copies = root.copies.filter(copy => accessible(copy.path));
+      const removals = root.removals.filter(accessible);
       const destinations = await readCopyDestinations(root.checkout,
-        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs);
+        [...copies.map(copy => copy.path), ...removals], root.ports.linkFs);
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
         onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
-        ...destinations, copies: root.copies,
-        removals: root.removals, format: root.context.format, takeIn: root.takeIn,
+        ...destinations, copies, removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
       for (const [path, mark] of checked.blockedDestinations) refuseArchiveChange(root, path, mark);
       for (const copy of checked.settled) {

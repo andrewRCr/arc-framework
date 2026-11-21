@@ -72,7 +72,8 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
   }
   // A removal completes once its file and the last aside copy of its path are gone.
   index = await dropRemovedEntries(index, checkout,
-    input.removals?.filter(path => !blockedDestinations.has(path) && (input.blockedByLink?.(path) ?? null) === null) ?? []);
+    input.removals?.filter(path => !blockedDestinations.has(path) && (input.blockedByLink?.(path) ?? null) === null) ?? [],
+    ({ path, mark }) => blockedDestinations.set(path, mark));
   return { index: await commitReturnedCopies({ location: input.location, checkout, index, checkpoint: input.checkpoint,
     onPublished: input.onPublished,
     refuseChange: ({ path, mark }, access) => { if (access) blockedDestinations.set(path, mark); },

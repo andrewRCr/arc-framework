@@ -26,7 +26,7 @@ import { projectionExcludePatterns } from "./excludes.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { recordProjectionIgnoreCheck } from "./ignore-record.js";
-import { writableUnder, type SweepResult } from "./sweep.js";
+import { recordUnindexedRecovery, writableUnder, type SweepResult } from "./sweep.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { findProjectionArrivals, projectionArrivalsInstalled } from "./ownership-handoff.js";
 import { removeObsoleteProjectionPaths } from "./refresh-removals.js";
@@ -47,7 +47,7 @@ interface ProjectionMaterializationBasis {
   readonly configuration: ProjectionConfiguration;
   readonly version: StateVersion;
   readonly startTiming?: number;
-  readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
+  readonly recovered?: Pick<ProjectionIndex, "withheldCopies" | "archiveRecoveryCopies">;
   /** Links this command's start already reported, which the lay leaves unreported so each is reported once. */
   readonly reportedLinks?: readonly string[];
 }
@@ -77,6 +77,9 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
     // Only the copies the sweep still found stay withheld; a deleted copy's name is released.
     withheldCopies: [...swept.withheld] }, ignores);
+  if (input.index === null) {
+    index = recordUnindexedRecovery(index, swept.left, new Set(input.recovered?.archiveRecoveryCopies));
+  }
   root.writable = writableUnder(ignores, guardedProjectionRoots(root.identity).map(each => each.path));
   recordSweep(root, swept, !input.onlyDeleted);
   if (ignores.kind === "refused") return { kind: "refused", index, mark: { reason: `Projection ignore guard refused: ${ignores.reason}`,

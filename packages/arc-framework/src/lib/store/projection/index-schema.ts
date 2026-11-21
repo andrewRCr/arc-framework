@@ -194,6 +194,7 @@ export const ProjectionIndexSchema = z.strictObject({
   projectedUnder: ProjectedUnderSchema,
   reprojectionPending: z.literal(true).optional(),
   withheldCopies: z.array(z.string().min(1)),
+  archiveRecoveryCopies: z.array(z.string().min(1)).optional(),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),

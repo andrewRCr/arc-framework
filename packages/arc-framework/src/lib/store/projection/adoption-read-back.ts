@@ -85,9 +85,11 @@ async function adoptionBaseline(root: ProjectionRootState, path: string, entry: 
   const rendered = { stat: entry.stat, blob: entry.written };
   if (phase === "installed") return rendered;
   const current = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
-  // After the original file leaves, compare edits to the rendering journaled by the swap.
-  return current?.ino === original.stat.ino && current.mtimeNs === original.stat.mtimeNs
-    ? original : rendered;
+  if (current?.ino !== original.stat.ino) return rendered;
+  // Older adoption journals left beforeLay set after linking. When the live inode is the original and the
+  // replacement has a different inode, the guard can still compare the live bytes to the captured input.
+  const legacyOriginal = entry.acceptedInputStat?.beforeLay === true && current.ino !== rendered.stat.ino;
+  return legacyOriginal || current.mtimeNs === original.stat.mtimeNs ? original : rendered;
 }
 
 async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,

@@ -1,7 +1,7 @@
 /** The swap over a seeded projection: the old file moved aside, the staged file linked in, between two index writes. */
 import { link, mkdir, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deferring, landingCopies, prepareSwap, SWAP_PATH, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
@@ -17,7 +17,16 @@ import { readStamplessFile } from "../../../../src/lib/store/projection/stamples
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+const inaccessible = vi.hoisted(() => ({ file: "" }));
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === inaccessible.file) throw Object.assign(new Error("Destination access denied"), { code: "EACCES" });
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync;
+  return { ...actual, lstatSync, default: { ...actual, lstatSync } };
+});
+afterEach(async () => { inaccessible.file = ""; await removeGitBackedDirs(directories.splice(0)); });
 
 const PATH = SWAP_PATH;
 
@@ -226,6 +235,44 @@ describe("the swap", () => {
       if (copy === undefined) throw new Error("Expected the retained archive copy");
       expect(await readFile(join(checkout, copy.copy), "utf8")).toBe(original);
     } else expect(swapped.copies).toEqual([]);
+  });
+
+  it.each(["plan", "link", "final stat"] as const)("publishes an accessible sibling when archive access is denied at %s", async at => {
+    const h = await prepared(".arc/completed/one/first.md");
+    const sibling = await prepared(".arc/completed/two/sibling.md");
+    const { checkout, location } = h.seeded;
+    const stage = join(checkout, h.staged.location), staged = await readFile(stage);
+    const siblingFile = join(checkout, sibling.path), siblingStaged = join(checkout, sibling.staged.location);
+    await mkdir(dirname(siblingFile), { recursive: true });
+    await mkdir(dirname(siblingStaged), { recursive: true });
+    await writeFile(siblingFile, await readFile(sibling.file));
+    await writeFile(siblingStaged, await readFile(join(sibling.seeded.checkout, sibling.staged.location)));
+    if (at === "plan") inaccessible.file = h.file;
+    const reports: string[] = [];
+    const swapped = await h.swap({ files: [{ path: h.path, replace: h.replace }, { path: sibling.path, replace: sibling.replace }],
+      hooks: { afterFirstCheck: async path => { if (at === "final stat" && path === h.path) inaccessible.file = h.file; } },
+      fs: { link: async (from, to) => {
+        if (at === "link" && to === h.file) {
+          inaccessible.file = h.file;
+          throw Object.assign(new Error("Destination link denied"), { code: "EACCES" });
+        }
+        await link(from, to);
+      } }, retrySleep: async () => {}, refuseChange: refused => { reports.push(refused.path); } });
+    expect(reports).toEqual([h.path]);
+    expect(swapped.unreplaced).toEqual([h.path]);
+    expect(await onDisk(location, sibling.path)).toMatchObject({ pending: false, base: sibling.staged.base });
+    expect(parseStampedFile(await readFile(siblingFile, "utf8")).content).toBe(sibling.record.content);
+    const held = await onDisk(location, h.path);
+    expect(held).toMatchObject({ pending: true, refused: { reason: expect.stringContaining("EACCES") } });
+    if (at !== "plan") expect(held.copies).toHaveLength(1);
+
+    inaccessible.file = "";
+    await mkdir(dirname(stage), { recursive: true });
+    await writeFile(stage, staged);
+    const moving = at === "final stat" ? h.staged.written : h.replace.moving;
+    const retried = await h.swap({ index: swapped.index, files: [{ path: h.path, replace: { ...h.replace, entry: held, moving } }] });
+    expect(retried.unreplaced).toEqual([]);
+    expect(await readFile(h.file)).toEqual(staged);
   });
 
   it("can replace an archive leaf link without reading its target", async () => {

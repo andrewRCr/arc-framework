@@ -282,6 +282,35 @@ describe("the sweep", () => {
     expect(await readFile(h.file, "utf8")).toBe("Original.\n");
   });
 
+  it("holds both no-index copies of a denied destination and restores an accessible sibling", async () => {
+    const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
+    const entry = await entryOnDisk(h.location, h.path), [first] = entry.copies;
+    if (first === undefined) throw new Error("Missing stopped archive copy");
+    const second = nameAsideFile({ path: h.path, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+    const sibling = ".arc/completed/two/sibling.md";
+    const third = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+    await mkdir(dirname(join(h.checkout, third)), { recursive: true });
+    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
+    await copyFile(join(h.checkout, first.name), join(h.checkout, second));
+    await copyFile(join(h.checkout, first.name), join(h.checkout, third));
+    let deniedCopy = "";
+    const result = await h.sweep(unreached, { index: null, retrySleep: async () => {}, fs: { link: async (from, to) => {
+      if (to === h.file) {
+        deniedCopy ||= from;
+        if (from === deniedCopy) throw Object.assign(new Error("One link was denied"), { code: "EACCES" });
+      }
+      await link(from, to);
+    } } });
+    expect(result.left.map(copy => [copy.copy, copy.reason]).sort()).toEqual([
+      [first.name, "destination-blocked"], [second, "destination-blocked"],
+    ].sort());
+    expect(await readStat(h.file)).toBeNull();
+    expect(await readStat(join(h.checkout, first.name))).toMatchObject({ type: "file" });
+    expect(await readStat(join(h.checkout, second))).toMatchObject({ type: "file" });
+    expect(await readStat(join(h.checkout, sibling))).toMatchObject({ type: "file" });
+    expect(await readStat(join(h.checkout, third))).toBeNull();
+  });
+
   it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {
     const h = await leftBy("afterMove"), index = await indexOnDisk(h.location);
     const entry = index.entries[h.path];
