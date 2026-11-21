@@ -11,7 +11,7 @@ import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, cleanupTempDir, commitAll } from "./helpers.js";
+import { runArc, cleanupTempDir, commitAll } from "./store-default.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 
 const execFileAsync = promisify(execFile);

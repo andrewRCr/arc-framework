@@ -4,7 +4,7 @@ import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
 
 type SetupCommand = "init" | "join";
 const CASE_TIMEOUT_MS = 60_000;

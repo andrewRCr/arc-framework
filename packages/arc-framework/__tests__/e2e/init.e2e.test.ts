@@ -14,8 +14,9 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
-import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./store-default.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
+import { expectPersonalFileSet } from "./personal-file-set.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -203,8 +204,7 @@ describe("init", () => {
     }
 
     // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
-    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md"))).toBe(true);
+    await expectPersonalFileSet(tmpDir, "test-user");
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ATOMIC-INBOX.md"))).toBe(false);
 
     // Config reflects pm.mode
@@ -375,8 +375,11 @@ describe("arc join", () => {
     const clone = `${tmpDir}-join-clone`;
     try {
       await git(tmpDir, ["clone", "--local", tmpDir, clone]);
+      // Joining writes the person's records to the store as commits, which take the clone's author identity.
+      await git(clone, ["config", "user.name", "Test User"]);
+      await git(clone, ["config", "user.email", "test@test.com"]);
       const result = await runArc(["join", "--yes", "--identity", "test-user"], clone);
-      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       await assertEditorDocumentsProvisioned(clone);
     } finally { await cleanupTempDir(clone); }
   });

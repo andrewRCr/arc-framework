@@ -735,7 +735,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   `unit/lib/store/active-review-access.test.ts` reads by owner and by layout; each failed first. The lineage suite's
   mechanically carried and change-set fix cases, which move in Task 3.4.c.2, pass on the store with the fix.
 
-### `[ ]` **3.4 Spawned tests move onto the store by family — § 7.3**
+### `[x]` **3.4 Spawned tests move onto the store by family — § 7.3**
 
 - _Goal:_ Each spawned test whose subject survives seeds its state through the store and drops the temporary override,
   one family per commit, while each whose subject is the in-repo arm keeps the override explicitly and leaves with that
@@ -972,9 +972,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           status queries, an ownerless meta, and the disabled projection slot keep the override by subject; four changed
           expectations trace to store contracts (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.4.h The `init`, `reconfigure`, `user`, and import assertions**
-        - `importFixture`'s spawned users that run the flip build after the import delete their tracked state first, as
-          the window does.
+    - `[x]` **3.4.h The `init`, `reconfigure`, `user`, and import assertions**
+        - `e2e/init.e2e.test.ts`, `reconfigure`, `setup-git-layout`, `user`, the three `user-inbox-*` files, and
+          `store-import-errands` spawn through `e2e/store-default.ts`, `user` leaving the ledger; 35 of their 61 cases run
+          on the store, a person's setup asserted as the records it holds and the files the projection then writes. User
+          notes, the per-work-unit workspace, the title-keyed inbox commands, and the spawned import keep the override by
+          subject; no spawned importFixture user runs the flip build after its import (`notes-cutover-flip.md` § Test
+          callers).
 
 ### `[ ]` **3.5 The Markdown fix's end-to-end test over the flipped store — § 7.5**
 

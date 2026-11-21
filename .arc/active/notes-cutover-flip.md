@@ -1179,6 +1179,24 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           malformed task list, which the store's task-list write refuses; `status-lifecycle`'s slug query from a branch
           tip with `--fetch`, its remote-only Candidate, and a meta that names no owner, which the store refuses; and
           `projection-status`' disabled projection slot.
+    - _The `init`, `reconfigure`, `user`, and import assertions, as moved (Task 3.4.h):_ `e2e/init.e2e.test.ts`,
+      `reconfigure`, `setup-git-layout`, `user`, the three `user-inbox-*` files, and `store-import-errands` spawn through
+      `e2e/store-default.ts`, and `user` leaves the ledger, its initialized templates prepared on the process's store;
+      35 of their 61 cases run on the store.
+        - `reconfigure` and `setup-git-layout` pass unchanged. `init`'s and `user add`'s per-user file set changes
+          expectation: on the store a person's setup writes the working memory and inbox as records, absent-only
+          (`seedPersonalIdentityRecords`, `lib/personal-identity-setup.ts`), and the projection writes their files at a
+          later command's start, so the shared `expectPersonalFileSet` (`e2e/personal-file-set.ts`) reads both records
+          and then finds both files after a command run as that person. `arc join`'s fresh clone gains an author
+          identity, since the store writes the joiner's records as commits.
+        - Keep the override by subject: `user`'s save and load, `arc sync`'s user note, the push and pull round trip, and
+          the per-work-unit workspace, which the flip retires with user notes (`arc user open` refuses `unsupported`
+          there); the three title-keyed inbox commands, which the store refuses, naming their successors, which
+          `unit/handlers/store-inbox` and `integration/store-ref-inbox-cli` cover; and `store-import-errands`' spawned
+          import (§ 7.3). The flip build's refusal of `user save` and `load` still names the pre-flip remedy, which
+          Task 4.R's A14 replaces.
+        - No spawned importFixture user in the family runs the flip build after its import; the window suites, which
+          do, delete their tracked state through Git first (`helpers/cutover-window/after-merge.ts`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

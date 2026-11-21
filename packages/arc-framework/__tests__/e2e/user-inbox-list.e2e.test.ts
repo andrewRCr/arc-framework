@@ -3,9 +3,13 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, runArc } from "./store-default.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 describe("arc user inbox-list", () => {
+  // The title-keyed listing is the in-repo store's: the store refuses it and names its successor,
+  // `arc inbox personal --target`, which the store's inbox suites cover.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let inboxPath: string;
 

@@ -11,8 +11,10 @@ import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
-import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./store-default.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
+import { expectPersonalFileSet } from "./personal-file-set.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
@@ -46,7 +48,7 @@ describe("user add", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
   });
 
   afterEach(async () => {
@@ -57,10 +59,7 @@ describe("user add", () => {
     const result = await runArc(["user", "add", "alice"], tmpDir);
 
     expect(result.exitCode).toBe(0);
-    const userDir = join(tmpDir, ".arc", "user", "alice");
-    expect(await pathExists(userDir)).toBe(true);
-    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
-    expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+    await expectPersonalFileSet(tmpDir, "alice");
   });
 
   it("seeds the same per-user file set under arc-in-git PM mode (no user/ATOMIC-INBOX)", async () => {
@@ -77,11 +76,9 @@ describe("user add", () => {
       const result = await runArc(["user", "add", "bob"], tmpDir2);
 
       expect(result.exitCode).toBe(0);
-      const userDir = join(tmpDir2, ".arc", "user", "bob");
-      expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
-      expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+      await expectPersonalFileSet(tmpDir2, "bob");
       // Legacy user/ATOMIC-INBOX seed path retired in WOR.
-      expect(await pathExists(join(userDir, "ATOMIC-INBOX.md"))).toBe(false);
+      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(false);
     } finally {
       await cleanupTempDir(tmpDir2);
     }
@@ -89,10 +86,13 @@ describe("user add", () => {
 });
 
 describe("user save/load", () => {
+  // Saving and loading the identity's files through user notes, and the in-repo arm's refusal once the store is
+  // imported, are the in-repo store's: the store retires user notes and refuses their writers.
+  useInRepoStoreForEach();
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
   });
 
   afterEach(async () => {
@@ -175,7 +175,7 @@ describe("user status from a subdirectory", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
     await commitInitializedRepository(tmpDir);
   });
 
@@ -197,12 +197,15 @@ describe("user status from a subdirectory", () => {
 });
 
 describe("sync orchestrator", () => {
+  // Saving the identity's files as a user note on `arc sync` is the in-repo store's: the store retires user notes and
+  // publishes its records itself.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let bareDir: string;
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
     tempDirs.push(tmpDir);
   });
 
@@ -232,13 +235,15 @@ describe("sync orchestrator", () => {
 });
 
 describe("user push/pull portability", () => {
+  // Carrying the identity's files between clones as user notes is the in-repo store's, which alone keeps user notes.
+  useInRepoStoreForEach();
   let tmpDir: string;
   let bareDir: string;
   let cloneDir: string;
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
     tempDirs.push(tmpDir);
   });
 
@@ -289,11 +294,14 @@ describe("user push/pull portability", () => {
 });
 
 describe("user open / close lifecycle", () => {
+  // The per-work-unit workspace is the in-repo store's: the store refuses `arc user open` and holds a work unit's
+  // session context in its meta.
+  useInRepoStoreForEach();
   let tmpDir: string;
   const directories: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized");
+    tmpDir = await initializedRepository("initialized", "process");
     directories.push(tmpDir);
   });
 
