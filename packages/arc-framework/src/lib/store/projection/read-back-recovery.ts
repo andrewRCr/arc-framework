@@ -27,6 +27,20 @@ export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, ind
   return { index: updated, entry: recovered.entry, held: false };
 }
 
+/** Finish recording accepted input without requiring the live file or trying to install it. */
+export async function recordAcceptedProjectionInput(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  entry: RecordEntry): Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }> {
+  const completed = await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path });
+  entry = completed.mark === undefined ? completed.entry : { ...completed.entry, pending: true, refused: completed.mark };
+  const updated = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
+  if (completed.mark !== undefined) {
+    root.unsent.add(path);
+    root.context.report?.({ path, copy: null, mark: completed.mark });
+  }
+  return { index: updated, entry, held: completed.mark !== undefined };
+}
+
 /** Recognize accepted bytes left before installation and finish their read-back when this save can authorize it. */
 export async function checkUnchangedProjectionEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry, onFile?: (observation: ProjectionFileWriteObservation) => void): Promise<{
@@ -34,15 +48,9 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
   } | null> {
   const completing = entry.opened === true && entry.persisted?.recording === true;
   if (completing) {
-    const completed = await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path });
-    entry = completed.mark === undefined ? completed.entry : { ...completed.entry, pending: true, refused: completed.mark };
-    index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-      index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
-    if (completed.mark !== undefined) {
-      root.unsent.add(path);
-      root.context.report?.({ path, copy: null, mark: completed.mark });
-      return { index, edited: false, reobserve: true };
-    }
+    const completed = await recordAcceptedProjectionInput(root, index, path, entry);
+    ({ index, entry } = completed);
+    if (completed.held) return { index, edited: false, reobserve: true };
   }
   const read = await readUnchangedProjectionFile(root.context, pendingFileRequest(root.checkout, path, entry));
   if (read === null) return completing

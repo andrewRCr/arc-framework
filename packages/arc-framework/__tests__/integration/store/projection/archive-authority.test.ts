@@ -15,9 +15,11 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
-import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
+import { endProjection, startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { parseStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -138,7 +140,14 @@ it.each(BLOCKERS)("leaves an opened archive path behind a %s untouched by a fan-
   const current = success(await h.f.store.read({ reference: h.primary.reference }));
   const correction = "A correction from another worktree.";
   const fanned = withFanOut(h.f.store, createProjectionFanOutDependencies(h.f.root));
-  expect(await fanned.write(update(h.f, current, `${current.content}\n${correction}\n`))).toMatchObject({ status: "ok" });
+  const origin = { store: fanned, checkout: h.f.root };
+  expect(await startProjection(origin)).toMatchObject({ kind: "ready" });
+  try {
+    expect(await fanned.write(update(h.f, current, `${current.content}\n${correction}\n`))).toMatchObject({ status: "ok" });
+    const refused = projectionProcessState().diagnostics.filter(each => each.path === path && each.mark.reason.includes(REASON[blocker]));
+    expect(refused).toHaveLength(1);
+    expect(refused[0]?.mark.remedy.text).toContain(blocker === "nested checkout" ? "Move the nested checkout" : "Replace the symbolic link");
+  } finally { await endProjection(origin); }
   expect({ ...await observe(h, path), stored: before.stored }).toEqual(before);
 
   expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain(REASON[blocker]);
@@ -210,8 +219,10 @@ it.each(BLOCKERS.flatMap(blocker => (["deleted", "moved"] as const).map(change =
   await projectionCommand(h.input, ["status"]);
   const notes = `${h.folder}/notes-alpha.md`;
   const path = change === "deleted" ? notes : h.path;
-  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "record" });
+  const originalEntry = (await h.disk()).index.entries[path];
+  expect(originalEntry).toMatchObject({ kind: "record" });
   const repair = await block(h, blocker);
+  let moved: { reference: typeof h.primary.reference; content: string } | undefined;
   if (change === "deleted") {
     const stored = success(await h.f.store.read({ reference: recordReferences["work-item/notes"](h.primary.reference.owner) }));
     success(await h.f.store.write({ action: "remove", reference: stored.reference, expected: stored.version,
@@ -219,19 +230,29 @@ it.each(BLOCKERS.flatMap(blocker => (["deleted", "moved"] as const).map(change =
   } else {
     const current = success(await h.f.store.read({ reference: h.primary.reference }));
     const renamed = RecordReferenceSchema.parse({ ...current.reference, owner: { ...current.reference.owner, name: "beta" } });
-    success(await h.f.store.write({ ...update(h.f, current, current.content.replaceAll("alpha", "beta")), reference: renamed,
+    moved = { reference: renamed, content: current.content.replaceAll("alpha", "beta") };
+    success(await h.f.store.write({ ...update(h.f, current, moved.content), reference: renamed,
       provenance: fixtureRenameProvenance }));
   }
   const before = await readFile(join(h.checkout, path));
   const blocked = await projectionCommand(h.input, ["status"]);
   expect(refusalLines(blocked.diagnostics, path, blocker)).toHaveLength(1);
-  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "record" });
+  expect((await h.disk()).index.entries[path]).toEqual(originalEntry);
   expect(await readFile(join(h.checkout, path))).toEqual(before);
 
   await repair();
   expect((await projectionCommand(h.input, ["status"])).diagnostics).not.toContain(REASON[blocker]);
   expect((await h.disk()).index.entries[path]).toBeUndefined();
   await expect(readFile(join(h.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
+  if (moved !== undefined) {
+    const { reference, content } = moved;
+    const records = Object.entries((await h.disk()).index.entries);
+    const destination = records.find(([, entry]) => entry.kind === "record" && entry.reference.kind === reference.kind
+      && entry.reference.owner.name === reference.owner.name);
+    if (destination === undefined) throw new Error("Repaired refresh did not lay the moved record");
+    expect(destination[1]).toMatchObject({ reference });
+    expect(parseStampedFile(await readFile(join(h.checkout, destination[0]), "utf8")).content).toBe(content);
+  }
 }, 60_000);
 
 it.each(BLOCKERS)("rebuilds a lost index around an archive path behind a %s without reading it, then rebuilds the path after its repair",
@@ -293,4 +314,6 @@ it("sends only the accepted input when an unopened archived file changes while s
   expect(stored).toContain("Accepted archived input.");
   expect(stored).not.toContain(racing);
   expect(saved.diagnostics).toContain("arc edit");
+  expect(await readFile(join(h.checkout, h.path), "utf8")).toContain(racing);
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ pending: true });
 }, 60_000);

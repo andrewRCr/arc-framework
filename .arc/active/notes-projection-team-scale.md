@@ -21,6 +21,7 @@
 - [Amendment A4](#amendment-a4)
 - [Amendments A5 to A7](#amendments-a5-to-a7)
 - [Amendments A8 and A9](#amendments-a8-and-a9)
+- [Amendments A10 and A11](#amendments-a10-and-a11)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -717,6 +718,28 @@ Success Criterion 20:
 > 20. **A refused write bit withdraws the opening (A6).** `arc edit` whose write-bit change meets a folder that became
 > a symbolic link or a nested checkout, or a file replaced since its inspection, refuses with its remedy and leaves the
 > path unopened and read-only; after the repair, `arc edit` opens it.
+
+## Amendments A10 and A11
+
+- **A10.** A save can accept a second correction from the file it displaced during read-back. `stageArchiveSave`
+  keeps the aside name beside the exact read observation and retained input. `acceptArchiveSave` marks only that
+  source's fully accepted blob as landed. The sweep's `recoverArchiveSubmission` resolves an interrupted receipt
+  before `sweepCopy` can send the same edit. Later bytes still go through ordinary copy settlement. An indexed aside
+  write in a prepared `save` batch is eligible for a receipt at `BatchInputSchema`; the command limits receipt creation
+  to its own checkout through `needsOpenedSaveJournal`. Criterion 23 covers the interrupted second write.
+- **A11.** `openPath` rolls back only the mark that the current edit command added on a parent refusal or a replaced
+  file. `changeCheckedMode` declines the replacement before changing its permissions. A missing or linked leaf or a
+  failure to set the authorized file's mode leaves the opening. Criterion 24 checks these outcomes and supersedes
+  Criterion 22 at convergence verification.
+
+A10 supersedes the journal scope in § 4, whose third route was stated as:
+
+> Three routes journal: `arc save` in its own checkout, landing an opened record or attaching an opened path
+> to an existing record; any other command attaching an opened path (`needsOpenedSaveJournal`, `write-back.ts`); and
+> any command adopting an opened new path.
+
+The previous § 10.5 limited the receipt to a "prepared archive file write." A11 supersedes Criterion 22, which
+required the refused path to be "unopened and read-only" for a changed parent or replacement.
 
 ## Save after a retirement refusal
 

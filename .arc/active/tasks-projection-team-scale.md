@@ -442,4 +442,11 @@ _Amended in:_ review-fix (A2).
   and read-only, opening it after the repair; one that finds the file deleted, or replaced by a link, refuses with the
   remedy to restore the file and keeps the opening (A9)
 
+- `[ ]` An own-checkout save stopped after the store accepts an opened archive file's displaced edit records the
+  receipt on retry without resending the same copy and input, keeping any different bytes available as an edit (A10)
+
+- `[ ]` A write-bit refusal over a changed parent or replacement withdraws the opening this invocation set and
+  preserves an earlier opening and the replacement's mode. After repair, retry opens the file. A missing file, a
+  leaf link, or a failed mode change on the authorized file keeps the opening and names a repair (A11)
+
 - `[ ]` Ready for integration

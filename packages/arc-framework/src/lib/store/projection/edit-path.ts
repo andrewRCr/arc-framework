@@ -5,7 +5,7 @@ import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { RecordReference } from "../identity.js";
 import type { Remedy } from "../refusal.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { archiveEditDestinationRefusal, archiveFileChangeMark, readArchiveFile, sameArchiveFile, walkOutsideArchive,
+import { ArchiveDestinationBlocked, archiveEditDestinationRefusal, archiveFileChangeMark, archivePermissionMark, readArchiveFile, sameArchiveFile, walkOutsideArchive,
   type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
@@ -191,6 +191,8 @@ async function exactPathSpelling(checkout: string, path: string): Promise<boolea
       folder = join(folder, component);
     }
   } catch (error) {
+    if (accessRefused(error)) throw new ArchiveDestinationBlocked({ ...archivePermissionMark(path, error, "list folders for"),
+      remedy: { text: "Restore listing access to the archive file's folders, then retry arc edit." } });
     if (!missingFile(error)) throw error;
     return false;
   }

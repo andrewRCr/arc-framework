@@ -42,6 +42,10 @@ export const WriteInputSchema = z.record(z.string(), z.unknown()).transform((inp
     context.addIssue({ code: "custom", message: "Expected a validated mutation and caller provenance" });
     return z.NEVER;
   }
+  if (provenanceResult.data.archiveSaveId !== undefined) {
+    context.addIssue({ code: "custom", message: "An archive save identity requires a prepared archive batch" });
+    return z.NEVER;
+  }
   return { ...mutationResult.data, provenance: provenanceResult.data };
 });
 /** A version-bound record write. */
@@ -76,8 +80,10 @@ export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema)
   "A batch observes each record at most once")
   .superRefine((value, context) => {
     const admission = value.projectionAdmission;
-    if (value.provenance.archiveSaveId !== undefined && (admission?.local.source !== "file"
-      || !admission.local.path.startsWith(".arc/completed/"))) {
+    if (value.provenance.archiveSaveId !== undefined && (admission === undefined
+      || !admission.local.path.startsWith(".arc/completed/")
+      || admission.local.source === "aside" && (value.provenance.verb !== "save"
+        || admission.selection.kind !== "indexed"))) {
       context.addIssue({ code: "custom", message: "An archive save identity requires a prepared archive file write" });
     }
     if (!admission) return;

@@ -4,7 +4,7 @@ import { chmod, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
-import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { seed, success, update } from "../../../helpers/store/suite-tools.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
@@ -112,7 +112,7 @@ it("holds a withheld archive edit after index loss until deletion, reopening and
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-it("holds an unfinished archived recording until save finishes the accepted input", async () => {
+it.each(["save", "save absent", "persist", "release"] as const)("finishes an accepted archive recording with %s", async operation => {
   const h = await archiveRetirementFixture();
   expect((await projectionCommand(h.input, ["edit", join(h.checkout, h.path)])).result).toMatchObject({ status: "ok" });
   const content = h.primary.content + "\nAccepted archived input.\n";
@@ -132,9 +132,15 @@ it("holds an unfinished archived recording until save finishes the accepted inpu
   expect(await h.check()).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
     text: expect.stringContaining("arc save"),
   } });
-  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
+  if (operation !== "save") await rm(join(h.checkout, h.path));
+  if (operation === "persist" || operation === "release") {
+    expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+  } else {
+    expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
+    expect((await h.disk()).index.entries[h.path]).not.toMatchObject({ persisted: { recording: true } });
+  }
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content, version: accepted.version });
-  expect(await h.check()).toEqual({ kind: "removable" });
+  if (operation === "save" || operation === "save absent") expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
 it.each(["still holds", "has moved past"] as const)("finishes an unopened accepted recording at plain save when the file %s its input", async state => {
@@ -165,7 +171,11 @@ it.each(["still holds", "has moved past"] as const)("finishes an unopened accept
   expect(success(await h.store.read({ reference: h.primary.reference }))).toMatchObject({ content, version: accepted.version });
   expect((await h.disk()).index.entries[h.path]).not.toMatchObject({ persisted: { recording: true } });
   if (state === "still holds") expect(saved.diagnostics).not.toContain(`arc edit ${h.path}`);
-  else expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
+  else {
+    expect(saved.diagnostics).toContain(`arc edit ${h.path}`);
+    expect(await readFile(join(h.checkout, h.path), "utf8")).toContain("A later unopened correction.");
+    expect((await h.disk()).index.entries[h.path]).toMatchObject({ pending: true });
+  }
 }, 30_000);
 
 it.each(["absent", "empty"])("allows an opened archived file left %s without changing its stored version", async state => {
@@ -212,7 +222,7 @@ it.each(["forced", "malformed", "new"])("holds an unopened %s archive file from 
   expect(await h.check()).toEqual({ kind: "removable" });
 }, 30_000);
 
-async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
+async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers", interrupted = false) {
   const h = await archiveRetirementFixture("andrew", shown === "notice" ? "separate" : "default");
   const base = shown === "notice" ? h.primary : await seed(h.f,
     recordReferences["work-item/companion"](h.primary.reference.owner, "conflicted.md"), "opening\nbase\nclosing\n");
@@ -245,6 +255,27 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
     expect((await h.disk()).index.entries[path]).not.toHaveProperty("opened");
     expect(success(await h.store.read({ reference: base.reference }))).toMatchObject({ version: current.version, conflicts: [conflict] });
     expect((await projectionCommand(h.input, ["save", "--resolve", formatConflictToken(conflict)])).result).toMatchObject({ status: "ok" });
+  } else if (interrupted) {
+    expect((await projectionCommand(h.input, ["edit", join(h.checkout, path)])).result).toMatchObject({ status: "ok" });
+    await h.write(path, current.content);
+    let submissions = 0;
+    const store = { ...h.store, batch: async (input: Parameters<typeof h.store.batch>[0]) => {
+      const result = await h.store.batch(input);
+      if (++submissions === 1) {
+        const root = projectionProcessState().roots.get(h.checkout);
+        if (root === undefined) throw new Error("Missing archive projection root");
+        root.checkpoint = async () => { throw new Error("Stopped after accepting the archive resolution"); };
+      }
+      return result;
+    } };
+    const command = { ...h.input, store };
+    await expect(projectionCommand(command, ["save"])).rejects.toThrow("Stopped after accepting the archive resolution");
+    expect((await h.disk()).index.entries[path]).toHaveProperty("archiveSubmission");
+    const accepted = success(await h.store.read({ reference: base.reference }));
+    expect(accepted.conflicts).toEqual([]);
+    expect((await projectionCommand(command, ["save"])).result).toMatchObject({ status: "ok", result: { relocked: [{ path }] } });
+    expect(success(await h.store.read({ reference: base.reference })).version).toBe(accepted.version);
+    expect(submissions).toBe(1);
   } else await h.openAndSave(path, current.content);
   expect(success(await h.store.read({ reference: base.reference })).conflicts).toEqual([]);
   expect(await h.check()).toEqual({ kind: "removable" });
@@ -255,6 +286,8 @@ it("holds an unedited archive conflict shown by notice until its named repair",
   () => checkUneditedArchiveConflictRepair("notice"), process.platform === "win32" ? 60_000 : 30_000);
 it("holds an unedited archive conflict shown by markers until its named repair",
   () => checkUneditedArchiveConflictRepair("markers"), 30_000);
+
+it("does not resubmit a conflict resolution accepted before interruption", () => checkUneditedArchiveConflictRepair("markers", true), 30_000);
 
 it.each([["persist", "present"], ["release", "present"], ["persist", "absent"]] as const)(
   "lets %s finish after recovering an interrupted archive adoption with the path %s", async (operation, presence) => {

@@ -1,6 +1,6 @@
 /** Keep discovered links outside physical edit retries while preserving accepted work and copy recovery. */
 import type { Remedy } from "../refusal.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { Stats } from "node:fs";
@@ -8,6 +8,7 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 import { selectArchivePath } from "./archive-selection.js";
+import { archivePermissionMark } from "./archive-file.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -22,10 +23,15 @@ export function createProjectionLinkBoundary(links: readonly string[]): Projecti
 }
 
 /** Re-observe destination ancestors before settlement, since an action may change them after command start. */
-export async function readProjectionLinkBoundary(checkout: string, paths: readonly string[], fs: ProjectionLinkFs = { lstat }): Promise<ProjectionLinkBoundary> {
+export async function readProjectionLinkBoundary(checkout: string, paths: readonly string[], fs: ProjectionLinkFs = { lstat },
+  holdArchiveAccess?: (path: string, mark: RefusedMark) => void): Promise<ProjectionLinkBoundary> {
   const links: string[] = [];
   for (const path of new Set(paths)) {
-    const link = await linkInPath(checkout, path, fs);
+    const link = await linkInPath(checkout, path, fs).catch((error: unknown) => {
+      if (holdArchiveAccess === undefined || !path.startsWith(".arc/completed/")) throw error;
+      holdArchiveAccess(path, archivePermissionMark(path, error, "inspect folders for"));
+      return null;
+    });
     if (link !== null) links.push(link);
   }
   return createProjectionLinkBoundary(links);

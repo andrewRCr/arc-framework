@@ -13,6 +13,7 @@ import { loadProjectionGroups } from "./index-memory.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { hasProjectionEndWork } from "./end-work.js";
 import { recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
+import { refuseArchiveChange } from "./archive-selection.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -27,12 +28,17 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       loadProjectionGroups(fresh.index, "walked");
       const timings = [...root.fanOutTimes ?? []];
       const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
+      const inaccessible = new Set<string>();
       const blockedByLink = await readProjectionLinkBoundary(root.checkout,
-        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs);
+        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs, (path, mark) => {
+          inaccessible.add(path);
+          refuseArchiveChange(root, path, mark);
+        });
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
         onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
         blockedByLink,
-        copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
+        copies: root.copies.filter(copy => !inaccessible.has(copy.path)),
+        removals: root.removals.filter(path => !inaccessible.has(path)), format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
       for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       await reconcileProjectionHandoffs(root, checked.index);

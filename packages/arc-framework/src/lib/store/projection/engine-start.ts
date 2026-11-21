@@ -24,6 +24,7 @@ import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { recordProjectionSweep } from "./end-work.js";
 import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
+import { recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
 
 /** The writable command input retains its original rendering source beside any history-retry wrapper. */
 export interface ProjectionStartInput extends ProjectionCommandInput { readonly source: import("./record-source.js").ProjectionSource }
@@ -71,6 +72,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
       blockedByLink: root.blockedByLink, selectArchivePath: path => selectArchivePath(selecting, path),
       refuseChange: archiveChangeRefusals(selecting),
+      recoverArchiveSubmission: (index, path, entry) => recoverSubmittedArchiveEdit(selecting, index, path, entry),
       takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint,
       ignoreRules: config.ignoreRules, readIgnoreRules: async () => (await readProjectionConfiguration(ports.exec, input.checkout)).ignoreRules,
       guard: { root: input.checkout, identity: root.identity, exec: ports.execInput, fs: ports.fs } });

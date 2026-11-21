@@ -49,7 +49,7 @@ const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
   inputBlob: BlobIdSchema.optional(),
   recording: z.literal(true).optional(),
-  /** The blob of the file bytes an unfinished recording's input was read from. */
+  /** The blob of the file bytes the retained or accepted input was read from. */
   read: BlobIdSchema.optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
@@ -60,7 +60,7 @@ const PersistedSchema = z.strictObject({
 const ArchiveSaveReadSchema = z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema });
 const ArchiveSaveSubmissionSchema = z.strictObject({ id: ArchiveSaveIdSchema, stamp: BlobIdSchema,
   name: z.string().regex(/^[a-f0-9]{40,64}\.[a-f0-9]{16}$/u), blob: BlobIdSchema, read: ArchiveSaveReadSchema.optional(),
-  retained: RefusedMarkSchema.optional() });
+  aside: z.string().min(1).optional(), retained: RefusedMarkSchema.optional() });
 
 /** An input retained before publishing an archive save. */
 export type ArchiveSaveSubmission = z.output<typeof ArchiveSaveSubmissionSchema>;

@@ -40,6 +40,9 @@ export interface SweepInput extends SwapMoves {
   readonly withheldCopies?: readonly string[];
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
+  /** Resolve a displaced-copy receipt before the sweep can consider taking that copy in again. */
+  readonly recoverArchiveSubmission?: (index: ProjectionIndex, path: string, entry: RecordEntry) =>
+    Promise<{ index: ProjectionIndex; entry: RecordEntry; held: boolean }>;
   /** The sweeping process: it judges each writer's liveness and names any copy it makes in turn. */
   readonly writer: AsideWriterInput;
   /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
@@ -112,9 +115,11 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
     ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
     ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
   ];
-  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable));
+  const archiveAccess = new Map<string, RefusedMark>();
+  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable), undefined,
+    (path, mark) => { archiveAccess.set(path, mark); });
   const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
-    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path) };
+    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path), archiveAccess };
   if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };
   const recorded = await takeOverRecorded(input, input.index, judges);
   const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
@@ -142,10 +147,13 @@ interface SweepJudges {
   readonly writerOf: (name: string) => WriterState;
   readonly writable: (path: string) => boolean;
   readonly blockedByLink: ProjectionLinkBoundary;
+  readonly archiveAccess: ReadonlyMap<string, RefusedMark>;
 }
 
 /** Admit a copy destination before any read or restoration can traverse its path. */
 function destinationRefusal(path: string, copy: string, judges: SweepJudges): LeftCopy | null {
+  const access = judges.archiveAccess.get(path);
+  if (access !== undefined) return { path, copy, reason: "destination-blocked", refusal: access };
   const link = judges.blockedByLink(path);
   if (link !== null) return { path, copy, reason: "not-a-file", remedy: projectionLinkRemedy(link) };
   return judges.writable(path) ? null : unauthorizedCopy(path, copy);
@@ -181,11 +189,16 @@ async function takeOverRecorded(
   });
   for (const { path, copy } of taking) {
     const current = index.entries[path];
-    const record = current?.kind === "record" ? current.copies.find((record) => record.name === copy) : undefined;
-    if (current?.kind !== "record" || record === undefined) continue;
+    if (current?.kind !== "record") continue;
     const refused = select(path);
-    const outcome: SweptCopy = refused === null ? await sweepCopy(input, path, current, record)
-      : { kind: "blocked-destination", entry: current, mark: refused };
+    const active = refused === null && current.archiveSubmission?.aside !== undefined
+      ? await input.recoverArchiveSubmission?.(index, path, current) : { index, entry: current, held: false };
+    if (active === undefined) continue;
+    index = active.index;
+    const record = active.entry.copies.find((record) => record.name === copy);
+    if (active.held || record === undefined) continue;
+    const outcome: SweptCopy = refused === null ? await sweepCopy(input, path, active.entry, record)
+      : { kind: "blocked-destination", entry: active.entry, mark: refused };
     index = withProjectionEntry(index, path, outcome.entry);
     swept.push({ path, copy: record.name, outcome });
   }
@@ -358,6 +371,7 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
       return { kind: "deleted", entry: holding.kind === "absent" ? { ...deleted, pending: true } : deleted };
     }
     if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
+      && !(path.startsWith(".arc/completed/") && record.landed !== null)
       && await retriedMoves(input, { checkout, path }).linkOnto(at.copy, at.path)) {
       return { kind: "linked-back", entry: { ...restoreCopyRendering(entry, record), pending: true } };
     }

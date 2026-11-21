@@ -22,6 +22,8 @@ const binding = vi.hoisted(() => ({
   deniedValidation: null as string | null,
   /** A path whose next stat alone is refused, as when its folder's permission changes after the command observed it. */
   deniedOnce: null as string | null,
+  deniedLinkProbe: null as string | null,
+  writerInstance: undefined as string | undefined,
   /** Runs once a write is prepared, before its archive save journal is read. */
   afterPrepared: undefined as (() => Promise<void>) | undefined,
 }));
@@ -49,6 +51,10 @@ vi.mock("node:fs/promises", async original => {
     binding.afterModeOpen?.(args[0]);
     return handle;
   }, lstat: (async (...args: Parameters<typeof actual.lstat>) => {
+    if (binding.deniedLinkProbe !== null && args[0] === binding.deniedLinkProbe) {
+      binding.deniedLinkProbe = null;
+      throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
+    }
     if (args[0] !== null && args[0] === binding.deniedOnce) binding.deniedOnce = null;
     else if (args[0] !== binding.deniedValidation || binding.deniedValidation === null) return actual.lstat(...args);
     throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
@@ -60,9 +66,11 @@ vi.mock("../../../../src/lib/store/create.js", async original => {
 });
 vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/projection/engine-ports.js")>();
-  return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => ({
-    ...actual.createProjectionEnginePorts(...args), hooks: binding.hooks,
-  }) };
+  return { ...actual, createProjectionEnginePorts: (...args: Parameters<typeof actual.createProjectionEnginePorts>) => {
+    const ports = actual.createProjectionEnginePorts(...args), instance = binding.writerInstance;
+    return { ...ports, hooks: binding.hooks,
+      writer: instance === undefined ? ports.writer : async () => ({ ...await ports.writer(), processInstance: instance }) };
+  } };
 });
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
@@ -87,6 +95,8 @@ afterEach(async () => {
   binding.afterModeOpen = null;
   binding.deniedValidation = null;
   binding.deniedOnce = null;
+  binding.deniedLinkProbe = null;
+  binding.writerInstance = undefined;
   binding.afterPrepared = undefined;
   await removeGitBackedDirs(directories.splice(0));
 });
@@ -302,6 +312,55 @@ it("reports a path validation error after opening the handle and re-locks the ne
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   binding.afterModeOpen = null;
   expect((await save(h)).result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
+});
+
+it.each(["file capture", "copy preflight"] as const)("holds one inaccessible archive path during %s and saves the next", async phase => {
+  const h = await fixture();
+  const later = `${h.folder}/zz-later.txt`;
+  const laterReference = recordReferences["work-item/companion"](h.primary.reference.owner, "zz-later.txt");
+  await seed(h.f, laterReference, "Original companion.\n");
+  await startProjection(h); await endProjection(h);
+  await openArchivedProjectionFile(h, h.path);
+  await openArchivedProjectionFile(h, later);
+  const content = await edit(h, "Retained first correction.");
+  if (phase === "copy preflight") {
+    binding.hooks = { afterMove: async path => {
+      if (path === h.path) throw new Error("Stopped before installing the replacement");
+    } };
+    await expect(save(h)).rejects.toThrow("Stopped before installing the replacement");
+    expect(await diskEntry(h)).toMatchObject({ copies: [expect.any(Object)], opened: true });
+    binding.hooks = undefined;
+  }
+  await writeFile(join(h.checkout, later), "New companion.\n");
+  binding.deniedLinkProbe = join(await realpath(h.checkout), h.folder);
+  const held = await save(h);
+  expect(binding.deniedLinkProbe).toBeNull();
+  expect(held.errors).toContain("EACCES");
+  expect(held.result).toMatchObject({ status: "ok", result: { relocked: [{ path: later }] } });
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect(success(await h.store.read({ reference: laterReference })).content).toBe("New companion.\n");
+  if (phase === "file capture") expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+  expect((await save(h)).result).toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+});
+
+it("holds an inaccessible archive copy at command end and settles the other copy", async () => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  const companion = await openedTextCompanion(h);
+  await edit(h, "Keep the first displaced copy.");
+  const command = { ...h, mode: "save" as const };
+  expect(await startProjection(command)).toMatchObject({ kind: "ready" });
+  const copies = projectionProcessState().roots.get(h.checkout)?.copies ?? [];
+  const first = copies.find(copy => copy.path === h.path), second = copies.find(copy => copy.path === companion.path);
+  if (first === undefined || second === undefined) throw new Error("Expected both displaced archive copies");
+  binding.deniedLinkProbe = join(await realpath(h.checkout), first.path);
+  await endProjection(command);
+  expect(binding.deniedLinkProbe).toBeNull();
+  expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ path: h.path,
+    mark: expect.objectContaining({ reason: expect.stringContaining("EACCES") }) })]));
+  await expect(readFile(join(h.checkout, first.copy))).resolves.toBeInstanceOf(Buffer);
+  await expect(readFile(join(h.checkout, second.copy))).rejects.toMatchObject({ code: "ENOENT" });
 });
 it.each([false, true])("re-locks a new archived file adopted by save after ordinary pickup=%s", async ordinary => {
   const h = await fixture(), path = `${h.folder}/new-note.txt`, content = "New archive correction.\n";
@@ -784,9 +843,10 @@ it.each(["arc save", "an ordinary command"] as const)(
     expect(success(await h.store.read({ reference })).content).toBe(content);
   });
 
-it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] as const)("recovers a staged archive submission at the first post-batch checkpoint (%s)", async kind => {
+it.each(["markdown", "text", "already-stored", "unaccepted", "unaccepted-text", "blocked-history"] as const)("recovers a staged archive submission at the first post-batch checkpoint (%s)", async kind => {
   const h = await fixture();
-  const text = kind === "text" || kind === "already-stored";
+  const text = kind === "text" || kind === "already-stored" || kind === "unaccepted-text";
+  const unaccepted = kind.startsWith("unaccepted");
   const path = text ? `${h.folder}/correction.txt` : h.path;
   if (!text) await openArchivedProjectionFile(h, path);
   const { reference, content } = text ? await openedTextCompanion(h) : {
@@ -810,7 +870,7 @@ it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] 
       submissions += 1;
       if (submissions === 1) {
         archiveSaveId = input.provenance.archiveSaveId;
-        if (kind === "unaccepted") throw new Error("Stopped before the store accepted the save");
+        if (unaccepted) throw new Error("Stopped before the store accepted the save");
         const result = await h.store.batch(input);
         const root = [...projectionProcessState().roots.values()].find(candidate => candidate.checkout === h.checkout);
         if (root === undefined) throw new Error("Missing projection root");
@@ -821,13 +881,13 @@ it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] 
     },
   });
   const command = { ...h, store };
-  await expect(save(command)).rejects.toThrow(kind === "unaccepted" ? "Stopped before the store accepted the save"
+  await expect(save(command)).rejects.toThrow(unaccepted ? "Stopped before the store accepted the save"
     : "Stopped at the first checkpoint after acceptance");
   if (archiveSaveId === undefined) throw new Error("Missing archive save id");
   expect(await diskEntry(h, path)).toMatchObject({ opened: true, archiveSubmission: { id: archiveSaveId } });
   const accepted = success(await h.store.read({ reference }));
   const receipts = success(await h.store.history({ reference, archiveSaveId }));
-  if (kind === "unaccepted") {
+  if (unaccepted) {
     expect(receipts).toEqual([]);
     expect(accepted.version).toBe(before.version);
   } else {
@@ -845,13 +905,63 @@ it.each(["markdown", "text", "already-stored", "unaccepted", "blocked-history"] 
     holdHistory = false;
   }
   expect(await save(command)).toMatchObject({ result: { status: "ok" } });
-  expect(submissions).toBe(kind === "unaccepted" ? 2 : 1);
+  expect(submissions).toBe(unaccepted ? 2 : 1);
   const landed = success(await h.store.read({ reference }));
   expect(landed.content).toBe(content);
-  if (kind !== "unaccepted") expect(landed.version).toBe(accepted.version);
+  if (!unaccepted) expect(landed.version).toBe(accepted.version);
   expect(await diskEntry(h, path)).not.toHaveProperty("opened");
   expect(await diskEntry(h, path)).not.toHaveProperty("archiveSubmission");
   expect((await lstat(join(h.checkout, path))).mode & 0o222).toBe(0);
+});
+
+it.each([false, true])("recovers an accepted own-save aside receipt when the copy changes=%s", async changed => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  await edit(h, "First correction.");
+  let copy: string | undefined;
+  binding.hooks = { afterMove: async path => {
+    if (path !== h.path || copy !== undefined) return;
+    const entry = await diskEntry(h);
+    if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("Missing displaced archive file");
+    copy = entry.copies[0].name;
+    const filename = join(h.checkout, copy);
+    await writeFile(filename, `${await readFile(filename, "utf8")}\nThe displaced correction.\n`);
+  } };
+  const asideSends: string[] = [];
+  let receipt: string | undefined;
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const result = await h.store.batch(input);
+    const captured = input.projectionAdmission;
+    if (captured?.local.source !== "aside") return result;
+    asideSends.push(captured.input.file.content);
+    if (asideSends.length === 1) {
+      expect(result.status).toBe("ok");
+      receipt = input.provenance.archiveSaveId;
+      const root = projectionProcessState().roots.get(h.checkout);
+      if (root === undefined) throw new Error("Missing projection root");
+      root.checkpoint = async () => { throw new Error("Stopped after accepting the displaced edit"); };
+    }
+    return result;
+  } });
+  const command = { ...h, store };
+  binding.writerInstance = "interrupted-save";
+  await expect(save(command)).rejects.toThrow("Stopped after accepting the displaced edit");
+  expect(receipt).toBeDefined();
+  expect(await diskEntry(h)).toMatchObject({ archiveSubmission: { id: receipt, aside: copy } });
+  const accepted = success(await h.store.read({ reference: h.primary.reference }));
+  expect(accepted.content).toContain("The displaced correction.");
+  if (copy === undefined) throw new Error("The interrupted save did not create a displaced copy");
+  const copyPath = join(h.checkout, copy), later = "Another edit after acceptance.";
+  if (changed) await writeFile(copyPath, `${await readFile(copyPath, "utf8")}\n${later}\n`);
+  binding.hooks = undefined;
+  binding.writerInstance = undefined;
+  const retry = await save(command);
+  expect(retry.result).toMatchObject({ status: "ok" });
+  expect(await diskEntry(h)).not.toHaveProperty("archiveSubmission");
+  const stored = success(await h.store.read({ reference: h.primary.reference }));
+  if (changed) expect(stored.content).toContain(later);
+  else expect(stored.version).toBe(accepted.version);
+  expect(asideSends).toHaveLength(changed ? 2 : 1);
 });
 
 async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {

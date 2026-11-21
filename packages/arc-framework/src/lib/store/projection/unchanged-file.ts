@@ -7,15 +7,26 @@ import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
+type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
+
 /** Establish no new edit using the file's selected base, including a persisted take-in's newer basis. */
 export async function readUnchangedProjectionFile(context: WriteBackContext, request: TakeInRequest): Promise<TakeInRead | null> {
   const entry = request.entry;
   if (!entry.pending || request.copy !== null || request.resolution !== undefined || request.adopting
-    || entry.adoption !== undefined || entry.handoff !== undefined || entry.markers !== null
-    || entry.unshown.length > 0 || entry.archiveSubmission !== undefined
+    || entry.adoption !== undefined || entry.handoff !== undefined || entry.archiveSubmission !== undefined
     || entry.persisted?.recording === true || entry.refused?.reason === "bases-disagree") return null;
+  const recordedInput = entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
+  const oldConflicts = entry.markers !== null || entry.unshown.length > 0;
+  if (oldConflicts && recordedInput === undefined) return null;
   const file = await captureWriteBackFile(context, request);
   if (file.kind !== "read") return null;
+  if (recordedInput === file.read.blob && entry.acceptedInputStat?.ino === file.read.stat.ino
+    && entry.acceptedInputStat.mtimeNs === file.read.stat.mtimeNs) return file.read;
+  return oldConflicts ? null : readUnchangedBase(context, request, file);
+}
+
+async function readUnchangedBase(context: WriteBackContext, request: TakeInRequest, file: CapturedFile): Promise<TakeInRead | null> {
+  const { entry } = request;
   if (!request.path.endsWith(".md")) {
     if (matchesAcceptedText(entry, file, context.format)) return file.read;
     const observed = await readStamplessFile({ entry, text: file.content, mtimeNs: file.read.stat.mtimeNs,
@@ -29,7 +40,7 @@ export async function readUnchangedProjectionFile(context: WriteBackContext, req
   return base.status === "ok" && base.result === file.content ? file.read : null;
 }
 
-function matchesAcceptedText(entry: TakeInRequest["entry"], file: Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>,
+function matchesAcceptedText(entry: TakeInRequest["entry"], file: CapturedFile,
   format: WriteBackContext["format"]): boolean {
   const accepted = entry.persisted;
   if (!entry.opened || accepted?.inputBlob === undefined) return false;

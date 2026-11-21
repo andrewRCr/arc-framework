@@ -215,7 +215,8 @@ it.each([false, true])("draws an archived checkout clash using opened=%s", async
   expect(await writable(h.checkout, h.path)).toBe(opened);
 });
 
-it.each([false, true])("installs a reused path using arriving opened=%s, independently of the leaving record", async opened => {
+it.each(["closed", "arriving", "parked"] as const)("installs a reused path with the opening %s", async mode => {
+  const opened = mode !== "closed";
   const h = await archive();
   await startProjection(h.input);
   const root = projectionProcessState().roots.get(h.checkout);
@@ -229,11 +230,13 @@ it.each([false, true])("installs a reused path using arriving opened=%s, indepen
   await rm(join(h.checkout, h.path));
   await withProjectionLock(h.location, async session => {
     root.checkpoint = session.step;
-    const arriving = { ...projectionEntryForRecord(record, h.path, "sha1"), ...(opened ? { opened: true as const } : {}) };
+    const arriving = { ...projectionEntryForRecord(record, h.path, "sha1"), ...(mode === "arriving" ? { opened: true as const } : {}) };
     const result = await installProjectionHandoff({ root, index: { ...index, entries: { ...index.entries,
-      [h.path]: { ...leaving, ...(!opened ? { opened: true as const } : {}) } } }, path: h.path, record, arriving,
+      [h.path]: { ...leaving, ...(!opened ? { opened: true as const } : {}),
+        ...(mode === "parked" ? { arrivingOpened: record.reference } : {}) } } }, path: h.path, record, arriving,
       renderer: createRecordRenderer(root.context) });
     expect(result.entries[h.path]).toMatchObject({ handoff: { reference: record.reference } });
+    if (opened) expect(result.entries[h.path]).toHaveProperty("handoff.opened", true);
     expect(await readFile(join(h.checkout, h.path), "utf8")).toContain("Arriving archive bytes.");
     expect(await writable(h.checkout, h.path)).toBe(opened);
     root.checkpoint = null;

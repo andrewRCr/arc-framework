@@ -1,5 +1,5 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
-import { checkUnchangedProjectionEdit, recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
+import { checkUnchangedProjectionEdit, recordAcceptedProjectionInput, recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
@@ -144,7 +144,11 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
   }
   const changed = await checkIndexedChange(root, path, entry, reference, observed);
   if (changed instanceof ArchiveDestinationBlocked) return checkBlockedArchivePath(root, index, path, entry, changed.mark);
-  if (changed.status === "absent") return { index, edited: false };
+  if (changed.status === "absent") {
+    if (!path.startsWith(".arc/completed/") || entry.persisted?.recording !== true) return { index, edited: false };
+    const completed = await recordAcceptedProjectionInput(root, index, path, entry);
+    return { index: completed.index, edited: false, reobserve: true };
+  }
   const intent = checkoutResolution(root.checkout);
   const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
   if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {

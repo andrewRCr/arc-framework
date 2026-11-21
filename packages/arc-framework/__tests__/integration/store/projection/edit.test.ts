@@ -13,7 +13,7 @@ import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/s
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
   removeOnRead: null as string | null, timeOffset: 0, chmodError: null as string | null,
   /** Paths whose next stat alone is refused, as below a folder that denies access. */
-  denied: new Set<string>(),
+  denied: new Set<string>(), deniedListing: null as string | null,
   /** A change made to a file once a handle opened on it has been inspected, before the mode is changed. */
   afterHandleStat: null as { path: string; run: () => Promise<void> } | null }));
 function deniedStat(path: unknown): void {
@@ -38,7 +38,12 @@ vi.mock("node:fs/promises", async original => {
   return { ...actual, lstat: (async (...args: Parameters<typeof actual.lstat>) => {
     deniedStat(args[0]);
     return actual.lstat(...args);
-  }) as typeof actual.lstat, open: async (...args: Parameters<typeof actual.open>) => {
+  }) as typeof actual.lstat, readdir: (async (...args: Parameters<typeof actual.readdir>) => {
+    if (binding.deniedListing !== null && args[0] === binding.deniedListing) {
+      throw Object.assign(new Error("Listing denied"), { code: "EACCES" });
+    }
+    return actual.readdir(...args);
+  }) as typeof actual.readdir, open: async (...args: Parameters<typeof actual.open>) => {
     const handle = await actual.open(...args), opened = String(args[0]);
     return new Proxy(handle, { get(target, key) {
       const swap = binding.afterHandleStat;
@@ -92,6 +97,7 @@ afterEach(async () => {
   binding.timeOffset = 0;
   binding.chmodError = null;
   binding.denied.clear();
+  binding.deniedListing = null;
   binding.afterHandleStat = null;
   await removeGitBackedDirs(directories.splice(0));
 });
@@ -231,19 +237,34 @@ it("keeps a nested checkout's replacement read-only when it arrives after the op
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
-it("keeps an editor's replacement read-only until a new opening inspects it", async () => {
+it.each([false, true])("leaves an editor's replacement mode and the prior opening intact (opened=%s)", async opened => {
   const h = await archived(), file = join(h.f.root, h.path), bytes = await readFile(file);
+  if (opened) expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
   binding.afterOpen = async () => {
     await rename(file, `${file}.bak`);
-    await writeFile(file, bytes, { mode: 0o444 });
+    await writeFile(file, bytes, { mode: 0o644 });
   };
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
     condition: expect.stringContaining("changed while it was being checked"), remedy: { text: expect.stringContaining("retry") },
   } });
-  expect((await stat(file)).mode & 0o200).toBe(0);
+  expect((await stat(file)).mode & 0o200).toBe(0o200);
+  const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (disk.kind !== "index") throw new Error("Missing archive index");
+  expect(disk.index.entries[h.path]).toMatchObject({ kind: "record" });
+  if (opened) expect(disk.index.entries[h.path]).toHaveProperty("opened", true);
+  else expect(disk.index.entries[h.path]).not.toHaveProperty("opened");
   binding.afterOpen = null;
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
   expect((await stat(file)).mode & 0o200).toBe(0o200);
+});
+
+it("reports a denied spelling lookup and opens after listing access is restored", async () => {
+  const h = await archived();
+  binding.deniedListing = join(await realpath(h.f.root), h.folder);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: expect.stringContaining("EACCES"), remedy: { text: expect.stringContaining("Restore listing access") } } });
+  binding.deniedListing = null;
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
 it.each(["deleted", "replaced by a symbolic link"] as const)(

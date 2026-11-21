@@ -14,7 +14,8 @@ import { markStoreRefusal } from "./refusal-mark.js";
 export async function stageArchiveSave(context: WriteBackContext, index: ProjectionIndex, request: TakeInRequest,
   entry: RecordEntry, prepared: Extract<PreparedWriteBack, { kind: "ready" }>): Promise<{ entry: RecordEntry; id: string }> {
   const held = await retainArchiveSubmission(context, prepared.stamp, prepared.takenIn, prepared.read);
-  const archiveSubmission = { ...held, ...(prepared.retained === undefined ? {} : { retained: prepared.retained }) };
+  const archiveSubmission = { ...held, ...(request.copy === null ? {} : { aside: request.copy }),
+    ...(prepared.retained === undefined ? {} : { retained: prepared.retained }) };
   const staged = { ...entry, archiveSubmission };
   await commitProjectionIndex({ location: context.location, checkout: request.checkout,
     index: withProjectionEntry(index, request.path, staged), checkpoint: context.checkpoint });
@@ -31,14 +32,21 @@ export async function retainArchiveSubmission(context: WriteBackContext, stamp: 
 export function acceptArchiveSave(entry: RecordEntry, version: RecordVersion): RecordEntry {
   const { archiveSubmission, ...prior } = entry;
   if (archiveSubmission === undefined) throw new Error("An accepted archive save requires its staged input");
-  return { ...prior, ...acceptedArchiveRecording(archiveSubmission, version) };
+  const accepted = { ...prior, ...acceptedArchiveRecording(archiveSubmission, version) };
+  const { aside, read, retained } = archiveSubmission;
+  if (aside === undefined || read === undefined) return accepted;
+  return { ...accepted, copies: accepted.copies.map(copy => {
+    if (copy.name !== aside) return copy;
+    // A partially accepted edit still needs the copy's bytes for repair.
+    return retained === undefined ? { ...copy, landed: read.blob } : { ...copy, writeBackSent: true };
+  }) };
 }
 
 /** Form the existing accepted-input recording from the copy retained before submission. */
 export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, version: RecordVersion): Pick<RecordEntry, "persisted" | "acceptedInputStat"> {
   const { stamp, name, blob, read } = submission;
   return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }), takenIn: { kind: "copy", name, blob, version } },
-    acceptedInputStat: read === undefined ? undefined : { ino: read.stat.ino, mtimeNs: read.stat.mtimeNs } };
+    acceptedInputStat: read === undefined || submission.aside !== undefined ? undefined : { ino: read.stat.ino, mtimeNs: read.stat.mtimeNs } };
 }
 
 /** Resolve the interrupted submission before the checkout can attempt another write for this file. */

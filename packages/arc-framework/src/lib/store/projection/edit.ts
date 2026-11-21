@@ -10,7 +10,7 @@ import { ProjectionLockLostError, withProjectionLock, type ProjectionLockResult 
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
-import { changeArchiveFileMode } from "./archive-file.js";
+import { ArchiveDestinationBlocked, changeArchiveFileMode } from "./archive-file.js";
 
 /** An opened local path, or the reason opening could not run. */
 export type ProjectionEditResult =
@@ -88,7 +88,10 @@ async function openPath(root: ProjectionRootState, path: string): Promise<Projec
   const disk = await readProjectionIndex(root.location, true);
   if (disk.kind !== "index") return refuse({ reason: `Projection index is ${disk.cause}.`,
     remedy: { text: "Retry arc edit; the next command start rebuilds an unusable index." } }, "projection-refused");
-  const inspected = await inspectProjectionEditPath(root, disk.index, path);
+  const inspected = await inspectProjectionEditPath(root, disk.index, path).catch((error: unknown) => {
+    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+    return { kind: "refused" as const, mark: error.mark };
+  });
   if (inspected.kind === "refused") return refuse(inspected.mark);
   await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(disk.index, path, { ...inspected.entry, opened: true }) });

@@ -74,3 +74,12 @@ it("answers an archive save receipt with no history, since the in-repo store ren
   expect(await store.history({ reference, archiveSaveId: "0f8b8f0e-5b8c-4b3f-9a1f-2f2a4f5e6d7c" }))
     .toEqual({ status: "ok", result: [] });
 });
+
+it("refuses a receipt on an in-repo single write before consulting checkout I/O", async () => {
+  const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
+  const fixture = createReferenceFixture();
+  const reference = fixture.reference("work-item/notes");
+  expect(await store.write({ action: "put", reference, expected: null, content: fixture.content(reference),
+    provenance: { verb: "save", lifecycleAction: "edit", archiveSaveId: "0f8b8f0e-5b8c-4b3f-9a1f-2f2a4f5e6d7c" } }))
+    .toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("prepared archive batch") } });
+});

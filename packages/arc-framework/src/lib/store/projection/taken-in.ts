@@ -224,8 +224,9 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
     ? { kind: "landed" as const, version: outcome.version }
     : { kind: "copy" as const, version: outcome.version, ...await keepTakenInCopy(input.location, takenIn, input.format, input.checkpoint) };
   const inputBlob = kept?.kind === "copy" && input.entry.persisted?.recording === true && input.entry.opened === true ? kept.blob : undefined;
+  const read = inputBlob === undefined ? undefined : input.entry.persisted?.read;
   return { entry: { ...input.entry, acceptedInputStat: inputBlob === undefined ? undefined : input.entry.acceptedInputStat,
-    persisted: { stamp: input.stamp, takenIn: record, ...(inputBlob === undefined ? {} : { inputBlob }) } }, released };
+    persisted: { stamp: input.stamp, takenIn: record, ...(inputBlob === undefined ? {} : { inputBlob, read }) } }, released };
 }
 
 async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,

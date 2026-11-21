@@ -1,6 +1,6 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
 import { projectionFileReader, readReference } from "./change-detection.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark } from "./archive-file.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
@@ -258,15 +258,17 @@ async function heldBasePreparation(context: WriteBackContext, request: TakeInReq
 /** Capture one settled local file without making store-derived preparation decisions. */
 export async function captureWriteBackFile(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
   const logical = request.copy ?? request.path;
-  const boundary = await readProjectionLinkBoundary(request.checkout, [logical]);
-  const linked = boundary(logical);
-  if (linked !== null) return { kind: "held", result: { answer: "no-edit", entry: request.entry },
-    diagnostic: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
-  try { return await readWriteBackFile(context, request, logical); }
-  catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return { kind: "held", result: { answer: "refused", mark: error.mark,
-      entry: { ...request.entry, pending: true, refused: error.mark } } };
-    throw error;
+  try {
+    const boundary = await readProjectionLinkBoundary(request.checkout, [logical]);
+    const linked = boundary(logical);
+    if (linked !== null) return { kind: "held", result: { answer: "no-edit", entry: request.entry },
+      diagnostic: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
+    return await readWriteBackFile(context, request, logical);
+  } catch (error) {
+    if (!(error instanceof ArchiveDestinationBlocked) && !request.path.startsWith(".arc/completed/")) throw error;
+    const mark = error instanceof ArchiveDestinationBlocked ? error.mark : archivePermissionMark(request.path, error, "read");
+    return { kind: "held", result: { answer: "refused", mark,
+      entry: { ...request.entry, pending: true, refused: mark } } };
   }
 }
 
@@ -523,8 +525,9 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
 }
 
 function needsOpenedSaveJournal(context: WriteBackContext, request: TakeInRequest): boolean {
-  return request.copy === null && request.entry.opened === true && request.path.startsWith(".arc/completed/")
-    && (isOwnSaveLanding(context.verb, request.checkout) || context.verb === "write-back" && isAdopting(request));
+  return request.entry.opened === true && request.path.startsWith(".arc/completed/")
+    && (isOwnSaveLanding(context.verb, request.checkout)
+      || request.copy === null && context.verb === "write-back" && isAdopting(request));
 }
 
 function isAdopting(request: TakeInRequest): boolean {
