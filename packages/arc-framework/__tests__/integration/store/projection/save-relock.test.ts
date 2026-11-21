@@ -24,6 +24,7 @@ const binding = vi.hoisted(() => ({
   deniedOnce: null as string | null,
   deniedLinkProbe: null as string | null,
   deniedRecoverySource: null as string | null,
+  deniedWalkFolder: null as string | null,
   writerInstance: undefined as string | undefined,
   stopAfterIndexCommit: false,
   /** Runs once a write is prepared, before its archive save journal is read. */
@@ -50,7 +51,10 @@ vi.mock("../../../../src/lib/store/projection/submission.js", async original => 
 });
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
-  return { ...actual, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
+  return { ...actual, readdirSync: ((...args: Parameters<typeof actual.readdirSync>) => {
+    if (args[0] === binding.deniedWalkFolder) throw Object.assign(new Error("Archive enumeration refused"), { code: "EACCES" });
+    return actual.readdirSync(...args);
+  }) as typeof actual.readdirSync, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
     if (args[0] !== null && args[0] === binding.deniedOnce) binding.deniedOnce = null;
     else if (args[0] !== binding.deniedValidation || binding.deniedValidation === null) return actual.lstatSync(...args);
     throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
@@ -115,6 +119,7 @@ afterEach(async () => {
   binding.deniedOnce = null;
   binding.deniedLinkProbe = null;
   binding.deniedRecoverySource = null;
+  binding.deniedWalkFolder = null;
   binding.writerInstance = undefined;
   binding.stopAfterIndexCommit = false;
   binding.afterPrepared = undefined;
@@ -1054,6 +1059,7 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
   });
   const command = { ...h, store };
   const stop = async (observed: string) => { if (observed === path) throw new Error("Stopped during read-back installation"); };
+  if (legacy) binding.writerInstance = "predecessor-adoption-writer";
   binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
   await expect(save(command)).rejects.toThrow("Stopped during read-back installation");
   expect(await readFile(file, "utf8")).toBe(installed ? later : content);
@@ -1063,6 +1069,7 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
     await writeFile(file, content);
   } else await utimes(file, new Date(0), new Date(0));
   binding.hooks = undefined;
+  binding.writerInstance = undefined;
   const result = await save(command);
   if (installed) {
     expect(await readFile(file, "utf8"), result.errors).toContain(content.trim());
@@ -1086,13 +1093,15 @@ async function usePredecessorAdoptionJournal(h: Awaited<ReturnType<typeof fixtur
   await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
 }
 
-it("restores an access-held copy on the next command after rebuilding a lost index", async () => {
+it.each(["link", "link and enumeration"] as const)("restores an access-held copy after rebuilding a lost index with denied %s", async denied => {
   const h = await archiveRetirementFixture(), { checkout } = h;
   const sibling = `${h.folder}/sibling.txt`;
   const siblingRef = recordReferences["work-item/companion"](h.primary.reference.owner, "sibling.txt");
   await seed(h.f, siblingRef, "An accessible sibling.\n");
   await projectionCommand(h.input, ["status"]);
   const { location, index } = await h.disk(), writer = { ...await createProjectionEnginePorts(checkout).writer(), processInstance: "exited-rebuild" };
+  const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
+  if (active === undefined) throw new Error("Missing the accessible active record");
   const copies = await Promise.all([h.path, sibling].map(async path => {
     const entry = index.entries[path];
     if (entry?.kind !== "record") throw new Error("Missing file for rebuild recovery");
@@ -1110,8 +1119,14 @@ it("restores an access-held copy on the next command after rebuilding a lost ind
   await rm(join(location.stateDir, PROJECTION_INDEX_FILE));
 
   binding.deniedRecoverySource = held.absolute;
+  if (denied === "link and enumeration") binding.deniedWalkFolder = join(checkout, h.folder);
   const first = await projectionCommand(h.input, ["status"]);
   expect(first.diagnostics).toContain("EACCES");
+  if (denied === "link and enumeration") {
+    expect(first.diagnostics).toContain(`Cannot enumerate ${h.folder}`);
+    expect((await h.disk()).index.state).toBeNull();
+    expect((await h.disk()).index.entries[active]).toMatchObject({ kind: "record", pending: false });
+  }
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
   await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
   await expect(lstat(accessible.absolute)).rejects.toMatchObject({ code: "ENOENT" });
@@ -1120,6 +1135,7 @@ it("restores an access-held copy on the next command after rebuilding a lost ind
   expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
   binding.deniedRecoverySource = null;
+  binding.deniedWalkFolder = null;
   // A deleted-file restoration working from the rebuilt index must leave the held destination to recovery.
   await rm(join(checkout, sibling));
   await restoreSyncProjection(h.store, checkout, {});

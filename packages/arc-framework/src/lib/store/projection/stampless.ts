@@ -8,6 +8,7 @@ import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import type { HistoryMemo } from "./base-recovery.js";
 import { projectionFileReader } from "./change-detection.js";
+import { installedArchiveInput } from "./recording-state.js";
 import type { RecordEntry } from "./index-schema.js";
 import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 
@@ -112,5 +113,6 @@ export async function finalizeAsideCopy(input: AsideCopyDeletion): Promise<Recor
   if (entry.inProgress?.copy !== input.copy) return { ...entry, copies };
   const stat = await projectionFileReader(input.checkout, input.path).stat(join(input.checkout, input.path));
   const holdsLinked = stat?.type === "file" && entry.stat !== null && stat.ino === entry.stat.ino;
-  return { ...entry, copies, inProgress: holdsLinked ? null : entry.inProgress };
+  if (holdsLinked) return { ...installedArchiveInput(entry), copies, inProgress: null };
+  return { ...entry, copies };
 }

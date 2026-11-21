@@ -36,7 +36,9 @@ export function linkAcceptedArchiveInput(entry: RecordEntry, copy: AsideCopyReco
 
 /** The replacement reached its destination, so even its old raw bytes can now be a later edit. */
 export function installedArchiveInput(entry: RecordEntry): RecordEntry {
-  return archiveLayPhase(entry) === "linking" ? recordArchiveLay(entry, { kind: "installed" }) : entry;
+  const phase = archiveLayPhase(entry);
+  const legacyAdoption = phase === undefined && entry.adoption?.kind === "read-back" && entry.acceptedInputStat?.beforeLay === true;
+  return phase === "linking" || legacyAdoption ? recordArchiveLay(entry, { kind: "installed" }) : entry;
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

@@ -15,7 +15,7 @@ export function hasPendingArchiveRecovery(index: ProjectionIndex, path: string):
 /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
 export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic) => void;
 
-type SelectingRoot = { readonly checkout: string; archiveSelection?: Map<string, ArchiveSelection> } & {
+type SelectingRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" | "archiveFolderHolds"> & {
   readonly context: Pick<ProjectionRootState["context"], "report">;
 };
 
@@ -27,6 +27,8 @@ type SelectingRoot = { readonly checkout: string; archiveSelection?: Map<string,
  */
 export function selectArchivePath(root: SelectingRoot, path: string, options: { report?: boolean } = {}): RefusedMark | null {
   if (!path.startsWith(".arc/completed/")) return null;
+  const folderHold = archiveFolderHold(root, path);
+  if (folderHold !== null) return folderHold;
   const answers = root.archiveSelection ??= new Map<string, ArchiveSelection>();
   let answer = answers.get(path);
   if (answer === undefined) {
@@ -38,6 +40,20 @@ export function selectArchivePath(root: SelectingRoot, path: string, options: { 
     root.context.report?.({ path, copy: null, mark: answer.mark });
   }
   return answer.mark;
+}
+
+/** Report an unreadable archive subtree once and leave its descendants to a later command. */
+export function refuseArchiveFolder(root: SelectingRoot, path: string, mark: RefusedMark): void {
+  const holds = root.archiveFolderHolds ??= new Map();
+  if (holds.has(path)) return;
+  holds.set(path, mark);
+  root.context.report?.({ path, copy: null, mark });
+}
+
+function archiveFolderHold(root: Pick<SelectingRoot, "archiveFolderHolds">, path: string): RefusedMark | null {
+  if (root.archiveFolderHolds === undefined) return null;
+  for (const [folder, mark] of root.archiveFolderHolds) if (path === folder || path.startsWith(`${folder}/`)) return mark;
+  return null;
 }
 
 /**
@@ -62,8 +78,8 @@ export function archiveChangeRefusals(root: SelectingRoot): ArchiveChangeRefusal
 }
 
 /** Whether this command refused any of the paths, at its selection or just before a change. */
-export function refusesArchivePath(root: Pick<SelectingRoot, "archiveSelection">, paths: Iterable<string>): boolean {
-  for (const path of paths) if ((root.archiveSelection?.get(path)?.mark ?? null) !== null) return true;
+export function refusesArchivePath(root: Pick<SelectingRoot, "archiveSelection" | "archiveFolderHolds">, paths: Iterable<string>): boolean {
+  for (const path of paths) if ((root.archiveSelection?.get(path)?.mark ?? archiveFolderHold(root, path)) !== null) return true;
   return false;
 }
 

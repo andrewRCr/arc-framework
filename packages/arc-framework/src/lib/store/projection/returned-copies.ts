@@ -35,10 +35,16 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
   const published = await commitProjectionIndex(input);
   input.onPublished?.(published);
   let index = published;
+  const blocked = new Set<string>();
+  const report: AliasRefusal = (refusal, access) => {
+    if (access) blocked.add(refusal.path);
+    input.refuseChange?.(refusal, access);
+  };
   for (const { path, copy } of input.returned) {
+    if (blocked.has(path)) continue;
     const entry = index.entries[path];
     if (entry?.kind !== "record" || !entry.copies.some(record => record.name === copy)) continue;
-    const updated = await cleanReturnedAlias({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint }, input.refuseChange);
+    const updated = await cleanReturnedAlias({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint }, report);
     if (updated !== entry) index = withProjectionEntry(index, path, updated);
   }
   return index === published ? published : commitProjectionIndex({ ...input, index });

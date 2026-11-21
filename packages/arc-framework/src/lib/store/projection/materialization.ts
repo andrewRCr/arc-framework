@@ -1,5 +1,5 @@
 /** Materialize stored records under one target worktree's projection lease. */
-import { observeMaterialization } from "./materialization-observation.js";
+import { observeMaterialization, observeMaterializationFiles } from "./materialization-observation.js";
 import { recordProjectionSweep } from "./end-work.js";
 import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
@@ -14,10 +14,8 @@ import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createRecordRenderer } from "./record-render.js";
 import { evidenceHeldProjectionMark, prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
-import { walkProjectionRoots } from "./engine-walk.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportLeftCopies, reportProjectionLinks } from "./report.js";
-import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
 import { readStat, readReference } from "./change-detection.js";
 import { swapBatch, type SwapFile } from "./swap.js";
 import { withProjectionEntry } from "./index-memory.js";
@@ -91,8 +89,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const evidence = createProjectionProtectionEvidence({ source: inventory.source, checkout: root.checkout, exec: root.ports.exec });
   const renderer = createRecordRenderer({ store: inventory.source, memo: root.context.memo ?? createHistoryMemo(root.store), protection: createProjectionProtection({
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
-  const walked = await walkProjectionRoots(root.checkout, [...PROJECTED_LIFECYCLE_ROOTS,
-    ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs, root.ports.linkFs);
+  const walked = await observeMaterializationFiles(root);
   reportProjectionLinks(walked.links.filter(path => !(input.reportedLinks ?? []).includes(path)));
   const observed = createProjectionLinkBoundary(walked.links);
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
@@ -123,8 +120,9 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   }
   index = await installMaterializedFiles(input, index, files);
   await ensureProjectionScratch(root);
+  const complete = whole && !unlaid && walked.complete;
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && whole && !unlaid
+    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && complete
       && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
     checkpoint: root.context.checkpoint });
   reportProjectionTripwires(root, index);

@@ -14,6 +14,11 @@ type ArchiveModeChange = ArchiveFile | { kind: "mode-refused"; mark: RefusedMark
 /** Identity of the regular file authorized at the opening inspection. */
 export type ArchiveFileIdentity = Pick<BigIntStats, "dev" | "ino">;
 
+/** A directory or path within the completed projection, including its root during discovery. */
+export function isArchiveScope(path: string): boolean {
+  return path === ".arc/completed" || path.startsWith(".arc/completed/");
+}
+
 function foreignArchivePath(path: string): RefusedMark {
   return { reason: `${path} belongs to another checkout.`, remedy: { text: "Run arc edit from the checkout that holds this file." } };
 }

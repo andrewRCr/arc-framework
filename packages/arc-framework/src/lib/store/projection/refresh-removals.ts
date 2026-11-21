@@ -7,8 +7,8 @@ import type { RecordRenderer } from "./record-render.js";
 import type { ProjectionRefreshPlan } from "./refresh-plan.js";
 import { guardReplacement, reportGuardHold } from "./replace-guard.js";
 import { swapBatch, type SwapFile } from "./swap.js";
-import { readProjectionLinkBoundary } from "./discovery-links.js";
-import { archiveChangeRefusals, hasPendingArchiveRecovery, selectArchivePath } from "./archive-selection.js";
+import { readCopyDestinations } from "./discovery-links.js";
+import { archiveChangeRefusals, hasPendingArchiveRecovery, refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 
 /**
  * An obsolete path's changed or opened mark follows the same logical record to the new path a pass lays, keyed by that
@@ -37,21 +37,21 @@ export async function removeObsoleteProjectionPaths(input: {
   const takeIn = root.takeIn;
   let index = input.index;
   const files: SwapFile[] = [];
-  const boundary = await readProjectionLinkBoundary(root.checkout, [...input.plan.removals]);
-  for (const path of input.plan.removals) {
+  const selected = [...input.plan.removals].filter(path => selectObsoletePath(root, index, path));
+  const { blockedByLink, archiveAccess } = await readCopyDestinations(root.checkout, selected, root.ports.linkFs);
+  for (const [path, mark] of archiveAccess) refuseArchiveChange(root, path, mark);
+  for (const path of selected) {
     const entry = index.entries[path];
-    if (entry?.kind !== "record") continue;
-    if (entry.handoff !== undefined) continue;
-    // An archive path this checkout does not own is left untouched, its entry and file as they are.
-    if (selectArchivePath(root, path) !== null || hasPendingArchiveRecovery(index, path)) continue;
-    if (!root.writable(path) || root.blockedByLink(path) !== null || boundary(path) !== null || root.unsent.has(path)) {
+    if (entry?.kind !== "record" || entry.handoff !== undefined || archiveAccess.has(path)) continue;
+    if (!root.writable(path) || root.blockedByLink(path) !== null || blockedByLink(path) !== null || root.unsent.has(path)) {
       index = withProjectionEntry(index, path, { ...entry, pending: true });
       continue;
     }
     const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged: null, renderer: input.renderer,
       reference: input.reference, format: root.context.format, store: root.store, writer: root.context.writer,
       checkpoint: root.context.checkpoint, takeIn, admitsForcedEdit: input.admitsForcedEdit });
-    reportGuardHold(root.context.report, path, null, guarded);
+    if (guarded.kind === "unreplaced" && guarded.cause === "unreadable") refuseArchiveChange(root, path, guarded.mark);
+    else reportGuardHold(root.context.report, path, null, guarded);
     index = withProjectionEntry(index, path, guarded.entry);
     if (guarded.kind === "replace") files.push({ path, replace: guarded, relaid: input.plan.paths.has(path) });
   }
@@ -61,4 +61,12 @@ export async function removeObsoleteProjectionPaths(input: {
     refuseChange: archiveChangeRefusals(root) });
   root.context.recordBatch?.(swapped);
   return swapped.index;
+}
+
+function selectObsoletePath(root: ProjectionRootState, index: ProjectionIndex, path: string): boolean {
+  if (selectArchivePath(root, path) !== null) return false;
+  if (!hasPendingArchiveRecovery(index, path)) return true;
+  refuseArchiveChange(root, path, { reason: "An archive copy is still waiting to return to this path.",
+    remedy: { text: "Repair access to the archive path and run a command from its checkout to finish recovery." } });
+  return false;
 }

@@ -24,6 +24,7 @@ import { runSecondCheck } from "../../../../src/lib/store/projection/second-chec
 import { commitReturnedCopies } from "../../../../src/lib/store/projection/returned-copies.js";
 
 const lateAccess = vi.hoisted(() => ({ destinations: new Map<string, string>(), denied: "" }));
+const aliasAccess = vi.hoisted(() => ({ deniedOnce: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
@@ -39,6 +40,10 @@ vi.mock("node:fs/promises", async original => {
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === aliasAccess.deniedOnce) {
+      aliasAccess.deniedOnce = "";
+      throw Object.assign(new Error("Returned alias access refused"), { code: "EACCES" });
+    }
     if (args[0] === lateAccess.denied) {
       throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
     }
@@ -51,6 +56,7 @@ const directories: string[] = [];
 afterEach(async () => {
   lateAccess.destinations.clear();
   lateAccess.denied = "";
+  aliasAccess.deniedOnce = "";
   await removeGitBackedDirs(directories.splice(0));
 });
 
@@ -142,6 +148,41 @@ it.each([true, false])("retains returned archive bytes when a replacement wins b
   expect(replaced).toBe(true);
   expect(await readFile(aside, "utf8")).toBe("Displaced archive edit.\n");
   expect(await readFile(left.file, "utf8")).toBe("A newer edit.\n");
+});
+
+it("holds later returned aliases of the same destination after a denial during cleanup", async () => {
+  const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
+  const index = await indexOnDisk(h.location), entry = await entryOnDisk(h.location, h.path);
+  const [first] = entry.copies;
+  if (first === undefined) throw new Error("Missing original copy");
+  const second = nameAsideFile({ path: h.path, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+  const siblingPath = ".arc/completed/two/sibling.md";
+  const sibling = nameAsideFile({ path: siblingPath, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+  await mkdir(dirname(join(h.checkout, siblingPath)), { recursive: true });
+  await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
+  await link(join(h.checkout, first.name), h.file);
+  await link(h.file, join(h.checkout, second));
+  await copyFile(h.file, join(h.checkout, siblingPath));
+  await link(join(h.checkout, siblingPath), join(h.checkout, sibling));
+  const bound = { ...index, entries: { ...index.entries,
+    [h.path]: { ...entry, copies: [first, { ...first, name: second }] },
+    [siblingPath]: { ...entry, copies: [{ ...first, name: sibling }] } } };
+  const returned = [{ path: h.path, copy: first.name }, { path: h.path, copy: second }, { path: siblingPath, copy: sibling }];
+  const refusals: string[] = [];
+  const input = { checkout: h.checkout, location: h.location, returned };
+  const held = await commitReturnedCopies({ ...input, index: bound,
+    onPublished: () => { aliasAccess.deniedOnce = h.file; }, refuseChange: ({ path }) => { refusals.push(path); } });
+  expect(refusals).toEqual([h.path]);
+  expect(held.entries[h.path]).toMatchObject({ copies: [{ name: first.name }, { name: second }] });
+  expect(held.entries[siblingPath]).toMatchObject({ copies: [] });
+  await expect(readFile(join(h.checkout, first.name))).resolves.toEqual(await readFile(h.file));
+  await expect(readFile(join(h.checkout, second))).resolves.toEqual(await readFile(h.file));
+  await expect(readFile(join(h.checkout, sibling))).rejects.toMatchObject({ code: "ENOENT" });
+
+  const retried = await commitReturnedCopies({ ...input, index: held });
+  expect(retried.entries[h.path]).toMatchObject({ copies: [] });
+  await expect(readFile(join(h.checkout, first.name))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(readFile(join(h.checkout, second))).rejects.toMatchObject({ code: "ENOENT" });
 });
 
 it.each([false, true])("preserves a displaced opened archive file across nested-checkout settlement (edited=%s)", async edited => {

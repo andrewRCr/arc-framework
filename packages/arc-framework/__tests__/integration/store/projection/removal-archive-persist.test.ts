@@ -17,7 +17,7 @@ import { writeProjectionIndex } from "../../../../src/lib/store/projection/index
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false }));
+const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
@@ -30,6 +30,10 @@ vi.mock("node:fs/promises", async original => {
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
+    if (args[0] === lateAccess.finalStatOnce) {
+      lateAccess.finalStatOnce = "";
+      throw Object.assign(new Error("Archive removal stat refused"), { code: "EACCES" });
+    }
     if (args[0] === lateAccess.path && lateAccess.aliasObserved) {
       throw Object.assign(new Error("Archive search access revoked after alias inspection"), { code: "EACCES" });
     }
@@ -38,7 +42,30 @@ vi.mock("node:fs", async original => {
   return { ...actual, lstatSync, default: { ...actual, lstatSync } };
 });
 
-afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; beginProjectionCommand(); });
+afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; beginProjectionCommand(); });
+
+it("keeps a one-shot archive swap refusal through linked release's second check", async () => {
+  const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
+  const companion = `${h.folder}/z-sibling.txt`;
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "z-sibling.txt");
+  await seed(h.f, reference, "An accessible sibling.\n");
+  await projectionCommand(h.input, ["status"]);
+  await rm(file);
+  let armed = false;
+  const released = await releaseProjectionRemoval(h.checkout, false, { ...h.context, ports: checkout => ({
+    ...createProjectionEnginePorts(checkout), hooks: { afterRecheck: async path => {
+      if (path === h.path) { armed = true; lateAccess.finalStatOnce = file; }
+    } },
+  }) });
+  expect(armed).toBe(true);
+  expect(lateAccess.finalStatOnce).toBe("");
+  expect(released).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  const { index } = await h.disk();
+  expect(index.entries[h.path]).toMatchObject({ kind: "record", pending: true });
+  expect(index.entries[companion]).toBeUndefined();
+  await expect(readFile(join(h.checkout, companion))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await h.retire("release")).toEqual({ kind: "released" });
+}, 30_000);
 
 it.each(["edited", "unmade"] as const)("finishes a healthy retirement copy when a destination of an %s copy loses access", async state => {
   const h = await archiveRetirementFixture();

@@ -5,6 +5,20 @@ import { readProjectionConfiguration } from "./configuration.js";
 import { sweepAsideFolder, type SweepInput, type SweepResult } from "./sweep.js";
 import type { ProjectionMaterializationInput } from "./materialization.js";
 import { recoverSubmittedArchiveEdit } from "./read-back-recovery.js";
+import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
+import { walkProjectionRoots } from "./engine-walk.js";
+import { refuseArchiveFolder } from "./archive-selection.js";
+import type { RefusedMark } from "./index-schema.js";
+import type { ProjectionRootState } from "./process-state.js";
+
+/** Observe the filesystem part of a rebuild and keep unread archive folders opaque until retry. */
+export async function observeMaterializationFiles(root: ProjectionRootState) {
+  const archiveAccess = new Map<string, RefusedMark>();
+  const walked = await walkProjectionRoots(root.checkout, [...PROJECTED_LIFECYCLE_ROOTS,
+    ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs, root.ports.linkFs, archiveAccess);
+  for (const [folder, mark] of archiveAccess) refuseArchiveFolder(root, folder, mark);
+  return { ...walked, complete: archiveAccess.size === 0 };
+}
 
 /** Full materialization sweeps; restoring deleted files only refreshes the ignore proof. */
 export async function observeMaterialization(input: ProjectionMaterializationInput): Promise<SweepResult> {

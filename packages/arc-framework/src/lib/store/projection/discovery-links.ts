@@ -8,7 +8,7 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 import { selectArchivePath } from "./archive-selection.js";
-import { archivePermissionMark } from "./archive-file.js";
+import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -28,7 +28,7 @@ export async function readProjectionLinkBoundary(checkout: string, paths: readon
   const links: string[] = [];
   for (const path of new Set(paths)) {
     const link = await linkInPath(checkout, path, fs).catch((error: unknown) => {
-      if (holdArchiveAccess === undefined || !path.startsWith(".arc/completed/")) throw error;
+      if (holdArchiveAccess === undefined || !isArchiveScope(path)) throw error;
       holdArchiveAccess(path, archivePermissionMark(path, error, "inspect folders for"));
       return null;
     });
