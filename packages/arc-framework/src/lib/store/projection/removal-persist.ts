@@ -271,6 +271,7 @@ async function observeFinalProjectionFile(root: ProjectionRootState, index: Proj
     checkout: root.checkout, path, copy: null, entry,
     base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
   });
+  if (input?.kind === "inaccessible") throw new ArchiveDestinationBlocked(input.mark, true);
   return input?.kind !== "unchanged";
 }
 

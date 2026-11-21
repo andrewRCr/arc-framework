@@ -9,7 +9,7 @@ import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
-import { archiveLayPhase, awaitsArchiveInstallation, provesArchiveInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
+import { adoptionResolutionHold, archiveAdoptionBasis, unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
@@ -29,7 +29,7 @@ export async function selectWriteBackBase(
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const unfinished = unfinishedRecordingRefusal(request.entry);
   if (unfinished !== null) return { status: "refused", refusal: unfinished };
-  const adoption = stamp === null ? unstampedAdoptionBase(context, request, content, read) : null;
+  const adoption = adoptedMarkdownBase(context, request, content, read);
   if (adoption !== null) return { status: "ok", result: adoption };
   try {
     return await selectBase(context, request, content, stamp);
@@ -65,19 +65,20 @@ async function selectBase(
   return recoverSelectedBase({ ...context, memo }, request, content, stamp);
 }
 
-/** Choose only a proved installation when old unstamped bytes might instead be a later editor save. */
-function unstampedAdoptionBase(context: BaseSelectionContext, request: TakeInRequest, content: string,
+/** Apply the archive journal before trusting the stamp of exact accepted bytes. */
+function adoptedMarkdownBase(context: BaseSelectionContext, request: TakeInRequest, content: string,
   read: TakeInRead | undefined): WriteBackBaseDecision | null {
   const { entry } = request;
   if (!request.path.startsWith(".arc/completed/") || !request.path.endsWith(".md") || request.copy !== null
-    || request.resolution !== undefined || request.observedEdit !== true
-    || read === undefined || entry.adoption?.kind !== "read-back"
-    || read.blob !== entry.adoption.read.blob) return null;
-  if (archiveLayPhase(entry) === "installed" || provesArchiveInstallation(entry, read.stat)) return { kind: "selected",
+    || request.resolution?.kind === "hold") return null;
+  const hold = adoptionResolutionHold(entry);
+  if (hold !== null) return { kind: "held", keepLive: true, mark: hold };
+  if (request.resolution !== undefined || request.observedEdit !== true || read === undefined
+    || entry.adoption?.kind !== "read-back" || read.blob !== entry.adoption.read.blob) return null;
+  const basis = archiveAdoptionBasis(entry, entry.adoption.read.stat, read.stat);
+  if (basis === "installed") return { kind: "selected",
     base: { kind: "stored", version: entry.base.version }, stamp: entry.base.blob };
-  const originalInode = entry.adoption.read.stat.ino;
-  if (!awaitsArchiveInstallation(entry) || entry.stat === null || entry.stat.ino === originalInode || read.stat.ino === originalInode
-    || gitBlobId(content, context.format) === entry.base.blob) return null;
+  if (basis === "original" || gitBlobId(content, context.format) === entry.base.blob) return null;
   return { kind: "held", keepLive: true, mark: { reason: "ambiguous-base", remedy: {
     text: "The archive installation could not be established. Keep this edit and reconcile it against the current stored content.",
   } } };

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
+import { archiveLayPhase, awaitsArchiveInstallation } from "./recording-state.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -92,7 +93,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
     if (root.blockedByLink(path) === null) continue;
     // An archive path this checkout does not own keeps its entry, with any opening, recording, and copies.
     if (selectArchivePath(root, path) !== null) continue;
-    const next = withoutPhysicalEdit(entry);
+    const next = withoutPhysicalEdit(path, entry);
     if (next === null) entries.delete(path);
     else entries.set(path, next);
     if (next === null || next.kind === "record" && !next.pending) root.unsent.delete(path);
@@ -102,9 +103,12 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
     checkpoint: root.context.checkpoint, index: replaceLoadedProjectionEntries(index, Object.fromEntries(entries), groups) }) : index;
 }
 
-function withoutPhysicalEdit(entry: IndexEntry): IndexEntry | null {
+function withoutPhysicalEdit(path: string, entry: IndexEntry): IndexEntry | null {
   if (entry.archiveSubmission !== undefined) return entry;
   if (entry.kind === "ownerless") return entry.minted === undefined ? null : entry;
+  // The current leaf is a link, but the staged inode can still prove what reached this archive path.
+  if (path.startsWith(".arc/completed/") && path.endsWith(".md") && entry.adoption?.kind === "read-back"
+    && (awaitsArchiveInstallation(entry) || archiveLayPhase(entry) === "installed")) return entry;
   const recovery = entry.adoption?.kind === "read-back" || entry.persisted?.recording === true || entry.copies.length > 0 || entry.inProgress !== null;
   if (entry.stat === null && (recovery || !entry.pending && entry.refused === null)) return entry;
   return { ...entry, stat: null, ...(recovery ? {} : { pending: false, refused: null }) };

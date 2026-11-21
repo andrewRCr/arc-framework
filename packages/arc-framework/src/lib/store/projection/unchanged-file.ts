@@ -11,19 +11,24 @@ import type { RefusedMark } from "./index-schema.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
 type PendingInput = { readonly kind: "unchanged"; readonly read: TakeInRead }
+  | { readonly kind: "inaccessible"; readonly mark: RefusedMark }
   | { readonly kind: "retained"; readonly mark: RefusedMark };
 
 /** Distinguish settled bytes from a partial landing whose original file still needs repair. */
 export async function readPendingProjectionInput(context: WriteBackContext, request: TakeInRequest): Promise<PendingInput | null> {
-  const entry = request.entry;
-  if (!entry.pending || request.copy !== null || request.resolution !== undefined || request.adopting
-    || entry.adoption !== undefined || entry.handoff !== undefined || entry.archiveSubmission !== undefined
-    || entry.persisted?.recording === true || entry.refused?.reason === "bases-disagree") return null;
+  if (!observesPendingInput(request)) return null;
+  const { entry } = request;
   const recordedInput = entry.opened === true && entry.acceptedInputStat !== undefined ? entry.persisted?.read : undefined;
   const oldConflicts = entry.markers !== null || entry.unshown.length > 0;
   if (oldConflicts && recordedInput === undefined && entry.persisted?.retained === undefined) return null;
   const file = await captureWriteBackFile(context, request);
-  if (file.kind !== "read") return null;
+  if (file.kind === "held") return file.archiveAccess === undefined ? null : { kind: "inaccessible", mark: file.archiveAccess };
+  return classifyPendingInput(context, request, file, recordedInput, oldConflicts);
+}
+
+async function classifyPendingInput(context: WriteBackContext, request: TakeInRequest, file: CapturedFile,
+  recordedInput: string | undefined, oldConflicts: boolean): Promise<PendingInput | null> {
+  const { entry } = request;
   const retained = retainedArchiveInput(entry, file.read.blob);
   if (retained !== undefined) return { kind: "retained", mark: retained };
   if (recordedInput === file.read.blob) {
@@ -35,6 +40,13 @@ export async function readPendingProjectionInput(context: WriteBackContext, requ
   }
   const read = oldConflicts ? null : await readUnchangedBase(context, request, file);
   return read === null ? null : { kind: "unchanged", read };
+}
+
+/** Pending input can be recognized only when no other recorded continuation owns the file. */
+function observesPendingInput({ entry, copy, resolution, adopting }: TakeInRequest): boolean {
+  return entry.pending && copy === null && resolution === undefined && !adopting
+    && entry.adoption === undefined && entry.handoff === undefined && entry.archiveSubmission === undefined
+    && entry.persisted?.recording !== true && entry.refused?.reason !== "bases-disagree";
 }
 
 function matchesAcceptedObservation(original: TakeInRequest["entry"]["acceptedInputStat"], read: TakeInRead): boolean {

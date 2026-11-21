@@ -34,7 +34,7 @@ export interface ReplaceGuardInput {
   /** The record's version staged for the path, null for a removal, which stages nothing. */
   readonly staged: StagedFile | null;
   /** What write-back read of a file it just sent or drew a clash into, re-checked in place of the entry. */
-  readonly baseline?: { readonly stat: FileStat; readonly blob: string };
+  readonly baseline?: { readonly stat: FileStat | null; readonly blob: string };
   readonly reference: bigint | null;
   readonly format: ObjectFormat;
   readonly store: Store;

@@ -5,7 +5,7 @@ import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { holdWaitingArchiveEdit } from "./archive-waiting.js";
-import { refuseArchiveChange } from "./archive-selection.js";
+import { refuseArchiveChange, refuseUnreadArchiveScope } from "./archive-selection.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -71,6 +71,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       if (intent?.target?.resolution.kind === "stored" && sameReference(intent.target.resolution.reference, resolution.reference)) intent.accepted = true;
     },
     reportExplicitResolution: () => { if (state.command?.checkout === input.checkout && state.resolution !== null) state.resolution.accepted = true; },
+    refuseArchiveAccess: refused => { refuseUnreadArchiveScope(root, refused.path, refused.mark, refused.copy); },
     refuseArchiveChange: refused => { refuseArchiveChange(root, refused.path, refused.mark, refused.copy); },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
@@ -87,9 +88,11 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         return held;
       }
       const input = await readPendingProjectionInput(context, request);
-      if (input?.kind === "retained") {
+      if (input !== null && input.kind !== "unchanged") {
         root.unsent.add(request.path);
-        context.report?.({ path: request.path, copy: request.copy, mark: input.mark });
+        const diagnostic = { path: request.path, copy: request.copy, mark: input.mark };
+        if (input.kind === "inaccessible") context.refuseArchiveAccess?.(diagnostic);
+        else context.report?.(diagnostic);
         return refuseProjectionEdit(request.entry, input.mark);
       }
       if (input?.kind === "unchanged") {

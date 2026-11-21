@@ -1,6 +1,6 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
 import { projectionFileReader, readReference } from "./change-detection.js";
-import { ArchiveDestinationBlocked, archivePermissionMark } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
@@ -68,6 +68,8 @@ export interface WriteBackContext {
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
+  /** Keep a native observation refusal so later work can settle other paths without retrying this one. */
+  readonly refuseArchiveAccess?: (diagnostic: WriteBackDiagnostic) => void;
   /** Keeps a refusal met just before a change as the command's answer for its path, reported once. */
   readonly refuseArchiveChange?: (refused: WriteBackDiagnostic) => void;
   /** Set by write-back itself while finishing what the store accepted for an unopened archived file. */
@@ -98,7 +100,8 @@ export type PreparedWriteBack =
       readonly stamp: string; readonly takenIn: string; readonly selectedBase: RecoveredBase; readonly captured: CapturedWriteBackFile; readonly random?: () => number; readonly retained?: RefusedMark }
   | { readonly kind: "clashed"; readonly drawing: CheckoutDrawing; readonly read: TakeInRead; readonly result: TakeInResult; readonly diagnostic: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
-      readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal; readonly readRefusal?: StoreRefusal };
+      readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal; readonly readRefusal?: StoreRefusal;
+      readonly archiveAccess?: RefusedMark };
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
@@ -279,9 +282,11 @@ export async function captureWriteBackFile(context: WriteBackContext, request: T
       diagnostic: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
     return await readWriteBackFile(context, request, logical);
   } catch (error) {
-    if (!(error instanceof ArchiveDestinationBlocked) && !request.path.startsWith(".arc/completed/")) throw error;
+    if (!(error instanceof ArchiveDestinationBlocked)
+      && (!request.path.startsWith(".arc/completed/") || !isArchivePermissionRefusal(error))) throw error;
     const mark = error instanceof ArchiveDestinationBlocked ? error.mark : archivePermissionMark(request.path, error, "read");
-    return { kind: "held", result: { answer: "refused", mark,
+    const access = !(error instanceof ArchiveDestinationBlocked) || error.access;
+    return { kind: "held", ...(access ? { archiveAccess: mark } : {}), result: { answer: "refused", mark,
       entry: { ...request.entry, pending: true, refused: mark } } };
   }
 }
@@ -569,6 +574,10 @@ function pendingRecordingResult(context: WriteBackContext, request: TakeInReques
 
 function heldPreparation(context: WriteBackContext, request: TakeInRequest, prepared: HeldWriteBack): WriteBackSend | RefusedSend {
   if (prepared.refusal !== undefined) return { kind: "store-refused", refusal: prepared.refusal, entry: prepared.result.entry };
+  if (prepared.archiveAccess !== undefined && context.refuseArchiveAccess !== undefined) {
+    context.refuseArchiveAccess({ path: request.path, copy: request.copy, mark: prepared.archiveAccess });
+    return { kind: "held", result: prepared.result };
+  }
   const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
   for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {
     context.report?.({ path: request.path, copy: request.copy, mark: diagnostic });

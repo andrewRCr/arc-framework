@@ -129,6 +129,7 @@ async function checkIndexedRemovalEdit(root: ReadOnlyProjectionRoot, path: strin
   const request = pendingFileRequest(root.checkout, path, entry);
   const input = await readPendingProjectionInput(root.context, request);
   if (input?.kind === "unchanged") return { kind: "passes" };
+  if (input?.kind === "inaccessible") return { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, path, input.mark) };
   if (input?.kind === "retained") {
     const guarded = await guard(path);
     return guarded.kind === "passes" ? markedRemovalRefusal(root.checkout, path, input.mark, disposition) : guarded;

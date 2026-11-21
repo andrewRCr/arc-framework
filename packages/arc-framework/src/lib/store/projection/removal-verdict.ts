@@ -87,6 +87,8 @@ export function projectionFeasibilityRefusal(prepared: ProjectionFeasibility, ch
   // A failed read leaves the edit unjudged. A refusal preparation reached on what it read is the edit's own; a Store
   // read that failed beneath it is still retained by the check's read observation.
   if (prepared.kind === "held" && prepared.readRefusal !== undefined) return unobservedRefusal(checkout, path, prepared.readRefusal);
+  if (prepared.kind === "held" && prepared.archiveAccess !== undefined)
+    return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, prepared.archiveAccess) };
   if (prepared.kind === "held" && prepared.result.answer === "no-edit") return null;
   if (prepared.kind === "refused" && prepared.nativeRefusal === true)
     return { kind: "unobservable", detail: unobservedMarkDetail(checkout, path, prepared.mark) };

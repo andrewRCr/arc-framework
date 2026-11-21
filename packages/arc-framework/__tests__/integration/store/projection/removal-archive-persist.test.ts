@@ -18,10 +18,14 @@ import { writeProjectionIndex } from "../../../../src/lib/store/projection/index
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "" }));
+const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "", captureProbe: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
+    if (args[0] === lateAccess.captureProbe) {
+      lateAccess.captureProbe = "";
+      throw Object.assign(new Error("Archive capture link probe refused"), { code: "EACCES" });
+    }
     // The projection link preflight uses ordinary stats. The alias check asks for inode identities.
     if (args[0] === lateAccess.path && args[1]?.bigint === true) lateAccess.aliasObserved = true;
     return actual.lstat(...args);
@@ -44,7 +48,10 @@ vi.mock("node:fs", async original => {
   return { ...actual, lstatSync, default: { ...actual, lstatSync } };
 });
 
-afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; lateAccess.authority = ""; beginProjectionCommand(); });
+afterEach(() => {
+  lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; lateAccess.authority = ""; lateAccess.captureProbe = "";
+  beginProjectionCommand();
+});
 
 it("keeps a one-shot archive swap refusal through linked release's second check", async () => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
@@ -70,7 +77,8 @@ it("keeps a one-shot archive swap refusal through linked release's second check"
 }, 30_000);
 
 it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"], ["release", "authority"],
-  ["persist", "opened leaf"], ["release", "opened leaf"]] as const)(
+  ["persist", "opened leaf"], ["release", "opened leaf"], ["persist", "capture"], ["release", "capture"],
+  ["persist", "pending capture"], ["release", "pending capture"]] as const)(
   "%s settles an accessible copy when an archive folder denies %s", async (operation, denied) => {
   const h = await archiveRetirementFixture();
   const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
@@ -79,16 +87,27 @@ it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"
   const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer);
   const sibling = await stageRetirementCopy(h.checkout, active, blocked.index, writer);
   const withheld = `${h.folder}/local-withheld.txt`;
-  const initial = denied === "listing" ? withProjectionEntry(sibling.index, withheld, {
+  const blockedEntry = sibling.index.entries[h.path];
+  if (blockedEntry?.kind !== "record") throw new Error("Missing blocked archive entry");
+  const initial = denied === "capture" ? withProjectionEntry(sibling.index, h.path, { ...blockedEntry, pending: false })
+    : denied === "listing" ? withProjectionEntry(sibling.index, withheld, {
     kind: "ownerless", stat: null, withheld: true, refused: { reason: "withheld", remedy: { text: "Recover the local edit." } },
   }) : sibling.index;
   await writeProjectionIndex(location, initial);
+  const content = h.primary.content + "\nAn accessible edit until the capture probe.\n";
+  const deniesCapture = denied === "capture" || denied === "pending capture";
+  if (deniesCapture) {
+    // Keep the previously recorded copy and supply a different live rendering for change detection to select.
+    await writeFile(join(h.checkout, h.path), "");
+    await h.write(h.path, content);
+  }
   if (denied === "authority") lateAccess.authority = join(h.checkout, h.folder, ".git");
   const guard = (path: string) => {
     if (denied === "listing" && path === join(h.checkout, h.folder)) throw Object.assign(new Error("Directory listing refused"), { code: "EACCES" });
   };
   const context = { ...h.context, hooks: { afterFileSelection: async () => {
     if (denied === "opened leaf") lateAccess.finalStatOnce = join(h.checkout, h.path);
+    if (deniesCapture) lateAccess.captureProbe = join(h.checkout, h.path);
   } }, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout),
     linkFs: { lstat: async (path: string) => {
       if (denied === "listing" && path === join(checkout, withheld)) throw new Error("Probed a withheld file in the held folder");
@@ -105,10 +124,32 @@ it.each([["persist", "listing"], ["release", "listing"], ["persist", "authority"
   expect(pending.entries[h.path]).toMatchObject({ copies: [{ name: blocked.name }] });
   expect(pending.entries[active]).toMatchObject({ copies: [] });
   if (denied === "listing") expect(pending.entries[withheld]).toMatchObject({ kind: "ownerless", withheld: true });
+  if (deniesCapture) {
+    expect(lateAccess.captureProbe).toBe("");
+    expect(await readFile(join(h.checkout, h.path), "utf8")).toContain(content);
+    expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
+  }
   await expect(readFile(join(h.checkout, blocked.name))).resolves.toBeInstanceOf(Buffer);
   await expect(readFile(join(h.checkout, sibling.name))).rejects.toMatchObject({ code: "ENOENT" });
   lateAccess.authority = "";
   expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+}, 30_000);
+
+it.each(["status", "sync", "persist", "release"] as const)("checks nested checkout authority before %s releases a withheld entry", async operation => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const nested = `${h.folder}/nested`, foreign = `${nested}/absent.md`, sibling = `${h.folder}/absent.md`;
+  await mkdir(join(h.checkout, nested, ".git"), { recursive: true });
+  const held = { kind: "ownerless", stat: null, withheld: true,
+    refused: { reason: "withheld", remedy: { text: "Recover the local edit." } } } as const;
+  await writeProjectionIndex(location, withProjectionEntry(withProjectionEntry(index, foreign, held), sibling, held));
+  if (operation === "status" || operation === "sync") {
+    expect((await projectionCommand(h.input, [operation])).diagnostics).toContain("belongs to another checkout");
+  } else {
+    expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("nested checkout") } });
+  }
+  const after = (await h.disk()).index;
+  expect(after.entries[foreign]).toEqual(held);
+  expect(after.entries[sibling]).toBeUndefined();
 }, 30_000);
 
 it.each(["edited", "unmade"] as const)("finishes a healthy retirement copy when a destination of an %s copy loses access", async state => {

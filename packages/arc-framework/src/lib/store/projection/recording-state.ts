@@ -55,6 +55,19 @@ export function provesArchiveInstallation(entry: RecordEntry, stat: FileStat | n
     && stat?.type === "file" && stat.ino === entry.stat?.ino && stat.ino !== entry.acceptedInputStat?.ino;
 }
 
+/** Interpret the installation evidence before treating exact accepted Markdown bytes as an edit. */
+export function archiveAdoptionBasis(entry: RecordEntry, original: FileStat, observed: FileStat | null):
+  "original" | "installed" | "indeterminate" {
+  if (archiveLayPhase(entry) === "installed" || provesArchiveInstallation(entry, observed)) return "installed";
+  if (!awaitsArchiveInstallation(entry) || observed?.ino === original.ino || entry.stat?.ino === original.ino) return "original";
+  return "indeterminate";
+}
+
+/** A standing adoption disagreement survives changes to the live buffer and transient read refusals. */
+export function adoptionResolutionHold(entry: RecordEntry): RefusedMark | null {
+  return entry.adoption?.kind === "read-back" && entry.refused?.reason === "bases-disagree" ? entry.refused : null;
+}
+
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */
 export function restoreAcceptedArchiveInput(entry: RecordEntry, copy: AsideCopyRecord): RecordEntry {
   const lay = entry.acceptedInputStat?.lay;

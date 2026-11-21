@@ -5,7 +5,7 @@ import { loadProjectionGroups, withProjectionEntry } from "./index-memory.js";
 import { readWritableArchiveLinkBoundary } from "./discovery-links.js";
 import { projectionFileReader } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { heldArchivePath, refuseUnreadArchiveScope, type ArchiveSelectionRoot } from "./archive-selection.js";
+import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import type { ProjectionRootState } from "./process-state.js";
 
 type WithheldRoot = ArchiveSelectionRoot & Pick<ProjectionRootState, "writable"> & {
@@ -21,7 +21,8 @@ export function releasesAbsentWithheld(writable: (path: string) => boolean, path
 export async function releaseAbsentWithheldPaths(root: WithheldRoot, initial: ProjectionIndex, selection?: readonly string[],
   writable = root.writable): Promise<ProjectionIndex> {
   if (selection === undefined) loadProjectionGroups(initial, "walked");
-  const paths = (selection ?? Object.keys(initial.entries)).filter(path => initial.entries[path]?.withheld && writable(path));
+  const paths = (selection ?? Object.keys(initial.entries)).filter(path => initial.entries[path]?.withheld && writable(path)
+    && selectArchivePath(root, path, { holdAccess: true }) === null);
   const boundary = await readWritableArchiveLinkBoundary(root, paths, root.ports?.linkFs);
   let index = initial;
   for (const path of paths) {

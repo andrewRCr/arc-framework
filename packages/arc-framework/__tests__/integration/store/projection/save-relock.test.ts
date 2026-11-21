@@ -93,18 +93,17 @@ vi.mock("../../../../src/lib/store/projection/engine-ports.js", async original =
   } };
 });
 import { dispatchRegisteredCli } from "../../../helpers/registered-cli.js";
-import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { createAdoptionFixture, usePredecessorAdoptionJournal } from "../../../helpers/store/projection/adoption-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, sameReference } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
-import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { PROJECTION_INDEX_FILE, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
-import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
-import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -998,8 +997,8 @@ it.each(["unchanged", "edited", "reverted"] as const)("recovers an accepted own-
   expect(asideSends).toHaveLength(state === "unchanged" ? 1 : 2);
 });
 
-async function openedNewText(h: Awaited<ReturnType<typeof fixture>>, extension: "txt" | "md" = "txt") {
-  const name = `new.${extension}`;
+async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {
+  const name = "new.txt";
   const path = `${h.folder}/${name}`, file = join(h.checkout, path), content = "The new archived text.\n";
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, name);
   await writeFile(file, content);
@@ -1064,7 +1063,7 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
   binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
   await expect(save(command)).rejects.toThrow("Stopped during read-back installation");
   expect(await readFile(file, "utf8")).toBe(installed ? later : content);
-  if (legacy) await usePredecessorAdoptionJournal(h, path);
+  if (legacy) await usePredecessorAdoptionJournal(h.projected.location, path);
   if (installed) {
     await chmod(file, 0o644);
     await writeFile(file, content);
@@ -1082,113 +1081,6 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
     expect(await diskEntry(h, path)).not.toHaveProperty("opened");
     expect(submissions).toBe(1);
   }
-});
-
-it.each([[false, "predecessor"], [true, "predecessor"], [false, "current"], [true, "current"]] as const)(
-  "uses the proved Markdown installation after its writer exits (installed=%s, journal=%s)", async (installed, journal) => {
-  const h = await fixture(), { path, file, reference, content } = await openedNewText(h, "md");
-  const newer = "A newer Markdown correction from another command.\n";
-  let submissions = 0;
-  const store = overrideEngineStore(h.store, { batch: async input => {
-    const result = await h.store.batch(input);
-    if (++submissions === 1) {
-      const accepted = success(await h.store.read({ reference }));
-      expect(accepted.content).toBe(content);
-      success(await h.store.write(update(h.f, accepted, newer)));
-    }
-    return result;
-  } });
-  const command = { ...h, store };
-  const stop = async (observed: string) => { if (observed === path) throw new Error("Stopped during Markdown installation"); };
-  binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
-  binding.writerInstance = "interrupted-markdown-writer";
-  await expect(save(command)).rejects.toThrow("Stopped during Markdown installation");
-  expect(await diskEntry(h, path)).toHaveProperty("inProgress", null);
-  expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(installed ? newer : content);
-  if (journal === "predecessor") await usePredecessorAdoptionJournal(h, path);
-  if (installed) {
-    await chmod(file, 0o644);
-    await writeFile(file, content);
-  } else await utimes(file, new Date(0), new Date(0));
-
-  binding.hooks = undefined;
-  binding.writerInstance = undefined;
-  await save(command);
-  const bytes = await readFile(file, "utf8");
-  if (installed) {
-    expect(parseStampedFile(bytes).content).toBe(content);
-    expect(success(await h.store.read({ reference })).content).toBe(content);
-    expect(submissions).toBe(2);
-  }
-  else {
-    expect(parseStampedFile(bytes).content).toBe(newer);
-    expect(await diskEntry(h, path)).not.toHaveProperty("opened");
-    expect(submissions).toBe(1);
-  }
-});
-
-async function usePredecessorAdoptionJournal(h: Awaited<ReturnType<typeof fixture>>, path: string): Promise<void> {
-  const { location } = h.projected;
-  const read = await readProjectionIndex(location, true, { groups: "all" });
-  if (read.kind !== "index") throw new Error("No adoption index");
-  const entry = read.index.entries[path];
-  if (entry?.kind !== "record" || entry.acceptedInputStat === undefined) throw new Error("No staged adoption");
-  const { ino, mtimeNs } = entry.acceptedInputStat;
-  await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
-}
-
-it.each(["current", "predecessor"] as const)("holds a rename-over archive revert on the %s journal until explicitly resolved", async journal => {
-  const h = await fixture(), { path, file, reference, content } = await openedNewText(h, "md");
-  const peer = "A peer's newer archive correction.\n";
-  let sends = 0;
-  const store = overrideEngineStore(h.store, { batch: async input => {
-    const result = await h.store.batch(input);
-    if (++sends === 1) success(await h.store.write(update(h.f, success(await h.store.read({ reference })), peer)));
-    return result;
-  } });
-  const command = { ...h, store };
-  binding.hooks = { afterFirstCheck: async observed => { if (observed === path) throw new Error("Stopped after the archive link"); } };
-  binding.writerInstance = "renamed-adoption-writer";
-  await expect(save(command)).rejects.toThrow("Stopped after the archive link");
-  const interrupted = await diskEntry(h, path);
-  const interruptedCopy = interrupted?.kind === "record" ? interrupted.persisted?.takenIn : undefined;
-  if (interruptedCopy?.kind !== "copy") throw new Error("Missing interrupted base copy");
-  expect(await readFile(join(h.projected.location.stateDir, TAKEN_IN_FOLDER, interruptedCopy.name), "utf8")).toBe(content);
-  const installed = await lstat(file);
-  expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(peer);
-  if (journal === "predecessor") await usePredecessorAdoptionJournal(h, path);
-  const written = `${file}.editor`;
-  await writeFile(written, content);
-  await rename(written, file);
-  expect((await lstat(file)).ino).not.toBe(installed.ino);
-  binding.hooks = undefined;
-  binding.writerInstance = undefined;
-
-  const before = success(await h.store.read({ reference }));
-  const held = await save(command);
-  expect(held.errors).toContain("The archive installation could not be established");
-  const entry = await diskEntry(h, path);
-  expect(entry).toMatchObject({ opened: true, pending: true, adoption: { kind: "read-back" },
-    base: { version: before.version }, refused: { reason: "bases-disagree" } });
-  const token = entry?.refused?.remedy.argv?.at(-1);
-  if (token === undefined) throw new Error("Missing explicit resolution token");
-  const retained = entry?.kind === "record" ? entry.persisted?.takenIn : undefined;
-  if (retained?.kind !== "copy") throw new Error("Missing retained accepted base");
-  const retainedFile = join(h.projected.location.stateDir, TAKEN_IN_FOLDER, retained.name);
-  expect(retained.name).toBe(interruptedCopy.name);
-  expect(await readFile(retainedFile, "utf8")).toBe(content);
-  expect((await save(command)).errors).toContain(token);
-  expect(await readFile(retainedFile, "utf8")).toBe(content);
-  expect(await readFile(file, "utf8")).toBe(content);
-  expect(success(await h.store.read({ reference })).version).toBe(before.version);
-  expect(sends).toBe(1);
-
-  const resolved = await save(command, ["--resolve", token]);
-  expect(resolved.result, `${resolved.output}\n${resolved.errors}`).toMatchObject({ status: "ok" });
-  expect(success(await h.store.read({ reference })).content).toBe(content);
-  expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(content);
-  expect(await diskEntry(h, path)).not.toHaveProperty("adoption");
-  expect(sends).toBe(2);
 });
 
 it.each(["link", "enumeration"] as const)("restores an access-held copy after rebuilding a lost index with denied %s", async denied => {

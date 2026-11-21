@@ -31,9 +31,9 @@ export async function prepareIndexedProjectionSubmission(context: WriteBackConte
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>): Promise<ProjectionSubmissionResult> {
   const copies = await captureRetainedBases(context, request.entry);
   if (copies.status === "refused") return copies;
-  // Admission replays base selection for an unstamped edit without reading the checkout again.
+  // Admission replays adoption base selection from the captured bytes and installation evidence.
   const installedBasis = request.copy === null && request.path.startsWith(".arc/completed/") && request.path.endsWith(".md")
-    && prepared.captured.stamp === null && request.entry.adoption?.kind === "read-back" && request.entry.acceptedInputStat !== undefined;
+    && request.entry.adoption?.kind === "read-back" && request.entry.acceptedInputStat !== undefined;
   return prepareStable(context, request.checkout, request.path, request.copy === null ? "file" : "aside", {
     selection: { kind: "indexed", reference: request.entry.reference }, input: {
       format: context.format, file: fileInput(prepared.captured, installedBasis), basis: basisInput(request.entry, installedBasis), base: request.base,

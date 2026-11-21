@@ -11,6 +11,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
 import { recoverArchiveSave } from "./archive-save-recording.js";
+import { refuseUnreadArchiveScope } from "./archive-selection.js";
 
 /** Settle a lost submission response before treating any live bytes as a new edit. */
 export async function recoverSubmittedArchiveEdit(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -55,9 +56,10 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
   const input = await readPendingProjectionInput(root.context, pendingFileRequest(root.checkout, path, entry));
   if (input === null) return completing
     ? { index: withProjectionEntry(index, path, { ...entry, changed: true }), edited: true, reobserve: true } : null;
-  if (input.kind === "retained") {
+  if (input.kind !== "unchanged") {
     root.unsent.add(path);
-    root.context.report?.({ path, copy: null, mark: input.mark });
+    if (input.kind === "inaccessible") refuseUnreadArchiveScope(root, path, input.mark);
+    else root.context.report?.({ path, copy: null, mark: input.mark });
     return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: input.mark }), edited: false, reobserve: true };
   }
   root.unsent.delete(path);
