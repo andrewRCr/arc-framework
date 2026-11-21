@@ -8,35 +8,54 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate } from "../helpers/prepared-repository.js";
 import { selectNoInputInvocations } from "../helpers/no-input-invocations.js";
-import { NO_INPUT_MATRIX } from "../fixtures/command-input/no-input-matrix.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./helpers.js";
+import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
+import { NO_INPUT_MATRIX, type NoInputMatrixCase } from "../fixtures/command-input/no-input-matrix.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./store-default.js";
 
 const STUB_CLASS_CASE_TIMEOUT_MS = 30_000;
+const TERMINATES_TITLE = "terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor]"
+  + " for each distinct unavailable-interaction context";
+
+/** An initialized, committed repository on the test process's store selection. */
+async function initializeMatrixRepository(): Promise<string> {
+  const cwd = await createTempRepo("arc-command-input-template-");
+  try {
+    const initialized = await runArcNoTty(
+      ["--no-input", "init", "--name", "matrix", "--identity", "matrix", "--tools", ""],
+      cwd, { timeout: 10_000, env: { CI: "false" } },
+    );
+    expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
+    return cwd;
+  } catch (error) {
+    await cleanupTempDir(cwd);
+    throw error;
+  }
+}
+
+/** Every ref but the store's retained read token, which a read of the store writes beside the state it captures. */
+async function stateRefs(cwd: string): Promise<string> {
+  const refs = await git(cwd, ["show-ref"]);
+  return refs.split("\n").filter((line) => !line.includes(" refs/arc/tmp/")).join("\n");
+}
 
 describe("command-input no-input matrix", () => {
   const repositories: string[] = [];
   const spawnedWorktrees: Array<{ repository: string; path: string }> = [];
 
   const initializedShape = { kind: "plain", key: "no-input-matrix-initialized" } as const;
+  const inRepoShape = { kind: "plain", key: "no-input-matrix-initialized-in-repo" } as const;
   let initializedTemplate: PreparedRepositoryTemplate | undefined;
+  let inRepoTemplate: PreparedRepositoryTemplate | undefined;
   beforeAll(async () => {
-    initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
-      const cwd = await createTempRepo("arc-command-input-template-");
-      try {
-        const initialized = await runArcNoTty(["--no-input", "init", "--name", "matrix", "--identity", "matrix", "--tools", ""],
-          cwd, { timeout: 10_000, env: { CI: "false" } });
-        expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
-        await git(cwd, ["add", "."]);
-        await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
-        return cwd;
-      } catch (error) {
-        await cleanupTempDir(cwd);
-        throw error;
-      }
-    });
+    initializedTemplate = await prepareRepositoryTemplate(initializedShape, initializeMatrixRepository);
+    inRepoTemplate = await withInRepoStore(() => prepareRepositoryTemplate(inRepoShape, initializeMatrixRepository));
   });
   afterAll(async () => {
-    if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+    await Promise.all([initializedTemplate, inRepoTemplate].map(async (template) => {
+      if (template !== undefined) await cleanupTempDir(template.root);
+    }));
   });
 
   afterEach(async () => {
@@ -45,57 +64,6 @@ describe("command-input no-input matrix", () => {
     }));
     await Promise.all(repositories.splice(0).map((path) => cleanupTempDir(path)));
   });
-
-  it.runIf(process.platform === "linux")(
-    "renders one stable progress line per phase for an explicit no-input start in a TTY",
-    async () => {
-      const cwd = await createTempRepo("arc-command-input-progress-e2e-");
-      repositories.push(cwd);
-      const initialized = await runArcNoTty(
-        ["--no-input", "init", "--name", "progress", "--identity", "matrix"],
-        cwd,
-        { timeout: 10_000, env: { CI: "false" } },
-      );
-      expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
-      const configPath = join(cwd, ".arc", "system", "arc-config.yml");
-      const config = await readFile(configPath, "utf8");
-      const slowed = config.replace(/worktree\.post_create:.*$/mu, "worktree.post_create: sleep 1");
-      expect(slowed, "expected worktree.post_create in installed config").not.toBe(config);
-      await writeFile(configPath, slowed, "utf8");
-      await git(cwd, ["config", "core.hooksPath", "/dev/null"]);
-      await git(cwd, ["add", "."]);
-      await git(cwd, ["commit", "-m", "chore: initialize progress fixture"]);
-
-      const origin = await mkdtemp(join(tmpdir(), "arc-command-input-progress-origin-"));
-      repositories.push(origin);
-      await git(origin, ["init", "--bare", "--initial-branch=main"]);
-      await git(cwd, ["remote", "add", "origin", origin]);
-      await git(cwd, ["push", "-u", "origin", "main"]);
-
-      const result = await runArc(
-        ["--no-input", "start", "stable-progress", "--new", "--yes"],
-        cwd,
-        { timeout: 30_000, env: { CI: "false" } },
-      );
-      const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
-      for (const line of listed.split("\n")) {
-        if (!line.startsWith("worktree ")) continue;
-        const path = line.slice("worktree ".length);
-        if (path !== cwd) spawnedWorktrees.push({ repository: cwd, path });
-      }
-
-      expect(result.exitCode, JSON.stringify(result)).toBe(0);
-      const output = `${result.stdout}\n${result.stderr}`;
-      for (const label of [
-        "Spawning worktree...",
-        "Refreshing ROADMAP...",
-        "Committing and pushing start ceremony...",
-      ]) {
-        expect(output.split(label).length - 1, `${label}\n${output}`).toBe(1);
-      }
-      expect(output).not.toMatch(/[◒◐◓◑]/u);
-    },
-  );
 
   it("reports every missing release setup input using its declared syntax", async () => {
     if (initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
@@ -143,14 +111,17 @@ describe("command-input no-input matrix", () => {
     expect(await readFile(meta, "utf8")).toContain("`Light`");
   }, STUB_CLASS_CASE_TIMEOUT_MS);
 
-  it.each(NO_INPUT_MATRIX)("terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor] for each distinct unavailable-interaction context", async (entry) => {
+  /** Run one matrix case under each of its distinct unavailable-interaction contexts, each from its own repository. */
+  async function terminatesInEveryContext(entry: NoInputMatrixCase): Promise<void> {
+    const template = entry.store === "in-repo" ? inRepoTemplate : initializedTemplate;
+    const shape = entry.store === "in-repo" ? inRepoShape : initializedShape;
     const invoke = async (
       run: (cwd: string) => ReturnType<typeof runArcNoTty>,
     ) => {
       const prepared = entry.fixture !== "bare";
-      if (prepared && initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
+      if (prepared && template === undefined) throw new Error("Missing initialized matrix template");
       const cwd = prepared
-        ? await copyPreparedRepository(initializedTemplate!, initializedShape)
+        ? await copyPreparedRepository(template!, shape)
         : await createTempRepo("arc-command-input-e2e-");
       repositories.push(cwd);
       if (prepared && entry.configuration === "full-protection") {
@@ -178,9 +149,8 @@ describe("command-input no-input matrix", () => {
           cwd,
           { timeout: 10_000, env: { CI: "false" } },
         );
+        // The stub is a store record, so no tracked file changes.
         expect(stubbed.exitCode, JSON.stringify(stubbed)).toBe(0);
-        await git(cwd, ["add", "."]);
-        await git(cwd, ["commit", "-m", "chore: add matrix work unit"]);
       }
       if (entry.setup === "local-notes") {
         const saved = await runArcNoTty(["--no-input", "user", "save"], cwd);
@@ -207,7 +177,7 @@ describe("command-input no-input matrix", () => {
       const before = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       const notesBefore = entry.setup === "local-notes"
         ? await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"]) : undefined;
-      const refsBefore = entry.preservesWorktree === true ? await git(cwd, ["show-ref"]) : undefined;
+      const refsBefore = entry.preservesWorktree === true ? await stateRefs(cwd) : undefined;
       const result = await run(cwd);
       const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
       const spawned = listed.split("\n").filter((line) => line.startsWith("worktree "))
@@ -241,7 +211,7 @@ describe("command-input no-input matrix", () => {
       if (notesBefore !== undefined) {
         expect(await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"])).toBe(notesBefore);
       }
-      if (refsBefore !== undefined) expect(await git(cwd, ["show-ref"])).toBe(refsBefore);
+      if (refsBefore !== undefined) expect(await stateRefs(cwd)).toBe(refsBefore);
       const after = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       return { result, mutationPreserved: before === after };
     };
@@ -268,7 +238,12 @@ describe("command-input no-input matrix", () => {
         expect(mutationPreserved, `${signal}: protected worktree changed`).toBe(true);
       }
     }
-  });
+  }
+
+  it.each(NO_INPUT_MATRIX.filter((entry) => entry.store !== "in-repo"))(
+    TERMINATES_TITLE,
+    async (entry) => { await terminatesInEveryContext(entry); },
+  );
 
   it("preserves explicitly selected commit-message stdin bytes", async () => {
     const cwd = await createTempRepo("arc-command-input-stdin-e2e-");
@@ -291,28 +266,91 @@ describe("command-input no-input matrix", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ result: { kind: "validated", verdict: "pass" } });
   });
 
-  it("preserves explicitly selected inbox-title stdin", async () => {
-    const cwd = await createTempRepo("arc-command-input-inbox-e2e-");
-    repositories.push(cwd);
-    const initialized = await runArcNoTty(
-      ["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
-      cwd,
-      { timeout: 10_000, env: { CI: "true" } },
-    );
-    expect(initialized.exitCode).toBe(0);
-    const configPath = join(cwd, ".arc", "system", "arc-config.yml");
-    const config = await readFile(configPath, "utf8");
-    await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"), "utf8");
+  describe("over the in-repo store", () => {
+    // The store's start shows no phased progress and reaches neither the create-new confirmation nor a remote
+    // lifecycle read, and the store retires user notes and title-keyed inbox operands, so these subjects are the
+    // in-repo implementation's.
+    useInRepoStoreForEach();
 
-    const result = await runArcWithStdin(
-      ["--no-input", "errand", "open", "matrix-stdin", "--inbox-title-file", "-"],
-      cwd,
-      "Exact stdin title\n",
-      { timeout: 10_000, env: { CI: "true" } },
+    it.runIf(process.platform === "linux")(
+      "renders one stable progress line per phase for an explicit no-input start in a TTY",
+      async () => {
+        const cwd = await createTempRepo("arc-command-input-progress-e2e-");
+        repositories.push(cwd);
+        const initialized = await runArcNoTty(
+          ["--no-input", "init", "--name", "progress", "--identity", "matrix"],
+          cwd,
+          { timeout: 10_000, env: { CI: "false" } },
+        );
+        expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+        const configPath = join(cwd, ".arc", "system", "arc-config.yml");
+        const config = await readFile(configPath, "utf8");
+        const slowed = config.replace(/worktree\.post_create:.*$/mu, "worktree.post_create: sleep 1");
+        expect(slowed, "expected worktree.post_create in installed config").not.toBe(config);
+        await writeFile(configPath, slowed, "utf8");
+        await git(cwd, ["config", "core.hooksPath", "/dev/null"]);
+        await git(cwd, ["add", "."]);
+        await git(cwd, ["commit", "-m", "chore: initialize progress fixture"]);
+
+        const origin = await mkdtemp(join(tmpdir(), "arc-command-input-progress-origin-"));
+        repositories.push(origin);
+        await git(origin, ["init", "--bare", "--initial-branch=main"]);
+        await git(cwd, ["remote", "add", "origin", origin]);
+        await git(cwd, ["push", "-u", "origin", "main"]);
+
+        const result = await runArc(
+          ["--no-input", "start", "stable-progress", "--new", "--yes"],
+          cwd,
+          { timeout: 30_000, env: { CI: "false" } },
+        );
+        const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
+        for (const line of listed.split("\n")) {
+          if (!line.startsWith("worktree ")) continue;
+          const path = line.slice("worktree ".length);
+          if (path !== cwd) spawnedWorktrees.push({ repository: cwd, path });
+        }
+
+        expect(result.exitCode, JSON.stringify(result)).toBe(0);
+        const output = `${result.stdout}\n${result.stderr}`;
+        for (const label of [
+          "Spawning worktree...",
+          "Refreshing ROADMAP...",
+          "Committing and pushing start ceremony...",
+        ]) {
+          expect(output.split(label).length - 1, `${label}\n${output}`).toBe(1);
+        }
+        expect(output).not.toMatch(/[◒◐◓◑]/u);
+      },
     );
 
-    expect(result.exitCode).toBe(1);
-    expect(`${result.stdout}\n${result.stderr}`).toContain("Exact stdin title");
-    expect(await git(cwd, ["branch", "--show-current"])).toBe("main");
+    it.each(NO_INPUT_MATRIX.filter((entry) => entry.store === "in-repo"))(
+      TERMINATES_TITLE,
+      async (entry) => { await terminatesInEveryContext(entry); },
+    );
+
+    it("preserves explicitly selected inbox-title stdin", async () => {
+      const cwd = await createTempRepo("arc-command-input-inbox-e2e-");
+      repositories.push(cwd);
+      const initialized = await runArcNoTty(
+        ["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
+        cwd,
+        { timeout: 10_000, env: { CI: "true" } },
+      );
+      expect(initialized.exitCode).toBe(0);
+      const configPath = join(cwd, ".arc", "system", "arc-config.yml");
+      const config = await readFile(configPath, "utf8");
+      await writeFile(configPath, config.replace("branch.protection: partial", "branch.protection: full"), "utf8");
+
+      const result = await runArcWithStdin(
+        ["--no-input", "errand", "open", "matrix-stdin", "--inbox-title-file", "-"],
+        cwd,
+        "Exact stdin title\n",
+        { timeout: 10_000, env: { CI: "true" } },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(`${result.stdout}\n${result.stderr}`).toContain("Exact stdin title");
+      expect(await git(cwd, ["branch", "--show-current"])).toBe("main");
+    });
   });
 });

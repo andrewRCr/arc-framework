@@ -1209,6 +1209,20 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           disabled-start notice. Its exclude-failure case surfaced A25, which Task 3.R10 fixed.
         - Keep the override by subject: `check-project-selection`'s archived planning edits and its backlog planning
           row, which commit tracked planning state the store refuses.
+    - _The command-input matrix, as moved (Task 3.6.b):_ `e2e/command-input-no-input.e2e.test.ts` spawns through
+      `e2e/store-default.ts`; 104 of its 109 cases run on the store.
+        - The store verbs that refused `unsupported` in-repo now answer: `inbox` and `errand queue` list, `locus
+          release` names the missing marker, and `cohort close` and `remove` refuse `not-found`. `route`, `errand queue
+          set`, and `handoff write` read their declared explicit stdin, so their rows pipe it, as the matrix's other
+          stdin rows do (`fixtures/command-input/no-input-matrix.ts`), and `unit/no-input-invocations.test.ts`' Linux
+          grouping moves with them. `integrate checkpoint`, `sync`, `view`, and `errand open`'s title operand take the
+          store's results, and `promote`'s stub is a record, leaving nothing to commit.
+        - A refusal's preserved refs leave out `refs/arc/tmp/`, the store's retained read token, which `store remote`'s
+          refusal writes as it reads.
+        - Keep the override by subject, through the matrix's `store: "in-repo"` field: both `start` rows, since the
+          store's start reaches neither the create-new confirmation nor a remote lifecycle read; `user pull`, since the
+          store retires user notes; the progress test, whose ROADMAP refresh and ceremony push are the in-repo start's;
+          and the title-stdin case, an operand the store refuses.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

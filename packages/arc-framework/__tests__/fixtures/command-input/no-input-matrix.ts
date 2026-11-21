@@ -11,6 +11,8 @@ export interface NoInputMatrixCase {
   readonly expected: { readonly exitCode: number; readonly outputIncludes?: string };
   readonly stdin?: string;
   readonly preservesWorktree?: true;
+  /** The case's subject is behavior only the in-repo store has, so it runs under the in-repo store override. */
+  readonly store?: "in-repo";
 }
 
 /**
@@ -19,14 +21,14 @@ export interface NoInputMatrixCase {
  */
 export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "agenda", args: ["agenda", "session-init", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"mode\":\"agenda\"" } },
-  { commandPath: "inbox", args: ["inbox", "personal", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "route", args: ["route", "--to", "project"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "locus release", args: ["locus", "release"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "handoff write", args: ["handoff", "write", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "cohort close", args: ["cohort", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
-  { commandPath: "cohort remove", args: ["cohort", "remove", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "inbox", args: ["inbox", "personal", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"state\":\"listed\"" } },
+  { commandPath: "route", args: ["route", "--to", "project"], stdin: "", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "locus release", args: ["locus", "release"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "has no work-unit marker to release" } },
+  { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"state\":\"listed\"" } },
+  { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "handoff write", args: ["handoff", "write", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-handoff-request\"" } },
+  { commandPath: "cohort close", args: ["cohort", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"not-found\"" } },
+  { commandPath: "cohort remove", args: ["cohort", "remove", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"not-found\"" } },
   { commandPath: "abandon", args: ["abandon", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },
@@ -73,12 +75,12 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "demote", args: ["demote", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "errand merge", args: ["errand", "merge", "matrix", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: '"operation":"errand-close"' } },
-  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
+  { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Title and title-file operands are unsupported." } },
   { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "hook-validate-frontmatter", args: ["hook-validate-frontmatter"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", promptSite: "prompt.init.tools", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
-  { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
+  { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 1, outputIncludes: "\"reason\":\"composition-unavailable\"" } },
   { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "publish", args: ["publish", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "join", args: ["join", "--tools", "", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
@@ -105,20 +107,20 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "review terminus accept", args: ["review", "terminus", "accept", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "set-class", args: ["set-class", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "set-stage", args: ["set-stage", "invalid"], expected: { exitCode: 1 } },
-  { commandPath: "start", promptSite: "prompt.start.create-new", args: ["start", "matrix", "--new"], setup: "reachable-origin", expected: { exitCode: 0, outputIncludes: "Ceremony committed and pushed." } },
-  { commandPath: "start", upstreamRefusalFor: "safety.indeterminate-lifecycle", args: ["start", "matrix", "--new"], setup: "unreachable-origin", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "could not completely expand remote work-unit candidates; retry `arc start`." } },
+  { commandPath: "start", promptSite: "prompt.start.create-new", args: ["start", "matrix", "--new"], setup: "reachable-origin", store: "in-repo", expected: { exitCode: 0, outputIncludes: "Ceremony committed and pushed." } },
+  { commandPath: "start", upstreamRefusalFor: "safety.indeterminate-lifecycle", args: ["start", "matrix", "--new"], setup: "unreachable-origin", preservesWorktree: true, store: "in-repo", expected: { exitCode: 1, outputIncludes: "could not completely expand remote work-unit candidates; retry `arc start`." } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },
   { commandPath: "store conflict", args: ["store", "conflict", "11111111-1111-4111-8111-111111111111", "work-item/conflict-record", "absent", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"status":"absent"' } },
   { commandPath: "store repair-review-roots", args: ["store", "repair-review-roots", "-"], stdin: "{}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "review.evidence-root-selection.request" } },
   { commandPath: "store migrate", args: ["store", "migrate", "--json"], fixture: "bare", expected: { exitCode: 0, outputIncludes: '"move":"layout"' } },
   { commandPath: "store remote", promptSite: "prompt.store.own-state", args: ["store", "remote", "origin", "push"], fixture: "bare", setup: "store-pointer", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "--own-state" } },
   { commandPath: "stub", promptSite: "prompt.stub.commitment", args: ["stub", "matrix"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --commitment <tier>, --priority <priority>" } },
-  { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 1, outputIncludes: "notes-blocked" } },
+  { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 0, outputIncludes: "\"cell\": \"state-only\"" } },
   { commandPath: "teardown", args: ["teardown", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "update", args: ["update", "--quiet"], expected: { exitCode: 0, outputIncludes: "Update complete" } },
   { commandPath: "user inbox-mark-execute-bound", args: ["user", "inbox-mark-execute-bound", "-"], stdin: "{\"schemaVersion\":1,\"orderedTitles\":[\"Matrix errand\"]}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "\"state\":\"refused\"" } },
-  { commandPath: "user pull", promptSite: "prompt.user-pull.overwrite", args: ["user", "pull", "--identity", "matrix"], setup: "local-notes", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Local notes would be overwritten; re-run with --yes to authorize the pull." } },
+  { commandPath: "user pull", promptSite: "prompt.user-pull.overwrite", args: ["user", "pull", "--identity", "matrix"], setup: "local-notes", preservesWorktree: true, store: "in-repo", expected: { exitCode: 1, outputIncludes: "Local notes would be overwritten; re-run with --yes to authorize the pull." } },
   { commandPath: "user reconcile-references", args: ["user", "reconcile-references", "--json"], expected: { exitCode: 0 } },
-  { commandPath: "view", args: ["view"], expected: { exitCode: 1, outputIncludes: "No active work unit" } },
+  { commandPath: "view", args: ["view"], expected: { exitCode: 1, outputIncludes: "No work-unit claim resolved for this checkout." } },
   { commandPath: "wu reconcile", args: ["wu", "reconcile", "--json"], expected: { exitCode: 1 } },
 ]);

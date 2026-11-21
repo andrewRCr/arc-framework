@@ -1023,8 +1023,10 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           fixture holding the ignore lines an initialized checkout holds. Tracked planning edits keep the override by
           subject; `schema-install`'s exclude-failure case surfaced A25 (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.6.b The command-input matrix**
-        - `e2e/command-input-no-input.e2e.test.ts` spawns through `e2e/store-default.ts`.
+    - `[x]` **3.6.b The command-input matrix**
+        - `e2e/command-input-no-input.e2e.test.ts` spawns through `e2e/store-default.ts`; 104 of its 109 cases run on
+          the store, its rows taking the store's results. Both `start` rows, `user pull`, the progress test, and the
+          title-stdin case keep the override by subject (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.6.c Sync and user notes**
         - `e2e/sync-inbound.e2e.test.ts`, `sync-purity`, `sync-state-producer`, and `materializing-fetch` spawn through

@@ -41,6 +41,6 @@ describe("distinct no-input invocations", () => {
   it("reconciles all Linux matrix entries into the distinct transport groups", () => {
     const lengths = NO_INPUT_MATRIX.map((item) => selectNoInputInvocations(item, "linux").length);
     expect([lengths.filter((n) => n === 1).length, lengths.filter((n) => n === 2).length,
-      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([58, 9, 36, 184]);
+      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([61, 6, 36, 181]);
   });
 });
