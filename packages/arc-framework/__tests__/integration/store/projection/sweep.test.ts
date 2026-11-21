@@ -23,14 +23,13 @@ import { createProjectionLinkBoundary } from "../../../../src/lib/store/projecti
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { commitReturnedCopies } from "../../../../src/lib/store/projection/returned-copies.js";
 
-const lateAccess = vi.hoisted(() => ({ destinations: new Map<string, string>(), denied: "", refused: false }));
+const lateAccess = vi.hoisted(() => ({ destinations: new Map<string, string>(), denied: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
     // Begin denial at the first copy's stat, after the sweep has preflighted both destinations.
     lateAccess.denied ||= lateAccess.destinations.get(String(args[0])) ?? "";
     if (args[0] === lateAccess.denied) {
-      lateAccess.refused = true;
       throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
     }
     return actual.lstat(...args);
@@ -41,7 +40,6 @@ vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   const lstatSync = ((...args: Parameters<typeof actual.lstatSync>) => {
     if (args[0] === lateAccess.denied) {
-      lateAccess.refused = true;
       throw Object.assign(new Error("Archive search access revoked after selection"), { code: "EACCES" });
     }
     return actual.lstatSync(...args);
@@ -53,7 +51,6 @@ const directories: string[] = [];
 afterEach(async () => {
   lateAccess.destinations.clear();
   lateAccess.denied = "";
-  lateAccess.refused = false;
   await removeGitBackedDirs(directories.splice(0));
 });
 
@@ -218,7 +215,7 @@ it("prunes empty scaffolding while preserving recovery names, foreign bytes, and
 });
 
 describe("the sweep", () => {
-  it("keeps the inaccessible no-index copy while restoring a later accessible destination", async () => {
+  it.each(["destination stat", "recovery link"])("keeps a no-index copy refused at %s while restoring a sibling", async operation => {
     const h = await leftBy("afterMove", { path: ".arc/completed/one/first.md" });
     const entry = await entryOnDisk(h.location, h.path);
     const [first] = entry.copies;
@@ -230,11 +227,18 @@ describe("the sweep", () => {
     const bytes = await readFile(join(h.checkout, first.name));
     await writeFile(join(h.checkout, second), bytes);
     const copies = [{ path: h.path, name: first.name }, { path: sibling, name: second }];
-    lateAccess.destinations = new Map(copies.map(({ name, path }) => [join(h.checkout, name), join(h.checkout, path)]));
-
-    const blocked = await h.sweep(unreached, { index: null });
-    expect(lateAccess.refused).toBe(true);
-    const denied = lateAccess.denied;
+    if (operation === "destination stat") {
+      lateAccess.destinations = new Map(copies.map(({ name, path }) => [join(h.checkout, name), join(h.checkout, path)]));
+    }
+    let deniedLink = "";
+    const blocked = await h.sweep(unreached, { index: null, retrySleep: async () => {}, fs: { link: async (from, to) => {
+      if (operation === "recovery link") {
+        deniedLink ||= to;
+        if (to === deniedLink) throw Object.assign(new Error("Recovery link refused"), { code: "EACCES" });
+      }
+      await link(from, to);
+    } } });
+    const denied = operation === "destination stat" ? lateAccess.denied : deniedLink;
     const held = copies.find(({ path }) => join(h.checkout, path) === denied);
     const restored = copies.find(({ path }) => join(h.checkout, path) !== denied);
     if (held === undefined || restored === undefined) throw new Error("Expected one denied and one accessible destination");
@@ -249,6 +253,33 @@ describe("the sweep", () => {
     expect((await h.sweep(unreached, { index: null })).left).toEqual([]);
     expect(await readFile(join(h.checkout, held.path))).toEqual(bytes);
     expect(await readStat(join(h.checkout, held.name))).toBeNull();
+  });
+
+  it("keeps a missing recorded replacement on a denied stat and restores a sibling", async () => {
+    const h = await leftBy("afterRecheck", { path: ".arc/completed/one/first.txt", contents: ["Original.\n", "New version.\n"] });
+    const index = await indexOnDisk(h.location), entry = await entryOnDisk(h.location, h.path), [copy] = entry.copies;
+    if (copy === undefined || entry.inProgress === null) throw new Error("Missing planned text replacement");
+    const sibling = ".arc/completed/two/sibling.txt";
+    const siblingCopy = nameAsideFile({ path: sibling, base: entry.base.blob, writer: SWAP_WRITER, role: "aside" });
+    await mkdir(dirname(join(h.checkout, siblingCopy)), { recursive: true });
+    await mkdir(dirname(join(h.checkout, sibling)), { recursive: true });
+    await copyFile(h.file, join(h.checkout, siblingCopy));
+    const both = { ...index, entries: { ...index.entries, [sibling]: { ...entry, inProgress: null, copies: [{ ...copy, name: siblingCopy }] } } };
+    await writeProjectionIndex(h.location, both);
+    lateAccess.destinations.set(join(h.checkout, copy.name), h.file);
+
+    const held = await h.sweep(unreached);
+    expect(held.swept).toMatchObject([
+      { path: h.path, copy: copy.name, outcome: { kind: "blocked-destination", access: true, entry } },
+      { path: sibling, outcome: { kind: "linked-back" } },
+    ]);
+    expect(await readFile(join(h.checkout, sibling), "utf8")).toBe("Original.\n");
+    lateAccess.destinations.clear();
+    lateAccess.denied = "";
+    const retry = await h.sweep(unreached);
+    expect(retry.swept).toMatchObject([{ path: h.path, outcome: { kind: "dropped", entry: { copies: [],
+      inProgress: entry.inProgress } } }]);
+    expect(await readFile(h.file, "utf8")).toBe("Original.\n");
   });
 
   it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {

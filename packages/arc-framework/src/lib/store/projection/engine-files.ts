@@ -25,7 +25,7 @@ import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { selectArchivePath } from "./archive-selection.js";
 import { holdWaitingArchiveEdit } from "./archive-waiting.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
-import { hasArchiveRecording } from "./recording-state.js";
+import { archiveLayPhase, hasArchiveRecording } from "./recording-state.js";
 
 /** Check walked files, using short-lived start observations only until any recovery mutates files or publishes. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[],
@@ -151,15 +151,20 @@ async function checkIndexedFile(root: ProjectionRootState, index: ProjectionInde
   }
   const intent = checkoutResolution(root.checkout);
   const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
+  const unchanged = !resolving && needsReadBackCheck(entry, changed)
+    ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
+  if (unchanged !== null) return unchanged;
   if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
     root.unsent.delete(path);
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
     return { index: recordCleanFile(index, path, entry, changed), edited: false };
   }
-  const unchanged = !resolving && changed.status === "changed"
-    ? await checkUnchangedProjectionEdit(root, index, path, entry, onFile) : null;
-  if (unchanged !== null) return unchanged;
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
+}
+
+function needsReadBackCheck(entry: RecordEntry, changed: ChangeVerdict): boolean {
+  // Recovered text can match the staged rendering even when its first lay has yet to complete.
+  return changed.status === "changed" || archiveLayPhase(entry) === "pending" && entry.persisted?.read === entry.written;
 }
 
 async function checkRefusedAlias(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,

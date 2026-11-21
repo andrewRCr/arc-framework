@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
 import { walkProjectionAsideFolder } from "./aside-discovery.js";
-import { asideCopyAccessHold, hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { asideCopyAccessHold, hasPathMovedOn, readPathHolding, restoreReturnedCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
@@ -361,8 +361,8 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
-  if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   try {
+    if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
     const holding = await readPathHolding(checkout, path, input.format);
     if (stat.type === "symlink") {
       const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
@@ -372,7 +372,7 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
     if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
       && !(path.startsWith(".arc/completed/") && record.landed !== null)
       && await retriedMoves(input, { checkout, path }).linkOnto(at.copy, at.path)) {
-      return { kind: "linked-back", entry: { ...restoreCopyRendering(entry, record), pending: true } };
+      return { kind: "linked-back", entry: restoreReturnedCopy(entry, record) };
     }
   } catch (error) {
     if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };

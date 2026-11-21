@@ -24,9 +24,21 @@ const binding = vi.hoisted(() => ({
   deniedOnce: null as string | null,
   deniedLinkProbe: null as string | null,
   writerInstance: undefined as string | undefined,
+  stopAfterIndexCommit: false,
   /** Runs once a write is prepared, before its archive save journal is read. */
   afterPrepared: undefined as (() => Promise<void>) | undefined,
 }));
+vi.mock("../../../../src/lib/store/projection/index-file.js", async original => {
+  const actual = await original<typeof import("../../../../src/lib/store/projection/index-file.js")>();
+  return { ...actual, commitProjectionIndex: async (...args: Parameters<typeof actual.commitProjectionIndex>) => {
+    const index = await actual.commitProjectionIndex(...args);
+    if (binding.stopAfterIndexCommit) {
+      binding.stopAfterIndexCommit = false;
+      throw new Error("Stopped after recording the installation attempt");
+    }
+    return index;
+  } };
+});
 vi.mock("../../../../src/lib/store/projection/submission.js", async original => {
   const actual = await original<typeof import("../../../../src/lib/store/projection/submission.js")>();
   return { ...actual, prepareIndexedProjectionSubmission: async (...args: Parameters<typeof actual.prepareIndexedProjectionSubmission>) => {
@@ -97,6 +109,7 @@ afterEach(async () => {
   binding.deniedOnce = null;
   binding.deniedLinkProbe = null;
   binding.writerInstance = undefined;
+  binding.stopAfterIndexCommit = false;
   binding.afterPrepared = undefined;
   await removeGitBackedDirs(directories.splice(0));
 });
@@ -678,7 +691,7 @@ it.each([false, true])("takes in saves between acceptance and replacement or ret
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
-it("keeps a clash from a competing checkout open until its markers are resolved", async () => {
+it.each([false, true])("keeps a clash from a competing checkout open until its markers are resolved (interrupted=%s)", async interrupted => {
   const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
   const peer = { checkout: h.f.root, store: h.f.store };
   await openArchivedProjectionFile(h.input, h.path);
@@ -696,7 +709,8 @@ it("keeps a clash from a competing checkout open until its markers are resolved"
   expect((await lstat(file)).mode & 0o200).toBe(0o200);
   const content = remote + "\nThe chosen correction.\n";
   await h.write(h.path, content);
-  expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
+  if (interrupted) await recoverFirstLay(h.input, h.path, h.primary.reference, async () => (await h.disk()).index.entries[h.path]);
+  else expect((await projectionCommand(h.input, ["save"])).result).toMatchObject({ status: "ok" });
   expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
   expect((await h.disk()).index.entries[h.path]).not.toHaveProperty("opened");
   expect((await lstat(file)).mode & 0o222).toBe(0);
@@ -980,7 +994,41 @@ async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {
   return { path, file, reference, content };
 }
 
-it.each([[false, false], [true, false], [true, true]])(
+it("completes the first lay after recovering the accepted original text", async () => {
+  const h = await fixture(), { path, reference, content } = await openedTextCompanion(h);
+  await recoverFirstLay(h, path, reference, () => diskEntry(h, path));
+  expect(success(await h.store.read({ reference })).content).toBe(content);
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+});
+
+async function recoverFirstLay(h: { checkout: string; store: Store }, path: string,
+  reference: Parameters<Store["read"]>[0]["reference"], readEntry: () => ReturnType<typeof diskEntry>) {
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    submissions += 1;
+    return h.store.batch(input);
+  } });
+  const command = { ...h, store };
+  binding.writerInstance = "interrupted-save";
+  binding.hooks = { afterMove: async moved => { if (moved === path) binding.stopAfterIndexCommit = true; } };
+  await expect(save(command)).rejects.toThrow("Stopped after recording the installation attempt");
+  const entry = await readEntry();
+  if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No recorded original copy");
+  const original = entry.copies[0].name;
+  expect(entry.acceptedInputStat).toMatchObject({ lay: { kind: "linking", originalCopy: original } });
+  await expect(lstat(join(h.checkout, path))).rejects.toMatchObject({ code: "ENOENT" });
+  const accepted = success(await h.store.read({ reference }));
+  await utimes(join(h.checkout, original), new Date(0), new Date(0));
+
+  binding.writerInstance = undefined;
+  binding.hooks = undefined;
+  expect(await save(command)).toMatchObject({ result: { status: "ok", result: { relocked: [{ path }] } }, errors: "" });
+  expect(success(await h.store.read({ reference })).version).toBe(accepted.version);
+  expect(submissions).toBe(1);
+  await expect(lstat(join(h.checkout, original))).rejects.toMatchObject({ code: "ENOENT" });
+}
+
+it.each([[false, false], [false, true], [true, false], [true, true]])(
   "distinguishes accepted text from a revert after newer text is installed (installed=%s, adoption=%s)", async (installed, adoption) => {
   const h = await fixture(), { path, file, reference, content } = await (adoption ? openedNewText(h) : openedTextCompanion(h));
   const later = "A newer correction from another command.\n";

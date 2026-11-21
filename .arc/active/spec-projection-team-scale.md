@@ -583,6 +583,14 @@ stands, and the first command after the repair settles it (`spec-projection-subs
 and the persist and release steps take the archive's work from one selection, the walk joined with every opened or
 unsettled archive entry, so a path the walk cannot see keeps its work.
 
+**Access to a copy's archive destination (A13).** The folder authority check can pass while the filesystem
+refuses a destination operation. Archive copy settlement treats a permission refusal during alias inspection,
+destination stat, or a guarded move or link as a hold on that path. The indexed sweep, command end, the
+retirement steps, and the sweep without an index preserve the affected copy and its outstanding recovery state
+and continue with accessible destinations. The hold names the path and the access repair. Once access is
+restored, the next command can finish the held work. The folder authority and lease checks still precede changes
+(`projectionFileReader`, `finalizeAsideCopy`, `retriedMoves`).
+
 **A refresh's work at a refused path waits for the repair (A4).** A refresh whose planned change — a lay, a removal, or
 a move — is at a path the selection refuses leaves that change undone and counts itself incomplete, so it keeps the
 worktree's state version where it was (`refusesArchivePath`, `archive-selection.ts`; `applyProjectionRefresh`,
@@ -656,6 +664,13 @@ ordered so a stop between them leaves a state the next command repairs:
   answers no receipt. Without the journal, a stop after the store accepts the write would leave the index behind it,
   and the next command could resend the same content and create a second version. Unjournaled routes accept this
   residual (§ 11 item 12) (A5).
+- **Accepted input before its first lay (A12).** A saved or adopted archive input that the store accepted whole
+  stays eligible for its first lay by the captured bytes. A timestamp or inode change alone does not turn those
+  bytes into another submission while the original input is established. The swap binds the accepted input to
+  its recorded original copy when it moves that copy aside. If recovery restores that original, the accepted
+  bytes still finish their first lay. Once the replacement is proved installed, the recorded rendering supplies
+  the basis for later edits, including an intentional revert. Partial acceptance still holds the unrepaired bytes
+  (`swapBatch`, `restoreReturnedCopy`, `resumeAdoptionReadBack`, `readPendingProjectionInput`).
 - **`arc edit`: the opened mark, then the write bit.** A stop between leaves an opened file still read-only, which
   `arc save` finds unchanged, lays read-only, and unmarks. The reverse order would leave a writable, unmarked file, a
   forced edit once changed. A refusal at the write bit because the path's folder or file changed after its inspection,
@@ -1193,6 +1208,15 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
     parent or replacement, `arc edit` withdraws this invocation's new mark while leaving an earlier mark and the
     replacement's mode intact. It reports the repair and opens after retry. A missing file, a leaf link, or failed mode
     change on the authorized file keeps the opening and reports how to retry.
+25. **Accepted input survives an interrupted first lay (A12).** Stop after an accepted Markdown or text input moves
+    aside and the index records the installation attempt, before the replacement link. Restore the original copy
+    and complete the lay without submitting the accepted bytes again, even if the timestamp changed. For accepted
+    text adoption with a newer peer version, perturb the timestamp before the lay and verify the newer rendering
+    installs. A later revert after the lay still follows edit handling.
+26. **A denied archive copy destination holds only its path (A13).** Deny the destination stat when finalizing a
+    missing recorded replacement copy during indexed recovery or retirement, and deny a recovery link after
+    successful destination inspection in the sweep without an index. The blocked path keeps its recorded work or
+    remaining copy with its access remedy, an accessible sibling settles, and retry completes after repair.
 
 ## Open Questions
 
@@ -1223,5 +1247,9 @@ design open.
   _Trigger:_ own-save-aside-landing-has-no-receipt review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A11** — 2026-11-20 — design: a refusal withdraws only its new opening. _Supersedes:_ SC 22. _Trigger:_
   archive-opening-refusal-criterion-overstates-rollback review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A12** — 2026-11-20 — spec-depth: prove the first lay of an accepted archive input. _Supersedes:_ none.
+  _Trigger:_ restored-prelink-markdown-loses-acceptance-proof review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A13** — 2026-11-20 — spec-depth: hold a denied archive copy destination per path. _Supersedes:_ none.
+  _Trigger:_ missing-recorded-copy-finalization-aborts-siblings review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

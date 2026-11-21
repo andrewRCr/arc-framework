@@ -40,30 +40,40 @@ vi.mock("node:fs", async original => {
 
 afterEach(() => { lateAccess.path = ""; lateAccess.aliasObserved = false; beginProjectionCommand(); });
 
-it("finishes a healthy retirement copy after another destination stat loses access", async () => {
+it.each(["edited", "unmade"] as const)("finishes a healthy retirement copy when a destination of an %s copy loses access", async state => {
   const h = await archiveRetirementFixture();
+  const first = state === "edited" ? h.path : `${h.folder}/a-first.txt`;
   const sibling = `${h.folder}/z-sibling.txt`;
   const siblingReference = recordReferences["work-item/companion"](h.primary.reference.owner, "z-sibling.txt");
+  if (state === "unmade") await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "a-first.txt"), "First file.\n");
   await seed(h.f, siblingReference, "A sibling file.\n");
   await projectionCommand(h.input, ["status"]);
   const { location, index } = await h.disk();
   const writer = await createProjectionEnginePorts(h.checkout).writer();
-  const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer, "An edit held in the first copy.\n");
+  const blocked = await stageRetirementCopy(h.checkout, first, index, writer,
+    state === "edited" ? "An edit held in the first copy.\n" : undefined);
   const healthy = await stageRetirementCopy(h.checkout, sibling, blocked.index, writer);
-  await writeProjectionIndex(location, healthy.index);
+  const entry = healthy.index.entries[first];
+  if (entry?.kind !== "record") throw new Error("Missing planned retirement copy");
+  const inProgress = state === "unmade" ? { replaces: entry.base, copy: blocked.name } : entry.inProgress;
+  if (state === "unmade") await rename(join(h.checkout, blocked.name), join(h.checkout, first));
+  await writeProjectionIndex(location, withProjectionEntry(healthy.index, first, { ...entry, inProgress }));
   const held = await persistProjectionRemoval(h.checkout, { ...h.context, hooks: { beforeAsideCopy: async (_checkout, path) => {
-    if (path === h.path) lateAccess.path = join(h.checkout, path);
+    if (path === first) lateAccess.path = join(h.checkout, path);
   } } });
   expect(lateAccess.aliasObserved).toBe(true);
   expect(held).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
-  expect(await readFile(join(h.checkout, blocked.name), "utf8")).toContain("An edit held in the first copy.");
-  expect((await h.disk()).index.entries[h.path]).toMatchObject({ opened: true, copies: [expect.objectContaining({ name: blocked.name })] });
+  if (state === "edited") expect(await readFile(join(h.checkout, blocked.name), "utf8")).toContain("An edit held in the first copy.");
+  expect((await h.disk()).index.entries[first]).toMatchObject({ opened: true, copies: [expect.objectContaining({ name: blocked.name })],
+    inProgress });
   expect((await h.disk()).index.entries[sibling]).toMatchObject({ copies: [] });
   await expect(readFile(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
 
   lateAccess.path = "";
   expect(await h.retire("persist")).toEqual({ kind: "persisted" });
-  expect(success(await h.store.read({ reference: h.primary.reference })).content).toContain("An edit held in the first copy.");
+  if (state === "edited") {
+    expect(success(await h.store.read({ reference: h.primary.reference })).content).toContain("An edit held in the first copy.");
+  } else expect((await h.disk()).index.entries[first]).toMatchObject({ copies: [] });
 }, 30_000);
 
 async function stageRetirementCopy(checkout: string, path: string, index: ProjectionIndex, writer: AsideWriterInput, edit?: string) {

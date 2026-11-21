@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
-import { ArchiveDestinationBlocked, archivePermissionMark, readArchiveBytes } from "./archive-file.js";
+import { archiveOperationError, readArchiveBytes } from "./archive-file.js";
 
 /** The racy reference: a stamp file at the aside folder's top, rewritten after each index write. */
 export const PROJECTION_REFERENCE = `${PROJECTION_ASIDE_ROOT}/reference`;
@@ -101,7 +101,7 @@ export function projectionFileReader(checkout: string, path: string): Projection
   return {
     stat: absolute => {
       try { return readStatSync(absolute); }
-      catch (error) { throw new ArchiveDestinationBlocked(archivePermissionMark(path, error), true); }
+      catch (error) { throw archiveOperationError(path, error); }
     },
     read: () => readArchiveBytes(checkout, path),
   };

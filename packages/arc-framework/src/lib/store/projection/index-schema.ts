@@ -102,6 +102,11 @@ const RecordBasisSchema = z.strictObject({
   persisted: PersistedSchema.nullable(),
   acceptedInputStat: FileStatSchema.pick({ ino: true, mtimeNs: true }).extend({
     beforeLay: z.literal(true).optional(),
+    lay: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("pending") }),
+      z.strictObject({ kind: z.literal("linking"), originalCopy: z.string().min(1).nullable() }),
+      z.strictObject({ kind: z.literal("installed") }),
+    ]).optional(),
   }).optional(),
   archiveSubmission: ArchiveSaveSubmissionSchema.optional(),
   inProgress: InProgressSchema.nullable(),

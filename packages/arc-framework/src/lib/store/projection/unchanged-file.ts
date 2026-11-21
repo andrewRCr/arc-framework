@@ -6,7 +6,7 @@ import { readStamplessFile } from "./stampless.js";
 import { gitBlobId } from "./blob-id.js";
 import { captureWriteBackFile, type WriteBackContext } from "./write-back.js";
 import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
-import { retainedArchiveInput } from "./recording-state.js";
+import { archiveLayPhase, retainedArchiveInput } from "./recording-state.js";
 import type { RefusedMark } from "./index-schema.js";
 
 type CapturedFile = Extract<Awaited<ReturnType<typeof captureWriteBackFile>>, { kind: "read" }>;
@@ -26,17 +26,19 @@ export async function readPendingProjectionInput(context: WriteBackContext, requ
   if (file.kind !== "read") return null;
   const retained = retainedArchiveInput(entry, file.read.blob);
   if (retained !== undefined) return { kind: "retained", mark: retained };
-  if (recordedInput === file.read.blob && matchesAcceptedObservation(entry.acceptedInputStat, file.read)) {
-    return { kind: "unchanged", read: file.read };
+  if (recordedInput === file.read.blob) {
+    const phase = archiveLayPhase(entry);
+    if (phase === "installed") return null;
+    if (phase === "pending" || matchesAcceptedObservation(entry.acceptedInputStat, file.read)) {
+      return { kind: "unchanged", read: file.read };
+    }
   }
   const read = oldConflicts ? null : await readUnchangedBase(context, request, file);
   return read === null ? null : { kind: "unchanged", read };
 }
 
 function matchesAcceptedObservation(original: TakeInRequest["entry"]["acceptedInputStat"], read: TakeInRead): boolean {
-  if (original === undefined) return false;
-  // The live path has not reached the guarded lay. A metadata-only change cannot alter the accepted input.
-  return original.beforeLay === true || original.ino === read.stat.ino && original.mtimeNs === read.stat.mtimeNs;
+  return original?.ino === read.stat.ino && original.mtimeNs === read.stat.mtimeNs;
 }
 
 async function readUnchangedBase(context: WriteBackContext, request: TakeInRequest, file: CapturedFile): Promise<TakeInRead | null> {
@@ -57,7 +59,7 @@ async function readUnchangedBase(context: WriteBackContext, request: TakeInReque
 function matchesAcceptedText(entry: TakeInRequest["entry"], file: CapturedFile,
   format: WriteBackContext["format"]): boolean {
   const accepted = entry.persisted;
-  if (!entry.opened || accepted?.inputBlob === undefined) return false;
+  if (!entry.opened || accepted?.inputBlob === undefined || archiveLayPhase(entry) === "installed") return false;
   // Earlier records only prove the input while the original basis is still journaled.
   const original = entry.acceptedInputStat ?? (entry.inProgress === null && entry.base.blob === accepted.stamp ? entry.stat : null);
   return original?.ino === file.read.stat.ino && original.mtimeNs === file.read.stat.mtimeNs

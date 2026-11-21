@@ -48,7 +48,7 @@ export function acceptedArchiveRecording(submission: ArchiveSaveSubmission, vers
   return { persisted: { stamp, recording: true, ...(read === undefined ? {} : { read: read.blob }),
     ...(aside === undefined && retained !== undefined ? { retained } : {}), takenIn: { kind: "copy", name, blob, version } },
     acceptedInputStat: read === undefined || aside !== undefined ? undefined : {
-      ino: read.stat.ino, mtimeNs: read.stat.mtimeNs, beforeLay: true,
+      ino: read.stat.ino, mtimeNs: read.stat.mtimeNs, lay: { kind: "pending" },
     } };
 }
 

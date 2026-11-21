@@ -21,6 +21,7 @@ import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
 import { ArchiveDestinationBlocked, archiveDestinationRefusal } from "./archive-file.js";
+import { installedArchiveInput, linkAcceptedArchiveInput } from "./recording-state.js";
 
 /** One file a batch replaces or, where the guard staged nothing, removes: the guard's decision to. */
 export interface SwapFile {
@@ -156,10 +157,9 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
 
 /** Publish that the path may now receive a new rendering before linking it into place. */
 function beginAcceptedLay(swap: PlannedSwap): PlannedSwap {
-  const stat = swap.entry.acceptedInputStat;
-  if (swap.staged === null || stat?.beforeLay !== true || swap.entry.adoption !== undefined) return swap;
-  const { ino, mtimeNs } = stat;
-  return { ...swap, entry: { ...swap.entry, acceptedInputStat: { ino, mtimeNs } } };
+  if (swap.staged === null) return swap;
+  const entry = linkAcceptedArchiveInput(swap.entry, swap.copy);
+  return entry === swap.entry ? swap : { ...swap, entry };
 }
 
 /**
@@ -309,7 +309,7 @@ async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly 
   if (linked) await input.hooks?.afterRebuildLink?.(swap.path);
   await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint);
-  return { entry: linked ? swap.entry : yielded(swap) };
+  return { entry: linked ? installedArchiveInput(swap.entry) : yielded(swap) };
 }
 
 async function holdSwap(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry, mark: RefusedMark): Promise<SwapDone> {
@@ -336,7 +336,7 @@ async function linkStagedIn(
   }
   await input.checkpoint?.();
   await removeProjectionAsideFile(input.checkout, at.staged, input.checkpoint, false);
-  return { entry: linked ? swap.entry : yielded(swap) };
+  return { entry: linked ? installedArchiveInput(swap.entry) : yielded(swap) };
 }
 
 async function recoverFailedLink(moves: RetriedMoves, swap: PlannedSwap, at: { readonly aside: string; readonly path: string },

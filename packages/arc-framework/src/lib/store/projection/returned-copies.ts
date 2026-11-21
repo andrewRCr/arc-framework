@@ -5,7 +5,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ArchiveChangeRefusal } from "./archive-selection.js";
 import { finalizeAsideCopy, type AsideCopyDeletion } from "./stampless.js";
-import { ArchiveDestinationBlocked, archivePermissionMark } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archiveOperationError } from "./archive-file.js";
 import { removeReturnedAsideFile } from "./aside-cleanup.js";
 
 /** One returned alias whose record stays until its restored path mapping is published. */
@@ -62,6 +62,5 @@ async function cleanReturnedAlias(input: AsideCopyDeletion,
 
 /** Confine permission failures from an archive alias probe to its destination. */
 export function copyAliasAccessRefusal(path: string, error: unknown): RefusedMark {
-  if (!path.startsWith(".arc/completed/")) throw error;
-  return archivePermissionMark(path, error, "inspect the returned copy for");
+  return archiveOperationError(path, error, "inspect the returned copy for").mark;
 }

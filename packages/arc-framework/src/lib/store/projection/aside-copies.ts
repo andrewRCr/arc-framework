@@ -17,6 +17,7 @@ import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { restoreAcceptedArchiveInput } from "./recording-state.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
 export type PathHolding =
@@ -206,7 +207,7 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
     .catch((error: unknown) => copyAliasAccessRefusal(path, error));
   if (typeof linked === "object") return { kind: "blocked-destination", entry, mark: linked, access: true };
   if (linked) {
-    return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
+    return { kind: "linked-back", entry: restoreReturnedCopy(input.entry, input.copy) };
   }
   const checked = await checkAsideCopy(input);
   switch (checked.kind) {
@@ -214,9 +215,7 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
     case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
     case "empty": return { kind: "kept", entry: checked.entry, answer: "empty" };
     case "no-edit": return deleted(input, checked.entry);
-    case "gone": return { kind: "dropped", entry: await finalizeAsideCopy({
-      checkout: input.checkout, path: input.path, entry: checked.entry, copy: input.copy.name,
-    }) };
+    case "gone": return dropMissingCopy(input, checked.entry);
     case "unsettled": return { kind: "kept", entry: checked.entry, answer: "unsettled" };
     case "moved-on": return { kind: "moved-on", entry: checked.entry, path: input.path, copy: input.copy.name };
     case "sent": {
@@ -225,6 +224,17 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
       if (answer === "deferred" || answer === "pending") return { kind: "kept", entry: checked.entry, answer };
       return putBack(input, { ...checked, answer });
     }
+  }
+}
+
+async function dropMissingCopy(input: AsideCopySettling, entry: RecordEntry): Promise<CopySettlement> {
+  try {
+    return { kind: "dropped", entry: await finalizeAsideCopy({
+      checkout: input.checkout, path: input.path, entry, copy: input.copy.name,
+    }) };
+  } catch (error) {
+    if (error instanceof ArchiveDestinationBlocked) return { kind: "blocked-destination", entry, mark: error.mark, access: error.access };
+    throw error;
   }
 }
 
@@ -299,4 +309,9 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
 export function restoreCopyRendering(entry: RecordEntry, copy: AsideCopyRecord, open?: readonly import("../identity.js").RecordReference[]): RecordEntry {
   const restored = { ...entry, ...copy.rendering };
   return open === undefined ? restored : { ...restored, unshown: unshownConflicts(restored, open) };
+}
+
+/** A recovery link restored this copy at the original destination. */
+export function restoreReturnedCopy(entry: RecordEntry, copy: AsideCopyRecord): RecordEntry {
+  return { ...restoreAcceptedArchiveInput(restoreCopyRendering(entry, copy), copy), pending: true };
 }

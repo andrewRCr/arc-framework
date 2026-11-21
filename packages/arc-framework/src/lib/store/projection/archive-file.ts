@@ -87,9 +87,15 @@ function archiveAccessMark(path: string, error: unknown): RefusedMark {
     remedy: { text: "Repair the folders on the archive path, then retry the command." } };
 }
 
-/** A mutation stopped by the checkout or link check at the point of use. */
+/** An archive destination observation or mutation that must stay held. */
 export class ArchiveDestinationBlocked extends Error {
-  constructor(readonly mark: RefusedMark, readonly access = false) { super(mark.reason); }
+  constructor(readonly mark: RefusedMark, readonly access = false, readonly code?: string) { super(mark.reason); }
+}
+
+/** Preserve the native permission code so guarded operations can still use their bounded retry. */
+export function archiveOperationError(path: string, error: unknown, action?: string): ArchiveDestinationBlocked {
+  if (!path.startsWith(".arc/completed/")) throw error;
+  return new ArchiveDestinationBlocked(archivePermissionMark(path, error, action), true, (error as NodeJS.ErrnoException).code);
 }
 
 /** Check an archive destination after the caller's last lease checkpoint and just before the change it guards. */

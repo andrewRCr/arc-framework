@@ -449,4 +449,12 @@ _Amended in:_ review-fix (A2).
   preserves an earlier opening and the replacement's mode. After repair, retry opens the file. A missing file, a
   leaf link, or a failed mode change on the authorized file keeps the opening and names a repair (A11)
 
+- `[ ]` After a stop before the first lay's link, a journaled Markdown or text input completes from its restored
+  original copy without resubmission after a timestamp change. A touched, accepted text adoption still takes its
+  newer peer rendering on retry, and a revert after an installed rendering remains an edit (A12)
+
+- `[ ]` A permission-denied destination stat during missing-copy finalization and a denied link in the no-index sweep
+  each preserve the blocked path's remaining recovery work. An accessible sibling settles and the blocked path
+  recovers after access is restored (A13)
+
 - `[ ]` Ready for integration
