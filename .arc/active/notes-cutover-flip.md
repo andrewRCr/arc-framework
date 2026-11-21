@@ -1234,6 +1234,21 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
         - Keep the override by subject: `sync-state-producer` whole, `materializing-fetch`'s `user sync`, and
           `sync-purity`'s paired-push, save-only, and notes-prompt cells, since the store retires user notes and the
           sync-state ref. They stay for `cutover-notes-removal`, which takes the suites that target notes.
+    - _The remaining spawned files, as moved (Task 3.6.d):_ `e2e/editor-settings.e2e.test.ts`, `plan`,
+      `release-commit`, `set-class`, `run-cli`, and `commit-message-consumers`, and
+      `integration/review-terminal-attempt-input.test.ts`, spawn through `e2e/store-default.ts`; 34 of their 49 cases
+      run on the store, and the switch's ledger is empty.
+        - `commit-message-consumers`' hand-installed fixture writes the ignore lines and npm policy an initialized
+          checkout holds through `writeProjectedIgnores` (`helpers/projected-ignores.ts`), which the check fixture now
+          shares, so the guard leaves stderr to the command. `set-class` seeds its work unit through the store after
+          `arc init` and reads the record back. `run-cli`'s bare `integrate` runs from an empty temporary directory
+          rather than over this checkout (§ 7.2).
+        - Keep the override by subject: `editor-settings`' legacy init and join, whose Zed guidance the store's init
+          prints; `plan`'s two redirect cases, since the store proceeds on any branch (§ 9.7, covered by
+          `unit/handlers/off-branch-write-context.test.ts`); `release-commit`'s amend cases, since the store's wrapper
+          refuses every amend (`handlers/release/commit.ts`, unit-covered); and `review-terminal-attempt-input`, whose
+          terminal producers sit in the repository's machine-local operation records, where the store reads its own
+          work-item-keyed records (`unit/scripts/review-gate/lane-progress-native-policy.test.ts`).
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

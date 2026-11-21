@@ -5,14 +5,12 @@ import { appendFile, chmod, copyFile, mkdir, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path";
 import { createTempRepoCore } from "../../helpers/temp-repo.js";
 import { CLI_PATH } from "../../helpers/cli-spawn.js";
-import { SlugSchema } from "../../../src/lib/kernel/index.js";
-import { PERSONAL_NPM_IGNORE, PERSONAL_NPM_IGNORE_CONTENT } from "../../../src/lib/personal-npm-ignore.js";
-import { guardedProjectionRoots, type IgnoreLineFile } from "../../../src/lib/store/projection/ignore-guard.js";
+import { writeProjectedIgnores, type ProjectedIgnoreOptions } from "../../helpers/projected-ignores.js";
 
 const execFileAsync = promisify(execFile);
 
 /** A checkout that tracks ARC state, as one on the in-repo store does, leaves its lifecycle roots unexcluded. */
-export interface DeclaredCheckRepositoryOptions { readonly tracksState?: boolean }
+export type DeclaredCheckRepositoryOptions = ProjectedIgnoreOptions;
 
 /** Create a committed declaration with one worktree input change. */
 export async function createDeclaredCheckRepository(checks: Record<string, unknown>,
@@ -21,12 +19,8 @@ export async function createDeclaredCheckRepository(checks: Record<string, unkno
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await mkdir(join(cwd, "src"));
   await mkdir(join(cwd, "docs"));
-  await writeFile(join(cwd, ".gitignore"), `receipt.json\n${projectedRootLines(".gitignore")}`);
-  if (options.tracksState !== true) {
-    await appendFile(join(cwd, ".git/info/exclude"), projectedRootLines("info/exclude"));
-  }
-  await mkdir(join(cwd, ".arc/user"));
-  await writeFile(join(cwd, PERSONAL_NPM_IGNORE), PERSONAL_NPM_IGNORE_CONTENT);
+  await writeFile(join(cwd, ".gitignore"), "receipt.json\n");
+  await writeProjectedIgnores(cwd, "test-user", options);
   await writeFile(join(cwd, "src/a.ts"), "base\n");
   await writeFile(join(cwd, "src/deleted.ts"), "deleted\n");
   await writeFile(join(cwd, "docs/b.md"), "base\n");
@@ -36,12 +30,6 @@ export async function createDeclaredCheckRepository(checks: Record<string, unkno
   await execFileAsync("git", ["commit", "-m", "base"], { cwd });
   await writeFile(join(cwd, "src/a.ts"), "changed\n");
   return cwd;
-}
-
-/** The lines an initialized checkout holds in one ignore file, so the projection's ignore guard passes. */
-function projectedRootLines(file: IgnoreLineFile): string {
-  return guardedProjectionRoots(SlugSchema.parse("test-user")).filter(root => root.file === file)
-    .map(root => `${root.line}\n`).join("");
 }
 
 /**

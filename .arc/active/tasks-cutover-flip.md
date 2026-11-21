@@ -1034,12 +1034,13 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           cell added to the purity suite. The notes cases keep the override by subject for `cutover-notes-removal`
           (`notes-cutover-flip.md` § Test callers).
 
-    - `[ ]` **3.6.d The remaining spawned files**
+    - `[x]` **3.6.d The remaining spawned files**
         - `e2e/editor-settings.e2e.test.ts`, `plan`, `release-commit`, `set-class`, `run-cli`, and
           `commit-message-consumers`, and `integration/review-terminal-attempt-input.test.ts`, spawn on the process's
-          store; `commit-message-consumers` leaves the switch's ledger.
-        - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case, which spawns with no `cwd` (`helpers/run-cli.ts`), runs
-          from a temporary directory (§ 7.2).
+          store; 34 of their 49 cases run there, and `commit-message-consumers` leaves the switch's ledger, now empty.
+          The legacy editor setup, the planning redirect, the wrapper amend, and the machine-local review records keep
+          the override by subject (`notes-cutover-flip.md` § Test callers).
+        - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case runs from an empty temporary directory (§ 7.2).
 
     - `[ ]` **3.6.e The override gone**
         - Remove the spawn helpers' default override (Task 3.2.b), and the switch's ledger, empty by now, and the

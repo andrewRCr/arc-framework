@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import { describe, it, expect } from "vitest";
 
-import { runCli } from "../helpers/run-cli.js";
+import { runCli } from "./store-default.js";
 
 describe("runCli", () => {
   it("renders complete task-grouped root help through every explicit help entry", async () => {
@@ -164,13 +164,19 @@ describe("runCli", () => {
   });
 
   it("reserves bare integrate for procedures and points publication scheduling to publish", async () => {
-    const result = await runCli(["integrate"]);
+    // The namespace's usage reads no project, so it runs from an empty directory rather than over this checkout.
+    const cwd = await mkdtemp(join(tmpdir(), "arc-integrate-bare-"));
+    try {
+      const result = await runCli(["integrate"], { cwd });
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("`arc integrate` is a procedure namespace");
-    expect(result.stderr).toContain("use `arc publish` to schedule publication");
-    expect(result.stderr).toContain("Available subcommands:");
-    expect(result.stderr).toContain("arc integrate checkpoint");
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("`arc integrate` is a procedure namespace");
+      expect(result.stderr).toContain("use `arc publish` to schedule publication");
+      expect(result.stderr).toContain("Available subcommands:");
+      expect(result.stderr).toContain("arc integrate checkpoint");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it("emits typed missing-project refusals for integration mutators and rejects `--json`", async () => {

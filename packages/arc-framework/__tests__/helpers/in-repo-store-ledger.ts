@@ -6,9 +6,7 @@ import { afterAll, TestRunner } from "vitest";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 /** Package-relative paths of the listed test files, sorted. */
-export const IN_REPO_STORE_LEDGER: readonly string[] = [
-  "__tests__/e2e/commit-message-consumers.e2e.test.ts",
-];
+export const IN_REPO_STORE_LEDGER: readonly string[] = [];
 
 const packageRoot = resolve(import.meta.dirname, "../..");
 

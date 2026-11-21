@@ -17,8 +17,9 @@ import { LocalFrontlineOutcomeStore } from "../../src/scripts/review-gate/hosts/
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } from "../fixtures/hosted-review.js";
 import { makeGitExec } from "../helpers/integration.js";
-import { runCli } from "../helpers/run-cli.js";
+import { runCli } from "../e2e/store-default.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -26,6 +27,9 @@ afterEach(async () => {
 });
 
 describe("terminal attempt recovery through the CLI and repository records", () => {
+  // The store reads review evidence from its records, keyed to a work item, so recovery from the repository's
+  // machine-local operation records is the in-repo implementation's.
+  useInRepoStoreForEach();
   it.each(["short pass count", "duplicate source", "forced source", "grant progress"])("recovers %s through the unchanged terminal producer", async scenario => {
     const root = await createTempRepoCore({ prefix: "arc-terminal-input-", identity: "andrew" });
     roots.push(root);
