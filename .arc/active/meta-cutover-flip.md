@@ -18,7 +18,7 @@
 - **Blockers:** [none]
 
 - **Next Action:** Tuesday 11-24 morning: the parallel run's worker tasks (4.2, 4.R, 6.3); Task 6.4.b once arc-offload's
-  three deploys are in, or by the end of 11-24 regardless (SESSION-NOTES)
+  verification fix deploys (SESSION-NOTES)
 
 - **PR URL:** [none]
 - **Completed:** [none]
