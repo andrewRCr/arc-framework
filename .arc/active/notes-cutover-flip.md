@@ -1784,6 +1784,24 @@ an Active one in `prepare-work-unit`, there leaves its session type unresolved.
 Passing the checkout's layout context alone would also identify the path, but re-derives a slug the scan already holds
 as an exact owner; the owner read is exact. The layout context stays for a caller that supplies no owner.
 
+## A24 — the Markdown fix's fixture and its identity
+
+Task 3.5 took `e2e/markdown-fix.e2e.test.ts` off the switch's ledger, and the test passed on the store unchanged, with
+no identity. The fixture installs no ARC, so the selection command its reader runs starts unprojected
+(`nativeProjectionInput`, `lib/store/projection/command-hooks.ts`), never reaching the identity a projection start reads,
+and returns an empty selection (`projectionSelectionResult`, `lib/store/projection/selection.ts`). A probe of the same
+shape without `arc.identity` printed `{"paths":[]}` and exited 0, and the reader returned `{"status":"ok","paths":[]}`.
+Section 7.5 read, superseded:
+
+> Once the fixture's store answers true, the test, run with no identity, would see the projection skip, the selection
+> report it, and the fixer refuse with `markdown.selection-unavailable` (`resolveMarkdownFixCorpus`,
+> `lib/markdown/fix-plan.ts`). The fixture sets an `arc.identity`, so the selection reaches the store and the test
+> expects the corpus the connected reader reports there; Stage 2 runs it over the flipped store.
+
+An identity would change nothing there, so the fixture sets none, and the test's added assertion pins the empty
+selection the reader returns. `resolveArcRoot` (`lib/paths.ts`) searches every directory above the fixture, so a
+temporary directory inside an ARC checkout would project there instead; the assertion then fails rather than passing.
+
 ## Kept sites
 
 Each closure-search hit that stays, with its reason, recorded by Task 5.11 and confirmed at Task 5.12.

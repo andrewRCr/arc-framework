@@ -859,11 +859,14 @@ materialization changes.
 empty selection from the Markdown checks' one reader, `readProjectedSelection` (`lib/checks/projected-selection.ts`).
 Inside a command it reads the start's index; from a script it reads the capability of the store `createStore` builds,
 returning an empty list over the in-repo implementation and otherwise running `npx arc selection --json`, mapping a
-refusal, a nonzero exit, bad output, or a throw to `unavailable`. Once the fixture's store answers true, the test, run
-with no identity, would see the projection skip, the selection report it, and the fixer refuse with
-`markdown.selection-unavailable` (`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`). The fixture sets an
-`arc.identity`, so the selection reaches the store and the test expects the corpus the connected reader reports there;
-Stage 2 runs it over the flipped store.
+refusal, a nonzero exit, bad output, or a throw to `unavailable`. Once the fixture's store answers true, the reader runs
+that command in a fixture where ARC is installed neither in it nor in any directory above it (`resolveArcRoot`,
+`lib/paths.ts`), so the command starts with no projection (`nativeProjectionInput`,
+`lib/store/projection/command-hooks.ts`) and selects nothing (`projectionSelectionResult`,
+`lib/store/projection/selection.ts`), with or without an identity. The fixture therefore sets no `arc.identity`, and the
+test asserts that the reader returns that empty selection rather than `unavailable`, which the fixer would refuse as
+`markdown.selection-unavailable` (`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`) (A24); Stage 2 runs it over
+the flipped store.
 
 #### 7.6 Tests and test setup the flip adds
 
@@ -2383,5 +2386,7 @@ None.
   _Supersedes:_ none. _Trigger:_ 3.4.b.3 must-stop. _Work:_ 3.R8. _Revalidated:_ pending → 3.7.
 - **A23** — 2026-11-20 — spec-depth: active status reads a bound checkout's Candidate by the owner its scan selected.
   _Supersedes:_ none. _Trigger:_ 3.4.c.2 must-stop. _Work:_ 3.R9. _Revalidated:_ pending → 3.7.
+- **A24** — 2026-11-20 — design: the Markdown fix's fixture runs unprojected, so its empty selection needs no identity.
+  _Supersedes:_ § 7.5 ¶1. _Trigger:_ 3.5 door. _Work:_ none. _Revalidated:_ pending → 3.7.
 
 ---
