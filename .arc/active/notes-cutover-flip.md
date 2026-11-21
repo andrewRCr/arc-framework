@@ -2178,12 +2178,12 @@ from that day inside this session, which keeps the session and the review lane.
   standard lane's complete local pass, attesting as the `delegated-agent` source:
     - Chunks follow the change's seams by `review-chunking`, with a local seam reviewer over sibling chunks and a
       top-level seam, never the number of processes that fit.
-    - Each runs the invocation the registry gives at launch, through `codex-run`, which closes stdin, stops a stalled
-      or overrunning run, and fails unless the report is written: `agent-run --which review` for chunk and seam
-      reviewers and fix checks, `--which verify` for verification's companion. Its `-C` names the review clone and its
-      `-o` the result file. It adds `--ephemeral --output-schema <result schema>`, and `--max` sized from the pilot's
-      wall time, since the wrapper stops a run after an hour by default. The schema is the `result` part of `arc
-      review local attest --schema`.
+    - Each runs the invocation the registry gives at launch, through `codex-run`, which closes stdin, stops a stalled or
+      overrunning run, and fails unless the report is written: `agent-run --which review` for chunk and seam reviewers,
+      `--which fix-check` for fix checks, and `--which verify` for verification's companion. Its `-C` names the review
+      clone and its `-o` the result file. It adds `--ephemeral --output-schema <result schema>`, and `--max` sized from
+      the pilot's wall time, since the wrapper stops a run after an hour by default. The schema is the `result` part of
+      `arc review local attest --schema`.
     - The brief goes in as the prompt argument, since the wrapper closes stdin. It carries `standard-review/v1`, the
       chunk's exact scope, and the target head, and none of the author's conclusions, suspected weak spots, or
       fixes.
@@ -2196,12 +2196,12 @@ from that day inside this session, which keeps the session and the review lane.
     - `evaluatorIdentity` names Codex CLI 0.171.0 and the exact model, as the run's events report it, checked against
       the registry's answer.
     - One chunk runs end to end as a pilot, prepared, reviewed, and attested, before the rest launch.
-- **The reviewer model** comes from the registry at launch; on 11-21 it answers Astra at xhigh for `review` and Sol at
-  xhigh for `verify`.
+- **The reviewer model** comes from the registry at launch; on 11-21 it answers Astra at xhigh for `review`, and Sol at
+  xhigh for `fix-check` and `verify`.
     - The pilot chunk runs on Astra. Its burn, projected across the chunks and seam reviewers, goes to the Owner, whose
       choice of split reaches this session as the registry's answer.
-    - The Owner's 9:11 pm split on 11-20 differs from the registry in two places: it put fix checks on Sol and
-      verification's companion on Astra. Tuesday's approval settles which holds.
+    - The Owner's 9:11 pm plan on 11-20 put verification's companion on Astra. project-manager.AO settles it with the
+      Owner from the pilot's burn, sent to it when measured.
 - **The burn record:**
     - Tokens per reviewer process come from the events file `codex-run` writes beside each report, if they carry token
       counts, which the pilot confirms. They are kept with the flip's evidence.
@@ -2210,8 +2210,7 @@ from that day inside this session, which keeps the session and the review lane.
     - The totals go to the PM for a summary line.
 - **Approvals batched Tuesday morning:**
     1. the go-ahead for each named build run;
-    2. the pilot, then, from its projected burn, the model split for the chunked passes, and the two places the 9:11 pm
-       split differs from the registry;
+    2. the pilot, then, from its projected burn, the model split for the chunked passes;
     3. pushes of `feat/cutover-flip` with CI dispatched at task checkpoints, and 6.7's two deletion-branch pushes.
 
   ARC's own gates stay per instance: each task gate, each review disposition, and the merge. The Owner is available
