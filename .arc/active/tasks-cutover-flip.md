@@ -980,18 +980,16 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           subject; no spawned importFixture user runs the flip build after its import (`notes-cutover-flip.md` § Test
           callers).
 
-### `[ ]` **3.5 The Markdown fix's end-to-end test over the flipped store — § 7.5**
+### `[x]` **3.5 The Markdown fix's end-to-end test over the flipped store — § 7.5**
 
 - _Goal:_ `__tests__/e2e/markdown-fix.e2e.test.ts` passes with the fixture's store answering `stateOffBranch` true, its
   fixture carrying an `arc.identity` so the selection read reaches the store, its per-file assertions unchanged, and an
   added assertion that the reader returned an empty selection rather than `unavailable`, since the fixture's store
   holds no records.
 
-    - Without an identity the projection skips (`no-identity`), the selection reports `projection-skipped`, and
-      `readProjectedSelection` (`lib/checks/projected-selection.ts`) maps that to `unavailable`, which the fixer refuses
-      as `markdown.selection-unavailable` (`resolveMarkdownFixCorpus`, `lib/markdown/fix-plan.ts`); with one, the store
-      holds no records, so the selection is empty and the fixer's corpus is today's.
-    - The test leaves the switch's ledger.
+- _Outcome:_ The test leaves the switch's ledger with its per-file assertions unchanged, and asserts that the fixture's
+  store answers `stateOffBranch` true and that `readProjectedSelection` returns an empty `ok` selection. The fixture
+  sets no identity: it installs no ARC, so the selection command starts unprojected and never reads one (A24).
 
 ### `[ ]` **3.6 Every default-store caller in the tests classified, and the temporary override gone — § 7.7**
 
