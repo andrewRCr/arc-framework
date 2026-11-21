@@ -25,6 +25,7 @@ const binding = vi.hoisted(() => ({
   deniedLinkProbe: null as string | null,
   deniedRecoverySource: null as string | null,
   deniedWalkFolder: null as string | null,
+  denyAuthorityAfterListing: null as string | null,
   writerInstance: undefined as string | undefined,
   stopAfterIndexCommit: false,
   /** Runs once a write is prepared, before its archive save journal is read. */
@@ -53,7 +54,12 @@ vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   return { ...actual, readdirSync: ((...args: Parameters<typeof actual.readdirSync>) => {
     if (args[0] === binding.deniedWalkFolder) throw Object.assign(new Error("Archive enumeration refused"), { code: "EACCES" });
-    return actual.readdirSync(...args);
+    const entries = actual.readdirSync(...args);
+    if (typeof args[0] === "string" && args[0] === binding.denyAuthorityAfterListing) {
+      binding.denyAuthorityAfterListing = null;
+      binding.deniedValidation = join(args[0], ".git");
+    }
+    return entries;
   }) as typeof actual.readdirSync, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
     if (args[0] !== null && args[0] === binding.deniedOnce) binding.deniedOnce = null;
     else if (args[0] !== binding.deniedValidation || binding.deniedValidation === null) return actual.lstatSync(...args);
@@ -119,6 +125,7 @@ afterEach(async () => {
   binding.deniedLinkProbe = null;
   binding.deniedRecoverySource = null;
   binding.deniedWalkFolder = null;
+  binding.denyAuthorityAfterListing = null;
   binding.writerInstance = undefined;
   binding.stopAfterIndexCommit = false;
   binding.afterPrepared = undefined;
@@ -1136,8 +1143,14 @@ it.each(["link", "enumeration"] as const)("restores an access-held copy after re
   binding.deniedRecoverySource = null;
   binding.deniedWalkFolder = null;
   if (denied === "enumeration") {
-    // Listing can succeed even though search access still prevents the authority check inside the directory.
+    // A retry checks authority before listing an owed directory.
     binding.deniedValidation = join(checkout, h.folder, ".git");
+    const folderDenied = await projectionCommand(h.input, ["status"]);
+    expect(folderDenied.diagnostics).toContain(`Cannot validate ${h.folder}: EACCES`);
+    expect((await h.disk()).index).toMatchObject({ archiveDiscoveryPending: [h.folder], state: null });
+    binding.deniedValidation = null;
+    // If search access changes after listing, the retry retains the precise child it could not classify.
+    binding.denyAuthorityAfterListing = join(checkout, h.folder);
     const searchDenied = await projectionCommand(h.input, ["status"]);
     const retained = (await h.disk()).index;
     expect(searchDenied.diagnostics).toContain(`Cannot validate ${unseen}: EACCES`);

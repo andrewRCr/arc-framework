@@ -7,7 +7,7 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 /** Keep an unreplaced path unsent even when an earlier version of its edit landed. */
 export function holdReadBack(context: ReadBackContext, request: TakeInRequest, result: TakeInResult,
   guarded: Extract<GuardResult, { kind: "unreplaced" }>): TakeInResult {
-  reportGuardHold(context.report, request.path, request.copy, guarded);
+  reportGuardHold(context.report, request.path, request.copy, guarded, context.refuseArchiveAccess);
   return { ...result, answer: "pending", entry: guarded.entry };
 }
 

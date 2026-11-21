@@ -10,6 +10,7 @@ import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEn
 import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
 import { archiveLayPhase, awaitsArchiveInstallation } from "./recording-state.js";
+import { parseAsideFile } from "./aside.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 /** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
@@ -25,12 +26,13 @@ export function createProjectionLinkBoundary(links: readonly string[]): Projecti
 
 /** Re-observe destination ancestors before settlement, since an action may change them after command start. */
 export async function readProjectionLinkBoundary(checkout: string, paths: readonly string[], fs: ProjectionLinkFs = { lstat },
-  holdArchiveAccess?: (path: string, mark: RefusedMark) => void): Promise<ProjectionLinkBoundary> {
+  holdArchiveAccess?: (path: string, mark: RefusedMark) => void, destinationOf: (path: string) => string = path => path): Promise<ProjectionLinkBoundary> {
   const links: string[] = [];
   for (const path of new Set(paths)) {
     const link = await linkInPath(checkout, path, fs).catch((error: unknown) => {
-      if (holdArchiveAccess === undefined || !isArchiveScope(path)) throw error;
-      holdArchiveAccess(path, archivePermissionMark(path, error, "inspect folders for"));
+      const destination = destinationOf(path);
+      if (holdArchiveAccess === undefined || !isArchiveScope(destination)) throw error;
+      holdArchiveAccess(destination, archivePermissionMark(path, error, "inspect folders for"));
       return null;
     });
     if (link !== null) links.push(link);
@@ -50,13 +52,16 @@ export async function readCopyDestinations(checkout: string, paths: readonly str
   blockedByLink: ProjectionLinkBoundary; archiveAccess: Map<string, RefusedMark>;
 }> {
   const archiveAccess = new Map<string, RefusedMark>();
+  const destinationOf = (path: string) => parseAsideFile(path)?.path ?? path;
   const readable = knownHold === undefined ? paths : paths.filter(path => {
-    const mark = knownHold(path);
+    const destination = destinationOf(path);
+    const mark = knownHold(destination);
     if (mark === null) return true;
-    archiveAccess.set(path, mark);
+    archiveAccess.set(destination, mark);
     return false;
   });
-  const blockedByLink = await readProjectionLinkBoundary(checkout, readable, fs, (path, mark) => { archiveAccess.set(path, mark); });
+  const blockedByLink = await readProjectionLinkBoundary(checkout, readable, fs,
+    (path, mark) => { archiveAccess.set(path, mark); }, destinationOf);
   return { blockedByLink, archiveAccess };
 }
 
@@ -107,7 +112,7 @@ function withoutPhysicalEdit(path: string, entry: IndexEntry): IndexEntry | null
   if (entry.archiveSubmission !== undefined) return entry;
   if (entry.kind === "ownerless") return entry.minted === undefined ? null : entry;
   // The current leaf is a link, but the staged inode can still prove what reached this archive path.
-  if (path.startsWith(".arc/completed/") && path.endsWith(".md") && entry.adoption?.kind === "read-back"
+  if (path.startsWith(".arc/completed/") && entry.adoption?.kind === "read-back"
     && (awaitsArchiveInstallation(entry) || archiveLayPhase(entry) === "installed")) return entry;
   const recovery = entry.adoption?.kind === "read-back" || entry.persisted?.recording === true || entry.copies.length > 0 || entry.inProgress !== null;
   if (entry.stat === null && (recovery || !entry.pending && entry.refused === null)) return entry;

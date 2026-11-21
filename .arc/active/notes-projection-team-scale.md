@@ -25,6 +25,7 @@
 - [Amendments A12 and A13](#amendments-a12-and-a13)
 - [Amendment A14](#amendment-a14)
 - [Amendment A15](#amendment-a15)
+- [Amendment A16](#amendment-a16)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -949,6 +950,15 @@ the convention, it is written around `arc edit`. Where this unit lands after tha
 for the window, the flip rewrites it onto `arc edit` and re-runs its Stage 2 where it changed. Where this unit has not
 landed by then, the window runs on the convention written for write-back's in-place archived edit, and this unit
 rewrites it at its landing (spec § 1.4, § 10.4; Task 3.4), an amendment routed here and accepted on 2026-11-13.
+
+## Amendment A16
+
+An archive retry records work still owed. `observeArchiveScopes` filters structurally refused scopes out of its
+walk, while `recordRebuildDiscovery` derives the next pending set from native holds. This can lose the only
+locator for an unindexed edit. A returned alias can also go away before inventory reaches its destination.
+`readProjectionIndex` returns a validated header on partition failure, even when its entries cannot be trusted.
+A16 preserves those obligations and requires observed coverage before dropping them. A legacy path with no
+file-type evidence can name an opaque directory, so a link at that path leaves the retry pending through repair.
 
 ## Model evidence
 

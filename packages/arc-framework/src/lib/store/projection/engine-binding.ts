@@ -72,7 +72,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     },
     reportExplicitResolution: () => { if (state.command?.checkout === input.checkout && state.resolution !== null) state.resolution.accepted = true; },
     refuseArchiveAccess: refused => { refuseUnreadArchiveScope(root, refused.path, refused.mark, refused.copy); },
-    refuseArchiveChange: refused => { refuseArchiveChange(root, refused.path, refused.mark, refused.copy); },
+    refuseArchiveChange: ({ path, mark, copy }, access) => { refuseArchiveChange(root, path, mark, copy, access); },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
@@ -91,8 +91,11 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       if (input !== null && input.kind !== "unchanged") {
         root.unsent.add(request.path);
         const diagnostic = { path: request.path, copy: request.copy, mark: input.mark };
-        if (input.kind === "inaccessible") context.refuseArchiveAccess?.(diagnostic);
-        else context.report?.(diagnostic);
+        if (input.kind === "inaccessible") {
+          context.refuseArchiveAccess?.(diagnostic);
+          return { ...refuseProjectionEdit(request.entry, input.mark), archiveAccess: input.mark };
+        }
+        context.report?.(diagnostic);
         return refuseProjectionEdit(request.entry, input.mark);
       }
       if (input?.kind === "unchanged") {

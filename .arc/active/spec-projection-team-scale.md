@@ -598,6 +598,14 @@ Retirement settles accessible copies and reports the hold before completing. A r
 archive scope in its index. A later command revisits just those scopes under its lease and the archive checks,
 withholding and reporting newly discovered unindexed edits under § 7.2 before advancing the rebuilt state.
 
+**An owed archive inventory scope survives a refusal (A16).** Discharge a retry only when observation under the
+archive checks proves absence, classifies its files, or records all remaining unread scope. Keep an owed subtree
+opaque while a folder link or nested checkout prevents inspection. A proved file leaf follows A2's deleted-file
+rule. A legacy scope whose kind is unknown stays pending when a link may hide a subtree. A newly encountered foreign
+tree outside owed inventory is excluded. Preserve obligations from a validated header when rebuilding damaged
+partitions. When a returned copy's retry shifts to its destination, publish that obligation with the change that
+removes the old one. The index state can advance after the owed edit is classified and reported.
+
 **A refresh's work at a refused path waits for the repair (A4).** A refresh whose planned change — a lay, a removal, or
 a move — is at a path the selection refuses leaves that change undone and counts itself incomplete, so it keeps the
 worktree's state version where it was (`refusesArchivePath`, `archive-selection.ts`; `applyProjectionRefresh`,
@@ -1240,6 +1248,11 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
     with its originally accepted bytes. Retry save and verify that it preserves the edit and its opening, retains
     the possible bases, and reports a resolution without submitting against the old version. Resolve against the
     stored version and confirm the resulting write and read-back.
+29. **Owed archive inventory survives structural refusal and restart (A16).** Deny discovery of an unindexed edit,
+    then put a folder link or nested checkout in the way before retry. Publish and reopen the index with the scope
+    still owed. After repair, withhold and report the edit before state advances. Verify the same obligation when
+    a returned alias is gone or a validated header outlives an unreadable partition. A proved file-leaf deletion
+    and a path whose absence is established clear their retries.
 
 ## Open Questions
 
@@ -1279,5 +1292,7 @@ design open.
 <!-- markdownlint-disable-next-line MD013 -->
 - **A15** — 2026-11-21 — spec-depth: preserve archive adoption edits when installation evidence is ambiguous. _Supersedes:_ none.
   _Trigger:_ atomic-markdown-revert-loses-installed-adoption-base review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A16** — 2026-11-21 — spec-depth: retain owed archive inventory until inspection settles it. _Supersedes:_ none.
+  _Trigger:_ structural-refusal-clears-pending-rebuild-inventory review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

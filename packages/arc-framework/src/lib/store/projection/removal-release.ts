@@ -228,6 +228,7 @@ async function remainingCopies(root: ProjectionRootState, path: string, entry: R
     if (links(path) !== null || !root.writable(path) || !root.writable(copy.name)) {
       const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
       if (observed.kind === "no-edit" || observed.kind === "gone") continue;
+      if (observed.kind === "blocked-destination") return retirementRefusal(root.checkout, copy.name, observed.mark, "release");
     }
     return { text: `Recover anything wanted from ${copy.name} in ${root.checkout}, then delete that copy explicitly and retry release.` };
   }
@@ -239,7 +240,7 @@ function observeRemovalSends(root: ProjectionRootState): { takeIn: TakeInPort; r
   return { refusal: () => refusal, takeIn: async request => {
     const diagnosticFrom = projectionProcessState().diagnostics.length;
     const result = await root.takeIn(request);
-    if (result.answer !== "no-edit" && result.answer !== "taken-in") {
+    if (result.archiveAccess === undefined && result.answer !== "no-edit" && result.answer !== "taken-in") {
       const mark = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each =>
         each.path === request.path && each.copy === request.copy)?.mark;
       refusal ??= mark?.remedy ?? ("mark" in result ? result.mark.remedy : result.entry.refused?.remedy)

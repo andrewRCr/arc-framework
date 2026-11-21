@@ -1,5 +1,6 @@
 /** Archive discovery retries and link observation after sync restoration. */
-import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
@@ -10,7 +11,7 @@ import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
-import { PROJECTION_INDEX_FILE } from "../../../../src/lib/store/projection/index-file.js";
+import { PROJECTION_INDEX_FILE, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { refreshMaterializationLinks } from "../../../../src/lib/store/projection/materialization-selection.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 
@@ -27,6 +28,95 @@ vi.mock("node:fs/promises", async original => {
   return { ...actual, lstat, default: { ...actual, lstat } };
 });
 afterEach(() => { binding.deniedLinkProbe = null; });
+
+it.each([["nested", false], ["link", true], ["absent", false]] as const)(
+  "finishes owed archive enumeration after a %s boundary (damaged partition=%s)", async (boundary, damaged) => {
+  const h = await archiveRetirementFixture(), { location } = await h.disk();
+  const scope = `${h.folder}/owed`, folder = join(h.checkout, scope), path = `${scope}/unindexed.md`;
+  const saved = join(h.checkout, "owed-outside-archive");
+  await mkdir(folder);
+  await writeFile(join(h.checkout, path), "An unindexed edit in the owed directory.\n");
+  const headerPath = join(location.stateDir, PROJECTION_INDEX_FILE);
+  await rm(headerPath);
+  let phase: "deny" | "opaque" | "repaired" = "deny";
+  const checkListing = (absolute: string) => {
+    if (absolute === folder && phase === "deny") throw Object.assign(new Error("Cannot enumerate"), { code: "EACCES" });
+    if (absolute === folder && phase === "opaque") throw new Error("Enumerated a foreign archive subtree");
+  };
+  const input = { ...h.input, ports: () => ({ ...createProjectionEnginePorts(h.checkout), walkFs: {
+    readdir: (absolute: string) => {
+      checkListing(absolute);
+      return readdirSync(absolute, { withFileTypes: true });
+    },
+    readdirNames: (absolute: string) => { checkListing(absolute); return readdirSync(absolute); },
+  } }) };
+  expect((await projectionCommand(input, ["status"])).diagnostics).toContain("EACCES");
+  expect((await h.disk()).index).toMatchObject({ archiveDiscoveryPending: [scope], state: null });
+  await rename(folder, saved);
+  if (boundary === "nested") await mkdir(join(folder, ".git"), { recursive: true });
+  if (boundary === "link") await symlink(saved, folder, "junction");
+  if (damaged) await removeArchivePartition(headerPath, location.stateDir);
+  phase = "opaque";
+  const retry = await projectionCommand(input, ["status"]);
+  expect(retry.result).toMatchObject({ kind: "ready" });
+  const pending = (await h.disk()).index;
+  if (boundary === "absent") {
+    expect(pending.archiveDiscoveryPending).toBeUndefined();
+    expect(pending.state).toBe(success(await h.store.version()));
+    return;
+  }
+  expect(pending).toMatchObject({ archiveDiscoveryPending: [scope], state: null });
+  expect(pending.entries[path]).toBeUndefined();
+  await rm(folder, { recursive: true });
+  await rename(saved, folder);
+  phase = "repaired";
+  expect((await projectionCommand(input, ["status"])).diagnostics).toContain(`${path}: withheld`);
+  const after = (await h.disk()).index;
+  expect(after.entries[path]).toMatchObject({ kind: "ownerless", withheld: true });
+  expect(after.archiveDiscoveryPending).toBeUndefined();
+  expect(after.state).toBe(success(await h.store.version()));
+}, 30_000);
+
+it("discharges an owed path proved to be a file when its leaf is now a link", async () => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const file = join(h.checkout, h.path), saved = join(h.checkout, "prior-archive-file.md");
+  await rename(file, saved);
+  await symlink(saved, file, "file");
+  await writeProjectionIndex(location, { ...index, archiveDiscoveryPending: [h.path], state: null });
+  await projectionCommand(h.input, ["status"]);
+  expect((await h.disk()).index.archiveDiscoveryPending).toBeUndefined();
+  expect((await lstat(file)).isSymbolicLink()).toBe(true);
+}, 30_000);
+
+async function removeArchivePartition(headerPath: string, stateDir: string): Promise<void> {
+  const header = JSON.parse(await readFile(headerPath, "utf8")) as { groups: Record<string, { name: string }> };
+  const archive = Object.entries(header.groups).find(([key]) => key.startsWith(".arc/completed/"));
+  if (archive === undefined) throw new Error("Missing archive partition");
+  await rm(join(stateDir, archive[1].name));
+}
+
+it.each([false, true])("transfers a missing returned alias to an owed path (damaged partition=%s)", async damaged => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const folder = `${h.folder}/returned`, path = `${folder}/unindexed.md`;
+  const destination = join(h.checkout, path), boundary = join(h.checkout, folder, ".git");
+  const content = "An edit returned before its inventory was published.\n";
+  await mkdir(boundary, { recursive: true });
+  await writeFile(destination, content);
+  const writer = await createProjectionEnginePorts(h.checkout).writer();
+  const copy = nameAsideFile({ path, base: gitBlobId("Original.\n", "sha1"), writer, role: "aside" });
+  await writeProjectionIndex(location, { ...index, archiveRecoveryCopies: [copy], state: null });
+  if (damaged) await removeArchivePartition(join(location.stateDir, PROJECTION_INDEX_FILE), location.stateDir);
+  await projectionCommand(h.input, ["status"]);
+  const held = (await h.disk()).index;
+  expect(held.archiveRecoveryCopies).toBeUndefined();
+  expect(held.archiveDiscoveryPending).toEqual([path]);
+  expect(held.state).toBeNull();
+  expect(held.entries[path]).toBeUndefined();
+  await rm(boundary, { recursive: true });
+  expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain(`${path}: withheld`);
+  expect((await h.disk()).index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true });
+  expect(await readFile(destination, "utf8")).toBe(content);
+}, 30_000);
 
 it("keeps a walked edit in rebuild discovery after a denied redundant aside is later discarded", async () => {
   const h = await archiveRetirementFixture(), { location } = await h.disk();

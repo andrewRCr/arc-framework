@@ -87,7 +87,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     reportLeftCopies(root, swept.left);
     // A refused archive path is the command's answer for that path, reported once whichever copy met it.
     for (const copy of swept.swept) {
-      if (copy.outcome.kind === "blocked-destination") refuseArchiveChange(root, copy.path, copy.outcome.mark, copy.copy);
+      if (copy.outcome.kind === "blocked-destination") refuseArchiveChange(root, copy.path, copy.outcome.mark, copy.copy, copy.outcome.access);
       else reportProjectionCopy(copy.path, copy.copy, copy.outcome);
     }
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));

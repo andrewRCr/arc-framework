@@ -97,6 +97,8 @@ async function checkUnauthorizedCopy(input: ProjectionRemovalAsidesInput, path: 
   if (guarded === undefined) return "authorized";
   const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
   if (observed.kind === "no-edit" || observed.kind === "gone") return "unedited";
+  if (observed.kind === "blocked-destination")
+    return { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, copy.name, observed.mark) };
   if (guarded.kind !== "would-refuse") return guarded;
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);

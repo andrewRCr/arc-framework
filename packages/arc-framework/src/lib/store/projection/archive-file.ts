@@ -42,11 +42,17 @@ export function archiveDestination(checkout: string, path: string): ArchiveDesti
   return path.startsWith(".arc/completed/") ? walkDestination(checkout, path) : null;
 }
 
-function walkDestination(checkout: string, path: string): ArchiveDestination | null {
+/** A directory selected for enumeration is itself part of the ancestry of its entries. */
+export function archiveDirectoryDestination(checkout: string, path: string): ArchiveDestination | null {
+  return isArchiveScope(path) ? walkDestination(checkout, path, true) : null;
+}
+
+function walkDestination(checkout: string, path: string, directory = false): ArchiveDestination | null {
   const parts = path.split("/");
   let folder = checkout;
   try {
-    for (const [index, component] of parts.slice(0, -1).entries()) {
+    const folders = directory ? parts : parts.slice(0, -1);
+    for (const [index, component] of folders.entries()) {
       folder = join(folder, component);
       const stat = lstatSync(folder, { throwIfNoEntry: false });
       if (stat?.isSymbolicLink() === true) return { cause: "link", mark: linkedArchivePath(path, parts.slice(0, index + 1).join("/")) };

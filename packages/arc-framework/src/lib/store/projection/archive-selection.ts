@@ -13,7 +13,7 @@ export function hasPendingArchiveRecovery(index: ProjectionIndex, path: string):
 }
 
 /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
-export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic) => void;
+export type ArchiveChangeRefusal = (refused: WriteBackDiagnostic, access?: boolean) => void;
 
 /** Command-local archive selection and its reporting boundary. */
 export type ArchiveSelectionRoot = Pick<ProjectionRootState, "checkout" | "archiveSelection" | "archiveDiscoveryHolds"> & {
@@ -79,9 +79,14 @@ export function heldArchivePath(root: Pick<ArchiveSelectionRoot, "archiveSelecti
  * Keep a refusal met just before a change as the command's answer for that path: later selections leave the path
  * untouched, and the refusal is reported once, here or wherever the command first reported it.
  */
-export function refuseArchiveChange(root: ArchiveSelectionRoot, path: string, mark: RefusedMark, copy: string | null = null): void {
+export function refuseArchiveChange(root: ArchiveSelectionRoot, path: string, mark: RefusedMark, copy: string | null = null,
+  access = false): void {
   if (!path.startsWith(".arc/completed/")) {
     root.context.report?.({ path, copy, mark });
+    return;
+  }
+  if (access) {
+    refuseUnreadArchiveScope(root, path, mark, copy);
     return;
   }
   if (unreadArchiveScope(root, path) !== null) return;
@@ -94,7 +99,7 @@ export function refuseArchiveChange(root: ArchiveSelectionRoot, path: string, ma
 
 /** A batch's report of a refusal met just before a change, kept as the command's answer for its path. */
 export function archiveChangeRefusals(root: ArchiveSelectionRoot): ArchiveChangeRefusal {
-  return ({ path, copy, mark }) => { refuseArchiveChange(root, path, mark, copy); };
+  return ({ path, copy, mark }, access) => { refuseArchiveChange(root, path, mark, copy, access); };
 }
 
 /** Whether this command refused any of the paths, at its selection or just before a change. */

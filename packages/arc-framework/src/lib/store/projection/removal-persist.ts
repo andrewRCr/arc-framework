@@ -152,7 +152,8 @@ async function confirmPersistedProjection(root: ProjectionRootState, index: Proj
   const checked = await checkProjectionRemoval(root.checkout, context, disposition);
   if (checked.kind === "would-refuse") return { kind: "refused", remedy: checked.remedy };
   if (checked.kind === "unobservable") return { kind: "refused", remedy: { text: checked.detail } };
-  if (await changedProjectionAsides(root, index)) return { kind: "changed" };
+  const copies = await changedProjectionAsides(root, index, disposition);
+  if (copies.kind !== "settled") return copies;
   await root.checkpoint?.();
   const changed = await changedProjectionFiles(root, index, paths);
   return changed.kind === "blocked"

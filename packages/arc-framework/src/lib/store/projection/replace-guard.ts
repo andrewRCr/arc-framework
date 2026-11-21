@@ -18,6 +18,8 @@ import { unshownConflicts } from "./held-conflicts.js";
 import type { RecordRenderer } from "./record-render.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { adoptionResolutionHold, pendingObservedRefusal } from "./recording-state.js";
+import type { WriteBackDiagnostic } from "./write-back.js";
 
 /** How many times the guard re-checks a file, taking in an edit each finds, before leaving it to the next command. */
 export const GUARD_PASSES = 3;
@@ -59,7 +61,8 @@ export type GuardResult =
   /** A directory or other nonregular object stays in place, with its contents and a repair route. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "not-a-file"; readonly remedy: Remedy }
   /** A read of the file failed for its permissions or saw it change, the file left in place and pending. */
-  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "unreadable"; readonly mark: RefusedMark }
+  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "unreadable"; readonly mark: RefusedMark; readonly access: boolean }
+  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "adoption-hold"; readonly mark: RefusedMark }
   /** The store refused the refresh's read: retryable, the file left in place and pending. */
   | {
     readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "refresh-refused"; readonly refusal: StoreRefusal;
@@ -73,6 +76,11 @@ export type GuardResult =
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
   // The guard never writes over a withheld file or sends it.
   if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
+  const hold = adoptionResolutionHold(input.entry);
+  if (hold !== null) {
+    await discardStaged(input);
+    return { kind: "unreplaced", entry: input.entry, cause: "adoption-hold", mark: hold };
+  }
   const absolute = join(input.checkout, input.path);
   const reader = projectionFileReader(input.checkout, input.path);
   let observed: FileStat | null;
@@ -84,7 +92,7 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
         entry: { ...input.entry, pending: true, refused: { reason: "not-a-file", remedy } } };
     }
   } catch (error) {
-    if (error instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement(input, error.mark);
+    if (error instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement(input, error);
     throw error;
   }
   // A not-a-file hold settles once its path holds a regular file again, or nothing.
@@ -93,10 +101,13 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
 }
 
 async function refuseBlockedReplacement(input: Pick<ReplaceGuardInput, "checkout" | "entry" | "staged" | "checkpoint">,
-  mark: RefusedMark): Promise<GuardResult> {
-  if (input.staged !== null) await removeProjectionAsideFile(input.checkout, input.staged.location, input.checkpoint);
-  const entry = { ...input.entry, pending: true, refused: mark };
-  return { kind: "unreplaced", entry, cause: "unreadable", mark };
+  { mark, access }: Pick<ArchiveDestinationBlocked, "mark" | "access">): Promise<GuardResult> {
+  await discardStaged(input);
+  return { kind: "unreplaced", entry: pendingObservedRefusal(input.entry, mark), cause: "unreadable", mark, access };
+}
+
+async function discardStaged({ checkout, staged, checkpoint }: Pick<ReplaceGuardInput, "checkout" | "staged" | "checkpoint">): Promise<void> {
+  if (staged !== null) await removeProjectionAsideFile(checkout, staged.location, checkpoint);
 }
 
 /** The edit the guard found at its path, marked a forced edit where a refresh's guard may admit one. */
@@ -114,13 +125,11 @@ async function recheck(input: ReplaceGuardInput, reader: ProjectionFileReader, a
   for (let pass = 1; ; pass += 1) {
     const observation = await readReplacement(input, reader, absolute, baseline, observed);
     observed = undefined;
-    if (observation instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement({ ...input, entry, staged }, observation.mark);
+    if (observation instanceof ArchiveDestinationBlocked) return refuseBlockedReplacement({ ...input, entry, staged }, observation);
     const { bytes, verdict } = observation;
     if (verdict.status !== "changed") return replace(recordReplacementStat(entry, verdict));
     const result = await input.takeIn(guardTakeInRequest(input, entry, baseOf(input.path, bytes, entry)));
-    // No edit: the stat seen becomes the file's baseline, so a later save to it still reads as one.
-    if (result.answer === "no-edit") return unchangedReplacement(result, staged, verdict.stat, baseline.blob);
-    if (result.answer !== "taken-in") return held(result, result.answer);
+    if (result.answer !== "taken-in") return guardHeldEdit(input, result, staged, verdict.stat, baseline.blob);
     if (pass === GUARD_PASSES) return { kind: "unreplaced", entry: { ...result.entry, pending: true }, cause: "unsettled" };
     ({ entry } = result);
     baseline = result.read;
@@ -133,6 +142,14 @@ async function recheck(input: ReplaceGuardInput, reader: ProjectionFileReader, a
     }
     staged = restaged.result;
   }
+}
+
+async function guardHeldEdit(input: ReplaceGuardInput, result: Exclude<TakeInResult, { answer: "taken-in" }>,
+  staged: StagedFile | null, stat: FileStat, moving: string): Promise<GuardResult> {
+  if (result.archiveAccess !== undefined) return refuseBlockedReplacement({ ...input, entry: result.entry, staged },
+    { mark: result.archiveAccess, access: true });
+  // No edit: the stat seen becomes the file's baseline, so a later save to it still reads as one.
+  return result.answer === "no-edit" ? unchangedReplacement(result, staged, stat, moving) : held(result, result.answer);
 }
 
 /** A hash equal to what was written lets the next check match by stat alone. */
@@ -162,15 +179,16 @@ export function notAFileHoldMark(remedy: Remedy): RefusedMark {
  * Report a guard hold once, from whichever step receives it, with the guard's or the store refusal's remedy. A withheld
  * file and a take-in's answer are reported where they arise.
  */
-export function reportGuardHold(report: ((diagnostic: { path: string; copy: string | null; mark: RefusedMark }) => void) | undefined,
-  path: string, copy: string | null, guarded: GuardResult): void {
+export function reportGuardHold(report: ((diagnostic: WriteBackDiagnostic) => void) | undefined,
+  path: string, copy: string | null, guarded: GuardResult, holdAccess?: (diagnostic: WriteBackDiagnostic) => void): void {
   if (guarded.kind !== "unreplaced") return;
   const mark = guardHoldMark(guarded);
-  if (mark !== null) report?.({ path, copy, mark });
+  const send = guarded.cause === "unreadable" && guarded.access ? holdAccess ?? report : report;
+  if (mark !== null) send?.({ path, copy, mark });
 }
 
 function guardHoldMark(guarded: Extract<GuardResult, { kind: "unreplaced" }>): RefusedMark | null {
-  if (guarded.cause === "unreadable") return guarded.mark;
+  if (guarded.cause === "unreadable" || guarded.cause === "adoption-hold") return guarded.mark;
   if (guarded.cause === "not-a-file") return notAFileHoldMark(guarded.remedy);
   if (guarded.cause === "refresh-refused") {
     return { reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy };

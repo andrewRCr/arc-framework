@@ -12,12 +12,18 @@ import { persistProjectionRemoval } from "../../../../src/lib/store/projection/r
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { createAdoptionFixture, usePredecessorAdoptionJournal } from "../../../helpers/store/projection/adoption-fixture.js";
+import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { openArchivedProjectionFile } from "../../../helpers/store/projection/open-file.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { success, update } from "../../../helpers/store/suite-tools.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
+import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
+import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
+import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
+import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
 const binding = vi.hoisted(() => ({
   hooks: undefined as import("../../../../src/lib/store/projection/swap.js").SwapHooks | undefined,
@@ -75,8 +81,8 @@ async function diskEntry(h: Awaited<ReturnType<typeof fixture>>, path: string) {
   return disk.index.entries[path];
 }
 
-async function openedMarkdown(h: Awaited<ReturnType<typeof fixture>>, stamped: boolean) {
-  const name = "new.md", path = `${h.folder}/${name}`, file = join(h.checkout, path);
+async function openedAdoption(h: Awaited<ReturnType<typeof fixture>>, stamped: boolean, extension = "md") {
+  const name = `new.${extension}`, path = `${h.folder}/${name}`, file = join(h.checkout, path);
   const content = "The new archived text.\n";
   const reference = recordReferences["work-item/companion"](h.primary.reference.owner, name);
   const bytes = stamped ? renderStampedFile({ content, stamp: gitBlobId("Previous rendering.\n", "sha1") }) : content;
@@ -89,7 +95,7 @@ it.each([
   [false, "predecessor", false], [true, "predecessor", false], [false, "current", false], [true, "current", false],
   [false, "predecessor", true], [true, "predecessor", true], [false, "current", true], [true, "current", true],
 ] as const)("uses the proved Markdown installation after its writer exits (installed=%s, journal=%s, stamped=%s)", async (installed, journal, stamped) => {
-  const h = await fixture(), { path, file, reference, content, bytes: accepted } = await openedMarkdown(h, stamped);
+  const h = await fixture(), { path, file, reference, content, bytes: accepted } = await openedAdoption(h, stamped);
   const newer = "A newer Markdown correction from another command.\n";
   let submissions = 0;
   const store = overrideEngineStore(h.store, { batch: async input => {
@@ -130,8 +136,10 @@ it.each([
   }
 });
 
-async function interruptMarkdownInstallation(journal: "current" | "predecessor", stamped: boolean) {
-  const h = await fixture(), { path, file, reference, content, bytes } = await openedMarkdown(h, stamped);
+async function interruptAdoptionInstallation(journal: "current" | "predecessor", stamped: boolean,
+  options: { extension?: "txt"; linked?: true } = {}) {
+  const h = options.linked ? await linkedAdoptionFixture() : await fixture();
+  const { path, file, reference, content, bytes } = await openedAdoption(h, stamped, options.extension);
   const peer = "A peer's newer archive correction.\n";
   let sends = 0;
   const store = overrideEngineStore(h.store, {
@@ -166,7 +174,7 @@ async function replaceMarkdownFromEditor(file: string, bytes: string) {
 it.each([["current", false], ["predecessor", false], ["current", true], ["predecessor", true]] as const)(
   "holds a rename-over archive revert on the %s journal until explicitly resolved (stamped=%s)", async (journal, stamped) => {
   const { h, command, path, file, reference, content, bytes, installed, interruptedCopy, sends } =
-    await interruptMarkdownInstallation(journal, stamped);
+    await interruptAdoptionInstallation(journal, stamped);
   await replaceMarkdownFromEditor(file, bytes);
   expect((await lstat(file, { bigint: true })).ino).not.toBe(installed.ino);
 
@@ -214,7 +222,7 @@ it.each([["current", false], ["predecessor", false], ["current", true], ["predec
 });
 
 it.each(["current", "predecessor"] as const)("keeps the %s Markdown adoption safe across a leaf link", async journal => {
-  const { h, command, path, file, bytes, installed, sends } = await interruptMarkdownInstallation(journal, false);
+  const { h, command, path, file, bytes, installed, sends } = await interruptAdoptionInstallation(journal, false);
   await rm(file);
   await symlink(join(h.checkout, h.path), file);
   await persistProjectionRemoval(h.checkout, { store: command.store, identity: SlugSchema.parse("andrew") });
@@ -233,7 +241,7 @@ it.each(["current", "predecessor"] as const)("keeps the %s Markdown adoption saf
 });
 
 it.each(["current", "predecessor"] as const)("completes %s read-back when a peer restores the accepted text", async journal => {
-  const { h, command, path, file, reference, content, bytes, sends } = await interruptMarkdownInstallation(journal, true);
+  const { h, command, path, file, reference, content, bytes, sends } = await interruptAdoptionInstallation(journal, true);
   await replaceMarkdownFromEditor(file, bytes);
   success(await h.store.write(update(h.f, success(await h.store.read({ reference })), content)));
   const current = success(await h.store.read({ reference }));
@@ -241,5 +249,88 @@ it.each(["current", "predecessor"] as const)("completes %s read-back when a peer
   expect(success(await h.store.read({ reference })).version).toBe(current.version);
   expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(content);
   expect(await diskEntry(h, path)).not.toHaveProperty("adoption");
+  expect(sends()).toBe(1);
+});
+
+it.each(["current", "predecessor"] as const)("uses the installed %s text evidence after a temporary leaf link", async journal => {
+  const { h, command, path, file, content, installed, sends } = await interruptAdoptionInstallation(journal, false, { extension: "txt" });
+  const moved = join(h.checkout, "editor-retained.txt");
+  await rename(file, moved);
+  await symlink(join(h.checkout, h.path), file);
+  await persistProjectionRemoval(h.checkout, { store: command.store, identity: SlugSchema.parse("andrew") });
+  expect(await diskEntry(h, path)).toMatchObject({ stat: { ino: installed.ino }, adoption: { kind: "read-back" } });
+  await rm(file);
+  await rename(moved, file);
+  await chmod(file, 0o644);
+  await writeFile(file, content);
+  expect((await save(command)).errors).toContain("ambiguous-base");
+  expect(await readFile(file, "utf8")).toBe(content);
+  expect(sends()).toBe(1);
+});
+
+async function linkedAdoptionFixture() {
+  const h = await archiveRetirementFixture();
+  return { ...h, projected: { ...h.projected, ...await h.disk() } };
+}
+
+async function peerWrite(h: Awaited<ReturnType<typeof fixture>>, reference: Parameters<Store["read"]>[0]["reference"],
+  content: string, refuseRead = false): Promise<void> {
+  beginProjectionCommand();
+  const peer = h.f.store;
+  const unavailable = createRefusingStore(peer);
+  unavailable.refuse("read", { code: "lock-held", class: "recoverable", lock: "archive", condition: "Transient peer read.",
+    remedy: { text: "Retry the peer read." } });
+  let fault = false;
+  let deniedReads = 0;
+  const source = overrideEngineStore(peer, { read: query => {
+    if (!fault || !sameReference(query.reference, reference)) return peer.read(query);
+    deniedReads += 1;
+    return unavailable.store.read(query);
+  } });
+  const checkout = h.f.root, store = withFanOut(source, createProjectionFanOutDependencies(checkout));
+  const visits: string[] = [];
+  const input = { checkout, store, ports: () => ({ ...createProjectionEnginePorts(checkout),
+    beforeFanOutTarget: async (path: string) => { visits.push(path); },
+  }) };
+  expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+  try {
+    const current = success(await peer.read({ reference }));
+    fault = refuseRead;
+    success(await store.write(update(h.f, current, content)));
+    expect(visits).toContain(h.checkout);
+    if (refuseRead) expect(deniedReads).toBeGreaterThan(0);
+  } finally {
+    fault = false;
+    await endProjection(input);
+  }
+}
+
+it.each([["current", false], ["predecessor", true]] as const)(
+  "keeps a %s adoption token and buffer during peer refresh (refusal=%s)", async (journal, refuseRead) => {
+  const { h, command, path, file, reference, bytes, sends } = await interruptAdoptionInstallation(journal, true, { linked: true });
+  const staged = await readFile(file, "utf8");
+  await replaceMarkdownFromEditor(file, bytes);
+  expect((await save(command)).errors).toContain("The archive installation could not be established");
+  const held = await diskEntry(h, path);
+  const token = held?.refused?.remedy.argv?.at(-1);
+  if (token === undefined || held?.kind !== "record") throw new Error("Missing the adopted hold");
+  // The old rendering can hash clean against the staged entry even though the held buffer remains the editor's.
+  await writeFile(file, staged);
+  await peerWrite(h, reference, "Another peer correction.\n", refuseRead);
+  expect(await readFile(file, "utf8")).toBe(staged);
+  expect(await diskEntry(h, path)).toMatchObject({ base: held.base, persisted: held.persisted, refused: held.refused });
+  expect((await save(command)).errors).toContain(token);
+  expect(sends()).toBe(1);
+  expect((await save(command, ["--resolve", token])).result).toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference })).content).toBe(parseStampedFile(staged).content);
+  expect(sends()).toBe(2);
+});
+
+it.each(["current", "predecessor"] as const)("uses current stored agreement in a peer visit of the %s journal", async journal => {
+  const { h, path, file, reference, content, bytes, sends } = await interruptAdoptionInstallation(journal, true, { linked: true });
+  await replaceMarkdownFromEditor(file, bytes);
+  await peerWrite(h, reference, content);
+  expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(content);
+  expect((await diskEntry(h, path))?.refused).toBeNull();
   expect(sends()).toBe(1);
 });

@@ -464,4 +464,8 @@ _Amended in:_ review-fix (A2).
 - `[ ]` An interrupted Markdown adoption holds an ambiguous rename-over edit, its opening, and both bases until
   explicitly reconciled. Exercise the existing save resolution for both readable journal formats (A15)
 
+- `[ ]` Retry owed archive inventory across structural refusal, index reopen, and repair. Preserve the retry after
+  a returned alias disappears or a validated header outlives an unreadable partition. Verify classification and
+  reporting before state advances, with proved absence as a control (A16)
+
 - `[ ]` Ready for integration

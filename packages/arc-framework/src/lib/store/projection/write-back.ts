@@ -48,7 +48,7 @@ import { completeWriteBackRecording, type RecordingSite } from "./write-back-rec
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
-import { retainedArchiveInput } from "./recording-state.js";
+import { recordAcceptedTextInput, retainedArchiveInput } from "./recording-state.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -71,7 +71,7 @@ export interface WriteBackContext {
   /** Keep a native observation refusal so later work can settle other paths without retrying this one. */
   readonly refuseArchiveAccess?: (diagnostic: WriteBackDiagnostic) => void;
   /** Keeps a refusal met just before a change as the command's answer for its path, reported once. */
-  readonly refuseArchiveChange?: (refused: WriteBackDiagnostic) => void;
+  readonly refuseArchiveChange?: (refused: WriteBackDiagnostic, access?: boolean) => void;
   /** Set by write-back itself while finishing what the store accepted for an unopened archived file. */
   readonly refuseCapturedEdit?: (request: TakeInRequest, read: TakeInRead) => RefusedMark | null;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
@@ -537,8 +537,9 @@ async function finishAcceptedWrite(context: WriteBackContext, request: TakeInReq
     return { kind: "landed-held", result: { answer: "refused", mark: prepared.retained,
       entry: { ...recorded.entry, pending: true, refused: prepared.retained, unshown } } };
   }
+  const landed = recordAcceptedTextInput(request, recorded.entry, prepared.read, prepared.takenIn, context.format);
   return { kind: "landed", record: read.result, result: { answer: "taken-in", read: prepared.read,
-    entry: { ...recorded.entry, refused: null, copies: entry.copies.map(copy => (
+    entry: { ...landed, refused: null, copies: entry.copies.map(copy => (
       copy.name === request.copy ? { ...copy, landed: prepared.read.blob } : copy
     )) } } };
 }
@@ -574,9 +575,9 @@ function pendingRecordingResult(context: WriteBackContext, request: TakeInReques
 
 function heldPreparation(context: WriteBackContext, request: TakeInRequest, prepared: HeldWriteBack): WriteBackSend | RefusedSend {
   if (prepared.refusal !== undefined) return { kind: "store-refused", refusal: prepared.refusal, entry: prepared.result.entry };
-  if (prepared.archiveAccess !== undefined && context.refuseArchiveAccess !== undefined) {
-    context.refuseArchiveAccess({ path: request.path, copy: request.copy, mark: prepared.archiveAccess });
-    return { kind: "held", result: prepared.result };
+  if (prepared.archiveAccess !== undefined) {
+    (context.refuseArchiveAccess ?? context.report)?.({ path: request.path, copy: request.copy, mark: prepared.archiveAccess });
+    return { kind: "held", result: { ...prepared.result, archiveAccess: prepared.archiveAccess } };
   }
   const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
   for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {

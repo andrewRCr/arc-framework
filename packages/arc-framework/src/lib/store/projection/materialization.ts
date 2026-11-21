@@ -43,7 +43,7 @@ interface ProjectionMaterializationBasis {
   readonly configuration: ProjectionConfiguration;
   readonly version: StateVersion;
   readonly startTiming?: number;
-  readonly recovered?: Pick<ProjectionIndex, "withheldCopies" | "archiveRecoveryCopies">;
+  readonly recovered?: Pick<ProjectionIndex, "withheldCopies" | "archiveRecoveryCopies" | "archiveDiscoveryPending">;
   /** Links this command's start already reported, which the lay leaves unreported so each is reported once. */
   readonly reportedLinks?: readonly string[];
 }
@@ -69,7 +69,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   if (!excluded.ok) throw excluded.error;
   let index: ProjectionIndex = input.index ?? { format: PROJECTION_INDEX_FORMAT, state: null, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
-  const walked = await observeMaterializationFiles(root);
+  const { walked, retry } = await observeMaterializationFiles(input);
   await input.settleBeforeSweep?.();
   const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
@@ -97,7 +97,11 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selected = selection.files;
   if (input.onlyDeleted) await reportRemainingArchivedFiles(root, index, walked.files, desired.files);
   if (input.index === null) {
-    const inventory = { files: new Set([...walked.files, ...swept.restoredUnindexed]), incomplete: walked.incomplete };
+    const inventory = {
+      files: new Set([...walked.files, ...retry?.files ?? [], ...swept.restoredUnindexed]),
+      incomplete: new Set([...walked.incomplete, ...retry?.incomplete ?? []]),
+      owed: [...retry?.owed ?? [], ...swept.restoredUnindexed],
+    };
     index = await recordRebuildDiscovery(root, index, inventory, desired.files, whole);
   }
   const files: SwapFile[] = [];

@@ -1,6 +1,8 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
+import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
+import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
 export function unfinishedRecordingRefusal(entry: RecordEntry): StoreRefusal | null {
@@ -66,6 +68,21 @@ export function archiveAdoptionBasis(entry: RecordEntry, original: FileStat, obs
 /** A standing adoption disagreement survives changes to the live buffer and transient read refusals. */
 export function adoptionResolutionHold(entry: RecordEntry): RefusedMark | null {
   return entry.adoption?.kind === "read-back" && entry.refused?.reason === "bases-disagree" ? entry.refused : null;
+}
+
+/** An observation can leave a path pending without replacing its standing resolution. */
+export function pendingObservedRefusal(entry: RecordEntry, mark: RefusedMark): RecordEntry {
+  return { ...entry, pending: true, refused: adoptionResolutionHold(entry) ?? mark };
+}
+
+/** A returned ordinary text acceptance can prove its first lay even without a submission journal. */
+export function recordAcceptedTextInput(request: TakeInRequest, entry: RecordEntry, read: TakeInRead,
+  takenIn: string, format: ObjectFormat): RecordEntry {
+  if (request.copy !== null || request.entry.opened !== true || !request.path.startsWith(".arc/completed/")
+    || request.path.endsWith(".md") || entry.persisted === null || entry.acceptedInputStat !== undefined) return entry;
+  const { ino, mtimeNs } = read.stat;
+  return { ...entry, acceptedInputStat: { ino, mtimeNs, lay: { kind: "pending" } },
+    persisted: { ...entry.persisted, read: read.blob, inputBlob: gitBlobId(takenIn, format) } };
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

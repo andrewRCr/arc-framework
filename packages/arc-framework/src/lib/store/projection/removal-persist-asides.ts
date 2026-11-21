@@ -5,12 +5,12 @@ import type { AsideCopyRecord, RecordEntry, ProjectionIndex, RefusedMark } from 
 import type { Remedy } from "../refusal.js";
 import type { ProjectionPersistHooks } from "./removal-persist.js";
 import { asideCopyAccessHold, observeAsideCopy, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
-import { readCopyDestinations, readProjectionLinkBoundary } from "./discovery-links.js";
+import { readCopyDestinations } from "./discovery-links.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
 import { retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
-import { heldArchivePath } from "./archive-selection.js";
+import { heldArchivePath, refuseUnreadArchiveScope } from "./archive-selection.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -50,17 +50,28 @@ export async function persistProjectionAsides(root: ProjectionRootState, initial
 }
 
 /** Re-observe recorded copies after the last scheduling seam without preparing or sending an edit. */
-export async function changedProjectionAsides(root: ProjectionRootState, index: ProjectionIndex): Promise<boolean> {
+export async function changedProjectionAsides(root: ProjectionRootState, index: ProjectionIndex, disposition: ProjectionRetirement): Promise<FinalAsides> {
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind !== "record") continue;
     for (const copy of entry.copies) {
-      const boundary = await readProjectionLinkBoundary(root.checkout, [copy.name], root.ports.linkFs);
-      if (boundary(copy.name) !== null) continue;
-      const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
-      if (observed.kind === "edited" || observed.kind === "unsettled") return true;
+      const checked = await confirmAside(root, path, entry, copy, disposition);
+      if (checked.kind !== "settled") return checked;
     }
   }
-  return false;
+  return { kind: "settled" };
+}
+
+type FinalAsides = { kind: "settled" | "changed" } | { kind: "refused"; remedy: Remedy };
+
+async function confirmAside(root: ProjectionRootState, path: string, entry: RecordEntry, copy: AsideCopyRecord,
+  disposition: ProjectionRetirement): Promise<FinalAsides> {
+  const { blockedByLink, archiveAccess } = await readCopyDestinations(root.checkout, [copy.name], root.ports.linkFs);
+  const denied = archiveAccess.get(path);
+  if (denied !== undefined) return { kind: "refused", remedy: retirementRefusal(root.checkout, path, denied, disposition) };
+  if (blockedByLink(copy.name) !== null) return { kind: "settled" };
+  const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
+  if (observed.kind === "blocked-destination") return { kind: "refused", remedy: retirementRefusal(root.checkout, path, observed.mark, disposition) };
+  return { kind: observed.kind === "edited" || observed.kind === "unsettled" ? "changed" : "settled" };
 }
 
 async function persistCopy(input: CopyPersistenceInput, path: string, name: string): Promise<CopyPersistenceResult> {
@@ -72,7 +83,7 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
   if (entry?.kind !== "record" || copy === undefined) return { index };
   const { blockedByLink: boundary, archiveAccess } = await readCopyDestinations(root.checkout, [path, name], root.ports.linkFs);
   const denied = archiveAccess.get(path);
-  if (denied !== undefined) return { index, refusal: retirementRefusal(root.checkout, path, denied, input.disposition), access: true };
+  if (denied !== undefined) return holdCopyAccess(input, index, path, name, denied);
   if (boundary(name) !== null) return { index };
   if (boundary(path) !== null || !root.writable(path) || !root.writable(name)) return observeUnauthorizedCopy(input, path, entry, copy);
   const diagnosticFrom = projectionProcessState().diagnostics.length;
@@ -83,16 +94,24 @@ async function persistCopy(input: CopyPersistenceInput, path: string, name: stri
     index: withProjectionEntry(index, path, settled.entry),
     returned: settled.kind === "returned" || settled.kind === "linked-back" ? [{ path, copy: name }] : [],
     refuseChange: ({ mark }, access) => { if (access) cleanupHold = mark; } });
-  if (cleanupHold !== undefined) return { index: published, refusal: retirementRefusal(root.checkout, path, cleanupHold, input.disposition), access: true };
-  return { index: published, refusal: removalCopyRefusal(settled, root.checkout, name, diagnosticFrom, input.disposition),
-    access: asideCopyAccessHold(settled) !== undefined };
+  const accessHold = cleanupHold ?? asideCopyAccessHold(settled);
+  if (accessHold !== undefined) return holdCopyAccess(input, published, path, name, accessHold);
+  return { index: published, refusal: removalCopyRefusal(settled, root.checkout, name, diagnosticFrom, input.disposition) };
+}
+
+function holdCopyAccess(input: CopyPersistenceInput, index: ProjectionIndex, path: string, copy: string, mark: RefusedMark): CopyPersistenceResult {
+  refuseUnreadArchiveScope(input.root, path, mark, copy);
+  return { index, refusal: retirementRefusal(input.root.checkout, path, mark, input.disposition), access: true };
 }
 
 async function observeUnauthorizedCopy(input: CopyPersistenceInput, path: string,
-  entry: RecordEntry, copy: AsideCopyRecord): Promise<PersistedProjectionAsides> {
+  entry: RecordEntry, copy: AsideCopyRecord): Promise<CopyPersistenceResult> {
   const { root, index } = input;
   const observed = await observeAsideCopy({ checkout: root.checkout, path, entry, copy, format: root.context.format });
   if (observed.kind === "no-edit" || observed.kind === "gone") return { index };
+  if (observed.kind === "blocked-destination" && observed.access) return holdCopyAccess(input, index, path, copy.name, observed.mark);
+  if (observed.kind === "blocked-destination") return { index,
+    refusal: retirementRefusal(root.checkout, copy.name, observed.mark, input.disposition), access: observed.access };
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity,
     exec: root.ports.exec, verb: root.context.verb }, entry.reference);
   if (denied !== null) return { index, refusal: retirementRefusal(root.checkout, copy.name, denied, input.disposition) };

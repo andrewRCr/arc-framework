@@ -28,26 +28,31 @@ const nativeWalkFs: ProjectionWalkFs = { readdir: path => readdirSync(path, { wi
 /** Enumerate typed folder entries, statting only those typed as links, yielding between folders for concurrent Git work. */
 export async function walkProjectionRoots(checkout: string, roots: readonly string[],
   fs: ProjectionWalkFs = nativeWalkFs, linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>,
-  rootsMayBeFiles = false): Promise<ProjectionWalkResult> {
-  const selected = roots.filter(path => !isExcludedProjectionPath(path) && !archiveAccess?.has(path));
-  const boundary = await readProjectionLinkBoundary(checkout, selected, linkFs,
-    archiveAccess === undefined ? undefined : (path, mark) => { archiveAccess.set(path, mark); });
-  const pending = selected.filter(path => boundary(path) === null && !archiveAccess?.has(path));
-  const files: string[] = [];
-  const links = [...new Set(selected.flatMap(path => {
-    const link = boundary(path);
-    return link === null ? [] : [link];
-  }))];
-  const output = { pending, files, links };
+  rootsMayBeFiles = false, canEnumerate?: (folder: string) => boolean): Promise<ProjectionWalkResult> {
+  const output = await selectWalkRoots(checkout, roots, linkFs, archiveAccess);
+  const { pending, files, links } = output;
   const retype = rootsMayBeFiles ? new Set(pending) : undefined;
   for (let path = pending.pop(); path !== undefined; path = pending.pop()) {
     if (isExcludedProjectionPath(path) || archiveAccess?.has(path)) continue;
     if (retype?.delete(path) && !visitRetryScope(checkout, path, fs, archiveAccess, output)) continue;
+    if (canEnumerate?.(path) === false) continue;
     const entries = readWalkFolder(checkout, path, fs, archiveAccess);
     if (entries !== null) collectEntries(path, entries, output);
     await new Promise<void>(resolve => setImmediate(resolve));
   }
   return { files: files.sort(), links: links.sort() };
+}
+
+async function selectWalkRoots(checkout: string, roots: readonly string[], linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>) {
+  const selected = roots.filter(path => !isExcludedProjectionPath(path) && !archiveAccess?.has(path));
+  const boundary = await readProjectionLinkBoundary(checkout, selected, linkFs,
+    archiveAccess === undefined ? undefined : (path, mark) => { archiveAccess.set(path, mark); });
+  const pending = selected.filter(path => boundary(path) === null && !archiveAccess?.has(path));
+  const links = [...new Set(selected.flatMap(path => {
+    const link = boundary(path);
+    return link === null ? [] : [link];
+  }))];
+  return { pending, files: [] as string[], links };
 }
 
 function visitRetryScope(checkout: string, path: string, fs: ProjectionWalkFs, archiveAccess: Map<string, RefusedMark> | undefined,

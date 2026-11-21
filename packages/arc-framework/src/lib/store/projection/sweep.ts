@@ -38,6 +38,8 @@ export interface SweepInput extends SwapMoves {
   readonly index: ProjectionIndex | null;
   /** Recovery metadata from a valid header whose partitions cannot be used. */
   readonly withheldCopies?: readonly string[];
+  /** Copy work recovered from the same header, including a return that removed its alias before inventory. */
+  readonly recoveryCopies?: readonly string[];
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
   /** Resolve a displaced-copy receipt before the sweep can consider taking that copy in again. */
@@ -294,7 +296,8 @@ async function sweepWithoutIndex(
 ): Promise<Omit<SweepResult, "ignores">> {
   const recovered = await recoverUnindexedCopies(input, found, judges);
   await deleteStagedFiles(input, found, judges.writerOf);
-  return { index: null, swept: [], ...recovered, withheld: withheldUnindexedCopies(recovered.left), copies: [] };
+  return { index: null, swept: [], ...recovered, withheld: withheldUnindexedCopies(recovered.left), copies: [],
+    restoredUnindexed: [...recovered.restoredUnindexed, ...previouslyReturnedPaths(new Set(input.recoveryCopies), found)] };
 }
 
 /** Resume recovery with the same no-index evidence, including when a replacement index has since been published. */

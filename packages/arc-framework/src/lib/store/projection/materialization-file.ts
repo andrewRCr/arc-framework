@@ -20,6 +20,8 @@ import { installProjectionHandoff } from "./ownership-install.js";
 import { keepSettledFileInPlace } from "./settled-in-place.js";
 import { ensureLayFolder } from "./lay-folder.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { adoptionResolutionHold, pendingObservedRefusal } from "./recording-state.js";
+import { readArchiveAdoptionBaseline } from "./adoption-basis.js";
 import { hasPendingArchiveRecovery, refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 import { archiveEditCommand } from "./archive-admission.js";
 
@@ -103,6 +105,11 @@ async function prepareCheckedFile(input: MaterializationFileInput): Promise<Mate
   const { root, path, record } = input;
   const prior = input.index.entries[path];
   if (prior?.withheld) return withhold(input, prior);
+  const hold = prior?.kind === "record" ? adoptionResolutionHold(prior) : null;
+  if (hold !== null) {
+    root.context.report?.({ path, copy: null, mark: hold });
+    return { index: input.index, unresolved: true };
+  }
   let entry = prior?.kind === "record" ? prior : projectionEntryForRecord(record, path, root.context.format);
   if (prior?.kind === "record" && !sameReference(prior.reference, record.reference)) {
     const arriving = { ...projectionEntryForRecord(record, path, root.context.format),
@@ -115,9 +122,9 @@ async function prepareCheckedFile(input: MaterializationFileInput): Promise<Mate
   try { return await prepareFileContents(input, entry); }
   catch (error) {
     if (!(error instanceof ArchiveDestinationBlocked)) throw error;
-    if (!input.rebuilding) return blockedMaterialization(input, entry, error.mark);
+    if (!input.rebuilding) return blockedMaterialization(input, entry, error.mark, error.access);
     // A rebuild refused before it could read the file has no basis for it: a later lay rebuilds the path from the file.
-    refuseArchiveChange(input.root, path, error.mark);
+    refuseArchiveChange(input.root, path, error.mark, null, error.access);
     return { index: withProjectionEntry(input.index, path, unreadRebuildEntry(input, error.mark)), unresolved: true };
   }
 }
@@ -131,7 +138,7 @@ async function prepareFileContents(input: MaterializationFileInput, entry: Recor
   if (rendered.status === "refused") {
     const mark = markStoreRefusal(rendered.refusal);
     root.context.report?.({ path, copy: null, mark });
-    return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: mark }) };
+    return { index: withProjectionEntry(input.index, path, pendingObservedRefusal(entry, mark)) };
   }
   entry = { ...entry, protected: rendered.result.protected ?? entry.protected };
   if (entry.withheld) return withhold(input, entry);
@@ -150,23 +157,24 @@ async function layFile(input: MaterializationFileInput, entry: RecordEntry, rend
     root.context.report?.({ path, copy: null, mark: folder.mark });
     return { index: withProjectionEntry(input.index, path, { ...entry, pending: true }), unresolved: true };
   }
+  const baseline = await readArchiveAdoptionBaseline(root.checkout, path, entry, record, root.context.format);
   const staged = await stageRenderedRecordFile({ checkout: root.checkout, path, record, replacing: entry.base.blob,
     layMode: projectionLayMode(path, entry), content: rendered.content, notices: rendered.notices,
     rendering: { ...rendered.state, protected: entry.protected },
     readOnly: entry.protected, writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint });
-  const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged,
+  const guarded = await guardReplacement({ checkout: root.checkout, path, entry, staged, baseline,
     saveLanding: isOwnSaveLanding(root.context.verb, root.checkout), reference: input.reference,
     format: root.context.format, store: root.store, writer: root.context.writer, checkpoint: root.context.checkpoint,
     takeIn: root.takeIn, renderer, admitsForcedEdit: input.admitsForcedEdit });
-  reportGuardHold(root.context.report, path, null, guarded);
+  reportGuardHold(root.context.report, path, null, guarded, root.context.refuseArchiveAccess);
   const index = withProjectionEntry(input.index, path, guarded.entry);
   if (guarded.kind === "replace") return { index, file: { path, replace: guarded } };
   return guarded.cause === "unreadable" ? { index, unresolved: true } : { index };
 }
 
-function blockedMaterialization(input: MaterializationFileInput, entry: RecordEntry, mark: RefusedMark): MaterializationFileResult {
-  refuseArchiveChange(input.root, input.path, mark);
-  const held = { ...entry, pending: true, refused: mark };
+function blockedMaterialization(input: MaterializationFileInput, entry: RecordEntry, mark: RefusedMark, access = false): MaterializationFileResult {
+  refuseArchiveChange(input.root, input.path, mark, null, access);
+  const held = pendingObservedRefusal(entry, mark);
   return { index: withProjectionEntry(input.index, input.path, held), unresolved: true };
 }
 

@@ -48,7 +48,11 @@ export type TakeInResult = (
    * For an aside copy, the entry records beside the copy the blob id it held, as `landed`.
    */
   | { readonly answer: "taken-in"; readonly entry: RecordEntry; readonly read: TakeInRead }
-  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark }) & { readonly openConflicts?: readonly RecordReference[] };
+  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark }) & {
+  readonly openConflicts?: readonly RecordReference[];
+  /** A native observation refusal that holds this destination for the owning command. */
+  readonly archiveAccess?: RefusedMark;
+};
 
 /** An answer that leaves the edit where it is: in the file, or in its aside copy. */
 export type TakeInHeld = Exclude<TakeInResult["answer"], "no-edit" | "taken-in">;

@@ -29,6 +29,7 @@ import { planProjectionRebuild } from "./refresh-rebuild.js";
 import { laidProjectionPaths } from "./discovery-exclusions.js";
 import { markArrivingRecord } from "./changed-mark.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { pendingObservedRefusal } from "./recording-state.js";
 
 /** The saved source state and index held by the caller's lease. */
 export interface ProjectionRefreshRequest {
@@ -195,7 +196,7 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
     if (root.unsent.has(path)) return { index, unresolved: true };
     const mark = markStoreRefusal(read.refusal);
     root.context.report?.({ path, copy: null, mark });
-    return { index: withProjectionEntry(index, path, { ...entry, pending: true, refused: mark }), unresolved: true };
+    return { index: withProjectionEntry(index, path, pendingObservedRefusal(entry, mark)), unresolved: true };
   }
   if (prior?.kind === "record" && !sameReference(prior.reference, read.result.reference)) {
     return { ...await prepareMaterializationFile({ root, index, path, record: read.result, renderer: input.renderer,
@@ -246,7 +247,7 @@ async function prepareCurrentFile(input: IndexedFileInput, entry: RecordEntry, r
     }
     if (prepared?.kind === "pending") {
       root.context.report?.({ path, copy: null, mark: prepared.mark });
-      return { index: withProjectionEntry(input.index, path, { ...entry, pending: true, refused: prepared.mark,
+      return { index: withProjectionEntry(input.index, path, { ...pendingObservedRefusal(entry, prepared.mark),
         unshown: unshownConflicts(entry, record.conflicts) }), unresolved: false };
     }
     rendered = prepared?.rendered;

@@ -51,7 +51,7 @@ export async function removeObsoleteProjectionPaths(input: {
       reference: input.reference, format: root.context.format, store: root.store, writer: root.context.writer,
       checkpoint: root.context.checkpoint, takeIn, admitsForcedEdit: input.admitsForcedEdit });
     if (guarded.kind === "unreplaced" && guarded.cause === "unreadable") refuseArchiveChange(root, path, guarded.mark);
-    else reportGuardHold(root.context.report, path, null, guarded);
+    else reportGuardHold(root.context.report, path, null, guarded, root.context.refuseArchiveAccess);
     index = withProjectionEntry(index, path, guarded.entry);
     if (guarded.kind === "replace") files.push({ path, replace: guarded, relaid: input.plan.paths.has(path) });
   }

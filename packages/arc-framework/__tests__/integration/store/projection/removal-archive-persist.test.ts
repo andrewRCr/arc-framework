@@ -5,6 +5,7 @@ import { readdirSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
+import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { seed, success } from "../../../helpers/store/suite-tools.js";
@@ -12,13 +13,14 @@ import { releaseProjectionRemoval } from "../../../../src/lib/store/projection/r
 import { persistProjectionRemoval } from "../../../../src/lib/store/projection/removal-persist.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { checkProjectionRemoval } from "../../../../src/lib/store/projection/removal-check.js";
-import { nameAsideFile, type AsideWriterInput } from "../../../../src/lib/store/projection/aside.js";
+import { ASIDE_FILES_ROOT, nameAsideFile, type AsideWriterInput } from "../../../../src/lib/store/projection/aside.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "", captureProbe: "" }));
+const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "", captureProbe: "",
+  copyRead: "", readsUntilDenial: 0 }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
@@ -30,7 +32,14 @@ vi.mock("node:fs/promises", async original => {
     if (args[0] === lateAccess.path && args[1]?.bigint === true) lateAccess.aliasObserved = true;
     return actual.lstat(...args);
   }) as typeof actual.lstat;
-  return { ...actual, lstat, default: { ...actual, lstat } };
+  const readFile = (async (...args: Parameters<typeof actual.readFile>) => {
+    if (args[0] === lateAccess.copyRead && --lateAccess.readsUntilDenial === 0) {
+      lateAccess.copyRead = "";
+      throw Object.assign(new Error("Archive copy read refused"), { code: "EACCES" });
+    }
+    return actual.readFile(...args);
+  }) as typeof actual.readFile;
+  return { ...actual, lstat, readFile, default: { ...actual, lstat, readFile } };
 });
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
@@ -50,6 +59,7 @@ vi.mock("node:fs", async original => {
 
 afterEach(() => {
   lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; lateAccess.authority = ""; lateAccess.captureProbe = "";
+  lateAccess.copyRead = ""; lateAccess.readsUntilDenial = 0;
   beginProjectionCommand();
 });
 
@@ -203,6 +213,125 @@ async function stageRetirementCopy(checkout: string, path: string, index: Projec
   ] };
   return { name, index: withProjectionEntry(index, path, copied) };
 }
+
+function accessibleArchiveSibling(index: ProjectionIndex): string {
+  const path = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
+  if (path === undefined) throw new Error("Missing accessible record");
+  return path;
+}
+
+it.each([["persist", 1], ["persist", 2], ["release", 1], ["release", 2]] as const)(
+  "%s retains an edited archive copy after capture read %s loses access", async (operation, read) => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const file = join(h.checkout, h.path), bytes = await readFile(file);
+  const writer = await createProjectionEnginePorts(h.checkout).writer(), sibling = accessibleArchiveSibling(index);
+  const extra = "\nAn edit saved into the moved archive inode.\n";
+  const held = await stageRetirementCopy(h.checkout, h.path, index, writer, extra);
+  const healthy = await stageRetirementCopy(h.checkout, sibling, held.index, writer);
+  const entry = healthy.index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing archive copy record");
+  await writeFile(file, bytes);
+  await writeProjectionIndex(location, withProjectionEntry(healthy.index, h.path, { ...entry, copies: entry.copies.map(copy => ({
+    ...copy, linked: gitBlobId(bytes, "sha1"),
+  })) }));
+  const copy = join(h.checkout, held.name);
+  let armed = false;
+  const context = { ...h.context, hooks: { beforeAsideCopy: async (_checkout: string, path: string) => {
+    if (armed || path !== h.path) return;
+    armed = true;
+    lateAccess.copyRead = copy;
+    lateAccess.readsUntilDenial = read;
+  } } };
+  const retire = () => operation === "persist" ? persistProjectionRemoval(h.checkout, context)
+    : releaseProjectionRemoval(h.checkout, false, context);
+  expect(await retire()).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  expect(armed).toBe(true);
+  expect(lateAccess.copyRead).toBe("");
+  expect(await readFile(file)).toEqual(bytes);
+  expect(await readFile(copy)).toEqual(Buffer.concat([bytes, Buffer.from(extra)]));
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ copies: [expect.objectContaining({ name: held.name })] });
+  await expect(readFile(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(h.primary.content);
+  expect(await retire()).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toContain(extra.trim());
+}, 30_000);
+
+it.each([
+  ["persist", "guard", "existing"], ["release", "guard", "existing"], ["persist", "swap", "existing"],
+  ["release", "final stat", "existing"], ["persist", "guard", "adoption"], ["release", "guard", "adoption"],
+] as const)("%s resumes accepted %s work after an %s text edit loses access", async (operation, at, kind) => {
+  const h = await archiveRetirementFixture(), name = "retirement-acceptance.txt";
+  const path = `${h.folder}/${name}`, file = join(h.checkout, path);
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, name);
+  if (kind === "existing") {
+    await seed(h.f, reference, "Original text.\n");
+    await projectionCommand(h.input, ["status"]);
+  } else await writeFile(file, "New local text.\n");
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const edit = "A distinct text correction accepted during retirement.\n";
+  await chmod(file, 0o644);
+  await writeFile(file, edit);
+  const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
+  const healthy = await stageRetirementCopy(h.checkout, accessibleArchiveSibling(index), index, writer);
+  await writeProjectionIndex(location, healthy.index);
+  let sends = 0, armed = false;
+  const denyOnce = () => {
+    if (armed) return;
+    armed = true;
+    lateAccess.finalStatOnce = file;
+  };
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const target = input.projectionAdmission?.local.path === path;
+    if (target) sends += 1;
+    const result = await h.store.batch(input);
+    if (target && at === "guard" && result.status === "ok") denyOnce();
+    return result;
+  } });
+  const context = { ...h.context, store, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout), hooks: {
+    afterSaveGuard: async (target: string) => { if (target === path && at === "swap") denyOnce(); },
+    afterFirstCheck: async (target: string) => { if (target === path && at === "final stat") denyOnce(); },
+  } }) };
+  const retire = () => operation === "persist" ? persistProjectionRemoval(h.checkout, context)
+    : releaseProjectionRemoval(h.checkout, false, context);
+  expect(await retire()).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  expect(armed).toBe(true);
+  expect(lateAccess.finalStatOnce).toBe("");
+  await expect(readFile(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(file, "utf8")).toBe(edit);
+  expect(sends).toBe(1);
+  expect(success(await h.store.read({ reference })).content).toBe(edit);
+  expect(await retire()).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+  expect(sends).toBe(1);
+}, 30_000);
+
+it.each([1, 2])("keeps the new rendering and the moved edit when swap's first check loses copy read %s", async read => {
+  const h = await archiveRetirementFixture(), file = join(h.checkout, h.path);
+  expect((await projectionCommand(h.input, ["edit", file])).result).toMatchObject({ status: "ok" });
+  const accepted = h.primary.content + "\nThe first saved correction.\n";
+  await h.write(h.path, accepted);
+  const later = "\nA later correction through the moved inode.\n";
+  const folder = join(h.checkout, ASIDE_FILES_ROOT, h.path.slice(".arc/".length));
+  let moved: string | undefined;
+  const persisted = await persistProjectionRemoval(h.checkout, { ...h.context, ports: checkout => ({
+    ...createProjectionEnginePorts(checkout), hooks: { afterMove: async path => {
+      if (path !== h.path) return;
+      const aside = readdirSync(folder).find(name => name.endsWith(".aside"));
+      if (aside === undefined) throw new Error("Swap did not move the original inode");
+      moved = join(folder, aside);
+      const original = await readFile(moved, "utf8");
+      await writeFile(moved, original + later);
+      lateAccess.copyRead = moved;
+      lateAccess.readsUntilDenial = read;
+    } },
+  }) });
+  expect(persisted).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  expect(lateAccess.copyRead).toBe("");
+  if (moved === undefined) throw new Error("Swap never reached the move");
+  expect(await readFile(moved, "utf8")).toContain(later);
+  expect(await readFile(file, "utf8")).toContain(accepted);
+  expect(await readFile(file, "utf8")).not.toContain(later);
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(accepted);
+}, 30_000);
 
 it.each(["persist", "release"] as const)("refuses a late closed archive correction during %s", async operation => {
   const h = await archiveRetirementFixture(), absolute = join(h.checkout, h.path);

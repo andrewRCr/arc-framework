@@ -16,7 +16,7 @@ import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
-import { ArchiveDestinationBlocked } from "./archive-file.js";
+import { ArchiveDestinationBlocked, archivePermissionMark, isArchivePermissionRefusal } from "./archive-file.js";
 import { restoreAcceptedArchiveInput } from "./recording-state.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
@@ -103,7 +103,7 @@ export type CopyCheck =
   };
 
 /** A read-only observation of a saved copy, before consulting or restoring its original destination. */
-export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "blocked-destination" | "moved-on" | "sent" }>
+export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "moved-on" | "sent" }>
   | { readonly kind: "edited"; readonly entry: RecordEntry; readonly bytes: Uint8Array; readonly blob: string };
 
 /** Read-only copy inputs, optionally carrying what the copy's path already holds instead of reading it. */
@@ -130,12 +130,21 @@ export async function checkAsideCopy(input: AsideCopyChecking): Promise<CopyChec
   }
   const base = copyBase(copy, bytes, path.endsWith(".md"));
   const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering, observedEdit: true });
+  if (result.archiveAccess !== undefined) return { kind: "blocked-destination", entry: result.entry, mark: result.archiveAccess, access: true };
   if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
   return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
 }
 
 /** Compare only the copy's payload with its recorded moving or accepted blob; never settle it or read its destination. */
 export async function observeAsideCopy(input: Pick<AsideCopySettling, "checkout" | "path" | "copy" | "entry" | "format" | "gate" | "keepEmpty">): Promise<AsideCopyObservation> {
+  try { return await inspectAsideCopy(input); }
+  catch (error) {
+    if (!input.path.startsWith(".arc/completed/") || !isArchivePermissionRefusal(error)) throw error;
+    return { kind: "blocked-destination", entry: input.entry, mark: archivePermissionMark(input.copy.name, error, "read"), access: true };
+  }
+}
+
+async function inspectAsideCopy(input: Pick<AsideCopySettling, "checkout" | "path" | "copy" | "entry" | "format" | "gate" | "keepEmpty">): Promise<AsideCopyObservation> {
   const { checkout, path, copy, entry } = input;
   const markdown = path.endsWith(".md");
   const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
