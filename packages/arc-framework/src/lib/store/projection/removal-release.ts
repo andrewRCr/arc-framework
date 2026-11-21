@@ -28,6 +28,7 @@ import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 import { findRetainedReleaseEntry, retainedReleaseEntry, unfinishedReleaseRemedy } from "./release-entries.js";
 import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { firstUnreadArchiveScope } from "./archive-selection.js";
+import { observeOwedRetirementInventory } from "./removal-observations.js";
 
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
@@ -201,7 +202,16 @@ async function incompleteRemoval(root: ProjectionRootState, index: ProjectionInd
     const remedy = await unfinishedReleasePath(root, path, entry, links);
     if (remedy !== undefined) return remedy;
   }
-  return undefined;
+  return unfinishedArchiveInventory(root, index);
+}
+
+/** Recheck the durable inventory before release removes the index that owns it. */
+async function unfinishedArchiveInventory(root: ProjectionRootState, index: ProjectionIndex): Promise<Remedy | undefined> {
+  const observed = await observeOwedRetirementInventory(root, index);
+  const opaque = observed?.incomplete.entries().next().value;
+  if (opaque !== undefined) return retirementRefusal(root.checkout, opaque[0], opaque[1], "release");
+  const file = observed?.files[0];
+  return file === undefined ? undefined : unfinishedReleaseRemedy(root.checkout, file);
 }
 
 async function unfinishedReleasePath(root: ProjectionRootState, path: string, entry: ProjectionIndex["entries"][string],

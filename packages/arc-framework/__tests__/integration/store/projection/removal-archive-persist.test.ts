@@ -1,5 +1,5 @@
 /** Native retirement refuses unopened archive input before landing it, then continues after the named repair. */
-import { chmod, lstat, mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readdirSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
@@ -20,7 +20,7 @@ import { withProjectionEntry } from "../../../../src/lib/store/projection/index-
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
 const lateAccess = vi.hoisted(() => ({ path: "", aliasObserved: false, finalStatOnce: "", authority: "", captureProbe: "",
-  copyRead: "", readsUntilDenial: 0 }));
+  copyRead: "", readsUntilDenial: 0, copyUnlink: "" }));
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   const lstat = (async (...args: Parameters<typeof actual.lstat>) => {
@@ -39,7 +39,14 @@ vi.mock("node:fs/promises", async original => {
     }
     return actual.readFile(...args);
   }) as typeof actual.readFile;
-  return { ...actual, lstat, readFile, default: { ...actual, lstat, readFile } };
+  const rm = async (...args: Parameters<typeof actual.rm>) => {
+    if (args[0] === lateAccess.copyUnlink) {
+      lateAccess.copyUnlink = "";
+      throw Object.assign(new Error("Archive copy removal refused"), { code: "EACCES" });
+    }
+    await actual.rm(...args);
+  };
+  return { ...actual, lstat, readFile, rm, default: { ...actual, lstat, readFile, rm } };
 });
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
@@ -59,7 +66,7 @@ vi.mock("node:fs", async original => {
 
 afterEach(() => {
   lateAccess.path = ""; lateAccess.aliasObserved = false; lateAccess.finalStatOnce = ""; lateAccess.authority = ""; lateAccess.captureProbe = "";
-  lateAccess.copyRead = ""; lateAccess.readsUntilDenial = 0;
+  lateAccess.copyRead = ""; lateAccess.readsUntilDenial = 0; lateAccess.copyUnlink = "";
   beginProjectionCommand();
 });
 
@@ -259,6 +266,7 @@ it.each([["persist", 1], ["persist", 2], ["release", 1], ["release", 2]] as cons
 it.each([
   ["persist", "guard", "existing"], ["release", "guard", "existing"], ["persist", "swap", "existing"],
   ["release", "final stat", "existing"], ["persist", "guard", "adoption"], ["release", "guard", "adoption"],
+  ["persist", "guard then link", "existing"],
 ] as const)("%s resumes accepted %s work after an %s text edit loses access", async (operation, at, kind) => {
   const h = await archiveRetirementFixture(), name = "retirement-acceptance.txt";
   const path = `${h.folder}/${name}`, file = join(h.checkout, path);
@@ -284,7 +292,7 @@ it.each([
     const target = input.projectionAdmission?.local.path === path;
     if (target) sends += 1;
     const result = await h.store.batch(input);
-    if (target && at === "guard" && result.status === "ok") denyOnce();
+    if (target && (at === "guard" || at === "guard then link") && result.status === "ok") denyOnce();
     return result;
   } });
   const context = { ...h.context, store, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout), hooks: {
@@ -300,8 +308,85 @@ it.each([
   expect(await readFile(file, "utf8")).toBe(edit);
   expect(sends).toBe(1);
   expect(success(await h.store.read({ reference })).content).toBe(edit);
+  if (at === "guard then link") {
+    const saved = join(h.checkout, "temporarily-moved-accepted-text");
+    await rename(file, saved);
+    await symlink(saved, file, "file");
+    await retire();
+    expect((await h.disk()).index.entries[path]).toMatchObject({ pending: true, acceptedInputStat: { lay: { kind: "pending" } } });
+    await rm(file);
+    await rename(saved, file);
+    expect((await projectionCommand({ ...h.input, store }, ["save"])).result).toMatchObject({ status: "ok" });
+    expect(sends).toBe(1);
+    expect(await readFile(file, "utf8")).toBe(edit);
+    return;
+  }
   expect(await retire()).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
   expect(sends).toBe(1);
+}, 30_000);
+
+it.each(["persist", "release"] as const)("%s settles the next archive copy after an unlink denial", async operation => {
+  const h = await archiveRetirementFixture(), sibling = `${h.folder}/z-accessible.txt`;
+  await seed(h.f, recordReferences["work-item/companion"](h.primary.reference.owner, "z-accessible.txt"), "Accessible text.\n");
+  await projectionCommand(h.input, ["status"]);
+  const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
+  expect(Object.keys(index.entries).indexOf(sibling)).toBeGreaterThan(Object.keys(index.entries).indexOf(h.path));
+  const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer);
+  const healthy = await stageRetirementCopy(h.checkout, sibling, blocked.index, writer);
+  await writeProjectionIndex(location, healthy.index);
+  lateAccess.copyUnlink = join(h.checkout, blocked.name);
+  expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  expect(lateAccess.copyUnlink).toBe("");
+  await expect(lstat(join(h.checkout, blocked.name))).resolves.toBeDefined();
+  await expect(lstat(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ copies: [expect.objectContaining({ name: blocked.name })] });
+  expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+}, 30_000);
+
+it.each([["persist", "inventory"], ["release", "inventory"], ["release", "returned copy"]] as const)(
+  "%s retains opaque %s work while settling an accessible copy", async (operation, owed) => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const scope = `${h.folder}/owed-directory`, folder = join(h.checkout, scope), saved = join(h.checkout, "saved-archive-directory");
+  const writer = await createProjectionEnginePorts(h.checkout).writer(), edit = "The edit whose directory is owed.\n";
+  await mkdir(saved);
+  await writeFile(join(saved, "unindexed.md"), edit);
+  await symlink(saved, folder, "junction");
+  const healthy = await stageRetirementCopy(h.checkout, accessibleArchiveSibling(index), index, writer);
+  const copy = nameAsideFile({ path: `${scope}/unindexed.md`, base: gitBlobId(edit, "sha1"), writer, role: "aside" });
+  const obligation = owed === "inventory" ? { archiveDiscoveryPending: [scope] } : { archiveRecoveryCopies: [copy] };
+  await writeProjectionIndex(location, { ...healthy.index, ...obligation, state: null });
+  const disposition = operation === "persist" ? "remove" : "release";
+  expect(await checkProjectionRemoval(h.checkout, h.context, disposition)).toMatchObject({ kind: "would-refuse" });
+  expect(await h.retire(operation)).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(scope) } });
+  expect((await h.disk()).index).toMatchObject(obligation);
+  await expect(lstat(join(h.checkout, healthy.name))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(join(saved, "unindexed.md"), "utf8")).toBe(edit);
+  // Removing the obstruction and leaving the scope absent lets retirement prove that it is covered.
+  await rm(folder);
+  expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
+}, 30_000);
+
+it.each(["link", "nested"] as const)("rechecks owed archive coverage across a new %s before deleting linked release state", async boundary => {
+  const h = await archiveRetirementFixture(), { location, index } = await h.disk();
+  const directory = `${h.folder}/late-opaque`, scope = boundary === "nested" ? `${directory}/unindexed.md` : directory;
+  const folder = join(h.checkout, directory), target = join(h.checkout, "late-target");
+  await mkdir(target);
+  if (boundary === "nested") await mkdir(folder);
+  await writeProjectionIndex(location, { ...index, archiveDiscoveryPending: [scope], state: null });
+  let linked = false;
+  const released = await releaseProjectionRemoval(h.checkout, false, { ...h.context, ports: checkout => ({
+    ...createProjectionEnginePorts(checkout), hooks: { afterRecheck: async path => {
+      if (path !== h.path) return;
+      if (boundary === "nested") await mkdir(join(folder, ".git"));
+      else await symlink(target, folder, "junction");
+      linked = true;
+    } },
+  }) });
+  expect(linked).toBe(true);
+  expect(released).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining(scope) } });
+  expect((await h.disk()).index).toMatchObject({ archiveDiscoveryPending: [scope], state: null });
+  await rm(folder, { recursive: boundary === "nested" });
+  expect(await h.retire("release")).toEqual({ kind: "released" });
 }, 30_000);
 
 it.each([1, 2])("keeps the new rendering and the moved edit when swap's first check loses copy read %s", async read => {

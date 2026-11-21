@@ -37,7 +37,10 @@ async function pruneRemovedAsideFile(checkout: string, absolute: string, checkpo
 export async function removeRecoveredAsideFile(checkout: string, location: string, path: string, checkpoint?: () => Promise<void>): Promise<void> {
   await checkpoint?.();
   requireArchiveDestination(checkout, path);
-  await removeAsideFile(checkout, location, checkpoint);
+  const absolute = isAbsolute(location) ? location : join(checkout, location);
+  try { await rm(absolute, { force: true }); }
+  catch (error) { throw archiveOperationError(path, error, "remove the retained copy for"); }
+  await pruneRemovedAsideFile(checkout, absolute, checkpoint, nativeScaffoldFs);
 }
 
 /** Discard a returned alias only while both names still identify the same regular file at unlink. */
@@ -46,15 +49,19 @@ Promise<"removed" | "retained" | "missing"> {
   await checkpoint?.();
   requireArchiveDestination(checkout, path);
   const absolute = join(checkout, location);
-  const aside = aliasStat(absolute);
+  const aside = observeArchiveAlias(absolute, path);
   if (aside === undefined) return "missing";
-  let target: BigIntStats | undefined;
-  try { target = aliasStat(join(checkout, path)); }
-  catch (error) { throw archiveOperationError(path, error, "inspect the returned copy for"); }
+  const target = observeArchiveAlias(join(checkout, path), path);
   if (!aside.isFile() || !target?.isFile() || !sameArchiveFile(aside, target)) return "retained";
-  rmSync(absolute, { force: true });
+  try { rmSync(absolute, { force: true }); }
+  catch (error) { throw archiveOperationError(path, error, "remove the returned copy for"); }
   await pruneRemovedAsideFile(checkout, absolute, checkpoint);
   return "removed";
+}
+
+function observeArchiveAlias(absolute: string, path: string): BigIntStats | undefined {
+  try { return aliasStat(absolute); }
+  catch (error) { throw archiveOperationError(path, error, "inspect the returned copy for"); }
 }
 
 function aliasStat(path: string): BigIntStats | undefined {

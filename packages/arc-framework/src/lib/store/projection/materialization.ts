@@ -99,7 +99,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   if (input.index === null) {
     const inventory = {
       files: new Set([...walked.files, ...retry?.files ?? [], ...swept.restoredUnindexed]),
-      incomplete: new Set([...walked.incomplete, ...retry?.incomplete ?? []]),
+      incomplete: new Set([...walked.incomplete.keys(), ...retry?.incomplete.keys() ?? []]),
       owed: [...retry?.owed ?? [], ...swept.restoredUnindexed],
     };
     index = await recordRebuildDiscovery(root, index, inventory, desired.files, whole);

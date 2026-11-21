@@ -51,6 +51,13 @@ export function awaitsArchiveInstallation(entry: RecordEntry): boolean {
   return archiveLayPhase(entry) === "linking" || isPredecessorArchiveAdoption(entry);
 }
 
+/** Retain the first-lay proof when a temporary leaf link prevents observing the live file. */
+export function retainsArchiveLayAcrossLeafLink(entry: RecordEntry): boolean {
+  const phase = archiveLayPhase(entry);
+  if (phase === "pending" && entry.acceptedInputStat !== undefined && entry.persisted?.read !== undefined) return true;
+  return entry.adoption?.kind === "read-back" && (awaitsArchiveInstallation(entry) || phase === "installed");
+}
+
 /** A journal awaiting installation proof needs the live staged inode, distinct from the accepted input's inode. */
 export function provesArchiveInstallation(entry: RecordEntry, stat: FileStat | null): boolean {
   return awaitsArchiveInstallation(entry)

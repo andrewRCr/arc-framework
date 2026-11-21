@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { loadedProjectionGroups, loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 import { heldArchivePath, refuseUnreadArchiveScope, selectArchivePath, type ArchiveSelectionRoot } from "./archive-selection.js";
 import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
-import { archiveLayPhase, awaitsArchiveInstallation } from "./recording-state.js";
+import { retainsArchiveLayAcrossLeafLink } from "./recording-state.js";
 import { parseAsideFile } from "./aside.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
@@ -111,9 +111,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
 function withoutPhysicalEdit(path: string, entry: IndexEntry): IndexEntry | null {
   if (entry.archiveSubmission !== undefined) return entry;
   if (entry.kind === "ownerless") return entry.minted === undefined ? null : entry;
-  // The current leaf is a link, but the staged inode can still prove what reached this archive path.
-  if (path.startsWith(".arc/completed/") && entry.adoption?.kind === "read-back"
-    && (awaitsArchiveInstallation(entry) || archiveLayPhase(entry) === "installed")) return entry;
+  if (path.startsWith(".arc/completed/") && retainsArchiveLayAcrossLeafLink(entry)) return entry;
   const recovery = entry.adoption?.kind === "read-back" || entry.persisted?.recording === true || entry.copies.length > 0 || entry.inProgress !== null;
   if (entry.stat === null && (recovery || !entry.pending && entry.refused === null)) return entry;
   return { ...entry, stat: null, ...(recovery ? {} : { pending: false, refused: null }) };

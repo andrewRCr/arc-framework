@@ -1,7 +1,7 @@
 /** Read changed projected files through ordinary admission without submitting their writes. */
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_ROOT } from "../../layout/index.js";
-import { readProjectionFolder, walkProjectionRoots } from "./engine-walk.js";
+import { readProjectionFolder } from "./engine-walk.js";
 import { checkChange, projectionFileReader, readReference, readStat } from "./change-detection.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import { withheldProjectionMark } from "./materialization-file.js";
@@ -9,7 +9,7 @@ import { unfinishedRecordingRefusal } from "./recording-state.js";
 import { markedRemovalRefusal, projectionFeasibilityRefusal, retirementName, unobservedMarkDetail, type ProjectionRemovalCheck,
   type ProjectionRetirement } from "./removal-verdict.js";
 import { checkProjectionAdoption } from "./removal-adoption.js";
-import { checkPendingProjectionReadBack, type ProjectionRemovalGuard,
+import { checkPendingProjectionReadBack, observeRetirementInventory, type ProjectionRemovalGuard,
   type ProjectionRemovalObservationInput } from "./removal-observations.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { readProjectionProtection } from "./protection.js";
@@ -22,8 +22,9 @@ import type { TakeInRequest } from "./take-in-port.js";
 import { pendingFileRequest } from "./pending-request.js";
 import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { retirementSelection, selectArchivePath } from "./archive-selection.js";
+import { firstUnreadArchiveScope, retirementSelection, selectArchivePath } from "./archive-selection.js";
 import { releasesAbsentWithheld } from "./withheld.js";
+import type { ArchiveDiscoveryRoot } from "./archive-discovery.js";
 
 /** Discovery roots and the check's one guard join the shared target-local observation inputs. */
 export interface ProjectionRemovalFilesInput extends ProjectionRemovalObservationInput {
@@ -44,7 +45,12 @@ export async function checkProjectionRemovalFiles(input: ProjectionRemovalFilesI
     return prepared;
   } };
   const selected = await readRemovalProjectionRoots(root.checkout, roots, ports);
-  const walked = await walkProjectionRoots(root.checkout, selected, ports.walkFs, ports.linkFs);
+  const coverage: ArchiveDiscoveryRoot = { ...root, ports };
+  const walked = await observeRetirementInventory(coverage, index, selected);
+  const unread = firstUnreadArchiveScope(coverage);
+  if (unread !== undefined) return { index, verdict: { kind: "unobservable", detail: unobservedMarkDetail(root.checkout, unread[0], unread[1]) } };
+  const opaque = walked.opaque?.entries().next().value;
+  if (opaque !== undefined) return { index, verdict: markedRemovalRefusal(root.checkout, opaque[0], opaque[1], input.disposition) };
   const reference = await readReference(root.checkout);
   const retries = Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];

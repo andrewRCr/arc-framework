@@ -11,6 +11,7 @@ import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
 import { retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
 import { heldArchivePath, refuseUnreadArchiveScope } from "./archive-selection.js";
+import { opaqueArchiveScope, type ArchiveDiscovery } from "./archive-discovery.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -26,13 +27,13 @@ type CopyPersistenceResult = PersistedProjectionAsides & { readonly access?: boo
 
 /** Settle even a live writer's copies, publishing returned aliases before cleanup. */
 export async function persistProjectionAsides(root: ProjectionRootState, initial: ProjectionIndex, disposition: ProjectionRetirement,
-  hooks?: ProjectionPersistHooks, ignoreMark?: RefusedMark): Promise<PersistedProjectionAsides> {
+  hooks?: ProjectionPersistHooks, ignoreMark?: RefusedMark, opaque?: ArchiveDiscovery["incomplete"]): Promise<PersistedProjectionAsides> {
   let index = initial;
   let accessRefusal: Remedy | undefined;
   for (const path of Object.keys(index.entries)) {
     const first = index.entries[path];
     if (first?.kind !== "record") continue;
-    const held = heldArchivePath(root, path);
+    const held = opaqueArchiveScope(opaque, path) ?? heldArchivePath(root, path);
     if (held !== null && first.copies.length > 0) {
       accessRefusal ??= retirementRefusal(root.checkout, path, held, disposition);
       continue;

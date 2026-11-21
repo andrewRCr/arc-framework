@@ -16,7 +16,6 @@ import type { RecordReference } from "../identity.js";
 import { retryEndedItemHistory } from "../history-retry.js";
 import { readRemovalProjectionRoots } from "./removal-files.js";
 import { projectedRootPaths } from "../../layout/index.js";
-import type { ProjectionWalkResult } from "./engine-walk.js";
 import { createProjectionLinkBoundary, reconcileProjectionLinks } from "./discovery-links.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
 import { checkIgnores } from "./ignore-check.js";
@@ -42,7 +41,8 @@ import { inspectArchivedProjectionFile } from "./archive-inspection.js";
 import { hasArchiveRecording } from "./recording-state.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { firstUnreadArchiveScope, refuseUnreadArchiveScope, retirementSelection, selectArchivePath, unreadArchiveScope } from "./archive-selection.js";
-import { observeArchiveScopes } from "./materialization-observation.js";
+import { opaqueArchiveScope, type ArchiveDiscovery } from "./archive-discovery.js";
+import { observeRetirementInventory } from "./removal-observations.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
 export interface ProjectionPersistHooks {
@@ -126,12 +126,12 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       const written = await persistFiles(input, root, index, disposition, context.hooks);
       index = written.index;
       if (written.refusal !== undefined) return { kind: "refused", remedy: written.refusal };
-      const unsent = unsentRefusal(root, observedFrom, disposition, written.ignoreMark);
+      const unsent = unsentRefusal(root, observedFrom, disposition, written.ignoreMark, written.opaque);
       if (unsent !== undefined) return { kind: "refused", remedy: unsent };
-      const copies = await persistProjectionAsides(root, index, disposition, context.hooks, written.ignoreMark);
+      const copies = await persistProjectionAsides(root, index, disposition, context.hooks, written.ignoreMark, written.opaque);
       index = copies.index;
       if (copies.refusal !== undefined) return { kind: "refused", remedy: copies.refusal };
-      const archiveHold = firstUnreadArchiveScope(root);
+      const archiveHold = firstUnreadArchiveScope(root) ?? written.opaque?.entries().next().value;
       if (archiveHold !== undefined) {
         return { kind: "refused", remedy: retirementRefusal(root.checkout, archiveHold[0], archiveHold[1], disposition) };
       }
@@ -162,9 +162,9 @@ async function confirmPersistedProjection(root: ProjectionRootState, index: Proj
 
 async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionRootState, initial: ProjectionIndex,
   disposition: ProjectionRetirement, hooks?: ProjectionPersistHooks): Promise<{
-    index: ProjectionIndex; files: readonly string[]; refusal?: Remedy; ignoreMark?: RefusedMark;
+    index: ProjectionIndex; files: readonly string[]; refusal?: Remedy; ignoreMark?: RefusedMark; opaque?: ArchiveDiscovery["incomplete"];
   }> {
-  const walked = await walkPersistedRoots(root), reference = await readReference(root.checkout);
+  const walked = await walkPersistedRoots(root, initial), reference = await readReference(root.checkout);
   const ignores = await checkIgnores({ guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs },
     records: initial.ignoreFiles, recordedGuard: initial.ignoreGuard, reference,
     format: root.context.format, ignoreRules: input.configuration.ignoreRules,
@@ -174,14 +174,14 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
   index = await reconcileProjectionHandoffs(root, index, Object.keys(index.entries));
   const diagnosticFrom = projectionProcessState().diagnostics.length;
   const observed: ProjectionFileWriteObservation[] = [];
-  const selected = await selectPersistedFiles(root, index, walked.files, reference, disposition);
+  const selected = await selectPersistedFiles(root, index, walked, reference, disposition);
   await hooks?.afterFileSelection?.(root.checkout);
   index = await writeBackProjectionFiles(root, index, selected.files, undefined, outcome => { observed.push(outcome); });
   index = await commitProjectionIndex({ checkout: root.checkout, location: root.location, index, checkpoint: root.context.checkpoint });
   if (selected.refusal !== undefined) return { index, files: selected.files, refusal: selected.refusal };
   const ignoreMark = ignores.kind === "refused" ? ignoreRefusalMark(ignores.reason, ignores.remedy) : undefined;
   for (const { path, result, installation } of observed) {
-    if (unreadArchiveScope(root, path) !== null) continue;
+    if (unreadArchiveScope(root, path) !== null || opaqueArchiveScope(walked.opaque, path) !== null) continue;
     if (result.answer === "no-edit" || result.answer === "taken-in" && installation === "attempted") continue;
     const reported = projectionProcessState().diagnostics.slice(diagnosticFrom).reverse().find(each => each.path === path)?.mark;
     const mark = ignoreMark !== undefined && !root.writable(path) ? ignoreMark : reported ?? result.entry.refused;
@@ -190,15 +190,16 @@ async function persistFiles(input: ProjectionRootBindingInput, root: ProjectionR
       : retirementRefusal(root.checkout, path, mark, disposition);
     return { index, files: selected.files, refusal };
   }
-  return { index, files: selected.files, ...(ignoreMark === undefined ? {} : { ignoreMark }) };
+  return { index, files: selected.files, opaque: walked.opaque, ...(ignoreMark === undefined ? {} : { ignoreMark }) };
 }
 
-async function selectPersistedFiles(root: ProjectionRootState, index: ProjectionIndex, paths: readonly string[],
+async function selectPersistedFiles(root: ProjectionRootState, index: ProjectionIndex, walk: Awaited<ReturnType<typeof walkPersistedRoots>>,
   reference: bigint | null, disposition: ProjectionRetirement): Promise<{ files: string[]; refusal?: Remedy }> {
   const files: string[] = [];
   let refusal: Remedy | undefined;
-  const walked = new Set(paths);
-  for (const path of retirementSelection(index, paths)) {
+  const walked = new Set(walk.files);
+  for (const path of retirementSelection(index, walk.files)) {
+    if (opaqueArchiveScope(walk.opaque, path) !== null) continue;
     // Access holds survive through copy settlement. A structural refusal still stops retirement here.
     const destination = selectArchivePath(root, path, { report: false, holdAccess: true });
     if (destination !== null) {
@@ -230,9 +231,9 @@ function retriesRetirementEntry(root: ProjectionRootState, path: string, entry: 
   return entry !== undefined && retriesIndexedEntry(root.context.verb, path, entry);
 }
 
-async function walkPersistedRoots(root: ProjectionRootState): Promise<ProjectionWalkResult> {
+async function walkPersistedRoots(root: ProjectionRootState, index: ProjectionIndex) {
   const roots = await readRemovalProjectionRoots(root.checkout, projectedRootPaths(root.identity), root.ports);
-  const walked = await observeArchiveScopes(root, roots);
+  const walked = await observeRetirementInventory(root, index, roots);
   root.blockedByLink = createProjectionLinkBoundary(walked.links);
   return walked;
 }
@@ -241,8 +242,8 @@ type FinalProjectionFiles = { kind: "settled" } | { kind: "changed" } | { kind: 
 
 async function changedProjectionFiles(root: ProjectionRootState, index: ProjectionIndex,
   selected: readonly string[]): Promise<FinalProjectionFiles> {
-  const walked = await walkPersistedRoots(root), reference = await readReference(root.checkout);
-  const archiveHold = firstUnreadArchiveScope(root);
+  const walked = await walkPersistedRoots(root, index), reference = await readReference(root.checkout);
+  const archiveHold = firstUnreadArchiveScope(root) ?? walked.opaque?.entries().next().value;
   if (archiveHold !== undefined) return { kind: "blocked", path: archiveHold[0], mark: archiveHold[1] };
   const paths = new Set(walked.files);
   const selections = retirementSelection(index, [...paths, ...selected.filter(path => path.startsWith(".arc/completed/"))]);
@@ -280,8 +281,8 @@ function refuse(text: string): ProjectionPersistResult { return { kind: "refused
 
 /** A file sent but not installed: the ignore rules hold it where they leave its path unwritable, else its own mark does. */
 function unsentRefusal(root: ProjectionRootState, observedFrom: number, disposition: ProjectionRetirement,
-  ignoreMark: RefusedMark | undefined): Remedy | undefined {
-  const path = [...root.unsent].find(unsettled => unreadArchiveScope(root, unsettled) === null);
+  ignoreMark: RefusedMark | undefined, opaque: ArchiveDiscovery["incomplete"] | undefined): Remedy | undefined {
+  const path = [...root.unsent].find(unsettled => unreadArchiveScope(root, unsettled) === null && opaqueArchiveScope(opaque, unsettled) === null);
   if (path === undefined) return undefined;
   const mark = ignoreMark !== undefined && !root.writable(path) ? ignoreMark
     : projectionProcessState().diagnostics.slice(observedFrom).reverse().find(each => each.path === path)?.mark;

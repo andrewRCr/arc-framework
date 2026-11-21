@@ -11,6 +11,28 @@ import { guardedProjectionRoots } from "./ignore-guard.js";
 import { readReference } from "./change-detection.js";
 import { writableUnder } from "./sweep.js";
 import { observeProjectionHandoffs } from "./ownership-handoff.js";
+import { observeArchiveScopes, observeOwedArchiveScopes, type ArchiveDiscovery, type ArchiveDiscoveryRoot } from "./archive-discovery.js";
+import { parseAsideFile } from "./aside.js";
+import { isArchiveScope } from "./archive-file.js";
+
+/** Retirement sees the same owed scopes as a rebuild before it judges individual files. */
+export async function observeRetirementInventory(root: ArchiveDiscoveryRoot, index: ProjectionIndex,
+  roots: readonly string[]): Promise<{ files: readonly string[]; links: readonly string[]; opaque: ArchiveDiscovery["incomplete"] | undefined }> {
+  const owed = await observeOwedRetirementInventory(root, index);
+  const walked = await observeArchiveScopes(root, roots, { opaque: owed?.incomplete });
+  return { files: [...walked.files, ...owed?.files ?? []], links: [...walked.links, ...owed?.links ?? []], opaque: owed?.incomplete };
+}
+
+/** Retirement may discard the header, so check both inventory scopes and destinations a recovery alias still owns. */
+export function observeOwedRetirementInventory(root: ArchiveDiscoveryRoot, index: ProjectionIndex): Promise<ArchiveDiscovery | null> {
+  if (index.archiveRecoveryCopies === undefined) return observeOwedArchiveScopes(root, index);
+  const scopes = new Set(index.archiveDiscoveryPending);
+  for (const copy of index.archiveRecoveryCopies) {
+    const named = parseAsideFile(copy);
+    if (named?.role === "aside" && isArchiveScope(named.path)) scopes.add(named.path);
+  }
+  return observeOwedArchiveScopes(root, { archiveDiscoveryPending: [...scopes], entries: index.entries });
+}
 
 /** A read binding plus the exact index and configuration being checked. */
 export interface ProjectionRemovalObservationInput {
