@@ -7,6 +7,7 @@ import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { nestedRunLimit } from "../helpers/call-limit.js";
+import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 const spawnedObservation = `
 import { execFileSync } from "node:child_process";
@@ -22,6 +23,10 @@ const workerObservation = `
 import { expect, it } from "vitest";
 it("leaves the override to no unit worker", () => { expect(process.env.ARC_IN_REPO_STORE).toBeUndefined(); });
 `;
+
+it("leaves the override unset in the integration worker", () => {
+  expect(process.env[IN_REPO_STORE_OVERRIDE]).toBeUndefined();
+});
 
 it("clears an override the parent environment sets before any test runs", async () => {
   const fixture = await makeVitestRuntimeFixture();

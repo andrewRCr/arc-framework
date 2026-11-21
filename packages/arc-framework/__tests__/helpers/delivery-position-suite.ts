@@ -137,7 +137,7 @@ import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
-import { runArc as runBuiltArc } from "../e2e/store-default.js";
+import { runArc as runBuiltArc } from "../e2e/helpers.js";
 import {
   copyPreparedRepository,
   PREPARED_REMOTE_PATH,

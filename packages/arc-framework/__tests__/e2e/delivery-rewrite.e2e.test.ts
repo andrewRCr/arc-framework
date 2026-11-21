@@ -8,7 +8,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { projectIdentityRecord } from "../../src/lib/store/project-identity.js";
 import { RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { runArcWithStdin } from "./store-default.js";
+import { runArcWithStdin } from "./helpers.js";
 
 it("rewrites an equivalent published member through the built CLI", async () => {
   const h = await createNativePublishedDeliveryFixture();

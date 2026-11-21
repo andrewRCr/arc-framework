@@ -10,7 +10,7 @@ import { copyPreparedRepository, prepareRepositoryTemplate, type PreparedReposit
 import { selectNoInputInvocations } from "../helpers/no-input-invocations.js";
 import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
 import { NO_INPUT_MATRIX, type NoInputMatrixCase } from "../fixtures/command-input/no-input-matrix.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./helpers.js";
 
 const STUB_CLASS_CASE_TIMEOUT_MS = 30_000;
 const TERMINATES_TITLE = "terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor]"

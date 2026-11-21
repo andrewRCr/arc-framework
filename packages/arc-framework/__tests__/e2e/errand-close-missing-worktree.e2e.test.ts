@@ -12,7 +12,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, git, runArc, runArcAnchoredSequence } from "./store-default.js";
+import { cleanupTempDir, git, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -48,7 +48,7 @@ async function prepareRepository(repository: string, remote: string): Promise<vo
 }
 
 it.each(["close", "abandon"])("%s leaves unrelated missing detached and branched registrations intact", async (operation) => {
-  const repository = await initializedRepository("initialized-and-committed", "process");
+  const repository = await initializedRepository("initialized-and-committed");
   const remote = await mkdtemp(join(tmpdir(), "arc-close-missing-remote-"));
   const detached = `${repository}-missing-detached`;
   const branched = `${repository}-missing-branched`;
@@ -90,7 +90,7 @@ it.each(["close", "abandon"])("%s leaves unrelated missing detached and branched
 }, 90_000);
 
 it("refuses a locked missing branch holder, then closes after its registration is intentionally retired", async () => {
-  const repository = await initializedRepository("initialized-and-committed", "process");
+  const repository = await initializedRepository("initialized-and-committed");
   const remote = await mkdtemp(join(tmpdir(), "arc-close-locked-remote-"));
   const missing = `${repository}-locked-missing`;
   const slug = "locked-missing-close";

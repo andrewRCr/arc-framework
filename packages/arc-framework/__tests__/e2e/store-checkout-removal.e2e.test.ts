@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArc, runArcAnchoredSequence } from "./helpers.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";

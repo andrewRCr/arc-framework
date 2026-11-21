@@ -17,7 +17,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { seedProjectIdentity } from "../helpers/store/seed-store.js";
-import { runCli } from "./store-default.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const roots: string[] = [];
 const IDENTITY = SlugSchema.parse("test-user");

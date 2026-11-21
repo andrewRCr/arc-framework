@@ -11,7 +11,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 

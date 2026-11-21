@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
-import { runArc, createTempRepo, cleanupTempDir, git } from "./store-default.js";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { expectPersonalFileSet } from "./personal-file-set.js";
 

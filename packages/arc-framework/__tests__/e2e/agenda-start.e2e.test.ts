@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 const meta = { state: "Planning", owner: "agenda", branch: null, workClass: "Light", currentWorkflow: null,
   taskList: "tasks-demo.md" } as const;

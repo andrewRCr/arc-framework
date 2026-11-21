@@ -5,7 +5,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 describe("ordinary Errand branch types", () => {
   it.each(["fix", "refactor", "hotfix"])("opens and resumes the same %s generation without changing its branch", async (type) => {

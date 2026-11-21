@@ -10,7 +10,7 @@ import { expect, it } from "vitest";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, createTempRepo, runArc, runArcAnchoredSequence } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, runArc, runArcAnchoredSequence } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const ABANDON_TIMEOUT_MS = 60_000;

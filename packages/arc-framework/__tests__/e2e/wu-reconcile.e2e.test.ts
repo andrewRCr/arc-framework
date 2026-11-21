@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";

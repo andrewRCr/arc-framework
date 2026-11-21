@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { git, runCli } from "./store-default.js";
+import { git } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const commands = [["sync", "--json"], ["release", "push"]]
   .map(args => ({ label: args.join(" "), args }));

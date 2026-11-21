@@ -22,7 +22,7 @@ import {
   runArcAnchored,
   runArcAnchoredSequence,
   runArcWithStdin,
-} from "./store-default.js";
+} from "./helpers.js";
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import {
@@ -255,7 +255,7 @@ describe("arc errand merge", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -348,7 +348,7 @@ describe("arc errand check", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -657,7 +657,7 @@ describe("arc errand leave", () => {
   let repository: string;
 
   beforeEach(async () => {
-    repository = await initializedRepository("initialized-and-committed", "process");
+    repository = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -710,7 +710,7 @@ describe("arc errand open", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -919,7 +919,7 @@ describe("arc errand open over the in-repo store", () => {
   useInRepoStoreForEach();
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -965,7 +965,7 @@ describe("tracked ROADMAP regen with errand records", () => {
   useInRepoStoreForEach();
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("arc-in-git-and-committed", "process");
+    tmpDir = await initializedRepository("arc-in-git-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -1018,7 +1018,7 @@ describe("arc errand close", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1697,7 +1697,7 @@ describe("arc errand close over the in-repo store", () => {
   useInRepoStoreForEach();
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1750,7 +1750,7 @@ describe("arc errand abandon", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
     await setFullProtection(tmpDir);
   });
 
@@ -1901,7 +1901,7 @@ describe("arc errand retire", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -1922,7 +1922,7 @@ describe("arc errand promote", () => {
 
   beforeEach(async () => {
     remoteDir = null;
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -2026,7 +2026,7 @@ describe("arc errand promote over the in-repo store", () => {
 
   beforeEach(async () => {
     remoteDir = null;
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {
@@ -2103,7 +2103,7 @@ describe("the Errand close boundary after the base advances", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized-and-committed", "process");
+    tmpDir = await initializedRepository("initialized-and-committed");
   });
 
   afterEach(async () => {

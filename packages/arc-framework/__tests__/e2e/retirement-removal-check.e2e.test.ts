@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";

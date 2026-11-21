@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import { describe, it, expect } from "vitest";
 
-import { runCli } from "./store-default.js";
+import { runCli } from "../helpers/run-cli.js";
 
 describe("runCli", () => {
   it("renders complete task-grouped root help through every explicit help entry", async () => {

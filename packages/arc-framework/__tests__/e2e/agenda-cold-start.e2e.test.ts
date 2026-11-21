@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 const COLD_START_TIMEOUT_MS = 120_000;
 

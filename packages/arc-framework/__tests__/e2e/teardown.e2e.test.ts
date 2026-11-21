@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { chmod, mkdir, mkdtemp as createTempDirectory, realpath, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, posix } from "node:path";
-import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./store-default.js";
+import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
 import { initializedRepository as initializedRepositoryCore } from "../helpers/initialized-repository.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
@@ -22,7 +22,7 @@ async function mkdtemp(prefix: string): Promise<string> {
   return fixturePath(await createTempDirectory(prefix));
 }
 async function initializedRepository(start: Parameters<typeof initializedRepositoryCore>[0]): Promise<string> {
-  return fixturePath(await initializedRepositoryCore(start, "process"));
+  return fixturePath(await initializedRepositoryCore(start));
 }
 
 async function gitFailureEnvironment(dir: string,

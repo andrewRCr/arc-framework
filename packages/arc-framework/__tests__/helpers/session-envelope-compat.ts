@@ -16,7 +16,7 @@ import {
   git,
   removeGitBackedDir,
   runArcNoTty,
-} from "../e2e/store-default.js";
+} from "../e2e/helpers.js";
 import { makeMetaFixture } from "./meta-fixture.js";
 import { seedStore } from "./store/seed-store.js";
 import { integrateAttestedWorkUnit } from "./store/integrating-work-unit.js";

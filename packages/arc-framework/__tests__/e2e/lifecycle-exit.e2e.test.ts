@@ -46,7 +46,7 @@ import {
   cleanupTempDir,
   removeGitBackedDir,
   unwrapPresentationOutput,
-} from "./store-default.js";
+} from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seededWorkUnitSubject, seedWorkUnit } from "../helpers/store/seed-work-unit.js";

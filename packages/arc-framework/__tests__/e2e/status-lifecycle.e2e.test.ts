@@ -11,7 +11,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./store-default.js";
+import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";

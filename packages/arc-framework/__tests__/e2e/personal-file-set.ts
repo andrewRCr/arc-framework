@@ -6,7 +6,7 @@ import { expect } from "vitest";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
-import { git, runArc } from "./store-default.js";
+import { git, runArc } from "./helpers.js";
 
 /**
  * Expect the store to hold a person's working memory and inbox, as `arc init`, `arc join`, and `arc user add` seed

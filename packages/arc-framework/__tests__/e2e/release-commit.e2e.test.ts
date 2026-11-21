@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { assembleCommitMessageParagraphs } from "../../src/lib/release/commit-message-assembly.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { cleanupTempDir, createTempRepo, runCli } from "./store-default.js";
+import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 

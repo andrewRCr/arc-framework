@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 describe("agenda branch-gone recovery command", () => {
   const directories: string[] = [];

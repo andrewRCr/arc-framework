@@ -30,7 +30,7 @@ import { canonicalize } from "../../src/lib/kernel/index.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { IntegrationBoundaryLocusV2Schema } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 

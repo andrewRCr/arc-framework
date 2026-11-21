@@ -17,7 +17,7 @@ import { LocalFrontlineOutcomeStore } from "../../src/scripts/review-gate/hosts/
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } from "../fixtures/hosted-review.js";
 import { makeGitExec } from "../helpers/integration.js";
-import { runCli } from "../e2e/store-default.js";
+import { runCli } from "../helpers/run-cli.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 

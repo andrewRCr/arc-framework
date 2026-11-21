@@ -23,8 +23,6 @@ it("runs timing and bursts once without overlap while ordinary store suites stil
     const guard = join(fixture.packageRoot, "__tests__/helpers/store/projection/index-schema-guard.ts");
     await mkdir(dirname(guard), { recursive: true });
     await writeFile(guard, "export {};\n");
-    // The ledger setup selects the in-repo store for the files it lists, which these synthetic suites are not.
-    await writeFile(join(fixture.packageRoot, "__tests__/helpers/in-repo-store-ledger-setup.ts"), "export {};\n");
     for (const name of selectedSuites) {
       const isolated = isolatedSuites.includes(name);
       await writeFile(join(directory, `${name}.test.ts`), `

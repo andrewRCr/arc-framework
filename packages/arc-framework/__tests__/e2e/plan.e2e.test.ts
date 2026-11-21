@@ -13,7 +13,7 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { runArc, createTempRepo, cleanupTempDir } from "./store-default.js";
+import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 

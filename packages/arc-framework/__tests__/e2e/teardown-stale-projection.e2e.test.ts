@@ -10,7 +10,7 @@ import {
 import { createGitExec, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { hasCompetingLifecycleProjection } from "../../src/lib/work-unit/teardown-lifecycle-projection.js";
 import type { TeardownAuthorizationDecision } from "../../src/lib/work-unit/retirement-authority.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store-override.js";
 
 import {

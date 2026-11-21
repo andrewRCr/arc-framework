@@ -10,7 +10,7 @@ import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { readProjectIdentityBinding } from "../../src/lib/store/project-identity.js";
 import { seedStore } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 const roots: string[] = [];
 afterEach(async () => {

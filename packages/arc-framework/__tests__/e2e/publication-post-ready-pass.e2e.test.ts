@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";

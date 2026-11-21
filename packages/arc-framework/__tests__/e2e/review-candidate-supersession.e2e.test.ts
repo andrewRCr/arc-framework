@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../src/lib/store/identity.js";

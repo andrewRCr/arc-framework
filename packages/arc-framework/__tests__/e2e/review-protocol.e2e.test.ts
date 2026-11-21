@@ -28,7 +28,7 @@ import {
   runArc,
   runArcWithStdin,
   type RunResult,
-} from "./store-default.js";
+} from "./helpers.js";
 
 interface ReviewTarget {
   schemaVersion: 2;

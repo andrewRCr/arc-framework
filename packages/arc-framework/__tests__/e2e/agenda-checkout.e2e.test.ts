@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 describe("agenda checkout-only entry", () => {
   let repository: string | undefined;

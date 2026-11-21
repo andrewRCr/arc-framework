@@ -11,7 +11,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, git, runArc, runArcAnchored } from "./store-default.js";
+import { cleanupTempDir, git, runArc, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -20,7 +20,7 @@ const INBOX = recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ typ
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 it("retains an unpublished partial Errand through a red baseline gate and closes after normal publication", async () => {
-  const cwd = await initializedRepository("initialized-and-committed", "process");
+  const cwd = await initializedRepository("initialized-and-committed");
   const remote = `${cwd}-remote.git`;
   roots.push(cwd, remote);
   await git(cwd, ["add", "-A"]);

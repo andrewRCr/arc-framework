@@ -14,7 +14,7 @@ import {
   git,
   removeGitBackedDir,
   runArcNoTty,
-} from "./store-default.js";
+} from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 const execFileAsync = promisify(execFile);

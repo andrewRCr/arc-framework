@@ -1,6 +1,6 @@
 /** Identity subjects preserve the in-repo slug boundary and earlier refusals. */
 import { describe, expect, it, onTestFinished } from "vitest";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const upper = "ABCDEF01-2345-4678-9ABC-DEF012345678";

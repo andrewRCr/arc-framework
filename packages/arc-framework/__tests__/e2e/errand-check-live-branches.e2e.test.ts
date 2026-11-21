@@ -9,7 +9,7 @@ import { expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const DISCOVERY_TIMEOUT_MS = 90_000;

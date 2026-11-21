@@ -68,9 +68,6 @@ const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 const timingTests = ["__tests__/integration/store-ref-timing.test.ts", "__tests__/integration/store-ref-projection-timing.test.ts"];
 const burstTests = ["__tests__/integration/store-ref-bursts.test.ts", "__tests__/integration/store-ref-projection-bursts-default.test.ts",
   "__tests__/integration/store-ref-projection-bursts-separate.test.ts"];
-// The unit projects run the in-repo store ledger from their own setup, after it clears the override; every other
-// project loads it here.
-const LEDGER_SETUP = "__tests__/helpers/in-repo-store-ledger-setup.ts";
 const integrationTest = {
   root: packageRoot,
   ...(integrationRunRoot === undefined ? {} : { env: { TMPDIR: integrationRunRoot } }),
@@ -113,7 +110,7 @@ export default defineConfig({
         test: {
           ...integrationTest,
           name: "integration",
-          setupFiles: ["__tests__/helpers/store/projection/index-schema-guard.ts", LEDGER_SETUP],
+          setupFiles: ["__tests__/helpers/store/projection/index-schema-guard.ts"],
           include: ["__tests__/integration/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...timingTests, ...burstTests],
         },
@@ -123,7 +120,6 @@ export default defineConfig({
         test: {
           ...integrationTest,
           name: "integration-timing",
-          setupFiles: [LEDGER_SETUP],
           include: timingTests,
           // Finish the parallel group before collecting uncontended operation medians.
           sequence: { groupOrder: 1 },
@@ -134,7 +130,6 @@ export default defineConfig({
         test: {
           ...integrationTest,
           name: "integration-bursts",
-          setupFiles: [LEDGER_SETUP],
           include: burstTests,
           // Keep unrelated selected tests outside the twenty-writer workload.
           sequence: { groupOrder: 2 },
@@ -145,7 +140,6 @@ export default defineConfig({
         test: {
           name: "e2e",
           root: packageRoot,
-          setupFiles: [LEDGER_SETUP],
           include: ["__tests__/e2e/**/*.test.ts"],
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,

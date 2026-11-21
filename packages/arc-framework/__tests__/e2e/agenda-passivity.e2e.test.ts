@@ -16,7 +16,7 @@ import { makeGitExecInput, makeNotesTreeCommit } from "../helpers/integration.js
 import { seedStore } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArcNoTty } from "./helpers.js";
 
 interface GitTraceEvent { event: string; sid: string; argv?: string[]; code?: number }
 let repository: string | undefined;

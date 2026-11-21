@@ -3,7 +3,7 @@ import { afterEach, expect, inject, it } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
-import { cleanupTempDir, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, git, runArcNoTty } from "./helpers.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 
 const roots: string[] = [];

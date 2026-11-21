@@ -11,7 +11,7 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
-import { cleanupTempDir, createTempRepo, runArc, runArcAnchored } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, runArc, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const RECOVERY_TIMEOUT_MS = 90_000;

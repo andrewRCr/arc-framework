@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 describe("arc user inbox-list", () => {

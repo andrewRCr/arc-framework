@@ -11,7 +11,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 interface AuthoringFixture {
   readonly planId: string;

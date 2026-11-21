@@ -9,7 +9,7 @@ import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js"
 import { createRunnerMachineHome } from "../fixtures/checks/runner-machine.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { runArc } from "./store-default.js";
+import { runArc } from "./helpers.js";
 
 const git = promisify(execFile);
 const repositories: string[] = [];

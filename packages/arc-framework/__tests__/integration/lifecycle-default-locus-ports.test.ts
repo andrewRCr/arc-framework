@@ -26,7 +26,7 @@ vi.mock("../../src/lib/git/worktree-roster.js", async (importOriginal) => {
   return { ...original, scanRegisteredWorktrees: async (...args: Parameters<typeof original.scanRegisteredWorktrees>) => observation.incomplete ? { ok: true as const, worktrees: [] } : original.scanRegisteredWorktrees(...args) };
 });
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
-import { runArc } from "../e2e/store-default.js";
+import { runArc } from "../e2e/helpers.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";

@@ -10,7 +10,7 @@ import {
   createTempRepo,
   git,
   runArc,
-} from "./store-default.js";
+} from "./helpers.js";
 import { advanceBase, movementPaths } from "../helpers/base-advance.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";

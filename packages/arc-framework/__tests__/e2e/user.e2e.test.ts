@@ -11,7 +11,7 @@ import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
-import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./store-default.js";
+import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { expectPersonalFileSet } from "./personal-file-set.js";
@@ -48,7 +48,7 @@ describe("user add", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -92,7 +92,7 @@ describe("user save/load", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {
@@ -175,7 +175,7 @@ describe("user status from a subdirectory", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
     await commitInitializedRepository(tmpDir);
   });
 
@@ -205,7 +205,7 @@ describe("sync orchestrator", () => {
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
     tempDirs.push(tmpDir);
   });
 
@@ -243,7 +243,7 @@ describe("user push/pull portability", () => {
   const tempDirs: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
     tempDirs.push(tmpDir);
   });
 
@@ -301,7 +301,7 @@ describe("user open / close lifecycle", () => {
   const directories: string[] = [];
 
   beforeEach(async () => {
-    tmpDir = await initializedRepository("initialized", "process");
+    tmpDir = await initializedRepository("initialized");
     directories.push(tmpDir);
   });
 

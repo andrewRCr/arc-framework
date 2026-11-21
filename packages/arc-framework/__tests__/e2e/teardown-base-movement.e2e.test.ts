@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
-import { cleanupTempDir, createTempRepo, git, runArc, type RunResult } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, type RunResult } from "./helpers.js";
 import { advanceBase, movementPaths, writeUnavailableBaseReadShim } from "../helpers/base-advance.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { seedProjectIdentity } from "../helpers/store/seed-store.js";

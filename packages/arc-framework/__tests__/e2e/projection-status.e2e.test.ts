@@ -2,7 +2,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { cleanupTempDir, createTempRepo, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 useInRepoStoreForEach();

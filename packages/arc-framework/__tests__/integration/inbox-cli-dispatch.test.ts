@@ -21,6 +21,7 @@ import { seed, success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import { listInbox } from "../../src/lib/inbox/listing.js";
 import { seedImportedUserProjection } from "../helpers/store/projection/imported-user.js";
+import { withInRepoStore } from "../helpers/in-repo-store-override.js";
 const BRANCH_SUFFIX = vi.hoisted(() => "0a1b2c3d");
 vi.mock("../../src/lib/errand/branch-type.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../src/lib/errand/branch-type.js")>(), mintErrandBranchSuffix: () => BRANCH_SUFFIX }));
@@ -69,7 +70,9 @@ it("inserts a capture from a CLI-owned stdin route, then moves it by CLI-parsed 
 async function lifecycleFixture(protection: "full" | "partial") {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));
-  const initialized = await runArc(["init", "--yes", "--name", "test-project"], cwd);
+  // The checkout is one the import read: initialized on the in-repo store, which writes the personal files
+  // `seedImportedUserProjection` carries into the bound store.
+  const initialized = await withInRepoStore(() => runArc(["init", "--yes", "--name", "test-project"], cwd));
   expect(initialized.exitCode).toBe(0);
   const path = join(cwd, ".arc", "system", "arc-config.yml");
   let config = await readFile(path, "utf8");

@@ -17,7 +17,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArc } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 

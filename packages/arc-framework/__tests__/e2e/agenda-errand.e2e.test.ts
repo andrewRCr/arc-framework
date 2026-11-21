@@ -10,7 +10,7 @@ import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { seedStore } from "../helpers/store/seed-store.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 const person = OwnerIdentitySchema.parse({ type: "person", name: "agenda" });
 const inbox = recordReferences["personal/inbox"](person), queue = recordReferences["personal/errand-queue"](person);

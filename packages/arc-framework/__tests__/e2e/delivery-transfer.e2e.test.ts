@@ -12,7 +12,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { deriveDeliveryPlanDigest } from "../../src/lib/delivery/plan.js";
 import type { DeliveryPlanV1 } from "../../src/lib/delivery/schema.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 describe("arc delivery transfer", () => {
   // Transfer resolves the active work unit's plan through its rename records, which only the in-repo store supports:

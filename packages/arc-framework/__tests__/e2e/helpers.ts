@@ -15,22 +15,20 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 import { emitsMachineReadablePayload, usesPseudoTty } from "../helpers/cli-transport.js";
 import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
 import { CALL_LIMIT } from "../helpers/call-limit.js";
-import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 
 export { commitAll } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
 /**
- * Compose the deterministic environment shared by built-CLI tests. The CLI keeps the in-repo store until each test
- * seeds its state through the store; a test drops that by passing the override as `undefined`.
+ * Compose the deterministic environment shared by built-CLI tests. The CLI opens the test process's store selection, the
+ * ref backend unless the running test set the in-repo store override.
  */
 function builtCliEnvironment(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ARC_DISABLE_UPDATE_CHECKS: "1",
     NO_COLOR: "1",
-    [IN_REPO_STORE_OVERRIDE]: "1",
     ...overrides,
   };
 }

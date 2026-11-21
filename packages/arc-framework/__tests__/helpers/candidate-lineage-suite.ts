@@ -128,7 +128,7 @@ import {
 import {
   runArc as runBuiltArc,
   runArcWithStdin as runBuiltArcWithStdin,
-} from "../e2e/store-default.js";
+} from "../e2e/helpers.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../src/lib/store/identity.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";

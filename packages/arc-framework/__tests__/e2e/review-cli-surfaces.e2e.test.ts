@@ -13,7 +13,7 @@ import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate
 import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
-import { runCli } from "./store-default.js";
+import { runCli } from "../helpers/run-cli.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { seedProjectIdentity } from "../helpers/store/seed-store.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";

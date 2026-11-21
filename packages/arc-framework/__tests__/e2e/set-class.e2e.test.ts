@@ -4,7 +4,7 @@ import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js
 import { makeGitExec } from "../helpers/integration.js";
 import { readStoreRecord } from "../helpers/store/seed-store.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { runCli } from "./store-default.js";
+import { runCli } from "../helpers/run-cli.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 

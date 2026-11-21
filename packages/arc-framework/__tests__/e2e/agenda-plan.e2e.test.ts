@@ -6,7 +6,7 @@ import { assertSessionInitAgenda, type SessionInitAgenda } from "../../src/comma
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 const stub = { state: "Planning", owner: "agenda", branch: "plan/demo", workClass: "Light", currentWorkflow: "draft-design" } as const;
 const pickerChoices = [{ kind: "elicit", signal: "plan" }, { kind: "signal", signal: "plan", value: null, decline: true }];

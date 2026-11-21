@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FrontlineResolveRequestSchema } from "../../src/scripts/review-gate/policy/frontline-command-schema.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";

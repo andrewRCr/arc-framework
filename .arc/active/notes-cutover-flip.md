@@ -1249,6 +1249,34 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           refuses every amend (`handlers/release/commit.ts`, unit-covered); and `review-terminal-attempt-input`, whose
           terminal producers sit in the repository's machine-local operation records, where the store reads its own
           work-item-keyed records (`unit/scripts/review-gate/lane-progress-native-policy.test.ts`).
+    - _The override gone, and the closing search (Task 3.6.e):_ `builtCliEnvironment` (`e2e/helpers.ts`) and `runCli`
+      (`helpers/run-cli.ts`) set no override, so every spawn takes the test process's selection. `e2e/store-default.ts`,
+      which only carried that selection past the helpers' default, is gone, and its 90 importers take the helpers
+      directly. The switch's ledger, its setup, its unit test, its two reach entries, and the timing-isolation stub go
+      with it; `initializedRepository` keys its template by the process's selection alone.
+        - _The guard:_ `e2e/spawn-store-selection.e2e.test.ts` spawns `arc status --json` through each of the five
+          spawn helpers over a project initialized on the store and expects the ref backend's projection, `ready`,
+          rather than the in-repo `disabled`; its five spawn cases failed against the old helpers. It and a worker
+          check in each of `unit/test-setup-store-selection` and `integration/test-setup-store-override` fail if a
+          setup sets the override by default.
+        - _The search over the tree Task 3.6.e commits:_ 48 files call `createStore(` (145 calls), and
+          `integration/view-store-cli` alone mocks `openDefaultStore`. With no default selection, a test reaching the
+          default expects the ref backend unless its file selects the in-repo store, and 221 files do, some in two ways:
+          153 set the override through `useInRepoStore`, `useInRepoStoreForEach`, or `withInRepoStore`, 68 build the
+          store through `inRepoStore`, and 12 branch on the process's selection, `registerCandidateLineageSuite`,
+          `registerDeliveryPositionSuite`, and `initializedRepository` among them. Each is classified above by the task
+          that set it, except four groups classified here: the window tooling's 32 suites (`e2e/cutover-window`,
+          `-after-merge`, and `-rehearse`, and 29 `integration/cutover-window-*` suites), whose operations before the
+          merge run from the base's pre-flip build (Task 3.R.b); `unit/handlers/decompose-dispatch`, whose subject is
+          the old decomposition forms' refusals over tracked state; `unit/store/projection/save-unsupported`, the
+          in-repo save refusal; and `integration/inbox-cli-dispatch`'s lifecycle fixture, whose `arc init` builds the
+          checkout an import read, initialized on the in-repo store, so that `seedImportedUserProjection` finds its
+          personal files. It took the in-repo store only from the helpers' default, so the switch's ledger never listed
+          it, and its two pre-import digest cases failed in this task's full integration run until it set the override.
+        - Three spawns outside the helpers set the override themselves: `integration/validate-cohort-consistency`'s
+          cohort hook (staged cohort files), `helpers/store/import-fixture`'s import source, and one in-repo lookup in
+          `integration/review-delivery-member-lookup`. Every spawn given no `cwd` is a help invocation, which runs no
+          action.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

@@ -11,7 +11,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { COMMIT_MESSAGE_FIXTURES } from "../fixtures/commit-msg/cases.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { writeProjectedIgnores } from "../helpers/projected-ignores.js";
-import { cleanupTempDir, createTempRepo, runCli } from "./store-default.js";
+import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");

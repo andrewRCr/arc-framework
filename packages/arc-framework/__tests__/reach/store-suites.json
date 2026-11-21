@@ -105,8 +105,6 @@
     "vitest.config.ts",
     "packages/arc-framework/__tests__/helpers/store/projection/index-schema-guard.ts",
     "packages/arc-framework/__tests__/helpers/store/projection/index-schema-check.ts",
-    "packages/arc-framework/__tests__/helpers/in-repo-store-ledger-setup.ts",
-    "packages/arc-framework/__tests__/helpers/in-repo-store-ledger.ts",
     {
       "closureOf": [
         "packages/arc-framework/vitest.config.ts",

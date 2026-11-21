@@ -18,7 +18,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { IN_REPO_STORE_OVERRIDE } from "../../src/lib/store/selection.js";
 import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import {
   advanceBase,
   arrangeBranchSide,

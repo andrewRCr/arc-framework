@@ -12,7 +12,7 @@ import {
   createTempRepo,
   git,
   runArc,
-} from "./store-default.js";
+} from "./helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 
 interface SessionEnvelope {

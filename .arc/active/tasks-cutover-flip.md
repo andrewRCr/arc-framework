@@ -1001,7 +1001,7 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   store answers `stateOffBranch` true and that `readProjectedSelection` returns an empty `ok` selection. The fixture
   sets no identity: it installs no ARC, so the selection command starts unprojected and never reads one (A24).
 
-### `[ ]` **3.6 Every default-store caller in the tests classified, and the temporary override gone — § 7.7**
+### `[x]` **3.6 Every default-store caller in the tests classified, and the temporary override gone — § 7.7**
 
 - _Goal:_ A search of the test tree finds each caller of the default store either building the in-repo backend
   explicitly or expecting the ref backend, and the spawn helpers set no override by default.
@@ -1042,11 +1042,16 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
           the override by subject (`notes-cutover-flip.md` § Test callers).
         - `e2e/run-cli.e2e.test.ts`'s bare `integrate` case runs from an empty temporary directory (§ 7.2).
 
-    - `[ ]` **3.6.e The override gone**
-        - Remove the spawn helpers' default override (Task 3.2.b), and the switch's ledger, empty by now, and the
-          per-file setup that reads it (Task 3.3.d).
-        - A test fails if a test setup or spawn helper sets the override by default.
-        - Record the search's result by file in `notes-cutover-flip.md` § Test callers.
+    - `[x]` **3.6.e The override gone**
+        - The spawn helpers set no override, so every spawn takes the test process's selection, and
+          `e2e/store-default.ts`, which only carried that selection past their default, leaves with the switch's
+          ledger, its per-file setup, and its test. `e2e/spawn-store-selection.e2e.test.ts` and a worker check in each
+          tier fail if a test setup or spawn helper sets the override by default.
+        - The search's result is recorded by file in `notes-cutover-flip.md` § Test callers.
+
+- _Outcome:_ Each default-store caller in the test tree expects the ref backend, or its file selects the in-repo store
+  by subject: 221 files, each classified in `notes-cutover-flip.md` § Test callers. With no override set by default,
+  the unit, integration, end-to-end, and store tiers pass.
 
 ### `[ ]` **3.7 The flipped CLI end to end** — validate exit criterion at segment scope
 

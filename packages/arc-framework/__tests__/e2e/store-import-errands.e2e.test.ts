@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
-import { runArcNoTty } from "./store-default.js";
+import { runArcNoTty } from "./helpers.js";
 import { join } from "node:path";
 import { seedTransients, transientCommon, transientSourceRef } from "../helpers/store/import-transients.js";
 import { useInRepoStore } from "../helpers/in-repo-store-override.js";

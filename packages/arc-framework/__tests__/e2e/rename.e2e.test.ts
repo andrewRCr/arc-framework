@@ -15,7 +15,7 @@ import {
   runArcAnchored,
   runArcNoTty,
   unwrapPresentationOutput,
-} from "./store-default.js";
+} from "./helpers.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";

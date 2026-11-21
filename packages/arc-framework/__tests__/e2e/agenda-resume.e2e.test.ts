@@ -6,7 +6,7 @@ import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seedWorkUnit } from "../helpers/store/seed-work-unit.js";
-import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArcNoTty } from "./helpers.js";
 
 const meta = { state: "Active", owner: "agenda", branch: "feat/work", workClass: "Heavy", taskList: "tasks-work.md",
   currentWorkflow: "process-task-loop", nextTask: "Implement behavior" } as const;

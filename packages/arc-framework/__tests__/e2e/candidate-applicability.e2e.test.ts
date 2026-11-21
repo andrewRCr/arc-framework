@@ -25,7 +25,7 @@ import {
   git,
   runArc,
   runArcWithStdin,
-} from "./store-default.js";
+} from "./helpers.js";
 
 const META = makeMetaFixture("example", {
   owner: "test-user",

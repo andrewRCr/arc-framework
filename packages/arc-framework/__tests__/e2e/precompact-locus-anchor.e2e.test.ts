@@ -18,7 +18,7 @@ import {
   removeGitBackedDir,
   runArc,
   runArcAnchoredSequence,
-} from "./store-default.js";
+} from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 

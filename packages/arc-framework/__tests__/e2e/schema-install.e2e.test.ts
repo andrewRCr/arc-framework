@@ -7,7 +7,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import {
   SchemaInstallEnvelopeSchema, SchemaRefusalEnvelopeSchema,
 } from "../../src/lib/schema-command/envelope.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 const directory = ".arc/system/.internal/schemas";
 describe("arc schema install", () => {

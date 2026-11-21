@@ -19,7 +19,8 @@ import { promisify } from "node:util";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { useInRepoStoreForEach } from "../helpers/in-repo-store-override.js";
-import { runArc, runCli } from "./store-default.js";
+import { runArc } from "./helpers.js";
+import { runCli } from "../helpers/run-cli.js";
 import type { SyncOutcome } from "../../src/handlers/sync.js";
 
 const execFileAsync = promisify(execFile);

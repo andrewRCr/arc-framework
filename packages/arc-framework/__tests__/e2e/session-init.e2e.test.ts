@@ -37,7 +37,7 @@ import { useInRepoStoreForEach, withInRepoStore } from "../helpers/in-repo-store
 import { integrateAttestedWorkUnit } from "../helpers/store/integrating-work-unit.js";
 import { readStoreRecord, seedStore } from "../helpers/store/seed-store.js";
 import { seedWorkUnit, seededWorkUnitSubject } from "../helpers/store/seed-work-unit.js";
-import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./store-default.js";
+import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 import {
   copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,

@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { validateLocusEnvelope } from "../../src/commands/locus.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 
 let root: string | undefined;
 afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });

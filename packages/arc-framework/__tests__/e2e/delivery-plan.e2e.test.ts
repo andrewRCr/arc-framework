@@ -26,7 +26,7 @@ import {
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./store-default.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
   ROLLING_FIELD_RUN,
   SEVEN_MEMBER_FIELD_RUN,

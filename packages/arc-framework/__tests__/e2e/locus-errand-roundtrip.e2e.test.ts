@@ -16,7 +16,7 @@ import {
   removeGitBackedDir,
   runArc,
   runArcAnchoredSequence,
-} from "./store-default.js";
+} from "./helpers.js";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";

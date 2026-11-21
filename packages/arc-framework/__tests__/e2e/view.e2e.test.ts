@@ -26,7 +26,7 @@ import {
   runArcNoTty,
   runArcWithStdoutPipe,
   runArcWithStdin,
-} from "./store-default.js";
+} from "./helpers.js";
 
 const IDENTITY = SlugSchema.parse("test-user");
 const FEATURE = OwnerIdentitySchema.parse({ type: "work-item", name: "feature" });
