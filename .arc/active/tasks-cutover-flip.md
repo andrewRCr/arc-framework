@@ -1053,15 +1053,23 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   by subject: 221 files, each classified in `notes-cutover-flip.md` § Test callers. With no override set by default,
   the unit, integration, end-to-end, and store tiers pass.
 
-### `[ ]` **3.7 The flipped CLI end to end** — validate exit criterion at segment scope
+### `[x]` **3.7 The flipped CLI end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The exit criterion's scenario runs through the built CLI, and its result is recorded with the CI run that
   passed on this branch.
 
-    - The scenario's commands drop the session's override, save the probe run under it (`notes-cutover-flip.md`
-      § The flip's checkout).
-    - The run also confirms that the switch's ledger and its per-file setup are gone and that the test against a
-      default override passes.
+- _Outcome:_ The scenario passed with the built CLI at `4464c5228a` in a scratch repository, every command but the
+  override probe dropping the session's override.
+    - `arc init` designated and minted the ref store in `.git/arc/store`, and `arc status --json`'s projection probe
+      reported `ready` over a tree tracking no ARC state; under the override it reported `disabled`.
+    - Once `.arc/active/` was committed, `status`, `locus`, `selection`, `agenda`, `inbox list`, `user status`,
+      `save`, `sync`, and `store remote origin push` refused with § 3.2's imported-store remedy, and a fresh clone with
+      the registry unfetched with both routes and the fact deciding between them. Neither remedy named the override.
+      `check pre-commit`, `commit-msg`, `pre-push`, `hook-validate-frontmatter`, and `hook-remedy-roadmap-conflict`
+      passed with no refusal, the refs, tree, and `.git/arc` unchanged.
+    - The switch's ledger, its per-file setup, and the spawn helpers' default are gone, and
+      `e2e/spawn-store-selection.e2e.test.ts` passes. CI run 44858915248 passed at `4464c5228a` on this branch, whose
+      head tracks ARC state, so its steps ran under their override condition. A9, A12, and A15 to A25 revalidate here.
 
 ## **Phase 4:** Text and checks the flip makes false outside the workflows
 

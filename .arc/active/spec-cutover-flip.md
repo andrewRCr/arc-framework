@@ -2370,38 +2370,38 @@ None.
 - **A8** — 2026-11-14 — design: the restore's auto-merge remedy names disarming, not `gh pr merge --disable-auto`.
   _Supersedes:_ § 1.3 (the auto-merge refusal). _Trigger:_ 6.1 must-stop. _Work:_ none. _Revalidated:_ 6.1.
 - **A9** — 2026-11-16 — spec-depth: the switch keeps `createStore`'s fan-out decoration over the ref backend.
-  _Supersedes:_ none. _Trigger:_ 2.1 must-stop. _Work:_ 3.3. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 2.1 must-stop. _Work:_ 3.3. _Revalidated:_ 3.7.
 - **A10** — 2026-11-16 — design: no step deletes an untracked npm policy copy; Git's merge refusal names its removal.
   _Supersedes:_ § 1.3 (the npm policy file). _Trigger:_ 2.1 must-stop. _Work:_ none. _Revalidated:_ 2.1.
 - **A11** — 2026-11-17 — task: rewrite `arc sync`'s help, which describes the notes leg, for the store's arms.
   _Supersedes:_ none. _Trigger:_ 2.3 must-stop. _Work:_ 4.2. _Revalidated:_ pending → 7.1.
 - **A12** — 2026-11-17 — design: a ledger keeps the tests the switch breaks in-repo through Phase 3; families empty it.
-  _Supersedes:_ § 3.2 ¶4; § 7.2; § 7.3 ¶1–2; § 7.7. _Trigger:_ 3.3 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ § 3.2 ¶4; § 7.2; § 7.3 ¶1–2; § 7.7. _Trigger:_ 3.3 must-stop. _Work:_ 3.R. _Revalidated:_ 3.7.
 - **A13** — 2026-11-17 — design: the retired-subdirectory slot leaves with notes removal, not with the in-repo arm.
   _Supersedes:_ § 17.2 (the reconciliation slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 7.1.
 - **A14** — 2026-11-18 — spec-depth: a sealed notes writer on the flip build names notes retirement and its replacement.
   _Supersedes:_ none. _Trigger:_ 3.R.d must-stop. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
 - **A15** — 2026-11-19 — design: the orphan sweep, like the Errand gates, reads absent claims as an empty inventory.
-  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.2 must-stop. _Work:_ 3.R2. _Revalidated:_ 3.7.
 - **A16** — 2026-11-19 — design: the orphan sweep leaves out a branch the store links to no record.
-  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R3. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ `spec-seam-locus.md` § 12.4. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R3. _Revalidated:_ 3.7.
 - **A17** — 2026-11-19 — spec-depth: a command whose Git directory refuses the projection lock runs unprojected.
-  _Supersedes:_ none. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R4. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R4. _Revalidated:_ 3.7.
 - **A18** — 2026-11-19 — design: the write creating a fresh Errand may name the UID its open plan minted.
-  _Supersedes:_ § 4.8 ¶1. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R5. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ § 4.8 ¶1. _Trigger:_ 3.4.a.4 must-stop. _Work:_ 3.R5. _Revalidated:_ 3.7.
 - **A19** — 2026-11-19 — design: the notes-related session-init slots stay open for notes removal's share.
-  _Supersedes:_ § 17.1 item 13 (the notes-related slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ § 17.1 item 13 (the notes-related slots). _Trigger:_ door. _Work:_ none. _Revalidated:_ 3.7.
 - **A20** — 2026-11-19 — spec-depth: store teardown refuses a markerless holder and survives removing its checkout.
-  _Supersedes:_ none. _Trigger:_ 3.4.b.1 must-stop. _Work:_ 3.R6. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.1 must-stop. _Work:_ 3.R6. _Revalidated:_ 3.7.
 - **A21** — 2026-11-19 — spec-depth: the store outlives the checkout it opened in, whichever command removes it.
-  _Supersedes:_ none. _Trigger:_ 3.4.b.2 must-stop. _Work:_ 3.R7. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.2 must-stop. _Work:_ 3.R7. _Revalidated:_ 3.7.
 - **A22** — 2026-11-19 — spec-depth: replaying a store rename settles its checkout's deferred move once it lands.
-  _Supersedes:_ none. _Trigger:_ 3.4.b.3 must-stop. _Work:_ 3.R8. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.4.b.3 must-stop. _Work:_ 3.R8. _Revalidated:_ 3.7.
 - **A23** — 2026-11-20 — spec-depth: active status reads a bound checkout's Candidate by the owner its scan selected.
-  _Supersedes:_ none. _Trigger:_ 3.4.c.2 must-stop. _Work:_ 3.R9. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.4.c.2 must-stop. _Work:_ 3.R9. _Revalidated:_ 3.7.
 - **A24** — 2026-11-20 — design: the Markdown fix's fixture runs unprojected, so its empty selection needs no identity.
-  _Supersedes:_ § 7.5 ¶1. _Trigger:_ 3.5 door. _Work:_ none. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ § 7.5 ¶1. _Trigger:_ 3.5 door. _Work:_ none. _Revalidated:_ 3.7.
 - **A25** — 2026-11-20 — spec-depth: a projection start that cannot update Git's exclude refuses rather than crashing.
-  _Supersedes:_ none. _Trigger:_ 3.6.a must-stop. _Work:_ 3.R10. _Revalidated:_ pending → 3.7.
+  _Supersedes:_ none. _Trigger:_ 3.6.a must-stop. _Work:_ 3.R10. _Revalidated:_ 3.7.
 
 ---
