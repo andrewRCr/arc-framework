@@ -244,7 +244,8 @@ async function takeOverUnrecorded(
 
 /**
  * With no usable index the sweep takes nothing in: a regular copy whose path is absent is linked back, a symbolic
- * link or file equal to its base is deleted, and every other stays, withheld and reported with its path.
+ * link or file equal to its base is deleted, and every other stays, reported with its path: withheld, unless its path
+ * is an archive path this checkout may not change, which is reported with that refusal instead.
  */
 async function sweepWithoutIndex(
   input: SweepInput, found: readonly string[], judges: SweepJudges,

@@ -352,6 +352,21 @@ describe("store retirement real Git", () => {
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
   });
 
+  it("holds an unfinished recording whose retained input no longer matches until a projection is recovered from the store", async () => {
+    const h = await retirementRecording();
+    h.repair();
+    await writeFile(h.retained, "Bytes that no longer match the recorded input.\n");
+    expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining(
+      "does not match its recorded bytes. Restore the retained base copy or recover a projection from readable stored content.") });
+    // Recovery from the store: the rebuild withholds the file, which is deleted and projected again from the accepted record.
+    await rm(join(h.location.stateDir, PROJECTION_INDEX_FILE));
+    await startProjection(h.command); await endProjection(h.command);
+    await rm(join(h.checkout, h.path));
+    await startProjection(h.command); await endProjection(h.command);
+    expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
+  });
+
   it.each(["md", "txt"] as const)("holds an edited %s file until its retained base is restored", async extension => {
     const h = await retirementRetainedBase(extension);
     await rename(h.retained, `${h.retained}.held`);

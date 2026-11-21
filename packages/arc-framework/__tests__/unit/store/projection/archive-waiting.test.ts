@@ -32,7 +32,8 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
 
   const held = await holdWaitingArchiveEdit(root, { checkout, path, copy: null, entry, base: { kind: "absent" } as never, observedEdit: true });
 
-  expect(held).toMatchObject({ answer: "refused", entry: { pending: true } });
-  expect(reported).toHaveLength(1);
+  const access = { reason: `Cannot validate ${path}: EACCES.`, remedy: { text: "Repair access to the file, then retry the command." } };
+  expect(held).toMatchObject({ answer: "refused", mark: access, entry: { pending: true, refused: access } });
+  expect(reported).toEqual([access]);
   expect(root.unsent.has(path)).toBe(true);
 });

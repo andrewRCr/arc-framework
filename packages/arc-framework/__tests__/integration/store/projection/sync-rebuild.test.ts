@@ -87,7 +87,7 @@ it.each([false, true])("rebuilds a mismatched cold quarter and preserves an open
   await endProjection(input);
 });
 
-it("keeps each live aside copy once when sync rebuilds after command start", async () => {
+it("settles the start's aside copies before sync rebuilds, leaving none for its end or the next command", async () => {
   const h = await fixture();
   await openArchivedProjectionFile(h.input, h.path);
   await writeFile(h.absolute, (await readFile(h.absolute, "utf8")) + "\nA landed correction.\n");
@@ -97,12 +97,19 @@ it("keeps each live aside copy once when sync rebuilds after command start", asy
   const root = projectionProcessState().roots.get(h.f.root);
   if (root === undefined || root.copies.length === 0) throw new Error("No live aside copy");
   const retained = root.copies.map(copy => copy.copy);
+  const present = async () => (await Promise.all(retained.map(copy => stat(join(h.f.root, copy)).then(() => copy, () => null))))
+    .filter(copy => copy !== null);
   await damage(h);
   await restoreSyncProjection(h.f.store, h.f.root, {});
   const copies = root.copies.map(copy => copy.copy);
   expect(copies.length).toBe(new Set(copies).size);
-  expect(copies).toEqual(expect.arrayContaining(retained));
+  expect(copies.filter(copy => retained.includes(copy))).toEqual([]);
+  expect(await present()).toEqual([]);
   const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
   expect(disk.kind).toBe("index");
   await endProjection(h.input);
+  await startProjection(h.input);
+  expect(projectionProcessState().diagnostics.filter(each => each.copy !== null && retained.includes(each.copy))).toEqual([]);
+  await endProjection(h.input);
+  expect(success(await h.f.store.read({ reference: h.primary.reference })).content).toContain("A landed correction.");
 });

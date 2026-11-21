@@ -1,6 +1,6 @@
 /** Refresh indexed files from a captured source state while retaining the caller's observed index. */
 import { prepareConflictedRefresh, type ConflictedRefreshContext } from "./conflicted-refresh.js";
-import { gateRead, SYSTEM_READ_GATE } from "./read-gate.js";
+import { gateRead, projectionReadGate } from "./read-gate.js";
 import { join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import { unshownConflicts } from "./held-conflicts.js";
@@ -78,7 +78,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   const laid = laidProjectionPaths(planned.paths);
   const arrivals = findProjectionArrivals(index, laid);
   const moved = movedProjectionChanges(index, planned, laid);
-  // A moved record's old path, the only holder of its changed mark, waits until its new path takes the mark.
+  // A moved record's old path, the only holder of its changed or opened mark, waits until its new path takes the mark.
   const deferred = new Set([...moved.values()].flat());
   index = await removeObsoleteProjectionPaths({ root, index, plan: withRemovals(planned, [...planned.removals].filter(path => !deferred.has(path))),
     renderer, reference, admitsForcedEdit: true });
@@ -107,7 +107,10 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   return { index, complete };
 }
 
-/** Prepare each laid path, carrying a moved record's changed mark to its new path wherever the pass leaves a carrier. */
+/**
+ * Prepare each laid path, carrying a moved record's changed or opened mark to its new path wherever the pass leaves a
+ * carrier.
+ */
 async function prepareLaidPaths(base: Omit<IndexedFileInput, "index" | "path" | "target">, initial: ProjectionIndex,
   laid: ReadonlyMap<string, RecordReference>, moved: ReadonlyMap<string, readonly string[]>): Promise<{
   index: ProjectionIndex; files: SwapFile[]; unresolved: boolean; marked: ReadonlySet<string>;
@@ -254,7 +257,7 @@ async function observeConflictedFile(input: IndexedFileInput, entry: RecordEntry
   const absolute = join(root.checkout, path);
   const reader = projectionFileReader(root.checkout, path);
   try {
-    const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
+    const gate = await gateRead({ path: absolute, markdown: false }, projectionReadGate(root.checkout, path));
     if (gate.kind !== "read") return null;
     const text = (await reader.read(absolute)).toString("utf8");
     return await prepareConflictedRefresh(input.renderContext, { path, entry, current, text });

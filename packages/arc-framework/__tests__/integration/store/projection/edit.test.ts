@@ -1,5 +1,5 @@
 /** Archive opening through the registered command preserves content and records intent before changing mode. */
-import { chmod, lstat, mkdir, readFile, stat, writeFile, rm, symlink, rename } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, stat, writeFile, rm, symlink, rename, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -11,7 +11,7 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
-  removeOnRead: null as string | null, timeOffset: 0 }));
+  removeOnRead: null as string | null, timeOffset: 0, chmodError: null as string | null }));
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   return { ...actual, openSync: (...args: Parameters<typeof actual.openSync>) => {
@@ -20,6 +20,21 @@ vi.mock("node:fs", async original => {
       binding.removeOnRead = null;
     }
     return actual.openSync(...args);
+  } };
+});
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+    const handle = await actual.open(...args);
+    return new Proxy(handle, { get(target, key) {
+      const code = binding.chmodError;
+      if (key === "chmod" && code !== null) return async () => {
+        binding.chmodError = null;
+        throw Object.assign(new Error(`Mode change failed: ${code}`), { code });
+      };
+      const value: unknown = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
   } };
 });
 vi.mock("../../../../src/lib/store/create.js", async original => {
@@ -54,6 +69,7 @@ afterEach(async () => {
   binding.afterOpen = null;
   binding.removeOnRead = null;
   binding.timeOffset = 0;
+  binding.chmodError = null;
   await removeGitBackedDirs(directories.splice(0));
 });
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -150,6 +166,9 @@ it("leaves permissions alone when a folder link arrives after recording the open
     condition: expect.stringContaining("symbolic link"), remedy: { text: expect.stringContaining("Replace the symbolic link") },
   } });
   expect((await stat(file)).mode & 0o200).toBe(0);
+  const withdrawn = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+  if (withdrawn.kind !== "index") throw new Error("Missing archive index");
+  expect(withdrawn.index.entries[h.path]).not.toHaveProperty("opened");
   binding.afterOpen = null;
   await rm(folder, { recursive: true });
   await rename(held, folder);
@@ -326,7 +345,8 @@ it("refuses while its opening lock is held and succeeds after release", async ()
       });
       await entered;
     }); });
-    expect(refused).toMatchObject({ status: "refused", refusal: { code: "projection-skipped", condition: expect.stringContaining("held") } });
+    expect(refused).toMatchObject({ status: "refused", refusal: { code: "projection-skipped", condition: expect.stringContaining("held"),
+      remedy: { text: "Retry arc edit once the command holding the projection lock finishes." } } });
   } finally { release(); await holding; }
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
@@ -359,7 +379,7 @@ it("invalidates a corrupt archive partition discovered after start and opens on 
     await writeFile(join(h.projected.location.stateDir, name), "changed after start");
   }); });
   expect(refused).toMatchObject({ status: "refused", refusal: { code: "projection-skipped",
-    condition: expect.stringContaining(name), remedy: { text: expect.stringContaining("Retry") } } });
+    condition: expect.stringContaining(name), remedy: { text: "Retry arc edit; its command start rebuilds the projection index." } } });
   await expect(readFile(join(h.projected.location.stateDir, name))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
@@ -369,7 +389,7 @@ it("keeps opening intent after a lost lease and opens on retry", async () => {
   await chmod(absolute, 0o444);
   binding.afterOpen = async () => { await rm(join(h.projected.location.stateDir, "lock")); binding.timeOffset = 120_000; };
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: {
-    code: "projection-skipped", condition: expect.stringContaining("lost"),
+    code: "projection-skipped", condition: expect.stringContaining("lost"), remedy: { text: "Retry arc edit." },
   } });
   expect((await stat(absolute)).mode & 0o200).toBe(0);
   expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
@@ -420,6 +440,10 @@ it("holds a case-only rename when the indexed name still denotes the same file",
   expect(disk.index.entries[path]).not.toHaveProperty("opened");
   if (insensitive) expect(disk.index.entries[alias]).toBeUndefined();
   else expect(disk.index.entries[alias]).toMatchObject({ kind: "ownerless", opened: true });
+  if (!insensitive) return;
+  await rename(renamed, intermediate);
+  await rename(intermediate, file);
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok", result: { path } });
 });
 
 it("returns an edit refusal when the new archive file disappears during adoption inspection", async () => {
@@ -445,6 +469,7 @@ it("refuses a Git directory removed after start and succeeds once restored", asy
       await rename(join(h.f.root, ".git"), saved); moved = true;
     }); })).toMatchObject({ status: "refused", refusal: {
       code: "projection-skipped", condition: expect.stringContaining("Git directory"),
+      remedy: { text: "Restore the worktree's Git directory, then retry arc edit." },
     } });
   } finally { if (moved) await rename(saved, join(h.f.root, ".git")); }
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
@@ -523,4 +548,88 @@ it.each([true, false])("refuses in-flight metadata with its own editing remedy, 
   } });
   const correction = await archived();
   expect(await edit(correction.f.store, correction.f.root, correction.path)).toMatchObject({ status: "ok" });
+});
+
+it.each(["folder", "root"] as const)("refuses a %s operand as naming no one file and opens a file inside it", async kind => {
+  const h = await archived();
+  const refused = await edit(h.f.store, h.f.root, kind === "folder" ? h.folder : ".");
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: expect.stringContaining("is a folder; arc edit opens one file"),
+    remedy: { text: `Run arc edit on one file inside ${kind === "folder" ? h.folder : ".arc/completed/"}.` } } });
+  expect((await lstat(join(h.f.root, h.folder))).isDirectory()).toBe(true);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it.each(["saving", "misspelled"] as const)("answers a %s path outside the archive with an in-place edit, never a retry", async kind => {
+  const h = await archived(), path = ".arc/active/current/notes-local.md", file = join(h.f.root, path);
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, kind === "saving" ? "" : "In-flight prose.\n");
+  const operand = kind === "saving" ? path : ".arc/active/current/Notes-local.md";
+  expect(await edit(h.f.store, h.f.root, operand)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." } } });
+});
+
+it.each(["stored", "new"] as const)("answers another person's rights before a missing %s file's remedy, then opens under the owner", async kind => {
+  const h = await archived("beth"), path = kind === "stored" ? h.path : `${h.folder}/correction.txt`;
+  const file = join(h.f.root, path), bytes = kind === "stored" ? await readFile(file) : Buffer.from("A correction.\n");
+  if (kind === "stored") await rm(file);
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    code: "edit-refused", condition: expect.stringContaining("beth"), remedy: { text: expect.stringContaining("beth") },
+  } });
+  await createExecaGitExec()("git", ["config", "arc.identity", "beth"], { cwd: h.f.root });
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: {
+    condition: `No file exists at ${path}.`, remedy: { text: expect.stringContaining(kind === "stored" ? "arc sync" : "Create the file") },
+  } });
+  if (kind === "stored") await projectionCommand({ store: h.f.store, checkout: h.f.root }, ["sync"]);
+  else await writeFile(file, bytes);
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "ok", result: { path } });
+});
+
+it("refuses an archive path its ignore guard does not authorize and opens once the rule is restored", async () => {
+  const h = await archived(), exclude = join(h.f.root, ".git/info/exclude"), rules = await readFile(exclude, "utf8");
+  await writeFile(exclude, rules.replace(".arc/completed/\n", ""));
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: `The projection ignore guard does not permit changing ${h.path}.`,
+    remedy: { text: "Repair the reported projection ignore rules and retry arc edit." } } });
+  await writeFile(exclude, rules);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("refuses an archive file still being saved and opens once the save settles", async () => {
+  const h = await archived(), file = join(h.f.root, h.path), bytes = await readFile(file);
+  await chmod(file, 0o644);
+  await writeFile(file, "");
+  // A modification time ahead of the clock keeps the emptied file inside the save window however slowly the command runs.
+  const saving = new Date(Date.now() + 60_000);
+  await utimes(file, saving, saving);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: expect.stringContaining("is still being saved"), remedy: { text: "Let the editor finish saving, then retry arc edit." } } });
+  await writeFile(file, bytes);
+  const settled = new Date(Date.now() - 60_000);
+  await utimes(file, settled, settled);
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it("refuses an index made unusable after start and opens on the retry its start rebuilds", async () => {
+  const h = await archived();
+  expect(await edit(h.f.store, h.f.root, h.path, program => { program.hook("preAction", async () => {
+    await writeFile(join(h.projected.location.stateDir, "index"), "not an index");
+  }); })).toMatchObject({ status: "refused", refusal: { code: "projection-refused",
+    condition: expect.stringContaining("Projection index is"),
+    remedy: { text: "Retry arc edit; the next command start rebuilds an unusable index." } } });
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+});
+
+it.each(["EPERM", "EIO"] as const)("keeps the opened intent when making the file writable fails with %s, then opens on retry", async code => {
+  const h = await archived(), file = join(h.f.root, h.path);
+  binding.chmodError = code;
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: expect.stringContaining(code), remedy: { text: expect.stringContaining(code === "EPERM"
+      ? "Repair access to the file" : "its opened intent is retained") } } });
+  expect(binding.chmodError).toBeNull();
+  expect((await stat(file)).mode & 0o200).toBe(0);
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
+    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+  expect((await stat(file)).mode & 0o200).toBe(0o200);
 });

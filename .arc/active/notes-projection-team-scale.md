@@ -17,6 +17,9 @@
 - [Archived cohort inventory recovery](#archived-cohort-inventory-recovery)
 - [Archive boundary corrections](#archive-boundary-corrections)
 - [Amendment A2](#amendment-a2)
+- [Amendment A3](#amendment-a3)
+- [Amendment A4](#amendment-a4)
+- [Amendments A5 to A7](#amendments-a5-to-a7)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -58,6 +61,8 @@ production callsite and the scenario that proves it.
 | A refresh takes a forced edit in and lays it read-only           | 1.3, 2.5     | 2.5's tests                            |
 | `arc sync` names a forced edit and a new archived file           | 3.1          | 3.1's tests; 3.5                       |
 | Removal persists an opened edit, refuses a forced one            | 3.2.a, 3.2.b | 3.2's tests; 3.5                       |
+| An archive save journals, submits, then reads its receipt (A3)   | 4.1          | § 9.2 test 11                          |
+| A path is checked at selection, then before each change (A2)     | 4.1          | § 9.2 test 12                          |
 
 ## Test migrations
 
@@ -598,6 +603,75 @@ The same pass found that a refresh's planned removal or move at a refused path, 
 until the repair, was stated nowhere, and that § 8 had the next command both settle a refused path and leave it
 untouched. A4 conditions § 8's next-command clauses on the repair, states the held refresh in § 8 and its cost in § 11
 item 11, and appends Success Criterion 17 rather than editing Success Criterion 15, since a criterion is never edited.
+
+## Amendments A5 to A7
+
+Complete pass 3, review pass 12, found three places where the design record no longer read as the code was built.
+
+- **A5.** § 4 and § 9.1 attributed the archive save's journal to `arc save` alone. Any command journals an opened
+  path's attachment to an existing record or an opened new path's adoption, and an ordinary command's or a fan-out
+  visit's landing of an opened record's edit sends without one. A5 states the routes as built and records the
+  unjournaled landing as § 11 item 12 rather than extending the journal to every command: `arc save` is the command
+  the notice names, and a landing elsewhere finishes as write-back finishes any landing. Success Criterion 19 covers
+  the attachment's recovery.
+- **A6.** `arc edit` withdraws the opening it set when its write-bit change finds a changed folder or file, a decision
+  recorded under § Independent verification repairs that the spec never stated: § 8 ¶2 and § 9.1 read as leaving the
+  opening in place. A6 states it in § 3.3, as the one exception in § 8 ¶2, and in § 9.1. Success Criterion 20 covers
+  it.
+- **A7.** A2's admission rule had not reached § 2.1 ¶6 or the fourth rejected alternative, which still said the take-in
+  never holds an archived edit, nor § 9.1, which listed no step pair for its two path checks. A7 confines § 2.1 ¶6 to
+  the edit rights, restates the alternative against § 4's rule, and adds the step pair with § 9.2 test 12.
+
+The amendments supersede this text, quoted as it stood.
+
+§ 2.1 ¶6 (A7):
+
+> Edit rights and their protection mark stay as shipped: `workUnitRights` (`rights.ts`) answers `editable` for an
+> archived work unit's owner, so take-in never refuses an archived edit for being archived, whether it arrives from an
+> opened file, a refresh that meets a forced edit, or a persist step.
+
+§ 4 ¶6, its opening (A5):
+
+> - **An archive save's journal (A3).** Before `arc save` submits an opened file's write, an opened record's landing or
+> an opened new file's adoption, it records the submission on the file's entry and commits the index
+> (`stageArchiveSave`, `archive-save-recording.ts`; `submitAdoption`, `adoption.ts`): a receipt ID, the file's stamp and
+> read observation, and the name and blob of the input copy it retains (`ArchiveSaveSubmissionSchema`,
+> `index-schema.ts`), with the record's reference for an adoption.
+
+§ 8 ¶2, the sentences A6 qualifies:
+
+> Each change a command makes at an archive path, whether a move into place or aside, a folder created, a mode changed,
+> or a copy deleted, asks again just before it changes the path. A refusal there stops the work on that path: the path
+> is left as a command stopped at that step leaves it, and is reported with its remedy and left untouched for the rest
+> of the command, which goes on with its other paths …
+
+§ 9.1 ¶1 (A5):
+
+> This design adds one prepared step to a store write, an archive save's receipt (A3). `arc edit` writes only the
+> worktree's index and the file's write bit; an opened file lands through write-back's own prepared admission
+> (`spec-projection-write-back.md` § 7.2), which fences its own reads, and a new file adopts through
+> `spec-projection-write-back.md` § 9's existing route, each journaled as the step pair below has it; and the re-lock at
+> `arc save` is local. Its own step pairs each run under the worktree's projection lock, ordered so a stop between them
+> leaves a state the next command repairs:
+
+§ 9.1 ¶2, its opening (A5):
+
+> - **An archive save: the journal, the submission, then the receipt read (A3).** `arc save` commits the journal (§ 4),
+> then submits the write carrying the journal's receipt ID in its provenance (`submitProjectionBatch`, `submission.ts`),
+> which the store admits only for a prepared archive file write (`BatchInputSchema`, `write.ts`); the backend over Git
+> renders it as an `Arc-Archive-Save` trailer naming the ID and a digest of the record's identity, by its owner's UID
+> where the owner has one (`archiveSaveTrailer`, `commit-provenance.ts`).
+
+§ 9.1 ¶3 (A6):
+
+> - **`arc edit`: the opened mark, then the write bit.** A stop between leaves an opened file still read-only, which
+> `arc save` finds unchanged, lays read-only, and unmarks. The reverse order would leave a writable, unmarked file, a
+> forced edit once changed.
+
+Alternatives & Rationale ¶4 (A7):
+
+> - **An `archive` reason among the edit rights — rejected** for a lay mode. It would refuse every archived take-in — an
+> opened file's, a refresh's pickup of a forced edit, a persist step's — and need an exception for each.
 
 ## Save after a retirement refusal
 

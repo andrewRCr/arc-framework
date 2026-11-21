@@ -1,5 +1,4 @@
 /** Interpret indexed marker origins and substitute accepted sides before record parsing. */
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { archiveEditCommand } from "./archive-admission.js";
 import type { TextConflictRecord } from "../conflict.js";
 import { sameReference, type RecordReference } from "../identity.js";
@@ -20,16 +19,18 @@ export type MarkerParseResult = (
   | { readonly kind: "held"; readonly mark: RefusedMark }) & { readonly unshown?: readonly RecordReference[]; readonly open?: readonly RecordReference[] };
 interface MarkerInput {
   content: string; markers: NonNullable<RecordEntry["markers"]>; conflicts: readonly MarkerConflict[];
-  open: readonly RecordReference[]; entries?: MarkerEntryPolicy; path?: string; checkout?: string; opened?: boolean;
+  open: readonly RecordReference[]; entries?: MarkerEntryPolicy; opened?: boolean;
+  /** The file's own path and checkout, which an unopened archived file's `arc edit` remedy names; an aside copy has none. */
+  site?: { readonly checkout: string; readonly path: string };
 }
 
 /** Substitute stored sides using only the conflicts the file's index names. */
 export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
   const result = parseMarkers(input);
   const mark = result.kind === "held" ? result.mark : result.retained;
-  if (mark === undefined || !input.path?.startsWith(".arc/completed/") || input.opened === true) return result;
-  const opened = { ...mark, remedy: { ...mark.remedy,
-    text: `Run ${input.checkout === undefined ? `arc edit ${renderRemedyArgument(input.path)}` : archiveEditCommand(input.checkout, input.path)} first. ${mark.remedy.text}` } };
+  const site = input.site;
+  if (mark === undefined || site === undefined || !site.path.startsWith(".arc/completed/") || input.opened === true) return result;
+  const opened = { ...mark, remedy: { ...mark.remedy, text: `Run ${archiveEditCommand(site.checkout, site.path)} first. ${mark.remedy.text}` } };
   return result.kind === "held" ? { ...result, mark: opened } : { ...result, retained: opened };
 }
 

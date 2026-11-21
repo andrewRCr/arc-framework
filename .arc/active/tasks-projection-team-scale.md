@@ -330,6 +330,12 @@ _Amended in:_ review-fix (A2).
   appended to § Success Criteria below, the first marked superseded by A2, are dispositioned at convergence verification
   against that head's evidence.
 
+- _Review follow-up (pass 12):_ Complete pass 3, review pass 12, found no critical or major finding. Amendment A5
+  states the archive save journal's routes as built and records an ordinary command's unjournaled landing as a
+  residual; A6 records `arc edit` withdrawing its opening when its write-bit change is refused; A7 carries A2's rule
+  into spec § 2.1, § 9.1, and the Alternatives. Success Criteria 19 and 20, appended below, are dispositioned at
+  convergence verification against that head's evidence.
+
 ---
 
 ## Success Criteria
@@ -414,5 +420,12 @@ _Amended in:_ review-fix (A2).
   the file is held with its remedy and resolves after the repair. An opened new file's adoption stopped after the store
   accepted it is recorded the same way, by the persist and release steps too, while the removal check over it names
   `arc save` (A3)
+
+- `[ ]` An ordinary command's attachment of an opened archive path to an existing record, stopped after the store
+  accepted it, is recorded at the next command without a second submission (A5)
+
+- `[ ]` `arc edit` whose write-bit change meets a folder that became a symbolic link or a nested checkout, or a file
+  replaced since its inspection, refuses with its remedy and leaves the path unopened and read-only; after the repair,
+  `arc edit` opens it (A6)
 
 - `[ ]` Ready for integration

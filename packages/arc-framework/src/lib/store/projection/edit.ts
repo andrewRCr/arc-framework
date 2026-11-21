@@ -6,8 +6,7 @@ import type { RefusedMark } from "./index-schema.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { ProjectionLockLostError, withProjectionLock } from "./lock.js";
-import { recordProjectionLockSkip } from "./engine.js";
+import { ProjectionLockLostError, withProjectionLock, type ProjectionLockResult } from "./lock.js";
 import { readProjectionIndex, commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { inspectProjectionEditPath } from "./edit-path.js";
@@ -46,8 +45,20 @@ export async function projectionEditResult(store: Store, requested: string, oper
     finally { root.checkpoint = null; }
   }, { invalidatePartition: true, ...(root.ports.maxWaitMs === undefined ? {} : { maxWaitMs: root.ports.maxWaitMs }) }, root.ports.lock);
   if (opened.status === "done") return opened.value;
-  const skipped = recordProjectionLockSkip(checkout, opened, root.unsent);
-  return refuse(skipped.skip.mark, "projection-skipped");
+  return refuse(editLockRefusal(opened), "projection-skipped");
+}
+
+/** Its own lock's refusal stops only the opening: the command's projection runs on, and its unsent paths stay its own. */
+function editLockRefusal(result: Exclude<ProjectionLockResult<never>, { status: "done" }>): RefusedMark {
+  switch (result.status) {
+    case "held": return { reason: `Projection lock held by ${JSON.stringify(result.holder)}.`,
+      remedy: { text: "Retry arc edit once the command holding the projection lock finishes." } };
+    case "lost": return { reason: `Projection lease lost: ${result.report}`, remedy: { text: "Retry arc edit." } };
+    case "mismatch": return { reason: result.report,
+      remedy: { text: "Retry arc edit; its command start rebuilds the projection index." } };
+    case "gone": return { reason: "The worktree's Git directory is missing.",
+      remedy: { text: "Restore the worktree's Git directory, then retry arc edit." } };
+  }
 }
 
 /**

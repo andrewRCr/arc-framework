@@ -237,7 +237,7 @@ async function checkUneditedArchiveConflictRepair(shown: "notice" | "markers") {
   expect(entry).toMatchObject(shown === "notice" ? { notices: [conflict] } : { markers: expect.any(Object) });
   const checked = await h.check();
   expect(checked).toMatchObject({ kind: "refused", reason: "persist-would-refuse", remedy: {
-    text: expect.stringContaining(shown === "notice" ? `arc save --resolve ${formatConflictToken(conflict)}` : `arc edit ${path}`),
+    text: expect.stringContaining(shown === "notice" ? `arc save --resolve ${formatConflictToken(conflict)}` : `arc edit ${path} from ${h.checkout}`),
   } });
   if (shown === "notice") {
     expect((await projectionCommand(h.input, ["edit", join(h.checkout, path)])).result).toMatchObject({ status: "ok" });

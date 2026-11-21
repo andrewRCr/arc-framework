@@ -10,7 +10,6 @@ import { commitProjectionIndex } from "./index-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
-import { pendingFileRequest } from "./pending-request.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
 import type { ProjectionFileWriteObservation } from "./file-write-observation.js";
 
@@ -78,14 +77,14 @@ async function readRelockedChange(root: ProjectionRootState, path: string, entry
   if (observed.kind !== "file") return { mark: observed.kind === "missing" ? missingMark() : observed.mark, restoreWritable: false };
   const reference = await readReference(root.checkout);
   const reader = projectionFileReader(root.checkout, path);
-  let changed: Awaited<ReturnType<typeof checkChange>> | null;
+  let changed: Awaited<ReturnType<typeof checkChange>>;
   try {
-    changed = await allowMissingFile(checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
-      reference, format: root.context.format }, reader.read, reader.stat));
+    changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat, written: entry.written,
+      reference, format: root.context.format }, reader.read, reader.stat);
   } catch (error) {
     return { mark: error instanceof ArchiveDestinationBlocked ? error.mark : archivePermissionMark(path, error), restoreWritable: false };
   }
-  if (changed === null || changed.status === "absent") return { mark: missingMark(), restoreWritable: false };
+  if (changed.status === "absent") return { mark: missingMark(), restoreWritable: false };
   if (changed.stat.size === 0n && path.endsWith(".md")) return { mark: missingMark(), restoreWritable: true };
   const current = await readArchiveFile(root, path);
   if (current.kind !== "file") return { mark: current.kind === "missing" ? missingMark() : current.mark, restoreWritable: false };
@@ -163,10 +162,8 @@ async function relockAdmission(root: ProjectionRootState, path: string, entry: R
   if (outcome?.rebuilt) return { mark: pendingMark(), writable: false };
   const held = selectArchivePath(root, path, { report: false });
   if (held !== null) return { mark: held, writable: false, selected: true };
-  const denied = await root.rights?.(pendingFileRequest(root.checkout, path, entry));
-  if (denied != null || !root.writable(path)) {
-    return { mark: denied ?? entry.refused ?? pendingMark(), writable: false };
-  }
+  // Edit rights bind where an edit is sent; a file that holds none is laid read-only and closed whoever saves.
+  if (!root.writable(path)) return { mark: entry.refused ?? pendingMark(), writable: false };
   await root.checkpoint?.();
   const file = await readArchiveFile(root, path);
   if (file.kind === "blocked") return { mark: file.mark, writable: false };
@@ -188,13 +185,4 @@ function outcomeMark(path: string, entry: RecordEntry, outcome: ProjectionFileWr
         argv: ["arc", "save", "--resolve", token] } };
   }
   return pendingMark();
-}
-
-async function allowMissingFile<T>(operation: Promise<T>): Promise<T | null> {
-  try { return await operation; }
-  catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return null;
-    throw error;
-  }
 }

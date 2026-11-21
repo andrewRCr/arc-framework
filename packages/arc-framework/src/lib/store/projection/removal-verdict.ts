@@ -6,7 +6,7 @@ import type { Remedy, StoreRefusal } from "../refusal.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { archiveEditCommand } from "./archive-admission.js";
 
 /** A check grants only provisional feasibility; persistence repeats it under the target's lease. */
 export type ProjectionRemovalCheck = Awaited<ReturnType<ProjectionRemovalSlots["check"]>>;
@@ -101,15 +101,16 @@ export function unresolvedRemovalConflicts(checkout: string, path: string, open:
   resolves: readonly RecordReference[], disposition: ProjectionRetirement, entry?: RecordEntry): Exclude<ProjectionRemovalCheck, { kind: "passes" }> | null {
   const remaining = open.filter(conflict => !resolves.some(reference => sameReference(conflict, reference)));
   if (remaining.length === 0) return null;
-  const repair = archivedConflictRepair(path, entry, remaining)
+  const repair = archivedConflictRepair(checkout, path, entry, remaining)
     ?? `Resolve the conflicts in ${path} by hand, then run arc save`;
   return { kind: "would-refuse", remedy: { text: `${repair} from ${checkout} and retry ${retirementName(disposition)}.` } };
 }
 
-function archivedConflictRepair(path: string, entry: RecordEntry | undefined, remaining: readonly RecordReference[]): string | null {
+function archivedConflictRepair(checkout: string, path: string, entry: RecordEntry | undefined,
+  remaining: readonly RecordReference[]): string | null {
   if (!path.startsWith(".arc/completed/") || entry === undefined) return null;
   const notice = entry.notices.find(conflict => remaining.some(reference => sameReference(conflict, reference)));
   if (notice !== undefined) return `Run arc save --resolve ${formatConflictToken(notice)}`;
   return entry.markers !== null && entry.opened !== true
-    ? `Run arc edit ${renderRemedyArgument(path)} first. Resolve the conflicts in ${path} by hand, then run arc save` : null;
+    ? `Run ${archiveEditCommand(checkout, path)} first. Resolve the conflicts in ${path} by hand, then run arc save` : null;
 }

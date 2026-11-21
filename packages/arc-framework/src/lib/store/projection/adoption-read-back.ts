@@ -13,7 +13,8 @@ import { completeWriteBackRecording } from "./write-back-recording.js";
 import type { StoreRecord } from "../read.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { acceptedArchiveRecording } from "./archive-save-recording.js";
-import { readStat } from "./change-detection.js";
+import { projectionFileReader } from "./change-detection.js";
+import { ArchiveDestinationBlocked } from "./archive-file.js";
 import { join } from "node:path";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
@@ -60,7 +61,13 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   if (!root.writable(path)) return index;
   const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused: null, pending: false },
     base: { kind: "blob" as const, blob: entry.base.blob } };
-  const baseline = await adoptionBaseline(root, path, entry, adoption.read);
+  let baseline: TakeInRead;
+  try { baseline = await adoptionBaseline(root, path, entry, adoption.read); }
+  catch (error) {
+    // A folder that refuses the archived file's stat holds this read-back with that refusal, as the other archive reads do.
+    if (!(error instanceof ArchiveDestinationBlocked)) throw error;
+    return holdReadBack(root, index, path, entry, error.mark);
+  }
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
     result: { answer: "taken-in", entry: request.entry, read: baseline } });
   if (installed.result.answer === "taken-in") root.unsent.delete(path);
@@ -72,7 +79,7 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
 
 async function adoptionBaseline(root: ProjectionRootState, path: string, entry: RecordEntry, original: TakeInRead): Promise<TakeInRead> {
   if (entry.opened !== true || !path.startsWith(".arc/completed/") || entry.inProgress === null || entry.stat === null) return original;
-  const current = await readStat(join(root.checkout, path));
+  const current = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
   // After the original file leaves, compare edits to the rendering journaled by the swap.
   return current?.ino === original.stat.ino && current.mtimeNs === original.stat.mtimeNs
     ? original : { stat: entry.stat, blob: entry.written };

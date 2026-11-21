@@ -32,6 +32,7 @@ export interface RetriedMoves {
 /**
  * Bind a caller's moves to the bounded retry.
  * @param moves - The operations and sleep a test injects, if any.
+ * @param archive - An archive path the moves change, whose path check runs again just before every attempt.
  * @returns The retried moves.
  */
 export function retriedMoves(moves: SwapMoves, archive?: { checkout: string; path: string }): RetriedMoves {

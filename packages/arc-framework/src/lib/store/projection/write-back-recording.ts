@@ -2,7 +2,7 @@
 import type { StoreRecord } from "../read.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { createHistoryMemo } from "./base-recovery.js";
-import { readRetainedBase, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
+import { readRetainedBase, retainedBaseRecoveryMark, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
 import { createKindRegistry } from "../registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { WriteBackContext } from "./write-back.js";
@@ -35,10 +35,9 @@ export async function completeWriteBackRecording(context: WriteBackContext, entr
     if (!(error instanceof RetainedBaseUnavailable)) throw error;
     return { entry, mark: error.mark };
   }
-  if (gitBlobId(takenIn, context.format) !== persisted.takenIn.blob) return { entry, mark: {
-    reason: "The retained write-back input does not match its recorded bytes.",
-    remedy: { text: "Restore the retained input, then retry arc save." },
-  } };
+  if (gitBlobId(takenIn, context.format) !== persisted.takenIn.blob) {
+    return { entry, mark: retainedBaseRecoveryMark("The retained write-back input does not match its recorded bytes.") };
+  }
   if (readBack === undefined) {
     const read = await context.store.read({ reference: entry.reference });
     if (read.status === "refused") return { entry, mark: {

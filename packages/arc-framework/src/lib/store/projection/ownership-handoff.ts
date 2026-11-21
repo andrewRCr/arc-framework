@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { gateRead, SYSTEM_READ_GATE } from "./read-gate.js";
+import { gateRead, projectionReadGate } from "./read-gate.js";
 import { projectionFileReader } from "./change-detection.js";
 import { gitBlobId } from "./blob-id.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
@@ -84,7 +84,7 @@ async function reconcilePath(root: OwnershipObservationRoot, path: string, entry
   if (arriving === undefined) return entry;
   const absolute = join(root.checkout, path);
   const reader = projectionFileReader(root.checkout, path);
-  const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: async file => reader.stat(file) });
+  const gate = await gateRead({ path: absolute, markdown: false }, projectionReadGate(root.checkout, path));
   if (gate.kind === "absent") {
     const leaving = { ...entry };
     delete leaving.handoff;

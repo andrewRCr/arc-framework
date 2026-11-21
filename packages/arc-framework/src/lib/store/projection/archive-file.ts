@@ -60,6 +60,11 @@ export function archiveEditDestinationRefusal(checkout: string, path: string): R
   return destination?.cause === "checkout" ? foreignArchivePath(path) : destination?.mark ?? null;
 }
 
+/** `arc edit`'s answer for a path outside this checkout's archive that a nested checkout holds, naming that checkout. */
+export function foreignCheckoutEditRefusal(checkout: string, path: string): RefusedMark | null {
+  return walkDestination(checkout, path)?.cause === "checkout" ? foreignArchivePath(path) : null;
+}
+
 function archiveAccessMark(path: string, error: unknown): RefusedMark {
   const code = (error as NodeJS.ErrnoException).code;
   if (code === "EACCES" || code === "EPERM" || code === "EROFS") return archivePermissionMark(path, error);

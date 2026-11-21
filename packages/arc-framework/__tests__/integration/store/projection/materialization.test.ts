@@ -323,7 +323,7 @@ it("holds files a no-index rebuild cannot place and settles them after a read-on
   expect(published.every(state => state === null)).toBe(true);
   expect(index.state).toBeNull();
   for (const path of [HELD.notes, HELD.meta, HELD.unknown]) {
-    expect(index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(path) });
+    expect(index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(path, target.checkout) });
   }
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.arriving), "utf8")).content).toBe(personal.content);
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
@@ -331,7 +331,7 @@ it("holds files a no-index rebuild cannot place and settles them after a read-on
   expect(settled.state).toBe(version);
   expect(settled.entries[HELD.notes]).toMatchObject({ kind: "record", withheld: false });
   expect(settled.entries[HELD.meta]).toMatchObject({ kind: "record", withheld: false });
-  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown) });
+  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown, { checkout: target.checkout, known: false }) });
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.notes), "utf8")).content).toBe(target.h.record.content);
   expect(success(await target.h.store.version())).toBe(version);
 }, 60_000);
@@ -342,7 +342,7 @@ it("keeps the held mark through a sync restoration over the held index and settl
   expect(await startProjection({ checkout: target.checkout, store: source })).toMatchObject({ kind: "ready" });
   await restoreSyncProjection(target.h.store, target.checkout, {});
   const restored = await settledIndex(target);
-  expect(restored.entries[HELD.notes]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(HELD.notes) });
+  expect(restored.entries[HELD.notes]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(HELD.notes, target.checkout) });
   expect(restored.state).toBeNull();
   await endProjection({ checkout: target.checkout, store: source });
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
@@ -383,7 +383,7 @@ it("gives held files at unplaced paths the ordinary mark once evidence is whole,
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
   const settled = await settledIndex(target);
   expect(settled.entries[HELD.notes]).toMatchObject({ kind: "record", withheld: false });
-  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown) });
+  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown, { checkout: target.checkout, known: false }) });
   expect(settled.state).toBeNull();
   expect(await readdir(outside)).toEqual([]);
 }, 60_000);
@@ -391,12 +391,12 @@ it("gives held files at unplaced paths the ordinary mark once evidence is whole,
 it("gives a held file the ordinary mark when the next start's rebuild finds evidence whole", async () => {
   const target = await fixture();
   const { index, personal } = await heldRebuild(target, { family: "personal" });
-  expect(index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(HELD.unknown) });
+  expect(index.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: evidenceHeldProjectionMark(HELD.unknown, target.checkout) });
   const command = { checkout: target.checkout, store: target.h.store };
   expect(await startProjection(command)).toMatchObject({ kind: "ready" });
   await endProjection(command);
   const settled = await settledIndex(target);
-  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown) });
+  expect(settled.entries[HELD.unknown]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.unknown, { checkout: target.checkout, known: false }) });
   expect(settled.state).toBe(success(await target.h.store.version()));
   expect(parseStampedFile(await readFile(join(target.checkout, HELD.arriving), "utf8")).content).toBe(personal.content);
 }, 60_000);
@@ -407,7 +407,7 @@ it("leaves an ordinarily withheld file untouched when a later rebuild lays a rec
   await writeFile(join(target.checkout, HELD.arriving), "Arriving personal note.\n");
   const first = await materialize(target);
   if (first.status !== "done") throw new Error("Materialization did not run");
-  expect(first.value.index.entries[HELD.arriving]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.arriving) });
+  expect(first.value.index.entries[HELD.arriving]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(HELD.arriving, { checkout: target.checkout, known: false }) });
   await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
     owner: { type: "person", name: "andrew" }, key: "scratch/arriving.md" }), "Arriving personal note.\n");
   await withProjectionLock(target.location, async session => {
@@ -417,7 +417,7 @@ it("leaves an ordinarily withheld file untouched when a later rebuild lays a rec
   expect(await startProjection({ checkout: target.checkout, store: target.h.store })).toMatchObject({ kind: "ready" });
   expect(await readFile(join(target.checkout, HELD.arriving), "utf8")).toBe("Arriving personal note.\n");
   expect((await settledIndex(target)).entries[HELD.arriving]).toMatchObject({ kind: "ownerless", withheld: true,
-    refused: withheldProjectionMark(HELD.arriving) });
+    refused: withheldProjectionMark(HELD.arriving, { checkout: target.checkout, known: false }) });
 }, 60_000);
 
 it("keeps an ownerless withheld file unsent at subsequent command starts and releases it after deletion", async () => {
@@ -445,7 +445,7 @@ it("lays a record arriving at an ordinarily withheld file's path once that file 
   await writeFile(join(target.checkout, path), "Hand-written scratch note.\n");
   const first = await materialize(target);
   if (first.status !== "done") throw new Error("Materialization did not run");
-  expect(first.value.index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(path) });
+  expect(first.value.index.entries[path]).toMatchObject({ kind: "ownerless", withheld: true, refused: withheldProjectionMark(path, { checkout: target.checkout, known: false }) });
   const personal = await seed(target.h, RecordReferenceSchema.parse({ kind: "personal/document",
     owner: { type: "person", name: "andrew" }, key: "scratch/arriving.md" }), "Arriving personal note.\n");
   const version = success(await target.h.store.version());

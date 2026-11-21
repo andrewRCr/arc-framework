@@ -1,5 +1,4 @@
 /** Prepare one materialized file, trusting existing index evidence or a checked rebuild baseline. */
-import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { StoreRecord } from "../read.js";
@@ -8,7 +7,7 @@ import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { RecordRenderer, RenderedRecord } from "./record-render.js";
 import { stageRenderedRecordFile } from "./staging.js";
-import { gateRead, SYSTEM_READ_GATE } from "./read-gate.js";
+import { gateRead, projectionReadGate } from "./read-gate.js";
 import { projectionFileReader } from "./change-detection.js";
 import { parseStampedFile, renderStampedFile } from "./stamp.js";
 import { gitBlobId, storedBlobId, type ObjectFormat } from "./blob-id.js";
@@ -93,8 +92,8 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
     return { index: withProjectionEntry(input.index, path, unreadRebuildEntry(input, refused)), unresolved: true };
   }
   if (isUnreadRebuildEntry(input.index.entries[path])) {
-    const entries = Object.fromEntries(Object.entries(input.index.entries).filter(([at]) => at !== path));
-    return prepareCheckedFile({ ...input, index: { ...input.index, entries }, rebuilding: true });
+    // Dropped through the partitioned entries, so partitions this command never loaded stay as they are.
+    return prepareCheckedFile({ ...input, index: withProjectionEntry(input.index, path, undefined), rebuilding: true });
   }
   return prepareCheckedFile(input);
 }
@@ -173,7 +172,7 @@ function blockedMaterialization(input: MaterializationFileInput, entry: RecordEn
 async function rebuildBasis(input: MaterializationFileInput, entry: RecordEntry): Promise<RecordEntry> {
   const absolute = join(input.root.checkout, input.path);
   const reader = projectionFileReader(input.root.checkout, input.path);
-  const gate = await gateRead({ path: absolute, markdown: false }, { ...SYSTEM_READ_GATE, stat: path => Promise.resolve(reader.stat(path)) });
+  const gate = await gateRead({ path: absolute, markdown: false }, projectionReadGate(input.root.checkout, input.path));
   // Nothing to keep, or a non-file, which the guard holds pending with its own remedy as it does under an index.
   if (gate.kind === "absent" || gate.kind === "no-edit" && gate.deleted === "not-a-file") return entry;
   if (gate.kind !== "read") return { ...entry, stat: await reader.stat(absolute), changed: true, withheld: true };
@@ -201,9 +200,9 @@ const EVIDENCE_HELD_CODE = "evidence-held:";
 
 /**
  * A rebuild could not yet tell whether a stored record lays this path; a later rebuild with whole evidence settles it.
- * Given the checkout, an archived path's `arc edit` remedy names it, so the remedy works from any folder.
+ * An archived path's `arc edit` remedy names the checkout, so the remedy works from any folder.
  */
-export function evidenceHeldProjectionMark(path: string, checkout?: string): RefusedMark {
+export function evidenceHeldProjectionMark(path: string, checkout: string): RefusedMark {
   return { reason: `${EVIDENCE_HELD_CODE} The projection could not yet tell whether a stored record lays this path.`,
     remedy: { text: "Resolve the condition reported with it, then run any arc command from the checkout holding this file; "
       + "its rebuild settles the file, refreshing it where unedited. Or copy out anything wanted and delete the file."
@@ -227,21 +226,21 @@ export function settleHeldMarks(index: ProjectionIndex, laid: ReadonlyMap<string
 }
 
 /**
- * A rebuild cannot establish that these bytes contain no hand edit. Given its checkout and whether a record lays the path,
- * an archived file's remedy names `arc edit` from that checkout, and a new archived file, which nothing projects again,
- * the route that keeps it: put back after the next command releases it, then opened and saved.
+ * A rebuild cannot establish that these bytes contain no hand edit. An archived file's remedy names `arc edit` from its
+ * checkout, and a new archived file's, which nothing projects again and no record lays, the route that keeps it: put back
+ * after the next command releases it, then opened and saved.
  */
-export function withheldProjectionMark(path: string, at?: { readonly checkout: string; readonly known: boolean }): RefusedMark {
-  const edit = at === undefined ? `arc edit ${renderRemedyArgument(path)}` : archiveEditCommand(at.checkout, path);
+export function withheldProjectionMark(path: string, at: { readonly checkout: string; readonly known: boolean }): RefusedMark {
+  const edit = archiveEditCommand(at.checkout, path);
   return { reason: "withheld: The projection has no trustworthy basis for this file.",
     remedy: { text: !path.startsWith(".arc/completed/")
       ? "Copy out anything wanted, then delete the withheld file and reapply the edit after it is projected again."
-      : at?.known === false
+      : !at.known
         ? `Copy out anything wanted, then delete the withheld file. To keep it as a new archived file, put it back after the next arc command, then run ${edit} and arc save.`
         : `Copy out anything wanted, then delete the withheld file. Once it is projected again, run ${edit} before reapplying the edit.` } };
 }
 
-function archivedReapplyInstruction(path: string, checkout?: string): string {
-  const edit = checkout === undefined ? `arc edit ${renderRemedyArgument(path)}` : archiveEditCommand(checkout, path);
-  return path.startsWith(".arc/completed/") ? ` Once projected again, run ${edit} before reapplying any saved correction.` : "";
+function archivedReapplyInstruction(path: string, checkout: string): string {
+  return path.startsWith(".arc/completed/")
+    ? ` Once projected again, run ${archiveEditCommand(checkout, path)} before reapplying any saved correction.` : "";
 }

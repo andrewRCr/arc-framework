@@ -20,14 +20,25 @@ const binding = vi.hoisted(() => ({
   beforeModeOpen: null as ((path: unknown) => Promise<void>) | null,
   afterModeOpen: null as ((path: unknown) => void) | null,
   deniedValidation: null as string | null,
+  /** A path whose next stat alone is refused, as when its folder's permission changes after the command observed it. */
+  deniedOnce: null as string | null,
+  /** Runs once a write is prepared, before its archive save journal is read. */
+  afterPrepared: undefined as (() => Promise<void>) | undefined,
 }));
+vi.mock("../../../../src/lib/store/projection/submission.js", async original => {
+  const actual = await original<typeof import("../../../../src/lib/store/projection/submission.js")>();
+  return { ...actual, prepareIndexedProjectionSubmission: async (...args: Parameters<typeof actual.prepareIndexedProjectionSubmission>) => {
+    const prepared = await actual.prepareIndexedProjectionSubmission(...args);
+    await binding.afterPrepared?.();
+    return prepared;
+  } };
+});
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
   return { ...actual, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
-    if (args[0] === binding.deniedValidation && binding.deniedValidation !== null) {
-      throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
-    }
-    return actual.lstatSync(...args);
+    if (args[0] !== null && args[0] === binding.deniedOnce) binding.deniedOnce = null;
+    else if (args[0] !== binding.deniedValidation || binding.deniedValidation === null) return actual.lstatSync(...args);
+    throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
   }) as typeof actual.lstatSync };
 });
 vi.mock("node:fs/promises", async original => {
@@ -38,10 +49,9 @@ vi.mock("node:fs/promises", async original => {
     binding.afterModeOpen?.(args[0]);
     return handle;
   }, lstat: (async (...args: Parameters<typeof actual.lstat>) => {
-    if (args[0] === binding.deniedValidation && binding.deniedValidation !== null) {
-      throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
-    }
-    return actual.lstat(...args);
+    if (args[0] !== null && args[0] === binding.deniedOnce) binding.deniedOnce = null;
+    else if (args[0] !== binding.deniedValidation || binding.deniedValidation === null) return actual.lstat(...args);
+    throw Object.assign(new Error("Directory access changed"), { code: "EACCES" });
   }) as typeof actual.lstat };
 });
 vi.mock("../../../../src/lib/store/create.js", async original => {
@@ -60,13 +70,14 @@ import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, sameReference } from "../../../../src/lib/store/identity.js";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
+import { createExecaGitExec } from "../../../../src/lib/git/process-executor.js";
 const directories: string[] = [];
 afterEach(async () => {
   binding.store = null;
@@ -74,6 +85,8 @@ afterEach(async () => {
   binding.beforeModeOpen = null;
   binding.afterModeOpen = null;
   binding.deniedValidation = null;
+  binding.deniedOnce = null;
+  binding.afterPrepared = undefined;
   await removeGitBackedDirs(directories.splice(0));
 });
 async function fixture() {
@@ -191,6 +204,29 @@ it("re-locks an unchanged opened file and prints its edit remedy in human output
   expect(saved.errors).toBe("");
   expect(await diskEntry(h)).not.toHaveProperty("opened");
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
+});
+
+it.each([false, true])("re-locks an opening its rights no longer allow unless it holds an edit, which its owner then lands (edited=%s)", async edited => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  const content = edited ? await edit(h) : null;
+  const identity = async (name: string) => { await createExecaGitExec()("git", ["config", "arc.identity", name], { cwd: h.checkout }); };
+  await identity("beth");
+  const saved = await save(h);
+  if (content === null) {
+    // A file holding no edit is laid read-only and closed whoever saves; the rights bind only an edit sent.
+    expect(saved.result).toMatchObject({ status: "ok", result: { relocked: [{ path: h.path }] } });
+    expect(await diskEntry(h)).not.toHaveProperty("opened");
+    expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
+    return;
+  }
+  expect(pathLines(saved.errors, h.path).join("\n")).toContain("andrew");
+  expect(await diskEntry(h)).toHaveProperty("opened", true);
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o200).toBe(0o200);
+  await identity("andrew");
+  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
 });
 
 it.each(["re-lock", "writable restoration"] as const)("retains the permission-blocked opening during %s and re-locks the other file", async transition => {
@@ -863,6 +899,32 @@ it.each([[false, false], [true, false], [true, true]])(
   expect((await lstat(file)).mode & 0o222).toBe(0);
 });
 
+it("holds a resumed adoption read-back whose file a permission refusal hides, then finishes it after the repair", async () => {
+  const h = await fixture(), { path, file, reference, content } = await openedNewText(h);
+  binding.hooks = { afterMove: async at => {
+    if (at === path) throw new Error("Stopped after the adoption read-back moved the file aside");
+  } };
+  await expect(startProjection(h)).rejects.toThrow("Stopped after the adoption read-back moved the file aside");
+  binding.hooks = undefined;
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, adoption: { kind: "read-back" }, inProgress: expect.any(Object) });
+  // Access changes after the walk observed the file: the resumed read-back's own stat meets the refusal.
+  let armed = false;
+  const store = overrideEngineStore(h.store, { read: async input => {
+    if (!armed && sameReference(input.reference, reference)) { armed = true; binding.deniedOnce = file; }
+    return h.store.read(input);
+  } });
+  await startProjection({ ...h, store });
+  const held = projectionProcessState().diagnostics.filter(each => each.path === path);
+  await endProjection({ ...h, store });
+  expect(binding.deniedOnce).toBeNull();
+  expect(held.map(each => each.mark.reason).join("\n")).toContain("EACCES");
+  expect(await diskEntry(h, path)).toMatchObject({ opened: true, adoption: { kind: "read-back" }, pending: true });
+  await startProjection(h); await endProjection(h);
+  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(success(await h.store.read({ reference })).content).toBe(content);
+  expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+});
+
 it("recovers an interrupted ordinary attachment to an existing archive record once", async () => {
   const h = await fixture(), { path, file, reference, content } = await openedNewText(h);
   const later = "Peer's newer correction.\n";
@@ -926,4 +988,55 @@ it("reuses the accepted observation for a late edit during adoption read-back", 
   expect(success(await h.store.read({ reference }))).toMatchObject({ content: late, version: accepted.version });
   expect(await readFile(file, "utf8")).toBe(late);
   expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+
+it("sends no archive save whose index became unusable before its journal, and lands it once after the named rebuild", async () => {
+  const h = await fixture(), file = join(h.checkout, h.path);
+  await openArchivedProjectionFile(h, h.path);
+  const content = await edit(h), edited = await readFile(file, "utf8");
+  const header = JSON.parse(await readFile(join(h.projected.location.stateDir, "index"), "utf8")) as { groups: Record<string, { name: string }> };
+  const partition = join(h.projected.location.stateDir, header.groups[".arc/completed/2026-q4"]!.name);
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, { batch: async input => { submissions += 1; return h.store.batch(input); } });
+  binding.afterPrepared = async () => { binding.afterPrepared = undefined; await rm(partition); };
+  const refused = await save({ ...h, store });
+  expect(submissions).toBe(0);
+  expect(pathLines(refused.errors, h.path).join("\n")).toContain("The archive edit could not be recorded.");
+  expect(refused.errors).toContain("Run arc sync from this checkout to rebuild the index, then retry arc save.");
+  expect(await readFile(file, "utf8")).toBe(edited);
+  await projectionCommand({ store, checkout: h.checkout }, ["sync"]);
+  expect(await save({ ...h, store })).toMatchObject({ result: { status: "ok" }, errors: "" });
+  expect(submissions).toBe(1);
+  expect(success(await h.store.read({ reference: h.primary.reference })).content).toBe(content);
+  expect(await diskEntry(h)).not.toHaveProperty("opened");
+  expect((await lstat(file)).mode & 0o222).toBe(0);
+});
+
+it("refuses an archive save receipt whose matching commit carries no verifiable provenance, until the history is restored", async () => {
+  const h = await fixture();
+  await openArchivedProjectionFile(h, h.path);
+  await edit(h);
+  expect(await save(h)).toMatchObject({ result: { status: "ok" }, errors: "" });
+  const git = async (...args: string[]) => (await h.f.ports.exec("git", args, { cwd: h.checkout })).stdout.trim();
+  const saved = await git("log", "--all", "--fixed-strings", "--grep=Arc-Archive-Save:", "-n", "1", "--format=%H");
+  const trailer = (await git("log", "-n", "1", "--format=%B", saved)).split("\n").find(line => line.startsWith("Arc-Archive-Save: "));
+  if (trailer === undefined) throw new Error("The archive save carries no receipt");
+  const id = trailer.split(" ")[1]!;
+  // Each ref whose tip is the save, the record's history among them, gets a commit naming the receipt without its provenance.
+  const tips = (await git("for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/")).split("\n").map(line => line.split(" ") as [string, string]);
+  const receipted = [];
+  for (const [tip, ref] of tips) if ((await git("log", "-n", "1", "--format=%B", tip)).includes(trailer)) receipted.push({ tip, ref });
+  expect(receipted.length).toBeGreaterThan(0);
+  const forged = [];
+  for (const { tip, ref } of receipted) {
+    const commit = await git("commit-tree", `${tip}^{tree}`, "-p", tip, "-m", "An unverified correction", "-m", trailer);
+    await git("update-ref", ref, commit, tip);
+    forged.push({ tip, ref, commit });
+  }
+  expect(await h.store.history({ reference: h.primary.reference, archiveSaveId: id })).toMatchObject({ status: "refused", refusal: {
+    condition: "An archive save commit does not contain its exact record and acceptance provenance.",
+    remedy: { text: "Restore the referenced store history, then retry arc save." } } });
+  for (const { tip, ref, commit } of forged) await git("update-ref", ref, tip, commit);
+  expect(await h.store.history({ reference: h.primary.reference, archiveSaveId: id })).toMatchObject({ status: "ok",
+    result: [{ reference: h.primary.reference, provenance: { archiveSaveId: id } }] });
 });

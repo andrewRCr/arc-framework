@@ -86,14 +86,18 @@ export async function readTakenInCopy(location: ProjectionLocation, name: string
   return readFile(join(location.stateDir, TAKEN_IN_FOLDER, name), "utf8");
 }
 
+/** A retained input that cannot be read or no longer matches its recorded bytes, with the one recovery route for both. */
+export function retainedBaseRecoveryMark(reason: string): RefusedMark {
+  return { reason, remedy: { text: "Restore the retained base copy or recover a projection from readable stored content, then retry." } };
+}
+
 /** A retained input could not be read; consumers decide whether to hold their file or propagate the failure. */
 export class RetainedBaseUnavailable extends Error {
   readonly mark: RefusedMark;
   constructor(cause: Error) {
     super(`The retained write-back base cannot be read: ${cause.message}`, { cause });
     this.name = "RetainedBaseUnavailable";
-    this.mark = { reason: this.message,
-      remedy: { text: "Restore the retained base copy or recover a projection from readable stored content, then retry." } };
+    this.mark = retainedBaseRecoveryMark(this.message);
   }
 }
 

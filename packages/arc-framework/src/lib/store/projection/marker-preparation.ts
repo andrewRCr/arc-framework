@@ -33,7 +33,7 @@ export async function prepareMarkerContent(store: Store, entry: RecordEntry, con
       remedy: { text: "Repair the indexed conflict record or restore a readable stored conflict before saving again." } } };
     conflicts.push({ reference: set.conflict, data: parsed.data });
   }
-  return { status: "ok", result: { ...parseMarkerContent({ content, markers: entry.markers, conflicts, open: current.result.conflicts, entries, path: at?.path, checkout: at?.checkout, opened: entry.opened }),
+  return { status: "ok", result: { ...parseMarkerContent({ content, markers: entry.markers, conflicts, open: current.result.conflicts, entries, ...(at === undefined ? {} : { site: at }), opened: entry.opened }),
     unshown: unshownConflicts(entry, current.result.conflicts), open: current.result.conflicts } };
 }
 

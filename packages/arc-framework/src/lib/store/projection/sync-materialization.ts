@@ -6,9 +6,13 @@ import { refreshProjectionRootLayout } from "./engine-binding.js";
 import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { materializeProjectionRoot } from "./materialization.js";
-import { projectionProcessState } from "./process-state.js";
+import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
 import { canonicalCheckout } from "./checkout-identity.js";
 import type { ProjectionLockResult } from "./lock.js";
+import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch } from "./index-memory.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { runSecondCheck } from "./second-check.js";
+import { reportProjectionCopy } from "./report.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -31,6 +35,7 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
         if (version.status === "refused") { report(version.refusal.condition, version.refusal.remedy.text); return; }
         const disk = await readProjectionIndex(root.location, true, { groups: "all" });
         const basis = { root, source: store, configuration, version: version.result, reportedLinks: root.reportedLinks };
+        if (disk.kind !== "index") await settleCommandCopies(root);
         const materialized = await materializeProjectionRoot(disk.kind === "index"
           ? { ...basis, index: disk.index, onlyDeleted: true }
           : { ...basis, index: null, recovered: disk.header });
@@ -46,6 +51,31 @@ export async function restoreSyncProjection(store: Store, requested: string, opt
       report(stopped.reason, stopped.remedy);
     }
   } catch (error) { report(error instanceof Error ? error.message : String(error)); }
+}
+
+/**
+ * Settle the aside copies this command already made against the entries that alone record them, before a rebuild
+ * replaces those entries. A copy whose own partition cannot be read stays for the next command's sweep.
+ */
+async function settleCommandCopies(root: ProjectionRootState): Promise<void> {
+  if (root.copies.length === 0) return;
+  const start = await readProjectionIndex(root.location, true);
+  if (start.kind !== "index") return;
+  const readable = root.copies.filter(({ path }) => {
+    try { loadProjectionGroups(start.index, [projectionIndexGroup(path)]); return true; }
+    catch (error) {
+      if (error instanceof ProjectionPartitionMismatch) return false;
+      throw error;
+    }
+  });
+  if (readable.length === 0) return;
+  const blockedByLink = await readProjectionLinkBoundary(root.checkout, readable.map(copy => copy.path), root.ports.linkFs);
+  const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: start.index, blockedByLink,
+    copies: readable, format: root.context.format, takeIn: root.takeIn, writer: root.context.writer,
+    checkpoint: root.context.checkpoint });
+  for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
+  const settled = new Set(checked.settled.map(each => each.copy));
+  root.copies.splice(0, root.copies.length, ...root.copies.filter(copy => !settled.has(copy.copy)));
 }
 
 /** The lease status that stopped a restoration, with its detail and the remedy that fits it. */
