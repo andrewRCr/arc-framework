@@ -17,8 +17,8 @@
 - **Next Task:** Task 6.4.b — The import side
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.4.b — Stage 2's import side on a fresh copy, per `notes-cutover-flip.md` § Stage 2;
-  allow a couple of uninterrupted hours
+- **Next Action:** Tuesday 11-24 morning: the parallel run's worker tasks (4.2, 4.R, 6.3); Task 6.4.b once arc-offload's
+  three deploys are in, or by the end of 11-24 regardless (SESSION-NOTES)
 
 - **PR URL:** [none]
 - **Completed:** [none]
