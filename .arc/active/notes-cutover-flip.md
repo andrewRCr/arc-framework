@@ -1197,6 +1197,18 @@ live-context read, for one, opens the default itself (`readActiveMetaCandidates`
           Task 4.R's A14 replaces.
         - No spawned importFixture user in the family runs the flip build after its import; the window suites, which
           do, delete their tracked state through Git first (`helpers/cutover-window/after-merge.ts`).
+    - _The check and schema commands, as moved (Task 3.6.a):_ `e2e/check-dry-run.e2e.test.ts`, `check-outcomes`,
+      `check-project-selection`, `check-selection`, and `schema-install` spawn through `e2e/store-default.ts`; 58 of
+      their 61 cases run on the store.
+        - `createDeclaredCheckRepository` (`fixtures/checks/repository.ts`), which 36 test files share, writes the
+          ignore lines an initialized checkout holds, taken from the projection guard's own roots
+          (`guardedProjectionRoots`), and the personal npm policy, so the guard passes rather than warning on stderr.
+          Its `tracksState` option leaves the lifecycle roots unexcluded, for a checkout on the in-repo store whose
+          planning files a test commits.
+        - Outside a Git checkout `schema-install`'s refusal keeps its JSON, and stderr holds only the projection's
+          disabled-start notice. Its exclude-failure case surfaced A25, which Task 3.R10 fixed.
+        - Keep the override by subject: `check-project-selection`'s archived planning edits and its backlog planning
+          row, which commit tracked planning state the store refuses.
 - **Diagnosed ahead of their slices, both stale fixtures (A12):** `integration/status-conflicts-cli`'s and
   `status-store-refresh-cli`'s empty-stderr assertions meet the projection's ignore-guard warning over fixtures that lack
   the `.arc/user/*/` rule `arc init` writes; `unit/handlers/active`'s worktree-porcelain refusal comes from a Git mock that

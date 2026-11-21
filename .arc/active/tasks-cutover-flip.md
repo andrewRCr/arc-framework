@@ -1017,9 +1017,11 @@ _Design decisions:_ The switch lands in stages, each commit green; see `notes-cu
   through it failed 65 of their 793 cases, so the task moves in five review increments, one commit each: four switch
   the failing files through `e2e/store-default.ts`, and the last removes the override.
 
-    - `[ ]` **3.6.a The check and schema commands**
+    - `[x]` **3.6.a The check and schema commands**
         - `e2e/check-dry-run.e2e.test.ts`, `check-outcomes`, `check-project-selection`, `check-selection`, and
-          `schema-install` spawn through `e2e/store-default.ts`.
+          `schema-install` spawn through `e2e/store-default.ts`; 58 of their 61 cases run on the store, the shared check
+          fixture holding the ignore lines an initialized checkout holds. Tracked planning edits keep the override by
+          subject; `schema-install`'s exclude-failure case surfaced A25 (`notes-cutover-flip.md` § Test callers).
 
     - `[ ]` **3.6.b The command-input matrix**
         - `e2e/command-input-no-input.e2e.test.ts` spawns through `e2e/store-default.ts`.

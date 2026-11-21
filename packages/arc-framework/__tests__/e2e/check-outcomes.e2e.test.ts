@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
-import { runArc } from "./helpers.js";
+import { runArc } from "./store-default.js";
 
 const repositories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });

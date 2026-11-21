@@ -7,7 +7,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import {
   SchemaInstallEnvelopeSchema, SchemaRefusalEnvelopeSchema,
 } from "../../src/lib/schema-command/envelope.js";
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc } from "./store-default.js";
 
 const directory = ".arc/system/.internal/schemas";
 describe("arc schema install", () => {
@@ -88,7 +88,8 @@ describe("arc schema install", () => {
       const payload = SchemaRefusalEnvelopeSchema.parse(JSON.parse(result.stdout));
       expect(payload).toMatchObject({ status: "refused", reason: "editor-documents-unwritable", target: "exclude" });
       expect(payload).not.toHaveProperty("path");
-      expect(result.stderr).toBe("");
+      // The projection's start reports that no Git directory backs the folder; the refusal writes nothing beside it.
+      expect(result.stderr).toMatch(/^projection: [^\n]*: The worktree's Git directory is missing\.\n {2}[^\n]*\n$/u);
     } finally { await rm(outside, { recursive: true, force: true }); }
   });
 });
