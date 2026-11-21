@@ -47,6 +47,8 @@ export interface SweepInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The command's one answer for whether an archive path is this checkout's, reported once; asked here where absent. */
   readonly selectArchivePath?: (path: string) => RefusedMark | null;
+  /** A destination already held by discovery or by an earlier phase of the same command. */
+  readonly knownArchiveHold?: (path: string) => RefusedMark | null;
   /** Takes a refusal met just before a change, which the command keeps as that path's answer and reports once. */
   readonly refuseChange?: ArchiveChangeRefusal;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
@@ -117,7 +119,8 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
     ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
     ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
   ];
-  const { blockedByLink: observed, archiveAccess } = await readCopyDestinations(input.checkout, destinations.filter(writable));
+  const { blockedByLink: observed, archiveAccess } = await readCopyDestinations(input.checkout, destinations.filter(writable),
+    undefined, input.knownArchiveHold);
   const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
     blockedByLink: path => input.blockedByLink?.(path) ?? observed(path), archiveAccess };
   if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };

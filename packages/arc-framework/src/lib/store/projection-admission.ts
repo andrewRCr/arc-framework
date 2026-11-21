@@ -29,7 +29,10 @@ const adoption = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat, blob: BlobIdSchema }), retained: mark.optional() }),
 ]);
 const basis = RecordEntrySchema.pick({ reference: true, written: true, base: true, markers: true, notices: true,
-  unshown: true, persisted: true, inProgress: true, copies: true }).extend({ adoption: adoption.nullable() });
+  unshown: true, persisted: true, inProgress: true, copies: true }).extend({ adoption: adoption.nullable(),
+  stat: stat.nullable().optional(), acceptedInputStat: stat.pick({ ino: true, mtimeNs: true }).extend({
+    beforeLay: z.literal(true).optional(), lay: RecordEntrySchema.shape.acceptedInputStat.unwrap().shape.lay,
+  }).optional() });
 const selectedBase = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("stored"), version: RecordVersionSchema, blob: BlobIdSchema }),
   z.strictObject({ kind: z.literal("copy"), blob: BlobIdSchema }),
@@ -51,7 +54,8 @@ export const ProjectionAdmissionSchema = z.strictObject({
     indexedMetadata: z.array(z.strictObject({ path, reference: exactReference })),
     prospectiveMetadata: z.array(z.strictObject({ path, content: z.string().nullable() })) }),
   input: z.strictObject({ format: z.enum(["sha1", "sha256"]),
-    file: z.strictObject({ content: z.string(), stamp: BlobIdSchema.nullable(), mtimeNs: decimal }),
+    file: z.strictObject({ content: z.string(), stamp: BlobIdSchema.nullable(), mtimeNs: decimal,
+      raw: z.strictObject({ blob: BlobIdSchema, ino: decimal }).optional() }),
     basis: basis.nullable(), base: z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("stamp"), stamp: BlobIdSchema.nullable() }),
       z.strictObject({ kind: z.literal("blob"), blob: BlobIdSchema })]).nullable(),

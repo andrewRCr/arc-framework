@@ -1,10 +1,9 @@
 /** Materialize stored records under one target worktree's projection lease. */
-import { observeMaterialization, observeMaterializationFiles } from "./materialization-observation.js";
+import { observeMaterialization, observeMaterializationFiles, recordRebuildDiscovery } from "./materialization-observation.js";
 import { recordProjectionSweep } from "./end-work.js";
 import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
 import { projectionSettings } from "./settings.js";
-import { join } from "node:path";
 import { ensureGitExcludePatterns } from "../../git/exclude.js";
 import { nodeWorktreeMarkerIgnoreFs } from "../../git/worktree-marker.js";
 import { readProjectionInventory } from "./inventory.js";
@@ -13,12 +12,11 @@ import { desiredProjectionPaths } from "./desired-paths.js";
 import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createRecordRenderer } from "./record-render.js";
-import { evidenceHeldProjectionMark, prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
+import { prepareMaterializationFile } from "./materialization-file.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportLeftCopies, reportProjectionLinks } from "./report.js";
-import { readStat, readReference } from "./change-detection.js";
+import { readReference } from "./change-detection.js";
 import { swapBatch, type SwapFile } from "./swap.js";
-import { withProjectionEntry } from "./index-memory.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { projectionExcludePatterns } from "./excludes.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -36,7 +34,7 @@ import { PROJECTION_INDEX_FORMAT, type ProjectionIndex, type RefusedMark } from 
 import type { StateVersion } from "../identity.js";
 import { ensureProjectionScratch } from "./scratch-folder.js";
 import { reportArchivedProjectionFile, reportRemainingArchivedFiles } from "./archive-report.js";
-import { archiveChangeRefusals, selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals } from "./archive-selection.js";
 
 /** Inputs observed by the lease-owning caller. */
 interface ProjectionMaterializationBasis {
@@ -97,7 +95,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const selected = selection.files;
   if (input.onlyDeleted) await reportRemainingArchivedFiles(root, index, walked.files, desired.files);
   // A link is reported, never recorded: only walked files can be unknown files.
-  if (input.index === null) index = await recordUnknownFiles(root, index, walked.files, desired.files, whole);
+  if (input.index === null) index = await recordRebuildDiscovery(root, index, walked, desired.files, whole);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
   const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
@@ -120,7 +118,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   }
   index = await installMaterializedFiles(input, index, files);
   await ensureProjectionScratch(root);
-  const complete = whole && !unlaid && walked.complete;
+  const complete = whole && !unlaid && index.archiveDiscoveryPending === undefined;
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: materializationTimings(input, { ...index, state: !input.onlyDeleted && complete
       && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
@@ -155,20 +153,6 @@ function materializationTimings(input: ProjectionMaterializationInput, index: Pr
   const now = projectionTimingNow(input.root.ports);
   const materialized = recordProjectionTiming(index, "materialization", now - startedAt);
   return input.startTiming === undefined ? materialized : recordProjectionTiming(materialized, "start", now - input.startTiming);
-}
-
-
-async function recordUnknownFiles(root: ProjectionRootState, initial: ProjectionIndex, paths: readonly string[],
-  desired: ReadonlyMap<string, unknown>, whole: boolean): Promise<ProjectionIndex> {
-  let index = initial;
-  for (const path of paths) {
-    // A file under a folder another checkout holds is that checkout's, never recorded here.
-    if (desired.has(path) || selectArchivePath(root, path, { report: false }) !== null) continue;
-    const refused = whole ? withheldProjectionMark(path, { checkout: root.checkout, known: false }) : evidenceHeldProjectionMark(path, root.checkout);
-    index = withProjectionEntry(index, path, { kind: "ownerless", withheld: true, stat: await readStat(join(root.checkout, path)), refused });
-    root.context.report?.({ path, copy: null, mark: refused });
-  }
-  return index;
 }
 
 

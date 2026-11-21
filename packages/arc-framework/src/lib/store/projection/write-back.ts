@@ -134,7 +134,7 @@ export async function prepareCapturedWriteBack(context: WriteBackContext, reques
   if (normalized.status === "refused") return refusedPreparation(request.entry, normalized.refusal);
   const file = { ...supplied, content: normalized.result };
   request = observeProjectionEdit(request, file.read.blob);
-  const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
+  const selected = await selectWriteBackBase(context, request, file.content, file.stamp, file.read);
   if (selected.status === "refused") return refusedPreparation(request.entry, selected.refusal);
   if (selected.result.kind === "held") return heldBasePreparation(context, request, file, selected.result);
   const { base, stamp } = selected.result;

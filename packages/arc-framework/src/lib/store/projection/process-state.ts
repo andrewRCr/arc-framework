@@ -65,7 +65,7 @@ export interface ProjectionRootState {
   readonly unsent: Set<string>;
   /** Each archive path's answer from the path check this command asked once, at the path's first selection. */
   archiveSelection?: Map<string, ArchiveSelection>;
-  archiveFolderHolds?: Map<string, RefusedMark>;
+  archiveDiscoveryHolds?: Map<string, RefusedMark>;
   readonly discovered: string[];
   changed: boolean;
   sent?: boolean;

@@ -3,7 +3,7 @@ import { lstatSync, readdirSync, type Dirent, type Stats } from "node:fs";
 import { join } from "node:path";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { readProjectionLinkBoundary, type ProjectionLinkFs } from "./discovery-links.js";
-import { archivePermissionMark, isArchiveScope } from "./archive-file.js";
+import { archivePermissionMark, isArchivePermissionRefusal, isArchiveScope } from "./archive-file.js";
 import type { RefusedMark } from "./index-schema.js";
 
 /** One folder entry, typed by the read or by its own stat. */
@@ -27,8 +27,9 @@ const nativeWalkFs: ProjectionWalkFs = { readdir: path => readdirSync(path, { wi
 
 /** Enumerate typed folder entries, statting only those typed as links, yielding between folders for concurrent Git work. */
 export async function walkProjectionRoots(checkout: string, roots: readonly string[],
-  fs: ProjectionWalkFs = nativeWalkFs, linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>): Promise<ProjectionWalkResult> {
-  const selected = roots.filter(path => !isExcludedProjectionPath(path));
+  fs: ProjectionWalkFs = nativeWalkFs, linkFs?: ProjectionLinkFs, archiveAccess?: Map<string, RefusedMark>,
+  rootsMayBeFiles = false): Promise<ProjectionWalkResult> {
+  const selected = roots.filter(path => !isExcludedProjectionPath(path) && !archiveAccess?.has(path));
   const boundary = await readProjectionLinkBoundary(checkout, selected, linkFs,
     archiveAccess === undefined ? undefined : (path, mark) => { archiveAccess.set(path, mark); });
   const pending = selected.filter(path => boundary(path) === null && !archiveAccess?.has(path));
@@ -38,8 +39,10 @@ export async function walkProjectionRoots(checkout: string, roots: readonly stri
     return link === null ? [] : [link];
   }))];
   const output = { pending, files, links };
+  const retype = rootsMayBeFiles ? new Set(pending) : undefined;
   for (let path = pending.pop(); path !== undefined; path = pending.pop()) {
-    if (isExcludedProjectionPath(path)) continue;
+    if (isExcludedProjectionPath(path) || archiveAccess?.has(path)) continue;
+    if (retype?.delete(path) && !visitRetryScope(checkout, path, fs, archiveAccess, output)) continue;
     const entries = readWalkFolder(checkout, path, fs, archiveAccess);
     if (entries !== null) collectEntries(path, entries, output);
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -47,8 +50,27 @@ export async function walkProjectionRoots(checkout: string, roots: readonly stri
   return { files: files.sort(), links: links.sort() };
 }
 
+function visitRetryScope(checkout: string, path: string, fs: ProjectionWalkFs, archiveAccess: Map<string, RefusedMark> | undefined,
+  output: { files: string[]; links: string[] }): boolean {
+  try {
+    const stat = walkLstat(fs)(join(checkout, path));
+    if (stat.isFile()) output.files.push(path);
+    if (stat.isSymbolicLink()) output.links.push(path);
+    return stat.isDirectory();
+  } catch (error) {
+    if (missingPath(error)) return false;
+    if (archiveAccess === undefined || !isArchiveScope(path)) throw error;
+    archiveAccess.set(path, archivePermissionMark(path, error, "inspect"));
+    return false;
+  }
+}
+
 function readWalkFolder(checkout: string, path: string, fs: ProjectionWalkFs, archiveAccess?: Map<string, RefusedMark>) {
-  try { return readProjectionFolder(join(checkout, path), fs, name => isExcludedProjectionPath(`${path}/${name}`)); }
+  const hold: ChildAccessHold | undefined = archiveAccess === undefined || !isArchiveScope(path) ? undefined : (name, error) => {
+    const child = `${path}/${name}`;
+    archiveAccess.set(child, archivePermissionMark(child, error, "inspect"));
+  };
+  try { return readProjectionFolder(join(checkout, path), fs, name => isExcludedProjectionPath(`${path}/${name}`), hold); }
   catch (error) {
     if (archiveAccess === undefined || !isArchiveScope(path)) throw error;
     const mark = archivePermissionMark(path, error, "enumerate");
@@ -56,6 +78,8 @@ function readWalkFolder(checkout: string, path: string, fs: ProjectionWalkFs, ar
     return null;
   }
 }
+
+type ChildAccessHold = (name: string, error: unknown) => void;
 
 function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["readdir"]>,
   output: { pending: string[]; files: string[]; links: string[] }): void {
@@ -75,20 +99,20 @@ function collectEntries(path: string, entries: ReturnType<ProjectionWalkFs["read
  * out before any of that, so nothing about it is inspected.
  */
 export function readProjectionFolder(folder: string, fs: ProjectionWalkFs = nativeWalkFs,
-  skip: (name: string) => boolean = () => false): readonly WalkEntry[] | null {
+  skip: (name: string) => boolean = () => false, hold?: ChildAccessHold): readonly WalkEntry[] | null {
   let entries: readonly WalkEntry[];
   try {
     entries = fs.readdir(folder).filter(entry => !skip(entry.name));
   } catch (error) {
-    if (!missingPath(error)) throw error;
-    return readSurvivingEntries(fs, folder, skip);
+    if (!missingPath(error) && !(hold !== undefined && isArchivePermissionRefusal(error))) throw error;
+    return readSurvivingEntries(fs, folder, skip, hold);
   }
   if (!entries.some(entry => entry.isSymbolicLink())) return entries;
   const lstat = walkLstat(fs);
-  return entries.flatMap(entry => entry.isSymbolicLink() ? statEntry(lstat, folder, entry.name) : [entry]);
+  return entries.flatMap(entry => entry.isSymbolicLink() ? statEntry(lstat, folder, entry.name, hold) : [entry]);
 }
 
-function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name: string) => boolean): WalkEntry[] | null {
+function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name: string) => boolean, hold?: ChildAccessHold): WalkEntry[] | null {
   const lstat = walkLstat(fs), names = fs.readdirNames ?? (path => readdirSync(path));
   let listed: readonly string[];
   try {
@@ -98,7 +122,7 @@ function readSurvivingEntries(fs: ProjectionWalkFs, folder: string, skip: (name:
     if (missingPath(error)) return null;
     throw error;
   }
-  return listed.filter(name => !skip(name)).flatMap(name => statEntry(lstat, folder, name));
+  return listed.filter(name => !skip(name)).flatMap(name => statEntry(lstat, folder, name, hold));
 }
 
 function walkLstat(fs: ProjectionWalkFs): NonNullable<ProjectionWalkFs["lstat"]> {
@@ -106,13 +130,15 @@ function walkLstat(fs: ProjectionWalkFs): NonNullable<ProjectionWalkFs["lstat"]>
 }
 
 /** Type one entry by its own stat; an entry that vanished meanwhile is left out. */
-function statEntry(lstat: NonNullable<ProjectionWalkFs["lstat"]>, folder: string, name: string): WalkEntry[] {
+function statEntry(lstat: NonNullable<ProjectionWalkFs["lstat"]>, folder: string, name: string, hold?: ChildAccessHold): WalkEntry[] {
   try {
     const stat = lstat(join(folder, name));
     return [{ name, isDirectory: () => stat.isDirectory(), isFile: () => stat.isFile(), isSymbolicLink: () => stat.isSymbolicLink() }];
   } catch (error) {
     if (missingPath(error)) return [];
-    throw error;
+    if (hold === undefined) throw error;
+    hold(name, error);
+    return [];
   }
 }
 

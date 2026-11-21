@@ -13,7 +13,7 @@ import { loadProjectionGroups } from "./index-memory.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { hasProjectionEndWork } from "./end-work.js";
 import { recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
-import { refuseArchiveChange } from "./archive-selection.js";
+import { heldArchivePath, refuseArchiveChange } from "./archive-selection.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -28,7 +28,7 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       loadProjectionGroups(fresh.index, "walked");
       const timings = [...root.fanOutTimes ?? []];
       const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
-      const accessible = (path: string): boolean => (root.archiveSelection?.get(path)?.mark ?? null) === null;
+      const accessible = (path: string): boolean => heldArchivePath(root, path) === null;
       const copies = root.copies.filter(copy => accessible(copy.path));
       const removals = root.removals.filter(accessible);
       const destinations = await readCopyDestinations(root.checkout,

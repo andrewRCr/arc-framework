@@ -7,9 +7,9 @@ import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { readBaseContent, type BaseSelectionContext } from "./base-content.js";
 import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
-import type { TakeInRequest } from "./take-in-port.js";
+import type { TakeInRead, TakeInRequest } from "./take-in-port.js";
 
-import { unfinishedRecordingRefusal } from "./recording-state.js";
+import { archiveLayPhase, isPredecessorArchiveAdoption, provesPredecessorInstallation, unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
@@ -25,10 +25,12 @@ export type WriteBackBaseDecision = SelectedWriteBackBase | {
 
 /** Select a file's base from its actual stamp, including the content its last persisted write-back took in. */
 export async function selectWriteBackBase(
-  context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
+  context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null, read?: TakeInRead,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const unfinished = unfinishedRecordingRefusal(request.entry);
   if (unfinished !== null) return { status: "refused", refusal: unfinished };
+  if (stamp === null && revertedInstalledAdoption(request, read)) return { status: "ok", result: { kind: "selected",
+    base: { kind: "stored", version: request.entry.base.version }, stamp: request.entry.base.blob } };
   try {
     return await selectBase(context, request, content, stamp);
   } catch (error) {
@@ -61,6 +63,16 @@ async function selectBase(
     } };
   }
   return recoverSelectedBase({ ...context, memo }, request, content, stamp);
+}
+
+/** The exact unstamped input is a later edit when the adoption's guarded replacement already landed. */
+function revertedInstalledAdoption(request: TakeInRequest, read: TakeInRead | undefined): boolean {
+  const { entry } = request;
+  if (!request.path.startsWith(".arc/completed/") || !request.path.endsWith(".md") || request.copy !== null
+    || request.resolution !== undefined || request.observedEdit !== true
+    || read === undefined || entry.adoption?.kind !== "read-back"
+    || read.blob !== entry.adoption.read.blob) return false;
+  return archiveLayPhase(entry) === "installed" || isPredecessorArchiveAdoption(entry) && provesPredecessorInstallation(entry, read.stat);
 }
 
 async function selectHeldBase(context: BaseSelectionContext, entry: RecordEntry, stamp: string | null): Promise<StoreResult<SelectedWriteBackBase>> {

@@ -104,7 +104,7 @@ import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
-import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { relockOpenedProjectionFiles } from "../../../../src/lib/store/projection/save-relock.js";
 import { withProjectionLock } from "../../../../src/lib/store/projection/lock.js";
@@ -998,9 +998,10 @@ it.each(["unchanged", "edited", "reverted"] as const)("recovers an accepted own-
   expect(asideSends).toHaveLength(state === "unchanged" ? 1 : 2);
 });
 
-async function openedNewText(h: Awaited<ReturnType<typeof fixture>>) {
-  const path = `${h.folder}/new.txt`, file = join(h.checkout, path), content = "The new archived text.\n";
-  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "new.txt");
+async function openedNewText(h: Awaited<ReturnType<typeof fixture>>, extension: "txt" | "md" = "txt") {
+  const name = `new.${extension}`;
+  const path = `${h.folder}/${name}`, file = join(h.checkout, path), content = "The new archived text.\n";
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, name);
   await writeFile(file, content);
   await openArchivedProjectionFile(h, path);
   return { path, file, reference, content };
@@ -1083,12 +1084,54 @@ it.each([[false, false, false], [false, true, false], [true, false, false], [tru
   }
 });
 
+it.each([false, true])("uses the proved predecessor Markdown installation after its writer exits (installed=%s)", async installed => {
+  const h = await fixture(), { path, file, reference, content } = await openedNewText(h, "md");
+  const newer = "A newer Markdown correction from another command.\n";
+  let submissions = 0;
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const result = await h.store.batch(input);
+    if (++submissions === 1) {
+      const accepted = success(await h.store.read({ reference }));
+      expect(accepted.content).toBe(content);
+      success(await h.store.write(update(h.f, accepted, newer)));
+    }
+    return result;
+  } });
+  const command = { ...h, store };
+  const stop = async (observed: string) => { if (observed === path) throw new Error("Stopped during Markdown installation"); };
+  binding.hooks = installed ? { afterFirstCheck: stop } : { afterRecheck: stop };
+  binding.writerInstance = "predecessor-markdown-writer";
+  await expect(save(command)).rejects.toThrow("Stopped during Markdown installation");
+  expect(await diskEntry(h, path)).toHaveProperty("inProgress", null);
+  expect(parseStampedFile(await readFile(file, "utf8")).content).toBe(installed ? newer : content);
+  await usePredecessorAdoptionJournal(h, path);
+  if (installed) {
+    await chmod(file, 0o644);
+    await writeFile(file, content);
+  } else await utimes(file, new Date(0), new Date(0));
+
+  binding.hooks = undefined;
+  binding.writerInstance = undefined;
+  await save(command);
+  const bytes = await readFile(file, "utf8");
+  if (installed) {
+    expect(parseStampedFile(bytes).content).toBe(content);
+    expect(success(await h.store.read({ reference })).content).toBe(content);
+    expect(submissions).toBe(2);
+  }
+  else {
+    expect(parseStampedFile(bytes).content).toBe(newer);
+    expect(await diskEntry(h, path)).not.toHaveProperty("opened");
+    expect(submissions).toBe(1);
+  }
+});
+
 async function usePredecessorAdoptionJournal(h: Awaited<ReturnType<typeof fixture>>, path: string): Promise<void> {
   const { location } = h.projected;
   const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error("No adoption index");
   const entry = read.index.entries[path];
-  if (entry?.kind !== "record" || entry.acceptedInputStat === undefined || entry.inProgress === null) throw new Error("No staged adoption");
+  if (entry?.kind !== "record" || entry.acceptedInputStat === undefined) throw new Error("No staged adoption");
   const { ino, mtimeNs } = entry.acceptedInputStat;
   await writeProjectionIndex(location, withProjectionEntry(read.index, path, { ...entry, acceptedInputStat: { ino, mtimeNs, beforeLay: true } }));
 }
@@ -1102,6 +1145,9 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   const { location, index } = await h.disk(), writer = { ...await createProjectionEnginePorts(checkout).writer(), processInstance: "exited-rebuild" };
   const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
   if (active === undefined) throw new Error("Missing the accessible active record");
+  const unseen = `${h.folder}/unindexed-archive-edit.md`;
+  const unseenBytes = "An unindexed archive edit in the unreadable scope.\n";
+  if (denied === "link and enumeration") await writeFile(join(checkout, unseen), unseenBytes);
   const copies = await Promise.all([h.path, sibling].map(async path => {
     const entry = index.entries[path];
     if (entry?.kind !== "record") throw new Error("Missing file for rebuild recovery");
@@ -1124,8 +1170,11 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
   expect(first.diagnostics).toContain("EACCES");
   if (denied === "link and enumeration") {
     expect(first.diagnostics).toContain(`Cannot enumerate ${h.folder}`);
-    expect((await h.disk()).index.state).toBeNull();
-    expect((await h.disk()).index.entries[active]).toMatchObject({ kind: "record", pending: false });
+    const rebuilt = (await h.disk()).index;
+    expect(rebuilt.state).toBeNull();
+    expect(rebuilt.archiveDiscoveryPending).toEqual([h.folder]);
+    expect(rebuilt.entries[active]).toMatchObject({ kind: "record", pending: false });
+    expect(rebuilt.entries[unseen]).toBeUndefined();
   }
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
   await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
@@ -1134,18 +1183,58 @@ it.each(["link", "link and enumeration"] as const)("restores an access-held copy
 
   expect((await projectionCommand(h.input, ["status"])).diagnostics).toContain("EACCES");
   expect((await h.disk()).index.archiveRecoveryCopies).toEqual([held.name]);
+  if (denied === "link and enumeration") expect((await h.disk()).index.archiveDiscoveryPending).toEqual([h.folder]);
   binding.deniedRecoverySource = null;
   binding.deniedWalkFolder = null;
-  // A deleted-file restoration working from the rebuilt index must leave the held destination to recovery.
-  await rm(join(checkout, sibling));
-  await restoreSyncProjection(h.store, checkout, {});
-  expect(await readFile(join(checkout, sibling), "utf8")).toBe("An accessible sibling.\n");
-  await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
-  expect((await projectionCommand(h.input, ["status"])).result).toMatchObject({ kind: "ready" });
+  if (denied === "link") {
+    // A deleted-file restoration working from the rebuilt index leaves the held destination to recovery.
+    await rm(join(checkout, sibling));
+    await restoreSyncProjection(h.store, checkout, {});
+    expect(await readFile(join(checkout, sibling), "utf8")).toBe("An accessible sibling.\n");
+    await expect(lstat(join(checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+  }
+  const repaired = await projectionCommand(h.input, ["status"]);
+  expect(repaired.result).toMatchObject({ kind: "ready" });
   expect(await readFile(join(checkout, h.path), "utf8")).toContain(edit);
   await expect(lstat(held.absolute)).rejects.toMatchObject({ code: "ENOENT" });
-  expect((await h.disk()).index.archiveRecoveryCopies).toBeUndefined();
+  const recovered = (await h.disk()).index;
+  expect(recovered.archiveRecoveryCopies).toBeUndefined();
+  if (denied === "link and enumeration") {
+    expect(recovered.archiveDiscoveryPending).toBeUndefined();
+    expect(recovered.entries[unseen]).toMatchObject({ kind: "ownerless", withheld: true });
+    expect(repaired.diagnostics).toContain(unseen);
+    expect(await readFile(join(checkout, unseen), "utf8")).toBe(unseenBytes);
+  }
   expect(success(await h.store.read({ reference: h.primary.reference })).version).toBe(h.primary.version);
+}, 30_000);
+
+it("keeps an earlier sync copy under a folder that later denies listing and settles an accessible copy", async () => {
+  const h = await archiveRetirementFixture();
+  const { index } = await h.disk();
+  const active = Object.entries(index.entries).find(([path, entry]) => path.startsWith(".arc/active/") && entry.kind === "record");
+  if (active === undefined || active[1].kind !== "record") throw new Error("Missing accessible record");
+  const activeRecord = success(await h.store.read({ reference: active[1].reference }));
+  for (const record of [h.primary, activeRecord]) success(await h.store.write(update(h.f, record, `${record.content}\nA newer version.\n`)));
+
+  binding.writerInstance = "interrupted-sync-writer";
+  expect(await startProjection(h.input)).toMatchObject({ kind: "ready" });
+  const root = projectionProcessState().roots.get(h.checkout);
+  const held = root?.copies.find(copy => copy.path === h.path);
+  const accessible = root?.copies.find(copy => copy.path === active[0]);
+  if (held === undefined || accessible === undefined) throw new Error("Sync start did not queue both copies");
+  binding.deniedWalkFolder = join(h.checkout, h.folder);
+  await restoreSyncProjection(h.store, h.checkout, {});
+  await endProjection(h.input);
+  const settled = (await h.disk()).index;
+  expect(settled.entries[h.path]).toMatchObject({ copies: [{ name: held.copy }] });
+  expect(settled.entries[active[0]]).toMatchObject({ copies: [] });
+  await expect(readFile(join(h.checkout, held.copy))).resolves.toBeInstanceOf(Buffer);
+  await expect(lstat(join(h.checkout, accessible.copy))).rejects.toMatchObject({ code: "ENOENT" });
+
+  binding.deniedWalkFolder = null;
+  binding.writerInstance = undefined;
+  await projectionCommand(h.input, ["status"]);
+  expect((await h.disk()).index.entries[h.path]).toMatchObject({ copies: [] });
 }, 30_000);
 
 it.each([[false, false], [true, false], [true, true]])(

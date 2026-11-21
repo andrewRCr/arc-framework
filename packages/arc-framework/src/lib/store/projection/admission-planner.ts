@@ -95,15 +95,15 @@ async function planIndexed(context: WriteBackContext, input: ProjectionPreparati
   if (!basis || !input.input.base) throw new Error("Validated indexed preparation lacks its captured basis");
   const { adoption, ...fields } = basis;
   const entry = RecordEntrySchema.parse({ ...fields, ...(adoption === null ? {} : { adoption }), kind: "record",
-    stat: null, protected: false, changed: false, pending: false, withheld: false, refused: null });
+    stat: fields.stat ?? null, protected: false, changed: false, pending: false, withheld: false, refused: null });
   const request: TakeInRequest = { checkout: ".", path: input.local.path, copy: input.local.source === "aside" ? "captured-aside" : null,
     entry, base: input.input.base, observedEdit: true,
     ...(input.input.rendering === null ? {} : { rendering: input.input.rendering }),
     ...(input.input.resolution === null ? {} : { resolution: input.input.resolution }) };
   const file = input.input.file;
   const prepared = await prepareCapturedWriteBack(context, request, { kind: "read", content: file.content, stamp: file.stamp,
-    read: { stat: { type: "file", size: BigInt(Buffer.byteLength(file.content)), ino: 0n, mtimeNs: BigInt(file.mtimeNs) },
-      blob: gitBlobId(file.content, context.format) } });
+    read: { stat: { type: "file", size: BigInt(Buffer.byteLength(file.content)), ino: BigInt(file.raw?.ino ?? "0"), mtimeNs: BigInt(file.mtimeNs) },
+      blob: file.raw?.blob ?? gitBlobId(file.content, context.format) } });
   if (prepared.kind !== "ready") return { status: "refused", refusal: prepared.kind === "held" && prepared.refusal
     ? prepared.refusal : projectionAdmissionConflict(entry.reference, "Fresh preparation no longer produces a ready content write.") };
   const selected = prepared.selectedBase;

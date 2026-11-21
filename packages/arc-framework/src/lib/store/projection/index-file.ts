@@ -3,7 +3,7 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { atomicWriteFile } from "../../fs.js";
-import { PROJECTION_INDEX_FORMAT, type ProjectionIndex } from "./index-schema.js";
+import { isArchiveDiscoveryScope, PROJECTION_INDEX_FORMAT, type ProjectionIndex } from "./index-schema.js";
 import { readReference, smudgeRacyEntries, writeReference } from "./change-detection.js";
 import { gitBlobId } from "./blob-id.js";
 import {
@@ -55,6 +55,7 @@ async function publish(location: ProjectionLocation, index: ProjectionIndex, ref
   const header: ProjectionIndexHeader = { format: index.format, state: index.state, projectedUnder: index.projectedUnder,
     ...(index.reprojectionPending === undefined ? {} : { reprojectionPending: index.reprojectionPending }),
     ...(index.archiveRecoveryCopies === undefined ? {} : { archiveRecoveryCopies: index.archiveRecoveryCopies }),
+    ...(index.archiveDiscoveryPending === undefined ? {} : { archiveDiscoveryPending: index.archiveDiscoveryPending }),
     withheldCopies: index.withheldCopies, tripwires: index.tripwires, ignoreFiles: index.ignoreFiles, ignoreGuard: index.ignoreGuard, groups };
   header.ignoreFiles = smudgeRacyEntries({ ...index, entries: {} }, reference).ignoreFiles;
   await atomicWriteFile(join(location.stateDir, PROJECTION_INDEX_FILE), stringifyProjectionJson(header), { createParents: false, checkpoint });
@@ -173,9 +174,11 @@ function decodeHeader(text: string): { kind: "header"; header: ProjectionIndexHe
 }
 
 function headerFields(header: Record<string, unknown>): boolean {
+  const discovery = header.archiveDiscoveryPending;
   return header.format === PROJECTION_INDEX_FORMAT && object(header.projectedUnder) && Array.isArray(header.withheldCopies)
     && (header.archiveRecoveryCopies === undefined || Array.isArray(header.archiveRecoveryCopies)
       && header.archiveRecoveryCopies.every(copy => typeof copy === "string" && copy.length > 0))
+    && (discovery === undefined || Array.isArray(discovery) && discovery.every(isArchiveDiscoveryScope))
     && object(header.tripwires) && (header.ignoreFiles === null || Array.isArray(header.ignoreFiles))
     && (header.ignoreGuard === null || object(header.ignoreGuard));
 }

@@ -31,9 +31,12 @@ export async function prepareIndexedProjectionSubmission(context: WriteBackConte
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>): Promise<ProjectionSubmissionResult> {
   const copies = await captureRetainedBases(context, request.entry);
   if (copies.status === "refused") return copies;
+  // Admission replays base selection for an unstamped edit without reading the checkout again.
+  const installedBasis = request.copy === null && request.path.startsWith(".arc/completed/") && request.path.endsWith(".md")
+    && prepared.captured.stamp === null && request.entry.adoption?.kind === "read-back" && request.entry.acceptedInputStat !== undefined;
   return prepareStable(context, request.checkout, request.path, request.copy === null ? "file" : "aside", {
     selection: { kind: "indexed", reference: request.entry.reference }, input: {
-      format: context.format, file: fileInput(prepared.captured), basis: basisInput(request.entry), base: request.base,
+      format: context.format, file: fileInput(prepared.captured, installedBasis), basis: basisInput(request.entry, installedBasis), base: request.base,
       rendering: request.rendering ?? null, resolution: request.resolution ?? null,
       recoveringBase: context.recoveringBase ?? false, retainedBases: copies.result } });
 }
@@ -90,15 +93,17 @@ function sameLocal(left: ProjectionLocalCapture, right: ProjectionLocalCapture):
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function fileInput(captured: CapturedWriteBackFile): ProjectionAdmission["input"]["file"] {
-  return { content: captured.content, stamp: captured.stamp, mtimeNs: captured.read.stat.mtimeNs.toString() };
+function fileInput(captured: CapturedWriteBackFile, retainRaw: boolean): ProjectionAdmission["input"]["file"] {
+  return { content: captured.content, stamp: captured.stamp, mtimeNs: captured.read.stat.mtimeNs.toString(),
+    ...(retainRaw ? { raw: { blob: captured.read.blob, ino: captured.read.stat.ino.toString() } } : {}) };
 }
 
-function basisInput(entry: RecordEntry): NonNullable<ProjectionAdmission["input"]["basis"]> {
+function basisInput(entry: RecordEntry, retainInstallation: boolean): NonNullable<ProjectionAdmission["input"]["basis"]> {
   const encoded = RecordEntrySchema.encode(entry);
   return ProjectionAdmissionSchema.shape.input.shape.basis.unwrap().parse({ reference: encoded.reference, written: encoded.written, base: encoded.base, markers: encoded.markers,
     notices: encoded.notices, unshown: encoded.unshown, persisted: encoded.persisted, inProgress: encoded.inProgress,
-    copies: encoded.copies, adoption: encoded.adoption ?? null });
+    copies: encoded.copies, adoption: encoded.adoption ?? null,
+    ...(retainInstallation ? { stat: encoded.stat, acceptedInputStat: encoded.acceptedInputStat } : {}) });
 }
 
 async function captureRetainedBases(context: WriteBackContext, entry: RecordEntry): Promise<StoreResult<ProjectionAdmission["input"]["retainedBases"]>> {

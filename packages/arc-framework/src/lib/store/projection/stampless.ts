@@ -8,7 +8,7 @@ import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import type { HistoryMemo } from "./base-recovery.js";
 import { projectionFileReader } from "./change-detection.js";
-import { installedArchiveInput } from "./recording-state.js";
+import { installedArchiveInput, isPredecessorArchiveAdoption, provesPredecessorInstallation } from "./recording-state.js";
 import type { RecordEntry } from "./index-schema.js";
 import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 
@@ -110,9 +110,12 @@ export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordE
 export async function finalizeAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   const { entry } = input;
   const copies = entry.copies.filter((record) => record.name !== input.copy);
-  if (entry.inProgress?.copy !== input.copy) return { ...entry, copies };
+  const replacing = entry.inProgress?.copy === input.copy;
+  const predecessor = isPredecessorArchiveAdoption(entry);
+  const legacyCopy = predecessor && entry.copies.some(copy => copy.name === input.copy && copy.linked === entry.written);
+  if (!replacing && !legacyCopy) return { ...entry, copies };
   const stat = await projectionFileReader(input.checkout, input.path).stat(join(input.checkout, input.path));
-  const holdsLinked = stat?.type === "file" && entry.stat !== null && stat.ino === entry.stat.ino;
-  if (holdsLinked) return { ...installedArchiveInput(entry), copies, inProgress: null };
-  return { ...entry, copies };
+  const holdsLinked = predecessor ? provesPredecessorInstallation(entry, stat) : stat?.type === "file" && stat.ino === entry.stat?.ino;
+  const finalized = holdsLinked ? installedArchiveInput(entry) : entry;
+  return { ...finalized, copies, inProgress: replacing && holdsLinked ? null : entry.inProgress };
 }

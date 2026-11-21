@@ -15,7 +15,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { acceptedArchiveRecording } from "./archive-save-recording.js";
 import { projectionFileReader } from "./change-detection.js";
 import { ArchiveDestinationBlocked } from "./archive-file.js";
-import { archiveLayPhase } from "./recording-state.js";
+import { archiveLayPhase, isPredecessorArchiveAdoption, provesPredecessorInstallation } from "./recording-state.js";
 import { join } from "node:path";
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
@@ -81,15 +81,17 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
 async function adoptionBaseline(root: ProjectionRootState, path: string, entry: RecordEntry, original: TakeInRead): Promise<TakeInRead> {
   if (entry.opened !== true || !path.startsWith(".arc/completed/") || entry.stat === null) return original;
   const phase = archiveLayPhase(entry);
-  if (phase === "pending" || phase === undefined && entry.inProgress === null) return original;
+  const predecessor = isPredecessorArchiveAdoption(entry);
+  if (phase === "pending" || phase === undefined && !predecessor && entry.inProgress === null) return original;
   const rendered = { stat: entry.stat, blob: entry.written };
   if (phase === "installed") return rendered;
   const current = await projectionFileReader(root.checkout, path).stat(join(root.checkout, path));
-  if (current?.ino !== original.stat.ino) return rendered;
-  // Older adoption journals left beforeLay set after linking. When the live inode is the original and the
-  // replacement has a different inode, the guard can still compare the live bytes to the captured input.
-  const legacyOriginal = entry.acceptedInputStat?.beforeLay === true && current.ino !== rendered.stat.ino;
-  return legacyOriginal || current.mtimeNs === original.stat.mtimeNs ? original : rendered;
+  if (predecessor) {
+    if (provesPredecessorInstallation(entry, current)) return rendered;
+    // The guard still hashes the live file against this basis if the writer only touched the original.
+    return current?.ino === original.stat.ino || rendered.stat.ino === original.stat.ino ? original : rendered;
+  }
+  return current?.ino === original.stat.ino && current.mtimeNs === original.stat.mtimeNs ? original : rendered;
 }
 
 async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,

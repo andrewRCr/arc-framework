@@ -13,7 +13,7 @@ import { loadProjectionGroups, projectionIndexGroup, ProjectionPartitionMismatch
 import { readCopyDestinations } from "./discovery-links.js";
 import { runSecondCheck } from "./second-check.js";
 import { reportProjectionCopy } from "./report.js";
-import { refuseArchiveChange } from "./archive-selection.js";
+import { heldArchivePath, refuseArchiveChange } from "./archive-selection.js";
 
 /** Materialize through the command's existing root, retaining its copy checks and containing failures. */
 export async function restoreSyncProjection(store: Store, requested: string, options: { dryRun?: boolean }): Promise<void> {
@@ -63,6 +63,7 @@ async function settleCommandCopies(root: ProjectionRootState): Promise<void> {
   const start = await readProjectionIndex(root.location, true);
   if (start.kind !== "index") return;
   const readable = root.copies.filter(({ path }) => {
+    if (heldArchivePath(root, path) !== null) return false;
     try { loadProjectionGroups(start.index, [projectionIndexGroup(path)]); return true; }
     catch (error) {
       if (error instanceof ProjectionPartitionMismatch) return false;

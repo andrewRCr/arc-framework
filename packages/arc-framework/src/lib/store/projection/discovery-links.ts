@@ -38,11 +38,18 @@ export async function readProjectionLinkBoundary(checkout: string, paths: readon
 }
 
 /** Record an inaccessible archive destination without losing the link verdicts for other work. */
-export async function readCopyDestinations(checkout: string, paths: readonly string[], fs?: ProjectionLinkFs): Promise<{
+export async function readCopyDestinations(checkout: string, paths: readonly string[], fs?: ProjectionLinkFs,
+  knownHold?: (path: string) => RefusedMark | null): Promise<{
   blockedByLink: ProjectionLinkBoundary; archiveAccess: Map<string, RefusedMark>;
 }> {
   const archiveAccess = new Map<string, RefusedMark>();
-  const blockedByLink = await readProjectionLinkBoundary(checkout, paths, fs, (path, mark) => { archiveAccess.set(path, mark); });
+  const readable = knownHold === undefined ? paths : paths.filter(path => {
+    const mark = knownHold(path);
+    if (mark === null) return true;
+    archiveAccess.set(path, mark);
+    return false;
+  });
+  const blockedByLink = await readProjectionLinkBoundary(checkout, readable, fs, (path, mark) => { archiveAccess.set(path, mark); });
   return { blockedByLink, archiveAccess };
 }
 

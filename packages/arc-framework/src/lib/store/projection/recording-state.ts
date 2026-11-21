@@ -1,5 +1,5 @@
 /** Refuse merge-base consumption while accepted input still needs its landed identities recorded. */
-import type { AsideCopyRecord, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { StoreRefusal } from "../refusal.js";
 
 /** Identify an unfinished mapping without reading its raw copy or choosing another base. */
@@ -36,9 +36,18 @@ export function linkAcceptedArchiveInput(entry: RecordEntry, copy: AsideCopyReco
 
 /** The replacement reached its destination, so even its old raw bytes can now be a later edit. */
 export function installedArchiveInput(entry: RecordEntry): RecordEntry {
-  const phase = archiveLayPhase(entry);
-  const legacyAdoption = phase === undefined && entry.adoption?.kind === "read-back" && entry.acceptedInputStat?.beforeLay === true;
-  return phase === "linking" || legacyAdoption ? recordArchiveLay(entry, { kind: "installed" }) : entry;
+  return archiveLayPhase(entry) === "linking" || isPredecessorArchiveAdoption(entry)
+    ? recordArchiveLay(entry, { kind: "installed" }) : entry;
+}
+
+/** A readable earlier adoption journal kept beforeLay set on both sides of installation. */
+export function isPredecessorArchiveAdoption(entry: RecordEntry): boolean {
+  return entry.adoption?.kind === "read-back" && entry.acceptedInputStat?.beforeLay === true && entry.acceptedInputStat.lay === undefined;
+}
+
+/** A predecessor replacement needs a live staged inode distinct from the accepted input's inode. */
+export function provesPredecessorInstallation(entry: RecordEntry, stat: FileStat | null): boolean {
+  return stat?.type === "file" && stat.ino === entry.stat?.ino && stat.ino !== entry.acceptedInputStat?.ino;
 }
 
 /** Recovery returned the bound original, so exact accepted bytes at the path still qualify for their first lay. */

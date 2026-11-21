@@ -10,6 +10,7 @@ import { withProjectionEntry } from "./index-memory.js";
 import { commitReturnedCopies } from "./returned-copies.js";
 import { readProjectionProtection } from "./protection.js";
 import { retirementName, retirementRefusal, type ProjectionRetirement } from "./removal-verdict.js";
+import { heldArchivePath } from "./archive-selection.js";
 
 /** Successful and refused settlement both retain the exact index that was published. */
 export interface PersistedProjectionAsides { readonly index: ProjectionIndex; readonly refusal?: Remedy }
@@ -31,6 +32,11 @@ export async function persistProjectionAsides(root: ProjectionRootState, initial
   for (const path of Object.keys(index.entries)) {
     const first = index.entries[path];
     if (first?.kind !== "record") continue;
+    const held = heldArchivePath(root, path);
+    if (held !== null && first.copies.length > 0) {
+      accessRefusal ??= retirementRefusal(root.checkout, path, held, disposition);
+      continue;
+    }
     for (const name of first.copies.map(copy => copy.name)) {
       const settled = await persistCopy({ root, index, hooks, ignoreMark, disposition }, path, name);
       index = settled.index;

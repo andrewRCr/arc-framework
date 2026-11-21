@@ -591,6 +591,13 @@ and continue with accessible destinations. The hold names the path and the acces
 restored, the next command can finish the held work. The folder authority and lease checks still precede changes
 (`projectionFileReader`, `finalizeAsideCopy`, `retriedMoves`).
 
+**Incomplete archive discovery (A14).** A permission refusal during directory enumeration holds that subtree.
+A refusal while typing a listed child holds the child. In both cases discovery continues at accessible paths.
+Refresh, sync, retirement, and copy settlement consult those holds before probing their destinations again.
+Retirement settles accessible copies and reports the hold before completing. A rebuild records any incomplete
+archive scope in its index. A later command revisits just those scopes under its lease and the archive checks,
+withholding and reporting newly discovered unindexed edits under § 7.2 before advancing the rebuilt state.
+
 **A refresh's work at a refused path waits for the repair (A4).** A refresh whose planned change — a lay, a removal, or
 a move — is at a path the selection refuses leaves that change undone and counts itself incomplete, so it keeps the
 worktree's state version where it was (`refusesArchivePath`, `archive-selection.ts`; `applyProjectionRefresh`,
@@ -1217,6 +1224,11 @@ sending it twice. The in-repo implementation renders no provenance, as D3 has it
     missing recorded replacement copy during indexed recovery or retirement, and deny a recovery link after
     successful destination inspection in the sweep without an index. The blocked path keeps its recorded work or
     remaining copy with its access remedy, an accessible sibling settles, and retry completes after repair.
+27. **Incomplete archive discovery is scoped and retried (A14).** Deny enumeration of an archive folder holding a
+    copy and an unindexed edit. The rebuild records the incomplete scope, finishes accessible inventory, and
+    withholds and reports the edit after repair before advancing the state. Deny a single child stat in a listable
+    directory and verify the siblings remain eligible. Sync and retirement preserve copies below a refused folder,
+    settle accessible copies, and finish the held work on a later command after repair.
 
 ## Open Questions
 
@@ -1251,5 +1263,7 @@ design open.
   _Trigger:_ restored-prelink-markdown-loses-acceptance-proof review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A13** — 2026-11-20 — spec-depth: hold a denied archive copy destination per path. _Supersedes:_ none.
   _Trigger:_ missing-recorded-copy-finalization-aborts-siblings review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A14** — 2026-11-21 — spec-depth: carry archive access holds and retry incomplete discovery. _Supersedes:_ none.
+  _Trigger:_ rebuild-folder-retry-omits-unindexed-archive-files review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

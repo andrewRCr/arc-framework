@@ -1,6 +1,7 @@
 /** Native retirement refuses unopened archive input before landing it, then continues after the named repair. */
 import { chmod, mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { readdirSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import { projectionCommand } from "../../../helpers/store/projection/command.js";
 import { archiveRetirementFixture } from "../../../helpers/store/projection/archive-retirement.js";
@@ -65,6 +66,32 @@ it("keeps a one-shot archive swap refusal through linked release's second check"
   expect(index.entries[companion]).toBeUndefined();
   await expect(readFile(join(h.checkout, companion))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await h.retire("release")).toEqual({ kind: "released" });
+}, 30_000);
+
+it.each(["persist", "release"] as const)("%s settles an accessible copy when a different archive folder denies listing", async operation => {
+  const h = await archiveRetirementFixture();
+  const { location, index } = await h.disk(), writer = await createProjectionEnginePorts(h.checkout).writer();
+  const active = Object.keys(index.entries).find(path => path.startsWith(".arc/active/") && path.endsWith("/meta-retiring.md"));
+  if (active === undefined) throw new Error("Missing accessible record");
+  const blocked = await stageRetirementCopy(h.checkout, h.path, index, writer);
+  const sibling = await stageRetirementCopy(h.checkout, active, blocked.index, writer);
+  await writeProjectionIndex(location, sibling.index);
+  const guard = (path: string) => {
+    if (path === join(h.checkout, h.folder)) throw Object.assign(new Error("Directory listing refused"), { code: "EACCES" });
+  };
+  const context = { ...h.context, ports: (checkout: string) => ({ ...createProjectionEnginePorts(checkout), walkFs: {
+    readdir: (path: string) => { guard(path); return readdirSync(path, { withFileTypes: true }); },
+    readdirNames: (path: string) => { guard(path); return readdirSync(path); },
+  } }) };
+  const first = operation === "persist" ? await persistProjectionRemoval(h.checkout, context)
+    : await releaseProjectionRemoval(h.checkout, false, context);
+  expect(first).toMatchObject({ kind: "refused", remedy: { text: expect.stringContaining("EACCES") } });
+  const pending = (await h.disk()).index;
+  expect(pending.entries[h.path]).toMatchObject({ copies: [{ name: blocked.name }] });
+  expect(pending.entries[active]).toMatchObject({ copies: [] });
+  await expect(readFile(join(h.checkout, blocked.name))).resolves.toBeInstanceOf(Buffer);
+  await expect(readFile(join(h.checkout, sibling.name))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await h.retire(operation)).toEqual({ kind: operation === "persist" ? "persisted" : "released" });
 }, 30_000);
 
 it.each(["edited", "unmade"] as const)("finishes a healthy retirement copy when a destination of an %s copy loses access", async state => {

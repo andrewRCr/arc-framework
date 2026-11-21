@@ -13,12 +13,13 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import { reportLeftCopies, reportProjectionCopy, reportProjectionLinks } from "./report.js";
-import { archiveChangeRefusals, refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, heldArchivePath, refuseArchiveChange, selectArchivePath } from "./archive-selection.js";
 import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
 import { reconcileProjectionLinks } from "./discovery-links.js";
 import { bindProjectionRoot } from "./engine-binding.js";
 import { resolveProjectionActor } from "./engine-actor.js";
 import { materializeProjectionRoot } from "./materialization.js";
+import { finishPendingArchiveDiscovery, observePendingArchiveDiscovery } from "./materialization-observation.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { FileStat, ProjectionIndex } from "./index-schema.js";
@@ -67,10 +68,12 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       return rebuilt.kind === "refused" ? { kind: "refused", mark: rebuilt.mark }
         : { kind: "ready", version: saved.result, discovered: root.discovered };
     }
+    const discovery = await observePendingArchiveDiscovery(root, disk.index);
     let index = await reconcileProjectionLinks(root, disk.index);
     const beforeSweep = index, selecting = root;
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
       blockedByLink: root.blockedByLink, selectArchivePath: path => selectArchivePath(selecting, path),
+      knownArchiveHold: path => heldArchivePath(selecting, path),
       refuseChange: archiveChangeRefusals(selecting),
       recoverArchiveSubmission: (index, path, entry) => recoverSubmittedArchiveEdit(selecting, index, path, entry),
       takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint,
@@ -89,7 +92,8 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     }
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));
     if (swept.index !== null) {
-      index = await reconcileProjectionHandoffs(root, swept.index);
+      index = await finishPendingArchiveDiscovery(root, swept.index, discovery, beforeSweep, input.source, saved.result);
+      index = await reconcileProjectionHandoffs(root, index);
       await recheckProjectionResolution(root, index, state.resolution);
       const observations = reusableStartStats({ original: disk.index, beforeSweep, index, swept, walks: [sharedWalk, personalWalk] });
       index = await writeBackProjectionFiles(root, index, [...new Set([...files, ...recovered])].sort(), observations);

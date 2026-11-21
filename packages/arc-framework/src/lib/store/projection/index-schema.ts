@@ -163,6 +163,11 @@ const IgnoreFileRecordSchema = z.union([
 /** An entry's key: a repository-relative path, validated but not branded, so a caller looks a path up as it is. */
 const EntryPathSchema = z.string().refine((path): boolean => isManagedPath(path), "Expected a repository-relative path");
 
+/** Rebuild retries are limited to checkout-relative archive scopes. */
+export function isArchiveDiscoveryScope(path: unknown): path is string {
+  return typeof path === "string" && isManagedPath(path) && (path === ".arc/completed" || path.startsWith(".arc/completed/"));
+}
+
 /** The settings and claim a worktree was projected under. */
 const ProjectedUnderSchema = z.strictObject({
   view: z.strictObject({ mode: z.enum(["mine", "cohort", "all"]), pins: z.array(SlugSchema) }),
@@ -195,6 +200,7 @@ export const ProjectionIndexSchema = z.strictObject({
   reprojectionPending: z.literal(true).optional(),
   withheldCopies: z.array(z.string().min(1)),
   archiveRecoveryCopies: z.array(z.string().min(1)).optional(),
+  archiveDiscoveryPending: z.array(z.string().refine(isArchiveDiscoveryScope)).optional(),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),

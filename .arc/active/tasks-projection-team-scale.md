@@ -457,4 +457,8 @@ _Amended in:_ review-fix (A2).
   each preserve the blocked path's remaining recovery work. An accessible sibling settles and the blocked path
   recovers after access is restored (A13)
 
+- `[ ]` Archive enumeration and child stat refusals hold their own scopes. Rebuild records and retries incomplete
+  discovery, withholding and reporting an unindexed edit before advancing state. Sync and retirement settle accessible
+  copies and preserve held copies until a later command after repair (A14)
+
 - `[ ]` Ready for integration

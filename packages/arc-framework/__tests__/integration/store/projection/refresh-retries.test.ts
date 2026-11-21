@@ -22,6 +22,7 @@ import { refuseArchiveChange } from "../../../../src/lib/store/projection/archiv
 import { removeObsoleteProjectionPaths } from "../../../../src/lib/store/projection/refresh-removals.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { withProjectionFanOutLock } from "../../../../src/lib/store/projection/fan-out-lock.js";
+import { projectionCommand } from "../../../helpers/store/projection/command.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -163,4 +164,30 @@ it.each(["before selection", "during preflight"] as const)("holds an obsolete ar
   await apply(after);
   await expect(readFile(held)).rejects.toMatchObject({ code: "ENOENT" });
   await endProjection(input);
+}, 30_000);
+
+it("installs an accessible archive replacement while another leaf is denied at refresh preflight", async () => {
+  const h = await archiveRetirementFixture(), held = join(h.checkout, h.path);
+  const sibling = `${h.folder}/sibling.txt`;
+  const reference = recordReferences["work-item/companion"](h.primary.reference.owner, "sibling.txt");
+  const firstSibling = await seed(h.f, reference, "The initial accessible file.\n");
+  await projectionCommand(h.input, ["status"]);
+  const { index } = await h.disk();
+  const before = await readFile(held);
+  const next = `${h.primary.content}\nA correction waiting at the refused leaf.\n`;
+  success(await h.store.write(update(h.f, h.primary, next)));
+  success(await h.store.write(update(h.f, firstSibling, "An accessible replacement.\n")));
+  let probes = 0;
+  const ports = () => ({ ...createProjectionEnginePorts(h.checkout), linkFs: { lstat: async (path: string) => {
+    if (path === held && probes++ === 0) throw Object.assign(new Error("Archive leaf stat refused"), { code: "EACCES" });
+    return lstat(path);
+  } } });
+  const result = await projectionCommand({ ...h.input, ports }, ["status"]);
+  expect(result.diagnostics).toContain("EACCES");
+  expect(probes).toBe(1);
+  expect((await h.disk()).index.state).toBe(index.state);
+  expect(await readFile(held)).toEqual(before);
+  expect(await readFile(join(h.checkout, sibling), "utf8")).toBe("An accessible replacement.\n");
+  await projectionCommand(h.input, ["status"]);
+  expect(parseStampedFile(await readFile(held, "utf8")).content).toBe(next);
 }, 30_000);

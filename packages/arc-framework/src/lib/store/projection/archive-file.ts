@@ -204,10 +204,16 @@ function archiveModeRefusal(path: string, error: unknown): Extract<ArchiveModeCh
 
 /** Classify filesystem permission errors without absorbing lease or index failures. */
 export function archivePermissionMark(path: string, error: unknown, action = "validate"): RefusedMark {
+  if (!isArchivePermissionRefusal(error)) throw error;
   const code = (error as NodeJS.ErrnoException).code;
-  if (code !== "EACCES" && code !== "EPERM" && code !== "EROFS") throw error;
   return { reason: `Cannot ${action} ${path}: ${code}.`,
     remedy: { text: "Repair access to the file, then retry the command." } };
+}
+
+/** The operating system refused access to the observed archive scope. */
+export function isArchivePermissionRefusal(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
+  return code === "EACCES" || code === "EPERM" || code === "EROFS";
 }
 
 /** Compare the device and inode of two observations. */

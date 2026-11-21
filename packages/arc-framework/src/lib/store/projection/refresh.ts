@@ -11,7 +11,7 @@ import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionConfiguration } from "./configuration.js";
 import { movedProjectionChanges, removeObsoleteProjectionPaths } from "./refresh-removals.js";
-import { archiveChangeRefusals, refusesArchivePath, selectArchivePath } from "./archive-selection.js";
+import { archiveChangeRefusals, heldArchivePath, refuseArchiveChange, refusesArchivePath, selectArchivePath } from "./archive-selection.js";
 import { planProjectionRefresh, type ProjectionRefreshPlan } from "./refresh-plan.js";
 import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "./record-render.js";
 import { createProjectionProtection } from "./protection.js";
@@ -98,7 +98,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
   // A planned path this command refused, at its selection or its change, waits for the repair: the refresh stays
   // incomplete, so the command after the repair plans that path's work again.
   const refused = refusesArchivePath(root, [...planned.removals, ...planned.paths.keys()]);
-  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused
+  const complete = !planned.unresolved && !prepared.unresolved && !settled.unresolved && !refused && index.archiveDiscoveryPending === undefined
     && projectionArrivalsInstalled(index, arrivals);
   index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
   if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
@@ -212,7 +212,10 @@ async function prepareIndexedFile(input: IndexedFileInput): Promise<IndexedFileR
  */
 async function leftToLaterPass(input: IndexedFileInput, prior: ProjectionIndex["entries"][string] | undefined): Promise<boolean> {
   if (selectArchivePath(input.root, input.path) !== null) return true;
-  if ((await readProjectionLinkBoundary(input.root.checkout, [input.path]))(input.path) !== null) return true;
+  const { root, path } = input;
+  const blockedByLink = await readProjectionLinkBoundary(root.checkout, [path], root.ports.linkFs,
+    (held, mark) => { refuseArchiveChange(root, held, mark); });
+  if (blockedByLink(path) !== null || heldArchivePath(root, path) !== null) return true;
   // An ownership handoff in flight is reconciliation's to settle, under the mark naming both identities.
   return prior?.kind === "record" && prior.handoff !== undefined;
 }

@@ -23,6 +23,7 @@
 - [Amendments A8 and A9](#amendments-a8-and-a9)
 - [Amendments A10 and A11](#amendments-a10-and-a11)
 - [Amendments A12 and A13](#amendments-a12-and-a13)
+- [Amendment A14](#amendment-a14)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -751,6 +752,14 @@ required the refused path to be "unopened and read-only" for a changed parent or
 - **A13.** `finalizeAsideCopy` observed the destination outside the archive access classification, and
   `retriedMoves` could return a raw permission error after a denied link. An authority check may pass in both
   cases. Criterion 26 covers the shared per-destination hold where the filesystem refuses these operations.
+
+## Amendment A14
+
+A14 follows the incomplete directory walk through the rebuilt index, the next ordinary command, and the operations
+that settle copies. A stored record plan cannot rediscover a local file that entered neither the store nor the index.
+Criterion 27 checks the retry with an unindexed edit and a recorded copy, and distinguishes an unreadable directory
+from a single child whose stat fails. The same selection holds cover both refresh preparation paths. A12 continues
+to govern predecessor adoption in both formats, including an intentional revert after installation.
 
 ## Save after a retirement refusal
 
