@@ -20,6 +20,7 @@
 - [Amendment A3](#amendment-a3)
 - [Amendment A4](#amendment-a4)
 - [Amendments A5 to A7](#amendments-a5-to-a7)
+- [Amendments A8 and A9](#amendments-a8-and-a9)
 - [Save after a retirement refusal](#save-after-a-retirement-refusal)
 - [Independent verification repairs](#independent-verification-repairs)
 - [Interrupted adoption and retirement recovery](#interrupted-adoption-and-retirement-recovery)
@@ -672,6 +673,50 @@ Alternatives & Rationale ¶4 (A7):
 
 > - **An `archive` reason among the edit rights — rejected** for a lay mode. It would refuse every archived take-in — an
 > opened file's, a refresh's pickup of a forced edit, a persist step's — and need an exception for each.
+
+## Amendments A8 and A9
+
+The fix check of pass 12's fixes found one remedy that named no route a person could run and one place where A6 did
+not read as the code was built.
+
+- **A8.** Pass 12 gave an unfinished recording whose retained input copy no longer matches its recorded blob the
+  remedy of an unreadable copy: restore the retained copy or recover a projection from readable stored content.
+  Neither runs for a mismatch. The copy's recorded bytes are gone, and no command recovers one file's projection from
+  the store; the test reached removal only by deleting the index. The store already holds the accepted input, so A8
+  ends the recording and withholds the file with the withheld remedy, and once the person deletes the file, the next
+  command lays the stored record. An unreadable copy keeps its own remedy. Success Criterion 21 covers it.
+- **A9.** A6 said `arc edit` withdraws its opening when its write bit finds a file that is no longer the regular file
+  it inspected. The code withdraws it for a changed folder, a file replaced by anything but a symbolic link, or a file
+  it can no longer observe. A deleted file, or a link at the file, which reads as deleted, keeps the opening, as a stop
+  between the two steps does, and names restoring the file and retrying. Keeping it is the design: restoring the file
+  reaches the opening the person asked for, while a replaced file is one the opening never inspected. A9 narrows
+  § 3.3, § 8 ¶2 and § 9.1 to that. Success Criterion 22 restates Criterion 20 with that scope, and Criterion 20 is
+  dispositioned superseded at verification.
+
+A9 supersedes this text, quoted as it stood.
+
+§ 3.3 ¶11:
+
+> - **A folder or file that changed after the inspection,** found at the write bit: a folder above the path that became
+> a symbolic link or holds `.git`, or a file that is no longer the regular file it inspected or that it can no longer
+> observe (`changeArchiveFileMode`, `archive-file.ts`), naming its repair. `arc edit` then withdraws the opening it set,
+> committing the index as it was (`openPath`, `edit.ts`), so no opening is left over a path the write bit never
+> reached; once repaired, `arc edit` opens it (A6).
+
+§ 8 ¶2, the clause A9 qualifies:
+
+> … save `arc edit`'s write bit, whose refusal withdraws the opening it set (§ 3.3) (A6), …
+
+§ 9.1 ¶3, its last sentence:
+
+> A refusal at the write bit because the path's folder or file changed after its inspection, unlike a stop, withdraws
+> the mark this invocation set (§ 3.3) (A6).
+
+Success Criterion 20:
+
+> 20. **A refused write bit withdraws the opening (A6).** `arc edit` whose write-bit change meets a folder that became
+> a symbolic link or a nested checkout, or a file replaced since its inspection, refuses with its remedy and leaves the
+> path unopened and read-only; after the repair, `arc edit` opens it.
 
 ## Save after a retirement refusal
 

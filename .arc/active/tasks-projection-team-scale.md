@@ -335,6 +335,11 @@ _Amended in:_ review-fix (A2).
   residual; A6 records `arc edit` withdrawing its opening when its write-bit change is refused; A7 carries A2's rule
   into spec § 2.1, § 9.1, and the Alternatives. Success Criteria 19 and 20, appended below, are dispositioned at
   convergence verification against that head's evidence.
+- _Review follow-up (fix check 13):_ The fix check of pass 12's fixes found no critical or major finding. Amendment A8
+  withholds a file whose retained input no longer matches its recorded bytes, where the remedy named no route a person
+  could run; A9 scopes A6 to a changed folder or a file replaced by anything but a symbolic link, since a deleted or
+  linked file keeps the opening. Success Criteria 21 and 22, appended below, are dispositioned at convergence
+  verification against that head's evidence, and Criterion 22 supersedes Criterion 20.
 
 ---
 
@@ -427,5 +432,14 @@ _Amended in:_ review-fix (A2).
 - `[ ]` `arc edit` whose write-bit change meets a folder that became a symbolic link or a nested checkout, or a file
   replaced since its inspection, refuses with its remedy and leaves the path unopened and read-only; after the repair,
   `arc edit` opens it (A6)
+
+- `[ ]` An unfinished recording whose retained input copy no longer matches its recorded bytes withholds the file with
+  its remedy and leaves its bytes as they are; once the file is deleted, the next command lays the stored record, which
+  holds the accepted input, and the removal check passes (A8)
+
+- `[ ]` `arc edit` whose write-bit change meets a folder that became a symbolic link or a nested checkout, or a file
+  replaced since its inspection by anything but a symbolic link, refuses with its remedy and leaves the path unopened
+  and read-only, opening it after the repair; one that finds the file deleted, or replaced by a link, refuses with the
+  remedy to restore the file and keeps the opening (A9)
 
 - `[ ]` Ready for integration

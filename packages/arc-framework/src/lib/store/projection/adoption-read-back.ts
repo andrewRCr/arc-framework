@@ -89,7 +89,7 @@ async function completeAdoptionRecording(root: ProjectionRootState, index: Proje
   entry: RecordEntry, record: StoreRecord): Promise<ProjectionIndex> {
   const adoption = entry.adoption;
   if (adoption?.kind !== "read-back" || entry.persisted?.recording !== true) return index;
-  const recorded = await completeWriteBackRecording(root.context, entry, record);
+  const recorded = await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path }, record);
   if (recorded.mark !== undefined) return holdReadBack(root, index, path, recorded.entry, recorded.mark);
   const retained = adoption.retained;
   const updated: RecordEntry = { ...recorded.entry, refused: retained ?? null,

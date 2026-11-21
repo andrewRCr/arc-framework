@@ -14,7 +14,7 @@ import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { FileStat, ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { ProjectionLocation } from "./location.js";
-import { gateRead, SYSTEM_READ_GATE, type ReadGateVerdict } from "./read-gate.js";
+import { gateRead, projectionReadGate, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult, TakeInResolution } from "./take-in-port.js";
 import type { WriteInput, WriteResult } from "../write.js";
@@ -44,7 +44,7 @@ import { decideWriteBackRefusal } from "./write-refusal.js";
 import { explicitResolutionMarkerRefusal } from "./save-markers.js";
 import { normalizeStubEdit } from "./stub-normalization.js";
 import { observeProjectionEdit } from "./edit-observation.js";
-import { completeWriteBackRecording } from "./write-back-recording.js";
+import { completeWriteBackRecording, type RecordingSite } from "./write-back-recording.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { isOwnSaveLanding } from "./lay-mode.js";
 import { acceptArchiveSave, stageArchiveSave } from "./archive-save-recording.js";
@@ -274,7 +274,7 @@ async function readWriteBackFile(context: WriteBackContext, request: TakeInReque
   const path = join(request.checkout, logical);
   const reader = projectionFileReader(request.checkout, logical);
   const gate = await gateRead({ path, markdown: request.path.endsWith(".md") && request.adopting !== true },
-    { ...SYSTEM_READ_GATE, stat: absolute => Promise.resolve(reader.stat(absolute)) });
+    projectionReadGate(request.checkout, logical));
   if (gate.kind !== "read") {
     return { kind: "held", result: { answer: gate.kind === "pending" ? "pending" : "no-edit",
       entry: gate.kind === "pending" ? { ...request.entry, pending: true } : request.entry },
@@ -396,7 +396,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
   request = observeProjectionEdit(request);
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [],
     refuseCapturedEdit: acceptedInputOnly(request) };
-  const completion = await completeWriteBackRecording(bound, request.entry);
+  const completion = await completeWriteBackRecording(bound, request.entry, { checkout: request.checkout, path: request.path });
   if (completion.mark !== undefined) {
     context.report?.({ path: request.path, copy: request.copy, mark: completion.mark });
     return { kind: "read-back-refused", result: { answer: "pending",
@@ -433,9 +433,10 @@ function acceptedInputOnly(request: TakeInRequest): WriteBackContext["refuseCapt
 }
 
 /** Finish recording what the store already accepted for an entry, taking in nothing the file holds beyond it. */
-export async function finishAcceptedRecording(context: WriteBackContext, entry: RecordEntry): Promise<{ entry: RecordEntry; mark?: RefusedMark }> {
+export async function finishAcceptedRecording(context: WriteBackContext, entry: RecordEntry, site: RecordingSite):
+Promise<{ entry: RecordEntry; mark?: RefusedMark }> {
   return completeWriteBackRecording({ ...context, memo: context.memo ?? createHistoryMemo(context.store),
-    versionRecoveries: context.versionRecoveries ?? [] }, entry);
+    versionRecoveries: context.versionRecoveries ?? [] }, entry, site);
 }
 
 function keepStandingHold<T extends TakeInResult>(result: T, prior: RecordEntry): T {

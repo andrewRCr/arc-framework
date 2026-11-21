@@ -352,15 +352,15 @@ describe("store retirement real Git", () => {
     expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("Accepted input awaiting its recording.\n");
   });
 
-  it("holds an unfinished recording whose retained input no longer matches until a projection is recovered from the store", async () => {
+  it("withholds a file whose retained input no longer matches, and removes once the person deletes it", async () => {
     const h = await retirementRecording();
     h.repair();
     await writeFile(h.retained, "Bytes that no longer match the recorded input.\n");
+    const authored = await readFile(join(h.checkout, h.path));
     expect(await h.remove()).toMatchObject({ status: "rejected", reason: expect.stringContaining(
-      "does not match its recorded bytes. Restore the retained base copy or recover a projection from readable stored content.") });
-    // Recovery from the store: the rebuild withholds the file, which is deleted and projected again from the accepted record.
-    await rm(join(h.location.stateDir, PROJECTION_INDEX_FILE));
-    await startProjection(h.command); await endProjection(h.command);
+      "withheld: The projection has no trustworthy basis for this file. Copy out anything wanted, then delete the withheld file") });
+    expect(await readFile(join(h.checkout, h.path))).toEqual(authored);
+    // The store already holds the accepted input, so the deleted file is laid again from the stored record.
     await rm(join(h.checkout, h.path));
     await startProjection(h.command); await endProjection(h.command);
     expect(await h.remove()).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout });

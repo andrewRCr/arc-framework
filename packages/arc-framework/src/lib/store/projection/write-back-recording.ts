@@ -2,7 +2,8 @@
 import type { StoreRecord } from "../read.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { createHistoryMemo } from "./base-recovery.js";
-import { readRetainedBase, retainedBaseRecoveryMark, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
+import { readRetainedBase, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
+import { withheldProjectionMark } from "./materialization-file.js";
 import { createKindRegistry } from "../registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { WriteBackContext } from "./write-back.js";
@@ -14,8 +15,11 @@ const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 /** An updated mapping, or the evidence that must remain pending until repaired. */
 export interface RecordingCompletion { readonly entry: RecordEntry; readonly mark?: RefusedMark }
 
+/** The file a recording belongs to, which a withheld file's remedy names. */
+export interface RecordingSite { readonly checkout: string; readonly path: string }
+
 /** Finish recording only; callers retain publication, installation and replacement-baseline ownership. */
-export async function completeWriteBackRecording(context: WriteBackContext, entry: RecordEntry,
+export async function completeWriteBackRecording(context: WriteBackContext, entry: RecordEntry, site: RecordingSite,
   readBack?: StoreRecord): Promise<RecordingCompletion> {
   if (entry.archiveSubmission !== undefined) {
     const refusal = unfinishedRecordingRefusal(entry);
@@ -35,9 +39,7 @@ export async function completeWriteBackRecording(context: WriteBackContext, entr
     if (!(error instanceof RetainedBaseUnavailable)) throw error;
     return { entry, mark: error.mark };
   }
-  if (gitBlobId(takenIn, context.format) !== persisted.takenIn.blob) {
-    return { entry, mark: retainedBaseRecoveryMark("The retained write-back input does not match its recorded bytes.") };
-  }
+  if (gitBlobId(takenIn, context.format) !== persisted.takenIn.blob) return withheldRecording(entry, site);
   if (readBack === undefined) {
     const read = await context.store.read({ reference: entry.reference });
     if (read.status === "refused") return { entry, mark: {
@@ -49,4 +51,13 @@ export async function completeWriteBackRecording(context: WriteBackContext, entr
     stamp: persisted.stamp, takenIn, outcome: { kind: "landed", version: persisted.takenIn.version }, readBack,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
+}
+
+/**
+ * A retained input that no longer matches its recorded bytes cannot be repaired, and the store already holds what it
+ * accepted, so the recording ends and the file is withheld: once it is deleted, the next command lays the stored record.
+ */
+function withheldRecording(entry: RecordEntry, site: RecordingSite): RecordingCompletion {
+  return { entry: { ...entry, persisted: null, adoption: undefined, withheld: true },
+    mark: withheldProjectionMark(site.path, { checkout: site.checkout, known: true }) };
 }

@@ -22,8 +22,12 @@ function linkedArchivePath(path: string, link: string): RefusedMark {
   return { reason: `${path} crosses a symbolic link.`, remedy: projectionLinkRemedy(link) };
 }
 
-/** Why an archive path is not this checkout's: a linked folder, a nested checkout, or a folder that cannot be inspected. */
-export interface ArchiveDestination { readonly cause: "link" | "checkout" | "access"; readonly mark: RefusedMark }
+/**
+ * Why an archive path is not this checkout's: a linked folder, a nested checkout, whose root it names, or a folder that
+ * cannot be inspected.
+ */
+export type ArchiveDestination = { readonly cause: "link" | "access"; readonly mark: RefusedMark }
+  | { readonly cause: "checkout"; readonly mark: RefusedMark; readonly nested: string };
 
 /**
  * Walk an archive path's folders once: the path is this checkout's while no folder between the file and the checkout's
@@ -43,7 +47,8 @@ function walkDestination(checkout: string, path: string): ArchiveDestination | n
       if (stat?.isSymbolicLink() === true) return { cause: "link", mark: linkedArchivePath(path, parts.slice(0, index + 1).join("/")) };
       if (stat === undefined || !stat.isDirectory()) return null;
       if (lstatSync(join(folder, ".git"), { throwIfNoEntry: false }) !== undefined) return { cause: "checkout", mark: { ...foreignArchivePath(path),
-        remedy: { text: "Move the nested checkout out of the archive, or run the command from the checkout that holds this file." } } };
+        remedy: { text: "Move the nested checkout out of the archive, or run the command from the checkout that holds this file." } },
+        nested: parts.slice(0, index + 1).join("/") };
     }
     return null;
   } catch (error) { return { cause: "access", mark: archiveAccessMark(path, error) }; }
@@ -60,9 +65,19 @@ export function archiveEditDestinationRefusal(checkout: string, path: string): R
   return destination?.cause === "checkout" ? foreignArchivePath(path) : destination?.mark ?? null;
 }
 
-/** `arc edit`'s answer for a path outside this checkout's archive that a nested checkout holds, naming that checkout. */
-export function foreignCheckoutEditRefusal(checkout: string, path: string): RefusedMark | null {
-  return walkDestination(checkout, path)?.cause === "checkout" ? foreignArchivePath(path) : null;
+/** What the folder walk tells `arc edit` of a path outside this checkout's archive. */
+export type OutsideArchiveWalk = { readonly kind: "foreign"; readonly mark: RefusedMark } | { readonly kind: "uninspectable" };
+
+/**
+ * `arc edit`'s reading of a path outside this checkout's archive: a file in a nested checkout's own archive names that
+ * checkout, since its `arc edit` opens it; a path whose folders cannot be inspected is `uninspectable`; any other has none.
+ */
+export function walkOutsideArchive(checkout: string, path: string): OutsideArchiveWalk | null {
+  const destination = walkDestination(checkout, path);
+  if (destination?.cause === "access") return { kind: "uninspectable" };
+  if (destination?.cause !== "checkout") return null;
+  return path.slice(destination.nested.length + 1).startsWith(".arc/completed/")
+    ? { kind: "foreign", mark: foreignArchivePath(path) } : null;
 }
 
 function archiveAccessMark(path: string, error: unknown): RefusedMark {

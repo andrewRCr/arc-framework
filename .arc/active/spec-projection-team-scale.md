@@ -300,10 +300,12 @@ Each refusal names why and its remedy:
   worktree's Git directory gone**, naming the holder, the loss, or the missing directory and a retry — each as
   `arc save` and `arc selection` refuse (`spec-projection-write-back.md` § 2.4, § 11.7).
 - **A folder or file that changed after the inspection,** found at the write bit: a folder above the path that became a
-  symbolic link or holds `.git`, or a file that is no longer the regular file it inspected or that it can no longer
-  observe (`changeArchiveFileMode`, `archive-file.ts`), naming its repair. `arc edit` then withdraws the opening it set,
-  committing the index as it was (`openPath`, `edit.ts`), so no opening is left over a path the write bit never reached;
-  once repaired, `arc edit` opens it (A6).
+  symbolic link or holds `.git`, or a file replaced since the inspection by anything but a symbolic link, or one it can
+  no longer observe (`changeArchiveFileMode`, `archive-file.ts`), naming its repair. `arc edit` then withdraws the
+  opening it set, committing the index as it was (`openPath`, `edit.ts`), so no opening is left over a path the write
+  bit never reached; once repaired, `arc edit` opens it (A6). A file deleted since the inspection, or replaced by a
+  symbolic link, which reads as deleted, keeps the opening, as a stop between the two steps does, and names restoring
+  the file and retrying `arc edit` (A9).
 - **Before the flip,** `unsupported` (§ 1.4).
 
 `arc edit` is not `arc editor`, which writes an editor's settings for projected files (`spec-projection-write-back.md`
@@ -573,12 +575,12 @@ file, and the first command whose check passes rebuilds the path from its file (
 `materialization-file.ts`). Each change a command makes at an archive path, whether a move into place or aside, a folder
 created, a mode changed, or a copy deleted, asks again just before it changes the path. A refusal there stops the work
 on that path: the path is left as a command stopped at that step leaves it, save `arc edit`'s write bit, whose refusal
-withdraws the opening it set (§ 3.3) (A6), and is reported with its remedy and left untouched for the rest of the
-command, which goes on with its other paths, as `arc save`'s re-lock and a fan-out's visit report each file they cannot
-finish (§ 6.3). Each later command's selection leaves it untouched while the refusal stands, and the first command after
-the repair settles it (`spec-projection-substrate.md` § 5.4) (A4). The removal check and the persist and release steps
-take the archive's work from one selection, the walk joined with every opened or unsettled archive entry, so a path the
-walk cannot see keeps its work.
+withdraws the opening it set unless the file is gone (§ 3.3) (A6, A9), and is reported with its remedy and left
+untouched for the rest of the command, which goes on with its other paths, as `arc save`'s re-lock and a fan-out's visit
+report each file they cannot finish (§ 6.3). Each later command's selection leaves it untouched while the refusal
+stands, and the first command after the repair settles it (`spec-projection-substrate.md` § 5.4) (A4). The removal check
+and the persist and release steps take the archive's work from one selection, the walk joined with every opened or
+unsettled archive entry, so a path the walk cannot see keeps its work.
 
 **A refresh's work at a refused path waits for the repair (A4).** A refresh whose planned change — a lay, a removal, or
 a move — is at a path the selection refuses leaves that change undone and counts itself incomplete, so it keeps the
@@ -643,14 +645,19 @@ ordered so a stop between them leaves a state the next command repairs:
   write, the store never accepted the save, so the journal is dropped and the opened edit is sent again; with one, the
   store did, so the acceptance is recorded from the retained input copy without a second submission, and a command that
   leaves the path untouched for its path check still records it (§ 8); a receipt naming more than one version, or a
-  history the store cannot read, holds the entry and reports why, until a later command finds one answer. The in-repo
-  implementation renders no provenance and answers no receipt. Without the journal, a stop after the store's acceptance
-  would leave the index behind the store with no way to tell an accepted save from an unsent one, and resending would
-  make a second version. On the routes § 4 leaves unjournaled, that is the residual of § 11 item 12 (A5).
+  history the store cannot read, holds the entry and reports why, until a later command finds one answer. An unfinished
+  recording whose retained input copy no longer matches the blob it names cannot be repaired, and the store already
+  holds what it accepted, so the recording ends and the file is withheld with the withheld remedy; once the file is
+  deleted, the next command lays the stored record (`completeWriteBackRecording`, `write-back-recording.ts`) (A8). The
+  in-repo implementation renders no provenance and answers no receipt. Without the journal, a stop after the store's
+  acceptance would leave the index behind the store with no way to tell an accepted save from an unsent one, and
+  resending would make a second version. On the routes § 4 leaves unjournaled, that is the residual of § 11 item 12
+  (A5).
 - **`arc edit`: the opened mark, then the write bit.** A stop between leaves an opened file still read-only, which
   `arc save` finds unchanged, lays read-only, and unmarks. The reverse order would leave a writable, unmarked file, a
   forced edit once changed. A refusal at the write bit because the path's folder or file changed after its inspection,
-  unlike a stop, withdraws the mark this invocation set (§ 3.3) (A6).
+  unlike a stop, withdraws the mark this invocation set; a file deleted since, or replaced by a symbolic link, leaves
+  the mark as a stop does (§ 3.3) (A6, A9).
 - **`arc save` over a landing: the store's acceptance, the read-back's swap, then the mark cleared.** A stop after the
   store accepts the write, before the swap, leaves the edited file and the write's recording, which the next command
   finishes (`spec-projection-write-back.md` § 7.1), laying the file read-only inside `arc save` and writable elsewhere;
@@ -1164,6 +1171,15 @@ it, so it answers no receipt, and `arc save` refuses there before any journal (�
 20. **A refused write bit withdraws the opening (A6).** `arc edit` whose write-bit change meets a folder that became a
     symbolic link or a nested checkout, or a file replaced since its inspection, refuses with its remedy and leaves the
     path unopened and read-only; after the repair, `arc edit` opens it.
+21. **A retained input that no longer matches withholds its file (A8).** An unfinished recording whose retained input
+    copy no longer matches its recorded bytes withholds the file with its remedy and leaves its bytes as they are; once
+    the file is deleted, the next command lays the stored record, which holds the accepted input, and the removal check
+    passes.
+22. **A refused write bit withdraws the opening unless the file is gone (A9).** `arc edit` whose write-bit change meets
+    a folder that became a symbolic link or a nested checkout, or a file replaced since its inspection by anything but a
+    symbolic link, refuses with its remedy and leaves the path unopened and read-only, opening it after the repair; one
+    that finds the file deleted, or replaced by a link, refuses with the remedy to restore the file and keeps the
+    opening.
 
 ## Open Questions
 
@@ -1186,5 +1202,9 @@ design open.
   _Trigger:_ arc-edit-refused-write-bit-withdrawal-unrecorded review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A7** — 2026-11-20 — design: A2 reaches § 2.1, § 9.1 and the Alternatives. _Supersedes:_ § 2.1 ¶6, Alternatives ¶4.
   _Trigger:_ take-in-archived-refusal-claim-stale-after-a2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A8** — 2026-11-20 — spec-depth: a retained input that no longer matches withholds its file. _Supersedes:_ none.
+  _Trigger:_ retained-input-mismatch-recovery-unactionable review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A9** — 2026-11-20 — design: a gone file stays opened. _Supersedes:_ § 3.3 ¶11, § 8 ¶2, § 9.1 ¶3, SC 20. _Trigger:_
+  a6-record-misstates-missing-or-linked-file-at-write-bit review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

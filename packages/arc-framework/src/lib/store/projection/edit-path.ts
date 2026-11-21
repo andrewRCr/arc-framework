@@ -5,7 +5,7 @@ import type { ProjectionIndex, RefusedMark, FileStat } from "./index-schema.js";
 import type { RecordReference } from "../identity.js";
 import type { Remedy } from "../refusal.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { archiveEditDestinationRefusal, archiveFileChangeMark, foreignCheckoutEditRefusal, readArchiveFile, sameArchiveFile,
+import { archiveEditDestinationRefusal, archiveFileChangeMark, readArchiveFile, sameArchiveFile, walkOutsideArchive,
   type ArchiveFileIdentity } from "./archive-file.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { gateRead } from "./read-gate.js";
@@ -24,7 +24,7 @@ export type ProjectionEditInspection = { readonly kind: "ready"; readonly entry:
  * its rights, so no remedy about the file leads to a refusal those would give.
  */
 export async function inspectProjectionEditPath(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionEditInspection> {
-  if (path === "") return refuse(folderOperandMark(path));
+  if (ARCHIVE_FOLDERS.has(path)) return refuse(folderOperandMark(path));
   const entry = index.entries[path];
   if (entry?.withheld) return refuse(isEvidenceHeldEntry(entry) ? evidenceHeldProjectionMark(path, root.checkout)
     : entry.refused ?? withheldProjectionMark(path, { checkout: root.checkout, known: entry.kind === "record" }));
@@ -61,16 +61,25 @@ function protectionInput(root: ProjectionRootState): ProjectionProtectionInput {
 }
 
 /**
- * A path outside the archive is never opened here: a nested checkout's file names that checkout, a deleted projected file
- * its restore, and every other the in-place edit.
+ * A path outside the archive is never opened here: a file in a nested checkout's own archive names that checkout, a
+ * deleted projected file its restore, and every other the in-place edit, including one whose folders or file refuse
+ * inspection, since answering needs no access to a path arc edit never opens.
  */
 async function outsideArchiveMark(root: ProjectionRootState, path: string, stored: boolean): Promise<RefusedMark> {
-  const foreign = foreignCheckoutEditRefusal(root.checkout, path);
-  if (foreign !== null) return foreign;
+  const outside = { reason: `${path} is outside this checkout's completed archive.`, remedy: { text: IN_PLACE } };
+  const walked = walkOutsideArchive(root.checkout, path);
+  if (walked !== null) return walked.kind === "foreign" ? walked.mark : outside;
   if (isExcludedProjectionPath(path)) return sideFileMark(path);
-  const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
-  return gate.kind === "absent" ? { reason: `No file exists at ${path}.`, remedy: absentRemedy(path, stored) }
-    : { reason: `${path} is outside this checkout's completed archive.`, remedy: { text: IN_PLACE } };
+  const gate = await gateRead({ path: join(root.checkout, path), markdown: false }).catch((error: unknown) => {
+    if (accessRefused(error)) return null;
+    throw error;
+  });
+  return gate?.kind === "absent" ? { reason: `No file exists at ${path}.`, remedy: absentRemedy(path, stored) } : outside;
+}
+
+function accessRefused(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "EACCES" || code === "EPERM";
 }
 
 /** What a path no record lays is, before its owner is asked: a side file, a path another checkout or a link holds, or a folder. */
@@ -122,10 +131,13 @@ const ARCHIVE_ONLY = "arc edit opens only files under .arc/completed/.";
 const IN_PLACE = `Edit an in-flight file in place; ${ARCHIVE_ONLY}`;
 const NO_OWNER = "Place the file in its existing archived work unit or Errand's folder, then retry arc edit.";
 
-/** A folder operand, the checkout itself included, names no one file to open. */
+/** The checkout's root and the folders holding the archive, which a resolved operand names without a trailing slash. */
+const ARCHIVE_FOLDERS: ReadonlySet<string> = new Set(["", ".arc", ".arc/completed"]);
+
+/** A folder operand names no one file to open; one outside the archive is pointed at a file inside it. */
 function folderOperandMark(path: string): RefusedMark {
   return { reason: `${path === "" ? "The checkout's root" : path} is a folder; arc edit opens one file.`,
-    remedy: { text: `Run arc edit on one file inside ${path === "" ? ".arc/completed/" : path}.` } };
+    remedy: { text: `Run arc edit on one file inside ${archived(`${path}/`) ? path : ".arc/completed/"}.` } };
 }
 
 function sideFileMark(path: string): RefusedMark {

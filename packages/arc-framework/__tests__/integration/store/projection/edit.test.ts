@@ -1,5 +1,5 @@
 /** Archive opening through the registered command preserves content and records intent before changing mode. */
-import { chmod, lstat, mkdir, readFile, stat, writeFile, rm, symlink, rename, utimes } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, realpath, stat, writeFile, rm, symlink, rename, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
@@ -11,10 +11,19 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, afterOpen: null as ((path: string) => Promise<void>) | null,
-  removeOnRead: null as string | null, timeOffset: 0, chmodError: null as string | null }));
+  removeOnRead: null as string | null, timeOffset: 0, chmodError: null as string | null,
+  /** Paths whose next stat alone is refused, as below a folder that denies access. */
+  denied: new Set<string>() }));
+function deniedStat(path: unknown): void {
+  if (typeof path !== "string" || !binding.denied.delete(path)) return;
+  throw Object.assign(new Error(`Access denied: ${path}`), { code: "EACCES" });
+}
 vi.mock("node:fs", async original => {
   const actual = await original<typeof import("node:fs")>();
-  return { ...actual, openSync: (...args: Parameters<typeof actual.openSync>) => {
+  return { ...actual, lstatSync: ((...args: Parameters<typeof actual.lstatSync>) => {
+    deniedStat(args[0]);
+    return actual.lstatSync(...args);
+  }) as typeof actual.lstatSync, openSync: (...args: Parameters<typeof actual.openSync>) => {
     if (args[0] === binding.removeOnRead && binding.removeOnRead !== null) {
       actual.rmSync(binding.removeOnRead);
       binding.removeOnRead = null;
@@ -24,7 +33,10 @@ vi.mock("node:fs", async original => {
 });
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+  return { ...actual, lstat: (async (...args: Parameters<typeof actual.lstat>) => {
+    deniedStat(args[0]);
+    return actual.lstat(...args);
+  }) as typeof actual.lstat, open: async (...args: Parameters<typeof actual.open>) => {
     const handle = await actual.open(...args);
     return new Proxy(handle, { get(target, key) {
       const code = binding.chmodError;
@@ -70,6 +82,7 @@ afterEach(async () => {
   binding.removeOnRead = null;
   binding.timeOffset = 0;
   binding.chmodError = null;
+  binding.denied.clear();
   await removeGitBackedDirs(directories.splice(0));
 });
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -175,6 +188,15 @@ it("leaves permissions alone when a folder link arrives after recording the open
   expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
 });
 
+it("answers a nested checkout's file outside its own archive with an in-place edit, not that checkout", async () => {
+  const h = await archived(), checkout = join(h.f.root, "linked"), path = "linked/notes-local.md";
+  await h.f.ports.exec("git", ["worktree", "add", "--detach", checkout], { cwd: h.f.root });
+  await writeFile(join(h.f.root, path), "Nested checkout's own notes.\n");
+  expect(await edit(h.f.store, h.f.root, path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: `${path} is outside this checkout's completed archive.`,
+    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." } } });
+});
+
 it("keeps a nested checkout's replacement read-only when it arrives after the opening is recorded", async () => {
   const h = await archived(), folder = join(h.f.root, h.folder), file = join(h.f.root, h.path);
   const original = `${folder}-original`, replacement = "The nested checkout owns these bytes.\n";
@@ -214,20 +236,26 @@ it("keeps an editor's replacement read-only until a new opening inspects it", as
   expect((await stat(file)).mode & 0o200).toBe(0o200);
 });
 
-it("reports how to retry when the file disappears after the opening is recorded", async () => {
-  const h = await archived(), file = join(h.f.root, h.path);
-  const bytes = await readFile(file);
-  binding.afterOpen = async () => { await rm(file); };
-  const refused = await edit(h.f.store, h.f.root, h.path);
-  expect(refused).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
-    condition: expect.stringContaining(h.path), remedy: { text: expect.stringContaining("retry arc edit") } } });
-  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
-    .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
-  binding.afterOpen = null;
-  await writeFile(file, bytes, { mode: 0o444 });
-  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
-  expect((await stat(file)).mode & 0o200).toBe(0o200);
-});
+it.each(["deleted", "replaced by a symbolic link"] as const)(
+  "keeps the opening and reports how to retry when the file is %s after the opening is recorded", async change => {
+    const h = await archived(), file = join(h.f.root, h.path), held = `${file}-held`;
+    const bytes = await readFile(file);
+    binding.afterOpen = async () => {
+      if (change === "deleted") await rm(file);
+      else { await rename(file, held); await symlink(held, file); }
+    };
+    expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+      condition: `${h.path} is no longer a regular file.`,
+      remedy: { text: "Restore the regular file and retry arc edit; its opened intent is retained." } } });
+    expect(await readProjectionIndex(h.projected.location, true, { groups: "all" }))
+      .toMatchObject({ kind: "index", index: { entries: { [h.path]: { opened: true } } } });
+    if (change !== "deleted") expect((await stat(held)).mode & 0o200).toBe(0);
+    binding.afterOpen = null;
+    if (change === "deleted") await writeFile(file, bytes, { mode: 0o444 });
+    else { await rm(file); await rename(held, file); }
+    expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+    expect((await stat(file)).mode & 0o200).toBe(0o200);
+  });
 
 it.each(["outside", "missing-new", "side-file", "symlink", "missing-stored"] as const)(
   "refuses a %s path with a remedy and opens once the path is repaired", async kind => {
@@ -550,14 +578,34 @@ it.each([true, false])("refuses in-flight metadata with its own editing remedy, 
   expect(await edit(correction.f.store, correction.f.root, correction.path)).toMatchObject({ status: "ok" });
 });
 
-it.each(["folder", "root"] as const)("refuses a %s operand as naming no one file and opens a file inside it", async kind => {
-  const h = await archived();
-  const refused = await edit(h.f.store, h.f.root, kind === "folder" ? h.folder : ".");
-  expect(refused).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
-    condition: expect.stringContaining("is a folder; arc edit opens one file"),
-    remedy: { text: `Run arc edit on one file inside ${kind === "folder" ? h.folder : ".arc/completed/"}.` } } });
-  expect((await lstat(join(h.f.root, h.folder))).isDirectory()).toBe(true);
-  expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+it.each(["work unit folder", "checkout root", "archive folder", "state folder"] as const)(
+  "refuses the %s as an operand naming no one file and opens a file inside it", async kind => {
+    const h = await archived();
+    const cases: Readonly<Record<typeof kind, readonly [string, string]>> = {
+      "work unit folder": [h.folder, h.folder], "checkout root": [".", ".arc/completed/"],
+      "archive folder": [".arc/completed/", ".arc/completed"], "state folder": [".arc", ".arc/completed/"],
+    };
+    const [operand, inside] = cases[kind];
+    const refused = await edit(h.f.store, h.f.root, operand);
+    expect(refused).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+      condition: expect.stringContaining("is a folder; arc edit opens one file"),
+      remedy: { text: `Run arc edit on one file inside ${inside}.` } } });
+    expect((await lstat(join(h.f.root, h.folder))).isDirectory()).toBe(true);
+    expect(await edit(h.f.store, h.f.root, h.path)).toMatchObject({ status: "ok" });
+  });
+
+it.each(["folder", "file"] as const)("answers a path outside the archive whose %s refuses access with an in-place edit", async refusing => {
+  const h = await archived(), path = ".arc/active/private/notes.md", root = await realpath(h.f.root);
+  await mkdir(join(root, ".arc/active/private"), { recursive: true });
+  await writeFile(join(root, path), "In-flight prose.\n");
+  // A folder that denies access refuses both the walk's look for a nested checkout and the file's own stat.
+  const denied = refusing === "folder" ? [join(root, ".arc/active/private/.git"), join(root, path)] : [join(root, path)];
+  expect(await edit(h.f.store, h.f.root, path, program => { program.hook("preAction", () => {
+    for (const each of denied) binding.denied.add(each);
+  }); })).toMatchObject({ status: "refused", refusal: { code: "edit-refused",
+    condition: `${path} is outside this checkout's completed archive.`,
+    remedy: { text: "Edit an in-flight file in place; arc edit opens only files under .arc/completed/." } } });
+  expect(binding.denied.has(join(root, path))).toBe(refusing === "folder");
 });
 
 it.each(["saving", "misspelled"] as const)("answers a %s path outside the archive with an in-place edit, never a retry", async kind => {

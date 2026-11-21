@@ -35,7 +35,7 @@ export async function holdWaitingArchiveEdit(root: ProjectionRootState, request:
   if (recording !== null && await holdsAcceptedInput(root, request, persisted?.read, recording.blob)) return null;
   let entry = request.entry;
   if (recording !== null) {
-    const finished = await finishAcceptedRecording(root.context, entry);
+    const finished = await finishAcceptedRecording(root.context, entry, { checkout: root.checkout, path: request.path });
     if (finished.mark !== undefined) {
       root.unsent.add(request.path);
       root.context.report?.({ path: request.path, copy: request.copy, mark: finished.mark });

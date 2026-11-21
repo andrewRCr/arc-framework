@@ -34,7 +34,7 @@ export async function checkUnchangedProjectionEdit(root: ProjectionRootState, in
   } | null> {
   const completing = entry.opened === true && entry.persisted?.recording === true;
   if (completing) {
-    const completed = await completeWriteBackRecording(root.context, entry);
+    const completed = await completeWriteBackRecording(root.context, entry, { checkout: root.checkout, path });
     entry = completed.mark === undefined ? completed.entry : { ...completed.entry, pending: true, refused: completed.mark };
     index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
       index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
